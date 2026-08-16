@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import type { SessionRecord } from '@shared/types';
+
+import { useOnVisible } from '@/hooks/use-on-visible';
 
 import { caxri } from '../../lib/caxri';
 import { useSelectedSession } from '../../stores/selectors';
@@ -32,9 +34,15 @@ function currentVisibility(): AttentionVisibility {
  */
 export function useSessionAttentionAcknowledgement(): void {
     const session = useSelectedSession();
-    useEffect(() => {
-        if (!session?.hasUnread) return;
-        let isPending = false;
+    const isPendingReference = useRef(false);
+
+    const acknowledge = useCallback((): void => {
+        if (
+            isPendingReference.current ||
+            !shouldAcknowledgeSessionAttention(session, currentVisibility())
+        )
+            return;
+        isPendingReference.current = true;
         const acknowledgeAsync = async (): Promise<void> => {
             try {
                 await caxri.request('session.markRead', {
@@ -45,24 +53,20 @@ export function useSessionAttentionAcknowledgement(): void {
                 /**
                  * Runtime recovery or the next focus event can safely retry the same generation.
                  */
-                isPending = false;
+                isPendingReference.current = false;
             }
         };
-        const acknowledge = (): void => {
-            if (isPending || !shouldAcknowledgeSessionAttention(session, currentVisibility()))
-                return;
-            isPending = true;
-            // Fire-and-forget: failures reset `isPending` above so the next focus/visibility event
-            // retries; there is nothing left for this handler to await.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void acknowledgeAsync();
-        };
-        acknowledge();
-        window.addEventListener('focus', acknowledge);
-        document.addEventListener('visibilitychange', acknowledge);
-        return () => {
-            window.removeEventListener('focus', acknowledge);
-            document.removeEventListener('visibilitychange', acknowledge);
-        };
+        // Fire-and-forget: failures reset `isPendingReference` above so the next focus/visibility
+        // event retries; there is nothing left for this handler to await.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void acknowledgeAsync();
     }, [session]);
+
+    useEffect(() => {
+        if (!session?.hasUnread) return;
+        isPendingReference.current = false;
+        acknowledge();
+    }, [session, acknowledge]);
+
+    useOnVisible(acknowledge);
 }

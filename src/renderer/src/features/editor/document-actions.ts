@@ -1,3 +1,4 @@
+import { pathBasename } from '@caxri/utils';
 import type { EditorTabCloseMode } from '@shared/editor-state';
 import {
     editorTabPathsToClose,
@@ -10,6 +11,7 @@ import { isGitDiffTabPath } from '@shared/git-diff';
 import type { SessionState } from '@shared/types';
 import type { WorkItem } from '@shared/work-item';
 import { activateWorkState, resolveActiveWork } from '@shared/work-item';
+import { clamp } from 'es-toolkit';
 
 import { caxri } from '../../lib/caxri';
 import { isPathAtOrBelow, remapPath } from '../../lib/file-path';
@@ -32,8 +34,6 @@ import { patchSessionState, persistSessionState, useWorkbenchStore } from '../..
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 
 const fileOpenIntentState = { current: 0 };
-
-const fileName = (path: string): string => path.split('/').findLast(Boolean) ?? path;
 
 interface PendingDocumentOperation {
     discarded: boolean;
@@ -332,7 +332,9 @@ async function didConfirmDirtyEditorCloses(
         // Intentionally sequential: macOS only ever shows one modal "Do you want to save…" sheet, so
         // each confirmation must resolve before the next one is requested.
         // eslint-disable-next-line no-await-in-loop -- intentional sequential await, see comment above
-        const { choice } = await caxri.request('editor.confirmDiscard', { name: fileName(path) });
+        const { choice } = await caxri.request('editor.confirmDiscard', {
+            name: pathBasename(path),
+        });
         if (choice === 'cancel') return false;
         // Intentionally sequential: a bulk close must never end up half applied, so each save
         // completes before the next tab is confirmed.
@@ -359,7 +361,7 @@ function applyEditorTabClose(
     const targetIndex = current.openTabs.findIndex((tab) => tab.path === targetPath);
     const fallbackPath =
         openTabs.find((tab) => tab.path === targetPath)?.path ??
-        openTabs[Math.min(Math.max(targetIndex, 0), openTabs.length - 1)]?.path;
+        openTabs[clamp(targetIndex, 0, openTabs.length - 1)]?.path;
     const sessionTerminals = getSessionTerminals();
     const nextItem: WorkItem | undefined = fallbackPath
         ? { kind: 'editor', path: fallbackPath }
@@ -550,7 +552,7 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
         patchSessionState({ ...current, openTabs });
         return;
     }
-    const fallbackPath = openTabs[Math.min(firstClosingIndex, openTabs.length - 1)]?.path;
+    const fallbackPath = openTabs[clamp(firstClosingIndex, openTabs.length - 1)]?.path;
     // `.at(0)` (rather than `[0]`) keeps the possibly-empty array's `undefined` case in the type, since this project
     // does not enable `noUncheckedIndexedAccess`.
     const terminal = sessionTerminals.at(0);

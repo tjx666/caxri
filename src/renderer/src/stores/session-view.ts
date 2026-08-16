@@ -5,6 +5,7 @@ import { setSessionDocument } from '@shared/editor-state';
 import type { InspectorMode } from '@shared/types';
 import type { WorkItem } from '@shared/work-item';
 import { activateWorkState, resolveActiveWork } from '@shared/work-item';
+import { omit, omitBy } from 'es-toolkit';
 import { create } from 'zustand';
 
 import { isPathAtOrBelow, remapPath } from '../lib/file-path';
@@ -101,18 +102,18 @@ function evictExcess(
         ...recent.filter((path) => Object.hasOwn(documents, path)),
     ];
     if (cached.length <= MAX_CACHED_DOCUMENTS_PER_SESSION) return { documents, recent: cached };
-    const remaining = { ...documents };
+    const dropped: string[] = [];
     const kept: string[] = [];
     let excess = cached.length - MAX_CACHED_DOCUMENTS_PER_SESSION;
     for (const path of cached) {
-        if (excess > 0 && !remaining[path].dirty) {
-            delete remaining[path];
+        if (excess > 0 && !documents[path].dirty) {
+            dropped.push(path);
             excess -= 1;
             continue;
         }
         kept.push(path);
     }
-    return { documents: remaining, recent: kept };
+    return { documents: omit(documents, dropped), recent: kept };
 }
 
 function retainedBytes(document: EditorDocument): number {
@@ -150,9 +151,9 @@ function evictToGlobalBudget(
     const nextRecent = { ...recentDocuments };
     for (const candidate of cleanCandidates) {
         if (total <= MAX_CACHED_DOCUMENT_BYTES_GLOBAL) break;
-        const sessionDocuments = { ...nextDocuments[candidate.sessionId] };
-        delete sessionDocuments[candidate.path];
-        nextDocuments[candidate.sessionId] = sessionDocuments;
+        nextDocuments[candidate.sessionId] = omit(nextDocuments[candidate.sessionId], [
+            candidate.path,
+        ]);
         nextRecent[candidate.sessionId] = (nextRecent[candidate.sessionId] ?? []).filter(
             (path) => path !== candidate.path,
         );
@@ -248,8 +249,7 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         set((state) => {
             const cached = readScopedDocuments(state.documents, scope);
             if (!cached || !Object.hasOwn(cached, path)) return state;
-            const remaining = { ...cached };
-            delete remaining[path];
+            const remaining = omit(cached, [path]);
             return {
                 documents: { ...state.documents, [scope]: remaining },
                 recentDocuments: {
@@ -266,9 +266,12 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
             const cached = readScopedDocuments(state.documents, scope);
             if (!cached || Object.keys(cached).every((value) => !isPathAtOrBelow(value, path)))
                 return state;
-            const remaining = Object.fromEntries(
-                Object.entries(cached).filter(([value]) => !isPathAtOrBelow(value, path)),
-            );
+            // `omitBy`'s type signature returns `Partial<T>` even though it only ever removes keys
+            // and never introduces `undefined` values, so the result is safe to narrow back to `T`.
+            const remaining = omitBy(cached, (_value, key) => isPathAtOrBelow(key, path)) as Record<
+                string,
+                EditorDocument
+            >;
             return {
                 documents: { ...state.documents, [scope]: remaining },
                 recentDocuments: {
@@ -311,14 +314,16 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     dropSessions(sessionIds) {
         const removed = new Set(sessionIds);
         if (removed.size === 0) return;
+        /**
+         * `omitBy`'s type signature returns `Partial<T>` even though it only ever removes keys and never introduces
+         * `undefined` values, so the result is safe to narrow back to `Record<string, T>`.
+         */
         const without = <T>(record: Record<string, T>): Record<string, T> =>
-            Object.fromEntries(
-                Object.entries(record).filter(([key]) =>
-                    [...removed].every(
-                        (sessionId) => !(key === sessionId || key.startsWith(`${sessionId}\0`)),
-                    ),
+            omitBy(record, (_value, key) =>
+                [...removed].some(
+                    (sessionId) => key === sessionId || key.startsWith(`${sessionId}\0`),
                 ),
-            );
+            ) as Record<string, T>;
         set((state) => ({
             activeWork: without(state.activeWork),
             documents: without(state.documents),

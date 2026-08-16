@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer } from 'react';
 
+import { pathBasename } from '@caxri/utils';
 import type { MethodResult } from '@shared/ipc';
 import { errorMessage } from '@shared/ipc';
 
@@ -28,16 +29,14 @@ interface ReportSource {
 
 const EMPTY_DRAFT: BugReportDraft = { actual: '', expected: '', steps: '' };
 
-function basename(path: string): string {
-    return path.split(/[\\/]/).findLast(Boolean) ?? 'file';
-}
-
 function visibleWorkContext(): BugReportContext['visibleWork'] {
     const bootstrap = getBootstrap();
     const activeWork = getResolvedActiveWork();
     if (!activeWork) return { kind: 'none' };
     if (activeWork.kind === 'editor')
-        return { kind: 'editor', fileName: basename(activeWork.path) };
+        // `pathBasename` falls back to its raw input (not 'file') when no non-empty segment exists,
+        // e.g. an empty string; keep the original 'file' fallback for that case at this call site.
+        return { kind: 'editor', fileName: pathBasename(activeWork.path) || 'file' };
     const terminal = bootstrap?.terminals.find((item) => item.id === activeWork.terminalId);
     if (!terminal) return { kind: 'none' };
     return { kind: 'terminal', provider: terminal.provider, terminalId: terminal.id };

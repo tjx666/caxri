@@ -1,6 +1,7 @@
 import type { DragEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
+import { pathBasename } from '@caxri/utils';
 import { FilePlus, FolderPlus, Search, SquareMinus } from 'lucide-react';
 
 import { executeCommand } from '../../../../commands/execute';
@@ -165,6 +166,10 @@ export function FileTreePanel() {
         if (moved) setSelectedPath(moved.path);
     };
 
+    // `pathBasename` falls back to its input when no non-empty segment exists (e.g. `/`), but this
+    // caption must stay blank for a root path with no name to show instead of echoing the separators.
+    const rootPathCaption = /^[\\/]*$/.test(session.rootPath) ? '' : pathBasename(session.rootPath);
+
     const tree = (
         <div
             role="tree"
@@ -206,7 +211,7 @@ export function FileTreePanel() {
                 className="panel-caption group/file-caption flex min-h-[34px] items-center justify-between gap-1 border-b border-border pt-[3px] pr-1 pb-[3px] pl-2 text-[11px] text-muted"
             >
                 <span className="truncate" title={session.rootPath}>
-                    {project?.displayTitle ?? session.rootPath.split('/').findLast(Boolean) ?? ''}
+                    {project?.displayTitle ?? rootPathCaption}
                 </span>
                 <span className="flex items-center gap-0.5">
                     <Tooltip content="New File">

@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 
+import { pathBasename } from '@caxri/utils';
 import { markTabsClean, replaceWithExternalDocument } from '@shared/editor-state';
 import { isGitDiffTabPath } from '@shared/git-diff';
 import type { FileDocument } from '@shared/types';
+import { uniq } from 'es-toolkit';
 
 import { caxri } from '../../lib/caxri';
 import { getSelectedSession, getSessionState, selectSelectedSession } from '../../stores/selectors';
@@ -11,8 +13,6 @@ import { pushToast } from '../../stores/toasts';
 import { patchSessionState, useWorkbenchStore } from '../../stores/workbench';
 import { useFileOperationStore } from '../inspector/panels/files/file-operation-state';
 import { ExternalSyncDeferral } from './external-sync-deferral';
-
-const fileName = (path: string): string => path.split('/').findLast(Boolean) ?? path;
 
 function isChangedOnDisk(cached: FileDocument, current: FileDocument): boolean {
     return cached.mtimeMs !== current.mtimeMs || cached.size !== current.size;
@@ -71,7 +71,7 @@ function applyExternalDocuments(
     pushToast(
         'info',
         reloaded.length === 1
-            ? `${fileName(reloaded[0].path)} reloaded from disk; external changes take precedence.`
+            ? `${pathBasename(reloaded[0].path)} reloaded from disk; external changes take precedence.`
             : `${reloaded.length} open files reloaded from disk; external changes take precedence.`,
         { persist: true },
     );
@@ -80,7 +80,7 @@ function applyExternalDocuments(
 async function syncFilesChanged(sessionId: string, changedPaths: readonly string[]): Promise<void> {
     const workbenchProjectId = getSelectedSession()?.workbenchProjectId;
     if (!workbenchProjectId) return;
-    const uniquePaths = [...new Set(changedPaths)];
+    const uniquePaths = uniq(changedPaths);
     if (uniquePaths.length === 0) return;
     const documents = await readDocuments(sessionId, uniquePaths);
     const cached = getSessionDocuments(sessionId, workbenchProjectId) ?? {};

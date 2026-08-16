@@ -1,3 +1,4 @@
+import { pathBasename } from '@caxri/utils';
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
 import { SquareDashed } from 'lucide-react';
 
@@ -14,21 +15,13 @@ import { useDialogStore } from '../../stores/dialogs';
 import { useProjects } from '../../stores/selectors';
 import { cancelPendingSession, confirmPendingSession } from './session-actions';
 
-/**
- * Mirrors the Runtime's own `basename(rootPath) || rootPath` Project title derivation
- * (`src/runtime/db/models/projects.ts`) so a not-yet-created Project previews the same friendly name it will get once
- * `project.create` persists it, instead of the raw absolute path. The Renderer cannot import Node's `path` module, so
- * this is a small POSIX/Windows-separator split.
- */
-function pathBasename(path: string): string {
-    return path.split(/[\\/]/).findLast(Boolean) ?? path;
-}
-
 export function CreateSessionDialog() {
     const pendingRoot = useDialogStore((state) => state.pendingRoot);
     const pendingProjectId = useDialogStore((state) => state.pendingProjectId);
     const projects = useProjects();
     const isOpen = Boolean(pendingRoot ?? pendingProjectId);
+    // Mirrors the Runtime's Project-title derivation (`basename(rootPath)` in src/runtime/db/models/projects.ts) so
+    // the dialog previews the same title the created Project will get.
     const contextLabel = pendingRoot
         ? pathBasename(pendingRoot)
         : projects?.find((project) => project.id === pendingProjectId)?.displayTitle;
