@@ -97,8 +97,7 @@
                     "scripts/run-e2e-pools.ts"
                 ],
                 "ignore": [
-                    ".agents/skills/deep-review/scripts/vitest.config.ts",
-                    "prettier.config.d.mts"
+                    ".agents/skills/deep-review/scripts/vitest.config.ts"
                 ]
             },
             "packages/cli": {

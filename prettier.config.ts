@@ -1,4 +1,5 @@
 import sharedPrettierConfig from '@yutengjing/prettier-config';
+import type { Config } from 'prettier';
 
 /**
  * `@yutengjing/prettier-config`'s published API (v2.0.0) is a static default-exported config object, not a
@@ -7,8 +8,15 @@ import sharedPrettierConfig from '@yutengjing/prettier-config';
  * `node_modules/@yutengjing/prettier-config/index.js`). Tailwind-specific options aren't part of that factory surface,
  * so they're layered on here instead.
  */
-export default {
+const prettierConfig: Config & {
+    tailwindFunctions?: string[];
+    tailwindStylesheet?: string;
+} = {
     ...sharedPrettierConfig,
     tailwindFunctions: ['cn', 'cva'],
     tailwindStylesheet: './src/renderer/src/styles/theme.css',
 };
+
+// Prettier's config loader contract requires a default export.
+
+export default prettierConfig;
