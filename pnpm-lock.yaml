@@ -93,6 +93,9 @@ importers:
       '@base-ui/react':
         specifier: 1.6.0
         version: 1.6.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@caxri/utils':
+        specifier: workspace:*
+        version: link:packages/utils
       '@electron-toolkit/tsconfig':
         specifier: 2.0.0
         version: 2.0.0(@types/node@26.1.2)
@@ -183,6 +186,9 @@ importers:
       electron-vite:
         specifier: 6.0.0-beta.1
         version: 6.0.0-beta.1(supports-color@7.2.0)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+      es-toolkit:
+        specifier: 1.50.0
+        version: 1.50.0
       eslint:
         specifier: 10.8.1
         version: 10.8.1(jiti@2.7.0)(supports-color@7.2.0)
@@ -279,6 +285,8 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.4.3
+
+  packages/utils: {}
 
 packages:
 
@@ -3483,6 +3491,9 @@ packages:
   es-set-tostringtag@2.1.0:
     resolution: {integrity: sha512-j6vWzfrGVfyXxge+O0x5sh6cvxAog0a/4Rdd2K36zCMV5eJ+/+tOAngRO8cODMNWbVRdVlmGZQL2YS3yR8bIUA==}
     engines: {node: '>= 0.4'}
+
+  es-toolkit@1.50.0:
+    resolution: {integrity: sha512-OyZKhUVvEep9ITEiwHn8GKnMRQIVqoSIX7WnRbkWgJkllCujilqP2rD0u979tkl8wqyc8ICwlc1UBVv/Sl1G6w==}
 
   es6-error@4.1.1:
     resolution: {integrity: sha512-Um/+FxMr9CISWh0bi5Zv0iOD+4cFh5qLeks1qhAopKVAJw3drgKbKySikp7wGhDL0HPeaja0P5ULZrxLkniUVg==}
@@ -8541,6 +8552,8 @@ snapshots:
       get-intrinsic: 1.3.0
       has-tostringtag: 1.0.2
       hasown: 2.0.4
+
+  es-toolkit@1.50.0: {}
 
   es6-error@4.1.1:
     optional: true

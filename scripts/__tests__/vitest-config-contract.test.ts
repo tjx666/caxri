@@ -6,6 +6,7 @@ import {
     protocolTestFiles,
     resolveVitestPartition,
     testProjectNames,
+    utilitiesTestFiles,
 } from '../../vitest.config';
 
 const SAFE_FILE_TESTS = [
@@ -24,14 +25,16 @@ describe('Vitest project partition', () => {
         expect(desktopTestFiles).toContain('.agents/skills/**/scripts/__tests__/*.test.ts');
     });
 
-    it('owns Desktop and workspace tests in four named projects', () => {
+    it('owns Desktop and workspace tests in five named projects', () => {
         expect(testProjectNames).toEqual([
             'desktop-parallel',
             'desktop-serial-native',
             'protocol',
+            'utils',
             'cli',
         ]);
         expect(protocolTestFiles).toEqual(['packages/protocol/src/**/*.test.ts']);
+        expect(utilitiesTestFiles).toEqual(['packages/utils/src/**/*.test.ts']);
         expect(cliTestFiles).toEqual(['packages/cli/{scripts,src}/**/*.test.ts']);
     });
 
