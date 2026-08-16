@@ -35,7 +35,7 @@ import { isRowModified, isRowResettable, withProviderField } from './settings-va
 import { StringControl } from './string-control';
 import { TrustedDomainsForm } from './trusted-domains-form';
 
-export interface SettingRowHandlers {
+interface SettingRowHandlers {
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
     onArgvConfigChange: (changes: ArgvConfigChanges) => void;
     onResetRow: (row: SettingRowDescriptor) => void;

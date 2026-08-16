@@ -13,7 +13,6 @@ import { keybindingSchema } from './types';
  */
 export {
     appSettingsFileSchema,
-    appSettingsSchema,
     defaultAppSettings,
 } from '../../packages/protocol/src/configuration/settings-schema';
 export type {
@@ -26,7 +25,6 @@ export type {
 } from '../../packages/protocol/src/configuration/settings-spec';
 export {
     settingCategories,
-    settingsSpec,
     settingsSpecByKey,
 } from '../../packages/protocol/src/configuration/settings-spec';
 
