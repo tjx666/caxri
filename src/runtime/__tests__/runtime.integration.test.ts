@@ -406,7 +406,7 @@ describe('Runtime composition root', () => {
         const firstRoot = join(directory, 'first');
         const secondRoot = join(directory, 'second');
         await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
-        const evict = vi.spyOn(GitService.prototype, 'evictPullRequestSessions');
+        const evict = vi.spyOn(GitService.prototype, 'evictSessions');
         const clear = vi.spyOn(GitService.prototype, 'close');
         const runtime = await createRuntime({
             userDataPath,

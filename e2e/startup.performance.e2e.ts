@@ -149,6 +149,20 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const terminalSpawn = records.findLast((record) => record.event === 'pty.spawned');
         const fileList = records.findLast((record) => record.event === 'file.list');
         const gitCommand = records.findLast((record) => record.event === 'git.command');
+        // The three-second Git gate covers the whole summary production (discovery + status +
+        // numstat wall time and command count), not the last individual `git.command` record.
+        const gitSummaries = records.filter(
+            (record) => record.event === 'git.summary' && record.fields?.outcome === 'fresh',
+        );
+        const gitSummary = gitSummaries.at(-1);
+        /**
+         * Only the cold summary is guaranteed to spawn Git commands; a later fresh production can legitimately report
+         * zero when the topology registry and status snapshot are warm.
+         */
+        const coldGitSummary = gitSummaries[0];
+        const gitSummariesJoined = records.filter(
+            (record) => record.event === 'git.summary' && record.fields?.outcome === 'joined',
+        ).length;
         const windowReady = mainRecords.findLast(
             (record) => record.event === 'window.ready_to_show',
         );
@@ -192,6 +206,13 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
                 gitCommand?.durationMs === undefined
                     ? undefined
                     : Math.round(gitCommand.durationMs * 100) / 100,
+            gitSummaryMs:
+                gitSummary?.durationMs === undefined
+                    ? undefined
+                    : Math.round(gitSummary.durationMs * 100) / 100,
+            gitSummaryCommandCount: coldGitSummary?.fields?.commandCount,
+            gitSummariesFresh: gitSummaries.length,
+            gitSummariesJoined,
             windowReadyMs:
                 windowReady?.durationMs === undefined
                     ? undefined
@@ -220,7 +241,11 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expectTimedEvent(runtimeBoot);
         expectTimedEvent(terminalSpawn);
         expectTimedEvent(fileList);
-        expectTimedEvent(gitCommand);
+        // Every fresh summary production across cold start and restore stays under the gate; a
+        // joined/coalesced consumer never spawns its own command chain so only `fresh` is timed.
+        expect(gitSummaries.length).toBeGreaterThan(0);
+        for (const summaryRecord of gitSummaries) expectTimedEvent(summaryRecord);
+        expect(Number(coldGitSummary?.fields?.commandCount)).toBeGreaterThan(0);
         expectTimedEvent(windowReady);
         expect(watcherReady?.fields?.backend).toMatch(/^(fs-events|poll)$/);
         expect(inputThroughput?.fields?.inputBytes).toBeGreaterThan(0);

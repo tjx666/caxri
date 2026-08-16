@@ -46,7 +46,7 @@ export async function createRootServices({ logger, send, userDataPath }: Runtime
     await config.initialize();
     database.setAppState('activeThemeId', config.getTheme().value.id);
 
-    const git = new GitService(new ProjectRootResolver(database), logger);
+    const git = new GitService(new ProjectRootResolver(database), logger, { emit: send });
     const workbenchRoots = new WorkbenchRootService({
         behavior: () => config.getSettings().value['workbench.newWorktreeBehavior'],
         database,
@@ -56,7 +56,14 @@ export async function createRootServices({ logger, send, userDataPath }: Runtime
     });
     const files = new FileService(
         database,
-        send,
+        (event) => {
+            /**
+             * The Git domain observes working-tree changes before the Renderer sees them, so the repository generations
+             * behind `git.changed` always advance ahead of any refetch.
+             */
+            if (event.event === 'files.changed') git.observeFilesChanged(event.payload);
+            send(event);
+        },
         logger,
         () => config.getSettings().value['files.maxFileBytes'],
         {

@@ -30,6 +30,7 @@ import {
     gitCommitDetailsSchema,
     gitCommitPageSchema,
     gitDiffDocumentSchema,
+    gitOverviewSchema,
     gitPullRequestChangesSchema,
     gitSummarySchema,
     identifierSchema,
@@ -530,8 +531,20 @@ export const methods = {
     },
     'git.summary': {
         ...hostRead,
-        params: z.object({ sessionId: identifierSchema }),
+        params: z.object({
+            sessionId: identifierSchema,
+            /**
+             * Monotonic user-refresh nonce. A changed value forces the producer to request the newest repository
+             * generation instead of joining a cached snapshot.
+             */
+            refresh: z.number().int().nonnegative().default(0),
+        }),
         result: gitSummarySchema,
+    },
+    'git.overview': {
+        ...hostRead,
+        params: z.object({ sessionId: identifierSchema }),
+        result: gitOverviewSchema,
     },
     'git.branches': {
         ...hostRead,

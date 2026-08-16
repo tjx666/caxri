@@ -12,13 +12,16 @@ function repo(sessionId: string, repoId: string): GitRepoSummary {
         ahead: 0,
         behind: 0,
         branch: 'feature/cache',
+        changedFileCount: 0,
         deletions: 0,
         files: [],
+        generation: 0,
         head: HEAD_OID,
         id: repoId,
         kind: 'primary',
         name: repoId,
         rootPath: `/repository/${sessionId}/${repoId}`,
+        truncated: false,
     };
 }
 

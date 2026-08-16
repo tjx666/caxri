@@ -31,6 +31,7 @@ export const hostForwardedMethods = [
     'git.commitDetails',
     'git.commits',
     'git.diffDocument',
+    'git.overview',
     'git.pullRequestChanges',
     'git.pullRequestDiffDocument',
     'git.summary',
