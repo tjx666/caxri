@@ -26,7 +26,7 @@ export const DUPLICATE_WINDOW_MS = 30_000;
  * throughput alone must not grow Host memory inside one TTL window. Capacity eviction only lowers the dedup hit rate;
  * it never changes delivery semantics.
  */
-export const MAX_DUPLICATES = MAX_RECEIPTS;
+export const MAX_DUPLICATES = 4_096;
 export const LOOP_WINDOW_MS = 5 * 60 * 1_000;
 export const MAX_PAIR_MESSAGES_PER_WINDOW = 16;
 export const MAX_REPLY_DEPTH = 8;
