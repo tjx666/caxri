@@ -198,8 +198,7 @@ jobs:
           github.event_name == 'push' &&
           github.ref == 'refs/heads/main' &&
           github.actor == 'tjx666' &&
-          github.triggering_actor == 'tjx666' &&
-          startsWith(github.event.head_commit.message, 'release: v')
+          github.triggering_actor == 'tjx666'
         )
       )
     runs-on: [self-hosted, macOS, ARM64, caxri-e2e]
@@ -213,7 +212,7 @@ jobs:
           || github.event_name == 'workflow_dispatch'
           && 'trusted tjx666 validation dispatch'
           || github.event_name == 'push'
-          && 'trusted tjx666 release commit'
+          && 'trusted tjx666 main push'
           || 'unreachable untrusted event' }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
@@ -221,7 +220,6 @@ jobs:
     steps:
       - name: Verify self-hosted trust boundary
         env:
-          EVENT_HEAD_MESSAGE: ${{ github.event.head_commit.message }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
@@ -234,7 +232,6 @@ jobs:
             test "$PR_AUTHOR" = tjx666
           elif [[ "$EVENT_NAME" == push ]]; then
             test "$GITHUB_REF" = refs/heads/main
-            [[ "$EVENT_HEAD_MESSAGE" == "release: v"* ]]
           else
             test "$EVENT_NAME" = workflow_dispatch
           fi

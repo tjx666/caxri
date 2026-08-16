@@ -85,21 +85,38 @@ describe('CI execution plan', () => {
         ).toMatchObject({ checksScope: 'full', runE2E: true });
     });
 
-    it('runs ordinary main without E2E and exact release commits with E2E', () => {
+    it('runs source main pushes with optimized E2E and release commits with the control suite', () => {
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: ['src/main/index.ts'],
                 eventName: 'push',
                 isReleaseCommit: false,
             }),
-        ).toMatchObject({ checksScope: 'full', runE2E: false });
+        ).toMatchObject({ checksScope: 'full', e2eProfile: 'optimized', runE2E: true });
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: ['package.json'],
                 eventName: 'push',
                 isReleaseCommit: true,
             }),
-        ).toMatchObject({ checksScope: 'full', runE2E: true });
+        ).toMatchObject({ checksScope: 'full', e2eProfile: 'control', runE2E: true });
+    });
+
+    it('skips E2E only for documentation or skill-only main pushes and fails closed on empty deltas', () => {
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: ['docs/quality-toolchain.md', '.agents/skills/go/SKILL.md'],
+                eventName: 'push',
+                isReleaseCommit: false,
+            }),
+        ).toMatchObject({ checksScope: 'full', runE2E: false });
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: [],
+                eventName: 'push',
+                isReleaseCommit: false,
+            }),
+        ).toMatchObject({ runE2E: true });
     });
 
     it('keeps eligible retry modes on macOS while skipping Linux checks', () => {
