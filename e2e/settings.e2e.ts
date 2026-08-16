@@ -5,7 +5,7 @@ import process from 'node:process';
 
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
-import { launchCaxri, pageRequest } from './support/helpers.ts';
+import { launchCaxri, pageRequest, revealSettingsSection } from './support/helpers.ts';
 
 /**
  * The Monaco container for a config kind, located by `data-config-source` rather than by accessible name.
@@ -60,8 +60,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             ]);
         expect(tokenColors.length).toBeGreaterThan(1);
         await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
-        await expect(dialog.locator('[data-slot="input"]')).toHaveCount(7);
-        await expect(dialog.locator('[data-slot="textarea"]')).toHaveCount(2);
+        await expect(dialog.getByLabel('Search settings')).toBeVisible();
         const defaultAgent = dialog.getByRole('combobox', {
             name: 'Default agent for new sessions',
         });
@@ -84,32 +83,37 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             ),
         );
         await running.page.keyboard.press('Escape');
+
+        // Rows outside the viewport are not in the DOM (virtual rendering): reveal each provider
+        // through the table of contents before asserting on its rows.
+        await revealSettingsSection(dialog, 'Claude Code');
         await expect(dialog.getByLabel('Claude Code executable')).toHaveValue('claude');
-        await expect(dialog.getByLabel('Codex executable')).toHaveValue('codex');
         await expect(
             dialog.getByRole('switch', { name: 'Claude Code lifecycle hooks' }),
         ).not.toBeChecked();
         await expect(
-            dialog.getByRole('switch', { name: 'Codex lifecycle hooks' }),
-        ).not.toBeChecked();
-        await expect(
             dialog.getByRole('switch', { name: 'Claude Code peer messaging' }),
         ).toBeChecked();
+        await expect(
+            dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
+        ).toHaveText('Disabled');
+        await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
+        await expect(
+            dialog.locator('[data-agent-provider="claude"] [data-agent-icon="claude"]'),
+        ).toBeVisible();
+
+        await revealSettingsSection(dialog, 'Codex');
+        await expect(dialog.getByLabel('Codex executable')).toHaveValue('codex');
+        await expect(
+            dialog.getByRole('switch', { name: 'Codex lifecycle hooks' }),
+        ).not.toBeChecked();
         await expect(dialog.getByRole('switch', { name: 'Codex peer messaging' })).toBeChecked();
         await expect(
-            dialog.locator('[data-agent-provider="claude"]').getByRole('status'),
-        ).toHaveText('Disabled');
+            dialog.locator('[data-agent-provider="codex"] [data-agent-icon="codex"]'),
+        ).toBeVisible();
+
+        await revealSettingsSection(dialog, 'Terminal');
         await expect(dialog.getByLabel('New Terminal working directory')).toHaveValue('');
-        await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
-        await Promise.all(
-            ['claude', 'codex'].map((provider) =>
-                expect(
-                    dialog.locator(
-                        `[data-agent-provider="${provider}"] [data-agent-icon="${provider}"]`,
-                    ),
-                ).toBeVisible(),
-            ),
-        );
         await expect(dialog.locator('input[type="number"]').first()).toHaveCSS(
             'appearance',
             'none',
@@ -118,13 +122,14 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             .getByLabel('New Terminal working directory')
             .evaluate((element) => element.getBoundingClientRect().width);
         const scalarWidth = await dialog
-            .getByLabel('Terminal font size')
+            .getByRole('spinbutton', { name: 'Font size' })
             .evaluate((element) => element.getBoundingClientRect().width);
         expect(workingDirectoryWidth).toBeGreaterThan(scalarWidth + 100);
 
-        await dialog.getByLabel('Terminal font size').fill('14');
+        await dialog.getByRole('spinbutton', { name: 'Font size' }).fill('14');
+        await revealSettingsSection(dialog, 'Claude Code');
         await dialog.getByRole('switch', { name: 'Claude Code lifecycle hooks' }).check();
-        await expect(dialog.locator('[data-agent-provider="claude"]')).toContainText(
+        await expect(dialog.locator('[data-setting-row="agents.claude.hooks"]')).toContainText(
             'Restart Agent Terminals opened before lifecycle hooks were enabled.',
         );
         // Structured controls write immediately (debounced) now that the Apply button is gone, so
@@ -135,7 +140,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // this only pins that the toggle reached the Runtime. Matched on the caption alone because
         // `hookHealthLabel` appends the adapter's own advisory message.
         await expect(
-            dialog.locator('[data-agent-provider="claude"]').getByRole('status'),
+            dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
         ).toContainText('Waiting for the agent CLI to be installed');
         await expect
             .poll(async () => {
@@ -161,6 +166,21 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             launch: { executable: 'claude', args: [] },
             messaging: { enabled: true },
         });
+
+        // Settings search: AND-token filtering narrows the virtual list and the TOC shows
+        // per-category match counts; clearing restores the full list.
+        const searchInput = dialog.getByLabel('Search settings');
+        await searchInput.fill('font size');
+        await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toBeVisible();
+        await expect(
+            dialog.getByRole('combobox', { name: 'Default agent for new sessions' }),
+        ).toHaveCount(0);
+        await searchInput.fill('no-setting-matches-this');
+        await expect(dialog.getByText(/No settings match/)).toBeVisible();
+        await dialog.getByRole('button', { name: 'Clear settings search' }).click();
+        await expect(
+            dialog.getByRole('combobox', { name: 'Default agent for new sessions' }),
+        ).toBeVisible();
 
         const actions = dialog.locator('.dialog-actions');
         const dialogBox = await dialog.boundingBox();
@@ -225,7 +245,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await expect(dialog.getByRole('alert')).toHaveCount(0);
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
         await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
-        await expect(dialog.getByLabel('Terminal font size')).toHaveValue('17');
+        await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
         // The source editor commits on blur/leaving the view instead of behind Apply, and there is
         // no per-tab dirty marker anymore — the persisted value already reflects the edit.
         await expect
@@ -250,7 +270,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         // to block on): it discards the uncommitted invalid edit and the structured UI reverts to
         // the last-known-good value instead of showing something broken.
         await dialog.getByRole('button', { name: 'Back to Settings UI' }).click();
-        await expect(dialog.getByLabel('Terminal font size')).toHaveValue('17');
+        await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await expect
             .poll(async () => {
@@ -284,7 +304,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await running.page.keyboard.press('Escape');
         await running.page.keyboard.press('Meta+,');
         dialog = running.page.getByRole('dialog');
-        await expect(dialog.getByLabel('Terminal font size')).toHaveValue('17');
+        await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await expect
             .poll(async () => {

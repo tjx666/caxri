@@ -6,12 +6,12 @@ import { basename, dirname, join, relative } from 'node:path';
 import parcelWatcher from '@parcel/watcher';
 import { applyEdits, modify } from 'jsonc-parser';
 
-import { defaultAgentProviderSettings } from '../shared/agents';
 import { defaultKeybindings } from '../shared/commands';
 import {
+    appSettingsFileSchema,
+    defaultAppSettings,
     findKeybindingConflicts,
     keybindingsFileSchema,
-    settingsFileSchema,
 } from '../shared/config';
 import {
     configurationSourceSchema as configSourceSchema,
@@ -26,7 +26,6 @@ import type { StructuredLogger } from '../shared/node/logger';
 import { redactLogValue } from '../shared/node/redaction';
 import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '../shared/trusted-domains';
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '../shared/types';
-import { DEFAULT_FILES_EXCLUDE, SETTINGS_BOUNDS } from '../shared/types';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
 import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './theme';
 
@@ -134,21 +133,6 @@ function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[
         : keybindings;
 }
 
-const defaultSettings: AppSettings = {
-    'session.defaultAgent': null,
-    'workbench.newWorktreeBehavior': 'ask',
-    'agents.providers': structuredClone(defaultAgentProviderSettings),
-    'security.trustedDomains': [],
-    'terminal.defaultWorkingDirectory': null,
-    'terminal.fontSize': SETTINGS_BOUNDS['terminal.fontSize'].default,
-    'terminal.scrollback': SETTINGS_BOUNDS['terminal.scrollback'].default,
-    'terminal.copyOnSelect': SETTINGS_BOUNDS['terminal.copyOnSelect'].default,
-    'terminal.gpuAcceleration': SETTINGS_BOUNDS['terminal.gpuAcceleration'].default,
-    'terminal.osc52ClipboardWrite': SETTINGS_BOUNDS['terminal.osc52ClipboardWrite'].default,
-    'files.exclude': { ...DEFAULT_FILES_EXCLUDE },
-    'files.maxFileBytes': SETTINGS_BOUNDS['files.maxFileBytes'].default,
-};
-
 async function atomicWrite(path: string, source: string): Promise<void> {
     const directory = dirname(path);
     await mkdir(directory, { recursive: true });
@@ -221,8 +205,8 @@ async function readBoundedConfigSource(path: string): Promise<string> {
 
 export class ConfigService {
     private readonly configDirectory: string;
-    private settings = defaultSettings;
-    private settingsSource = `${JSON.stringify(defaultSettings, null, 2)}\n`;
+    private settings: AppSettings = structuredClone(defaultAppSettings);
+    private settingsSource = `${JSON.stringify(defaultAppSettings, null, 2)}\n`;
     private keybindings = defaultKeybindings;
     private keybindingsSource = `${JSON.stringify(defaultKeybindings, null, 2)}\n`;
     private theme: ThemeTokens = draculaTheme;
@@ -309,7 +293,7 @@ export class ConfigService {
         try {
             configSourceSchema.parse(source);
             if (kind === 'settings') {
-                const settings = settingsFileSchema.parse(parseJsonc(source));
+                const settings = appSettingsFileSchema.parse(parseJsonc(source));
                 return {
                     source,
                     apply: () => {
@@ -564,7 +548,7 @@ export class ConfigService {
         return this.mutateSettings(async () => {
             const candidate = { ...this.settings } as Record<string, unknown>;
             for (const change of changes) candidate[change.key] = change.value;
-            const value = settingsFileSchema.parse(candidate);
+            const value = appSettingsFileSchema.parse(candidate);
             const changedKeys = [...new Set(changes.map(({ key }) => key))].filter(
                 (key) => JSON.stringify(this.settings[key]) !== JSON.stringify(value[key]),
             );

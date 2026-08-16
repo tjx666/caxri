@@ -12,7 +12,7 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
- * Shell shared by the settings/keybindings/theme Monaco panes and their Suspense fallback shimmer (`SettingsForm`,
+ * Shell shared by the settings/keybindings/theme Monaco panes and their Suspense fallback shimmer (`SettingsPage`,
  * `KeybindingsForm`, `ThemeForm`, `ConfigEditor`).
  */
 export const configEditorClassName = 'min-w-0 min-h-0 bg-background';

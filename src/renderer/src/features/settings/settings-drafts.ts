@@ -1,4 +1,4 @@
-import { keybindingsFileSchema, settingsFileSchema } from '@shared/config';
+import { appSettingsFileSchema, keybindingsFileSchema } from '@shared/config';
 import { themeTokensSchema } from '@shared/ipc/domain';
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
 import type { ParseError } from 'jsonc-parser';
@@ -214,7 +214,7 @@ export function parseConfigSource<Kind extends ConfigKind>(
     if (!parsed.ok) return { ok: false, error: `${CONFIG_FILE_NAMES[kind]}: ${parsed.error}` };
     const schema =
         kind === 'settings'
-            ? settingsFileSchema
+            ? appSettingsFileSchema
             : kind === 'keybindings'
               ? keybindingsFileSchema
               : themeTokensSchema;

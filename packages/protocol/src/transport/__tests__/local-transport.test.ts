@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_CONFIGURABLE_FILE_BYTES } from '../../domain/domain';
+import { MAX_CONFIGURABLE_FILE_BYTES } from '../../configuration/settings-spec';
 import {
     desktopOperationSchema,
     desktopTargetPayloadSchema,

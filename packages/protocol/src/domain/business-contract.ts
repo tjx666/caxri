@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
 import { observableEventRecoverySchema } from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
@@ -7,13 +8,9 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { protocolVersionSchema } from '../transport/version.js';
 import {
-    appSettingsSchema,
     identifierSchema,
-    newWorktreeBehaviorSchema,
     projectRecordSchema,
     sessionRecordSchema,
-    SETTINGS_BOUNDS,
-    terminalKindSchema,
     terminalRecordSchema,
 } from './domain.js';
 
@@ -106,41 +103,42 @@ export const settingsPatchKeySchema = z.enum([
     'terminal.osc52ClipboardWrite',
     'files.maxFileBytes',
 ]);
+/**
+ * Patch values reuse the bounded field schemas from `appSettingsSchema` with the `.default()` stripped: a patch must
+ * always carry an explicit value, never silently fall back to the default.
+ */
 export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
-    z.object({ key: z.literal('session.defaultAgent'), value: terminalKindSchema.nullable() }),
+    z.object({
+        key: z.literal('session.defaultAgent'),
+        value: appSettingsSchema.shape['session.defaultAgent'].unwrap(),
+    }),
     z.object({
         key: z.literal('workbench.newWorktreeBehavior'),
-        value: newWorktreeBehaviorSchema,
+        value: appSettingsSchema.shape['workbench.newWorktreeBehavior'].unwrap(),
     }),
     z.object({
         key: z.literal('terminal.fontSize'),
-        value: z
-            .number()
-            .int()
-            .min(SETTINGS_BOUNDS['terminal.fontSize'].min)
-            .max(SETTINGS_BOUNDS['terminal.fontSize'].max),
+        value: appSettingsSchema.shape['terminal.fontSize'].unwrap(),
     }),
     z.object({
         key: z.literal('terminal.scrollback'),
-        value: z
-            .number()
-            .int()
-            .min(SETTINGS_BOUNDS['terminal.scrollback'].min)
-            .max(SETTINGS_BOUNDS['terminal.scrollback'].max),
+        value: appSettingsSchema.shape['terminal.scrollback'].unwrap(),
     }),
-    z.object({ key: z.literal('terminal.copyOnSelect'), value: z.boolean() }),
+    z.object({
+        key: z.literal('terminal.copyOnSelect'),
+        value: appSettingsSchema.shape['terminal.copyOnSelect'].unwrap(),
+    }),
     z.object({
         key: z.literal('terminal.gpuAcceleration'),
-        value: z.enum(['auto', 'on', 'off']),
+        value: appSettingsSchema.shape['terminal.gpuAcceleration'].unwrap(),
     }),
-    z.object({ key: z.literal('terminal.osc52ClipboardWrite'), value: z.boolean() }),
+    z.object({
+        key: z.literal('terminal.osc52ClipboardWrite'),
+        value: appSettingsSchema.shape['terminal.osc52ClipboardWrite'].unwrap(),
+    }),
     z.object({
         key: z.literal('files.maxFileBytes'),
-        value: z
-            .number()
-            .int()
-            .min(SETTINGS_BOUNDS['files.maxFileBytes'].min)
-            .max(SETTINGS_BOUNDS['files.maxFileBytes'].max),
+        value: appSettingsSchema.shape['files.maxFileBytes'].unwrap(),
     }),
 ]);
 export const settingsPatchParametersSchema = z.object({

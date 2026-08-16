@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { connectToHost, discoverHostManifest } from '@caxri/cli';
-import type { ElectronApplication, Page } from '@playwright/test';
+import type { ElectronApplication, Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
 
@@ -649,4 +649,16 @@ export async function splitTerminalToRight(page: Page, terminalId: string): Prom
         target.dispatchEvent(new DragEvent('drop', options));
         source.dispatchEvent(new DragEvent('dragend', options));
     }, terminalId);
+}
+
+/**
+ * Scrolls the virtualized Settings list to a category or subcategory by clicking its table of contents entry. Rows
+ * outside the viewport are not in the DOM at all (virtual rendering), so tests must reveal a section before interacting
+ * with its rows.
+ */
+export async function revealSettingsSection(dialog: Locator, name: string): Promise<void> {
+    await dialog
+        .getByRole('navigation', { name: 'Settings categories' })
+        .getByRole('button', { name, exact: true })
+        .click();
 }
