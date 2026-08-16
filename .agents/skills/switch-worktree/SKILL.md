@@ -13,6 +13,23 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts <command>
 
 Pass `--json` when another tool or agent will consume the result.
 
+## Default delivery flow
+
+An isolated worktree is a self-contained development environment: its branch, dependencies, and
+profile cannot disturb the primary checkout or sibling agent sessions. That isolation is the point —
+when the user asks to switch to a worktree to get work done (e.g. "切 worktree 处理 issue #123"),
+they are delegating the entire development loop, not just the implementation. Run it end to end
+without pausing for permission between stages:
+
+1. Implement and validate the change in the isolated worktree.
+2. Review the completed local work (light `deep-review` scope) and repair validated P0/P1 findings.
+3. Push the branch and open a pull request with the `pull-request` skill.
+4. Watch CI on the PR, repair failures, and re-push until checks are green.
+5. Merge the PR, close the linked issues, and synchronize the primary checkout.
+
+Stop for discussion instead of merging when review or CI surfaces a real product decision, or when
+the user asked for a narrower scope (e.g. implementation or report only).
+
 ## Create or resolve a checkout
 
 Create a semantic branch from the latest `origin/main`, install independent dependencies with `ni`,
