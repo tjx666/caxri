@@ -122,11 +122,29 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
     }
 
     if (input.eventName === 'push') {
+        if (input.isReleaseCommit) {
+            return {
+                checksScope: 'full',
+                e2eProfile: 'control',
+                reason: 'exact release commit',
+                runE2E: true,
+            };
+        }
+        /**
+         * Direct pushes to main used to skip the E2E pools entirely, which let UI changes land with stale specs that
+         * only failed on the next pull request (two such regressions surfaced in PR #179). Source pushes now pay for
+         * the optimized pools; documentation/skill-only pushes stay cheap. An empty change list (force push, unknown
+         * base) fails closed into running E2E.
+         */
+        const isDocumentationOnlyPush = areAllPathsMatching(
+            input.changedFiles,
+            (path) => isDocumentationPath(path) || isRepoSkillPath(path),
+        );
         return {
             checksScope: 'full',
-            e2eProfile: 'control',
-            reason: input.isReleaseCommit ? 'exact release commit' : 'ordinary main push',
-            runE2E: input.isReleaseCommit === true,
+            e2eProfile: 'optimized',
+            reason: isDocumentationOnlyPush ? 'documentation-only main push' : 'ordinary main push',
+            runE2E: !isDocumentationOnlyPush,
         };
     }
 

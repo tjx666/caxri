@@ -257,8 +257,7 @@ describe('CI workflow contract', () => {
             );
         }
         expect(e2eJob).toContain("github.ref == 'refs/heads/main'");
-        expect(e2eJob).toContain("startsWith(github.event.head_commit.message, 'release: v')");
-        expect(e2eJob).toContain("'trusted tjx666 release commit'");
+        expect(e2eJob).toContain("'trusted tjx666 main push'");
         expect(e2eJob).toContain('persist-credentials: false');
         expect(gateJob).toContain('test "$TRUSTED_EVENT" = true');
         expect(gateJob).not.toContain('actions/checkout');
