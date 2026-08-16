@@ -546,7 +546,10 @@ describe('local Host transport', () => {
         await server.invokeDesktop({ kind: 'focus' }, secondGeneration);
         expect(firstHandler).not.toHaveBeenCalled();
         expect(secondHandler).toHaveBeenCalledWith({ kind: 'focus' }, expect.any(Function));
-        await expect(first.request('app.health')).rejects.toMatchObject({ code: 'CONFLICT' });
+        // Lease replacement severs the replaced Desktop's connection instead of leaving it to
+        // poll CONFLICT replies against a socket it no longer owns (GitHub issue #173).
+        await expect(first.request('app.health')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        expect(server.clientCount()).toBe(1);
         server.broadcast({
             event: 'terminal.output',
             payload: { terminalId: 'terminal-1', data: 'live' },
