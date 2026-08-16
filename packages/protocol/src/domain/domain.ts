@@ -418,6 +418,14 @@ export const gitCommitDetailsSchema = z.object({
     commit: gitCommitSchema,
     files: z.array(gitCommitFileSchema).max(500),
     filesTruncated: z.boolean(),
+    /**
+     * Total added lines across the commit's text files; binary files contribute nothing.
+     */
+    additions: z.number().int().nonnegative(),
+    /**
+     * Total deleted lines across the commit's text files; binary files contribute nothing.
+     */
+    deletions: z.number().int().nonnegative(),
 });
 
 export const terminalResourceUsageSchema = z.object({

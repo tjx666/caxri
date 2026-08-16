@@ -48,7 +48,7 @@ function invalidateFileDependentQueries(
 
 /**
  * Invalidates the Session-scoped Git read queries a `git.changed` event covers: status/topology (`git.summary`,
- * `git.overview`), file diffs (`git.diffDocument`), and current-line blame (`git.blame`). Unlike
+ * `git.overview`), file diffs (`git.diffDocument`), and blame annotations (`git.blame`, `git.fileHead`). Unlike
  * {@link invalidateFileDependentQueries}, this runs unconditionally on every `git.changed` push — the Runtime already
  * coalesces bursts of repository activity into one event before emitting it, so no additional client-side debounce is
  * needed here.
@@ -62,6 +62,7 @@ function invalidateGitChangedQueries(
         'git.overview',
         'git.diffDocument',
         'git.blame',
+        'git.fileHead',
     ]);
     // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

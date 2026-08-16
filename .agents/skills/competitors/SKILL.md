@@ -1,6 +1,6 @@
 ---
 name: competitors
-description: Survey competing agent-workbench terminals and the agent CLIs Caxri hosts. Use before designing a feature another product already solved (session persistence, agent-state detection, theming, worktree isolation), when comparing Caxri against a named competitor (Orca, cmux, Muxy, Kero, Termany, Herdr, Mux, Kooky, Warp, Otty, Conductor, Superset, Paseo, T3 Code, Synara, Jean, Omnara, Trevize), or when updating competitive research notes.
+description: Survey competing agent-workbench terminals, the agent CLIs Caxri hosts, and the editor-grade reference implementations (VS Code, GitLens). Use before designing a feature another product already solved (session persistence, agent-state detection, theming, worktree isolation), when implementing an editor-adjacent surface that should follow VS Code precedent (Git/source control UX, extensions/plugins, keybindings, themes, settings, command palette) or GitLens precedent (blame, history, richer Git UX), when working on the Status panel (reference: vscode-fe-helper's sidebar), when comparing Caxri against a named competitor (Orca, cmux, Muxy, Kero, Termany, Herdr, Mux, Kooky, Warp, Otty, Conductor, Superset, Paseo, T3 Code, Synara, Jean, Omnara, Trevize), or when updating competitive research notes.
 ---
 
 # Competitors
@@ -11,6 +11,23 @@ Load only what the current question needs:
 - Read `references/<product>.md` for per-product research notes: positioning, architecture highlights, standout features, and community sentiment. Each note is dated; treat notes older than a quarter as stale.
 - All open-source repositories are shallow-cloned into the git-ignored top-level `competitors/` directory; read the source there instead of fetching from GitHub.
 - Run [scripts/sync.sh](scripts/sync.sh) to clone missing repositories, update existing ones, and print each clone's latest commit time. Run it (or at least check `git -C competitors/<name> log -1 --format='%h %ad' --date=short`) before relying on a clone for anything time-sensitive.
+
+## Reference implementations
+
+Beyond direct competitors, mature editors are the primary UX and implementation references for
+editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `scripts/sync.sh`:
+
+- **VS Code** (`competitors/vscode`, MIT): the default reference for Git/source control views,
+  diff and blame UX, the extension/plugin system, keybindings, theming, settings, and the command
+  palette. Study its interaction patterns, data shapes, and edge-case handling before inventing a
+  new pattern for one of these surfaces.
+- **GitLens** (`competitors/gitlens`): the reference for Git UX beyond core VS Code — commit hover
+  cards, author avatars, file/line blame annotations, and rich history views. MIT-licensed except
+  every directory named `plus` (proprietary `LICENSE.plus`); treat `plus` code as reference-only.
+- **vscode-fe-helper** (`competitors/vscode-fe-helper`, MIT, the repository owner's own VS Code
+  extension): its `src/sidebar/` tree is the reference for Caxri's Status panel — the aggregated
+  project-status sidebar covering Git context, GitHub PR checks, issue-tracker state, deployment
+  links, and its polling scheduler.
 
 ## Working rules
 

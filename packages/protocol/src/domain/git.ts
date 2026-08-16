@@ -67,7 +67,12 @@ export const gitCommitSchema = z.object({
     sha: z.string().regex(/^[0-9a-f]{40}$/),
     shortSha: z.string().min(7).max(12),
     subject: z.string().max(4_096),
+    /**
+     * Full commit message body below the subject; empty for single-line messages.
+     */
+    body: z.string().max(16_384),
     author: z.string().max(1_024),
+    authorEmail: z.string().max(1_024),
     authoredAt: z.number().int().nonnegative(),
     decorations: z.array(z.string().max(1_024)).max(50),
     parents: z.array(z.string().regex(/^[0-9a-f]{40}$/)).max(64),

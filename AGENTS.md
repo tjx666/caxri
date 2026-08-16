@@ -32,6 +32,11 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   work more reliably. Avoid speculative process churn that has no demonstrated reuse case.
 - When an authorized implementation exposes an obvious, narrow defect in `AGENTS.md` or a repository
   skill, repair it in the same change. This does not grant unrelated or remote mutation authority.
+- Before designing or implementing a substantial new product feature, load the `competitors` skill
+  and research how existing products solve it — direct competitors as well as the reference
+  implementations the skill lists (VS Code for editor-grade surfaces such as source control,
+  extensions, keybindings, and theming; GitLens for blame, history, and richer Git UX) — instead
+  of inventing a new interaction pattern first.
 - Use `docs/` for durable explanations of shipped behavior, core modules, protocols, architectural
   decisions, and operator knowledge. After completing a core module or a large feature, explicitly
   assess whether its lasting design or operational knowledge should be documented there.
@@ -74,9 +79,12 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`
 - Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` (`CAXRI_DEV_CDP_PORT` overrides)
   for live DOM inspection and screenshots, e.g. `agent-browser connect --port 9223`. Packaged
-  builds expose the same endpoint by default during internal testing; the `remoteDebugging` field
-  in the Main-owned boot config `<userData>/config/argv.jsonc` (Settings → "Remote debugging")
-  turns it off on the next launch (`src/main/remote-debugging.ts`).
+  (production) builds expose the same endpoint by default during internal testing, so a
+  production-build issue can usually be inspected by connecting CDP to the running installed app
+  directly; whether that suffices or a dev relaunch is still needed depends on the problem at
+  hand. The `remoteDebugging` field in the Main-owned boot
+  config `<userData>/config/argv.jsonc` (Settings → "Remote debugging") turns it off on the next
+  launch (`src/main/remote-debugging.ts`).
 - Manage isolated worktrees by explicitly invoking `$switch-worktree`.
 - Format the repository: `bun run format`; verify formatting: `bun run format:check`
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`

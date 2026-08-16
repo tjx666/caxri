@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Clone or update the competitor/agent-CLI repositories listed in references/landscape.md
-# into the git-ignored top-level competitors/ directory, then print each clone's
-# latest commit time so staleness is visible at a glance.
+# Clone or update the competitor/agent-CLI repositories listed in references/landscape.md and
+# the reference implementations listed in SKILL.md's "Reference implementations" section into the
+# git-ignored top-level competitors/ directory, then print each clone's latest commit time so
+# staleness is visible at a glance.
 set -euo pipefail
 
 REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 DEST="$REPO_ROOT/competitors"
 mkdir -p "$DEST"
 
-# Keep in sync with references/landscape.md (closed-source products have no entry).
+# Keep in sync with references/landscape.md (closed-source products have no entry) and with
+# SKILL.md's "Reference implementations" section.
 REPOS=(
     stablyai/orca
     manaflow-ai/cmux
@@ -28,6 +30,10 @@ REPOS=(
     anthropics/claude-code
     openai/codex
     xai-org/grok-build
+    # Reference implementations (not competitors); see SKILL.md's "Reference implementations".
+    microsoft/vscode
+    gitkraken/vscode-gitlens:gitlens
+    tjx666/vscode-fe-helper
 )
 
 for entry in "${REPOS[@]}"; do

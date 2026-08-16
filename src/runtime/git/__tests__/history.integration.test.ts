@@ -87,6 +87,8 @@ describe('Git commit history', () => {
         expect(first.commits[0]).toMatchObject({
             subject: 'merge 功能',
             author: 'Caxri Test',
+            authorEmail: 'test@example.com',
+            body: '',
             parents: [
                 expect.stringMatching(/^[0-9a-f]{40}$/),
                 expect.stringMatching(/^[0-9a-f]{40}$/),
@@ -121,6 +123,9 @@ describe('Git commit history', () => {
         expect(details.commit.parents).toHaveLength(2);
         expect(details.files).toContainEqual({ path: 'src/feature.ts', status: 'added' });
         expect(details.filesTruncated).toBe(false);
+        // The merge brings in `feature\n` via its first parent: one added line, nothing deleted.
+        expect(details.additions).toBe(1);
+        expect(details.deletions).toBe(0);
         await expect(git.commits({ ...parameters, path: directory })).rejects.toMatchObject({
             code: 'PATH_DENIED',
         });
@@ -139,6 +144,103 @@ describe('Git commit history', () => {
                 (record) => record.event === 'git.command' && record.fields?.operation === 'log',
             ),
         ).toHaveLength(4);
+        database.close();
+    });
+
+    it('resolves file-level head commits and per-commit file diffs', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-filehead-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await execFileAsync('mkdir', ['-p', join(root, 'src')], {});
+        await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+        await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: root });
+
+        await writeFile(join(root, 'src', 'app.ts'), 'one\n', 'utf8');
+        await execFileAsync('git', ['add', '.'], { cwd: root });
+        await execFileAsync(
+            'git',
+            ['commit', '-m', 'feat: add app', '-m', 'Body line 1\n\nBody line 2'],
+            { cwd: root },
+        );
+        await writeFile(join(root, 'src', 'app.ts'), 'two\n', 'utf8');
+        await commit(root, 'fix: change app');
+        await writeFile(join(root, 'src', 'untracked.ts'), 'loose\n', 'utf8');
+
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(database.createProject(root).id, 'shell').session;
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const git = trackGitService(new GitService(new ProjectRootResolver(database), logger));
+        const repo = (await git.summary(session.id)).repositories[0];
+
+        const head = await git.fileHead({ sessionId: session.id, path: 'src/app.ts' });
+        expect(head).toMatchObject({
+            subject: 'fix: change app',
+            author: 'Caxri Test',
+            authorEmail: 'test@example.com',
+            body: '',
+        });
+        expect(await git.fileHead({ sessionId: session.id, path: 'src/untracked.ts' })).toBeNull();
+        expect(await git.fileHead({ sessionId: session.id, path: 'src/missing.ts' })).toBeNull();
+
+        const page = await git.commits({
+            sessionId: session.id,
+            repositoryId: repo.id,
+            offset: 0,
+            pageSize: 10,
+        });
+        const rootCommit = page.commits.find((item) => item.subject === 'feat: add app')!;
+        expect(rootCommit.body).toBe('Body line 1\n\nBody line 2');
+
+        // `fix: change app` rewrites the single line of src/app.ts: one addition, one deletion.
+        const headDetails = await git.commitDetails({
+            sessionId: session.id,
+            repositoryId: repo.id,
+            sha: head!.sha,
+        });
+        expect(headDetails).toMatchObject({ additions: 1, deletions: 1 });
+
+        const changed = await git.commitDiffDocument({
+            sessionId: session.id,
+            repositoryId: repo.id,
+            sha: head!.sha,
+            path: 'src/app.ts',
+        });
+        expect(changed).toMatchObject({
+            format: 'contents',
+            path: 'src/app.ts',
+            original: 'one\n',
+            modified: 'two\n',
+        });
+        const added = await git.commitDiffDocument({
+            sessionId: session.id,
+            repositoryId: repo.id,
+            sha: rootCommit.sha,
+            path: 'src/app.ts',
+        });
+        expect(added).toMatchObject({ original: '', modified: 'one\n' });
+        await expect(
+            git.commitDiffDocument({
+                sessionId: session.id,
+                repositoryId: repo.id,
+                sha: head!.sha,
+                path: 'src/not-in-commit.ts',
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+        // A committed binary blob must never reach the text diff as mojibake contents; it falls
+        // back to Git's own bounded patch output instead.
+        await writeFile(join(root, 'src', 'blob.bin'), Uint8Array.from([0, 1, 2, 253, 254, 255]));
+        await commit(root, 'chore: add binary blob');
+        const binaryHead = await git.fileHead({ sessionId: session.id, path: 'src/blob.bin' });
+        const binaryDiff = await git.commitDiffDocument({
+            sessionId: session.id,
+            repositoryId: repo.id,
+            sha: binaryHead!.sha,
+            path: 'src/blob.bin',
+        });
+        expect(binaryDiff.format).toBe('patch');
+        expect(binaryDiff.modified).toContain('Binary files');
         database.close();
     });
 });
