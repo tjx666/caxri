@@ -87,4 +87,16 @@ describe('countRowsByCategory', () => {
         const rows = [row('a', 'general', 'x'), row('b', 'general', 'x'), row('c', 'agents', 'x')];
         expect(countRowsByCategory(rows)).toEqual({ agents: 1, general: 2 });
     });
+
+    it('counts subcategory anchors so the TOC can hide sections with no matches', () => {
+        const rows = [
+            row('c1', 'agents', 'x', 'Claude Code'),
+            row('c2', 'agents', 'x', 'Claude Code'),
+        ];
+        const counts = countRowsByCategory(rows);
+        expect(counts['agents:Claude Code']).toBe(2);
+        // A filtered-out subcategory has no anchor entry, so its TOC button disappears while
+        // searching instead of navigating to a heading that is absent from the filtered list.
+        expect(counts['agents:Codex']).toBeUndefined();
+    });
 });

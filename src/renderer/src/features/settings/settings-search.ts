@@ -56,12 +56,19 @@ export function buildSettingsList(
 }
 
 /**
- * Visible-row counts per category, driving the match badges in the table of contents.
+ * Visible-row counts keyed by category id and by `category:subcategory` anchor, driving the match badges in the table
+ * of contents and hiding TOC entries whose section has no visible rows while searching.
  */
 export function countRowsByCategory(
     visibleRows: readonly SettingRowDescriptor[],
-): Partial<Record<SettingCategoryId, number>> {
-    const counts: Partial<Record<SettingCategoryId, number>> = {};
-    for (const row of visibleRows) counts[row.category] = (counts[row.category] ?? 0) + 1;
+): Partial<Record<string, number>> {
+    const counts: Partial<Record<string, number>> = {};
+    for (const row of visibleRows) {
+        counts[row.category] = (counts[row.category] ?? 0) + 1;
+        if (row.subcategory !== undefined) {
+            const anchor = `${row.category}:${row.subcategory}`;
+            counts[anchor] = (counts[anchor] ?? 0) + 1;
+        }
+    }
     return counts;
 }

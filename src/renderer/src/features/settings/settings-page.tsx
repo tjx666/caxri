@@ -88,6 +88,9 @@ function SettingsToc({
                                 <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                                     {category.subcategories.map((subcategory) => {
                                         const anchor = `${category.id}:${subcategory}`;
+                                        // A subcategory with no matches has no heading in the
+                                        // filtered list, so its TOC entry would be a dead click.
+                                        if (searching && (counts[anchor] ?? 0) === 0) return null;
                                         const provider = agentProviderForSubcategory(subcategory);
                                         return (
                                             <li key={anchor}>
