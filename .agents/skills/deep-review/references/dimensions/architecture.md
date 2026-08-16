@@ -12,10 +12,11 @@ nearest same-kind implementation before accepting a new route or helper.
 ## Quick checklist
 
 - Renderer imports Node.js, Electron, filesystem, PTY, Git, or native APIs
-- A request bypasses `src/shared/ipc`, its Zod params/result schemas, method owner, closed error
-  taxonomy, or Preload's fixed `window.caxri` allowlist
-- Main takes over Runtime work, Runtime takes over window/dialog lifecycle, or Renderer becomes the
-  source of durable truth
+- A request bypasses `packages/protocol`'s Zod params/result schemas, declared method owner
+  (`host` or `desktop`), closed error taxonomy, or Preload's fixed `window.caxri` allowlist, or
+  `src/shared/ipc` regrows a second method or schema table beyond compatibility re-exports
+- Main takes over Host-owned Runtime/SQLite work, Runtime takes over window/dialog lifecycle,
+  Renderer becomes the source of durable truth, or Desktop bypasses the generation-bound Host lease
 - Project roots, repository paths, or arbitrary commands cross from Renderer instead of opaque
   Project/Session/repository identifiers and structured params
 - Process Explorer's diagnostic bridge grows workbench, file, terminal, environment, or mutation
@@ -39,7 +40,8 @@ nearest same-kind implementation before accepting a new route or helper.
 
 - `.agents/skills/project-architecture/SKILL.md`
 - `.agents/skills/project-architecture/references/architecture.md`
-- `src/shared/ipc` and the nearest domain sibling
+- `packages/protocol/src` and the nearest domain sibling (`src/shared/ipc` is compatibility
+  re-exports only)
 
 ## Not violations
 

@@ -6,7 +6,7 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field            | Value                                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------------ |
 | **First audit**  | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last updated** | 2026-08-15 @ `e1c5948` (`fix/resolve-architecture-debt`)                                               |
+| **Last updated** | 2026-08-16 @ `19474c0` (`main`)                                                                        |
 | **Scope**        | Repository-wide revalidation of every prior OPEN entry plus Host, protocol, CLI, and Agent deltas      |
 | **Maintenance**  | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
@@ -18,38 +18,43 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 ## OPEN
 
-### AD-lifecycle-agent-endpoint-generation-map — [OPEN · Architecture debt · S]
-
-- **Summary:** `AgentEndpointRegistry` retains one generation counter for every historical Terminal UUID even after that Terminal, its Session, or its Project is permanently deleted.
-- **Evidence:** `src/host/agent-endpoints/registry.ts:106-110` appends generation state. `retireTerminal`, `retireSession`, `retireProject`, and `clear` remove active endpoints through `remove`, but `src/host/agent-endpoints/registry.ts:363-374` never deletes generation entries. Terminal IDs are fresh UUIDs, so the long-lived Host grows with historical Agent Terminals.
-- **First seen / Last verified:** 2026-08-15 @ 43af4d6
-- **Remediation target / Acceptance:** Separate restart retirement from permanent forget. Preserve monotonic generation for a live Terminal restart, but reclaim Terminal/Session/Project generation state after permanent deletion. Tracked by [issue caxri#172](https://github.com/tjx666/caxri/issues/172).
-
-### AD-lifecycle-stale-desktop-sockets — [OPEN · Confirmed defect · S]
-
-- **Summary:** Replacing the authenticated Desktop revokes its capability lease but leaves the old socket, decoder, and listeners alive until the peer disconnects or the Host exits.
-- **Evidence:** `src/host/local-server.ts:569-570` calls `revokeDesktop(old, false)`. `src/host/local-server.ts:225-234` clears authority and pending commands but does not destroy the socket; only the socket close handler or global `close()` removes it from `sockets`. Repeated abnormal replacements can therefore accumulate connection resources without restoring authority.
-- **First seen / Last verified:** 2026-08-15 @ 43af4d6
-- **Remediation target / Acceptance:** After rejecting pending commands and revoking authority, actively disconnect a replaced Desktop. Repeated replacements must keep socket/client accounting bounded while the new Desktop retains exclusive authority. Tracked by [issue caxri#173](https://github.com/tjx666/caxri/issues/173).
-
-### AD-perf-agent-inbox-duplicate-window — [OPEN · Architecture debt · S]
-
-- **Summary:** Peer Inbox duplicate fingerprints expire after 30 seconds but have no entry cap, so authenticated traffic to distinct invalid targets can retain one record per message in that window.
-- **Evidence:** `src/host/agent-inbox/registry.ts:609-619` stores a duplicate record for every receipt. `src/host/agent-inbox/registry.ts:744-757` prunes only by TTL; `MAX_RECEIPTS` eviction bounds messages but does not remove their duplicate records. Invalid target resolution returns a terminal receipt before pair-traffic admission.
-- **First seen / Last verified:** 2026-08-15 @ 43af4d6
-- **Remediation target / Acceptance:** Add a fixed duplicate-window capacity while preserving in-window retry behavior. Distinct invalid targets above the limit must keep duplicate state bounded without changing authorization or delivery semantics. Tracked by [issue caxri#174](https://github.com/tjx666/caxri/issues/174).
+No OPEN entries as of 2026-08-16 @ `19474c0`.
 
 ### Incremental audit coverage
 
-- Host authentication and lease replacement: capability fencing remains sound; the stale-socket lifecycle gap above is the only new finding.
+- Host authentication and lease replacement: capability fencing remains sound; the formerly tracked stale-socket lifecycle gap is resolved below.
 - Protocol: the `agent`, `configuration`, `desktop`, `domain`, `registry`, and `transport` boundaries remain complete from the package root.
 - CLI: production dependencies remain limited to `@caxri/protocol` and `zod`, with protocol imports through the package root.
-- Agent Endpoint and Peer Inbox: endpoint generation and duplicate-window cleanup are tracked above; inbox bytes, messages, waiters, receipts, pair traffic, expiry, and close cleanup remain bounded.
+- Agent Endpoint and Peer Inbox: endpoint generation and duplicate-window cleanup are resolved below; inbox bytes, messages, waiters, receipts, pair traffic, expiry, and close cleanup remain bounded.
 - A path-only CI parser was not added: ledger evidence includes symbols and shorthand whose semantic validity cannot be established by file existence alone. The maintenance cadence above requires semantic revalidation.
 
 ---
 
 ## RESOLVED
+
+### AD-lifecycle-agent-endpoint-generation-map — [RESOLVED · Architecture debt · S]
+
+- **Summary:** `AgentEndpointRegistry` no longer retains a generation counter for permanently deleted Terminals; restart retirement still preserves the monotonic generation for a live Terminal.
+- **Evidence:** `src/host/agent-endpoints/registry.ts:281` deletes the generation entry on permanent retirement, and the `forgetGenerationsWhere` pass at `src/host/agent-endpoints/registry.ts:176-178` reclaims matching entries when a Session or Project is forgotten.
+- **First seen:** 2026-08-15 @ 43af4d6 · **Last verified:** 2026-08-16 @ 19474c0
+- **Resolved:** 2026-08-16 @ 19474c0 via [PR caxri#187](https://github.com/tjx666/caxri/pull/187).
+- **Remediation target / Acceptance:** Permanent Terminal/Session/Project deletion reclaims generation state while a live Terminal restart keeps its monotonic generation. Tracked by [issue caxri#172](https://github.com/tjx666/caxri/issues/172).
+
+### AD-lifecycle-stale-desktop-sockets — [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Replacing the authenticated Desktop now actively disconnects the previous socket after rejecting its pending commands and revoking its lease, so repeated replacements keep socket and client accounting bounded.
+- **Evidence:** `src/host/local-server.ts:469-476` revokes the replaced Desktop's authority and destroys its socket during lease replacement.
+- **First seen:** 2026-08-15 @ 43af4d6 · **Last verified:** 2026-08-16 @ 19474c0
+- **Resolved:** 2026-08-16 @ 19474c0 via [PR caxri#187](https://github.com/tjx666/caxri/pull/187).
+- **Remediation target / Acceptance:** After rejecting pending commands and revoking authority, a replaced Desktop is actively disconnected while the new Desktop retains exclusive authority. Tracked by [issue caxri#173](https://github.com/tjx666/caxri/issues/173).
+
+### AD-perf-agent-inbox-duplicate-window — [RESOLVED · Architecture debt · S]
+
+- **Summary:** Peer Inbox duplicate fingerprints are now bounded by a fixed capacity in addition to the 30-second TTL, so distinct invalid targets can no longer grow duplicate state without limit.
+- **Evidence:** `src/host/agent-inbox/registry.ts:373-376` evicts the oldest duplicate records at `MAX_DUPLICATES` capacity while the TTL sweep continues to prune expired entries.
+- **First seen:** 2026-08-15 @ 43af4d6 · **Last verified:** 2026-08-16 @ 19474c0
+- **Resolved:** 2026-08-16 @ 19474c0 via [PR caxri#187](https://github.com/tjx666/caxri/pull/187).
+- **Remediation target / Acceptance:** A fixed duplicate-window capacity preserves in-window retry behavior without changing authorization or delivery semantics. Tracked by [issue caxri#174](https://github.com/tjx666/caxri/issues/174).
 
 ### AD-lifecycle-mutation-remap-origin-delete — [RESOLVED · Confirmed defect · M]
 
@@ -142,7 +147,7 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 ### AD-sec-config-disk-size-cap — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Settings/keybindings/theme disk load and hot-reload read and parse without a pre-parse size cap, while IPC update and theme import already bound sources—so an oversized userData config can inflate Runtime memory and cross-process event/get payloads.
-- **Evidence:** `src/shared/configuration-contract.ts:4-21` owns the 256 KiB UTF-8 source and 1,024-keybinding limits. `src/runtime/configuration.ts:136-170` performs bounded reads before parsing; `src/shared/ipc/methods.ts:79-85`, `src/shared/ipc/events.ts:15`, and `src/shared/ipc/domain.ts:629-630` reuse the same schemas. `src/runtime/__tests__/configuration.test.ts:276-440` and `src/shared/ipc/__tests__/contracts.test.ts:204-231` cover startup, hot reload, and IPC rejection.
+- **Evidence:** `src/shared/config-contract.ts:4-21` owns the 256 KiB UTF-8 source and 1,024-keybinding limits. `src/runtime/config.ts:136-170` performs bounded reads before parsing; `src/shared/ipc/methods.ts:79-85`, `src/shared/ipc/events.ts:15`, and `src/shared/ipc/domain.ts:629-630` reuse the same schemas. `src/runtime/__tests__/configuration.test.ts:276-440` and `src/shared/ipc/__tests__/contracts.test.ts:204-231` cover startup, hot reload, and IPC rejection.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 40d6d13 via [issue caxri#76](https://github.com/tjx666/caxri/issues/76).
 - **Remediation target / Acceptance:** Shared max for settings/keybindings/theme sources enforced on disk load, hot-reload, and IPC; bound event/result `source` (and keybindings array growth) to the same ceiling. Acceptance: oversized userData config keeps prior valid state, does not emit/get multi-cap sources; focused unit test fails if the size gate is removed.
@@ -262,12 +267,10 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ---
 
-## Current priority guide (OPEN at 2026-08-15)
+## Current priority guide (OPEN at 2026-08-16)
 
-The prior OPEN set is resolved or stale. New incremental-audit findings are routed through dedicated
+Every tracked OPEN entry is resolved. New incremental-audit findings are routed through dedicated
 follow-up issues so their lifecycle and acceptance evidence remain independently reviewable.
-
-**Current order:** `AD-lifecycle-agent-endpoint-generation-map` → `AD-perf-agent-inbox-duplicate-window` → `AD-lifecycle-stale-desktop-sockets`.
 
 ## Historical priority guide (all resolved)
 

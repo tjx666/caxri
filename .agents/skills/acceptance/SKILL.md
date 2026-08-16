@@ -86,7 +86,7 @@ Read [references/report.md](references/report.md) before authoring the report an
      [references/recording-cdp.md](references/recording-cdp.md);
    - non-visual behavior: separate reasoning and execution text artifacts.
      A Terminal fixture plan must declare `fixturePreflight: terminal`. Before any screenshot or
-     recording of that fixture, run `fixture-preflight.ts --case-id <stable-id> --output
+     recording of that fixture, run `fixture-preflight.ts --input <captured-fixture.json> --case-id <stable-id> --output
 <round>/assets/<case-id>-fixture-preflight.json` against its observed generation, first grid
      marker, DOM row count, borders, and rendered lines, then include the receipt in
      `cases[].evidence`. Finalization rejects a missing or blocked receipt, so direct screenshot

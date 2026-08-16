@@ -103,7 +103,7 @@ callbacks. Watched repository groups are bounded to 16 (`MAX_WATCHED_REPOSITORIE
 `src/runtime/git/change-tracker.ts` — `GitChangeTracker` owns the Session ↔ repository mapping
 behind the `git.changed` Runtime event (`packages/protocol/src/registry/events.ts`). Each summary
 registers, via `registerSession`, the canonical roots it projected for one Session
-(`GitRepoService.registerProjection`, `src/runtime/git/repo.ts:575-587`). A generation bump —
+(`GitRepoService.registerProjection`, `src/runtime/git/repo.ts:571-584`). A generation bump —
 `scheduleStatusChanged(roots)` from a working-tree write or `observeMetadataStatus`, or
 `scheduleTopologyChanged(repoKey)` from `observeMetadataTopology` — adds affected roots to a
 pending set and debounces a flush by 150ms (`CHANGE_EMIT_DELAY_MS`), folding a burst of bumps
@@ -143,7 +143,7 @@ truncates the transported `files` array at `MAX_GIT_STATUS_FILES` (2,000,
 `packages/protocol/src/domain/git.ts`) with `truncated = changedFileCount > MAX_GIT_STATUS_FILES`.
 `changedFileCount` is authoritative on a truncated snapshot; otherwise it is the post
 child-repository-filtering visible file count, so every consumer of one generation reports the same
-number. `GitPanel` (`src/renderer/src/features/inspector/panels/git/git-panel.tsx:290-296`) renders
+number. `GitPanel` (`src/renderer/src/features/inspector/panels/git/git-panel.tsx:291-300`) renders
 an explicit `Showing the first N of <changedFileCount>` notice when `truncated`; already-listed
 files remain fully diffable.
 
@@ -168,7 +168,7 @@ asserts against it rather than the last `git.command` record.
 
 ## Lifecycle and cleanup
 
-- `GitRepoService.evictSessions` (`src/runtime/git/repo.ts:630-641`) drops per-Session projections
+- `GitRepoService.evictSessions` (`src/runtime/git/repo.ts:626-637`) drops per-Session projections
   from the tracker, prunes `refreshNonces`, retains only status snapshots and child-cache entries
   for roots still referenced by a live Session, and asks the metadata watcher to `retainOnly` the
   still-referenced repository keys.
