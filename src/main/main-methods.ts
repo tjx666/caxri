@@ -177,14 +177,6 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     ? null
                     : supervisor.request('theme.importPath', { path });
             }
-            case 'app.openConfigFile': {
-                const paths = await supervisor.request('config.paths');
-                const path = paths[request.params.kind];
-                if (!path) throw new CaxriError('NOT_FOUND', 'Unknown configuration file');
-                const error = await shell.openPath(path);
-                if (error) throw new CaxriError('IO', error);
-                return null;
-            }
             case 'editor.confirmDiscard': {
                 const result = await dialog.showMessageBox(
                     mainWindow!,
