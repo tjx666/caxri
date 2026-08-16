@@ -1,5 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, open, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import {
+    link,
+    lstat,
+    mkdir,
+    open,
+    readFile,
+    rename,
+    rm,
+    unlink,
+    writeFile,
+} from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
@@ -288,6 +298,33 @@ export async function writeJsonAtomic(path: string, value: unknown): Promise<voi
         await handle.close();
     }
     await rename(temporary, path);
+}
+
+/**
+ * Exclusive-create variant of {@link writeJsonAtomic}: the fully written, synced document is published with `link(2)`,
+ * which either installs it at the destination in one atomic step or fails when the destination already exists
+ * (returning `false`). Unlike `open('wx')` followed by a separate write, a lock-free reader can never observe a
+ * partially written file.
+ */
+export async function didWriteJsonExclusive(path: string, value: unknown): Promise<boolean> {
+    await mkdir(dirname(path), { recursive: true });
+    const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
+    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+    const handle = await open(temporary, 'r');
+    try {
+        await handle.sync();
+    } finally {
+        await handle.close();
+    }
+    try {
+        await link(temporary, path);
+        return true;
+    } catch (error) {
+        if (errorCode(error) !== 'EEXIST') throw error;
+        return false;
+    } finally {
+        await unlinkIfExists(temporary);
+    }
 }
 
 export async function unlinkIfExists(path: string): Promise<void> {
