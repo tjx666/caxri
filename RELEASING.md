@@ -8,12 +8,16 @@ tag and GitHub Release.
 
 ## Create a release
 
-Update the root application version before committing:
+Update the root application version before committing. The CLI workspace version and
+`packages/cli/src/version.ts` must move in lockstep — `packages/cli/src/__tests__/artifact.test.ts`
+fails the release CI when any of the three diverge:
 
 ```bash
 pnpm version patch --no-git-tag-version --no-git-checks
-git add package.json
 version="$(node -p 'require("./package.json").version')"
+(cd packages/cli && npm version "${version}" --no-git-tag-version)
+sed -i '' "s/CLI_VERSION = '.*'/CLI_VERSION = '${version}'/" packages/cli/src/version.ts
+git add package.json packages/cli/package.json packages/cli/src/version.ts
 git commit -m "release: v${version}"
 git push origin main
 ```
