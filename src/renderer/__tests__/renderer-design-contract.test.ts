@@ -6,7 +6,11 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const rendererRoot = fileURLToPath(new URL('../src', import.meta.url));
-const nativeInputTypes = new Set(['checkbox', 'color']);
+/**
+ * `color` is the one remaining sanctioned native input: the OS color picker has no shadcn equivalent. Boolean controls
+ * must use the shared Switch/Checkbox primitives (DESIGN.md "Spacing and radius" contract paragraph).
+ */
+const nativeInputTypes = new Set(['color']);
 const allowedArbitraryClasses = new Set([
     'gap-[5px]',
     'h-[34px]',

@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
 import type { ProcessState, TerminalFailureReason } from '@shared/types';
-import {
-    CircleCheck,
-    CircleX,
-    LoaderCircle,
-    MessageSquarePlus,
-    RotateCcw,
-    TriangleAlert,
-} from 'lucide-react';
+import { CircleCheck, CircleX, MessageSquarePlus, RotateCcw, TriangleAlert } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -18,6 +11,7 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger,
 } from '../../components/ui/context-menu';
+import { Spinner } from '../../components/ui/spinner';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
@@ -84,7 +78,7 @@ function TerminalRecoveryBar({
             : exitPresentation.icon === 'failed'
               ? TriangleAlert
               : exitPresentation.icon === 'pending'
-                ? LoaderCircle
+                ? undefined
                 : CircleX;
     /**
      * An automatic restore is already in flight for `interrupted`; racing it with a manual click can hand two restart
@@ -105,14 +99,11 @@ function TerminalRecoveryBar({
             role="status"
         >
             <span className={terminalRecoveryMessageClassName} title={exitPresentation.label}>
-                <ExitIcon
-                    className={
-                        exitPresentation.icon === 'pending'
-                            ? 'animate-spin motion-reduce:animate-none'
-                            : undefined
-                    }
-                    size={14}
-                />
+                {exitPresentation.icon === 'pending' ? (
+                    <Spinner size={14} />
+                ) : (
+                    ExitIcon && <ExitIcon size={14} />
+                )}
                 {exitPresentation.label}
             </span>
             {!isAwaitingAutomaticRestore && (

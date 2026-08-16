@@ -8,7 +8,7 @@ import { applyEdits, modify } from 'jsonc-parser';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { ArgvConfig, ArgvConfigChanges } from '../shared/types';
 
-export const defaultArgvConfig: ArgvConfig = {
+const defaultArgvConfig: ArgvConfig = {
     remoteDebugging: true,
 };
 

@@ -1,4 +1,7 @@
+import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
+import { Checkbox } from '../../components/ui/checkbox';
+import { Field, FieldLabel } from '../../components/ui/field';
 import { Textarea } from '../../components/ui/textarea';
 import type { BugReportDraft } from './bug-report';
 
@@ -33,55 +36,59 @@ export function BugReportForm({
     return (
         <div className="grid gap-3 p-4">
             {contextError && (
-                <p className="m-0 rounded border border-danger px-3 py-2 text-[12px] text-danger">
+                <Alert variant="danger" className="text-[12px]">
                     {contextError}
-                </p>
+                </Alert>
             )}
             {!contextError && !hasTargets && (
-                <p className="m-0 rounded border border-border bg-elevated px-3 py-2 text-[12px] text-muted">
+                <Alert variant="info" className="text-[12px]">
                     No running Agent in this Session — you can still copy the report to paste
                     manually.
-                </p>
+                </Alert>
             )}
-            <label className="grid gap-1 text-[12px]">
-                <span>Actual behavior</span>
+            <Field>
+                <FieldLabel htmlFor="bug-report-actual">Actual behavior</FieldLabel>
                 <Textarea
+                    id="bug-report-actual"
                     autoFocus
                     maxLength={12_000}
                     placeholder="What happened?"
                     value={draft.actual}
                     onChange={(event) => updateDraft('actual', event.target.value)}
                 />
-            </label>
-            <label className="grid gap-1 text-[12px]">
-                <span>Expected behavior</span>
+            </Field>
+            <Field>
+                <FieldLabel htmlFor="bug-report-expected">Expected behavior</FieldLabel>
                 <Textarea
+                    id="bug-report-expected"
                     maxLength={12_000}
                     placeholder="What should have happened?"
                     value={draft.expected}
                     onChange={(event) => updateDraft('expected', event.target.value)}
                 />
-            </label>
-            <label className="grid gap-1 text-[12px]">
-                <span>Reproduction steps</span>
+            </Field>
+            <Field>
+                <FieldLabel htmlFor="bug-report-steps">Reproduction steps</FieldLabel>
                 <Textarea
+                    id="bug-report-steps"
                     maxLength={12_000}
                     placeholder="1. …"
                     value={draft.steps}
                     onChange={(event) => updateDraft('steps', event.target.value)}
                 />
-            </label>
+            </Field>
             <div className="grid gap-1 text-muted">
-                <label className="flex items-center gap-2 text-[12px]">
-                    <input
+                <Field orientation="horizontal" className="justify-start gap-2">
+                    <Checkbox
+                        id="bug-report-screenshot"
                         checked={includeScreenshot}
-                        className="size-4 accent-[var(--accent)]"
-                        type="checkbox"
-                        onChange={(event) => onIncludeScreenshotChange(event.target.checked)}
+                        onCheckedChange={(isChecked) => onIncludeScreenshotChange(isChecked)}
                     />
-                    Capture a screenshot of the current Caxri window, including any open files and
-                    terminal output visible on screen
-                </label>
+                    <FieldLabel htmlFor="bug-report-screenshot" className="text-[12px] font-normal">
+                        Capture a screenshot of the current Caxri window, including any open files
+                        and terminal output visible on screen
+                    </FieldLabel>
+                </Field>
                 {includeScreenshot && (
                     /**
                      * AGENTS.md requires diagnostics to exclude source contents and Terminal output; the text report
@@ -89,10 +96,10 @@ export function BugReportForm({
                      * pixel-for-pixel and cannot be redacted the same way. This warning makes that gap explicit instead
                      * of leaving it as a silently unexplained full-window capture.
                      */
-                    <p className="m-0 pl-6 text-[11px] text-warning">
+                    <Alert variant="warning" className="border-0 p-0 pl-6">
                         Unlike the text report, this screenshot is not redacted: it shows everything
                         on screen exactly as it appears, including source code and Terminal output.
-                    </p>
+                    </Alert>
                 )}
                 <p className="m-0 pl-6 text-[11px]">{imageFallbackNotice}</p>
             </div>

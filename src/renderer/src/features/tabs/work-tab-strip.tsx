@@ -12,7 +12,7 @@ import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
 import type { TerminalRecord } from '@shared/types';
 import type { WorkItem } from '@shared/work-item';
 import { areWorkItemsEqual, workItemKey } from '@shared/work-item';
-import { CircleAlert, LoaderCircle, Pause, Plus } from 'lucide-react';
+import { CircleAlert, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
 import { Button } from '../../components/ui/button';
@@ -21,6 +21,7 @@ import {
     ContextMenuItem,
     ContextMenuSeparator,
 } from '../../components/ui/context-menu';
+import { Spinner } from '../../components/ui/spinner';
 import { CommandTooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { usePanelLayoutStore } from '../../stores/panel-layout';
@@ -74,13 +75,7 @@ function TerminalWorkTab({
 }) {
     const progress = useTerminalProgress(terminal.id);
     const ProgressIcon =
-        progress?.kind === 'error'
-            ? CircleAlert
-            : progress?.kind === 'paused'
-              ? Pause
-              : progress?.kind === 'indeterminate'
-                ? LoaderCircle
-                : undefined;
+        progress?.kind === 'error' ? CircleAlert : progress?.kind === 'paused' ? Pause : undefined;
     return (
         <WorkTab
             active={active}
@@ -102,15 +97,10 @@ function TerminalWorkTab({
                         data-terminal-progress-state={progress.kind}
                         title={terminalProgressAriaLabel(progress)}
                     >
-                        {ProgressIcon && (
-                            <ProgressIcon
-                                aria-hidden="true"
-                                className={cn(
-                                    progress.kind === 'indeterminate' &&
-                                        'animate-spin motion-reduce:animate-none',
-                                )}
-                                size={11}
-                            />
+                        {progress.kind === 'indeterminate' ? (
+                            <Spinner aria-hidden="true" size={11} />
+                        ) : (
+                            ProgressIcon && <ProgressIcon aria-hidden="true" size={11} />
                         )}
                         {progress.kind !== 'indeterminate' && terminalProgressLabel(progress)}
                     </span>

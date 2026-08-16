@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 
 import { Input, InputGroup } from '../../components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
 import { keyboardEventShortcut } from '../../lib/keybindings';
 import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
@@ -23,6 +24,16 @@ const SEARCH_TOGGLE_SHORTCUTS: Record<string, keyof TerminalSearchOptions> = {
 
 const searchActionClassName =
     'grid size-6 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-muted text-[11px] cursor-pointer hover:bg-elevated hover:text-foreground aria-pressed:bg-elevated aria-pressed:text-foreground disabled:cursor-default disabled:opacity-45';
+
+/**
+ * `ToggleGroup`'s `value` is the array of currently-pressed item values; each search toggle maps 1:1 to a
+ * `TerminalSearchOptions` key so the group's `multiple` mode can hold any combination.
+ */
+const SEARCH_TOGGLE_VALUES: ReadonlyArray<keyof TerminalSearchOptions> = [
+    'caseSensitive',
+    'wholeWord',
+    'regex',
+];
 
 interface TerminalSearchBarProperties extends TerminalSearchOptions {
     focusRevision: number;
@@ -48,6 +59,23 @@ export function TerminalSearchBar({
 }: TerminalSearchBarProperties) {
     const inputReference = useRef<HTMLInputElement>(null);
     const resultLabel = terminalSearchResultLabel(query, results);
+    const pressedOptions: Array<keyof TerminalSearchOptions> = [
+        caseSensitive && 'caseSensitive',
+        wholeWord && 'wholeWord',
+        regex && 'regex',
+    ].filter((value): value is keyof TerminalSearchOptions => Boolean(value));
+
+    /**
+     * `ToggleGroup` reports the full next `value` array; diff it against the current pressed set to find the single
+     * option that changed and forward it through the existing `onToggle(option)` contract, keeping the keyboard-chord
+     * and click paths in sync.
+     */
+    const handleToggleGroupChange = (nextValues: Array<keyof TerminalSearchOptions>): void => {
+        const changed = SEARCH_TOGGLE_VALUES.find(
+            (value) => nextValues.includes(value) !== pressedOptions.includes(value),
+        );
+        if (changed) onToggle(changed);
+    };
 
     useEffect(() => {
         const frame = requestAnimationFrame(() => {
@@ -98,39 +126,28 @@ export function TerminalSearchBar({
                     onChange={(event) => onQueryChange(event.currentTarget.value)}
                     onKeyDown={handleKeyDown}
                 />
-                <Tooltip content="Match Case">
-                    <button
-                        aria-label="Match Case"
-                        aria-pressed={caseSensitive}
-                        className={searchActionClassName}
-                        type="button"
-                        onClick={() => onToggle('caseSensitive')}
-                    >
-                        Aa
-                    </button>
-                </Tooltip>
-                <Tooltip content="Match Whole Word">
-                    <button
-                        aria-label="Match Whole Word"
-                        aria-pressed={wholeWord}
-                        className={searchActionClassName}
-                        type="button"
-                        onClick={() => onToggle('wholeWord')}
-                    >
-                        ab
-                    </button>
-                </Tooltip>
-                <Tooltip content="Use Regular Expression">
-                    <button
-                        aria-label="Use Regular Expression"
-                        aria-pressed={regex}
-                        className={searchActionClassName}
-                        type="button"
-                        onClick={() => onToggle('regex')}
-                    >
-                        .*
-                    </button>
-                </Tooltip>
+                <ToggleGroup
+                    aria-label="Terminal search options"
+                    multiple
+                    value={pressedOptions}
+                    onValueChange={handleToggleGroupChange}
+                >
+                    <Tooltip content="Match Case">
+                        <ToggleGroupItem aria-label="Match Case" value="caseSensitive">
+                            Aa
+                        </ToggleGroupItem>
+                    </Tooltip>
+                    <Tooltip content="Match Whole Word">
+                        <ToggleGroupItem aria-label="Match Whole Word" value="wholeWord">
+                            ab
+                        </ToggleGroupItem>
+                    </Tooltip>
+                    <Tooltip content="Use Regular Expression">
+                        <ToggleGroupItem aria-label="Use Regular Expression" value="regex">
+                            .*
+                        </ToggleGroupItem>
+                    </Tooltip>
+                </ToggleGroup>
             </InputGroup>
             <span
                 aria-live="polite"

@@ -181,7 +181,7 @@ test('shares settings across an app-managed headless Host and Desktop', async ()
         });
         await createShellSession(running.page);
         await running.page.keyboard.press('Meta+,');
-        const clipboardSetting = running.page.getByRole('checkbox', {
+        const clipboardSetting = running.page.getByRole('switch', {
             name: 'Allow OSC 52 clipboard writes',
         });
         await expect(clipboardSetting).toBeChecked();

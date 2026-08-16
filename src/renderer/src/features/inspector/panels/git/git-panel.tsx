@@ -14,6 +14,7 @@ import {
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
+import { Empty } from '../../../../components/ui/empty';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
 import { cn } from '../../../../lib/utilities';
@@ -282,9 +283,9 @@ function GitRepoSection({
                             </span>
                         </div>
                         {files.length === 0 && (
-                            <div className="empty-panel px-3 py-4 text-center text-muted">
+                            <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
                                 {emptyMessage}
-                            </div>
+                            </Empty>
                         )}
                         {files.length > 0 && (
                             <GitTreeItems
@@ -364,21 +365,25 @@ export function GitPanel() {
     useToastOnQueryError(isError, error, 'Git refresh failed');
     if (!session)
         return (
-            <div className="empty-panel px-3 py-4 text-center text-muted">
+            <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
                 Create a Session to inspect Git.
-            </div>
+            </Empty>
         );
     if (!summary)
         return (
-            <div className="empty-panel px-3 py-4 text-center text-muted">Loading Git status…</div>
+            <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
+                Loading Git status…
+            </Empty>
         );
     if (!summary.isRepository)
-        return <div className="empty-panel px-3 py-4 text-center text-muted">{summary.error}</div>;
+        return (
+            <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">{summary.error}</Empty>
+        );
     if (summary.repositories.length === 0)
         return (
-            <div className="empty-panel px-3 py-4 text-center text-muted">
+            <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
                 No approved Git repositories found.
-            </div>
+            </Empty>
         );
     const refresh = (): void => {
         // Fire-and-forget: `useCaxriQuery`/`useToastOnQueryError` already own reporting a failed

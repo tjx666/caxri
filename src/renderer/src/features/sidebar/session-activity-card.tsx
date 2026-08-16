@@ -1,10 +1,10 @@
 import type { ReactElement } from 'react';
 import { useEffect, useId, useState } from 'react';
 
-import { PreviewCard } from '@base-ui/react/preview-card';
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
 import { Circle } from 'lucide-react';
 
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
@@ -70,8 +70,8 @@ export function SessionActivityCard({
     }, [open]);
 
     return (
-        <PreviewCard.Root open={open} onOpenChange={(nextOpen) => setOpen(nextOpen)}>
-            <PreviewCard.Trigger
+        <HoverCard open={open} onOpenChange={(nextOpen) => setOpen(nextOpen)}>
+            <HoverCardTrigger
                 aria-describedby={accessibleDescriptionId}
                 closeDelay={80}
                 delay={450}
@@ -85,68 +85,57 @@ export function SessionActivityCard({
             <span id={accessibleDescriptionId} className="sr-only">
                 {accessibleDescription}
             </span>
-            <PreviewCard.Portal>
-                <PreviewCard.Positioner
-                    align="start"
-                    className="session-activity-card-positioner z-[80]"
-                    collisionAvoidance={{ align: 'shift', fallbackAxisSide: 'end', side: 'flip' }}
-                    collisionBoundary={document.documentElement}
-                    collisionPadding={8}
-                    positionMethod="fixed"
-                    side="right"
-                    sideOffset={8}
-                >
-                    <PreviewCard.Popup
+            <HoverCardContent
+                align="start"
+                className="session-activity-card w-72 max-w-[calc(100vw-16px)] p-3"
+                collisionAvoidance={{ align: 'shift', fallbackAxisSide: 'end', side: 'flip' }}
+                collisionBoundary={document.documentElement}
+                collisionPadding={8}
+                positionMethod="fixed"
+                role="tooltip"
+                side="right"
+                sideOffset={8}
+            >
+                <div className="flex min-w-0 items-start gap-2">
+                    <AgentIdentityIcon identity={agent} size={17} />
+                    <div className="min-w-0 flex-1">
+                        <h3 className="m-0 text-[13px] font-semibold wrap-break-word">
+                            {session.displayTitle}
+                        </h3>
+                        <p className="mt-0.5 mb-0 truncate text-[10px] text-muted">
+                            {project.displayTitle} · {agentLabel}
+                        </p>
+                    </div>
+                </div>
+                <div className="mt-3 rounded-md border border-border bg-surface p-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium">
+                        <Circle
+                            aria-hidden="true"
+                            className={cn('flex-none', activity.indicatorClassName)}
+                            fill="currentColor"
+                            size={7}
+                        />
+                        <span>{activity.label}</span>
+                    </div>
+                    <p className="mt-1 mb-0 text-[10px] leading-[1.45] text-muted">
+                        {activity.description}
+                    </p>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
+                    <span>Last opened</span>
+                    <span className="text-right text-foreground">{lastOpened}</span>
+                </div>
+                {unread && unreadAttention && (
+                    <p
                         className={cn(
-                            'session-activity-card w-72 max-w-[calc(100vw-16px)] rounded-lg border border-border bg-elevated p-3 text-foreground shadow-[0_12px_32px_var(--shadow)] outline-none',
-                            'origin-(--transform-origin)',
-                            'motion-safe:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 motion-safe:data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-                            'duration-(--motion-overlay-enter) data-closed:duration-(--motion-overlay-exit)',
+                            'mt-2 mb-0 rounded px-2 py-1.5 text-[10px]',
+                            sessionToneCalloutClassName(unreadAttention.tone),
                         )}
-                        role="tooltip"
                     >
-                        <div className="flex min-w-0 items-start gap-2">
-                            <AgentIdentityIcon identity={agent} size={17} />
-                            <div className="min-w-0 flex-1">
-                                <h3 className="m-0 text-[13px] font-semibold wrap-break-word">
-                                    {session.displayTitle}
-                                </h3>
-                                <p className="mt-0.5 mb-0 truncate text-[10px] text-muted">
-                                    {project.displayTitle} · {agentLabel}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="mt-3 rounded-md border border-border bg-surface p-2">
-                            <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                                <Circle
-                                    aria-hidden="true"
-                                    className={cn('flex-none', activity.indicatorClassName)}
-                                    fill="currentColor"
-                                    size={7}
-                                />
-                                <span>{activity.label}</span>
-                            </div>
-                            <p className="mt-1 mb-0 text-[10px] leading-[1.45] text-muted">
-                                {activity.description}
-                            </p>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
-                            <span>Last opened</span>
-                            <span className="text-right text-foreground">{lastOpened}</span>
-                        </div>
-                        {unread && unreadAttention && (
-                            <p
-                                className={cn(
-                                    'mt-2 mb-0 rounded px-2 py-1.5 text-[10px]',
-                                    sessionToneCalloutClassName(unreadAttention.tone),
-                                )}
-                            >
-                                {unread}
-                            </p>
-                        )}
-                    </PreviewCard.Popup>
-                </PreviewCard.Positioner>
-            </PreviewCard.Portal>
-        </PreviewCard.Root>
+                        {unread}
+                    </p>
+                )}
+            </HoverCardContent>
+        </HoverCard>
     );
 }
