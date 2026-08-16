@@ -124,10 +124,14 @@ export function toWireError(error: unknown): WireError {
 export function fromWireError(wire: unknown): CaxriError {
     if (typeof wire !== 'object' || wire === null)
         return new CaxriError('INTERNAL', 'Unknown Caxri error');
-    const { code, message, details } = wire as Partial<WireError>;
+    // `wire` crosses a structured-clone hop from an untrusted process, so its shape is not guaranteed
+    // to match `WireError` at runtime; read each field as `unknown` and re-validate defensively.
+    const { code, message, details } = wire as Record<string, unknown>;
     return new CaxriError(
         toErrorCode(code),
         typeof message === 'string' && message ? message : 'Unknown Caxri error',
-        typeof details === 'object' && details !== null ? details : undefined,
+        typeof details === 'object' && details !== null
+            ? (details as Record<string, unknown>)
+            : undefined,
     );
 }

@@ -12,6 +12,9 @@ interface ProbeResult {
 
 if (!(await didRelaunchInElectron(import.meta.url))) {
     const [{ app }, pty] = await Promise.all([import('electron'), import('node-pty')]);
+    // Intentional `||`: an empty `SHELL` value must also fall back to the default shell, not be
+    // kept as `''`.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- see comment above
     const shell = process.env.SHELL || '/bin/zsh';
     const terminal = pty.spawn(shell, ['-l'], {
         cols: 80,
@@ -56,6 +59,11 @@ if (!(await didRelaunchInElectron(import.meta.url))) {
 
         process.stdout.write(`${JSON.stringify(result)}\n`);
     } finally {
+        // `isExited` is only ever reassigned inside the `terminal.onExit` callback above; the type
+        // checker's control-flow analysis does not track mutation through that nested closure, so
+        // it (unsoundly) narrows `isExited` to `false` here. At runtime it can genuinely be `true`
+        // (the PTY already exited cleanly), in which case calling `kill()` again is unnecessary.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
         if (!isExited) terminal.kill();
         app.quit();
     }

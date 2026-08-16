@@ -382,6 +382,7 @@ describe('workbench Session state', () => {
         };
         const bootstrap = {
             configurationErrors: [],
+            sessions: [],
             sessionStates: [filesState],
         } as unknown as BootstrapState;
         useWorkbenchStore.setState({ bootstrap });

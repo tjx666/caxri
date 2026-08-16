@@ -61,10 +61,11 @@ export function parseDialogOptions(arguments_: string[]): DialogOptions | 'help'
     let button: string | undefined;
     let timeoutMs = 10_000;
     for (let index = 1; index < arguments_.length; index += 2) {
+        // `index < arguments_.length` (loop condition) guarantees `option` is in bounds.
         const option = arguments_[index];
         const value = arguments_[index + 1];
-        if (!value || !option?.startsWith('--') || value.startsWith('--')) {
-            throw new Error(`Invalid option: ${option ?? '(missing)'}`);
+        if (!value || !option.startsWith('--') || value.startsWith('--')) {
+            throw new Error(`Invalid option: ${option}`);
         }
         if (option === '--button') button = value;
         else if (option === '--timeout-ms') timeoutMs = Number(value);

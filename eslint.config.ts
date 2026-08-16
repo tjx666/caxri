@@ -1,10 +1,5 @@
-import {
-    markdownProcessorConfig,
-    typeCheckedConfig,
-    typescriptConfig,
-} from '@yutengjing/eslint-config-typescript';
+import { markdownProcessorConfig, typescriptConfig } from '@yutengjing/eslint-config-typescript';
 import { defineConfig, globalIgnores } from 'eslint/config';
-import n from 'eslint-plugin-n';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
@@ -77,23 +72,28 @@ export default defineConfig(
         '.claude/**',
     ]),
     /**
-     * `typescriptConfig` covers the shared basic + import-x + TypeScript recommended rules; `typeCheckedConfig` layers
-     * `recommendedTypeChecked` with `projectService: true` and disables type-aware rules on the processor's virtual
-     * `**\/*.md/**` children (they cannot be resolved by `projectService`). `markdownProcessorConfig` turns fenced
-     * JS/TS code blocks in `*.md` files into virtual files the rest of this config lints; it deliberately replaces the
-     * default export's document-level `markdownRulesConfig` (Markdown semantics belong to markdownlint — see
-     * `.markdownlint-cli2.jsonc` — not ESLint) per https://github.com/tjx666/caxri/issues/177.
+     * `typescriptConfig` covers the shared basic + import-x + TypeScript recommended rules (syntactic only). Type-aware
+     * linting is deliberately NOT composed here: every rule that needs type information runs through `oxlint
+     * --type-aware` (`.oxlintrc.json`, backed by tsgolint) instead, so ESLint never pays the `projectService`
+     * type-checking cost. `markdownProcessorConfig` turns fenced JS/TS code blocks in `*.md` files into virtual files
+     * the rest of this config lints; it deliberately replaces the default export's document-level `markdownRulesConfig`
+     * (Markdown semantics belong to markdownlint — see `.markdownlint-cli2.jsonc` — not ESLint) per
+     * https://github.com/tjx666/caxri/issues/177.
      */
     typescriptConfig,
-    typeCheckedConfig,
     markdownProcessorConfig,
     reactHooks.configs.flat['recommended-latest'],
     {
         files: typescriptFiles,
-        languageOptions: {
-            parserOptions: {
-                tsconfigRootDir: import.meta.dirname,
-            },
+        rules: {
+            /**
+             * Syntactic rules the repository previously received through `typeCheckedConfig` (`recommendedTypeChecked`
+             * is a superset of `recommended`); re-enabled explicitly now that the type-aware layer moved to oxlint.
+             */
+            '@typescript-eslint/no-explicit-any': 'error',
+            '@typescript-eslint/no-namespace': 'error',
+            '@typescript-eslint/no-unused-vars': 'error',
+            '@typescript-eslint/triple-slash-reference': 'error',
         },
     },
     {
@@ -127,17 +127,19 @@ export default defineConfig(
         },
     },
     {
-        /**
-         * Scoped separately from `consistent-type-imports` above: this rule requires type information, and
-         * `markdownProcessorConfig`'s virtual `**\/*.md/**` code-block children also match `typescriptFiles` (they end
-         * in `.ts`/`.tsx`). Without this `ignores`, this override would re-enable a type-aware rule that
-         * `typeCheckedConfig`'s `markdownProcessorTypeCheckedConfig` deliberately turns off for those virtual files
-         * (they cannot be resolved by `projectService`), because later config entries win.
-         */
-        files: typescriptFiles,
-        ignores: ['**/*.md/**'],
+        files: javaScriptAndTypeScriptFiles,
         rules: {
-            '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: false }],
+            /**
+             * These unicorn rules consult type information when parserServices are available and fall back to
+             * aggressive syntax-only heuristics when they are not. ESLint deliberately runs without typed linting (the
+             * type-aware layer lives in oxlint — see .oxlintrc.json), and in untyped mode each of these produced
+             * confirmed false positives on this repository (a non-Array `.push()` receiver, a string `.slice()` treated
+             * as an ArrayBuffer view, an intentional boolean-to-boolean `!==` comparison).
+             */
+            'unicorn/no-chained-comparison': 'off',
+            'unicorn/no-computed-property-existence-check': 'off',
+            'unicorn/no-return-array-push': 'off',
+            'unicorn/no-unsafe-buffer-conversion': 'off',
         },
     },
     {
@@ -324,28 +326,11 @@ export default defineConfig(
             ],
         },
     },
-    {
-        files: [
-            'src/main/**/*.ts',
-            'src/runtime/**/*.ts',
-            'src/shared/node/**/*.ts',
-            'packages/cli/src/**/*.ts',
-            'scripts/**/*.ts',
-            '.agents/**/scripts/**/*.ts',
-        ],
-        ignores: ['**/*.test.ts', '**/__tests__/**'],
-        plugins: {
-            n,
-        },
-        rules: {
-            /**
-             * AGENTS.md "Code conventions": prefer asynchronous Node.js APIs over `*Sync` variants in Main, Runtime,
-             * and tooling code; test code is exempt. A deliberately synchronous production boundary needs a comment
-             * justifying it (`// eslint-disable-next-line n/no-sync -- <reason>`).
-             */
-            'n/no-sync': 'error',
-        },
-    },
+    /**
+     * The `n/no-sync` ban moved to oxlint (`node/no-sync` in .oxlintrc.json): eslint-plugin-n v18 requires typed
+     * linting for it, and ESLint here is deliberately syntactic-only. A deliberately synchronous production boundary
+     * still needs a justifying comment (`// oxlint-disable-next-line node/no-sync -- <reason>`).
+     */
     {
         files: ['src/**/*.tsx', 'scripts/fixtures/eslint/*-fixture.tsx'],
         ignores: [

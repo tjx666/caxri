@@ -33,7 +33,7 @@ function useNearMultiDiffViewport(): {
             setActive(true);
             return;
         }
-        const observer = new IntersectionObserver(([entry]) => setActive(entry?.isIntersecting), {
+        const observer = new IntersectionObserver(([entry]) => setActive(entry.isIntersecting), {
             root: element.closest('.git-multi-diff'),
             rootMargin: '720px 0px',
         });

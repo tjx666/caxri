@@ -50,6 +50,9 @@ export class TerminalRendererController {
         private readonly host: TerminalRendererHost,
         private readonly redraw: () => void,
         private readonly onStatus: (status: TerminalRendererStatus) => void,
+        // DOM lib types declare `WebGL2RenderingContext` as always present, but this checks whether the runtime
+        // environment (e.g. a WebGL2-less Electron/GPU configuration) actually exposes it.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
         private readonly webgl2Available = () => globalThis.WebGL2RenderingContext !== undefined,
         private readonly createWebglAddon: WebglAddonFactory = () => new WebglAddon(),
     ) {}

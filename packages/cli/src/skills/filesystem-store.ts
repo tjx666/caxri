@@ -242,7 +242,7 @@ export async function validateStore(
             if (!/^release-[0-9a-f-]{36}$/u.test(name))
                 throw new Error('Managed skill store contains an unknown release entry');
             const relativePath = `${storeName(skillName)}/${RELEASES_DIRECTORY}/${name}`;
-            return await validateRelease(join(releasesPath, name), relativePath, skillName);
+            return validateRelease(join(releasesPath, name), relativePath, skillName);
         }),
     );
     for (const release of releaseEntries) {

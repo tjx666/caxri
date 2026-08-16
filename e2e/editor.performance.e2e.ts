@@ -73,7 +73,7 @@ async function installHighlightObserver(page: Page, expectedText: string): Promi
             const check = (): void => {
                 const openedAt = performance.getEntriesByName('caxri.editor.open-start').at(-1);
                 const line = [...document.querySelectorAll('.monaco-editor .view-line')].find(
-                    (element) => element.textContent?.includes(text),
+                    (element) => element.textContent.includes(text),
                 );
                 const tokens = line ? [...line.querySelectorAll(':scope span span')] : [];
                 const colors = new Set(tokens.map((token) => getComputedStyle(token).color));

@@ -51,6 +51,11 @@ export default defineConfig(async ({ command }) => {
             },
             build: {
                 externalizeDeps: { exclude: ['@caxri/cli', '@caxri/protocol', '@caxri/utils'] },
+                // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
+                // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
+                // report the whole process-explorer entry chain as unused. Keep the deprecated name until
+                // knip understands `rolldownOptions`.
+                // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
                     input: {
                         host: resolve('src/host/process.ts'),
@@ -63,6 +68,11 @@ export default defineConfig(async ({ command }) => {
         preload: {
             build: {
                 externalizeDeps: true,
+                // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
+                // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
+                // report the whole process-explorer entry chain as unused. Keep the deprecated name until
+                // knip understands `rolldownOptions`.
+                // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
                     input: {
                         'index': resolve('src/preload/index.ts'),
@@ -77,6 +87,11 @@ export default defineConfig(async ({ command }) => {
         },
         renderer: {
             build: {
+                // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
+                // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
+                // report the whole process-explorer entry chain as unused. Keep the deprecated name until
+                // knip understands `rolldownOptions`.
+                // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
                     input: {
                         'index': resolve('src/renderer/index.html'),

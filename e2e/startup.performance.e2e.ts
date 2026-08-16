@@ -90,7 +90,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         await terminalInput.pressSequentially(String.raw`printf 'CAXRI_BENCHMARK_INPUT\n'`);
         await terminalInput.press('Enter');
         await page.waitForFunction(() =>
-            document.querySelector('.xterm-rows')?.textContent?.includes('CAXRI_BENCHMARK_INPUT'),
+            document.querySelector('.xterm-rows')?.textContent.includes('CAXRI_BENCHMARK_INPUT'),
         );
 
         const gitStartedAt = performance.now();

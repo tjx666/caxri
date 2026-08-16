@@ -110,7 +110,9 @@ export class TerminalReplayBuffer {
     }
 
     private async writeBatch(pending: readonly string[], index = 0): Promise<void> {
-        const value = pending[index];
+        // `.at()` (rather than `[index]`) keeps the recursion's out-of-range terminal case in the type, since this
+        // project does not enable `noUncheckedIndexedAccess`.
+        const value = pending.at(index);
         if (value === undefined) return;
         await this.write(value);
         return this.writeBatch(pending, index + 1);

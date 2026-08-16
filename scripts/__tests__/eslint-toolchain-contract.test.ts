@@ -28,12 +28,19 @@ async function effectiveConfigFor(path: string): Promise<EffectiveConfig> {
 }
 
 describe('shared ESLint preset toolchain contract', () => {
-    it('fires type-aware rules only available through the typed-linting layer', async () => {
+    it('keeps ESLint syntactic-only: type-aware rules stay with oxlint, not ESLint', async () => {
+        // Type-aware linting moved to `oxlint --type-aware` (see .oxlintrc.json and
+        // scripts/__tests__/oxlint-toolchain-contract.test.ts). ESLint must neither fire nor even
+        // configure these rules, or it would silently re-pay the projectService type-check cost.
         const result = await lint('scripts/fixtures/eslint/type-aware-violation.ts');
         const ruleIds = result.messages.map((message) => message.ruleId);
 
-        expect(ruleIds).toContain('@typescript-eslint/no-floating-promises');
-        expect(ruleIds).toContain('@typescript-eslint/no-unsafe-assignment');
+        expect(ruleIds).not.toContain('@typescript-eslint/no-floating-promises');
+        expect(ruleIds).not.toContain('@typescript-eslint/no-unsafe-assignment');
+
+        const config = await effectiveConfigFor('src/main/index.ts');
+        expect(config.rules?.['@typescript-eslint/no-floating-promises']).toBeUndefined();
+        expect(config.rules?.['@typescript-eslint/no-misused-promises']).toBeUndefined();
     });
 
     it('flags a non-kebab-case filename via unicorn/filename-case', async () => {
@@ -64,7 +71,7 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(config.rules?.['react-refresh/only-export-components']?.[0]).toBe(1);
 
         // Shared-preset coverage the migration adopted must also be present on the same file.
-        expect(config.rules?.['@typescript-eslint/no-floating-promises']?.[0]).toBe(2);
+        // (Type-aware rules such as no-floating-promises deliberately absent: they run via oxlint.)
         expect(config.rules?.['unicorn/filename-case']?.[0]).toBe(2);
         expect(config.rules?.['import-x/order']).toBeDefined();
     });
@@ -116,13 +123,11 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(ruleIds).toContain('no-restricted-syntax');
     });
 
-    it('requires async Node APIs (n/no-sync) outside tests in Main/Runtime/shared-node/CLI/tooling', async () => {
+    it('leaves the async-Node-API ban to oxlint (n/no-sync requires typed linting)', async () => {
+        // See scripts/__tests__/oxlint-toolchain-contract.test.ts for the node/no-sync coverage.
         const config = await effectiveConfigFor('src/runtime/index.ts');
 
-        expect(config.rules?.['n/no-sync']?.[0]).toBe(2);
-
-        const testConfig = await effectiveConfigFor('src/runtime/__tests__/structure.test.ts');
-        expect(testConfig.rules?.['n/no-sync']).toBeUndefined();
+        expect(config.rules?.['n/no-sync']).toBeUndefined();
     });
 
     it('flags a component export that does not match its filename mapping', async () => {

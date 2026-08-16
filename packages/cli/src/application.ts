@@ -421,7 +421,7 @@ function humanRemote(command: RemoteCommandDefinition, value: unknown): string |
 
 function remoteCommand(tokens: readonly string[]): RemoteCommandDefinition {
     const command = findCliCommand(tokens);
-    if (!command || command.kind !== 'remote')
+    if (command?.kind !== 'remote')
         throw new CaxriError('VALIDATION', `Unknown command: ${tokens.slice(0, 2).join(' ')}`);
     return command;
 }
@@ -517,7 +517,10 @@ export async function runCli(
             const home = options.home ?? environment.HOME ?? homedir();
             let value =
                 selected.path[0] === 'skills'
-                    ? await executeSkillCommand(selected.path[1] ?? '', parameters, {
+                    ? // `.at()` (unlike index access on a `[string, ...string[]]` tuple) types the
+                      // result as `string | undefined`, matching the real runtime possibility that
+                      // a `skills` command path is exactly one segment long.
+                      await executeSkillCommand(selected.path.at(1) ?? '', parameters, {
                           cwd: options.cwd ?? process.cwd(),
                           environment,
                           home,

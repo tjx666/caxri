@@ -18,6 +18,15 @@ function isChangedOnDisk(cached: FileDocument, current: FileDocument): boolean {
     return cached.mtimeMs !== current.mtimeMs || cached.size !== current.size;
 }
 
+/**
+ * Reads a cached document by path, surfacing `undefined` for a path never cached. `Record` indexing does not model the
+ * missing-key case; `Object.hasOwn` recovers it explicitly instead of relying on an index access the type system treats
+ * as always-defined.
+ */
+function readCachedDocument<T>(cached: Record<string, T>, path: string): T | undefined {
+    return Object.hasOwn(cached, path) ? cached[path] : undefined;
+}
+
 async function readDocuments(sessionId: string, paths: readonly string[]): Promise<FileDocument[]> {
     const results = await Promise.allSettled(
         paths.map((path) => caxri.request('files.read', { sessionId, path })),
@@ -79,7 +88,7 @@ async function syncFilesChanged(sessionId: string, changedPaths: readonly string
         sessionId,
         workbenchProjectId,
         documents.filter((document) => {
-            const previous = cached[document.path];
+            const previous = readCachedDocument(cached, document.path);
             return previous && isChangedOnDisk(previous, document);
         }),
     );
@@ -107,7 +116,7 @@ async function syncReconcileSelectedSession(
         sessionId,
         workbenchProjectId,
         documents.filter((document) => {
-            const previous = cached[document.path];
+            const previous = readCachedDocument(cached, document.path);
             return previous && isChangedOnDisk(previous, document);
         }),
     );
@@ -121,7 +130,7 @@ function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false
     const openTabs = getSessionState()?.openTabs ?? [];
     const paths: string[] = [];
     for (const tab of openTabs) {
-        const cachedTab = cached[tab.path];
+        const cachedTab = readCachedDocument(cached, tab.path);
         if (cachedTab && !isGitDiffTabPath(tab.path) && (!shouldPreserveDirty || !cachedTab.dirty))
             paths.push(tab.path);
     }

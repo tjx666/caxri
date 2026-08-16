@@ -132,6 +132,8 @@ async function readCodexState(
  * directory, mirroring Codex's own resolution order.
  */
 function resolveCodexStateDirectories(environment: AgentEnvironment): string[] {
+    // `||` (not `??`) is deliberate: `CODEX_HOME=''` is not a usable override path either.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid override path either
     const codexHome = environment.variables.CODEX_HOME || join(environment.homeDirectory, '.codex');
     const sqliteHome = environment.variables.CODEX_SQLITE_HOME;
     return [...(sqliteHome ? [resolve(sqliteHome)] : []), join(codexHome, 'sqlite'), codexHome];

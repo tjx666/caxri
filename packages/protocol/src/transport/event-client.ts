@@ -93,8 +93,11 @@ export function createRecoveringEventClient(options: {
                     payload: { kind: 'full', reason: 'unknown' },
                 });
             } else acceptSuffix(result.events);
+            // `isQueuedOverflowed` cannot flip true between the guard above and here: everything in
+            // this branch (acceptSuffix/didDrainQueue) runs synchronously, and it was already false
+            // to reach this branch.
             const isDrained = didDrainQueue();
-            if (!isQueuedOverflowed && isDrained) return;
+            if (isDrained) return;
             queued.length = 0;
             isQueuedOverflowed = false;
         }

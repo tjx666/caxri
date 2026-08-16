@@ -168,7 +168,9 @@ async function discoverPublishedRun(
     if (candidates.length > 1) {
         throw new Error('LobeHub run discovery returned ambiguous matching rounds');
     }
-    const candidate = candidates[0];
+    // `.at()` (unlike index access) types the result as `T | undefined`, matching the real
+    // possibility that no candidate matched (`candidates.length === 0`).
+    const candidate = candidates.at(0);
     return candidate
         ? {
               acceptanceId: candidate.acceptanceId,
@@ -274,6 +276,9 @@ export function recordOrphanedAcceptance(
     if (!acceptanceId || !reason) {
         throw new Error('Orphaned Acceptance history requires an id and reason');
     }
+    // Intentional `||`: an empty (whitespace-only) trimmed value must also collapse to `null`,
+    // not be kept as `''`.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- see comment above
     const verifyRunId = input.verifyRunId?.trim() || null;
     const isAlreadyRecorded = state.acceptance.publication.orphanedStandalones.some(
         (record) => record.acceptanceId === acceptanceId && record.verifyRunId === verifyRunId,

@@ -60,9 +60,12 @@ export class GitBlameService {
                 throw error;
             }
             const summary = await this.options.summary(parameters.sessionId);
+            // `.at(0)` (not `[0]`) keeps the result typed as possibly missing: the filtered/sorted
+            // list is commonly empty when `path` is outside every known repository.
             const repo = summary.repositories
                 .filter((candidate) => !isOutsideRoot(relative(candidate.rootPath, path)))
-                .toSorted((left, right) => right.rootPath.length - left.rootPath.length)[0];
+                .toSorted((left, right) => right.rootPath.length - left.rootPath.length)
+                .at(0);
             if (!repo?.head) return null;
             const relativePath = relative(repo.rootPath, path);
             if (!relativePath || isOutsideRoot(relativePath)) return null;

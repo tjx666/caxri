@@ -133,6 +133,8 @@ async function readClaudeState(
  * Resolves Claude Code's config directory from generic environment inputs, honoring its override var.
  */
 function resolveClaudeConfigDirectory(environment: AgentEnvironment): string {
+    // `||` (not `??`) is deliberate: `CLAUDE_CONFIG_DIR=''` is not a usable override path either.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid override path either
     return environment.variables.CLAUDE_CONFIG_DIR || join(environment.homeDirectory, '.claude');
 }
 

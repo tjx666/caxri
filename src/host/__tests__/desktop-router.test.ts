@@ -95,7 +95,7 @@ describe('Host Desktop router', () => {
             sessionId: session.id,
         });
         expect(operation).toMatchObject({ kind: 'open' });
-        if (!operation || operation.kind !== 'open') throw new Error('Open target was not issued');
+        if (operation?.kind !== 'open') throw new Error('Open target was not issued');
         await expect(router.consumeTarget(operation.targetId, 2)).rejects.toMatchObject({
             code: 'CONFLICT',
         });
@@ -125,8 +125,7 @@ describe('Host Desktop router', () => {
             path: authorized.path,
             sessionId: session.id,
         });
-        if (!operation || operation.kind !== 'reveal')
-            throw new Error('Reveal target was not issued');
+        if (operation?.kind !== 'reveal') throw new Error('Reveal target was not issued');
         await expect(router.consumeTarget(operation.targetId, 4)).resolves.toEqual({
             targetId: operation.targetId,
             operation: 'reveal',

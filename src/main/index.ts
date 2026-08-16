@@ -588,7 +588,7 @@ enableRemoteDebugging(app, process.env);
                                 ? mainWindow.webContents.getOSProcessId()
                                 : undefined;
                         if (workbenchPid !== undefined) roles.set(workbenchPid, 'workbench');
-                        const explorerPid = processExplorer?.processId();
+                        const explorerPid = processExplorer.processId();
                         if (explorerPid !== undefined) roles.set(explorerPid, 'process explorer');
                         return roles;
                     },

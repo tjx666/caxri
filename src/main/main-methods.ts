@@ -201,7 +201,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     sessionIds: [],
                     terminalIds: [terminalId],
                 });
-                const terminal = records.terminals[0];
+                // `.find` (not index `[0]`) keeps the result typed as possibly missing: `app.records`
+                // returns an empty array, not a guaranteed match, when the Terminal no longer exists.
+                const terminal = records.terminals.find((candidate) => candidate.id === terminalId);
                 if (!terminal) throw new CaxriError('NOT_FOUND', 'Agent Terminal not found');
                 if (terminal.sessionId !== sessionId)
                     throw new CaxriError(

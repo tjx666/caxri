@@ -69,7 +69,9 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
 - Focused changed-file validation:
   `bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e]`
-- Repository-wide local gates: `bun run lint`, `bun run typecheck`, and `bun run test`
+- Repository-wide local gates: `bun run lint` (syntactic ESLint), `bun run lint:type-aware`
+  (oxlint/tsgolint type-aware rules — see `docs/type-aware-linting.md`), `bun run typecheck`, and
+  `bun run test`
 - Preview the pre-release local reset/uninstall plan: `bun run uninstall:caxri`; apply it only after
   explicit authorization with `bun run uninstall:caxri -- --yes`. The command archives known Caxri
   installation state, application paths, and managed development profiles beneath

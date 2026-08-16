@@ -198,8 +198,7 @@ export class AgentInboxRegistry {
         if (input.replyTo) {
             const parent = this.messages.get(input.replyTo);
             if (
-                !parent ||
-                parent.receipt.status !== 'delivered' ||
+                parent?.receipt.status !== 'delivered' ||
                 !referencesEqual(parent.receipt.to, from.ref) ||
                 !referencesEqual(parent.receipt.from, input.to)
             )
@@ -603,7 +602,7 @@ export class AgentInboxRegistry {
     heldDetail(messageId: string): AgentHeldMessageDetail {
         this.sweep();
         const message = this.messages.get(messageId);
-        if (!message || message.state !== 'held')
+        if (message?.state !== 'held')
             throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
         return heldMessageDetail(message);
     }
@@ -611,7 +610,7 @@ export class AgentInboxRegistry {
     approve(messageId: string): AgentMessageReceipt {
         this.sweep();
         const message = this.messages.get(messageId);
-        if (!message || message.state !== 'held' || !message.to)
+        if (message?.state !== 'held' || !message.to)
             throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
         this.endpoints.resolve(message.to.ref);
         const receiverKey = endpointKey(message.to.ref);
@@ -635,7 +634,7 @@ export class AgentInboxRegistry {
     deny(messageId: string): AgentMessageReceipt {
         this.sweep();
         const message = this.messages.get(messageId);
-        if (!message || message.state !== 'held')
+        if (message?.state !== 'held')
             throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
         this.finish(message, 'refused');
         return message.receipt;
@@ -724,7 +723,7 @@ export class AgentInboxRegistry {
         if (!reservation) return;
         this.reservations.delete(requestId);
         const message = this.messages.get(reservation.messageId);
-        if (!message || message.state !== 'delivering') return;
+        if (message?.state !== 'delivering') return;
         if (message.receipt.expiresAt <= this.now()) {
             this.finish(message, 'expired');
             return;

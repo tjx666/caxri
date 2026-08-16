@@ -26,7 +26,10 @@ const metadata = {
 function runner(overrides: Record<string, unknown> = {}): XtermRegistryRunner {
     return {
         view(specifier) {
-            const value = overrides[specifier] ?? metadata[specifier as keyof typeof metadata];
+            // Read `metadata` through an honestly-typed lookup (not `as keyof typeof metadata`,
+            // which lies that every runtime `specifier` is a known key): an unresolved specifier
+            // that also has no override is a real "unexpected query" the test must be able to hit.
+            const value = overrides[specifier] ?? (metadata as Record<string, unknown>)[specifier];
             if (!value) throw new Error(`Unexpected registry query: ${specifier}`);
             return Promise.resolve(value);
         },

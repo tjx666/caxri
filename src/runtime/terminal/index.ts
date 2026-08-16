@@ -329,6 +329,9 @@ export class TerminalManager {
     ): Promise<string> {
         if (this.resolveExecutableOverride)
             return this.resolveExecutableOverride(kind, launchSettings);
+        // `||` (not `??`) is deliberate: `SHELL=''` is not a runnable shell either and must also
+        // fall back to the default.
+        // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid shell path either
         if (kind === 'shell') return process.env.SHELL || '/bin/zsh';
         const executable = await discoverExecutable(kind, launchSettings?.executable);
         if (!executable)

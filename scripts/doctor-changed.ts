@@ -11,6 +11,9 @@ export function createDoctorCommand(environment: NodeJS.ProcessEnv): string[] {
      */
     if (requestedBase && ZERO_SHA.test(requestedBase)) return ['run', 'doctor'];
 
+    // Intentional `||`: a whitespace-only trimmed env var must also fall back to the default
+    // base, not be kept as `''`.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- see comment above
     const base = requestedBase || 'origin/main';
     return ['run', 'doctor', '--', '--scope', 'changed', '--base', base];
 }

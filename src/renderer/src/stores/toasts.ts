@@ -67,7 +67,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
          * sentence twice, so a repeat re-arms the live one.
          */
         const newest = get().toasts.at(-1);
-        if (newest && newest.kind === kind && newest.message === message) {
+        if (newest?.kind === kind && newest.message === message) {
             clearDismissTimer(newest.id);
             if (!isPersist)
                 dismissTimers.set(

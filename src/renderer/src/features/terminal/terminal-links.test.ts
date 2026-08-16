@@ -84,7 +84,9 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
                     line === 0
                         ? {
                               getCell: (column: number) => {
-                                  const cell = cells[column];
+                                  // `.at()` (rather than `[column]`) keeps an out-of-range index's `undefined` case
+                                  // in the type, since this project does not enable `noUncheckedIndexedAccess`.
+                                  const cell = cells.at(column);
                                   return cell
                                       ? {
                                             getChars: () => cell.chars,

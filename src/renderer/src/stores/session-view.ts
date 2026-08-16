@@ -64,7 +64,7 @@ interface SessionViewState {
  * dirty buffers with the same path can never collide.
  */
 export function sessionViewScope(sessionId: string, workbenchProjectId?: string): string {
-    const session = getBootstrap()?.sessions?.find((candidate) => candidate.id === sessionId);
+    const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
     const rootProjectId = workbenchProjectId ?? session?.workbenchProjectId;
     if (!rootProjectId || !session || rootProjectId === session.projectId) return sessionId;
     return `${sessionId}\0${rootProjectId}`;
@@ -72,6 +72,18 @@ export function sessionViewScope(sessionId: string, workbenchProjectId?: string)
 
 function touch(recent: readonly string[] | undefined, path: string): string[] {
     return [...(recent ?? []).filter((value) => value !== path), path];
+}
+
+/**
+ * Reads a scoped document map, surfacing `undefined` for a Session that has never cached a document. `SessionDocuments`
+ * indexes with a plain `Record`, so TypeScript does not model the missing-key case; `Object.hasOwn` recovers it
+ * explicitly instead of relying on an index access the type system treats as always-defined.
+ */
+function readScopedDocuments(
+    documents: SessionDocuments,
+    scope: string,
+): Record<string, EditorDocument> | undefined {
+    return Object.hasOwn(documents, scope) ? documents[scope] : undefined;
 }
 
 /**
@@ -86,7 +98,7 @@ function evictExcess(
     const tracked = new Set(recent);
     const cached = [
         ...Object.keys(documents).filter((path) => !tracked.has(path)),
-        ...recent.filter((path) => documents[path]),
+        ...recent.filter((path) => Object.hasOwn(documents, path)),
     ];
     if (cached.length <= MAX_CACHED_DOCUMENTS_PER_SESSION) return { documents, recent: cached };
     const remaining = { ...documents };
@@ -123,7 +135,7 @@ function evictToGlobalBudget(
         const tracked = new Set(recent);
         const ordered = [
             ...Object.keys(sessionDocuments).filter((path) => !tracked.has(path)),
-            ...recent.filter((path) => sessionDocuments[path]),
+            ...recent.filter((path) => Object.hasOwn(sessionDocuments, path)),
         ];
         for (const path of ordered) {
             const document = sessionDocuments[path];
@@ -234,7 +246,7 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     evictDocument(sessionId, path, workbenchProjectId) {
         const scope = sessionViewScope(sessionId, workbenchProjectId);
         set((state) => {
-            const cached = state.documents[scope];
+            const cached = readScopedDocuments(state.documents, scope);
             if (!cached || !Object.hasOwn(cached, path)) return state;
             const remaining = { ...cached };
             delete remaining[path];
@@ -251,7 +263,7 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     evictDocumentsUnderPath(sessionId, path) {
         const scope = sessionViewScope(sessionId);
         set((state) => {
-            const cached = state.documents[scope];
+            const cached = readScopedDocuments(state.documents, scope);
             if (!cached || Object.keys(cached).every((value) => !isPathAtOrBelow(value, path)))
                 return state;
             const remaining = Object.fromEntries(
@@ -272,7 +284,7 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     remapDocuments(sessionId, previousPath, nextPath, workbenchProjectId) {
         const scope = sessionViewScope(sessionId, workbenchProjectId);
         set((state) => {
-            const cached = state.documents[scope];
+            const cached = readScopedDocuments(state.documents, scope);
             if (
                 !cached ||
                 Object.keys(cached).every((path) => !isPathAtOrBelow(path, previousPath))
