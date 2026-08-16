@@ -17,9 +17,11 @@ Pass `--json` when another tool or agent will consume the result.
 
 An isolated worktree is a self-contained development environment: its branch, dependencies, and
 profile cannot disturb the primary checkout or sibling agent sessions. That isolation is the point —
-when the user asks to switch to a worktree to get work done (e.g. "切 worktree 处理 issue #123"),
-they are delegating the entire development loop, not just the implementation. Run it end to end
-without pausing for permission between stages:
+when the user starts a standalone session and asks to switch to a worktree to get work done (e.g.
+"切 worktree 处理 issue #123"), they are delegating the entire development loop, not just the
+implementation. This flow governs exactly that standalone-session case; a run under the `go`
+workflow follows `go`'s own orchestration instead. Run it end to end without pausing for permission
+between stages:
 
 1. Ensure a GitHub issue tracks the task: when the request references an existing issue, use it;
    otherwise create one first (`gh issue create`, Simplified Chinese title and body, technical
