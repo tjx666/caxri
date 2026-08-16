@@ -88,13 +88,14 @@ tracking. No other arbitrary typography values are allowed.
 - Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
   Settings fields/buttons, and 44px palette/path input.
 - Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. `rounded-full` is
-  reserved for intrinsically circular indicators — activity dots and the drag insertion line's
-  leading cap — never for rectangular controls. No other radii.
+  reserved for intrinsically circular shapes — activity dots, the drag insertion line's leading
+  cap, and the Switch track/thumb (the one sanctioned fully-round control). No other radii.
 
 `src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric arbitrary-class
-allowlist above and rejects feature-local raw text inputs. Checkbox and color inputs are currently
-native; the boolean-control half of that exception is scheduled to move to shadcn Switch /
-Checkbox / Field under issue #178, while `input[type=color]` stays native (see Known gaps).
+allowlist above and rejects feature-local raw text inputs and raw checkboxes. Boolean controls use
+the shared shadcn primitives: instant preferences render Switch, deliberate pre-submit opt-ins
+render Checkbox, and label/description/control rows compose Field. `input[type=color]` is the one
+remaining native input (the OS color picker has no shadcn equivalent).
 Numeric arbitrary width/height constraints are also closed by default; the test's small allowlist
 covers existing structural viewport, empty-state, and platform-diagnostic geometry, not additional
 control-density tiers. Every allowlist entry is a grandfathered measurement, not a precedent — a
@@ -226,9 +227,11 @@ a structured control writes as soon as it changes, and the raw source editor com
 focus, reporting a parse failure in place instead of persisting it. A keybinding that collides with
 an existing chord is still written and flagged inline on both rows — the editor reports conflicts,
 it never blocks the user out of one. Compact scalar controls keep labels left and show their unit inside the field;
-path controls occupy a full row. Provider launch groups use quiet `--elevated` sections headed by
-the shared Agent identity icon, and every multiline value uses the same themed field/focus redline
-as single-line input.
+path controls occupy a full row. Settings and form rows compose the shared Field primitive
+(label left, description under the label, control right); instant boolean preferences render
+Switch, and clicking either the label or the control toggles it. Provider launch groups use quiet
+`--elevated` sections headed by the shared Agent identity icon, and every multiline value uses the
+same themed field/focus redline as single-line input.
 
 **Toasts** — three variants (`info`/`success`/`error`) with a 3px left bar in the status
 color and matching icon; `info` uses `--muted` for its bar (an accent bar would be a
@@ -254,14 +257,10 @@ not touched.").
 Acknowledged debt in the current spec. Entries here describe shipped reality, not an
 endorsement; resolving one requires updating the sections above in the same change.
 
-- **Boolean form controls** — issue #178 replaces native checkboxes: instant preferences move
-  to shadcn Switch (its track is an approved `rounded-full` exception), true pre-submit
-  opt-ins stay on Checkbox, and Settings/form rows standardize on Field. `input[type=color]`
-  remains native.
 - **State tokens** — there is no `--hover` / `--selected` / `--active` layer, so components
-  hand-roll `color-mix` recipes (status bar, project rows, process explorer, panel divider)
-  and one spot borrows `--selection` as a button hover fill. Until dedicated state tokens
-  land, reuse the closest existing recipe instead of inventing another formula.
+  hand-roll `color-mix` recipes (status bar, project rows, process explorer, panel divider).
+  Until dedicated state tokens land, reuse the closest existing recipe instead of inventing
+  another formula.
 - **Imported-theme contrast** — the `--muted` WCAG AA floor is asserted only for the built-in
   palette; imported themes are not validated at import time, so a low-contrast theme currently
   imports without warning.
