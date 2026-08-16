@@ -18,7 +18,6 @@ import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import { decideCrashRecovery } from './crash-policy';
 import { createDesktopOperationHandler } from './desktop-operations';
-import { enableDevelopmentCdp } from './development-cdp';
 import { createMainEventRelay } from './event-relay';
 import { DesktopHostConnection, resolveDesktopLaunch } from './host-connection';
 import { shouldContinueStartup } from './host-startup';
@@ -29,6 +28,7 @@ import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
 import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
+import { enableRemoteDebugging } from './remote-debugging';
 import { loadRendererEntry } from './renderer-entry';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
@@ -56,8 +56,9 @@ process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_CO
  * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
  */
 if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
-enableDevelopmentCdp(app, process.env);
 if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_USER_DATA_DIR);
+// After the userData override so the packaged remote-debugging gate reads the active profile's settings.
+enableRemoteDebugging(app, process.env);
 
 // Scoped in a bare block (rather than left at module top level) so the mutable Desktop bootstrap
 // state below is a block-scoped variable, not a Program-scope one: the lifecycle callbacks that
@@ -411,6 +412,7 @@ if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_U
 
     const handleMainMethod = createMainMethodHandler({
         getProcessExplorer: () => processExplorer,
+        getUserDataPath: () => app.getPath('userData'),
         getSupervisor: () => supervisor,
         getUpdateService: () => updateService,
         getWindow: () => mainWindow,

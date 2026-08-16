@@ -1,5 +1,11 @@
 import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
-import type { AgentHookHealthMap, AgentSkillHealth, AppSettings } from '@shared/types';
+import type {
+    AgentHookHealthMap,
+    AgentSkillHealth,
+    AppSettings,
+    ArgvConfig,
+    ArgvConfigChanges,
+} from '@shared/types';
 import { Archive } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -21,8 +27,13 @@ import { TrustedDomainsForm } from './trusted-domains-form';
 interface SettingsFormProperties {
     agentHookHealth?: AgentHookHealthMap;
     agentSkillHealth?: AgentSkillHealth;
+    /**
+     * Main-owned boot configuration (`argv.jsonc`); undefined until its `argv.get` fetch resolves.
+     */
+    argvConfig?: ArgvConfig;
     trustedDomainsFocusRequestId?: number;
     settings: AppSettings;
+    onArgvConfigChange: (changes: ArgvConfigChanges) => void;
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
 }
 
@@ -45,8 +56,10 @@ const NEW_WORKTREE_BEHAVIOR_LABELS: Record<AppSettings['workbench.newWorktreeBeh
 export function SettingsForm({
     agentHookHealth,
     agentSkillHealth,
+    argvConfig,
     trustedDomainsFocusRequestId,
     settings,
+    onArgvConfigChange,
     onFieldChange,
 }: SettingsFormProperties) {
     const maxFileMebibytes = bytesToMebibytes(settings['files.maxFileBytes']);
@@ -262,6 +275,25 @@ export function SettingsForm({
                         type="checkbox"
                         onChange={(event) =>
                             onFieldChange('terminal.osc52ClipboardWrite', event.target.checked)
+                        }
+                    />
+                </label>
+                <label className={cn(settingsFieldRowClassName, 'min-h-9 gap-4')}>
+                    <span>
+                        Remote debugging (CDP)
+                        <span className="block text-[11px] text-muted">
+                            Expose Chrome DevTools Protocol on 127.0.0.1:9223 for agent tooling;
+                            takes effect after restarting Caxri
+                        </span>
+                    </span>
+                    <input
+                        aria-label="Remote debugging (CDP)"
+                        checked={argvConfig?.remoteDebugging ?? true}
+                        className="size-4 flex-none accent-[var(--accent)]"
+                        disabled={!argvConfig}
+                        type="checkbox"
+                        onChange={(event) =>
+                            onArgvConfigChange({ remoteDebugging: event.target.checked })
                         }
                     />
                 </label>

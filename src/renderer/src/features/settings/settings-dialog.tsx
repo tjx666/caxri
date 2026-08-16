@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
-import type { AgentHookHealthMap, AgentSkillHealth, AppSettings, Keybinding } from '@shared/types';
+import type {
+    AgentHookHealthMap,
+    AgentSkillHealth,
+    AppSettings,
+    ArgvConfig,
+    ArgvConfigChanges,
+    Keybinding,
+} from '@shared/types';
 import { Braces, FileJson, SlidersHorizontal } from 'lucide-react';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
@@ -55,6 +62,11 @@ function useSettingsDialogController() {
     const [loaded, setLoaded] = useState(false);
     const [agentHookHealth, setAgentHookHealth] = useState<AgentHookHealthMap>();
     const [agentSkillHealth, setAgentSkillHealth] = useState<AgentSkillHealth>();
+    const [argvConfig, setArgvConfig] = useState<ArgvConfig>();
+    const argvWriteGeneration = useRef(0);
+    // Boot-session baseline for the restart hint: what the running instance actually launched
+    // with, as of dialog load. Diverging from it needs a restart; returning to it does not.
+    const argvConfigAtLoad = useRef<ArgvConfig | undefined>(undefined);
     const handledRequestId = useRef(0);
 
     const [state, dispatch] = useReducer(configReducer, initialConfigState);
@@ -130,12 +142,13 @@ function useSettingsDialogController() {
     const load = useCallback((): void => {
         async function loadConfig(): Promise<void> {
             try {
-                const [settingsResult, keybindingsResult, themeResult, hookHealth] =
+                const [settingsResult, keybindingsResult, themeResult, hookHealth, argvResult] =
                     await Promise.all([
                         caxri.request('settings.get'),
                         caxri.request('keybindings.get'),
                         caxri.request('theme.get'),
                         caxri.request('agentHooks.get'),
+                        caxri.request('argv.get'),
                     ]);
                 dispatch({
                     type: 'loaded',
@@ -148,6 +161,8 @@ function useSettingsDialogController() {
                     theme: { value: themeResult.value, source: themeResult.source },
                 });
                 setAgentHookHealth(hookHealth);
+                setArgvConfig(argvResult.value);
+                argvConfigAtLoad.current ??= argvResult.value;
                 setLoaded(true);
             } catch (error: unknown) {
                 onError(error, 'Unable to load configuration');
@@ -443,6 +458,31 @@ function useSettingsDialogController() {
         schedulePersist('theme', nextSource);
     };
 
+    const updateArgvConfig = (changes: ArgvConfigChanges): void => {
+        // Main-owned boot config (`argv.jsonc`): written directly through its desktop method, not
+        // the settings.jsonc draft/debounce pipeline. Optimistic update, "tell the user, do not
+        // revert" on failure, matching the settings write path above; the generation counter drops
+        // out-of-order responses from rapid toggles, mirroring `writeGeneration`.
+        setArgvConfig((current) => (current ? { ...current, ...changes } : current));
+        const generation = ++argvWriteGeneration.current;
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, the IIFE below reports its own errors via onError
+        void (async (): Promise<void> => {
+            try {
+                const result = await caxri.request('argv.update', { changes });
+                if (argvWriteGeneration.current !== generation) return;
+                setArgvConfig(result.value);
+                const baseline = argvConfigAtLoad.current;
+                if (baseline && result.value.remoteDebugging !== baseline.remoteDebugging)
+                    pushToast(
+                        'info',
+                        'Remote debugging changes take effect after restarting Caxri',
+                    );
+            } catch (error) {
+                onError(error, 'argv.jsonc');
+            }
+        })();
+    };
+
     const importTheme = async (): Promise<void> => {
         try {
             const imported = await caxri.request('theme.import');
@@ -465,6 +505,7 @@ function useSettingsDialogController() {
         addBinding,
         agentHookHealth,
         agentSkillHealth,
+        argvConfig,
         changeTab,
         commitSource,
         importTheme,
@@ -478,6 +519,7 @@ function useSettingsDialogController() {
         state,
         tab,
         trustedDomainsFocusRequestId: request.view === 'trusted-domains' ? request.id : undefined,
+        updateArgvConfig,
         updateBinding,
         updateSettingsField,
         updateSource,
@@ -490,6 +532,7 @@ function SettingsDialogView({
     addBinding,
     agentHookHealth,
     agentSkillHealth,
+    argvConfig,
     changeTab,
     commitSource,
     importTheme,
@@ -503,6 +546,7 @@ function SettingsDialogView({
     state,
     tab,
     trustedDomainsFocusRequestId,
+    updateArgvConfig,
     updateBinding,
     updateSettingsField,
     updateSource,
@@ -582,8 +626,10 @@ function SettingsDialogView({
                             <SettingsForm
                                 agentHookHealth={agentHookHealth}
                                 agentSkillHealth={agentSkillHealth}
+                                argvConfig={argvConfig}
                                 settings={state.settings.value}
                                 trustedDomainsFocusRequestId={trustedDomainsFocusRequestId}
+                                onArgvConfigChange={updateArgvConfig}
                                 onFieldChange={updateSettingsField}
                             />
                         ))}
