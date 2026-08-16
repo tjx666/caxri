@@ -1,0 +1,139 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+    businessInternalMethods,
+    businessMethods,
+    logQueryParametersSchema,
+    projectQuerySchema,
+    settingsPatchChangeSchema,
+    settingsPatchParametersSchema,
+    terminalQuerySchema,
+} from '../business-contract.js';
+import { SETTINGS_BOUNDS } from '../domain.js';
+
+describe('projectQuerySchema', () => {
+    it('requires a non-empty selector for show mode', () => {
+        expect(projectQuerySchema.safeParse({ mode: 'show', selector: '' }).success).toBe(false);
+        expect(projectQuerySchema.safeParse({ mode: 'show', selector: 'p1' }).success).toBe(true);
+    });
+
+    it('trims the selector before length validation still applies to the raw value', () => {
+        // Only whitespace after trim() is treated as empty and rejected.
+        expect(
+            projectQuerySchema.safeParse({ mode: 'show', selector: ' '.repeat(3) }).success,
+        ).toBe(false);
+    });
+
+    it('rejects an unknown query mode', () => {
+        expect(projectQuerySchema.safeParse({ mode: 'search', selector: 'x' }).success).toBe(false);
+    });
+});
+
+describe('terminalQuerySchema', () => {
+    it('allows list mode without a sessionId filter', () => {
+        expect(terminalQuerySchema.safeParse({ mode: 'list' }).success).toBe(true);
+    });
+
+    it('allows list mode scoped to a sessionId', () => {
+        expect(
+            terminalQuerySchema.safeParse({ mode: 'list', sessionId: 'session-1' }).success,
+        ).toBe(true);
+    });
+});
+
+describe('settingsPatchChangeSchema', () => {
+    it('enforces the documented terminal.fontSize bounds', () => {
+        const { min, max } = SETTINGS_BOUNDS['terminal.fontSize'];
+        expect(
+            settingsPatchChangeSchema.safeParse({ key: 'terminal.fontSize', value: min }).success,
+        ).toBe(true);
+        expect(
+            settingsPatchChangeSchema.safeParse({ key: 'terminal.fontSize', value: max }).success,
+        ).toBe(true);
+        expect(
+            settingsPatchChangeSchema.safeParse({ key: 'terminal.fontSize', value: min - 1 })
+                .success,
+        ).toBe(false);
+        expect(
+            settingsPatchChangeSchema.safeParse({ key: 'terminal.fontSize', value: max + 1 })
+                .success,
+        ).toBe(false);
+    });
+
+    it('enforces the documented files.maxFileBytes bounds', () => {
+        const { min, max } = SETTINGS_BOUNDS['files.maxFileBytes'];
+        expect(
+            settingsPatchChangeSchema.safeParse({ key: 'files.maxFileBytes', value: min }).success,
+        ).toBe(true);
+        expect(
+            settingsPatchChangeSchema.safeParse({ key: 'files.maxFileBytes', value: max + 1 })
+                .success,
+        ).toBe(false);
+    });
+
+    it('rejects a value shape that does not match its own key', () => {
+        expect(
+            settingsPatchChangeSchema.safeParse({
+                key: 'terminal.copyOnSelect',
+                value: 'not-a-boolean',
+            }).success,
+        ).toBe(false);
+    });
+});
+
+describe('settingsPatchParametersSchema', () => {
+    it('defaults dryRun to false and requires at least one change', () => {
+        const parsed = settingsPatchParametersSchema.parse({
+            changes: [{ key: 'terminal.copyOnSelect', value: true }],
+        });
+        expect(parsed.dryRun).toBe(false);
+        expect(settingsPatchParametersSchema.safeParse({ changes: [] }).success).toBe(false);
+    });
+
+    it('rejects more than the maximum number of changes in one patch', () => {
+        const changes = Array.from({ length: 33 }, () => ({
+            key: 'terminal.copyOnSelect' as const,
+            value: true,
+        }));
+        expect(settingsPatchParametersSchema.safeParse({ changes }).success).toBe(false);
+    });
+});
+
+describe('logQueryParametersSchema', () => {
+    it('defaults to a bounded limit when no query is supplied', () => {
+        expect(logQueryParametersSchema.parse(undefined)).toEqual({ limit: 50 });
+    });
+
+    it('rejects a limit outside the allowed range', () => {
+        expect(logQueryParametersSchema.safeParse({ limit: 0 }).success).toBe(false);
+        expect(logQueryParametersSchema.safeParse({ limit: 101 }).success).toBe(false);
+    });
+});
+
+describe('businessMethods', () => {
+    it('keeps every public business command Host-owned', () => {
+        for (const spec of Object.values(businessMethods)) {
+            expect(spec.owner).toBe('host');
+        }
+    });
+
+    it('gives project.list a principal-scoped projection function', () => {
+        expect(typeof businessMethods['project.list'].projectResult).toBe('function');
+    });
+
+    it('rejects a negative afterCursor for events.query', () => {
+        expect(businessMethods['events.query'].params.safeParse({ afterCursor: -1 }).success).toBe(
+            false,
+        );
+        expect(businessMethods['events.query'].params.safeParse({ afterCursor: 0 }).success).toBe(
+            true,
+        );
+    });
+});
+
+describe('businessInternalMethods', () => {
+    it('requires an explicit principal alongside every internal query', () => {
+        const parameters = businessInternalMethods['project.queryForPrincipal'].params;
+        expect(parameters.safeParse({ query: { mode: 'list' } }).success).toBe(false);
+    });
+});
