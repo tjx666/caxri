@@ -303,7 +303,9 @@ export function SettingsForm({
                 </Field>
                 <Field orientation="horizontal" className="mb-3 min-h-9 gap-4">
                     <FieldContent>
-                        <FieldLabel htmlFor="remote-debugging-cdp">Remote debugging (CDP)</FieldLabel>
+                        <FieldLabel htmlFor="remote-debugging-cdp">
+                            Remote debugging (CDP)
+                        </FieldLabel>
                         <FieldDescription>
                             Expose Chrome DevTools Protocol on 127.0.0.1:9223 for agent tooling;
                             takes effect after restarting Caxri
