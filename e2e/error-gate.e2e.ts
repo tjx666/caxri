@@ -24,11 +24,11 @@ async function observeIpcFailure(
     await execFileAsync('mkdir', ['-p', root]);
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        await expect(running.page.getByLabel('Add Project')).toBeAttached();
+        await expect(running.page.getByRole('tree', { name: 'Sidebar' })).toBeAttached();
         const reply = await pageReply(running.page, method, parameters);
         expect(reply.ok).toBe(false);
         if (!reply.ok) expect(reply.error.code).toBe(expectedCode);
-        await expect(running.page.getByLabel('Add Project')).toBeAttached();
+        await expect(running.page.getByRole('tree', { name: 'Sidebar' })).toBeAttached();
     } finally {
         try {
             await running.app.close();
@@ -104,7 +104,7 @@ test('issue-104-error-gate: observes a page exception while the UI remains usabl
         await expect
             .poll(() => readFile(mainLogPath, 'utf8'))
             .toContain('"event":"renderer.page_exception"');
-        await expect(running.page.getByLabel('Add Project')).toBeAttached();
+        await expect(running.page.getByRole('tree', { name: 'Sidebar' })).toBeAttached();
     } finally {
         try {
             await running.app.close();

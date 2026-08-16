@@ -304,7 +304,10 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'alt+p', command: 'pathBrowser.open' },
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
-    { key: 'cmd+n', command: 'project.create' },
+    /**
+     * `Cmd+O` matches the macOS/VS Code "Open…" convention: adding a Project is opening a local folder.
+     */
+    { key: 'cmd+o', command: 'project.create' },
     { key: 'cmd+t', command: 'terminal.new' },
     { key: 'cmd+k', command: 'terminal.clear' },
     { key: 'cmd+c', command: 'terminal.copy' },
