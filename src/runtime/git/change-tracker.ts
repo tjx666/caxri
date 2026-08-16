@@ -47,18 +47,22 @@ export class GitChangeTracker {
     private flush(): void {
         this.timer = undefined;
         if (this.closed || this.pendingRoots.size === 0) return;
-        const roots = [...this.pendingRoots];
+        const roots = new Set(this.pendingRoots);
         const scope = this.pendingScope;
         this.pendingRoots.clear();
         this.pendingScope = 'status';
-        const sessionIds = [...this.sessions]
-            .filter(([, session]) => session.roots.some((root) => roots.includes(root)))
-            .map(([sessionId]) => sessionId);
+        const sessionIds: string[] = [];
+        for (const [sessionId, session] of this.sessions)
+            if (session.roots.some((root) => roots.has(root))) sessionIds.push(sessionId);
         if (sessionIds.length === 0) return;
         this.options.emit?.({
             event: 'git.changed',
             payload: {
-                repositoryIds: roots.slice(0, 256).map((root) => this.options.repositoryId(root)),
+                repositoryIds: roots
+                    .values()
+                    .take(256)
+                    .map((root) => this.options.repositoryId(root))
+                    .toArray(),
                 scope,
                 sessionIds: sessionIds.slice(0, 1_024),
             },

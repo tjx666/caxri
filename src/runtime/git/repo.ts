@@ -485,16 +485,12 @@ export class GitRepoService {
                 });
             const baseRepositories: RepoRoot[] = [
                 { kind: 'primary', rootPath: projectRoot },
-                ...topology.worktrees
-                    .filter(
-                        (worktree) =>
-                            worktree.rootPath !== projectRoot &&
-                            isApproved(worktree.rootPath, approvedRoots),
-                    )
-                    .map((worktree) => ({
-                        kind: 'worktree' as const,
-                        rootPath: worktree.rootPath,
-                    })),
+                ...topology.worktrees.flatMap((worktree) =>
+                    worktree.rootPath !== projectRoot &&
+                    isApproved(worktree.rootPath, approvedRoots)
+                        ? [{ kind: 'worktree' as const, rootPath: worktree.rootPath }]
+                        : [],
+                ),
             ];
             trace.worktreeApproved = baseRepositories.length - 1;
             if (options.force)
