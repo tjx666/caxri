@@ -32,6 +32,20 @@ Every CI and Release stage requires the online `m2-24` runner. There is no GitHu
 an offline runner leaves the workflow queued. The Release job uses a short-lived `contents: write`
 token and does not persist checkout credentials.
 
+## Install a release
+
+Browser downloads of the unsigned DMG receive a `com.apple.quarantine` flag, so Gatekeeper reports
+the app as "damaged". Install from the terminal instead — `gh` downloads carry no quarantine flag:
+
+```bash
+bun run install:caxri              # latest release; add `-- --tag vX.Y.Z` for a specific one
+```
+
+The installer downloads the DMG and checksum with `gh`, verifies the SHA-256, quits a running
+Caxri, replaces `/Applications/Caxri.app`, and strips any quarantine attribute defensively. For an
+artifact that was already downloaded with a browser, clear the flag once with
+`xattr -dr com.apple.quarantine /Applications/Caxri.app`.
+
 ## Current distribution boundary
 
 The DMG is intentionally unsigned. After downloading it on your own Mac, verify the accompanying
