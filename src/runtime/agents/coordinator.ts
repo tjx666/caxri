@@ -378,6 +378,22 @@ export class AgentCoordinator {
         if (signal.phase === 'turnStarted')
             this.hookAuthoritativeLaunchIds.delete(signal.terminalId);
         else this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
+        /**
+         * A signal naming a different provider session proves the user resumed inside the running Terminal (a path no
+         * Caxri-managed launch reset ever sees), so identity is rebound here and the scheduled probe republishes the
+         * resumed session's title.
+         */
+        if (
+            signal.agentSessionId &&
+            signal.agentSessionId !== terminal.agentSessionId &&
+            this.database.rebindAgentSession(
+                signal.terminalId,
+                signal.provider,
+                signal.agentSessionId,
+            )
+        ) {
+            this.refreshes.schedule(signal.terminalId);
+        }
         const isUpdated = this.database.updateAgentLifecycle(signal);
         if (isUpdated) this.emitAgentMetadataChange(signal.terminalId);
         return true;

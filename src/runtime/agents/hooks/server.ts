@@ -12,6 +12,7 @@ import type { AgentLifecyclePhase, AgentLifecycleSignal } from './contract';
 import { agentLifecyclePhases } from './contract';
 
 const MAX_SIGNAL_BYTES = 4_096;
+const MAX_AGENT_SESSION_ID_LENGTH = 256;
 const MAX_SOCKET_DIRECTORY_ENTRIES = 4_096;
 const MAX_STALE_SOCKET_REMOVALS = 64;
 
@@ -103,12 +104,20 @@ function parseSignal(source: string): HookWireSignal | undefined {
     ) {
         return undefined;
     }
+    if (
+        signal.agentSessionId !== undefined &&
+        (typeof signal.agentSessionId !== 'string' ||
+            signal.agentSessionId.length === 0 ||
+            signal.agentSessionId.length > MAX_AGENT_SESSION_ID_LENGTH)
+    ) {
+        return undefined;
+    }
     return signal as unknown as HookWireSignal;
 }
 
 /**
- * Authenticated local signal boundary. Provider hooks can report only a phase plus opaque PTY generation; prompt text
- * and provider hook payloads never cross into Caxri.
+ * Authenticated local signal boundary. Provider hooks can report only a phase, opaque PTY generation, and an opaque
+ * provider session identifier; prompt text and provider hook payloads never cross into Caxri.
  */
 export class AgentHookServer {
     private readonly launchesByToken = new Map<string, RegisteredLaunch>();
