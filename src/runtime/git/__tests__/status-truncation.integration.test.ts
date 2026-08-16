@@ -22,8 +22,16 @@ const UNTRACKED_FILE_WRITE_BATCH_SIZE = 200;
 afterEach(async () => {
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
+    /**
+     * `maxRetries` matters: a late fire-and-forget log write can race this cleanup, and `StructuredLogger.write`
+     * deliberately recreates its log directory on ENOENT, so a recursive `rm` that just emptied `state/logs` can fail
+     * with ENOTEMPTY when a straggler record lands. Writes stop once the services are closed, so retrying with backoff
+     * converges.
+     */
     await Promise.all(
-        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
+        directoriesToRemove.map((path) =>
+            rm(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }),
+        ),
     );
 });
 

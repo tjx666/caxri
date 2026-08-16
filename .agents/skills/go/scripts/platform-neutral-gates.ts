@@ -7,7 +7,7 @@ export const PLATFORM_NEUTRAL_CI_COMMANDS = [
     'bun run typecheck',
     'bun run format:check',
     'bun run scripts/ci-metrics.ts --label "Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}" -- bun run test',
-    'bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build',
+    'bun run scripts/ci-metrics.ts --label "Bundle budget gate" -- bun run scripts/ci-bundle-budget.ts',
 ] as const;
 
 interface PlatformNeutralGateContext {

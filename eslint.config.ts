@@ -42,6 +42,11 @@ export default defineConfig(
         '.records/**',
         'test-results',
         /**
+         * Local tool caches, including Sonda bundle-analysis reports (`CAXRI_BUNDLE_ANALYZE=1`), whose generated
+         * HTML/JSON payloads must never be linted.
+         */
+        '.cache/**',
+        /**
          * Shallow clones of third-party repos for competitive research; never lint someone else's project config.
          */
         'competitors/**',

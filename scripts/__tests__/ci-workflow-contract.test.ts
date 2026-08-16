@@ -85,7 +85,12 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain('NODE_VERSION="$(node --version)"');
         expect(workflow).toContain('node: process.env.NODE_VERSION');
         expect(workflow).toContain('lockfileSha256: process.env.LOCKFILE_SHA256');
-        expect(workflow.match(/--label "Electron Vite build" -- bun run build/gu)).toHaveLength(2);
+        expect(workflow.match(/--label "Electron Vite build" -- bun run build/gu)).toHaveLength(1);
+        expect(
+            workflow.match(
+                /--label "Bundle budget gate" -- bun run scripts\/ci-bundle-budget\.ts/gu,
+            ),
+        ).toHaveLength(1);
         expect(packageManifest.scripts.rebuild).toContain('--only better-sqlite3,node-pty');
         expect(packageManifest.scripts.rebuild).not.toContain('@parcel/watcher');
         expect(workflow.match(/install-electron:/gu)).toHaveLength(2);
