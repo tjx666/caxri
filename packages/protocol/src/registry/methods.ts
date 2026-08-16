@@ -185,11 +185,6 @@ export const methods = {
         result: eventRecoverySchema,
     },
     ...desktopHostMethods,
-    'app.openConfigFile': {
-        ...desktopControl,
-        params: z.object({ kind: z.enum(['settings', 'keybindings', 'theme']) }),
-        result: z.null(),
-    },
     /**
      * Main-owned boot configuration (`argv.jsonc`); separate from `settings.*` because its values gate pre-`whenReady`
      * Chromium switches and only take effect on the next launch.

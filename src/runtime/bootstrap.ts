@@ -512,7 +512,6 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             });
             return state;
         },
-        'app.openConfigFile': () => mainOwned('app.openConfigFile'),
         'external.open': () => mainOwned('external.open'),
         'argv.get': () => mainOwned('argv.get'),
         'argv.update': () => mainOwned('argv.update'),

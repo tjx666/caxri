@@ -156,55 +156,6 @@ describe('theme.import', () => {
     });
 });
 
-describe('app.openConfigFile', () => {
-    it('rejects an unknown configuration kind with NOT_FOUND', async () => {
-        const request = requestMock({
-            'config.paths': () => Promise.resolve({ settings: '', keybindings: '', theme: '' }),
-        });
-        const handle = createMainMethodHandler(options({ request }));
-
-        await expect(
-            handle({ method: 'app.openConfigFile', params: { kind: 'settings' } }),
-        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-        expect(electronMock.shell.openPath).not.toHaveBeenCalled();
-    });
-
-    it('surfaces a shell open failure as an IO error', async () => {
-        const request = requestMock({
-            'config.paths': () =>
-                Promise.resolve({
-                    settings: '/config/settings.jsonc',
-                    keybindings: '',
-                    theme: '',
-                }),
-        });
-        electronMock.shell.openPath.mockResolvedValueOnce('Permission denied');
-        const handle = createMainMethodHandler(options({ request }));
-
-        await expect(
-            handle({ method: 'app.openConfigFile', params: { kind: 'settings' } }),
-        ).rejects.toMatchObject({ code: 'IO' });
-    });
-
-    it('opens the resolved path when the shell succeeds', async () => {
-        const request = requestMock({
-            'config.paths': () =>
-                Promise.resolve({
-                    settings: '/config/settings.jsonc',
-                    keybindings: '',
-                    theme: '',
-                }),
-        });
-        electronMock.shell.openPath.mockResolvedValueOnce('');
-        const handle = createMainMethodHandler(options({ request }));
-
-        await expect(
-            handle({ method: 'app.openConfigFile', params: { kind: 'settings' } }),
-        ).resolves.toBeNull();
-        expect(electronMock.shell.openPath).toHaveBeenCalledWith('/config/settings.jsonc');
-    });
-});
-
 describe('editor.confirmDiscard', () => {
     it('maps the native dialog response to a discard choice', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
