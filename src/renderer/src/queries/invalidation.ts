@@ -13,25 +13,57 @@ import { getWorkbenchProjectSessionIds } from '../stores/selectors';
 const FILE_CHANGE_INVALIDATION_DEBOUNCE_MS = 150;
 
 /**
- * Invalidates the Session-scoped read queries that a `files.changed` event cheaply reflects: Git status, diffs, and
- * current-line blame. `files.list` is deliberately excluded — the separate Project-scoped file-tree subscription tracks
- * which directories a change actually touched and invalidates only those, which this broad query pass would otherwise
- * blur. `projectStatus.summary` and `projectStatus.overview` are excluded too: unlike `git.summary`, a Project Status
+ * Invalidates the Session-scoped read queries that a `files.changed` event cheaply reflects: only the file-tree
+ * `files.browse` listing today. `files.list` is deliberately excluded — the separate Project-scoped file-tree
+ * subscription tracks which directories a change actually touched and invalidates only those, which this broad query
+ * pass would otherwise blur. `projectStatus.summary` and `projectStatus.overview` are excluded too: a Project Status
  * read may shell out to a delivery CLI (e.g. `gh`), so it stays on its own polling interval instead of re-running on
- * every file write.
+ * every file write. Git status/diff/blame queries (`git.summary`, `git.overview`, `git.diffDocument`, `git.blame`) are
+ * no longer invalidated from here: a plain file write does not always mean the working tree changed (e.g. an ignored
+ * file), so Git invalidation instead rides the Runtime-emitted `git.changed` event, which is scoped to the repository
+ * identities that actually changed — see `invalidateGitChangedQueries` below.
  */
 function invalidateFileDependentQueries(
     queryClient: QueryClient,
     sessionIds: readonly string[],
 ): void {
+    const sessionScoped = new Set<CaxriMethod>(['files.browse']);
+    // Fire-and-forget: the invalidated queries surface their own errors through React Query's
+    // per-query error state, so the caller never needs to await or handle this rejection.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void queryClient.invalidateQueries({
+        predicate: (query) => {
+            const [method, parameters] = query.queryKey as [
+                CaxriMethod,
+                { sessionId?: string } | undefined,
+            ];
+            return (
+                sessionScoped.has(method) &&
+                parameters?.sessionId !== undefined &&
+                sessionIds.includes(parameters.sessionId)
+            );
+        },
+    });
+}
+
+/**
+ * Invalidates the Session-scoped Git read queries a `git.changed` event covers: status/topology (`git.summary`,
+ * `git.overview`), file diffs (`git.diffDocument`), and current-line blame (`git.blame`). Unlike
+ * {@link invalidateFileDependentQueries}, this runs unconditionally on every `git.changed` push — the Runtime already
+ * coalesces bursts of repository activity into one event before emitting it, so no additional client-side debounce is
+ * needed here.
+ */
+function invalidateGitChangedQueries(
+    queryClient: QueryClient,
+    sessionIds: readonly string[],
+): void {
     const sessionScoped = new Set<CaxriMethod>([
-        'files.browse',
         'git.summary',
+        'git.overview',
         'git.diffDocument',
         'git.blame',
     ]);
-    // Fire-and-forget: the invalidated queries surface their own errors through React Query's
-    // per-query error state, so the caller never needs to await or handle this rejection.
+    // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
@@ -109,6 +141,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (event.event === 'settings.changed') {
             if (!event.payload.error) invalidateFileTreeQueries(queryClient);
+            return;
+        }
+        if (event.event === 'git.changed') {
+            invalidateGitChangedQueries(queryClient, event.payload.sessionIds);
             return;
         }
         if (event.event !== 'files.changed') return;

@@ -1,10 +1,12 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc/domain';
 import { CaxriError, errorMessage, isCaxriError } from '../../shared/ipc/errors';
+import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
 import { AsyncSemaphore } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
@@ -16,6 +18,7 @@ import type {
     GitCommitPage,
     GitDiffDocument,
     GitFileStatus,
+    GitOverview,
     GitRepositorySummary as GitRepoSummary,
     GitSummary,
 } from '../../shared/types';
@@ -23,9 +26,13 @@ import { assertInsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
+import { GitChangeTracker } from './change-tracker';
 import { toGitError } from './errors';
+import type { GitMetadataWatcherOptions } from './metadata-watcher';
+import { GitMetadataWatcher } from './metadata-watcher';
 import { GitPullRequestService } from './pull-request';
-import { GitRepoService, parseWorktreeEntries } from './repo';
+import { computeRepoId, GitRepoService } from './repo';
+import { RepoTopologyRegistry } from './topology';
 
 const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
@@ -53,6 +60,28 @@ export interface GitWorktreeTopology {
 export { describeGitFailure } from './errors';
 
 const COMMIT_FORMAT = '%H%x00%an%x00%at%x00%P%x00%D%x00%s%x00';
+
+/**
+ * Subcommand-bearing Git operations whose second argv token is required to attribute a command in structured logs
+ * (`worktree list` vs `worktree add`); every other operation logs argv[0] alone so no user-controlled path or ref ever
+ * reaches the log stream.
+ */
+const SUBCOMMAND_OPERATIONS = new Set(['worktree', 'remote', 'stash', 'submodule']);
+
+function classifyGitOperation(arguments_: readonly string[]): string {
+    const operation = arguments_[0] ?? 'unknown';
+    if (!SUBCOMMAND_OPERATIONS.has(operation)) return operation;
+    const subcommand = arguments_.find((token, index) => index > 0 && !token.startsWith('-'));
+    return subcommand ? `${operation}.${subcommand}` : operation;
+}
+
+/**
+ * Stable, non-reversible identity for correlating commands of one repository in diagnostics without recording the
+ * filesystem path itself.
+ */
+function hashRepoPath(path: string): string {
+    return createHash('sha256').update(path).digest('hex').slice(0, 12);
+}
 
 /**
  * Parses fixed-width NUL fields emitted by `git log -z`, including non-ASCII subjects.
@@ -123,20 +152,53 @@ function parseCommitFiles(output: string): GitCommitFile[] {
     return files;
 }
 
+interface GitServiceOptions {
+    /**
+     * Runtime event sink for `git.changed`; absent in focused tests.
+     */
+    emit?: (event: RuntimeEvent) => void;
+    /**
+     * Test seam forwarded to the Git metadata watcher.
+     */
+    subscribe?: GitMetadataWatcherOptions['subscribe'];
+}
+
 export class GitService {
     private readonly commands = new AsyncSemaphore(MAX_CONCURRENT_GIT_COMMANDS);
     private readonly histories = new SingleFlight<string, GitCommitPage>();
     private readonly repositoryService: GitRepoService;
     private readonly blameService: GitBlameService;
     private readonly pullRequestService: GitPullRequestService;
+    private readonly topologyRegistry: RepoTopologyRegistry;
+    private readonly changeTracker: GitChangeTracker;
+    private readonly metadataWatcher: GitMetadataWatcher;
 
     constructor(
         private readonly paths: ProjectRootResolver,
         private readonly logger: StructuredLogger,
+        options: GitServiceOptions = {},
     ) {
-        this.repositoryService = new GitRepoService(this.paths, {
-            git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
+        this.topologyRegistry = new RepoTopologyRegistry({
+            git: (cwd, arguments_) => this.git(cwd, arguments_),
         });
+        this.changeTracker = new GitChangeTracker({
+            emit: options.emit,
+            repositoryId: computeRepoId,
+        });
+        this.repositoryService = new GitRepoService(this.paths, {
+            git: (cwd, arguments_, options_) => this.git(cwd, arguments_, options_),
+            logger: this.logger,
+            topology: this.topologyRegistry,
+            tracker: this.changeTracker,
+        });
+        this.metadataWatcher = new GitMetadataWatcher({
+            logger: this.logger,
+            onStatusChanged: (repoKey, roots) =>
+                this.repositoryService.observeMetadataStatus(repoKey, roots),
+            onTopologyChanged: (repoKey) => this.repositoryService.observeMetadataTopology(repoKey),
+            subscribe: options.subscribe,
+        });
+        this.repositoryService.attachMetadataWatcher(this.metadataWatcher);
         this.pullRequestService = new GitPullRequestService({
             git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
             ghPullRequestView: (cwd) => this.ghPullRequestView(cwd),
@@ -153,8 +215,14 @@ export class GitService {
         arguments_: string[],
         options: GitCommandOptions = {},
     ): Promise<string> {
-        const startedAt = performance.now();
+        const queuedAt = performance.now();
         return this.commands.run(async () => {
+            const startedAt = performance.now();
+            const timing = () => ({
+                queueMs: startedAt - queuedAt,
+                execMs: performance.now() - startedAt,
+                repository: hashRepoPath(cwd),
+            });
             try {
                 const execution = execFileAsync('git', arguments_, {
                     cwd,
@@ -171,16 +239,17 @@ export class GitService {
                 }
                 const { stdout } = await execution;
                 this.logger.write('info', 'git.command', {
-                    durationMs: performance.now() - startedAt,
-                    fields: { operation: arguments_[0] ?? 'unknown' },
+                    durationMs: performance.now() - queuedAt,
+                    fields: { operation: classifyGitOperation(arguments_), ...timing() },
                 });
                 return stdout;
             } catch (error) {
                 if (options.allowFailure) return '';
                 this.logger.write('warn', 'git.command_failed', {
-                    durationMs: performance.now() - startedAt,
+                    durationMs: performance.now() - queuedAt,
                     fields: {
-                        operation: arguments_[0] ?? 'unknown',
+                        operation: classifyGitOperation(arguments_),
+                        ...timing(),
                         error: errorMessage(error, 'unknown'),
                     },
                 });
@@ -368,37 +437,52 @@ export class GitService {
         return chunks.filter(Boolean).join('\n');
     }
 
-    summary(sessionId: string): Promise<GitSummary> {
-        return this.repositoryService.summary(sessionId);
+    summary(sessionId: string, refresh = 0): Promise<GitSummary> {
+        return this.repositoryService.summary(sessionId, refresh);
     }
 
     /**
-     * Returns the canonical linked-worktree topology for one known Project repository. This is an internal Runtime
-     * boundary: discovery does not imply authorization and never reaches Renderer.
+     * Count/branch projection sharing the exact snapshot generation of `git.summary` without the `files[]` payload; it
+     * joins the same producer instead of running a second `git status`.
+     */
+    async overview(sessionId: string): Promise<GitOverview> {
+        const summary = await this.summary(sessionId);
+        return {
+            isRepository: summary.isRepository,
+            ...(summary.error !== undefined && { error: summary.error }),
+            repositories: summary.repositories.map(
+                // `files` must never cross into the overview payload; destructuring it out is the
+                // simplest way to drop it while keeping the rest of the projection in sync with
+                // the `GitRepositorySummary` shape.
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars -- rest-omit pattern, see above
+                ({ files: _files, ...projection }) => projection,
+            ),
+        };
+    }
+
+    /**
+     * Working-tree change intake from the Project file watcher; maps Session-relative paths to repository identities
+     * and schedules coalesced invalidation.
+     */
+    observeFilesChanged(payload: { sessionId: string; changes: ReadonlyArray<{ path: string }> }) {
+        this.repositoryService.observeWorkingTreeChanges(
+            payload.sessionId,
+            payload.changes.map((change) => change.path),
+        );
+    }
+
+    /**
+     * Returns the canonical linked-worktree topology for one known Project repository via the shared registry.
+     * Workbench flows force a fresh discovery because they must observe an Agent's `git worktree add` before any
+     * watcher signal lands; the reload also refreshes the registry cache that `git.summary` consumes. This is an
+     * internal Runtime boundary: discovery does not imply authorization and never reaches Renderer.
      */
     async worktreeTopology(projectRoot: string): Promise<GitWorktreeTopology> {
-        const root = await realpath(projectRoot);
-        const [commonDirectoryOutput, worktreeOutput] = await Promise.all([
-            this.git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
-            this.git(root, ['worktree', 'list', '--porcelain', '-z']),
-        ]);
-        const repoKey = await realpath(commonDirectoryOutput.trim());
-        const worktrees = (
-            await Promise.all(
-                parseWorktreeEntries(worktreeOutput).map(async (entry) => {
-                    try {
-                        const rootPath = await realpath(entry.rootPath);
-                        const stats = await lstat(rootPath);
-                        return stats.isDirectory() && !stats.isSymbolicLink()
-                            ? [{ ...entry, rootPath }]
-                            : [];
-                    } catch {
-                        return [];
-                    }
-                }),
-            )
-        ).flat();
-        return { repositoryKey: repoKey, worktrees };
+        const topology = await this.topologyRegistry.topology(projectRoot, { force: true });
+        return {
+            repositoryKey: topology.repositoryKey,
+            worktrees: topology.worktrees.map(({ branch, rootPath }) => ({ branch, rootPath })),
+        };
     }
 
     /**
@@ -448,17 +532,22 @@ export class GitService {
     }
 
     /**
-     * Drops Pull Request file lists whose Session ownership was removed from persistence.
+     * Drops every per-Session Git retention (Pull Request file lists, repository projections, snapshots, and watchers
+     * no remaining Session references) after persistence removal.
      */
-    evictPullRequestSessions(sessionIds: readonly string[]): void {
+    evictSessions(sessionIds: readonly string[]): void {
         this.pullRequestService.evictSessions(sessionIds);
+        this.repositoryService.evictSessions(sessionIds);
     }
 
     /**
-     * Releases retained Pull Request metadata at the Runtime lifecycle boundary.
+     * Releases retained Pull Request metadata, invalidation state, and Git metadata watchers at the Runtime lifecycle
+     * boundary.
      */
-    close(): void {
+    async close(): Promise<void> {
         this.pullRequestService.clear();
+        this.changeTracker.close();
+        await this.metadataWatcher.close();
     }
 
     commits(parameters: RuntimeMethodParameters<'git.commits'>): Promise<GitCommitPage> {

@@ -1,6 +1,13 @@
 export class SingleFlight<Key, Value> {
     private readonly pending = new Map<Key, Promise<Value>>();
 
+    /**
+     * Reports whether a caller would join an in-flight load instead of starting a fresh one.
+     */
+    has(key: Key): boolean {
+        return this.pending.has(key);
+    }
+
     run(key: Key, load: () => Promise<Value>): Promise<Value> {
         const existing = this.pending.get(key);
         if (existing) return existing;

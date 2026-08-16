@@ -26,6 +26,7 @@ type ServiceHandlerMethods =
     | 'files.write'
     | 'files.search'
     | 'git.summary'
+    | 'git.overview'
     | 'git.branches'
     | 'git.switchBranch'
     | 'git.diffDocument'
@@ -105,7 +106,8 @@ export function createServiceHandlers(services: {
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'files.search': (parameters) => files.search(parameters),
-        'git.summary': ({ sessionId }) => git.summary(sessionId),
+        'git.summary': ({ sessionId, refresh }) => git.summary(sessionId, refresh),
+        'git.overview': ({ sessionId }) => git.overview(sessionId),
         'git.branches': (parameters) => git.branches(parameters),
         'git.switchBranch': (parameters) => git.switchBranch(parameters),
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>

@@ -99,6 +99,7 @@ const OBSERVABLE_EVENT_NAMES = {
     'terminal.exit': true,
     'files.changed': true,
     'files.operationChanged': true,
+    'git.changed': true,
     'settings.changed': true,
     'agentHooks.changed': true,
     'agent.dispatch.changed': true,

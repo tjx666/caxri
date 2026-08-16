@@ -187,6 +187,12 @@ function GitRepoSection({
     );
     const pullRequest = mode === 'pull-request' ? pullRequestQuery.data : undefined;
     const files = mode === 'working' ? repository.files : (pullRequest?.files ?? []);
+    /**
+     * The working-tree count comes from `changedFileCount`, not `files.length`: the Runtime caps the transported
+     * `files[]` payload at `MAX_GIT_STATUS_FILES`, so a very large change set can be truncated while `changedFileCount`
+     * still reports its true, untruncated size — the same source the Status Bar reads through `git.overview`.
+     */
+    const displayedCount = mode === 'working' ? repository.changedFileCount : files.length;
     const selectedPath =
         activeDiff?.kind === 'file' &&
         activeDiff.repositoryId === repository.id &&
@@ -245,7 +251,7 @@ function GitRepoSection({
                     <span className="git-repository-counts shrink-0 whitespace-nowrap">
                         {mode === 'working' && ` · ↑${repository.ahead} ↓${repository.behind}`}
                         {' · '}
-                        {files.length}
+                        {displayedCount}
                     </span>
                 </span>
             </button>
@@ -279,9 +285,19 @@ function GitRepoSection({
                                         <Files size={13} />
                                     </Button>
                                 </Tooltip>
-                                <span>{files.length}</span>
+                                <span>{displayedCount}</span>
                             </span>
                         </div>
+                        {mode === 'working' && repository.truncated && (
+                            <div
+                                role="status"
+                                aria-live="polite"
+                                className="git-changes-truncated border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
+                            >
+                                Showing the first {repository.files.length} of{' '}
+                                {repository.changedFileCount} changes
+                            </div>
+                        )}
                         {files.length === 0 && (
                             <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
                                 {emptyMessage}
@@ -326,6 +342,7 @@ export function GitPanel() {
         >
     >({});
     const [pullRequestRefresh, setPullRequestRefresh] = useState(0);
+    const [workingRefresh, setWorkingRefresh] = useState(0);
     const navigation = scope
         ? (navigationByScope[scope] ?? {
               expandedDirectories: {},
@@ -349,17 +366,18 @@ export function GitPanel() {
     const sessionId = session?.id;
     const activeDiff = activeWork?.kind === 'editor' ? parseGitDiffTab(activeWork.path) : undefined;
     /**
-     * `files.changed` invalidation is wired centrally in `useRuntimeQueryInvalidation`, so this query only needs to
-     * describe what it reads; the debounced re-fetch on Git-affecting file activity happens without a local effect.
+     * `git.changed` invalidation is wired centrally in `useRuntimeQueryInvalidation`, so this query only needs to
+     * describe what it reads; the re-fetch on Git-affecting repository activity happens without a local effect. The
+     * manual Refresh button instead bumps `workingRefresh`, a monotonic nonce baked into the query key: changing it
+     * forces the Runtime to serve the newest snapshot generation instead of joining an in-flight cached one.
      */
     const {
         data: summary,
         isError,
         error,
-        refetch,
     } = useCaxriQuery(
         'git.summary',
-        { sessionId: sessionId ?? '' },
+        { sessionId: sessionId ?? '', refresh: workingRefresh },
         { enabled: Boolean(sessionId) },
     );
     useToastOnQueryError(isError, error, 'Git refresh failed');
@@ -386,11 +404,8 @@ export function GitPanel() {
             </Empty>
         );
     const refresh = (): void => {
-        // Fire-and-forget: `useCaxriQuery`/`useToastOnQueryError` already own reporting a failed
-        // refetch, so this manual refresh trigger has nothing further to await.
         if (mode === 'working') {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void refetch();
+            setWorkingRefresh((value) => value + 1);
         } else {
             setPullRequestRefresh((value) => value + 1);
         }

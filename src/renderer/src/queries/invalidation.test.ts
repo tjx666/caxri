@@ -59,14 +59,15 @@ describe('removeSessionQueries', () => {
 });
 
 describe('subscribeRuntimeQueryInvalidation', () => {
-    it('invalidates every Session currently routed to the changed Workbench Project', () => {
+    it('invalidates every Session currently routed to the changed Workbench Project, but never Git queries', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();
-        queryClient.setQueryData(['git.summary', { sessionId: 'session-a' }], { status: 'clean' });
-        queryClient.setQueryData(['git.summary', { sessionId: 'session-b' }], { status: 'clean' });
-        queryClient.setQueryData(['git.summary', { sessionId: 'session-other' }], {
-            status: 'clean',
+        queryClient.setQueryData(['files.browse', { sessionId: 'session-a' }], { entries: [] });
+        queryClient.setQueryData(['files.browse', { sessionId: 'session-b' }], { entries: [] });
+        queryClient.setQueryData(['files.browse', { sessionId: 'session-other' }], {
+            entries: [],
         });
+        queryClient.setQueryData(['git.summary', { sessionId: 'session-a' }], { status: 'clean' });
         useWorkbenchStore.setState({
             bootstrap: {
                 selectedSessionId: 'session-a',
@@ -103,14 +104,55 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         vi.advanceTimersByTime(150);
 
         expect(
+            queryClient.getQueryState(['files.browse', { sessionId: 'session-a' }])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(['files.browse', { sessionId: 'session-b' }])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(['files.browse', { sessionId: 'session-other' }])
+                ?.isInvalidated,
+        ).toBe(false);
+        // `files.changed` no longer drives Git invalidation — that is `git.changed`'s job (see below).
+        expect(
+            queryClient.getQueryState(['git.summary', { sessionId: 'session-a' }])?.isInvalidated,
+        ).toBe(false);
+        unsubscribe();
+    });
+
+    it('invalidates Git queries for every Session named in a git.changed event, without debouncing', () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(['git.summary', { sessionId: 'session-a' }], { status: 'clean' });
+        queryClient.setQueryData(['git.overview', { sessionId: 'session-a' }], { status: 'clean' });
+        queryClient.setQueryData(['git.diffDocument', { sessionId: 'session-a' }], { patch: '' });
+        queryClient.setQueryData(['git.blame', { sessionId: 'session-a' }], { author: 'x' });
+        queryClient.setQueryData(['git.summary', { sessionId: 'session-b' }], { status: 'clean' });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'git.changed',
+            payload: {
+                sessionIds: ['session-a'],
+                repositoryIds: ['repo-1'],
+                scope: 'status',
+            },
+        });
+
+        expect(
             queryClient.getQueryState(['git.summary', { sessionId: 'session-a' }])?.isInvalidated,
         ).toBe(true);
         expect(
-            queryClient.getQueryState(['git.summary', { sessionId: 'session-b' }])?.isInvalidated,
+            queryClient.getQueryState(['git.overview', { sessionId: 'session-a' }])?.isInvalidated,
         ).toBe(true);
         expect(
-            queryClient.getQueryState(['git.summary', { sessionId: 'session-other' }])
+            queryClient.getQueryState(['git.diffDocument', { sessionId: 'session-a' }])
                 ?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(['git.blame', { sessionId: 'session-a' }])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(['git.summary', { sessionId: 'session-b' }])?.isInvalidated,
         ).toBe(false);
         unsubscribe();
     });

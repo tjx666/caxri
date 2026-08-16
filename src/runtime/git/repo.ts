@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 import { basename, relative, resolve, sep } from 'node:path';
 
+import { MAX_GIT_STATUS_FILES } from '../../shared/ipc/domain';
 import { CaxriError } from '../../shared/ipc/errors';
 import { mapWithConcurrency } from '../../shared/node/concurrency';
+import type { StructuredLogger } from '../../shared/node/logger';
 import type {
     GitFileStatus,
     GitRepositorySummary as GitRepoSummary,
@@ -12,9 +14,18 @@ import type {
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
+import type { GitChangeTracker } from './change-tracker';
 import { toGitError } from './errors';
+import type { GitMetadataWatcher } from './metadata-watcher';
+import { RepoStatusStore } from './status';
+import type { RepoTopologyRegistry } from './topology';
 
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
+/**
+ * Working-tree porcelain output is parsed from one bounded buffer; the cap is far above the `MAX_GIT_STATUS_FILES`
+ * projection bound so truncation happens at the protocol limit, not here.
+ */
+const MAX_GIT_STATUS_BUFFER_BYTES = 32 * 1024 * 1024;
 
 interface RepoStatus {
     branch: string;
@@ -23,6 +34,8 @@ interface RepoStatus {
     behind: number;
     additions: number;
     deletions: number;
+    changedFileCount: number;
+    truncated: boolean;
     files: GitFileStatus[];
 }
 
@@ -43,7 +56,34 @@ interface GitRepoServiceOptions {
         arguments_: string[],
         options?: { allowFailure?: boolean; maxBufferBytes?: number },
     ) => Promise<string>;
+    logger: StructuredLogger;
+    topology: RepoTopologyRegistry;
+    tracker: GitChangeTracker;
 }
+
+/**
+ * Per-summary attribution counters for the `git.summary` producer boundary event. Every Git command spawned on behalf
+ * of one summary increments `commandCount`, which is what the startup benchmark asserts on instead of individual
+ * `git.command` records.
+ */
+interface SummaryTrace {
+    commandCount: number;
+    worktreeListed: number;
+    worktreeApproved: number;
+    childRepositories: number;
+    statusFresh: number;
+    statusJoined: number;
+    statusCoalesced: number;
+}
+
+interface ChildCacheEntry {
+    approvedKey: string;
+    children: RepoRoot[];
+    parentGeneration: number;
+    topologyGeneration: number;
+}
+
+const MAX_CHILD_CACHE_ENTRIES = 256;
 
 function statusKind(code: string): GitFileStatus['kind'] {
     if (code === 'AA' || code === 'DD' || code.includes('U')) return 'conflicted';
@@ -74,7 +114,9 @@ function parseStatusRecord(
     return undefined;
 }
 
-function parseStatus(output: string): Omit<RepoStatus, 'additions' | 'deletions'> {
+function parseStatus(
+    output: string,
+): Omit<RepoStatus, 'additions' | 'deletions' | 'changedFileCount' | 'truncated'> {
     const records = output.split('\0').filter(Boolean);
     const files: GitFileStatus[] = [];
     let branch = 'detached';
@@ -150,10 +192,6 @@ export function parseWorktreeEntries(output: string): GitWorktreeEntry[] {
     });
 }
 
-function parseWorktreeRoots(output: string): string[] {
-    return parseWorktreeEntries(output).map((entry) => entry.rootPath);
-}
-
 function parseGitLinkPaths(output: string): string[] {
     return output
         .split('\0')
@@ -161,9 +199,14 @@ function parseGitLinkPaths(output: string): string[] {
         .filter((path): path is string => Boolean(path));
 }
 
-function repoId(rootPath: string): string {
+/**
+ * Stable repository identity shared by summaries, `git.changed` payloads, and diagnostics.
+ */
+export function computeRepoId(rootPath: string): string {
     return createHash('sha256').update(rootPath).digest('hex').slice(0, 20);
 }
+
+const repoId = computeRepoId;
 
 function isPathContained(rootPath: string, candidate: string): boolean {
     return !isOutsideRoot(relative(rootPath, candidate));
@@ -196,33 +239,62 @@ function isHiddenByChildRepo(
  */
 export class GitRepoService {
     private readonly summaries = new SingleFlight<string, GitSummary>();
+    private readonly statuses = new RepoStatusStore<RepoStatus>();
+    private readonly childCache = new Map<string, ChildCacheEntry>();
+    private readonly refreshNonces = new Map<string, number>();
+    private metadataWatcher?: GitMetadataWatcher;
 
     constructor(
         private readonly paths: ProjectRootResolver,
         private readonly options: GitRepoServiceOptions,
     ) {}
 
-    private async loadStatus(rootPath: string): Promise<RepoStatus> {
+    /**
+     * Funnel for every Git command issued on behalf of one summary so the producer boundary event can attribute an
+     * exact command count to that summary.
+     */
+    private tracedGit(
+        trace: SummaryTrace,
+        cwd: string,
+        arguments_: string[],
+        options?: { allowFailure?: boolean; maxBufferBytes?: number },
+    ): Promise<string> {
+        trace.commandCount += 1;
+        return this.options.git(cwd, arguments_, options);
+    }
+
+    private async loadStatus(trace: SummaryTrace, rootPath: string): Promise<RepoStatus> {
         const [statusOutput, lineStatsOutput] = await Promise.all([
-            this.options.git(rootPath, [
-                'status',
-                '--porcelain=v2',
-                '--branch',
-                '-z',
-                '--untracked-files=all',
-            ]),
-            this.options.git(rootPath, ['diff', '--numstat', '--no-renames', 'HEAD', '--'], {
+            this.tracedGit(
+                trace,
+                rootPath,
+                ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'],
+                { maxBufferBytes: MAX_GIT_STATUS_BUFFER_BYTES },
+            ),
+            this.tracedGit(trace, rootPath, ['diff', '--numstat', '--no-renames', 'HEAD', '--'], {
                 allowFailure: true,
             }),
         ]);
-        return { ...parseStatus(statusOutput), ...parseLineStats(lineStatsOutput) };
+        const parsed = parseStatus(statusOutput);
+        const changedFileCount = parsed.files.length;
+        const isTruncated = changedFileCount > MAX_GIT_STATUS_FILES;
+        return {
+            ...parsed,
+            changedFileCount,
+            truncated: isTruncated,
+            files: isTruncated ? parsed.files.slice(0, MAX_GIT_STATUS_FILES) : parsed.files,
+            ...parseLineStats(lineStatsOutput),
+        };
     }
 
-    private async canonicalRepositoryRoot(path: string): Promise<string | undefined> {
+    private async canonicalRepositoryRoot(
+        trace: SummaryTrace,
+        path: string,
+    ): Promise<string | undefined> {
         try {
             const canonical = await realpath(path);
             const topLevel = await realpath(
-                (await this.options.git(canonical, ['rev-parse', '--show-toplevel'])).trim(),
+                (await this.tracedGit(trace, canonical, ['rev-parse', '--show-toplevel'])).trim(),
             );
             return topLevel === canonical ? canonical : undefined;
         } catch {
@@ -231,12 +303,13 @@ export class GitRepoService {
     }
 
     private async discoverChildRepositories(
+        trace: SummaryTrace,
         parent: RepoRoot,
         approvedRoots: string[],
     ): Promise<RepoRoot[]> {
         const [gitLinkOutput, untrackedDirectoryOutput] = await Promise.all([
-            this.options.git(parent.rootPath, ['ls-files', '--stage', '-z']),
-            this.options.git(parent.rootPath, [
+            this.tracedGit(trace, parent.rootPath, ['ls-files', '--stage', '-z']),
+            this.tracedGit(trace, parent.rootPath, [
                 'ls-files',
                 '--others',
                 '--directory',
@@ -271,7 +344,7 @@ export class GitRepoService {
             candidates,
             MAX_CONCURRENT_GIT_COMMANDS,
             async (candidate): Promise<RepoRoot | undefined> => {
-                const rootPath = await this.canonicalRepositoryRoot(candidate.path);
+                const rootPath = await this.canonicalRepositoryRoot(trace, candidate.path);
                 if (!rootPath || !isApproved(rootPath, approvedRoots)) return undefined;
                 return { kind: candidate.kind, rootPath };
             },
@@ -279,7 +352,107 @@ export class GitRepoService {
         return discovered.filter((value): value is RepoRoot => Boolean(value));
     }
 
-    private async loadSummary(sessionId: string): Promise<GitSummary> {
+    /**
+     * Producer boundary: runs the full discovery/status chain once and records the `git.summary` event that attributes
+     * wall time and command count to this production instead of leaving only per-command records. `generation` and
+     * `truncated` are wired by the snapshot work tracked in the same change series; they are logged from day one so the
+     * benchmark contract is stable.
+     */
+    private async loadSummary(
+        sessionId: string,
+        reason: 'request' | 'refresh',
+    ): Promise<GitSummary> {
+        const startedAt = performance.now();
+        const trace: SummaryTrace = {
+            commandCount: 0,
+            worktreeListed: 0,
+            worktreeApproved: 0,
+            childRepositories: 0,
+            statusFresh: 0,
+            statusJoined: 0,
+            statusCoalesced: 0,
+        };
+        const summary = await this.produceSummary(sessionId, trace, {
+            force: reason === 'refresh',
+        });
+        this.options.logger.write('info', 'git.summary', {
+            durationMs: performance.now() - startedAt,
+            fields: {
+                ...trace,
+                fileCount: summary.repositories.reduce(
+                    (total, repo) => total + repo.files.length,
+                    0,
+                ),
+                generation: summary.repositories[0]?.generation ?? 0,
+                truncated: summary.repositories.some((repo) => repo.truncated),
+                isRepository: summary.isRepository,
+                outcome: 'fresh',
+                reason,
+            },
+        });
+        return summary;
+    }
+
+    private async snapshotStatus(
+        trace: SummaryTrace,
+        rootPath: string,
+    ): Promise<{ generation: number; status: RepoStatus }> {
+        const result = await this.statuses.status(rootPath, () => this.loadStatus(trace, rootPath));
+        if (result.outcome === 'fresh') trace.statusFresh += 1;
+        else if (result.outcome === 'joined') trace.statusJoined += 1;
+        else trace.statusCoalesced += 1;
+        return result;
+    }
+
+    /**
+     * Child repository discovery is far more expensive than one status read, so its result is cached against the exact
+     * inputs that can change it: the parent's working tree (status generation), worktree membership (topology
+     * generation), and the approved-root set.
+     */
+    private async childRepositories(
+        trace: SummaryTrace,
+        parents: readonly RepoRoot[],
+        approvedRoots: string[],
+        topologyGeneration: number,
+    ): Promise<RepoRoot[]> {
+        const approvedKey = [...approvedRoots].toSorted((a, b) => a.localeCompare(b)).join('\0');
+        const discovered = await Promise.all(
+            parents.map(async (parent) => {
+                const parentGeneration = this.statuses.generation(parent.rootPath);
+                const cached = this.childCache.get(parent.rootPath);
+                if (
+                    cached &&
+                    cached.approvedKey === approvedKey &&
+                    cached.parentGeneration === parentGeneration &&
+                    cached.topologyGeneration === topologyGeneration
+                )
+                    return cached.children;
+                const children = await this.discoverChildRepositories(trace, parent, approvedRoots);
+                this.childCache.delete(parent.rootPath);
+                this.childCache.set(parent.rootPath, {
+                    approvedKey,
+                    children,
+                    parentGeneration,
+                    topologyGeneration,
+                });
+                while (this.childCache.size > MAX_CHILD_CACHE_ENTRIES) {
+                    const oldest = this.childCache.keys().next().value;
+                    if (!oldest) break;
+                    this.childCache.delete(oldest);
+                }
+                return children;
+            }),
+        );
+        const children = discovered.flat();
+        trace.childRepositories = children.length;
+        return children;
+    }
+
+    private async produceSummary(
+        sessionId: string,
+        trace: SummaryTrace,
+        options: { force: boolean },
+    ): Promise<GitSummary> {
         const { root: projectRoot } = await this.paths.resolveSessionPath(sessionId);
         try {
             const approvedRoots = (
@@ -293,59 +466,68 @@ export class GitRepoService {
                     }),
                 )
             ).filter((path): path is string => Boolean(path));
-            const primaryRoot = await this.canonicalRepositoryRoot(projectRoot);
-            if (!primaryRoot || !isApproved(primaryRoot, approvedRoots))
+            /**
+             * The shared topology registry replaces the per-summary `worktree list` plus per-worktree `rev-parse`
+             * chain: a cached topology at the current generation costs zero Git spawns regardless of how many linked
+             * worktrees exist.
+             */
+            const topology = await this.options.topology.topology(projectRoot, {
+                force: options.force,
+                git: (cwd, arguments_) => this.tracedGit(trace, cwd, arguments_),
+            });
+            trace.worktreeListed = topology.worktrees.length;
+            const hasPrimary = topology.worktrees.some(
+                (worktree) => worktree.rootPath === projectRoot,
+            );
+            if (!hasPrimary || !isApproved(projectRoot, approvedRoots))
                 throw Object.assign(new Error('not a git repository'), {
                     stderr: 'not a git repository within an approved Project root',
                 });
-            const worktreeOutput = await this.options.git(primaryRoot, [
-                'worktree',
-                'list',
-                '--porcelain',
-                '-z',
-            ]);
-            const worktreeRoots = await Promise.all(
-                parseWorktreeRoots(worktreeOutput).map((path) =>
-                    this.canonicalRepositoryRoot(path),
-                ),
-            );
             const baseRepositories: RepoRoot[] = [
-                { kind: 'primary', rootPath: primaryRoot },
-                ...worktreeRoots
-                    .filter(
-                        (path): path is string =>
-                            path !== undefined &&
-                            path !== primaryRoot &&
-                            isApproved(path, approvedRoots),
-                    )
-                    .map((rootPath) => ({ kind: 'worktree' as const, rootPath })),
+                { kind: 'primary', rootPath: projectRoot },
+                ...topology.worktrees.flatMap((worktree) =>
+                    worktree.rootPath !== projectRoot &&
+                    isApproved(worktree.rootPath, approvedRoots)
+                        ? [{ kind: 'worktree' as const, rootPath: worktree.rootPath }]
+                        : [],
+                ),
             ];
-            const baseStatuses = await Promise.all(
-                baseRepositories.map((repo) => this.loadStatus(repo.rootPath)),
+            trace.worktreeApproved = baseRepositories.length - 1;
+            if (options.force)
+                for (const repo of baseRepositories) this.statuses.bump(repo.rootPath);
+            const baseSnapshots = await Promise.all(
+                baseRepositories.map((repo) => this.snapshotStatus(trace, repo.rootPath)),
             );
-            const children = (
-                await Promise.all(
-                    baseRepositories.map((repo) =>
-                        this.discoverChildRepositories(repo, approvedRoots),
-                    ),
-                )
-            ).flat();
+            const children = await this.childRepositories(
+                trace,
+                baseRepositories,
+                approvedRoots,
+                topology.generation,
+            );
             const roots = [...baseRepositories, ...children].filter(
                 (repo, index, repositories) =>
                     repositories.findIndex((candidate) => candidate.rootPath === repo.rootPath) ===
                     index,
             );
-            const childStatuses = await Promise.all(
-                roots.slice(baseRepositories.length).map((repo) => this.loadStatus(repo.rootPath)),
+            const childRoots = roots.slice(baseRepositories.length);
+            if (options.force) for (const repo of childRoots) this.statuses.bump(repo.rootPath);
+            const childSnapshots = await Promise.all(
+                childRoots.map((repo) => this.snapshotStatus(trace, repo.rootPath)),
             );
-            const statuses = [...baseStatuses, ...childStatuses];
+            const snapshots = [...baseSnapshots, ...childSnapshots];
             const repositories = roots.map((repo, index): GitRepoSummary => {
                 const children = roots.filter(
                     (candidate) =>
                         candidate.rootPath !== repo.rootPath &&
                         isPathContained(repo.rootPath, candidate.rootPath),
                 );
-                const status = statuses[index];
+                const snapshot = snapshots[index];
+                const status = snapshot.status;
+                const files = status.files.filter((file) =>
+                    children.every(
+                        (child) => !isHiddenByChildRepo(file.path, child, repo.rootPath),
+                    ),
+                );
                 return {
                     id: repoId(repo.rootPath),
                     kind: repo.kind,
@@ -357,13 +539,18 @@ export class GitRepoService {
                     behind: status.behind,
                     additions: status.additions,
                     deletions: status.deletions,
-                    files: status.files.filter((file) =>
-                        children.every(
-                            (child) => !isHiddenByChildRepo(file.path, child, repo.rootPath),
-                        ),
-                    ),
+                    generation: snapshot.generation,
+                    /**
+                     * On a truncated snapshot the pre-truncation total is authoritative; otherwise the child-repository
+                     * projection filter decides the visible count so every consumer of this generation reports the same
+                     * number.
+                     */
+                    changedFileCount: status.truncated ? status.changedFileCount : files.length,
+                    truncated: status.truncated,
+                    files,
                 };
             });
+            this.registerProjection(sessionId, projectRoot, topology.repositoryKey, roots);
             return { isRepository: true, repositories };
         } catch (error) {
             /**
@@ -377,8 +564,94 @@ export class GitRepoService {
         }
     }
 
-    summary(sessionId: string): Promise<GitSummary> {
-        return this.summaries.run(sessionId, () => this.loadSummary(sessionId));
+    /**
+     * Records which repositories a Session's summary projected and keeps the metadata watcher attached to the
+     * repository group, so later invalidation reaches every mapped Session.
+     */
+    private registerProjection(
+        sessionId: string,
+        projectRoot: string,
+        repoKey: string,
+        roots: readonly RepoRoot[],
+    ): void {
+        const rootPaths = roots.map((repo) => repo.rootPath);
+        this.options.tracker.registerSession(sessionId, projectRoot, repoKey, rootPaths);
+        // Fire-and-forget: watcher setup must never delay a summary response; subscribe failures
+        // downgrade to the watcher's own polling fallback and are logged there.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void this.metadataWatcher?.watch(repoKey, projectRoot, rootPaths);
+    }
+
+    /**
+     * Set after construction because the watcher's classification callbacks point back here.
+     */
+    attachMetadataWatcher(watcher: GitMetadataWatcher): void {
+        this.metadataWatcher = watcher;
+    }
+
+    /**
+     * Working-tree content changed under a Session root: bump only the owning repositories' status generations and
+     * schedule one coalesced `git.changed` invalidation.
+     */
+    observeWorkingTreeChanges(sessionId: string, changePaths: readonly string[]): void {
+        const roots = this.options.tracker.mapChangesToRoots(sessionId, changePaths);
+        if (roots.length === 0) return;
+        for (const root of roots) this.statuses.bump(root);
+        this.options.tracker.scheduleStatusChanged(roots);
+    }
+
+    /**
+     * Git metadata (HEAD, index, refs) changed for `roots` of one repository group.
+     */
+    observeMetadataStatus(_repoKey: string, roots: readonly string[]): void {
+        const known = this.options.tracker.referencedRoots();
+        const affected = roots.filter((root) => known.has(root));
+        if (affected.length === 0) return;
+        for (const root of affected) this.statuses.bump(root);
+        this.options.tracker.scheduleStatusChanged(affected);
+    }
+
+    /**
+     * Worktree membership or repository config changed: rediscover topology on next read.
+     */
+    observeMetadataTopology(repoKey: string): void {
+        this.options.topology.invalidate(repoKey);
+        this.options.tracker.scheduleTopologyChanged(repoKey);
+    }
+
+    /**
+     * Releases per-Session projections plus the snapshots, child caches, and metadata watchers that no remaining
+     * Session references (Project/Session deletion, authorization change).
+     */
+    evictSessions(sessionIds: readonly string[]): void {
+        this.options.tracker.evictSessions(sessionIds);
+        for (const sessionId of sessionIds) this.refreshNonces.delete(sessionId);
+        const referencedRoots = this.options.tracker.referencedRoots();
+        this.statuses.retainOnly(referencedRoots);
+        for (const root of this.childCache.keys())
+            if (!referencedRoots.has(root)) this.childCache.delete(root);
+        // Fire-and-forget: eviction must never block on watcher teardown; failures downgrade to
+        // the watcher's own polling fallback and are logged there.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void this.metadataWatcher?.retainOnly(this.options.tracker.referencedRepositoryKeys());
+    }
+
+    /**
+     * `refresh` is a monotonic user nonce: a value above the Session's last seen nonce forces the newest generation
+     * (fresh topology and status) instead of joining cached snapshots.
+     */
+    summary(sessionId: string, refresh = 0): Promise<GitSummary> {
+        const lastNonce = this.refreshNonces.get(sessionId) ?? 0;
+        const isForce = refresh > lastNonce;
+        if (isForce) this.refreshNonces.set(sessionId, refresh);
+        const key = `${sessionId}#${refresh}`;
+        if (this.summaries.has(key))
+            this.options.logger.write('debug', 'git.summary', {
+                fields: { outcome: 'joined', reason: isForce ? 'refresh' : 'request' },
+            });
+        return this.summaries.run(key, () =>
+            this.loadSummary(sessionId, isForce ? 'refresh' : 'request'),
+        );
     }
 
     async resolveRepository(sessionId: string, repoIdValue: string): Promise<GitRepoSummary> {

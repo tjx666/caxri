@@ -1,0 +1,114 @@
+import { z } from 'zod';
+
+const gitFileStatusSchema = z.object({
+    path: z.string(),
+    originalPath: z.string().optional(),
+    index: z.string(),
+    workingTree: z.string(),
+    kind: z.enum(['modified', 'added', 'deleted', 'renamed', 'untracked', 'conflicted']),
+});
+
+/**
+ * Safe transport bound for one repository's working-tree status projection. A larger change set is truncated at the
+ * producer; `changedFileCount` still reports the full size so consumers can render an explicit "Showing the first N
+ * changes" state instead of silently dropping entries.
+ */
+export const MAX_GIT_STATUS_FILES = 2_000;
+
+const gitRepoSummarySchema = z.object({
+    id: z.string(),
+    kind: z.enum(['primary', 'worktree', 'nested', 'submodule']),
+    name: z.string(),
+    rootPath: z.string(),
+    branch: z.string(),
+    head: z.string().optional(),
+    ahead: z.number(),
+    behind: z.number(),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    /**
+     * Monotonic status snapshot generation. Every consumer of the same repository generation observes the same
+     * canonical snapshot, so cross-view numbers can never disagree.
+     */
+    generation: z.number().int().nonnegative(),
+    changedFileCount: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+    files: z.array(gitFileStatusSchema).max(MAX_GIT_STATUS_FILES),
+});
+
+/**
+ * Count/branch projection for consumers such as the Status Bar that must never pull the full working-tree `files[]`
+ * payload across IPC.
+ */
+const gitRepoOverviewSchema = gitRepoSummarySchema.omit({ files: true });
+
+export const gitOverviewSchema = z.object({
+    isRepository: z.boolean(),
+    repositories: z.array(gitRepoOverviewSchema),
+    error: z.string().optional(),
+});
+
+export const gitPullRequestChangesSchema = z.object({
+    repositoryId: z.string(),
+    number: z.number().int().positive(),
+    title: z.string().max(4_096),
+    url: z.url(),
+    baseRefName: z.string().min(1).max(1_024),
+    headRefName: z.string().min(1).max(1_024),
+    baseOid: z.string().regex(/^[0-9a-f]{40}$/),
+    headOid: z.string().regex(/^[0-9a-f]{40}$/),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    files: z.array(gitFileStatusSchema).max(2_000),
+});
+
+// Exported so `domain.ts` can compose `gitCommitDetailsSchema` without duplicating this schema.
+export const gitCommitSchema = z.object({
+    sha: z.string().regex(/^[0-9a-f]{40}$/),
+    shortSha: z.string().min(7).max(12),
+    subject: z.string().max(4_096),
+    author: z.string().max(1_024),
+    authoredAt: z.number().int().nonnegative(),
+    decorations: z.array(z.string().max(1_024)).max(50),
+    parents: z.array(z.string().regex(/^[0-9a-f]{40}$/)).max(64),
+});
+
+export const gitCommitPageSchema = z.object({
+    commits: z.array(gitCommitSchema).max(50),
+    nextOffset: z.number().int().nonnegative().optional(),
+});
+
+export const gitBlameSchema = z.object({
+    sha: z.string().regex(/^[0-9a-f]{40}$/),
+    author: z.string().min(1).max(1_024),
+    authoredAt: z.number().int().nonnegative(),
+    subject: z.string().max(4_096),
+    line: z.number().int().positive(),
+    uncommitted: z.boolean(),
+});
+
+export const gitSummarySchema = z.object({
+    isRepository: z.boolean(),
+    repositories: z.array(gitRepoSummarySchema),
+    error: z.string().optional(),
+});
+
+export const gitBranchSchema = z.object({
+    name: z.string().min(1).max(1_024),
+    /**
+     * Epoch milliseconds of the branch tip commit's committer date.
+     */
+    committedAt: z.number().int().nonnegative(),
+});
+
+export type GitFileStatus = z.infer<typeof gitFileStatusSchema>;
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/renderer and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+export type GitRepositorySummary = z.infer<typeof gitRepoSummarySchema>;
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/renderer and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+export type GitRepositoryOverview = z.infer<typeof gitRepoOverviewSchema>;
+export type GitSummary = z.infer<typeof gitSummarySchema>;
+export type GitOverview = z.infer<typeof gitOverviewSchema>;
+export type GitPullRequestChanges = z.infer<typeof gitPullRequestChangesSchema>;
+export type GitCommit = z.infer<typeof gitCommitSchema>;
+export type GitCommitPage = z.infer<typeof gitCommitPageSchema>;
+export type GitBlame = z.infer<typeof gitBlameSchema>;

@@ -32,6 +32,7 @@ export {
     type GitCommitPage,
     type GitDiffDocument,
     type GitFileStatus,
+    type GitOverview,
     type GitPullRequestChanges,
     type GitRepositorySummary,
     type GitSummary,
