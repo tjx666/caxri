@@ -44,7 +44,7 @@ function select<T extends SelectableRecord>(
             candidates: matches.slice(0, 32).map((record) => ({
                 id: record.id,
                 displayTitle: title(record),
-                ...(record.projectId ? { projectId: record.projectId } : {}),
+                ...(record.projectId && { projectId: record.projectId }),
             })),
         });
     throw new CaxriError('NOT_FOUND', `${kind} selector did not match`);
@@ -65,7 +65,9 @@ function principalView(principal: Principal): Principal['kind'] {
     return principal.kind;
 }
 
-/** Builds path-safe, principal-scoped business records before they cross the Host boundary. */
+/**
+ * Builds path-safe, principal-scoped business records before they cross the Host boundary.
+ */
 export class RecordQueryService {
     constructor(
         private readonly source: RecordQuerySource,
@@ -73,8 +75,8 @@ export class RecordQueryService {
     ) {}
 
     /**
-     * Human CLI output may identify a Project root without disclosing a path outside the user's
-     * HOME. The opaque Project ID still lets callers correlate `list`, `show`, and `current`.
+     * Human CLI output may identify a Project root without disclosing a path outside the user's HOME. The opaque
+     * Project ID still lets callers correlate `list`, `show`, and `current`.
      */
     private projectRootIdentity(path: string, projectId: string): string {
         if (path === this.homePath) return '$HOME';
@@ -86,7 +88,7 @@ export class RecordQueryService {
     project(query: ProjectQuery, principal: Principal): ProjectQueryResult {
         const scope = scopeFor(principal);
         const visible = this.source.projects().filter(({ id }) => !scope || scope.has(id));
-        if (query.mode === 'current' && scope)
+        if (scope && query.mode === 'current')
             throw new CaxriError(
                 'FORBIDDEN',
                 'Agent current Project requires an endpoint-bound context',
@@ -121,7 +123,7 @@ export class RecordQueryService {
                     (!scope || scope.has(projectId)) &&
                     (!('projectId' in query) || !query.projectId || query.projectId === projectId),
             );
-        if (query.mode === 'current' && scope)
+        if (scope && query.mode === 'current')
             throw new CaxriError(
                 'FORBIDDEN',
                 'Agent current Session requires an endpoint-bound context',
@@ -147,7 +149,7 @@ export class RecordQueryService {
                     id,
                     projectId,
                     displayTitle,
-                    ...(archivedAt === undefined ? {} : { archivedAt }),
+                    ...(archivedAt !== undefined && { archivedAt }),
                     lastOpenedAt,
                     lastActivityState,
                     hasUnread,
@@ -179,10 +181,10 @@ export class RecordQueryService {
                     id,
                     sessionId,
                     kind,
-                    ...(provider ? { provider } : {}),
+                    ...(provider && { provider }),
                     title,
                     lastProcessState,
-                    ...(failureReason ? { failureReason } : {}),
+                    ...(failureReason && { failureReason }),
                 }),
             ),
         };

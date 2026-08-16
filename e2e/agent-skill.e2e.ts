@@ -1,7 +1,9 @@
+import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import process from 'node:process';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -34,10 +36,10 @@ interface EndpointCapture {
 }
 
 function runCli(
-    args: readonly string[],
+    arguments_: readonly string[],
     options: { cwd: string; environment?: NodeJS.ProcessEnv },
 ): Promise<CliResult> {
-    return new Promise((resolveRun) => {
+    return new Promise((resolve) => {
         const environment = { ...process.env, ...options.environment };
         for (const key of [
             'CAXRI_AGENT_ENDPOINT_HOST_ID',
@@ -49,10 +51,10 @@ function runCli(
         }
         execFile(
             process.execPath,
-            [cliPath, ...args],
+            [cliPath, ...arguments_],
             { cwd: options.cwd, env: environment, maxBuffer: 2 * 1024 * 1024, timeout: 15_000 },
             (error, stdout, stderr) => {
-                resolveRun({
+                resolve({
                     code: typeof error?.code === 'number' ? error.code : error ? 1 : 0,
                     stderr,
                     stdout,
@@ -89,7 +91,7 @@ function endpointEnvironment(
     };
 }
 
-function endpointRef(capture: EndpointCapture): string {
+function endpointReference(capture: EndpointCapture): string {
     const { endpointId, generation, hostId } = capture.context.endpoint.ref;
     return `${hostId}:${endpointId}:${generation}`;
 }
@@ -105,11 +107,11 @@ test('versioned Agent skill works offline and drives scoped business, debug, and
         userDataDir: userData,
         providers: {
             codex: {
-                executableSource: `#!${process.execPath}
+                executableSource: String.raw`#!${process.execPath}
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 if (process.argv.includes('--version')) {
-  process.stdout.write('codex-agent-skill-test 1.0\\n');
+  process.stdout.write('codex-agent-skill-test 1.0\n');
   process.exit(0);
 }
 const invocation = spawnSync(process.execPath, [${JSON.stringify(cliPath)}, 'agent-context', '--json'], {
@@ -128,9 +130,9 @@ fs.appendFileSync(${JSON.stringify(capturePath)}, JSON.stringify({
     generation: Number(process.env.CAXRI_AGENT_ENDPOINT_GENERATION),
     token: process.env.CAXRI_AGENT_ENDPOINT_TOKEN,
   },
-}) + '\\n');
+}) + '\n');
 process.stdin.on('data', (chunk) => fs.appendFileSync(${JSON.stringify(terminalInputPath)}, chunk));
-process.stdout.write('Skill Agent ready\\r\\n');
+process.stdout.write('Skill Agent ready\r\n');
 process.stdin.resume();
 `,
             },
@@ -156,7 +158,7 @@ process.stdin.resume();
         expect(bundled.content).toContain('caxri agent-context --json');
         expect(bundled.content).not.toContain(userData);
 
-        const installArgs = [
+        const installArguments = [
             'skills',
             'install',
             'caxri-cli',
@@ -166,8 +168,14 @@ process.stdin.resume();
             '--yes',
             '--json',
         ] as const;
-        const installed = await runCli(installArgs, { cwd: root, environment: offlineEnvironment });
-        const repeated = await runCli(installArgs, { cwd: root, environment: offlineEnvironment });
+        const installed = await runCli(installArguments, {
+            cwd: root,
+            environment: offlineEnvironment,
+        });
+        const repeated = await runCli(installArguments, {
+            cwd: root,
+            environment: offlineEnvironment,
+        });
         expect(JSON.parse(installed.stdout)).toMatchObject({ changed: true });
         expect(JSON.parse(repeated.stdout)).toMatchObject({ changed: false });
         expect(await readFile(foreignSkill, 'utf8')).toBe('foreign skill\n');
@@ -283,7 +291,7 @@ process.stdin.resume();
                 'message',
                 'send',
                 '--to',
-                endpointRef(second),
+                endpointReference(second),
                 '--body',
                 body,
                 '--request-id',
@@ -353,11 +361,20 @@ process.stdin.resume();
             { cwd: root, environment: firstEnvironment },
         );
         expect(JSON.parse(receipt.stdout)).toMatchObject({ status: 'delivered' });
-        const terminalInput = await readFile(terminalInputPath).catch(() => Buffer.alloc(0));
+        let terminalInput: Buffer;
+        try {
+            terminalInput = await readFile(terminalInputPath);
+        } catch {
+            terminalInput = Buffer.alloc(0);
+        }
         expect(terminalInput.includes(Buffer.from(body))).toBe(false);
         expect(terminalInput.includes(Buffer.from(replyBody))).toBe(false);
     } finally {
-        await running?.app.close().catch(() => undefined);
+        try {
+            await running?.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { force: true, recursive: true });
     }
 });

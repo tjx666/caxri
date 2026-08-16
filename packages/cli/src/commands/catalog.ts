@@ -1,20 +1,20 @@
-import { CaxriError, logQueryParamsSchema, settingsPatchChangeSchema } from '@caxri/protocol';
+import { CaxriError, logQueryParametersSchema, settingsPatchChangeSchema } from '@caxri/protocol';
 
 import { SKILL_COMMANDS } from './skills';
 import type { CliCommandDefinition } from './types';
 
 export {
     CLI_GROUPS,
-    describeCliCommand,
     type CliCommandDefinition,
     type CliCommandDescription,
+    describeCliCommand,
     type LocalCommandDefinition,
     type RemoteCommandDefinition,
 } from './types';
 
 function rejectOptions(tokens: readonly string[]): Record<string, never> {
     if (tokens.length > 0)
-        throw new CaxriError('VALIDATION', `Unexpected argument: ${tokens[0].split('=')[0]}`);
+        throw new CaxriError('VALIDATION', `Unexpected argument: ${tokens[0].split('=', 1)[0]}`);
     return {};
 }
 
@@ -25,7 +25,7 @@ function booleanFlag(
 ): Record<string, boolean> {
     if (tokens.length === 0) return { [key]: false };
     if (tokens.length === 1 && tokens[0] === flag) return { [key]: true };
-    throw new CaxriError('VALIDATION', `Unknown option: ${tokens[0].split('=')[0]}`);
+    throw new CaxriError('VALIDATION', `Unknown option: ${tokens[0].split('=', 1)[0]}`);
 }
 
 function desktopTarget(
@@ -33,12 +33,12 @@ function desktopTarget(
     options: { launchByDefault: boolean },
 ): Record<string, unknown> {
     const positional: string[] = [];
-    let launchIfNeeded = options.launchByDefault;
+    let isLaunchIfNeeded = options.launchByDefault;
     let sessionId: string | undefined;
     for (let index = 0; index < tokens.length; index += 1) {
         const token = tokens[index];
         if (token === '--launch' || token === '--no-launch') {
-            launchIfNeeded = token === '--launch';
+            isLaunchIfNeeded = token === '--launch';
             continue;
         }
         if (token === '--session') {
@@ -52,12 +52,16 @@ function desktopTarget(
             continue;
         }
         if (token.startsWith('--'))
-            throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=')[0]}`);
+            throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=', 1)[0]}`);
         positional.push(token);
     }
     if (positional.length !== 1)
         throw new CaxriError('VALIDATION', 'Desktop commands require exactly one path');
-    return { path: positional[0], launchIfNeeded, ...(sessionId ? { sessionId } : {}) };
+    return {
+        path: positional[0],
+        launchIfNeeded: isLaunchIfNeeded,
+        ...(sessionId && { sessionId }),
+    };
 }
 
 function selectorQuery(
@@ -78,7 +82,7 @@ function selectorQuery(
             scopeValue = value;
             index += 1;
         } else if (token.startsWith('--')) {
-            throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=')[0]}`);
+            throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=', 1)[0]}`);
         } else positional.push(token);
     }
     if (mode === 'list' && positional.length > 0)
@@ -87,22 +91,22 @@ function selectorQuery(
         throw new CaxriError('VALIDATION', 'show requires exactly one ID or name');
     return {
         mode,
-        ...(mode === 'show' ? { selector: positional[0] } : {}),
-        ...(scope && scopeValue ? { [scope.key]: scopeValue } : {}),
+        ...(mode === 'show' && { selector: positional[0] }),
+        ...(scope && scopeValue && { [scope.key]: scopeValue }),
     };
 }
 
-function settingPatch(tokens: readonly string[], forceDryRun: boolean): Record<string, unknown> {
+function settingPatch(tokens: readonly string[], isForceDryRun: boolean): Record<string, unknown> {
     const changes: unknown[] = [];
-    let dryRun = forceDryRun;
+    let isDryRun = isForceDryRun;
     for (let index = 0; index < tokens.length; index += 1) {
         const token = tokens[index];
-        if (token === '--dry-run' && !forceDryRun) {
-            dryRun = true;
+        if (token === '--dry-run' && !isForceDryRun) {
+            isDryRun = true;
             continue;
         }
         if (token !== '--set')
-            throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=')[0]}`);
+            throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=', 1)[0]}`);
         const assignment = tokens[index + 1];
         if (!assignment || assignment.startsWith('--'))
             throw new CaxriError('VALIDATION', '--set requires key=value');
@@ -121,7 +125,7 @@ function settingPatch(tokens: readonly string[], forceDryRun: boolean): Record<s
     }
     if (changes.length === 0)
         throw new CaxriError('VALIDATION', 'At least one --set key=value is required');
-    return { changes, dryRun };
+    return { changes, dryRun: isDryRun };
 }
 
 function logQuery(tokens: readonly string[]): Record<string, unknown> {
@@ -138,34 +142,34 @@ function logQuery(tokens: readonly string[]): Record<string, unknown> {
     for (let index = 0; index < tokens.length; index += 1) {
         const token = tokens[index];
         const key = keys.get(token);
-        if (!key) throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=')[0]}`);
+        if (!key) throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=', 1)[0]}`);
         const value = tokens[index + 1];
         if (!value || value.startsWith('--'))
             throw new CaxriError('VALIDATION', `${token} requires a value`);
         result[key] = key === 'limit' ? Number(value) : value;
         index += 1;
     }
-    return logQueryParamsSchema.parse(result);
+    return logQueryParametersSchema.parse(result);
 }
 
 function eventRecovery(tokens: readonly string[]): Record<string, number> {
     if (tokens.length === 0) return { afterCursor: 0 };
     if (tokens.length !== 2 || tokens[0] !== '--after')
-        throw new CaxriError('VALIDATION', `Unknown option: ${tokens[0].split('=')[0]}`);
+        throw new CaxriError('VALIDATION', `Unknown option: ${tokens[0].split('=', 1)[0]}`);
     const afterCursor = Number(tokens[1]);
-    if (!Number.isInteger(afterCursor) || afterCursor < 0)
+    if (!Number.isSafeInteger(afterCursor) || afterCursor < 0)
         throw new CaxriError('VALIDATION', '--after must be a non-negative integer cursor');
     return { afterCursor };
 }
 
-function endpointRef(source: string | undefined) {
+function endpointReference(source: string | undefined) {
     const [hostId, endpointId, generationSource, ...extra] = source?.split(':') ?? [];
     const generation = Number(generationSource);
     if (
         !hostId ||
         !endpointId ||
         extra.length > 0 ||
-        !Number.isInteger(generation) ||
+        !Number.isSafeInteger(generation) ||
         generation < 1
     )
         throw new CaxriError(
@@ -179,7 +183,7 @@ function agentGrant(tokens: readonly string[]): Record<string, unknown> {
     if (tokens.length < 2)
         throw new CaxriError('VALIDATION', 'agent grant requires an Endpoint ref and policy');
     const result: Record<string, unknown> = {
-        endpoint: endpointRef(tokens[0]),
+        endpoint: endpointReference(tokens[0]),
         policy: tokens[1],
     };
     if (tokens.length > 2) {
@@ -199,7 +203,7 @@ function namedOptions(
     for (let index = 0; index < tokens.length; index += 1) {
         const flag = tokens[index];
         const key = allowed.get(flag);
-        if (!key) throw new CaxriError('VALIDATION', `Unknown option: ${flag.split('=')[0]}`);
+        if (!key) throw new CaxriError('VALIDATION', `Unknown option: ${flag.split('=', 1)[0]}`);
         if (result[key] !== undefined)
             throw new CaxriError('VALIDATION', `${flag} may be provided only once`);
         const value = tokens[index + 1];
@@ -212,19 +216,19 @@ function namedOptions(
         if (result[key] === undefined)
             throw new CaxriError(
                 'VALIDATION',
-                `--${key.replace(/[A-Z]/g, (value) => `-${value.toLowerCase()}`)} is required`,
+                `--${key.replaceAll(/[A-Z]/g, (value) => `-${value.toLowerCase()}`)} is required`,
             );
     }
     return result;
 }
 
-function agentMessage(tokens: readonly string[], reply: boolean): Record<string, unknown> {
-    let wake = false;
+function agentMessage(tokens: readonly string[], isReply: boolean): Record<string, unknown> {
+    let isWake = false;
     const valueTokens: string[] = [];
     for (const token of tokens) {
         if (token === '--wake') {
-            if (wake) throw new CaxriError('VALIDATION', '--wake may be provided only once');
-            wake = true;
+            if (isWake) throw new CaxriError('VALIDATION', '--wake may be provided only once');
+            isWake = true;
         } else valueTokens.push(token);
     }
     const options = namedOptions(
@@ -235,22 +239,22 @@ function agentMessage(tokens: readonly string[], reply: boolean): Record<string,
             ['--reply-to', 'replyTo'],
             ['--ttl-ms', 'ttlMs'],
         ]),
-        reply ? ['to', 'body', 'replyTo'] : ['to', 'body'],
+        isReply ? ['to', 'body', 'replyTo'] : ['to', 'body'],
     );
-    if (!reply && options.replyTo !== undefined)
+    if (!isReply && options.replyTo !== undefined)
         throw new CaxriError('VALIDATION', '--reply-to is valid only for agent message reply');
-    if (reply && wake)
+    if (isReply && isWake)
         throw new CaxriError('VALIDATION', '--wake is valid only for agent message send');
     return {
-        to: endpointRef(options.to),
+        to: endpointReference(options.to),
         body: options.body,
-        ...(options.replyTo ? { replyTo: options.replyTo } : {}),
-        ...(options.ttlMs ? { ttlMs: Number(options.ttlMs) } : {}),
-        ...(wake ? { wake: true } : {}),
+        ...(options.replyTo && { replyTo: options.replyTo }),
+        ...(options.ttlMs && { ttlMs: Number(options.ttlMs) }),
+        ...(isWake && { wake: true }),
     };
 }
 
-function dispatchTarget(tokens: readonly string[], resume: boolean): Record<string, unknown> {
+function dispatchTarget(tokens: readonly string[], isResume: boolean): Record<string, unknown> {
     const options = namedOptions(
         tokens,
         new Map([
@@ -260,13 +264,13 @@ function dispatchTarget(tokens: readonly string[], resume: boolean): Record<stri
             ['--terminal', 'terminalId'],
             ['--provider-session', 'providerSessionId'],
         ]),
-        resume
+        isResume
             ? ['projectId', 'sessionId', 'terminalId', 'providerSessionId']
             : ['projectId', 'sessionId', 'provider'],
     );
-    if (resume && options.provider !== undefined)
+    if (isResume && options.provider !== undefined)
         throw new CaxriError('VALIDATION', '--provider is valid only for agent dispatch start');
-    if (!resume && (options.terminalId !== undefined || options.providerSessionId !== undefined))
+    if (!isResume && (options.terminalId !== undefined || options.providerSessionId !== undefined))
         throw new CaxriError(
             'VALIDATION',
             '--terminal and --provider-session are valid only for agent dispatch resume',
@@ -283,7 +287,7 @@ function dispatchWait(tokens: readonly string[]): Record<string, unknown> {
             continue;
         }
         const value = Number(tokens[index + 1]);
-        if (!Number.isInteger(value) || value < 0)
+        if (!Number.isSafeInteger(value) || value < 0)
             throw new CaxriError('VALIDATION', '--after-revision requires a non-negative integer');
         afterRevision = value;
         index += 1;
@@ -294,12 +298,12 @@ function dispatchWait(tokens: readonly string[]): Record<string, unknown> {
 }
 
 function terminalSend(tokens: readonly string[]): Record<string, unknown> {
-    let enter = false;
+    let isEnter = false;
     const valueTokens: string[] = [];
     for (const token of tokens) {
         if (token === '--enter') {
-            if (enter) throw new CaxriError('VALIDATION', '--enter may be provided only once');
-            enter = true;
+            if (isEnter) throw new CaxriError('VALIDATION', '--enter may be provided only once');
+            isEnter = true;
         } else valueTokens.push(token);
     }
     const options = namedOptions(
@@ -310,7 +314,7 @@ function terminalSend(tokens: readonly string[]): Record<string, unknown> {
         ]),
         ['terminalId', 'text'],
     );
-    return { ...options, enter };
+    return { ...options, enter: isEnter };
 }
 
 export const CLI_COMMANDS = [
@@ -368,7 +372,7 @@ export const CLI_COMMANDS = [
         parseParams: (tokens) => {
             if (tokens.length !== 1)
                 throw new CaxriError('VALIDATION', 'agent grants requires one Endpoint ref');
-            return { endpoint: endpointRef(tokens[0]) };
+            return { endpoint: endpointReference(tokens[0]) };
         },
         quietKey: 'grants',
     },
@@ -394,7 +398,7 @@ export const CLI_COMMANDS = [
                     'VALIDATION',
                     'agent revoke requires an Endpoint ref and grant ID',
                 );
-            return { endpoint: endpointRef(tokens[0]), grantId: tokens[1] };
+            return { endpoint: endpointReference(tokens[0]), grantId: tokens[1] };
         },
     },
     {
@@ -451,7 +455,7 @@ export const CLI_COMMANDS = [
                     'VALIDATION',
                     'agent control interrupt requires one Endpoint ref',
                 );
-            return { endpoint: endpointRef(tokens[0]) };
+            return { endpoint: endpointReference(tokens[0]) };
         },
     },
     {
@@ -464,7 +468,7 @@ export const CLI_COMMANDS = [
         parseParams: (tokens) => {
             if (tokens.length !== 1)
                 throw new CaxriError('VALIDATION', 'agent control stop requires one Endpoint ref');
-            return { endpoint: endpointRef(tokens[0]) };
+            return { endpoint: endpointReference(tokens[0]) };
         },
     },
     {
@@ -531,9 +535,9 @@ export const CLI_COMMANDS = [
         usage: '<auto|accept|hold|refuse> [--hold-until-endpoint]',
         parseParams: (tokens) => {
             const policy = tokens[0];
-            const rest = tokens.slice(1);
             if (!policy)
                 throw new CaxriError('VALIDATION', 'agent message policy-set requires a policy');
+            const rest = tokens.slice(1);
             if (rest.length > 1 || (rest.length === 1 && rest[0] !== '--hold-until-endpoint'))
                 throw new CaxriError('VALIDATION', `Unknown option: ${rest[0]}`);
             return {
@@ -680,8 +684,10 @@ export const CLI_COMMANDS = [
         summary: 'Atomically apply a field-bounded shared Settings patch.',
         usage: '--set <key=value> [--set <key=value> ...] [--dry-run]',
         confirmation: 'Apply this Settings patch to the selected Caxri profile?',
-        mutates: (params) =>
-            typeof params === 'object' && params !== null && Reflect.get(params, 'dryRun') !== true,
+        mutates: (parameters) =>
+            typeof parameters === 'object' &&
+            parameters !== null &&
+            Reflect.get(parameters, 'dryRun') !== true,
         parseParams: (tokens) => settingPatch(tokens, false),
     },
     {

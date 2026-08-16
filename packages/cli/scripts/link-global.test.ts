@@ -9,9 +9,9 @@ import { prepareGlobalCliPackage } from './link-global';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })),
-    );
+    const pending = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pending.map((path) => rm(path, { force: true, recursive: true })));
 });
 
 describe('global CLI package', () => {

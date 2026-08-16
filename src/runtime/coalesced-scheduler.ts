@@ -12,7 +12,10 @@ export class CoalescedScheduler<Key> {
             key,
             setTimeout(() => {
                 this.timers.delete(key);
-                void this.run(key);
+                // `setTimeout`'s callback is synchronous, so this cannot become `await`; `run` is
+                // responsible for handling its own rejections (as `AgentCoordinator#probe` does).
+                // eslint-disable-next-line unicorn/prefer-await -- sync timer callback, see comment above
+                Promise.resolve(this.run(key)).catch(() => {});
             }, this.delayMs),
         );
     }

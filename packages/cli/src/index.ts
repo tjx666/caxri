@@ -2,10 +2,10 @@ export * from './application.js';
 export {
     CLI_COMMANDS,
     CLI_GROUPS,
-    describeCliCommand,
-    findCliCommand,
     type CliCommandDefinition,
     type CliCommandDescription,
+    describeCliCommand,
+    findCliCommand,
     type LocalCommandDefinition,
     type RemoteCommandDefinition,
 } from './commands/index.js';

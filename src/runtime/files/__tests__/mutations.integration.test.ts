@@ -9,8 +9,8 @@ import {
     realpath,
     rename,
     rm,
-    symlink,
     stat,
+    symlink,
     writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -20,7 +20,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
-import { FileService, type FileServiceOptions } from '../service';
+import type { FileServiceOptions } from '../service';
+import { FileService } from '../service';
 
 interface Fixture {
     database: CaxriDatabase;
@@ -41,7 +42,7 @@ async function createFixture(prefix: string, options: FileServiceOptions = {}): 
     const session = database.createSession(database.createProject(root).id, 'shell').session;
     const service = new FileService(
         database,
-        () => undefined,
+        () => {},
         new StructuredLogger(join(directory, 'logs')),
         () => 1024,
         options,
@@ -53,17 +54,19 @@ async function createFixture(prefix: string, options: FileServiceOptions = {}): 
 
 afterEach(async () => {
     vi.useRealTimers();
+    const pendingFixtures = fixtures.slice();
+    fixtures.length = 0;
     await Promise.all(
-        fixtures.splice(0).map(async ({ database, directory, service }) => {
+        pendingFixtures.map(async ({ database, directory, service }) => {
             await service.close();
             database.close();
             await rm(directory, { recursive: true, force: true });
         }),
     );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories
-            .splice(0)
-            .map((directory) => rm(directory, { recursive: true, force: true })),
+        pendingDirectories.map((directory) => rm(directory, { recursive: true, force: true })),
     );
 });
 
@@ -446,14 +449,10 @@ describe('FileMutationService', () => {
     it('bounds post-copy target validation concurrency', async () => {
         let activeValidations = 0;
         let maximumActiveValidations = 0;
-        let markValidationPoolFull!: () => void;
-        let releaseValidations!: () => void;
-        const validationPoolFull = new Promise<void>((resolve) => {
-            markValidationPoolFull = resolve;
-        });
-        const validationsReleased = new Promise<void>((resolve) => {
-            releaseValidations = resolve;
-        });
+        const { promise: validationPoolFull, resolve: markValidationPoolFull } =
+            Promise.withResolvers<void>();
+        const { promise: validationsReleased, resolve: releaseValidations } =
+            Promise.withResolvers<void>();
         const fixture = await createFixture('caxri-file-copy-validation-concurrency-', {
             mutations: {
                 beforeCopyTargetValidation: async () => {
@@ -494,14 +493,10 @@ describe('FileMutationService', () => {
 
     it('drains active target validations and stops queued checks after failure', async () => {
         let startedValidations = 0;
-        let markValidationPoolFull!: () => void;
-        let releaseValidations!: () => void;
-        const validationPoolFull = new Promise<void>((resolve) => {
-            markValidationPoolFull = resolve;
-        });
-        const validationsReleased = new Promise<void>((resolve) => {
-            releaseValidations = resolve;
-        });
+        const { promise: validationPoolFull, resolve: markValidationPoolFull } =
+            Promise.withResolvers<void>();
+        const { promise: validationsReleased, resolve: releaseValidations } =
+            Promise.withResolvers<void>();
         const fixture = await createFixture('caxri-file-copy-validation-failure-', {
             mutations: {
                 beforeCopyTargetValidation: async () => {
@@ -526,30 +521,31 @@ describe('FileMutationService', () => {
             path: source,
             directory: fixture.root,
         });
-        let settled = false;
-        void copying.then(
-            () => {
-                settled = true;
-            },
-            () => {
-                settled = true;
-            },
-        );
+        let isSettled = false;
+        // The test observes `isSettled` staying `false` while validations drain below, so
+        // `copying` is deliberately tracked fire-and-forget instead of awaited here.
+        copying
+            // eslint-disable-next-line unicorn/prefer-await -- see comment above
+            .then(() => {
+                isSettled = true;
+            })
+            // eslint-disable-next-line unicorn/prefer-await -- see comment above
+            .catch(() => {
+                isSettled = true;
+            });
         await validationPoolFull;
         await new Promise<void>((resolve) => setImmediate(resolve));
 
         expect(startedValidations).toBe(32);
-        expect(settled).toBe(false);
+        expect(isSettled).toBe(false);
         releaseValidations();
         await expect(copying).rejects.toThrow('partial copy was kept');
         expect(startedValidations).toBe(32);
     });
 
     it('aborts a stalled file transfer without deleting its partial target by path', async () => {
-        let markTransferStarted!: () => void;
-        const transferStarted = new Promise<void>((resolve) => {
-            markTransferStarted = resolve;
-        });
+        const { promise: transferStarted, resolve: markTransferStarted } =
+            Promise.withResolvers<void>();
         const fixture = await createFixture('caxri-file-copy-stalled-transfer-', {
             mutations: {
                 copyFile: async (_source, target, options) => {
@@ -589,10 +585,8 @@ describe('FileMutationService', () => {
     });
 
     it('preserves foreign descendants after an aborted directory copy', async () => {
-        let markTransferStarted!: () => void;
-        const transferStarted = new Promise<void>((resolve) => {
-            markTransferStarted = resolve;
-        });
+        const { promise: transferStarted, resolve: markTransferStarted } =
+            Promise.withResolvers<void>();
         let foreignPath = '';
         const fixture = await createFixture('caxri-file-copy-foreign-cleanup-', {
             mutations: {
@@ -680,12 +674,12 @@ describe('FileMutationService', () => {
     it('revalidates the destination after source preflight before copying', async () => {
         let destination = '';
         let outside = '';
-        let swapped = false;
+        let isSwapped = false;
         const fixture = await createFixture('caxri-file-copy-destination-race-', {
             mutations: {
                 beforeCopyValidation: async () => {
-                    if (swapped) return;
-                    swapped = true;
+                    if (isSwapped) return;
+                    isSwapped = true;
                     await rename(destination, `${destination}-original`);
                     await symlink(outside, destination);
                 },
@@ -711,14 +705,10 @@ describe('FileMutationService', () => {
     });
 
     it('keeps unrelated document I/O available while a copy is in progress', async () => {
-        let markTransferStarted!: () => void;
-        let releaseTransfer!: () => void;
-        const transferStarted = new Promise<void>((resolve) => {
-            markTransferStarted = resolve;
-        });
-        const transferReleased = new Promise<void>((resolve) => {
-            releaseTransfer = resolve;
-        });
+        const { promise: transferStarted, resolve: markTransferStarted } =
+            Promise.withResolvers<void>();
+        const { promise: transferReleased, resolve: releaseTransfer } =
+            Promise.withResolvers<void>();
         const fixture = await createFixture('caxri-file-copy-unrelated-io-', {
             mutations: {
                 copyFile: async (source, target) => {
@@ -750,14 +740,8 @@ describe('FileMutationService', () => {
     });
 
     it('finishes an in-flight document read before moving its path', async () => {
-        let releaseOpen!: () => void;
-        let signalOpen!: () => void;
-        const openStarted = new Promise<void>((resolve) => {
-            signalOpen = resolve;
-        });
-        const openReleased = new Promise<void>((resolve) => {
-            releaseOpen = resolve;
-        });
+        const { promise: openStarted, resolve: signalOpen } = Promise.withResolvers<void>();
+        const { promise: openReleased, resolve: releaseOpen } = Promise.withResolvers<void>();
         const fixture = await createFixture('caxri-file-read-move-order-', {
             openFile: async (...arguments_) => {
                 signalOpen();
@@ -770,15 +754,18 @@ describe('FileMutationService', () => {
 
         const reading = fixture.service.read(fixture.sessionId, source);
         await openStarted;
-        let moved = false;
+        let isMoved = false;
+        // `moving` must stay unsettled for the assertion below, so its completion is tracked via
+        // `.then()` instead of being awaited here.
         const moving = fixture.service
             .rename({ sessionId: fixture.sessionId, path: source, name: 'moved.txt' })
+            // eslint-disable-next-line unicorn/prefer-await -- see comment above
             .then((result) => {
-                moved = true;
+                isMoved = true;
                 return result;
             });
         await new Promise<void>((resolve) => setImmediate(resolve));
-        expect(moved).toBe(false);
+        expect(isMoved).toBe(false);
 
         releaseOpen();
         await expect(reading).resolves.toMatchObject({ content: 'source', path: source });

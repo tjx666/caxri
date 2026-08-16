@@ -11,19 +11,23 @@ export interface ResolvedSessionPath {
 }
 
 export interface ProjectRootResolverOptions {
-    /** Integration-test seam for a root replacement between the first metadata read and realpath. */
+    /**
+     * Integration-test seam for a root replacement between the first metadata read and realpath.
+     */
     beforeRootRealpath?: () => Promise<void>;
-    /** Integration-test seam for restoring a replaced root before the post-realpath identity read. */
+    /**
+     * Integration-test seam for restoring a replaced root before the post-realpath identity read.
+     */
     afterRootRealpath?: () => Promise<void>;
 }
 
 /**
- * Resolves a Session to its active Workbench Project root and validates Session-relative paths
- * against it. Terminal and Agent launch code deliberately resolves the owning Project separately.
+ * Resolves a Session to its active Workbench Project root and validates Session-relative paths against it. Terminal and
+ * Agent launch code deliberately resolves the owning Project separately.
  *
- * This is the single place that turns a Session ID plus an optional relative or absolute path into
- * a filesystem location, so `FileService` and `GitService` share one TOCTOU-safe resolution instead
- * of Git depending on the whole `FileService` just to find a Session's root.
+ * This is the single place that turns a Session ID plus an optional relative or absolute path into a filesystem
+ * location, so `FileService` and `GitService` share one TOCTOU-safe resolution instead of Git depending on the whole
+ * `FileService` just to find a Session's root.
  */
 export class ProjectRootResolver {
     constructor(
@@ -31,7 +35,9 @@ export class ProjectRootResolver {
         private readonly options: ProjectRootResolverOptions = {},
     ) {}
 
-    /** Captures the authorized root before a durable operation crosses an asynchronous boundary. */
+    /**
+     * Captures the authorized root before a durable operation crosses an asynchronous boundary.
+     */
     getSessionWorkbenchProjectId(sessionId: string): string {
         const binding = this.database.getSessionWorkbenchBinding(sessionId);
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
@@ -73,7 +79,9 @@ export class ProjectRootResolver {
         return { root, path: resolved };
     }
 
-    /** Returns durable Project roots that the user explicitly granted to Caxri. */
+    /**
+     * Returns durable Project roots that the user explicitly granted to Caxri.
+     */
     listApprovedProjectRoots(): string[] {
         return this.database.listProjects().map((project) => project.rootPath);
     }

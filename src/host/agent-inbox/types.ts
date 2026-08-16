@@ -1,14 +1,14 @@
 import type {
+    AgentEndpointRef as AgentEndpointReference,
+    AgentEndpointSummary,
+} from '../../shared/ipc/agent-endpoint-contract';
+import type {
     AgentHeldMessage,
     AgentMessagePullResult,
     AgentMessageReceipt,
 } from '../../shared/ipc/agent-inbox-contract';
-import type {
-    AgentEndpointRef,
-    AgentEndpointSummary,
-} from '../../shared/ipc/agent-endpoint-contract';
 
-type PendingState = 'waiting' | 'held' | 'delivering';
+export type PendingState = 'waiting' | 'held' | 'delivering';
 
 export interface StoredMessage {
     body?: string;
@@ -47,7 +47,7 @@ export interface DeliveryReservation {
 
 export interface AgentInboxRegistryOptions {
     emitHeld?(message: AgentHeldMessage): void;
-    emitReceipt?(endpoint: AgentEndpointRef, receipt: AgentMessageReceipt): void;
+    emitReceipt?(endpoint: AgentEndpointReference, receipt: AgentMessageReceipt): void;
     id?: () => string;
     now?: () => number;
 }
@@ -57,6 +57,6 @@ export interface AgentMessageSendInput {
     dispatchId?: string;
     idempotencyKey?: string;
     replyTo?: string;
-    to: AgentEndpointRef;
+    to: AgentEndpointReference;
     ttlMs: number;
 }

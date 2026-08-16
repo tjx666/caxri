@@ -2,23 +2,21 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
+import process from 'node:process';
 
 import parcelWatcher from '@parcel/watcher';
 
-import {
-    agentProviderIds,
-    type AgentProvider,
-    type AgentProviderSettings,
-} from '../../../shared/agents';
-import { mapWithConcurrency } from '../../../shared/node/concurrency';
-import type { RuntimeEvent } from '../../../shared/ipc/events';
+import type { AgentProvider, AgentProviderSettings } from '../../../shared/agents';
+import { agentProviderIds } from '../../../shared/agents';
 import { errorMessage } from '../../../shared/ipc/errors';
+import type { RuntimeEvent } from '../../../shared/ipc/events';
+import { mapWithConcurrency } from '../../../shared/node/concurrency';
 import type { StructuredLogger } from '../../../shared/node/logger';
 import type { AgentHookHealth, AgentHookHealthMap } from '../../../shared/types';
-import type { AgentEnvironment } from '../contract';
-import { agentProviders } from '../providers';
 import { readBoundedRegularFileText } from '../../bounded-file-reader';
 import { NATIVE_WATCHER_BACKEND } from '../../native-watcher';
+import type { AgentEnvironment } from '../contract';
+import { agentProviders } from '../providers';
 import { stageAgentHookBridge } from './bridge';
 import type {
     AgentHookAdapter,
@@ -34,8 +32,10 @@ const CONFIG_FALLBACK_POLL_INTERVAL_MS = 30_000;
 const LOCK_RETRY_MS = 25;
 const LOCK_TIMEOUT_MS = 2_000;
 const MAX_CONCURRENT_PROFILE_STATS = 8;
-/** Provider-owned hook configs are small user-authored documents; never hand unbounded input to
- * their syntax adapters or let reconciliation rewrite a file it could not safely inspect. */
+/**
+ * Provider-owned hook configs are small user-authored documents; never hand unbounded input to their syntax adapters or
+ * let reconciliation rewrite a file it could not safely inspect.
+ */
 export const MAX_AGENT_HOOK_CONFIG_BYTES = 1 * 1024 * 1024;
 const STALE_LOCK_MS = 30_000;
 const PROFILE_INTENTS_VERSION = 2;
@@ -73,7 +73,7 @@ function defaultHealth(message?: string): AgentHookHealthMap {
     return Object.fromEntries(
         agentProviderIds.map((provider) => [
             provider,
-            { kind: 'notInstalled', ...(message ? { message } : {}) },
+            { kind: 'notInstalled', ...(message && { message }) },
         ]),
     ) as AgentHookHealthMap;
 }
@@ -155,7 +155,7 @@ function serializeProfileIntents(registry: ProfileHookIntentRegistry): string {
             version: PROFILE_INTENTS_VERSION,
             profiles: Object.fromEntries(
                 Object.entries(registry.profiles)
-                    .sort(([left], [right]) => left.localeCompare(right))
+                    .toSorted(([left], [right]) => left.localeCompare(right))
                     .map(([profileId, intent]) => [
                         profileId,
                         {
@@ -191,9 +191,9 @@ async function readTargets(targets: readonly AgentHookConfigTarget[]): Promise<A
     return new Map(entries);
 }
 
-function healthFor(status: AgentHookEntryStatus, active: boolean): AgentHookHealth {
+function healthFor(status: AgentHookEntryStatus, isActive: boolean): AgentHookHealth {
     if (status.kind === 'current')
-        return active
+        return isActive
             ? { kind: 'active' }
             : {
                   kind: 'installedPending',
@@ -216,8 +216,8 @@ function healthFor(status: AgentHookEntryStatus, active: boolean): AgentHookHeal
 }
 
 /**
- * Generic lifecycle-hook owner. Provider adapters define config syntax only; this class owns the
- * cross-process lock, atomic filesystem changes, bridge/server lifecycle, health, and PTY tokens.
+ * Generic lifecycle-hook owner. Provider adapters define config syntax only; this class owns the cross-process lock,
+ * atomic filesystem changes, bridge/server lifecycle, health, and PTY tokens.
  */
 export class AgentHookManager {
     private readonly activeProviders = new Set<AgentProvider>();
@@ -240,66 +240,6 @@ export class AgentHookManager {
             .slice(0, 16);
     }
 
-    async initialize(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
-        this.settings = settings;
-        if (!this.options.sharedPath) {
-            this.health = defaultHealth('Lifecycle hook installation is unavailable in this mode.');
-            return;
-        }
-        try {
-            await mkdir(this.options.sharedPath, { recursive: true });
-            this.bridgePath = await this.withInstallLock(() =>
-                stageAgentHookBridge(this.options.sharedPath!),
-            );
-            const socketPath = join(tmpdir(), `caxri-hooks-${this.profileId}-${process.pid}.sock`);
-            await pruneStaleAgentHookSockets(tmpdir(), this.profileId);
-            const schemaVersions = Object.fromEntries(
-                agentProviderIds.map((provider) => [
-                    provider,
-                    agentProviders[provider].hooks?.schemaVersion ?? 0,
-                ]),
-            ) as Record<AgentProvider, number>;
-            this.server = new AgentHookServer(socketPath, schemaVersions, (signal) => {
-                if (!this.settings?.[signal.provider].hooks.enabled) return false;
-                try {
-                    const accepted = this.options.onSignal(signal);
-                    if (accepted) this.markActive(signal.provider);
-                    return accepted;
-                } catch (error) {
-                    this.options.logger.write('warn', 'agent_hooks.signal_failed', {
-                        fields: {
-                            provider: signal.provider,
-                            phase: signal.phase,
-                            terminalId: signal.terminalId,
-                            error: errorMessage(error, 'Lifecycle signal failed'),
-                        },
-                    });
-                    return false;
-                }
-            });
-            await this.server.start();
-            await this.reconcile(settings);
-        } catch (error) {
-            const message = errorMessage(error, 'Lifecycle hook initialization failed');
-            this.options.logger.write('warn', 'agent_hooks.initialize_failed', {
-                fields: { error: message },
-            });
-            for (const provider of agentProviderIds)
-                this.setHealth(provider, { kind: 'error', message });
-        }
-    }
-
-    getHealth(): AgentHookHealthMap {
-        return structuredClone(this.health);
-    }
-
-    reconcile(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
-        this.settings = settings;
-        const run = this.reconcileQueue.then(() => this.reconcileNow(settings));
-        this.reconcileQueue = run.catch(() => undefined);
-        return run;
-    }
-
     private async reconcileNow(
         settings: Record<AgentProvider, AgentProviderSettings>,
     ): Promise<void> {
@@ -307,8 +247,10 @@ export class AgentHookManager {
         try {
             await this.withInstallLock(async () => {
                 const globallyEnabled = await this.updateProfileIntent(settings);
-                /** Provider adapters own disjoint config files; the shared profile registry is
-                 * already durable before these independent reconciliations begin. */
+                /**
+                 * Provider adapters own disjoint config files; the shared profile registry is already durable before
+                 * these independent reconciliations begin.
+                 */
                 await Promise.all(
                     agentProviderIds.map((provider) =>
                         this.reconcileProvider(
@@ -333,8 +275,8 @@ export class AgentHookManager {
 
     private async reconcileProvider(
         provider: AgentProvider,
-        globallyEnabled: boolean,
-        locallyEnabled: boolean,
+        isGloballyEnabled: boolean,
+        isLocallyEnabled: boolean,
     ): Promise<void> {
         const adapter = agentProviders[provider].hooks;
         if (!adapter) {
@@ -353,7 +295,7 @@ export class AgentHookManager {
             const targetById = new Map(targets.map((target) => [target.id, target]));
             let documents = await readTargets(targets);
             let status = adapter.inspect(documents, this.desired(provider, adapter)).status;
-            if (!globallyEnabled) {
+            if (!isGloballyEnabled) {
                 this.loseAuthority(provider);
                 if (!['absent', 'newer', 'unparseable'].includes(status.kind)) {
                     await this.writeEdits(
@@ -376,7 +318,7 @@ export class AgentHookManager {
                 status = adapter.inspect(documents, this.desired(provider, adapter)).status;
             }
             if (status.kind !== 'current') this.loseAuthority(provider);
-            if (!locallyEnabled) {
+            if (!isLocallyEnabled) {
                 this.loseAuthority(provider);
                 this.setHealth(provider, { kind: 'notInstalled' });
                 return;
@@ -401,10 +343,9 @@ export class AgentHookManager {
     }
 
     /**
-     * Provider configs are user-global while Caxri settings are profile-scoped. Persisting the
-     * union of profile intents prevents one worktree/profile from uninstalling hooks that another
-     * profile still explicitly enables; missing profile directories are pruned so explicit profile
-     * cleanup cannot leave an unremovable global hook.
+     * Provider configs are user-global while Caxri settings are profile-scoped. Persisting the union of profile intents
+     * prevents one worktree/profile from uninstalling hooks that another profile still explicitly enables; missing
+     * profile directories are pruned so explicit profile cleanup cannot leave an unremovable global hook.
      */
     private async updateProfileIntent(
         settings: Record<AgentProvider, AgentProviderSettings>,
@@ -454,8 +395,10 @@ export class AgentHookManager {
         edits: ReturnType<AgentHookAdapter['render']>,
         targetById: ReadonlyMap<string, AgentHookConfigTarget>,
     ): Promise<void> {
-        /** Adapter edits are an ordered transaction plan; parallel replacement could expose a
-         * mixed provider configuration or overwrite a later edit to the same target. */
+        /**
+         * Adapter edits are an ordered transaction plan; parallel replacement could expose a mixed provider
+         * configuration or overwrite a later edit to the same target.
+         */
         for (const edit of edits) {
             const target = targetById.get(edit.targetId);
             if (!target?.writable)
@@ -463,6 +406,7 @@ export class AgentHookManager {
                     `Hook adapter attempted to write read-only target ${edit.targetId}`,
                 );
             // oxlint-disable-next-line react-doctor/async-await-in-loop
+            // eslint-disable-next-line no-await-in-loop -- see doc comment above: edits must apply in order
             await atomicWrite(target.path, edit.source);
         }
     }
@@ -507,13 +451,15 @@ export class AgentHookManager {
         return targetsByDirectory;
     }
 
-    /** Watches only provider config files; Codex state/transcript churn in the same home is ignored. */
+    /**
+     * Watches only provider config files; Codex state/transcript churn in the same home is ignored.
+     */
     private async refreshConfigWatchers(
         settings: Record<AgentProvider, AgentProviderSettings>,
     ): Promise<void> {
         const desired = this.desiredWatchTargets(settings);
-        const obsoleteSubscriptions: HookConfigWatcher['subscription'][] = [];
-        for (const [directory, watcher] of [...this.configWatchers]) {
+        const obsoleteSubscriptions: Array<HookConfigWatcher['subscription']> = [];
+        for (const [directory, watcher] of this.configWatchers) {
             const nextTargets = desired.get(directory);
             if (
                 nextTargets &&
@@ -529,8 +475,10 @@ export class AgentHookManager {
         const pendingWatchers: Array<[string, Set<string>]> = [];
         for (const [directory, targets] of desired)
             if (!this.configWatchers.has(directory)) pendingWatchers.push([directory, targets]);
-        /** Native subscriptions for separate directories are independent; apply their results only
-         * after every attempt settles so shared fallback state remains ordered. */
+        /**
+         * Native subscriptions for separate directories are independent; apply their results only after every attempt
+         * settles so shared fallback state remains ordered.
+         */
         const additions = await Promise.all(
             pendingWatchers.map(async ([directory, targets]) => {
                 const targetNames = new Set([...targets].map((target) => basename(target)));
@@ -543,7 +491,9 @@ export class AgentHookManager {
                                 this.startConfigFallback(error);
                                 return;
                             }
-                            /** Native macOS paths may canonicalize `/var` to `/private/var`. */
+                            /**
+                             * Native macOS paths may canonicalize `/var` to `/private/var`.
+                             */
                             if (events.some((event) => targetNames.has(basename(event.path))))
                                 this.scheduleConfigReconcile();
                         },
@@ -555,10 +505,10 @@ export class AgentHookManager {
                 }
             }),
         );
-        let watcherFailed = false;
+        let isWatcherFailed = false;
         for (const addition of additions) {
             if ('error' in addition) {
-                watcherFailed = true;
+                isWatcherFailed = true;
                 this.startConfigFallback(addition.error);
             } else {
                 this.configWatchers.set(addition.directory, {
@@ -567,7 +517,8 @@ export class AgentHookManager {
                 });
             }
         }
-        if (!watcherFailed && this.configWatchers.size === desired.size) this.stopConfigFallback();
+        if (!isWatcherFailed && this.configWatchers.size === desired.size)
+            this.stopConfigFallback();
     }
 
     private scheduleConfigReconcile(): void {
@@ -575,6 +526,7 @@ export class AgentHookManager {
         if (this.configReconcileTimer) clearTimeout(this.configReconcileTimer);
         this.configReconcileTimer = setTimeout(() => {
             this.configReconcileTimer = undefined;
+            // eslint-disable-next-line no-void -- synchronous timer callback cannot await; reconcile() never rejects (errors are caught and logged internally)
             if (this.settings) void this.reconcile(this.settings);
         }, CONFIG_WATCH_SETTLE_MS);
         this.configReconcileTimer.unref();
@@ -586,6 +538,7 @@ export class AgentHookManager {
             fields: { error: errorMessage(error, 'Hook config watcher failed') },
         });
         this.configFallbackTimer = setInterval(() => {
+            // eslint-disable-next-line no-void -- synchronous timer callback cannot await; reconcile() never rejects (errors are caught and logged internally)
             if (this.settings && this.anyEnabled()) void this.reconcile(this.settings);
         }, CONFIG_FALLBACK_POLL_INTERVAL_MS);
         this.configFallbackTimer.unref();
@@ -594,6 +547,110 @@ export class AgentHookManager {
     private stopConfigFallback(): void {
         if (this.configFallbackTimer) clearInterval(this.configFallbackTimer);
         this.configFallbackTimer = undefined;
+    }
+
+    private async withInstallLock<T>(operation: () => Promise<T>): Promise<T> {
+        const lockPath = join(this.options.sharedPath!, 'install.lock');
+        const deadline = Date.now() + LOCK_TIMEOUT_MS;
+        /**
+         * Lock acquisition is inherently sequential: each retry must observe the previous attempt's outcome (mkdir
+         * success/EEXIST, staleness check, timeout) before deciding whether to wait and retry.
+         */
+        while (true) {
+            try {
+                // eslint-disable-next-line no-await-in-loop -- see doc comment above: retries are sequential by design
+                await mkdir(lockPath);
+                break;
+            } catch (error) {
+                if (!isFileSystemError(error, 'EEXIST')) throw error;
+                try {
+                    // eslint-disable-next-line no-await-in-loop -- see doc comment above: retries are sequential by design
+                    if (Date.now() - (await stat(lockPath)).mtimeMs > STALE_LOCK_MS)
+                        // eslint-disable-next-line no-await-in-loop -- see doc comment above: retries are sequential by design
+                        await rm(lockPath, { recursive: true, force: true });
+                } catch (statError) {
+                    if (!isFileSystemError(statError, 'ENOENT')) throw statError;
+                }
+                if (Date.now() >= deadline)
+                    throw new Error('Timed out waiting for the lifecycle hook install lock', {
+                        cause: error,
+                    });
+                // eslint-disable-next-line no-await-in-loop -- see doc comment above: retries are sequential by design
+                await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
+            }
+        }
+        try {
+            return await operation();
+        } finally {
+            await rm(lockPath, { recursive: true, force: true });
+        }
+    }
+
+    async initialize(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
+        this.settings = settings;
+        if (!this.options.sharedPath) {
+            this.health = defaultHealth('Lifecycle hook installation is unavailable in this mode.');
+            return;
+        }
+        try {
+            await mkdir(this.options.sharedPath, { recursive: true });
+            this.bridgePath = await this.withInstallLock(() =>
+                stageAgentHookBridge(this.options.sharedPath!),
+            );
+            const socketPath = join(tmpdir(), `caxri-hooks-${this.profileId}-${process.pid}.sock`);
+            await pruneStaleAgentHookSockets(tmpdir(), this.profileId);
+            const schemaVersions = Object.fromEntries(
+                agentProviderIds.map((provider) => [
+                    provider,
+                    agentProviders[provider].hooks?.schemaVersion ?? 0,
+                ]),
+            ) as Record<AgentProvider, number>;
+            this.server = new AgentHookServer(socketPath, schemaVersions, (signal) => {
+                if (!this.settings?.[signal.provider].hooks.enabled) return false;
+                try {
+                    const isAccepted = this.options.onSignal(signal);
+                    if (isAccepted) this.markActive(signal.provider);
+                    return isAccepted;
+                } catch (error) {
+                    this.options.logger.write('warn', 'agent_hooks.signal_failed', {
+                        fields: {
+                            provider: signal.provider,
+                            phase: signal.phase,
+                            terminalId: signal.terminalId,
+                            error: errorMessage(error, 'Lifecycle signal failed'),
+                        },
+                    });
+                    return false;
+                }
+            });
+            await this.server.start();
+            await this.reconcile(settings);
+        } catch (error) {
+            const message = errorMessage(error, 'Lifecycle hook initialization failed');
+            this.options.logger.write('warn', 'agent_hooks.initialize_failed', {
+                fields: { error: message },
+            });
+            for (const provider of agentProviderIds)
+                this.setHealth(provider, { kind: 'error', message });
+        }
+    }
+
+    getHealth(): AgentHookHealthMap {
+        return structuredClone(this.health);
+    }
+
+    reconcile(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
+        this.settings = settings;
+        /**
+         * The queue field must be reassigned synchronously (not after an `await`) so concurrent `reconcile()` calls
+         * serialize onto the same chain instead of racing to read `reconcileQueue` before this call's continuation is
+         * attached.
+         */
+        // eslint-disable-next-line unicorn/prefer-await -- see comment above; the queue must be reassigned synchronously
+        const run = this.reconcileQueue.then(() => this.reconcileNow(settings));
+        // eslint-disable-next-line unicorn/prefer-await -- see comment above; the queue must be reassigned synchronously
+        this.reconcileQueue = run.catch(() => {});
+        return run;
     }
 
     terminalEnvironment(terminalId: string, provider?: AgentProvider): NodeJS.ProcessEnv {
@@ -620,35 +677,6 @@ export class AgentHookManager {
         this.options.onLaunchEnded(terminalId);
     }
 
-    private async withInstallLock<T>(operation: () => Promise<T>): Promise<T> {
-        const lockPath = join(this.options.sharedPath!, 'install.lock');
-        const deadline = Date.now() + LOCK_TIMEOUT_MS;
-        while (true) {
-            try {
-                await mkdir(lockPath);
-                break;
-            } catch (error) {
-                if (!isFileSystemError(error, 'EEXIST')) throw error;
-                try {
-                    if (Date.now() - (await stat(lockPath)).mtimeMs > STALE_LOCK_MS)
-                        await rm(lockPath, { recursive: true, force: true });
-                } catch (statError) {
-                    if (!isFileSystemError(statError, 'ENOENT')) throw statError;
-                }
-                if (Date.now() >= deadline)
-                    throw new Error('Timed out waiting for the lifecycle hook install lock', {
-                        cause: error,
-                    });
-                await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
-            }
-        }
-        try {
-            return await operation();
-        } finally {
-            await rm(lockPath, { recursive: true, force: true });
-        }
-    }
-
     async close(): Promise<void> {
         this.closed = true;
         if (this.configReconcileTimer) clearTimeout(this.configReconcileTimer);
@@ -656,11 +684,10 @@ export class AgentHookManager {
         this.stopConfigFallback();
         await this.reconcileQueue;
         await Promise.all(
-            [...this.configWatchers.values()].map((watcher) => watcher.subscription.unsubscribe()),
+            this.configWatchers.values().map((watcher) => watcher.subscription.unsubscribe()),
         );
         this.configWatchers.clear();
-        for (const terminalId of [...this.terminalLaunches.keys()])
-            this.endTerminalLaunch(terminalId);
+        for (const terminalId of this.terminalLaunches.keys()) this.endTerminalLaunch(terminalId);
         await this.server?.close();
         this.server = undefined;
     }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { PanelLayout } from './panel-layout';
 import {
     clampLayoutToViewport,
     clampWidth,
@@ -9,7 +10,6 @@ import {
     PANEL_DIVIDER_WIDTH,
     SIDEBAR_DEFAULT_WIDTH,
     SIDEBAR_MIN_WIDTH,
-    type PanelLayout,
 } from './panel-layout';
 
 describe('clampWidth', () => {
@@ -26,8 +26,8 @@ describe('clampWidth', () => {
     });
 
     it('falls back to the minimum for a non-finite width', () => {
-        expect(clampWidth(Number.NaN, 180, 480)).toBe(180);
-        expect(clampWidth(Number.POSITIVE_INFINITY, 180, 480)).toBe(180);
+        expect(clampWidth(NaN, 180, 480)).toBe(180);
+        expect(clampWidth(Infinity, 180, 480)).toBe(180);
     });
 });
 

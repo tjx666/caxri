@@ -30,7 +30,25 @@ function fileSignature(stats: Awaited<ReturnType<typeof lstat>>): string {
     return `${stats.mtimeMs}:${stats.ctimeMs}:${stats.size}:${stats.mode}:${stats.ino}`;
 }
 
-/** @internal Retains the active root while bounding fallback polling with LRU eviction. */
+/**
+ * Finds the oldest evictable key (Map iteration order's first key other than `protectedRoot`). Kept as its own function
+ * (rather than nested inside `rememberPolledDirectory`'s `while` loop) so its `continue`/`break` control flow stays
+ * scoped to a single loop.
+ */
+function oldestEvictableKey<T>(
+    directories: ReadonlyMap<string, T>,
+    protectedRoot: string | undefined,
+): string | undefined {
+    for (const path of directories.keys()) {
+        if (path === protectedRoot) continue;
+        return path;
+    }
+    return undefined;
+}
+
+/**
+ * @internal
+ */
 export function rememberPolledDirectory<T>(
     directories: Map<string, T>,
     directory: string,
@@ -41,19 +59,16 @@ export function rememberPolledDirectory<T>(
     directories.delete(directory);
     directories.set(directory, value);
     while (directories.size > Math.max(1, maximum)) {
-        let candidate: string | undefined;
-        for (const path of directories.keys()) {
-            if (path === protectedRoot) continue;
-            candidate = path;
-            break;
-        }
+        const candidate = oldestEvictableKey(directories, protectedRoot);
         if (!candidate) return;
         directories.delete(candidate);
     }
 }
 
-/** @internal Returns false when native and polling backends observed the same file version. */
-export function rememberChangeFingerprint(
+/**
+ * @internal
+ */
+export function didFingerprintChange(
     fingerprints: Map<string, string>,
     path: string,
     fingerprint: string,
@@ -77,16 +92,18 @@ export interface WatcherServiceOptions {
     subscribe?: typeof parcelWatcher.subscribe;
 }
 
-/** Immutable source captured for each coalesced watcher batch. */
+/**
+ * Immutable source captured for each coalesced watcher batch.
+ */
 export interface WatchScope {
     sessionId: string;
     workbenchProjectId: string;
 }
 
 /**
- * Watches the selected Session's Project root for changes, with a signature-polling fallback when
- * the native watcher backend cannot be installed. Also owns the bounded, lazily-populated polled
- * directory signatures that `ListingService` primes via `noteDirectoryListed`.
+ * Watches the selected Session's Project root for changes, with a signature-polling fallback when the native watcher
+ * backend cannot be installed. Also owns the bounded, lazily-populated polled directory signatures that
+ * `ListingService` primes via `noteDirectoryListed`.
  */
 export class WatcherService {
     private watcher?: parcelWatcher.AsyncSubscription;
@@ -125,88 +142,28 @@ export class WatcherService {
         this.onRootUnavailable = options.onRootUnavailable;
     }
 
-    /** Primes fallback polling for a directory the moment it is listed, without waiting for the poll tick. */
-    noteDirectoryListed(sessionId: string, path: string): void {
-        if (sessionId !== this.watchedScope?.sessionId) return;
-        if (this.watchedRoot) {
-            const relativePath = relative(this.watchedRoot, path);
-            if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath)) return;
-        }
-        rememberPolledDirectory(
-            this.listedDirectories,
-            path,
-            true,
-            this.watchedRoot,
-            this.maxPolledDirectories,
-        );
-        if (!this.pollingActive) return;
-        const existing = this.polledDirectories.get(path);
-        if (existing) this.rememberPolledDirectory(path, existing);
-        else void this.initializePolledDirectory(path, this.watchGeneration);
-    }
-
-    /** Polls only the explicit Git rule files resolved by Git, never the surrounding `.git` tree. */
-    async noteGitIgnoreRulePaths(sessionId: string, paths: readonly string[]): Promise<void> {
-        if (sessionId !== this.watchedScope?.sessionId) return;
-        const generation = this.watchGeneration;
-        const maximum = this.maxPolledDirectories * 3;
-        const additions = [...new Set(paths)]
-            .filter(
-                (path) =>
-                    isAbsolute(path) &&
-                    !this.gitIgnoreRuleFingerprints.has(path) &&
-                    this.gitIgnoreRuleFingerprints.size < maximum,
-            )
-            .slice(0, Math.max(0, maximum - this.gitIgnoreRuleFingerprints.size));
-        const fingerprints = await mapWithConcurrency(
-            additions,
-            MAX_CONCURRENT_POLL_DIRECTORIES,
-            async (path) => [path, await this.readPathFingerprint(path)] as const,
-        );
-        if (generation !== this.watchGeneration || sessionId !== this.watchedScope?.sessionId)
-            return;
-        for (const [path, fingerprint] of fingerprints)
-            this.gitIgnoreRuleFingerprints.set(path, fingerprint);
-        if (this.gitIgnoreRuleFingerprints.size === 0 || this.gitIgnoreRulePollTimer) return;
-        this.gitIgnoreRulePollTimer = setInterval(() => {
-            const scope = this.watchedScope;
-            if (scope) void this.pollGitIgnoreRuleFiles(scope, generation);
-        }, this.pollIntervalMs);
-        this.gitIgnoreRulePollTimer.unref();
-    }
-
-    watchSession(scope?: WatchScope, force = false): Promise<void> {
-        if (
-            !force &&
-            scope?.workbenchProjectId === this.watchedScope?.workbenchProjectId &&
-            scope
-        ) {
-            this.watchedScope = scope;
-            return this.watchSetup ?? Promise.resolve();
-        }
-        this.flushPendingBatch();
-        const generation = ++this.watchGeneration;
-        this.watchedScope = scope;
-        this.resetWatchState();
-        this.watchSetup = this.installWatcher(scope, generation);
-        return this.watchSetup;
-    }
-
+    /**
+     * Builds `this.watchSetup` and assigns it synchronously (not via `async`/`await`) so that `watchSession` observes
+     * the in-flight setup Promise on the same instance field it just wrote, before any awaited step of `replaceWatcher`
+     * has a chance to run.
+     */
     private installWatcher(scope: WatchScope | undefined, generation: number): Promise<void> {
-        const setup = this.replaceWatcher(scope, generation)
-            .catch((error: unknown) => {
-                if (scope) this.onRootUnavailable?.(scope.sessionId);
-                this.logger.write('warn', 'watcher.setup_failed', {
-                    fields: {
-                        sessionId: scope?.sessionId ?? 'none',
-                        error: errorMessage(error, 'unknown watcher error'),
-                    },
-                });
-            })
-            .finally(() => {
-                if (generation === this.watchGeneration && this.watchSetup === setup)
-                    this.watchSetup = undefined;
+        const attempt = this.replaceWatcher(scope, generation);
+        // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
+        const handled = attempt.catch((error: unknown) => {
+            if (scope) this.onRootUnavailable?.(scope.sessionId);
+            this.logger.write('warn', 'watcher.setup_failed', {
+                fields: {
+                    sessionId: scope?.sessionId ?? 'none',
+                    error: errorMessage(error, 'unknown watcher error'),
+                },
             });
+        });
+        // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
+        const setup = handled.finally(() => {
+            if (generation === this.watchGeneration && this.watchSetup === setup)
+                this.watchSetup = undefined;
+        });
         this.watchSetup = setup;
         return setup;
     }
@@ -237,14 +194,19 @@ export class WatcherService {
                     if (!eventScope) return;
                     if (error) {
                         this.onRootUnavailable?.(eventScope.sessionId);
-                        void this.activatePollingFallback(eventScope, generation, error);
+                        this.activatePollingFallbackInBackground(eventScope, generation, error);
                         return;
                     }
                     for (const event of events) {
                         const relativePath = relative(root, event.path);
                         if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath))
                             continue;
-                        void this.queueNativeEvent(eventScope, event.type, event.path, generation);
+                        this.queueNativeEventInBackground(
+                            eventScope,
+                            event.type,
+                            event.path,
+                            generation,
+                        );
                     }
                 },
                 { backend: NATIVE_WATCHER_BACKEND, ignore: WATCHER_EXCLUDE_PATTERNS },
@@ -280,18 +242,25 @@ export class WatcherService {
         if (generation !== this.watchGeneration) return;
         const watcher = this.watcher;
         this.watcher = undefined;
-        void watcher?.unsubscribe();
+        try {
+            await watcher?.unsubscribe();
+        } catch {
+            /**
+             * The native watcher already errored before this fallback runs; a failing unsubscribe must never prevent
+             * the polling fallback below from starting, or the directory would silently stop being watched entirely.
+             */
+        }
         if (!this.pollingActive) {
             this.pollingActive = true;
             await mapWithConcurrency(
-                [...this.listedDirectories.keys()],
+                this.listedDirectories.keys().toArray(),
                 MAX_CONCURRENT_POLL_DIRECTORIES,
                 (directory) => this.initializePolledDirectory(directory, generation),
             );
             if (generation !== this.watchGeneration) return;
             this.pollTimer = setInterval(() => {
                 const currentScope = this.watchedScope;
-                if (currentScope) void this.pollDirectories(currentScope, generation);
+                if (currentScope) this.pollDirectoriesInBackground(currentScope, generation);
             }, this.pollIntervalMs);
             this.pollTimer.unref();
         }
@@ -301,6 +270,56 @@ export class WatcherService {
                 error: errorMessage(error, 'unknown watcher error'),
             },
         });
+    }
+
+    /**
+     * `setInterval`'s callback is synchronous, so each poll tick cannot await the async `pollDirectories`; ticks are
+     * deliberately fire-and-forget, and any failure is logged rather than left as an unhandled rejection. Kept as its
+     * own method (rather than a promise chain inline in the `setInterval` callback above) to isolate the
+     * fire-and-forget promise handling.
+     */
+    private pollDirectoriesInBackground(scope: WatchScope, generation: number): void {
+        // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
+        this.pollDirectories(scope, generation).catch((error: unknown) => {
+            this.logger.write('warn', 'watcher.poll_failed', {
+                fields: { error: errorMessage(error, 'unknown') },
+            });
+        });
+    }
+
+    /**
+     * The native watcher's event callback is synchronous, so a fallback activation triggered from it cannot be awaited;
+     * it is deliberately fire-and-forget, and any failure is logged rather than left as an unhandled rejection. Kept as
+     * its own method (rather than a promise chain inline in the watcher's event callback) to isolate the
+     * fire-and-forget promise handling.
+     */
+    private activatePollingFallbackInBackground(
+        scope: WatchScope,
+        generation: number,
+        error: unknown,
+    ): void {
+        // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
+        this.activatePollingFallback(scope, generation, error).catch((fallbackError: unknown) => {
+            this.logger.write('warn', 'watcher.fallback_activation_failed', {
+                fields: { error: errorMessage(fallbackError, 'unknown') },
+            });
+        });
+    }
+
+    /**
+     * The native watcher's event callback is synchronous, so each raw event cannot be awaited before fingerprinting it;
+     * queueing is deliberately fire-and-forget. `queueNativeEvent` already handles every failure internally (a missing
+     * path falls back to a stable fingerprint). Kept as its own method (rather than a promise chain inline in the
+     * watcher's event callback) to isolate the fire-and-forget promise handling.
+     */
+    private queueNativeEventInBackground(
+        scope: WatchScope,
+        kind: FileChange['kind'],
+        path: string,
+        generation: number,
+    ): void {
+        // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
+        this.queueNativeEvent(scope, kind, path, generation).catch(() => {});
     }
 
     private async queueNativeEvent(
@@ -313,7 +332,9 @@ export class WatcherService {
         try {
             fingerprint = fileSignature(await lstat(path));
         } catch {
-            /** Missing paths share a stable fingerprint so native and polling delete events coalesce. */
+            /**
+             * Missing paths share a stable fingerprint so native and polling delete events coalesce.
+             */
         }
         if (generation !== this.watchGeneration) return;
         this.queueFingerprintedEvent(
@@ -332,7 +353,7 @@ export class WatcherService {
     ): void {
         if (
             fingerprint !== undefined &&
-            !rememberChangeFingerprint(
+            !didFingerprintChange(
                 this.recentChangeFingerprints,
                 path,
                 fingerprint,
@@ -355,7 +376,9 @@ export class WatcherService {
         this.scheduleEventBatch();
     }
 
-    /** Freezes a batch scope before any event, overflow, or Git-rule state can be written. */
+    /**
+     * Freezes a batch scope before any event, overflow, or Git-rule state can be written.
+     */
     private preparePendingBatch(scope: WatchScope): void {
         if (
             this.pendingScope &&
@@ -370,7 +393,9 @@ export class WatcherService {
         this.eventTimer ??= setTimeout(() => this.flushPendingBatch(), WATCH_BATCH_DELAY_MS);
     }
 
-    /** Emits the current immutable batch before a scope or watcher generation can be discarded. */
+    /**
+     * Emits the current immutable batch before a scope or watcher generation can be discarded.
+     */
     private flushPendingBatch(): void {
         if (this.eventTimer) clearTimeout(this.eventTimer);
         this.eventTimer = undefined;
@@ -387,7 +412,7 @@ export class WatcherService {
                 workbenchProjectId: scope.workbenchProjectId,
                 changes,
                 overflow: this.droppedEvents > 0,
-                ...(this.gitIgnoreRulesChanged ? { gitIgnoreRulesChanged: true as const } : {}),
+                ...(this.gitIgnoreRulesChanged && { gitIgnoreRulesChanged: true as const }),
             },
         });
         this.logger.write(this.droppedEvents > 0 ? 'warn' : 'debug', 'watcher.batch', {
@@ -427,22 +452,22 @@ export class WatcherService {
                 }),
             );
             if (generation !== this.watchGeneration) return;
-            let changed = false;
+            let isChanged = false;
             for (const fingerprint of fingerprints) {
                 if (fingerprint.current === fingerprint.previous) continue;
                 this.gitIgnoreRuleFingerprints.set(fingerprint.path, fingerprint.current);
-                changed = true;
+                isChanged = true;
             }
-            if (changed) this.queueGitIgnoreRuleChange(scope);
+            if (isChanged) this.queueGitIgnoreRuleChange(scope);
         } finally {
             if (generation === this.watchGeneration) this.gitIgnoreRulePollInFlight = false;
         }
     }
 
     /**
-     * Reads directory-entry signatures for the polling fallback, tolerating entries that vanish
-     * between `readdir` and `lstat` the same way `ListingService` does: a single missing or
-     * unreadable entry is skipped rather than failing the whole signature scan.
+     * Reads directory-entry signatures for the polling fallback, tolerating entries that vanish between `readdir` and
+     * `lstat` the same way `ListingService` does: a single missing or unreadable entry is skipped rather than failing
+     * the whole signature scan.
      */
     private async readDirectorySignatures(directory: string): Promise<Map<string, string>> {
         const entries = await readdir(directory, { withFileTypes: true });
@@ -479,7 +504,9 @@ export class WatcherService {
         }
     }
 
-    /** Poll only the root and directories the user expanded, bounding fallback work in large repositories. */
+    /**
+     * Poll only the root and directories the user expanded, bounding fallback work in large repositories.
+     */
     private async pollDirectories(scope: WatchScope, generation: number): Promise<void> {
         if (this.pollInFlight || generation !== this.watchGeneration) return;
         this.pollInFlight = true;
@@ -552,6 +579,94 @@ export class WatcherService {
         this.polledDirectories.clear();
         this.recentChangeFingerprints.clear();
         this.watchedRoot = undefined;
+    }
+
+    /**
+     * Primes fallback polling for a directory the moment it is listed, without waiting for the poll tick.
+     */
+    noteDirectoryListed(sessionId: string, path: string): void {
+        if (sessionId !== this.watchedScope?.sessionId) return;
+        if (this.watchedRoot) {
+            const relativePath = relative(this.watchedRoot, path);
+            if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath)) return;
+        }
+        rememberPolledDirectory(
+            this.listedDirectories,
+            path,
+            true,
+            this.watchedRoot,
+            this.maxPolledDirectories,
+        );
+        if (!this.pollingActive) return;
+        const existing = this.polledDirectories.get(path);
+        if (existing) this.rememberPolledDirectory(path, existing);
+        /**
+         * `noteDirectoryListed` is a synchronous notification hook called from `ListingService` mid-listing; it cannot
+         * await the directory's initial signature scan without blocking the caller, so priming a newly listed directory
+         * is deliberately fire-and-forget. `initializePolledDirectory` already handles every failure internally.
+         */
+        // eslint-disable-next-line unicorn/prefer-await -- see comment above
+        else this.initializePolledDirectory(path, this.watchGeneration).catch(() => {});
+    }
+
+    /**
+     * Polls only the explicit Git rule files resolved by Git, never the surrounding `.git` tree.
+     */
+    async noteGitIgnoreRulePaths(sessionId: string, paths: readonly string[]): Promise<void> {
+        if (sessionId !== this.watchedScope?.sessionId) return;
+        const generation = this.watchGeneration;
+        const maximum = this.maxPolledDirectories * 3;
+        const additions = [...new Set(paths)]
+            .filter(
+                (path) =>
+                    isAbsolute(path) &&
+                    !this.gitIgnoreRuleFingerprints.has(path) &&
+                    this.gitIgnoreRuleFingerprints.size < maximum,
+            )
+            .slice(0, Math.max(0, maximum - this.gitIgnoreRuleFingerprints.size));
+        const fingerprints = await mapWithConcurrency(
+            additions,
+            MAX_CONCURRENT_POLL_DIRECTORIES,
+            async (path) => [path, await this.readPathFingerprint(path)] as const,
+        );
+        if (generation !== this.watchGeneration || sessionId !== this.watchedScope?.sessionId)
+            return;
+        for (const [path, fingerprint] of fingerprints)
+            this.gitIgnoreRuleFingerprints.set(path, fingerprint);
+        if (this.gitIgnoreRuleFingerprints.size === 0 || this.gitIgnoreRulePollTimer) return;
+        this.gitIgnoreRulePollTimer = setInterval(() => {
+            const scope = this.watchedScope;
+            /**
+             * `setInterval`'s callback is synchronous, so each poll tick cannot await the async
+             * `pollGitIgnoreRuleFiles`; ticks are deliberately fire-and-forget, and any failure is logged rather than
+             * left as an unhandled rejection.
+             */
+            if (scope)
+                // eslint-disable-next-line unicorn/prefer-await -- see comment above
+                this.pollGitIgnoreRuleFiles(scope, generation).catch((error: unknown) => {
+                    this.logger.write('warn', 'watcher.git_ignore_poll_failed', {
+                        fields: { error: errorMessage(error, 'unknown') },
+                    });
+                });
+        }, this.pollIntervalMs);
+        this.gitIgnoreRulePollTimer.unref();
+    }
+
+    watchSession(scope?: WatchScope, shouldForce = false): Promise<void> {
+        if (
+            scope &&
+            !shouldForce &&
+            scope.workbenchProjectId === this.watchedScope?.workbenchProjectId
+        ) {
+            this.watchedScope = scope;
+            return this.watchSetup ?? Promise.resolve();
+        }
+        this.flushPendingBatch();
+        const generation = ++this.watchGeneration;
+        this.watchedScope = scope;
+        this.resetWatchState();
+        this.watchSetup = this.installWatcher(scope, generation);
+        return this.watchSetup;
     }
 
     async close(): Promise<void> {

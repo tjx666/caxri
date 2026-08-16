@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -16,7 +15,7 @@ import {
 } from './support/helpers.ts';
 
 function oscProgress(state: number, value?: number | string): string {
-    return `printf '\\033]9;4;${state};${value ?? ''}\\007'`;
+    return String.raw`printf '\033]9;4;${state};${value ?? ''}\007'`;
 }
 
 test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from process state', async () => {
@@ -39,7 +38,7 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
 
         await typeTerminal(
             running.page,
-            'for value in {1..120}; do printf \'\\033]9;4;1;%d\\007\' "$value"; done',
+            String.raw`for value in {1..120}; do printf '\033]9;4;1;%d\007' "$value"; done`,
         );
         await expect(firstTab.getByLabel('Terminal progress: 100 percent')).toBeVisible();
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveAccessibleName(
@@ -130,7 +129,11 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
         await expect(sessionCard(running.page, deletedSessionId)).toHaveCount(0);
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveCount(0);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

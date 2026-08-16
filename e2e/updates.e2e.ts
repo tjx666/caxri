@@ -1,9 +1,8 @@
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { launchCaxri } from './support/helpers.ts';
 
 test('Check for Updates opens the packaged-only update workflow', async () => {
@@ -24,7 +23,11 @@ test('Check for Updates opens the packaged-only update workflow', async () => {
         await expect(dialog).toHaveAttribute('data-update-status', 'unavailable');
         await expect(dialog).toContainText('available in packaged Caxri builds');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

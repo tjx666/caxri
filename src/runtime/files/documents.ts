@@ -1,5 +1,7 @@
+import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
-import { constants, type Stats } from 'node:fs';
+import type { Stats } from 'node:fs';
+import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 
@@ -17,7 +19,9 @@ export type OpenFile = (path: string, flags: number, mode?: number) => ReturnTyp
 export type ReplaceFile = typeof rename;
 
 export interface DocumentServiceOptions {
-    /** Integration-test seam for replacing the target after the new bytes are durable. */
+    /**
+     * Integration-test seam for replacing the target after the new bytes are durable.
+     */
     beforeReplaceValidation?: () => Promise<void>;
     openFile?: OpenFile;
     replaceFile?: ReplaceFile;
@@ -38,8 +42,8 @@ async function removeTrustedTemporaryFile(
     try {
         const currentStats = await lstat(temporaryPath);
         /**
-         * Cleanup is path-based too. Refuse to unlink unless the path still resolves to the exact
-         * inode Caxri created, so a swapped parent cannot redirect cleanup to a foreign file.
+         * Cleanup is path-based too. Refuse to unlink unless the path still resolves to the exact inode Caxri created,
+         * so a swapped parent cannot redirect cleanup to a foreign file.
          */
         if (
             currentStats.isSymbolicLink() ||
@@ -55,7 +59,9 @@ async function removeTrustedTemporaryFile(
     }
 }
 
-/** Reads and writes text documents under a Session's Project root with TOCTOU-safe file handles. */
+/**
+ * Reads and writes text documents under a Session's Project root with TOCTOU-safe file handles.
+ */
 export class DocumentService {
     private readonly beforeReplaceValidation?: () => Promise<void>;
     private readonly openFile: OpenFile;
@@ -150,9 +156,9 @@ export class DocumentService {
                 const currentReplacementStats = await lstat(temporaryPath);
                 const resolvedTemporaryPath = await realpath(temporaryPath);
                 /**
-                 * `O_NOFOLLOW` covers only the final component. Revalidate the opened temporary
-                 * inode and its canonical parent before writing editor content, so a parent
-                 * directory swapped to an outside symlink cannot receive the replacement bytes.
+                 * `O_NOFOLLOW` covers only the final component. Revalidate the opened temporary inode and its canonical
+                 * parent before writing editor content, so a parent directory swapped to an outside symlink cannot
+                 * receive the replacement bytes.
                  */
                 if (
                     currentReplacementStats.isSymbolicLink() ||
@@ -165,9 +171,9 @@ export class DocumentService {
                     throw new CaxriError('IO', 'Temporary file changed during save');
                 await replacement.writeFile(content, 'utf8');
                 /**
-                 * The replacement must be durable before rename: otherwise a successful save can
-                 * still expose an empty new inode after a sudden power loss. chmod restores bits
-                 * masked by the process umask without carrying special setuid/setgid bits forward.
+                 * The replacement must be durable before rename: otherwise a successful save can still expose an empty
+                 * new inode after a sudden power loss. chmod restores bits masked by the process umask without carrying
+                 * special setuid/setgid bits forward.
                  */
                 await replacement.chmod(stats.mode & 0o777);
                 await replacement.sync();
@@ -186,10 +192,10 @@ export class DocumentService {
             )
                 throw new CaxriError('IO', 'File changed during save');
             /**
-             * Node exposes no atomic inode-compare-and-replace primitive. This final revalidation
-             * rejects path swaps observed while the replacement is written; an uncooperative
-             * external process can still win the narrow check-to-rename race. `rename` replaces a
-             * late symlink itself rather than following it, so Caxri never writes through that link.
+             * Node exposes no atomic inode-compare-and-replace primitive. This final revalidation rejects path swaps
+             * observed while the replacement is written; an uncooperative external process can still win the narrow
+             * check-to-rename race. `rename` replaces a late symlink itself rather than following it, so Caxri never
+             * writes through that link.
              */
             await this.replaceFile(temporaryPath, resolved.path);
             const directory = await this.openFile(dirname(resolved.path), constants.O_RDONLY);

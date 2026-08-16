@@ -1,13 +1,16 @@
-import { appendFile, readFile } from 'node:fs/promises';
+import type { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
+import { appendFile, readFile } from 'node:fs/promises';
+import process from 'node:process';
 
-import {
-    evaluateCIExecutionPlan,
-    type CIExecutionPlan,
-    type CIExecutionPlanInput,
-    type CIReusableGreenRun,
+import type {
+    CIExecutionPlan,
+    CIExecutionPlanInput,
+    CIReusableGreenRun,
 } from './ci-execution-plan';
-import { evaluateGreenReusePolicy, type GreenRunEvidence } from './ci-green-reuse';
+import { evaluateCIExecutionPlan } from './ci-execution-plan';
+import type { GreenRunEvidence } from './ci-green-reuse';
+import { evaluateGreenReusePolicy } from './ci-green-reuse';
 
 export interface RetryHint {
     baseRunId: number;
@@ -48,7 +51,9 @@ interface GreenReuseResolution extends CIReusableGreenRun {
     reason: string;
 }
 
-/** The workflow contract pins this step as the receipt that the checks job used full scope. */
+/**
+ * The workflow contract pins this step as the receipt that the checks job used full scope.
+ */
 const fullChecksReceiptStep = 'Run ESLint';
 
 export interface RetryPolicyInput {
@@ -97,7 +102,9 @@ export function isProtectedRetryPath(path: string): boolean {
     return protectedPathPatterns.some((pattern) => pattern.test(path));
 }
 
-/** Aggregates legacy, split-matrix, and single-machine logical-pool E2E evidence without hiding failures. */
+/**
+ * Aggregates legacy, split-matrix, and single-machine logical-pool E2E evidence without hiding failures.
+ */
 const poolStepNames = {
     'control': 'Run one-worker control suite',
     'desktop-exclusive': 'Run desktop-exclusive pool',
@@ -130,12 +137,15 @@ export function summarizeE2EJobs(
             }),
         ),
     ];
+    const e2eFailurePools = ['control', 'desktop-exclusive', 'parallel-safe'] as const;
+    const [onlyFailedPool] = failedPools;
     const e2eFailurePool =
+        onlyFailedPool !== undefined &&
         failedPools.length === 1 &&
-        (failedPools[0] === 'control' ||
-            failedPools[0] === 'desktop-exclusive' ||
-            failedPools[0] === 'parallel-safe')
-            ? failedPools[0]
+        // `Array#includes` narrows its argument to the tuple's element type; widen the array's
+        // type for the check instead of casting `onlyFailedPool` away from `string | undefined`.
+        (e2eFailurePools as readonly string[]).includes(onlyFailedPool)
+            ? (onlyFailedPool as (typeof e2eFailurePools)[number])
             : undefined;
     return {
         e2eConclusion:
@@ -150,7 +160,7 @@ export function summarizeE2EJobs(
 
 function oneTrailer(message: string, name: string): string | undefined {
     const values = message.split(/\r?\n/u).flatMap((line) => {
-        const match = new RegExp(`^${name}:\\s*(.+)$`, 'u').exec(line);
+        const match = new RegExp(String.raw`^${name}:\s*(.+)$`, 'u').exec(line);
         return match?.[1] ? [match[1].trim()] : [];
     });
     if (values.length > 1) throw new Error(`duplicate ${name} trailer`);
@@ -171,7 +181,7 @@ export function parseRetryHint(message: string): { error?: string; hint?: RetryH
         if (!validatedTree || !/^[0-9a-f]{40}$/u.test(validatedTree)) {
             return { error: 'CI-Validated-Tree must be a full tree SHA' };
         }
-        let parsedE2eTests: string[] | undefined;
+        let parsedEndToEndTests: string[] | undefined;
         if (e2eTests) {
             const value: unknown = JSON.parse(e2eTests);
             if (
@@ -185,16 +195,21 @@ export function parseRetryHint(message: string): { error?: string; hint?: RetryH
             ) {
                 return { error: 'CI-E2E-Tests must be a non-empty JSON array of E2E spec paths' };
             }
-            parsedE2eTests = [...new Set(value)];
+            parsedEndToEndTests = [...new Set(value)];
         }
-        if (mode === 'e2e-repair' && !parsedE2eTests) {
+        if (mode === 'e2e-repair' && !parsedEndToEndTests) {
             return { error: 'CI-E2E-Tests is required for e2e-repair' };
         }
-        if (mode === 'e2e-only' && parsedE2eTests) {
+        if (mode === 'e2e-only' && parsedEndToEndTests) {
             return { error: 'CI-E2E-Tests is only valid for e2e-repair' };
         }
         return {
-            hint: { baseRunId: Number(baseRun), e2eTests: parsedE2eTests, mode, validatedTree },
+            hint: {
+                baseRunId: Number(baseRun),
+                e2eTests: parsedEndToEndTests,
+                mode,
+                validatedTree,
+            },
         };
     } catch (error) {
         return { error: error instanceof Error ? error.message : String(error) };
@@ -247,9 +262,9 @@ export function evaluateRetryPolicy(input: RetryPolicyInput): RetryPolicyDecisio
     };
 }
 
-async function capture(command: string, args: string[]): Promise<string> {
+async function capture(command: string, arguments_: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-        const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        const child = spawn(command, arguments_, { stdio: ['ignore', 'pipe', 'pipe'] });
         let stdout = '';
         let stderr = '';
         child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
@@ -322,10 +337,10 @@ export function extractGreenRunEvidence(
     };
 }
 
-async function loadBaseRun(repository: string, runId: number): Promise<BaseRunEvidence> {
+async function loadBaseRun(repo: string, runId: number): Promise<BaseRunEvidence> {
     const [runValue, jobsValue] = await Promise.all([
-        githubJson(`/repos/${repository}/actions/runs/${runId}`),
-        githubJson(`/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`),
+        githubJson(`/repos/${repo}/actions/runs/${runId}`),
+        githubJson(`/repos/${repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`),
     ]);
     const run = runValue as {
         event?: string;
@@ -350,8 +365,8 @@ async function loadBaseRun(repository: string, runId: number): Promise<BaseRunEv
 }
 
 /**
- * Searches only the latest successful runs on the current PR branch. Missing API, lineage, job,
- * or path evidence returns no receipt so the caller keeps full Linux and macOS coverage.
+ * Searches only the latest successful runs on the current PR branch. Missing API, lineage, job, or path evidence
+ * returns no receipt so the caller keeps full Linux and macOS coverage.
  */
 async function findReusableGreenRun(input: {
     currentHeadSha: string;
@@ -379,6 +394,9 @@ async function findReusableGreenRun(input: {
         if (!run.id || run.head_sha === input.currentHeadSha) continue;
         let changedFiles: string[];
         try {
+            // Runs are checked oldest-evidence-first and the first eligible run wins, so each
+            // candidate must be verified in order rather than concurrently.
+            // eslint-disable-next-line no-await-in-loop -- ordered search must stop at the first eligible run
             await capture('git', [
                 'merge-base',
                 '--is-ancestor',
@@ -386,6 +404,7 @@ async function findReusableGreenRun(input: {
                 input.currentHeadSha,
             ]);
             changedFiles = nullSeparatedPaths(
+                // eslint-disable-next-line no-await-in-loop -- ordered search must stop at the first eligible run
                 await capture(
                     'git',
                     greenReuseDiffArguments(run.head_sha ?? '', input.currentHeadSha),
@@ -395,6 +414,7 @@ async function findReusableGreenRun(input: {
             lastReason = `run ${run.id} is not an available ancestor of the current head`;
             continue;
         }
+        // eslint-disable-next-line no-await-in-loop -- ordered search must stop at the first eligible run
         const jobsValue = (await githubJson(
             `/repos/${input.repository}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`,
         )) as { jobs?: WorkflowJobRecord[] };
@@ -436,11 +456,11 @@ async function writeDecision(
 ): Promise<void> {
     const output = process.env.GITHUB_OUTPUT;
     const summary = process.env.GITHUB_STEP_SUMMARY;
-    const reason = decision.reason.replace(/[\r\n]+/gu, ' ');
+    const reason = decision.reason.replaceAll(/[\r\n]+/gu, ' ');
     if (output) {
         await appendFile(
             output,
-            [
+            `${[
                 `mode=${decision.mode}`,
                 `reason=${reason}`,
                 `base_run=${decision.baseRunId ?? ''}`,
@@ -453,13 +473,13 @@ async function writeDecision(
                 `changed_files=${JSON.stringify(executionChangedFiles)}`,
                 `reused_e2e_run=${greenReuse.reusableGreenRun?.runId ?? ''}`,
                 `reused_e2e_head=${greenReuse.reusableGreenRun?.headSha ?? ''}`,
-            ].join('\n') + '\n',
+            ].join('\n')}\n`,
         );
     }
     if (summary) {
         await appendFile(
             summary,
-            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Validated tree: \`${decision.validatedTree ?? 'none'}\`\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Failed E2E pool: \`${decision.e2ePool ?? 'control'}\`\n- Reused E2E run: ${greenReuse.reusableGreenRun?.runId ?? 'none'}\n- Reused E2E head: \`${greenReuse.reusableGreenRun?.headSha ?? 'none'}\`\n- Green reuse: ${greenReuse.reason.replace(/[\r\n]+/gu, ' ')}\n- Pull-request changed files: ${allChangedFiles.length}\n- Current checks changed files: ${executionChangedFiles.length}\n`,
+            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Validated tree: \`${decision.validatedTree ?? 'none'}\`\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Failed E2E pool: \`${decision.e2ePool ?? 'control'}\`\n- Reused E2E run: ${greenReuse.reusableGreenRun?.runId ?? 'none'}\n- Reused E2E head: \`${greenReuse.reusableGreenRun?.headSha ?? 'none'}\`\n- Green reuse: ${greenReuse.reason.replaceAll(/[\r\n]+/gu, ' ')}\n- Pull-request changed files: ${allChangedFiles.length}\n- Current checks changed files: ${executionChangedFiles.length}\n`,
         );
     }
     process.stdout.write(`${JSON.stringify(decision)}\n`);
@@ -467,8 +487,8 @@ async function writeDecision(
 
 async function main(): Promise<void> {
     const eventPath = process.env.GITHUB_EVENT_PATH;
-    const repository = process.env.GITHUB_REPOSITORY ?? '';
-    if (!eventPath || !repository) throw new Error('GitHub Actions environment is required');
+    const repo = process.env.GITHUB_REPOSITORY ?? '';
+    if (!eventPath || !repo) throw new Error('GitHub Actions environment is required');
     const event = JSON.parse(await readFile(eventPath, 'utf8')) as {
         before?: string;
         inputs?: { e2e_profile?: 'control' | 'optimized' | 'skip' };
@@ -502,7 +522,7 @@ async function main(): Promise<void> {
     let baseRunChangedFiles: string[] = [];
     if (parsed.hint) {
         try {
-            baseRun = await loadBaseRun(repository, parsed.hint.baseRunId);
+            baseRun = await loadBaseRun(repo, parsed.hint.baseRunId);
             await capture('git', ['merge-base', '--is-ancestor', baseRun.headSha, 'HEAD']);
             isAncestor = true;
             retryChangedFiles = nullSeparatedPaths(
@@ -531,7 +551,7 @@ async function main(): Promise<void> {
         isAncestor,
         pullRequestBaseSha: event.pull_request?.base?.sha,
         pullRequestNumber: event.pull_request?.number,
-        repository,
+        repository: repo,
         workflowPath: '.github/workflows/ci.yml',
     });
     const packageVersion = (JSON.parse(packageManifest) as { version?: string }).version;
@@ -564,7 +584,7 @@ async function main(): Promise<void> {
                 headRef: event.pull_request.head.ref,
                 pullRequestBaseSha: event.pull_request.base.sha,
                 pullRequestNumber: event.pull_request.number,
-                repository,
+                repository: repo,
                 workflowPath: '.github/workflows/ci.yml',
             });
         } catch (error) {
@@ -587,7 +607,9 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-    await main().catch(async (error) => {
+    try {
+        await main();
+    } catch (error) {
         const reason = `policy evaluation failed closed: ${error instanceof Error ? error.message : String(error)}`;
         await writeDecision(
             { mode: 'full', reason },
@@ -601,5 +623,5 @@ if (import.meta.main) {
             [],
             { reason },
         );
-    });
+    }
 }

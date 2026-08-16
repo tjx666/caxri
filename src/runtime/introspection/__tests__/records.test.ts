@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Principal } from '../../../shared/ipc/principal';
-import { RecordQueryService, type RecordQuerySource } from '../records';
+import type { RecordQuerySource } from '../records';
+import { RecordQueryService } from '../records';
 
 const source: RecordQuerySource = {
     currentProjectId: () => 'project-2',

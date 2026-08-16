@@ -40,10 +40,7 @@ describe('bounded concurrency', () => {
     });
 
     it('stops queued work and drains active workers before rejecting', async () => {
-        let releaseWorkers!: () => void;
-        const workersReleased = new Promise<void>((resolve) => {
-            releaseWorkers = resolve;
-        });
+        const { promise: workersReleased, resolve: releaseWorkers } = Promise.withResolvers<void>();
         const started: number[] = [];
         const mapping = mapWithConcurrency(
             Array.from({ length: 12 }, (_, index) => index),
@@ -55,19 +52,22 @@ describe('bounded concurrency', () => {
                 return value;
             },
         );
-        let settled = false;
-        void mapping.then(
-            () => {
-                settled = true;
-            },
-            () => {
-                settled = true;
-            },
-        );
+        let isSettled = false;
+        // Intentionally not awaited here: the test observes `isSettled` staying `false` while
+        // `mapping` is still in flight, then awaits `mapping` itself further below.
+        mapping
+            // eslint-disable-next-line unicorn/prefer-await
+            .then(() => {
+                isSettled = true;
+            })
+            // eslint-disable-next-line unicorn/prefer-await
+            .catch(() => {
+                isSettled = true;
+            });
         await new Promise<void>((resolve) => setImmediate(resolve));
 
         expect(started).toEqual([0, 1, 2]);
-        expect(settled).toBe(false);
+        expect(isSettled).toBe(false);
         releaseWorkers();
         await expect(mapping).rejects.toThrow('expected');
         expect(started).toEqual([0, 1, 2]);

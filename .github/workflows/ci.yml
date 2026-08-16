@@ -140,6 +140,9 @@ jobs:
         env:
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
         run: bun run scripts/ci-metrics.ts --label "ESLint concurrency=${ESLINT_CONCURRENCY}" -- bun run lint --concurrency "$ESLINT_CONCURRENCY"
+      - name: Run markdownlint
+        if: needs.retry-policy.outputs.checks_scope == 'full'
+        run: bun run lint:markdown
       - if: needs.retry-policy.outputs.checks_scope == 'full'
         run: bun run knip
       - if: needs.retry-policy.outputs.checks_scope == 'full'

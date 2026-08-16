@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import type { WorkItem } from '@shared/work-item';
+import { describe, expect, it } from 'vitest';
 
 import {
     processStateDescription,

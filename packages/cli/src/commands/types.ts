@@ -1,8 +1,5 @@
-import {
-    describeCaxriMethod,
-    type CaxriMethod,
-    type CaxriMethodDescription,
-} from '@caxri/protocol';
+import type { CaxriMethod, CaxriMethodDescription } from '@caxri/protocol';
+import { describeCaxriMethod } from '@caxri/protocol';
 
 export const CLI_GROUPS = [
     { name: 'host', summary: 'Inspect and control the profile Host.' },
@@ -32,7 +29,7 @@ export interface RemoteCommandDefinition {
     confirmation?: string;
     kind: 'remote';
     method: CaxriMethod;
-    mutates?(params: unknown): boolean;
+    mutates?(parameters: unknown): boolean;
     parseParams(tokens: readonly string[]): unknown;
     path: readonly [string, ...string[]];
     requiresAgentEndpoint?: boolean;
@@ -65,7 +62,7 @@ export function describeCliCommand(command: CliCommandDefinition): CliCommandDes
             kind: command.kind,
             path: command.path,
             summary: command.summary,
-            ...(command.usage ? { usage: command.usage } : {}),
+            ...(command.usage && { usage: command.usage }),
         };
     const method: CaxriMethodDescription = describeCaxriMethod(command.method);
     return {
@@ -74,6 +71,6 @@ export function describeCliCommand(command: CliCommandDefinition): CliCommandDes
         kind: 'remote',
         path: command.path,
         summary: command.summary,
-        ...(command.usage ? { usage: command.usage } : {}),
+        ...(command.usage && { usage: command.usage }),
     };
 }

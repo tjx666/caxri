@@ -1,6 +1,7 @@
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { z } from 'zod';
 
 import { captureCommand } from './command-runner';
@@ -62,13 +63,15 @@ interface PublicationState {
     pullRequest: { headSha: string | null };
 }
 
-type CommandRunner = (command: string, args: string[], timeoutMs?: number) => Promise<string>;
+type CommandRunner = (command: string, arguments_: string[], timeoutMs?: number) => Promise<string>;
+
+const checkIdSchema = z.object({ id: z.string().min(1) });
 
 const localReportSchema = z.object({
-    cases: z.array(z.object({ id: z.string().min(1) })).min(1),
+    cases: z.array(checkIdSchema).min(1),
     commit: z.string().min(1),
     createdAt: z.string().min(1),
-    plan: z.array(z.object({ id: z.string().min(1) })).min(1),
+    plan: z.array(checkIdSchema).min(1),
     requirement: z.string().min(1),
     summary: z.object({ verdict: z.enum(['fail', 'partial', 'pass']) }),
 });
@@ -83,26 +86,30 @@ const acceptanceRunCandidateSchema = z.object({
     acceptanceId: z.string().min(1),
     context: z.looseObject({ commit: z.string().min(1), testedAt: z.string().min(1) }),
     id: z.string().min(1),
-    plan: z.array(z.object({ id: z.string().min(1) })),
+    plan: z.array(checkIdSchema),
     roundIndex: z.number().int().positive(),
     source: z.literal('agent-testing'),
 });
 const acceptanceRunListSchema = z.array(z.unknown());
 
+const acceptanceRunSchema = z.object({
+    acceptanceId: z.string().min(1),
+    context: z.looseObject({ commit: z.string().min(1) }),
+    id: z.string().min(1),
+    roundIndex: z.number().int().positive(),
+});
+const acceptanceRoundSchema = z.object({
+    report: z.object({ verdict: z.enum(['failed', 'passed', 'uncertain']) }),
+    run: acceptanceRunSchema,
+});
+const acceptanceCheckSchema = z.object({
+    id: z.string().min(1),
+    resultRound: z.number().int().positive(),
+});
 const acceptanceViewSchema = z.object({
     acceptance: z.object({ id: z.string().min(1) }),
-    checks: z.array(z.object({ id: z.string().min(1), resultRound: z.number().int().positive() })),
-    rounds: z.array(
-        z.object({
-            report: z.object({ verdict: z.enum(['failed', 'passed', 'uncertain']) }),
-            run: z.object({
-                acceptanceId: z.string().min(1),
-                context: z.looseObject({ commit: z.string().min(1) }),
-                id: z.string().min(1),
-                roundIndex: z.number().int().positive(),
-            }),
-        }),
-    ),
+    checks: z.array(acceptanceCheckSchema),
+    rounds: z.array(acceptanceRoundSchema),
 });
 
 export function createEmptyAcceptancePublication(): AcceptancePublication {
@@ -114,17 +121,17 @@ function stableAcceptanceUrl(acceptanceId: string): string {
 }
 
 function sorted(values: string[]): string[] {
-    return [...values].sort((a, b) => a.localeCompare(b));
+    return values.toSorted((a, b) => a.localeCompare(b));
 }
 
-function equalValues(left: string[], right: string[]): boolean {
+function haveEqualValues(left: string[], right: string[]): boolean {
     return JSON.stringify(sorted(left)) === JSON.stringify(sorted(right));
 }
 
 /**
- * Run history can contain legacy `agent` rows and interrupted rows with null lineage fields.
- * They cannot prove that this exact round already exists, so discovery ignores them while the
- * matching candidate and subsequent Acceptance readback remain strictly validated.
+ * Run history can contain legacy `agent` rows and interrupted rows with null lineage fields. They cannot prove that
+ * this exact round already exists, so discovery ignores them while the matching candidate and subsequent Acceptance
+ * readback remain strictly validated.
  */
 function discoverableAcceptanceRuns(
     value: unknown,
@@ -153,7 +160,7 @@ async function discoverPublishedRun(
             run.context.testedAt === input.createdAt &&
             run.roundIndex === input.roundIndex &&
             (!input.acceptanceId || run.acceptanceId === input.acceptanceId) &&
-            equalValues(
+            haveEqualValues(
                 run.plan.map(({ id }) => id),
                 input.checkIds,
             ),
@@ -173,11 +180,11 @@ async function discoverPublishedRun(
 
 export function commandCapture(
     command: string,
-    args: string[],
+    arguments_: string[],
     timeoutMs = CLI_TIMEOUT_MS,
     killGraceMs?: number,
 ): Promise<string> {
-    return captureCommand(command, args, {
+    return captureCommand(command, arguments_, {
         killGraceMs,
         maxOutputBytes: MAX_CLI_OUTPUT_BYTES,
         timeoutMs,
@@ -264,14 +271,14 @@ export function recordOrphanedAcceptance(
 ): void {
     const acceptanceId = input.acceptanceId.trim();
     const reason = input.reason.trim();
-    const verifyRunId = input.verifyRunId?.trim() || null;
     if (!acceptanceId || !reason) {
         throw new Error('Orphaned Acceptance history requires an id and reason');
     }
-    const alreadyRecorded = state.acceptance.publication.orphanedStandalones.some(
+    const verifyRunId = input.verifyRunId?.trim() || null;
+    const isAlreadyRecorded = state.acceptance.publication.orphanedStandalones.some(
         (record) => record.acceptanceId === acceptanceId && record.verifyRunId === verifyRunId,
     );
-    if (!alreadyRecorded) {
+    if (!isAlreadyRecorded) {
         state.acceptance.publication.orphanedStandalones.push(
             orphanedAcceptanceSchema.parse({
                 acceptanceId,
@@ -284,10 +291,12 @@ export function recordOrphanedAcceptance(
     }
 
     const pending = state.acceptance.publication.pendingAttempt;
-    /** Only the explicit, immutable orphan record for the exact remote run permits a fresh upload. */
+    /**
+     * Only the explicit, immutable orphan record for the exact remote run permits a fresh upload.
+     */
     if (
-        pending?.acceptanceId === acceptanceId &&
         verifyRunId !== null &&
+        pending?.acceptanceId === acceptanceId &&
         pending.verifyRunId === verifyRunId
     ) {
         state.acceptance.publication.pendingAttempt = null;
@@ -308,15 +317,14 @@ export async function publishAcceptanceRound(
         throw new Error('Acceptance publication must bind the exact current PR head');
     }
     const reportDirectory = await resolveReportDirectory(input.reportDirectory);
-    const report = localReportSchema.parse(
-        JSON.parse(await readFile(join(reportDirectory, 'result.json'), 'utf8')),
-    );
+    const reportSource = await readFile(join(reportDirectory, 'result.json'), 'utf8');
+    const report = localReportSchema.parse(JSON.parse(reportSource));
     if (report.commit !== input.headSha) {
         throw new Error('Acceptance report does not match the exact head');
     }
     const checkIds = report.cases.map(({ id }) => id);
     if (
-        !equalValues(
+        !haveEqualValues(
             checkIds,
             report.plan.map(({ id }) => id),
         )
@@ -338,7 +346,7 @@ export async function publishAcceptanceRound(
             pending.reportPath !== reportPath ||
             pending.roundIndex !== expectedRound ||
             pending.verdict !== report.summary.verdict ||
-            !equalValues(pending.checkIds, checkIds) ||
+            !haveEqualValues(pending.checkIds, checkIds) ||
             (state.acceptance.id && pending.acceptanceId !== state.acceptance.id)
         ) {
             throw new Error('Pending Acceptance publication does not match this local round');
@@ -353,7 +361,7 @@ export async function publishAcceptanceRound(
             roundIndex: expectedRound,
         };
         const existing = await discoverPublishedRun(runner, discoveryInput);
-        const args = [
+        const arguments_ = [
             'acceptance',
             'run',
             'ingest',
@@ -369,13 +377,16 @@ export async function publishAcceptanceRound(
             ingest = existing;
         } else {
             try {
-                const stdout = await runner('lobehub', args, ACCEPTANCE_INGEST_TIMEOUT_MS);
+                const stdout = await runner('lobehub', arguments_, ACCEPTANCE_INGEST_TIMEOUT_MS);
                 if (!stdout.trim()) throw new Error('LobeHub ingest returned empty JSON output');
                 ingest = ingestResultSchema.parse(JSON.parse(stdout));
             } catch (error: unknown) {
-                const recovered = await discoverPublishedRun(runner, discoveryInput).catch(
-                    () => null,
-                );
+                let recovered: z.infer<typeof ingestResultSchema> | null;
+                try {
+                    recovered = await discoverPublishedRun(runner, discoveryInput);
+                } catch {
+                    recovered = null;
+                }
                 if (!recovered) throw error;
                 ingest = recovered;
             }
@@ -417,7 +428,7 @@ export async function publishAcceptanceRound(
     const remoteCheckIds = view.checks
         .filter(({ resultRound }) => resultRound === expectedRound)
         .map(({ id }) => id);
-    if (!equalValues(remoteCheckIds, checkIds)) {
+    if (!haveEqualValues(remoteCheckIds, checkIds)) {
         throw new Error('LobeHub readback check ids do not match the local round');
     }
     const expectedVerdict = { fail: 'failed', partial: 'uncertain', pass: 'passed' }[

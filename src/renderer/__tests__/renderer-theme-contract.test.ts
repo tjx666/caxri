@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
-const stylesRoot = join(repositoryRoot, 'src/renderer/src/styles');
+const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const stylesRoot = join(repoRoot, 'src/renderer/src/styles');
 const sharedThemeFile = 'theme.css';
 const rendererEntries = ['styles.css', 'process-explorer.css'];
 const semanticColorRoles = [
@@ -53,7 +53,7 @@ describe('Renderer theme source contract', () => {
 
     it('points shadcn metadata at the shared theme source without changing its base style', async () => {
         const components = JSON.parse(
-            await readFile(join(repositoryRoot, 'components.json'), 'utf8'),
+            await readFile(join(repoRoot, 'components.json'), 'utf8'),
         ) as { style: string; tailwind: { baseColor: string; css: string } };
 
         expect(components).toMatchObject({

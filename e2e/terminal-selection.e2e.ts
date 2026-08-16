@@ -1,9 +1,10 @@
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
-import { expect, test, type Page } from './support/fixtures.ts';
-
+import type { Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
@@ -35,7 +36,7 @@ async function terminalTextBounds(
             const rowElements = [...rows.children];
             const renderedText = rowElements.map((row) => row.textContent ?? '').join('');
             const targetStart = renderedText.indexOf(target);
-            if (targetStart < 0) throw new Error(`Terminal text not found: ${target}`);
+            if (targetStart === -1) throw new Error(`Terminal text not found: ${target}`);
 
             const characterBounds = (targetOffset: number): CharacterBounds => {
                 let renderedOffset = 0;
@@ -109,8 +110,8 @@ async function terminalIds(page: Page): Promise<string[]> {
 
 test('Terminal selection copies exact text and stays isolated across split panes', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-selection-e2e-'));
-    const ciParity = process.env.CAXRI_CI_PARITY_CASE === 'long-path-wrapped-terminal';
-    const longPath = ciParity
+    const isCiParity = process.env.CAXRI_CI_PARITY_CASE === 'long-path-wrapped-terminal';
+    const longPath = isCiParity
         ? join(
               'ci-parity-path-segment-0123456789',
               'another-long-path-segment-0123456789',
@@ -122,7 +123,7 @@ test('Terminal selection copies exact text and stays isolated across split panes
     const multilineOutput = join(testDirectory, 'multiline-output.sh');
     const splitOutput = join(testDirectory, 'split-output.sh');
     const splitText = 'PANE_TWO';
-    const firstLine = ciParity ? `FIRST Ω 中 ${'wrapped-content-'.repeat(16)}END` : 'FIRST Ω 中';
+    const firstLine = isCiParity ? `FIRST Ω 中 ${'wrapped-content-'.repeat(16)}END` : 'FIRST Ω 中';
     const lastLine = 'SECOND  spaced text';
     await mkdir(root, { recursive: true });
     await Promise.all([
@@ -133,7 +134,7 @@ test('Terminal selection copies exact text and stays isolated across split panes
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        if (ciParity) {
+        if (isCiParity) {
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.setBounds({ width: 720, height: 640 }),
             );
@@ -146,7 +147,7 @@ test('Terminal selection copies exact text and stays isolated across split panes
         );
         await expect(firstRows).toContainText(firstLine);
         await expect(firstRows).toContainText(lastLine);
-        if (ciParity) {
+        if (isCiParity) {
             const wrappedBounds = await terminalTextBounds(
                 running.page,
                 firstTerminalId,
@@ -187,16 +188,15 @@ test('Terminal selection copies exact text and stays isolated across split panes
             `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-helper-textarea`,
         );
         /**
-         * `terminal.copy` (Cmd+C) is a distinct affordance from copy-on-select, and this proves it
-         * without touching `terminal.copyOnSelect`: turning that setting off would race the
-         * `settings.changed` broadcast the Renderer needs before `use-terminal-pane` stops copying.
-         * Instead, reuse the selection copy-on-select just proved live and overwrite the clipboard
-         * underneath it. Copy-on-select only reacts to a selection *change*, so nothing can restore
-         * the text except the command under test.
+         * `terminal.copy` (Cmd+C) is a distinct affordance from copy-on-select, and this proves it without touching
+         * `terminal.copyOnSelect`: turning that setting off would race the `settings.changed` broadcast the Renderer
+         * needs before `use-terminal-pane` stops copying. Instead, reuse the selection copy-on-select just proved live
+         * and overwrite the clipboard underneath it. Copy-on-select only reacts to a selection _change_, so nothing can
+         * restore the text except the command under test.
          *
-         * Deliberately before the paste case below rather than after it: a second drag would have to
-         * re-measure `PANE_TWO`'s bounds against a viewport the pasted command is still scrolling,
-         * so the mouse could land a row off and select nothing at all.
+         * Deliberately before the paste case below rather than after it: a second drag would have to re-measure
+         * `PANE_TWO`'s bounds against a viewport the pasted command is still scrolling, so the mouse could land a row
+         * off and select nothing at all.
          */
         await running.app.evaluate(({ clipboard }) => clipboard.writeText('COPY_COMMAND_SENTINEL'));
         await secondInput.focus();
@@ -209,14 +209,18 @@ test('Terminal selection copies exact text and stays isolated across split panes
             .toBe(splitText);
 
         await running.app.evaluate(({ clipboard }) =>
-            clipboard.writeText("printf 'PASTE_STILL_WORKS\\n'"),
+            clipboard.writeText(String.raw`printf 'PASTE_STILL_WORKS\n'`),
         );
         await secondInput.focus();
         await secondInput.press('Meta+V');
         await secondInput.press('Enter');
         await expect(secondRows).toContainText('PASTE_STILL_WORKS');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

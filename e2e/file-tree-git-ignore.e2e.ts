@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { launchCaxri, openAddProjectDialog } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -62,7 +61,11 @@ test('Files keeps ignored entries browsable while muting and refreshing them', a
         await writeFile(ignorePath, 'ignored.log\nignored-dir/\ntracked.log\nsrc/*.log\n', 'utf8');
         await expect(newlyIgnored).toHaveAttribute('data-git-ignored', 'true');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

@@ -1,13 +1,15 @@
 #!/usr/bin/env bun
 
+import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { isAbsolute, normalize, resolve, sep } from 'node:path';
-import { spawn } from 'node:child_process';
+import process from 'node:process';
 
 import type { CIChecksScope } from './ci-execution-plan';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
 export function focusedCheckArguments(
     paths: readonly string[],
     scope: Extract<CIChecksScope, 'focused-docs' | 'focused-skills' | 'focused-source'>,
@@ -23,10 +25,12 @@ export function focusedCheckArguments(
     ];
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
 export function focusedDiffArguments(paths: readonly string[]): string[] {
     return ['diff', '--exit-code', '--', ...paths];
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
 export function shouldRunSkillRegressions(scope: CIChecksScope): boolean {
     return scope === 'focused-skills';
 }
@@ -35,8 +39,8 @@ function validatePath(path: string): string {
     const normalized = normalize(path);
     if (
         !path ||
-        isAbsolute(path) ||
         normalized === '..' ||
+        isAbsolute(path) ||
         normalized.startsWith(`..${sep}`) ||
         path.includes('\0')
     ) {
@@ -45,11 +49,11 @@ function validatePath(path: string): string {
     return normalized;
 }
 
-async function run(command: string, args: string[]): Promise<number> {
-    const child = spawn(command, args, { cwd: projectRoot, stdio: 'inherit' });
-    return await new Promise<number>((resolveExit, reject) => {
+async function run(command: string, arguments_: string[]): Promise<number> {
+    const child = spawn(command, arguments_, { cwd: projectRoot, stdio: 'inherit' });
+    return await new Promise<number>((resolve, reject) => {
         child.once('error', reject);
-        child.once('exit', (code, signal) => resolveExit(code ?? (signal ? 1 : 0)));
+        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
     });
 }
 
@@ -65,12 +69,14 @@ async function main(): Promise<void> {
     const changedFiles = value.map(validatePath);
     const currentFiles = (
         await Promise.all(
-            changedFiles.map(async (path) =>
-                access(resolve(projectRoot, path)).then(
-                    () => path,
-                    () => undefined,
-                ),
-            ),
+            changedFiles.map(async (path) => {
+                try {
+                    await access(resolve(projectRoot, path));
+                    return path;
+                } catch {
+                    return;
+                }
+            }),
         )
     ).filter((path): path is string => path !== undefined);
 
@@ -97,7 +103,9 @@ async function main(): Promise<void> {
         process.exitCode = diffResult;
         return;
     }
-    /** Skill-only PRs still run every repository-skill regression, including unchanged routers. */
+    /**
+     * Skill-only PRs still run every repository-skill regression, including unchanged routers.
+     */
     process.exitCode = await run('bunx', [
         'vitest',
         'run',

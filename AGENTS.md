@@ -136,6 +136,9 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   English.
 - Prefer named exports; React components under `src/` must not use default exports. Keep default
   exports only where a framework or module contract requires them.
+- All JavaScript/TypeScript files use kebab-case basenames, components and hooks included; the
+  primary export keeps its semantic casing (e.g. `file-tree-panel.tsx` exports `FileTreePanel`).
+  `.agents/skills/source-layout/SKILL.md` is the authority for details.
 - Prefer asynchronous Node.js APIs (`node:fs/promises`, promisified `child_process`) over `*Sync`
   variants in Main, Runtime, and tooling code; test code is exempt. A deliberately synchronous
   production boundary needs a comment justifying it.

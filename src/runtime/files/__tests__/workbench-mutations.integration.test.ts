@@ -11,9 +11,9 @@ import { FileService } from '../service';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const paths = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('FileService Workbench Root mutations', () => {
@@ -37,7 +37,7 @@ describe('FileService Workbench Root mutations', () => {
         });
         const service = new FileService(
             database,
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             () => 1024,
             { mutationJournalPath: join(directory, 'file-operations.json') },

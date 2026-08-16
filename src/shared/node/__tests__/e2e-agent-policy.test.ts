@@ -5,13 +5,13 @@ import {
     assertE2EAgentInput,
     assertE2EAgentLaunch,
     assertE2EShellLaunch,
+    e2eAgentPolicyEnvironment,
     e2eAgentShellShimProviders,
     e2eAgentShellShims,
     e2eFakeExecutableEnvironment,
     e2eFakeExecutableEnvironmentKey,
-    readE2EFakeExecutables,
-    e2eAgentPolicyEnvironment,
     readE2EAgentPolicy,
+    readE2EFakeExecutables,
     resolveE2EAgentPolicy,
     selectE2EAgentExecutable,
 } from '../e2e-agent-policy';
@@ -92,7 +92,7 @@ describe('E2E Agent policy', () => {
                 { provider: 'second', executableName: 'same-cli' },
             ]),
         ).toThrow('must be unique');
-        for (const executableName of ['../agent', 'agent/cli', 'agent\u0000cli', '.']) {
+        for (const executableName of ['../agent', 'agent/cli', 'agent\u{0}cli', '.']) {
             expect(() =>
                 e2eAgentShellShims({}, [{ provider: 'synthetic', executableName }]),
             ).toThrow('must be a portable basename');

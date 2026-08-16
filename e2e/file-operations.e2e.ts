@@ -10,17 +10,18 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
-import { allowE2EErrors, expect, test, type Locator, type Page } from './support/fixtures.ts';
-
+import type { Locator, Page } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 /**
  * Context menu items now carry a visible live-keybinding hint (`ContextMenuItem`'s `hint` prop, see
- * `context-menu.tsx`), so an item's full accessible name is no longer just its label — "Copy" reads
- * as "Copy⌘C" once the shortcut badge renders. Matching by the label's own exact text (rather than
- * the whole menuitem's accessible name) keeps this test independent of that badge's exact rendering
- * while still disambiguating "Copy" from "Copy Path" / "Copy Relative Path" in the same menu.
+ * `context-menu.tsx`), so an item's full accessible name is no longer just its label — "Copy" reads as "Copy⌘C" once
+ * the shortcut badge renders. Matching by the label's own exact text (rather than the whole menuitem's accessible name)
+ * keeps this test independent of that badge's exact rendering while still disambiguating "Copy" from "Copy Path" /
+ * "Copy Relative Path" in the same menu.
  */
 function exactMenuItem(page: Page, label: string): Locator {
     return page.getByRole('menuitem').filter({ has: page.getByText(label, { exact: true }) });
@@ -39,8 +40,15 @@ async function injectTransientFileAbsence(path: string): Promise<{ restored: Pro
     const heldPath = `${path}.ci-parity-pending`;
     await rename(path, heldPath);
     return {
-        restored: new Promise<void>((resolveRestore, rejectRestore) => {
-            setTimeout(() => void rename(heldPath, path).then(resolveRestore, rejectRestore), 150);
+        restored: new Promise<void>((resolve, reject) => {
+            setTimeout(async () => {
+                try {
+                    await rename(heldPath, path);
+                    resolve();
+                } catch (error) {
+                    reject(error instanceof Error ? error : new Error(String(error)));
+                }
+            }, 150);
         }),
     };
 }
@@ -117,11 +125,14 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
                 .getByRole('treeitem', { name: 'created-folder', exact: true }),
         ).toBeFocused();
         await expect
-            .poll(() =>
-                access(join(root, 'created-folder'))
-                    .then(() => true)
-                    .catch(() => false),
-            )
+            .poll(async () => {
+                try {
+                    await access(join(root, 'created-folder'));
+                    return true;
+                } catch {
+                    return false;
+                }
+            })
             .toBe(true);
 
         const fileList = running.page.locator('.file-list').first();
@@ -167,10 +178,11 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             )
             .toBe(join(root, 'draft.txt'));
 
-        const terminalCount = await pageRequest<{ terminals: unknown[] }>(
+        const initialBootstrapState = await pageRequest<{ terminals: unknown[] }>(
             running.page,
             'app.bootstrap',
-        ).then((state) => state.terminals.length);
+        );
+        const terminalCount = initialBootstrapState.terminals.length;
         await draftRow.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Open in Terminal' }).click();
         await expect
@@ -199,21 +211,27 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             await expect.poll(() => readExpectedFile(copiedDraft)).toBe('draft\n');
             restoreDraft = (await injectTransientFileAbsence(copiedDraft)).restored;
         }
-        let observedTransientAbsence = false;
+        let isObservedTransientAbsence = false;
         await expect
             .poll(async () => {
                 const contents = await readExpectedFile(copiedDraft);
-                if (contents === undefined) observedTransientAbsence = true;
+                if (contents === undefined) isObservedTransientAbsence = true;
                 return contents;
             })
             .toBe('draft\n');
         await restoreDraft;
-        if (restoreDraft) expect(observedTransientAbsence).toBe(true);
+        if (restoreDraft) expect(isObservedTransientAbsence).toBe(true);
 
         await draftRow.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Duplicate' }).click();
         await expect
-            .poll(() => readFile(join(root, 'draft copy.txt'), 'utf8').catch(() => undefined))
+            .poll(async () => {
+                try {
+                    return await readFile(join(root, 'draft copy.txt'), 'utf8');
+                } catch {
+                    return;
+                }
+            })
             .toBe('draft\n');
 
         const sourceFolderRow = fileList.getByRole('treeitem', {
@@ -225,11 +243,16 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await destinationRow.click({ button: 'right' });
         await exactMenuItem(running.page, 'Paste').click();
         await expect
-            .poll(() =>
-                readFile(join(destination, 'source-folder', 'nested', 'value.txt'), 'utf8').catch(
-                    () => undefined,
-                ),
-            )
+            .poll(async () => {
+                try {
+                    return await readFile(
+                        join(destination, 'source-folder', 'nested', 'value.txt'),
+                        'utf8',
+                    );
+                } catch {
+                    return;
+                }
+            })
             .toBe('nested\n');
 
         const cutRow = fileList.getByRole('treeitem', { name: 'cut.txt', exact: true });
@@ -278,7 +301,13 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await conflictDialog.getByRole('button', { name: 'Replace' }).click();
         const cutMovedPath = join(destination, 'cut.txt');
         await expect
-            .poll(() => readFile(cutMovedPath, 'utf8').catch(() => undefined))
+            .poll(async () => {
+                try {
+                    return await readFile(cutMovedPath, 'utf8');
+                } catch {
+                    return;
+                }
+            })
             .toBe('cut\n');
         await expect(access(join(root, 'cut.txt'))).rejects.toThrow();
         // The unsaved buffer follows the file to its new path instead of being stranded on the old
@@ -300,7 +329,13 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await conflictDialog.getByRole('button', { name: 'Keep Both' }).click();
         const keepBothPath = join(destination, 'draft copy copy.txt');
         await expect
-            .poll(() => readFile(keepBothPath, 'utf8').catch(() => undefined))
+            .poll(async () => {
+                try {
+                    return await readFile(keepBothPath, 'utf8');
+                } catch {
+                    return;
+                }
+            })
             .toBe('draft\n');
         await expect(readFile(join(destination, 'draft copy.txt'), 'utf8')).resolves.toBe(
             'existing copy\n',
@@ -331,11 +366,14 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await renamedRow.dragTo(destinationRow);
         const movedPath = join(destination, 'renamed.txt');
         await expect
-            .poll(() =>
-                access(movedPath)
-                    .then(() => true)
-                    .catch(() => false),
-            )
+            .poll(async () => {
+                try {
+                    await access(movedPath);
+                    return true;
+                } catch {
+                    return false;
+                }
+            })
             .toBe(true);
         await destinationRow.click();
         const movedRow = running.page
@@ -345,21 +383,36 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
 
         await renamedTab.click();
         await running.page.keyboard.press('Meta+S');
-        await expect.poll(() => readFile(movedPath, 'utf8').catch(() => '')).toContain(' dirty');
+        await expect
+            .poll(async () => {
+                try {
+                    return await readFile(movedPath, 'utf8');
+                } catch {
+                    return '';
+                }
+            })
+            .toContain(' dirty');
 
         await movedRow.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Move to Trash' }).click();
         await expect
-            .poll(() =>
-                access(`${movedPath}.trashed`)
-                    .then(() => true)
-                    .catch(() => false),
-            )
+            .poll(async () => {
+                try {
+                    await access(`${movedPath}.trashed`);
+                    return true;
+                } catch {
+                    return false;
+                }
+            })
             .toBe(true);
         await expect(access(movedPath)).rejects.toThrow();
         await expect(renamedTab).toHaveCount(0);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

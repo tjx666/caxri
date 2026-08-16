@@ -1,3 +1,7 @@
+// The filename should be `repo.ts` per unicorn/name-replacements, but renaming it requires
+// updating imports across files/, agents/, git/, and root __tests__/ that other concurrent lint
+// passes own; flagged for a coordinated repo-wide rename instead of a cross-scope edit here.
+// eslint-disable-next-line unicorn/name-replacements
 import type Database from 'better-sqlite3';
 
 import { CaxriError } from '../../shared/ipc/errors';
@@ -13,47 +17,83 @@ import type {
     TerminalRecord,
     TerminalSnapshot,
 } from '../../shared/types';
-import type { AppStateKey, AppStateValue } from './models/app-state';
-import type { SessionWorkbenchBinding } from './models/sessions';
+import type { AgentLifecycleSignal } from '../agents';
+import type { ShutdownReason } from '../session-policy';
 import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
-    DEFAULT_SESSION_TITLE,
     decideAgentLifecycleUpdate,
     decideAgentMetadataUpdate,
+    DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     processActivityState,
     selectFallbackAfterDeletion,
-    type ShutdownReason,
     withTerminalRemovedFromLayout,
 } from '../session-policy';
-import type { AgentLifecycleSignal } from '../agents';
+import type { CaxriDatabaseConnectionOptions as CaxriDatabaseOptions } from './index';
+import {
+    CaxriDatabaseConnection as CaxriDatabase_,
+    MAX_TERMINALS_GLOBAL,
+    MAX_TERMINALS_PER_SESSION,
+} from './index';
 import type {
     AgentDispatchReceiptPatch,
     NewAgentDispatchReceipt,
     StoredAgentDispatchReceipt,
 } from './models/agent-dispatch-receipts';
-import {
-    CaxriDb,
-    type CaxriDbOptions,
-    MAX_TERMINALS_GLOBAL,
-    MAX_TERMINALS_PER_SESSION,
-} from './index';
+import type { AppStateKey, AppStateValue } from './models/app-state';
+import type { SessionWorkbenchBinding } from './models/sessions';
 
 /**
- * Facade kept close to the pre-split `Database` API so every consumer (bootstrap, Terminal manager,
- * File service, Agent coordinator, Diagnostics) needs no changes. `./index` (`CaxriDb`) owns
- * connection lifecycle and pure SQL; `../session-policy` owns the domain decisions; this class
- * composes the two per operation, each inside one transaction.
+ * Facade kept close to the pre-split `Database` API so every consumer (bootstrap, Terminal manager, File service, Agent
+ * coordinator, Diagnostics) needs no changes. `./index` (`CaxriDatabaseConnection`) owns connection lifecycle and pure
+ * SQL; `../session-policy` owns the domain decisions; this class composes the two per operation, each inside one
+ * transaction.
  */
 export class CaxriDatabase {
-    private readonly db: CaxriDb;
+    private readonly db: CaxriDatabase_;
 
-    constructor(path: string, options?: CaxriDbOptions) {
-        this.db = new CaxriDb(path, options);
+    constructor(path: string, options?: CaxriDatabaseOptions) {
+        this.db = new CaxriDatabase_(path, options);
     }
 
-    /** Raw better-sqlite3 handle; integration tests inspect pragmas and `table_info` directly. */
+    private assertTerminalCapacity(sessionId?: string): void {
+        if (this.db.terminals.countAll() >= MAX_TERMINALS_GLOBAL)
+            throw new CaxriError(
+                'CAPACITY',
+                `Caxri supports at most ${MAX_TERMINALS_GLOBAL} Terminals`,
+            );
+        if (
+            sessionId &&
+            this.db.terminals.countForSession(sessionId) >= MAX_TERMINALS_PER_SESSION
+        ) {
+            throw new CaxriError(
+                'CAPACITY',
+                `A Session supports at most ${MAX_TERMINALS_PER_SESSION} Terminals`,
+            );
+        }
+    }
+
+    private insertTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {
+        const session = this.db.sessions.get(sessionId);
+        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+        const ownerProject = this.db.projects.get(session.projectId);
+        if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
+        this.assertTerminalCapacity(sessionId);
+        const terminal = this.db.terminals.insert({
+            sessionId,
+            kind,
+            cwd: cwd ?? ownerProject.rootPath,
+            title: defaultTerminalTitle(kind),
+        });
+        const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
+        if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
+        return terminal;
+    }
+
+    /**
+     * Raw better-sqlite3 handle; integration tests inspect pragmas and `table_info` directly.
+     */
     get database(): Database.Database {
         return this.db.database;
     }
@@ -74,13 +114,15 @@ export class CaxriDatabase {
         return this.db.projects.create(rootPath);
     }
 
-    /** Moves one current Project atomically so Renderer input stays scalar and cannot omit rows. */
+    /**
+     * Moves one current Project atomically so Renderer input stays scalar and cannot omit rows.
+     */
     reorderProject(projectId: string, targetIndex: number): ProjectRecord[] {
         return this.db.transaction(() => {
             const currentIds = this.db.projects.list().map((project) => project.id);
             if (
                 !currentIds.includes(projectId) ||
-                !Number.isInteger(targetIndex) ||
+                !Number.isSafeInteger(targetIndex) ||
                 targetIndex < 0 ||
                 targetIndex >= currentIds.length
             ) {
@@ -98,8 +140,10 @@ export class CaxriDatabase {
 
     deleteProject(projectId: string): void {
         this.db.transaction(() => {
-            /** The generated SQLite ALTER migration cannot attach ON DELETE SET NULL, so explicit
-             *  fallback is part of the same transaction that removes the authorized Project. */
+            /**
+             * The generated SQLite ALTER migration cannot attach ON DELETE SET NULL, so explicit fallback is part of
+             * the same transaction that removes the authorized Project.
+             */
             this.db.sessions.resetWorkbenchProject(projectId);
             if (!this.db.projects.remove(projectId))
                 throw new CaxriError('NOT_FOUND', 'Project not found');
@@ -190,7 +234,9 @@ export class CaxriDatabase {
         });
     }
 
-    /** Applies a validated hook signal without touching Terminal-owned Agent session identity. */
+    /**
+     * Applies a validated hook signal without touching Terminal-owned Agent session identity.
+     */
     updateAgentLifecycle(signal: AgentLifecycleSignal): boolean {
         return this.db.transaction(() => {
             const terminal = this.db.terminals.get(signal.terminalId);
@@ -215,10 +261,9 @@ export class CaxriDatabase {
     }
 
     /**
-     * Atomically reclassifies a live Shell after its foreground process confirms an Agent provider.
-     * Optional metadata is committed in the same transaction when it already exists; otherwise the
-     * Agent coordinator can publish the correct Terminal identity before the first provider session
-     * record is written.
+     * Atomically reclassifies a live Shell after its foreground process confirms an Agent provider. Optional metadata
+     * is committed in the same transaction when it already exists; otherwise the Agent coordinator can publish the
+     * correct Terminal identity before the first provider session record is written.
      */
     promoteShellToAgent(
         terminalId: string,
@@ -268,7 +313,9 @@ export class CaxriDatabase {
         });
     }
 
-    /** Agent session IDs are provider-owned identities and may belong to only one Terminal. */
+    /**
+     * Agent session IDs are provider-owned identities and may belong to only one Terminal.
+     */
     claimedAgentSessionIds(terminalId: string): string[] {
         const terminal = this.db.terminals.get(terminalId);
         if (!terminal?.provider) return [];
@@ -294,7 +341,9 @@ export class CaxriDatabase {
         return this.claimedAgentSessionIds(terminalId).includes(agentSessionId);
     }
 
-    /** Clears the previous process binding so a restarted Agent cannot inherit its old session. */
+    /**
+     * Clears the previous process binding so a restarted Agent cannot inherit its old session.
+     */
     resetAgentMetadataForStart(terminalId: string, startedAt = Date.now()): void {
         this.db.transaction(() => {
             const terminal = this.db.terminals.get(terminalId);
@@ -311,7 +360,9 @@ export class CaxriDatabase {
         });
     }
 
-    /** A `null` kind creates a Terminal-less Session — the same shape as one whose Terminals were all closed. */
+    /**
+     * A `null` kind creates a Terminal-less Session — the same shape as one whose Terminals were all closed.
+     */
     createSession(
         projectId: string,
         kind: TerminalKind | null,
@@ -367,8 +418,8 @@ export class CaxriDatabase {
         return this.db.transaction(() => {
             if (!this.db.sessions.get(sessionId))
                 throw new CaxriError('NOT_FOUND', 'Session not found');
-            const acknowledged = this.db.sessions.acknowledgeAttention(sessionId, attentionEpoch);
-            return { acknowledged, session: this.db.sessions.get(sessionId)! };
+            const isAcknowledged = this.db.sessions.acknowledgeAttention(sessionId, attentionEpoch);
+            return { acknowledged: isAcknowledged, session: this.db.sessions.get(sessionId)! };
         });
     }
 
@@ -391,9 +442,9 @@ export class CaxriDatabase {
     }
 
     /**
-     * Archives a Session without touching its Terminal records or PTYs. If it was selected, active
-     * navigation moves to another non-archived Session in the same Project, or leaves that Project
-     * selected with no Session when none remain.
+     * Archives a Session without touching its Terminal records or PTYs. If it was selected, active navigation moves to
+     * another non-archived Session in the same Project, or leaves that Project selected with no Session when none
+     * remain.
      */
     archiveSession(sessionId: string, now = Date.now()): SessionRecord {
         return this.db.transaction(() => {
@@ -416,7 +467,9 @@ export class CaxriDatabase {
         });
     }
 
-    /** Restores an archived Session to active navigation without selecting or restarting it. */
+    /**
+     * Restores an archived Session to active navigation without selecting or restarting it.
+     */
     unarchiveSession(sessionId: string): SessionRecord {
         return this.db.transaction(() => {
             const session = this.db.sessions.get(sessionId);
@@ -439,7 +492,9 @@ export class CaxriDatabase {
         return this.db.transaction(() => this.insertTerminal(sessionId, kind, cwd));
     }
 
-    /** Atomically binds a durable dispatch receipt to its new Terminal before any PTY can spawn. */
+    /**
+     * Atomically binds a durable dispatch receipt to its new Terminal before any PTY can spawn.
+     */
     createAgentDispatchWithTerminal(
         input: NewAgentDispatchReceipt,
         kind: AgentProvider,
@@ -480,40 +535,6 @@ export class CaxriDatabase {
 
     agentDispatchesForTerminal(terminalId: string): StoredAgentDispatchReceipt[] {
         return this.db.agentDispatchReceipts.forTerminal(terminalId);
-    }
-
-    private assertTerminalCapacity(sessionId?: string): void {
-        if (this.db.terminals.countAll() >= MAX_TERMINALS_GLOBAL)
-            throw new CaxriError(
-                'CAPACITY',
-                `Caxri supports at most ${MAX_TERMINALS_GLOBAL} Terminals`,
-            );
-        if (
-            sessionId &&
-            this.db.terminals.countForSession(sessionId) >= MAX_TERMINALS_PER_SESSION
-        ) {
-            throw new CaxriError(
-                'CAPACITY',
-                `A Session supports at most ${MAX_TERMINALS_PER_SESSION} Terminals`,
-            );
-        }
-    }
-
-    private insertTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {
-        const session = this.db.sessions.get(sessionId);
-        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-        const ownerProject = this.db.projects.get(session.projectId);
-        if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
-        this.assertTerminalCapacity(sessionId);
-        const terminal = this.db.terminals.insert({
-            sessionId,
-            kind,
-            cwd: cwd ?? ownerProject.rootPath,
-            title: defaultTerminalTitle(kind),
-        });
-        const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
-        if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
-        return terminal;
     }
 
     updateTerminalState(

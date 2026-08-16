@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { TerminalImageStatus } from './terminal-images';
 import {
     TERMINAL_IMAGE_GLOBAL_STORAGE_LIMIT_MB,
     TERMINAL_IMAGE_SEQUENCE_LIMIT_BYTES,
     TERMINAL_IMAGE_STORAGE_LIMIT_MB,
-    TerminalImageBudgetManager,
     terminalImageAddonOptions,
-    type TerminalImageStatus,
+    TerminalImageBudgetManager,
 } from './terminal-images';
 
 function createImageAddon(storageUsage = 0) {

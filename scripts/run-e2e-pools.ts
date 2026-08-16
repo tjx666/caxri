@@ -1,42 +1,46 @@
 #!/usr/bin/env bun
 
+import { spawn } from 'node:child_process';
 import { appendFile, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { spawn } from 'node:child_process';
+import process from 'node:process';
 
 import {
     acquireDesktopLease,
     inspectDesktopLease,
     releaseDesktopLease,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
-import { createE2EPoolPlan, type E2EPoolInvocation } from '../e2e/support/pools';
+import type { E2EPoolInvocation } from '../e2e/support/pools';
+import { createE2EPoolPlan } from '../e2e/support/pools';
+import type { E2EPoolReceipt } from './reporters/e2e-receipt-reporter';
 import {
-    assertE2EPoolReceipt,
     assertE2EPoolCensusComplete,
+    assertE2EPoolReceipt,
     createE2EPoolReceipt,
-    type E2EPoolReceipt,
 } from './reporters/e2e-receipt-reporter';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const parallelWorkers = 2;
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
 export type E2EPool = 'control' | 'desktop-exclusive' | 'parallel-safe';
 
-export function parseE2EPool(args: readonly string[]): E2EPool {
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
+export function parseE2EPool(arguments_: readonly string[]): E2EPool {
     if (
-        args.length !== 2 ||
-        args[0] !== '--pool' ||
-        !['control', 'desktop-exclusive', 'parallel-safe'].includes(args[1])
+        arguments_.length !== 2 ||
+        arguments_[0] !== '--pool' ||
+        !['control', 'desktop-exclusive', 'parallel-safe'].includes(arguments_[1])
     ) {
         throw new Error('Usage: run-e2e-pools.ts --pool <control|parallel-safe|desktop-exclusive>');
     }
-    return args[1] as E2EPool;
+    return arguments_[1] as E2EPool;
 }
 
 async function discoverE2ESpecs(): Promise<string[]> {
     return (await readdir(resolve(projectRoot, 'e2e'), { withFileTypes: true }))
         .filter((entry) => entry.isFile() && entry.name.endsWith('.e2e.ts'))
         .map((entry) => `e2e/${entry.name}`)
-        .sort();
+        .toSorted((left, right) => left.localeCompare(right));
 }
 
 async function runInvocation(
@@ -45,7 +49,7 @@ async function runInvocation(
     workers: number,
     receiptPath: string,
     coordinatorToken?: string,
-    census = false,
+    isCensus = false,
     outputSuffix?: string,
 ): Promise<number> {
     const child = spawn(
@@ -55,7 +59,7 @@ async function runInvocation(
             'test',
             ...invocation.specs,
             `--workers=${workers}`,
-            ...(census ? ['--max-failures=1'] : []),
+            ...(isCensus ? ['--max-failures=1'] : []),
             '--reporter=line,./scripts/reporters/e2e-receipt-reporter.ts',
         ],
         {
@@ -65,17 +69,18 @@ async function runInvocation(
                 CAXRI_E2E_OUTPUT_DIR: `test-results/${pool}${outputSuffix ? `/${outputSuffix}` : ''}`,
                 CAXRI_E2E_POOL: pool,
                 CAXRI_E2E_RECEIPT_PATH: receiptPath,
-                ...(coordinatorToken ? { CAXRI_E2E_COORDINATOR_TOKEN: coordinatorToken } : {}),
+                ...(coordinatorToken && { CAXRI_E2E_COORDINATOR_TOKEN: coordinatorToken }),
             },
             stdio: 'inherit',
         },
     );
-    return await new Promise<number>((resolveExit, reject) => {
+    return await new Promise<number>((resolve, reject) => {
         child.once('error', reject);
-        child.once('exit', (code, signal) => resolveExit(code ?? (signal ? 1 : 0)));
+        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
     });
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
 export function combinePoolReceipts(
     pool: E2EPool,
     receipts: readonly E2EPoolReceipt[],
@@ -92,15 +97,19 @@ export function combinePoolReceipts(
         finishedAt:
             receipts
                 .map((receipt) => receipt.finishedAt)
-                .sort()
+                .toSorted((left, right) => left.localeCompare(right))
                 .at(-1) ?? '',
         pool,
-        startedAt: receipts.map((receipt) => receipt.startedAt).sort()[0] ?? '',
+        startedAt:
+            receipts
+                .map((receipt) => receipt.startedAt)
+                .toSorted((left, right) => left.localeCompare(right))[0] ?? '',
         tests,
     });
     return combined;
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/run-e2e-census-fixture.ts and scripts/__tests__/e2e-pools.test.ts
 export function mergeCensusReceipts(
     initial: E2EPoolReceipt,
     census: readonly E2EPoolReceipt[],
@@ -128,11 +137,11 @@ export function mergeCensusReceipts(
         finishedAt:
             [initial, ...census]
                 .map(({ finishedAt }) => finishedAt)
-                .sort()
+                .toSorted((left, right) => left.localeCompare(right))
                 .at(-1) ?? initial.finishedAt,
         pool: initial.pool,
         startedAt: initial.startedAt,
-        tests: [...tests.values()],
+        tests: tests.values().toArray(),
     });
     assertE2EPoolCensusComplete(merged);
     return merged;
@@ -155,7 +164,11 @@ async function runPool(
         (_invocation, index) => `test-results/receipts/${pool}-${index}.json`,
     );
     let result = 0;
+    // Only one Electron/Desktop-driving Playwright invocation may run at a time (see
+    // AGENTS.md: "Never run Electron desktop tasks concurrently"), so pool invocations
+    // must execute sequentially rather than via Promise.all.
     for (const [index, invocation] of invocations.entries()) {
+        // eslint-disable-next-line no-await-in-loop -- sequential Electron desktop invocations only
         const code = await runInvocation(
             invocation,
             pool,
@@ -172,13 +185,13 @@ async function runPool(
     );
     const receipt = combinePoolReceipts(pool, receipts);
     const censusReceipts: E2EPoolReceipt[] = [];
-    for (const [index, test] of receipt.tests
-        .filter(({ verdict }) => verdict === 'unknown')
-        .entries()) {
+    const unknownTests = receipt.tests.filter(({ verdict }) => verdict === 'unknown').entries();
+    for (const [index, test] of unknownTests) {
         const censusPath = `test-results/receipts/${pool}-census-${index}.json`;
         const file = test.location.replace(/:\d+:\d+$/u, '');
         const location = isAbsolute(file) ? relative(projectRoot, file) : file;
         const line = /:(\d+):\d+$/u.exec(test.location)?.[1];
+        // eslint-disable-next-line no-await-in-loop -- sequential Electron desktop invocations only
         await runInvocation(
             { specs: [`${location}:${line ?? '1'}`] },
             pool,
@@ -188,6 +201,7 @@ async function runPool(
             true,
             `census-${index}`,
         );
+        // eslint-disable-next-line no-await-in-loop -- reads the receipt just written by the preceding sequential invocation
         censusReceipts.push(JSON.parse(await readFile(censusPath, 'utf8')) as E2EPoolReceipt);
     }
     const finalReceipt = mergeCensusReceipts(receipt, censusReceipts);
@@ -196,15 +210,20 @@ async function runPool(
 }
 
 async function assertParallelLeasesReleased(): Promise<void> {
-    for (let index = 0; index < parallelWorkers; index += 1) {
-        const namespace = `e2e-worker-${index}`;
-        const status = await inspectDesktopLease(projectRoot, { namespace });
+    const namespaces = Array.from(
+        { length: parallelWorkers },
+        (_value, index) => `e2e-worker-${index}`,
+    );
+    const statuses = await Promise.all(
+        namespaces.map((namespace) => inspectDesktopLease(projectRoot, { namespace })),
+    );
+    statuses.forEach((status, index) => {
         if (status.state !== 'free') {
             throw new Error(
-                `Parallel E2E worker ${index} left a ${status.state} ${namespace} lease`,
+                `Parallel E2E worker ${index} left a ${status.state} ${namespaces[index]} lease`,
             );
         }
-    }
+    });
 }
 
 async function appendSummary(
@@ -217,7 +236,13 @@ async function appendSummary(
     if (!summary) return;
     const invocations =
         pool === 'control'
-            ? [{ specs: [...plan.parallelSafe, ...plan.desktopExclusive].sort() }]
+            ? [
+                  {
+                      specs: [...plan.parallelSafe, ...plan.desktopExclusive].toSorted(
+                          (left, right) => left.localeCompare(right),
+                      ),
+                  },
+              ]
             : pool === 'parallel-safe'
               ? plan.parallelSafeInvocations
               : plan.desktopExclusiveInvocations;
@@ -241,7 +266,13 @@ async function main(): Promise<void> {
     const plan = createE2EPoolPlan(await discoverE2ESpecs());
     const invocations =
         pool === 'control'
-            ? [{ specs: [...plan.parallelSafe, ...plan.desktopExclusive].sort() }]
+            ? [
+                  {
+                      specs: [...plan.parallelSafe, ...plan.desktopExclusive].toSorted(
+                          (left, right) => left.localeCompare(right),
+                      ),
+                  },
+              ]
             : pool === 'parallel-safe'
               ? plan.parallelSafeInvocations
               : plan.desktopExclusiveInvocations;

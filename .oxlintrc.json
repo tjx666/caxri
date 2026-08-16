@@ -1,0 +1,113 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "plugins": ["typescript", "unicorn", "oxc", "import", "jsdoc", "promise", "node"],
+    "categories": {
+        "correctness": "error",
+        "suspicious": "error",
+        "pedantic": "off",
+        "perf": "warn",
+        "style": "off",
+        "restriction": "off",
+        "nursery": "off"
+    },
+    "env": {
+        "builtin": true
+    },
+    "ignorePatterns": [
+        "**/dist/**",
+        "logs",
+        "out",
+        "release",
+        "node_modules",
+        ".records/**",
+        "test-results",
+        "competitors/**",
+        "**/*.sh",
+        "scripts/fixtures/eslint/**",
+        "scripts/fixtures/markdown/**",
+        ".claude/**"
+    ],
+    "rules": {
+        "unicorn/filename-case": ["error", { "case": "kebabCase" }],
+        "typescript/consistent-type-imports": "error",
+        "typescript/no-misused-promises": ["error", { "checksVoidReturn": false }],
+        "typescript/no-floating-promises": "error",
+        "max-lines": ["error", { "max": 800, "skipBlankLines": false, "skipComments": false }],
+        "react/rules-of-hooks": "error",
+        "react/hook-use-state": "off",
+        "node/no-sync": "off",
+        "no-restricted-imports": [
+            "error",
+            {
+                "paths": [
+                    {
+                        "name": "child_process",
+                        "importNames": ["exec", "execSync"],
+                        "message": "child_process exec/execSync run an arbitrary shell string; use structured argv spawn/execFile instead."
+                    },
+                    {
+                        "name": "node:child_process",
+                        "importNames": ["exec", "execSync"],
+                        "message": "child_process exec/execSync run an arbitrary shell string; use structured argv spawn/execFile instead."
+                    }
+                ]
+            }
+        ]
+    },
+    "overrides": [
+        {
+            "files": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "electron",
+                                "message": "The renderer must never import Electron APIs directly; use the typed window.caxri bridge."
+                            },
+                            {
+                                "name": "node-pty",
+                                "message": "The renderer must never import native modules directly; use the typed window.caxri bridge."
+                            },
+                            {
+                                "name": "better-sqlite3",
+                                "message": "The renderer must never import native modules directly; use the typed window.caxri bridge."
+                            },
+                            {
+                                "name": "fs",
+                                "message": "The renderer must never import Node.js builtins directly; use the typed window.caxri bridge."
+                            },
+                            {
+                                "name": "path",
+                                "message": "The renderer must never import Node.js builtins directly; use the typed window.caxri bridge."
+                            },
+                            {
+                                "name": "child_process",
+                                "message": "The renderer must never import Node.js builtins directly; use the typed window.caxri bridge."
+                            },
+                            {
+                                "name": "os",
+                                "message": "The renderer must never import Node.js builtins directly; use the typed window.caxri bridge."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": [
+                "src/main/**/*.ts",
+                "src/runtime/**/*.ts",
+                "src/shared/node/**/*.ts",
+                "packages/cli/src/**/*.ts",
+                "scripts/**/*.ts",
+                ".agents/**/scripts/**/*.ts"
+            ],
+            "excludeFiles": ["**/*.test.ts", "**/__tests__/**"],
+            "rules": {
+                "node/no-sync": "error"
+            }
+        }
+    ]
+}

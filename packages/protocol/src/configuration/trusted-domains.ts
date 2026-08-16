@@ -17,12 +17,14 @@ function canonicalizeUrl(url: URL): URL | undefined {
     const hostname = normalizedHostname(url.hostname);
     if (!hostname) return;
     if (hostname === url.hostname) return url;
-    const canonical = new URL(url.toString());
+    const canonical = new URL(url.href);
     canonical.hostname = hostname;
     return canonical;
 }
 
-/** Parses the only URL class Caxri may send to the operating system. */
+/**
+ * Parses the only URL class Caxri may send to the operating system.
+ */
 export function parseExternalHttpUrl(input: string): ExternalHttpUrlResult {
     let parsed: URL;
     try {
@@ -39,7 +41,9 @@ export function parseExternalHttpUrl(input: string): ExternalHttpUrlResult {
     return canonical ? { ok: true, url: canonical } : { ok: false, reason: 'invalid_url' };
 }
 
-/** Returns a canonical exact-origin rule without path, query, fragment, or user information. */
+/**
+ * Returns a canonical exact-origin rule without path, query, fragment, or user information.
+ */
 export function externalUrlOrigin(url: URL): string {
     const canonical = canonicalizeUrl(url);
     if (!canonical) return '';
@@ -54,7 +58,9 @@ function hasOriginOnly(url: URL): boolean {
     return !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash;
 }
 
-/** Canonicalizes one persisted exact-origin or explicit subdomain-wildcard rule. */
+/**
+ * Canonicalizes one persisted exact-origin or explicit subdomain-wildcard rule.
+ */
 export function normalizeTrustedDomainRule(input: string): string | undefined {
     const value = input.trim();
     if (!value || value.length > MAX_TRUSTED_DOMAIN_LENGTH) return;
@@ -82,11 +88,15 @@ export function normalizeTrustedDomainRule(input: string): string | undefined {
     return externalUrlOrigin(parsed.url);
 }
 
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
 function isLoopback(hostname: string): boolean {
-    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+    return LOOPBACK_HOSTNAMES.has(hostname);
 }
 
-/** Matches Main-validated URLs against bounded, independently normalized persisted rules. */
+/**
+ * Matches Main-validated URLs against bounded, independently normalized persisted rules.
+ */
 export function isExternalUrlTrusted(url: URL, rules: readonly string[]): boolean {
     const origin = externalUrlOrigin(url);
     if (!origin || isLoopback(url.hostname)) return Boolean(origin);

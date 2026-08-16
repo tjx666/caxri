@@ -1,9 +1,8 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { launchCaxri, openAddProjectDialog } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -36,7 +35,11 @@ test('Files inspector renders local file, folder, open, and fallback icons', asy
         await running.page.getByRole('treeitem', { name: '.github', exact: true }).click();
         await expect(running.page.locator('[data-file-icon="folder-github-open"]')).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { openExternalUrl, type ExternalOpenDecision } from '../external-links';
+import type { ExternalOpenDecision } from '../external-links';
+import { openExternalUrl } from '../external-links';
 
 function dependencies(decision: ExternalOpenDecision = 'open_once') {
     return {
@@ -122,7 +123,7 @@ describe('openExternalUrl', () => {
         const target = dependencies();
         target.open.mockRejectedValueOnce(new Error('browser unavailable'));
 
-        await expect(openExternalUrl('http://example.com', target, ALLOW_TRUST)).rejects.toThrow(
+        await expect(openExternalUrl('https://example.com', target, ALLOW_TRUST)).rejects.toThrow(
             'browser unavailable',
         );
     });

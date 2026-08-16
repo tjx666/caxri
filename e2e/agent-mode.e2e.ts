@@ -1,10 +1,10 @@
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
+import { realCodexSmokeArguments } from './support/agent-fixture.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-
-import { realCodexSmokeArgs } from './support/agent-fixture.ts';
 import {
     createProjectSession,
     createShellSession,
@@ -12,6 +12,15 @@ import {
     pageRequest,
     typeTerminal,
 } from './support/helpers.ts';
+
+async function isPathPresent(path: string): Promise<boolean> {
+    try {
+        await stat(path);
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 test('the default E2E launch cannot resolve a host Agent executable', async () => {
     allowE2EErrors([
@@ -48,13 +57,7 @@ test('the default E2E launch cannot resolve a host Agent executable', async () =
         await expect(
             running.page.getByText('Agent CLI executable was not found', { exact: true }),
         ).toBeVisible();
-        await expect
-            .poll(() =>
-                stat(launchMarker)
-                    .then(() => true)
-                    .catch(() => false),
-            )
-            .toBe(false);
+        await expect.poll(() => isPathPresent(launchMarker)).toBe(false);
         const launchRecord = (await readFile(join(userData, 'logs', 'main.jsonl'), 'utf8'))
             .split('\n')
             .filter(Boolean)
@@ -72,7 +75,11 @@ test('the default E2E launch cannot resolve a host Agent executable', async () =
         });
         expect(JSON.stringify(launchRecord)).not.toContain(launchMarker);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -104,15 +111,13 @@ test('the blocked E2E mode shadows host Agents inside a Shell Terminal', async (
         await createShellSession(running.page);
         await typeTerminal(running.page, 'codex');
         await expect(running.page.locator('.xterm-rows')).toContainText('Caxri E2E blocked codex');
-        await expect
-            .poll(() =>
-                stat(launchMarker)
-                    .then(() => true)
-                    .catch(() => false),
-            )
-            .toBe(false);
+        await expect.poll(() => isPathPresent(launchMarker)).toBe(false);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -187,13 +192,7 @@ test('real mode rejects unsafe launch args and interactive Agent input', async (
         await expect(
             running.page.getByText('Terminal process could not be started', { exact: true }),
         ).toBeVisible();
-        await expect
-            .poll(() =>
-                stat(launchMarker)
-                    .then(() => true)
-                    .catch(() => false),
-            )
-            .toBe(false);
+        await expect.poll(() => isPathPresent(launchMarker)).toBe(false);
 
         const prompt = 'Read README.md and report its heading. Do not modify any files.';
         await pageRequest(running.page, 'settings.update', {
@@ -201,7 +200,7 @@ test('real mode rejects unsafe launch args and interactive Agent input', async (
                 'agents.providers': {
                     codex: {
                         hooks: { enabled: false },
-                        launch: { executable: 'codex', args: realCodexSmokeArgs(prompt) },
+                        launch: { executable: 'codex', args: realCodexSmokeArguments(prompt) },
                     },
                 },
             }),
@@ -217,18 +216,16 @@ test('real mode rejects unsafe launch args and interactive Agent input', async (
         await expect(
             pageRequest(running.page, 'terminal.input', {
                 terminalId: bootstrap.terminals[0].id,
-                data: '\u0003',
+                data: '\u{3}',
             }),
         ).rejects.toThrow('VALIDATION: Real Agent E2E does not accept interactive Terminal input');
-        await expect
-            .poll(() =>
-                stat(inputMarker)
-                    .then(() => true)
-                    .catch(() => false),
-            )
-            .toBe(false);
+        await expect.poll(() => isPathPresent(inputMarker)).toBe(false);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -283,15 +280,13 @@ test('real mode cannot bypass its Agent policy through a Shell Terminal', async 
         await expect(
             running.page.getByText('Terminal process could not be started', { exact: true }),
         ).toBeVisible();
-        await expect
-            .poll(() =>
-                stat(launchMarker)
-                    .then(() => true)
-                    .catch(() => false),
-            )
-            .toBe(false);
+        await expect.poll(() => isPathPresent(launchMarker)).toBe(false);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

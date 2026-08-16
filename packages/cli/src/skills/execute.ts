@@ -1,35 +1,37 @@
+import { Buffer } from 'node:buffer';
 import { createHash, randomUUID } from 'node:crypto';
 import { realpath, rename } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
-import {
-    CaxriError,
-    type AgentSkillHealth,
-    type AgentSkillInstallationHealth,
-    type AgentSkillScope,
+import type {
+    AgentSkillHealth,
+    AgentSkillInstallationHealth,
+    AgentSkillScope,
 } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
+import { CLI_PROTOCOL_VERSION, CLI_VERSION } from '../version';
 import { CAXRI_SKILL_FILES } from './caxri-skill.generated';
+import type { ManagedSkillBundle, ManagedSkillLayout } from './filesystem';
 import {
     assertManagedLayoutUnchanged,
     assertSafeLocalTarget,
     inspectManagedSkill,
     installManagedSkill,
-    type ManagedSkillBundle,
-    type ManagedSkillLayout,
     prepareSkillParent,
     removeManagedSkillTree,
     updateManagedSkill,
     withSkillMutationLock,
 } from './filesystem';
-import { CLI_PROTOCOL_VERSION, CLI_VERSION } from '../version';
 
 const CURRENT_MARKER_SCHEMA = 1;
 const MANAGED_BY = 'caxri';
 const MARKER_FILE = '.caxri-skill.json';
 const MAX_MANAGED_FILES = 16;
 const SKILL_NAME = 'caxri-cli';
-const managedFileNames = Object.keys(CAXRI_SKILL_FILES).sort();
+const managedFileNames = Object.keys(CAXRI_SKILL_FILES).toSorted((left, right) =>
+    left.localeCompare(right),
+);
 
 type SkillInstallScope = AgentSkillScope;
 type SkillProvider = 'claude' | 'codex';
@@ -80,7 +82,8 @@ interface InspectedSkill {
 
 function hashFiles(files: Readonly<Record<string, string>>): string {
     const hash = createHash('sha256');
-    for (const name of Object.keys(files).sort()) {
+    const names = Object.keys(files).toSorted((left, right) => left.localeCompare(right));
+    for (const name of names) {
         const content = files[name];
         hash.update(`${name}\0${Buffer.byteLength(content)}\0`);
         hash.update(content);
@@ -161,24 +164,22 @@ function statusValue(
         action,
         bundledVersion: CLI_VERSION,
         compatible: status === 'compatible',
-        ...(marker
-            ? {
-                  contentHash: marker.contentHash,
-                  installedSchemaVersion: marker.schemaVersion,
-                  installedVersion: marker.installedVersion,
-              }
-            : {}),
+        ...(marker && {
+            contentHash: marker.contentHash,
+            installedSchemaVersion: marker.schemaVersion,
+            installedVersion: marker.installedVersion,
+        }),
         name: SKILL_NAME,
         protocolVersion: CLI_PROTOCOL_VERSION,
         provider: selection.provider,
         reason,
-        ...(repairCommand ? { repairCommand } : {}),
+        ...(repairCommand && { repairCommand }),
         scope: selection.scope,
         status,
     };
 }
 
-function safeManagedPath(name: string): boolean {
+function isSafeManagedPath(name: string): boolean {
     if (!name || name.startsWith('/') || name.includes('\0') || name.split('/').includes('..'))
         return false;
     const normalized = name.split('/').filter(Boolean).join('/');
@@ -199,7 +200,7 @@ function parseMarker(source: string): InstalledSkillMarker | undefined {
         record.schemaVersion !== CURRENT_MARKER_SCHEMA ||
         record.managedBy !== MANAGED_BY ||
         record.name !== SKILL_NAME ||
-        !Number.isInteger(record.protocolVersion) ||
+        !Number.isSafeInteger(record.protocolVersion) ||
         Number(record.protocolVersion) < 1 ||
         Number(record.protocolVersion) > 1_000_000 ||
         typeof record.installedVersion !== 'string' ||
@@ -209,8 +210,8 @@ function parseMarker(source: string): InstalledSkillMarker | undefined {
         !Array.isArray(files) ||
         files.length === 0 ||
         files.length > MAX_MANAGED_FILES ||
-        !files.every(
-            (name) => typeof name === 'string' && name.length <= 240 && safeManagedPath(name),
+        files.some(
+            (name) => !(typeof name === 'string' && name.length <= 240 && isSafeManagedPath(name)),
         ) ||
         new Set(files).size !== files.length
     )
@@ -228,7 +229,7 @@ function semver(source: string): Semver | undefined {
     if (!match) return undefined;
     return {
         core: [Number(match[1]), Number(match[2]), Number(match[3])],
-        ...(match[4] ? { prerelease: match[4] } : {}),
+        ...(match[4] && { prerelease: match[4] }),
     };
 }
 
@@ -329,8 +330,8 @@ async function inspectSkill(
         const value = statusValue(
             selection,
             'conflict',
-            Number.isInteger(schemaVersion) ? 'unknown-schema' : 'invalid-marker',
-            Number.isInteger(schemaVersion)
+            Number.isSafeInteger(schemaVersion) ? 'unknown-schema' : 'invalid-marker',
+            Number.isSafeInteger(schemaVersion)
                 ? `Use a Caxri CLI that supports installed marker schema ${String(schemaVersion)}; this CLI will not overwrite it.`
                 : 'Preserve this entry and inspect its invalid Caxri marker manually.',
         );
@@ -341,17 +342,19 @@ async function inspectSkill(
             value: {
                 ...value,
                 ...(Number.isSafeInteger(schemaVersion) &&
-                Number(schemaVersion) >= 1 &&
-                Number(schemaVersion) <= 1_000_000
-                    ? { installedSchemaVersion: Number(schemaVersion) }
-                    : {}),
-                ...(installedVersion ? { installedVersion } : {}),
+                    Number(schemaVersion) >= 1 &&
+                    Number(schemaVersion) <= 1_000_000 && {
+                        installedSchemaVersion: Number(schemaVersion),
+                    }),
+                ...(installedVersion && { installedVersion }),
             },
         };
     }
 
-    const actualFiles = Object.keys(layout.files).sort();
-    const expectedFiles = marker.files.toSorted();
+    const actualFiles = Object.keys(layout.files).toSorted((left, right) =>
+        left.localeCompare(right),
+    );
+    const expectedFiles = marker.files.toSorted((left, right) => left.localeCompare(right));
     if (
         actualFiles.join('\0') !== expectedFiles.join('\0') ||
         hashFiles(layout.files) !== marker.contentHash
@@ -536,8 +539,8 @@ interface SkillHealthSelection {
 }
 
 /**
- * Uses the same bounded marker and content inspection as the offline CLI while returning only the
- * path-free health projection that Desktop Settings may expose over typed IPC.
+ * Uses the same bounded marker and content inspection as the offline CLI while returning only the path-free health
+ * projection that Desktop Settings may expose over typed IPC.
  */
 export async function inspectBundledSkillHealth(
     context: SkillExecutionContext,
@@ -547,11 +550,13 @@ export async function inspectBundledSkillHealth(
     const scopes = selection.scopes ?? ['local', 'global'];
     const installations = await Promise.all(
         providers.flatMap((provider) =>
-            scopes.map((scope) =>
-                inspectSkill({ name: SKILL_NAME, provider, scope }, context).then(
-                    (inspection) => inspection.value,
-                ),
-            ),
+            scopes.map(async (scope) => {
+                const inspection = await inspectSkill(
+                    { name: SKILL_NAME, provider, scope },
+                    context,
+                );
+                return inspection.value;
+            }),
         ),
     );
     return {
@@ -564,19 +569,21 @@ export async function inspectBundledSkillHealth(
     };
 }
 
-/** Executes an offline bundled-skill command without connecting to a Host or exposing local paths. */
+/**
+ * Executes an offline bundled-skill command without connecting to a Host or exposing local paths.
+ */
 export async function executeSkillCommand(
     action: string,
-    params: unknown,
+    parameters: unknown,
     context: SkillExecutionContext,
 ): Promise<unknown> {
-    const input = params as Record<string, unknown>;
     if (action === 'list') return { skills: [bundledMetadata] };
+    const input = parameters as Record<string, unknown>;
     if (action === 'get') {
         assertBundledName(input.name);
         return {
             ...bundledMetadata,
-            ...(input.full === true ? { content: CAXRI_SKILL_FILES['SKILL.md'] } : {}),
+            ...(input.full === true && { content: CAXRI_SKILL_FILES['SKILL.md'] }),
         };
     }
     if (action === 'status') {
@@ -589,7 +596,12 @@ export async function executeSkillCommand(
         return await inspectBundledSkillHealth(context, { providers, scopes });
     }
     assertBundledName(input.name);
-    if (action === 'install' || action === 'update' || action === 'uninstall')
-        return await mutateSkill(action, input as unknown as SkillSelection, context);
+    const mutationActions: readonly string[] = ['install', 'update', 'uninstall'];
+    if (mutationActions.includes(action))
+        return await mutateSkill(
+            action as 'install' | 'update' | 'uninstall',
+            input as unknown as SkillSelection,
+            context,
+        );
     throw new CaxriError('VALIDATION', `Unknown skills action: ${action}`);
 }

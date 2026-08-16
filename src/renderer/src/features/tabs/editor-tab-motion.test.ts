@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import type { SessionState } from '@shared/types';
+import { describe, expect, it } from 'vitest';
 
 import { pruneEditorTabMotionStates, reconcileEditorTabMotion } from './editor-tab-motion';
 
@@ -59,6 +58,6 @@ describe('Editor tab motion identity', () => {
 
         pruneEditorTabMotionStates(states, ['live']);
 
-        expect([...states.keys()]).toEqual(['live']);
+        expect(states.keys().toArray()).toEqual(['live']);
     });
 });

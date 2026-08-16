@@ -5,12 +5,11 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
-async function initializeRepository(path: string, branch = 'main'): Promise<void> {
+async function initializeRepo(path: string, branch = 'main'): Promise<void> {
     await execFileAsync('mkdir', ['-p', path]);
     await execFileAsync('git', ['init', '-b', branch], { cwd: path });
     await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: path });
@@ -27,14 +26,18 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const nested = join(root, 'nested');
-    await initializeRepository(root);
+    await initializeRepo(root);
     await execFileAsync('mkdir', ['-p', join(root, 'scope')]);
     for (let index = 1; index <= 7; index += 1) {
         const directory = index === 1 || index === 7 ? 'scope' : '.';
+        // Each iteration commits on top of the previous one to build a real, ordered Git history;
+        // the commits must land sequentially, not concurrently.
+        // eslint-disable-next-line no-await-in-loop
         await writeFile(join(root, directory, `commit-${index}.txt`), `${index}\n`, 'utf8');
+        // eslint-disable-next-line no-await-in-loop
         await commit(root, index === 7 ? 'latest scoped commit' : `commit ${index}`);
     }
-    await initializeRepository(nested, 'nested-main');
+    await initializeRepo(nested, 'nested-main');
     await writeFile(join(nested, 'nested.txt'), 'nested\n', 'utf8');
     await commit(nested, 'nested commit');
     const canonicalRoot = await realpath(root);
@@ -88,7 +91,11 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         await expect(nestedSection.locator('.commit-row')).toContainText('nested commit');
         await expect(primary.locator('.commit-row')).toHaveCount(2);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

@@ -1,20 +1,21 @@
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
+import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultAgentProviderSettings } from '../../../../shared/agents';
 import type { RuntimeEvent } from '../../../../shared/ipc';
 import { StructuredLogger } from '../../../../shared/node/logger';
+import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal } from '../contract';
 import { AgentHookManager, MAX_AGENT_HOOK_CONFIG_BYTES } from '../manager';
-import { codexHookAdapter } from '../../providers/codex/hooks';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
@@ -26,11 +27,15 @@ function parseHooks(source: string): Record<string, unknown[]> {
     return typeof hooks === 'object' && hooks !== null ? (hooks as Record<string, unknown[]>) : {};
 }
 
+async function readHooks(path: string): Promise<Record<string, unknown[]>> {
+    return parseHooks(await readFile(path, 'utf8'));
+}
+
 afterEach(async () => {
     vi.restoreAllMocks();
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingCleanup = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('AgentHookManager', () => {
@@ -108,24 +113,18 @@ describe('AgentHookManager', () => {
             await codexManager.initialize(codexSettings);
             await claudeManager.initialize(claudeSettings);
 
-            expect(
-                parseHooks(await readFile(join(codexHome, 'hooks.json'), 'utf8')),
-            ).toHaveProperty('Stop');
-            expect(
-                parseHooks(await readFile(join(claudeHome, 'settings.json'), 'utf8')),
-            ).toHaveProperty('Stop');
+            expect(await readHooks(join(codexHome, 'hooks.json'))).toHaveProperty('Stop');
+            expect(await readHooks(join(claudeHome, 'settings.json'))).toHaveProperty('Stop');
 
             claudeSettings.codex.hooks.enabled = true;
             await claudeManager.reconcile(claudeSettings);
             codexSettings.codex.hooks.enabled = false;
             await codexManager.reconcile(codexSettings);
-            expect(
-                parseHooks(await readFile(join(codexHome, 'hooks.json'), 'utf8')),
-            ).toHaveProperty('Stop');
+            expect(await readHooks(join(codexHome, 'hooks.json'))).toHaveProperty('Stop');
 
             claudeSettings.codex.hooks.enabled = false;
             await claudeManager.reconcile(claudeSettings);
-            expect(parseHooks(await readFile(join(codexHome, 'hooks.json'), 'utf8'))).toEqual({});
+            expect(await readHooks(join(codexHome, 'hooks.json'))).toEqual({});
         } finally {
             await Promise.all([codexManager.close(), claudeManager.close()]);
         }
@@ -208,7 +207,9 @@ describe('AgentHookManager', () => {
 
         try {
             await manager.initialize(settings);
-            /** Allow the native watcher to deliver any event queued by the initial atomic install. */
+            /**
+             * Allow the native watcher to deliver any event queued by the initial atomic install.
+             */
             await new Promise((resolve) => setTimeout(resolve, 250));
             const callsAfterInitialize = inspect.mock.calls.length;
 
@@ -258,7 +259,7 @@ describe('AgentHookManager', () => {
             settings.codex.hooks.enabled = false;
             await currentManager.reconcile(settings);
 
-            expect(parseHooks(await readFile(join(codexHome, 'hooks.json'), 'utf8'))).toEqual({});
+            expect(await readHooks(join(codexHome, 'hooks.json'))).toEqual({});
         } finally {
             await currentManager.close();
         }
@@ -271,10 +272,7 @@ describe('AgentHookManager', () => {
         const settings = structuredClone(defaultAgentProviderSettings);
         settings.codex.hooks.enabled = true;
         const events: RuntimeEvent[] = [];
-        const signals = vi.fn((signal: AgentLifecycleSignal) => {
-            void signal;
-            return true;
-        });
+        const signals = vi.fn<(signal: AgentLifecycleSignal) => boolean>(() => true);
         const launches = vi.fn();
         const manager = new AgentHookManager({
             environment: {
@@ -287,7 +285,9 @@ describe('AgentHookManager', () => {
             onLaunchStarted: launches,
             onSignal: signals,
             runtimeExecutable: process.execPath,
-            send: (event) => events.push(event),
+            send: (event) => {
+                events.push(event);
+            },
             sharedPath: join(directory, 'shared'),
             userDataPath: join(directory, 'profile'),
         });
@@ -369,7 +369,11 @@ describe('AgentHookManager', () => {
                     terminalId: 'terminal-1',
                 }),
             );
-            expect(Object.keys(signals.mock.calls.at(-1)?.[0] ?? {}).sort()).toEqual([
+            expect(
+                Object.keys(signals.mock.calls.at(-1)?.[0] ?? {}).toSorted((a, b) =>
+                    a.localeCompare(b),
+                ),
+            ).toEqual([
                 'launchId',
                 'phase',
                 'protocolVersion',
@@ -382,7 +386,7 @@ describe('AgentHookManager', () => {
             settings.codex.hooks.enabled = false;
             await manager.reconcile(settings);
             expect(manager.getHealth().codex.kind).toBe('notInstalled');
-            expect(JSON.parse(await readFile(join(codexHome, 'hooks.json'), 'utf8'))).toEqual({});
+            expect(await readHooks(join(codexHome, 'hooks.json'))).toEqual({});
             await execFileAsync(
                 bridge,
                 [

@@ -1,20 +1,15 @@
 import { z } from 'zod';
 
-import {
-    MAX_TRUSTED_DOMAINS,
-    MAX_TRUSTED_DOMAIN_LENGTH,
-} from '../configuration/trusted-domains.js';
-
-import {
-    agentProviderIds,
-    type AgentLaunchSettings,
-    type AgentProvider,
-    type AgentProviderSettings,
-} from '../agent/agents.js';
-import { inspectorModeSchema } from './inspector.js';
-import { workItemSchema } from './work-item.js';
+import type { AgentLaunchSettings, AgentProvider, AgentProviderSettings } from '../agent/agents.js';
+import { agentProviderIds } from '../agent/agents.js';
 import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
+import {
+    MAX_TRUSTED_DOMAIN_LENGTH,
+    MAX_TRUSTED_DOMAINS,
+} from '../configuration/trusted-domains.js';
+import { inspectorModeSchema } from './inspector.js';
 import { terminalLayoutSchema } from './layout.js';
+import { workItemSchema } from './work-item.js';
 
 export const MAX_CONFIGURABLE_FILE_BYTES = 16 * 1024 * 1024;
 
@@ -43,9 +38,9 @@ const processStateSchema = z.enum([
     'interrupted',
 ]);
 /**
- * Distinct causes behind a `failed` Terminal, set only alongside that state. Keep this an enum of
- * codes (not free text) so the Renderer maps each one to actionable copy in
- * `terminal-exit-presentation.ts` without trusting Runtime-authored strings.
+ * Distinct causes behind a `failed` Terminal, set only alongside that state. Keep this an enum of codes (not free text)
+ * so the Renderer maps each one to actionable copy in `terminal-exit-presentation.ts` without trusting Runtime-authored
+ * strings.
  */
 const terminalFailureReasonSchema = z.enum([
     'working_directory_unavailable',
@@ -53,14 +48,12 @@ const terminalFailureReasonSchema = z.enum([
     'spawn_failed',
 ]);
 
-export type { AgentProvider };
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
 export type SessionAttentionKind = z.infer<typeof sessionAttentionKindSchema>;
 export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
 export type ProcessState = z.infer<typeof processStateSchema>;
 export type TerminalFailureReason = z.infer<typeof terminalFailureReasonSchema>;
-export type { InspectorMode } from './inspector.js';
 
 export const projectRecordSchema = z.object({
     id: identifierSchema,
@@ -73,29 +66,47 @@ export const projectRecordSchema = z.object({
 
 export const sessionRecordSchema = z.object({
     id: identifierSchema,
-    /** Durable owner used for Sidebar grouping, Terminal cwd, and Agent authorization. */
+    /**
+     * Durable owner used for Sidebar grouping, Terminal cwd, and Agent authorization.
+     */
     projectId: identifierSchema,
-    /** Independently authorized Project currently used by Files, Editor, and Git. */
+    /**
+     * Independently authorized Project currently used by Files, Editor, and Git.
+     */
     workbenchProjectId: identifierSchema,
-    /** Workbench Project root projected onto the Session read model for path-scoped services. */
+    /**
+     * Workbench Project root projected onto the Session read model for path-scoped services.
+     */
     rootPath: pathSchema,
     createdAt: z.number(),
     lastOpenedAt: z.number(),
-    /** Archived Sessions stay durable and keep their Terminals; only active navigation hides them. */
+    /**
+     * Archived Sessions stay durable and keep their Terminals; only active navigation hides them.
+     */
     archivedAt: z.number().optional(),
-    /** The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty. */
+    /**
+     * The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty.
+     */
     primaryAgentTerminalId: identifierSchema.optional(),
     lastActivityState: agentActivityStateSchema,
-    /** Monotonic generation of reliable Primary Agent attention events. */
+    /**
+     * Monotonic generation of reliable Primary Agent attention events.
+     */
     attentionEpoch: z.number().int().nonnegative(),
-    /** Latest generation acknowledged after the Session was visibly focused. */
+    /**
+     * Latest generation acknowledged after the Session was visibly focused.
+     */
     readAttentionEpoch: z.number().int().nonnegative(),
     lastAttentionKind: sessionAttentionKindSchema.optional(),
-    /** Derived read-model field; SQLite stores only the two epochs above. */
+    /**
+     * Derived read-model field; SQLite stores only the two epochs above.
+     */
     hasUnread: z.boolean(),
     layoutVersion: z.number(),
     displayTitle: z.string(),
-    /** Automatic titles follow the primary Agent; manual titles are owned by the user. */
+    /**
+     * Automatic titles follow the primary Agent; manual titles are owned by the user.
+     */
     titleMode: sessionTitleModeSchema,
 });
 
@@ -111,11 +122,15 @@ export const terminalRecordSchema = z.object({
     layoutNodeId: z.string(),
     agentSessionId: z.string().optional(),
     lastProcessState: processStateSchema,
-    /** Present only when `lastProcessState` is `failed`; see `TerminalFailureReason`. */
+    /**
+     * Present only when `lastProcessState` is `failed`; see `TerminalFailureReason`.
+     */
     failureReason: terminalFailureReasonSchema.optional(),
     createdAt: z.number(),
     updatedAt: z.number(),
-    /** Live Runtime metadata; absent when the PTY is not running. */
+    /**
+     * Live Runtime metadata; absent when the PTY is not running.
+     */
     processId: z.number().optional(),
 });
 
@@ -131,28 +146,36 @@ export const terminalSnapshotSchema = z.object({
 const editorTabStateSchema = z.object({
     path: pathSchema,
     dirty: z.boolean(),
-    /** Missing on legacy state and pinned tabs; only the one replaceable editor sets this. */
+    /**
+     * Missing on legacy state and pinned tabs; only the one replaceable editor sets this.
+     */
     preview: z.literal(true).optional(),
 });
 
 export const sessionStateSchema = z.object({
     sessionId: identifierSchema,
-    /** Scopes every ordinary Editor path in this snapshot to one authorized Workbench Root. */
+    /**
+     * Scopes every ordinary Editor path in this snapshot to one authorized Workbench Root.
+     */
     workbenchProjectId: identifierSchema,
     openTabs: z.array(editorTabStateSchema).max(100),
-    /** The currently focused center-pane WorkItem (Terminal or editor tab); see `resolveActiveWork`. */
+    /**
+     * The currently focused center-pane WorkItem (Terminal or editor tab); see `resolveActiveWork`.
+     */
     activeTab: workItemSchema.optional(),
-    /** Last durable file mutation whose editor remap was applied to this atomic Session snapshot. */
+    /**
+     * Last durable file mutation whose editor remap was applied to this atomic Session snapshot.
+     */
     editorRemapOperationId: identifierSchema.optional(),
     inspectorMode: inspectorModeSchema,
     layout: terminalLayoutSchema,
 });
 
 /**
- * Numeric bounds and defaults for the user-configurable settings below. `appSettingsSchema` stays
- * intentionally unconstrained (it only validates the wire shape); the strict per-field bounds live
- * here so `src/runtime/configuration.ts`'s Runtime-side validation schema can import them instead of
- * re-declaring the same numbers with no compiler link back to this contract.
+ * Numeric bounds and defaults for the user-configurable settings below. `appSettingsSchema` stays intentionally
+ * unconstrained (it only validates the wire shape); the strict per-field bounds live here so
+ * `src/runtime/configuration.ts`'s Runtime-side validation schema can import them instead of re-declaring the same
+ * numbers with no compiler link back to this contract.
  */
 export const SETTINGS_BOUNDS = {
     'terminal.fontSize': { min: 9, max: 32, default: 13 },
@@ -167,7 +190,9 @@ export const SETTINGS_BOUNDS = {
     },
 } as const;
 
-/** VS Code-style defaults for file-tree visibility; dependency and build output stay visible. */
+/**
+ * VS Code-style defaults for file-tree visibility; dependency and build output stay visible.
+ */
 export const DEFAULT_FILES_EXCLUDE = {
     '**/.git': true,
     '**/.hg': true,
@@ -232,7 +257,9 @@ export const appSettingsSchema = z.object({
     'files.maxFileBytes': z.number(),
 });
 
-/** One authorized Project that belongs to the owning repository's linked-worktree topology. */
+/**
+ * One authorized Project that belongs to the owning repository's linked-worktree topology.
+ */
 export const workbenchRootOptionSchema = z.object({
     projectId: identifierSchema,
     displayTitle: z.string().min(1).max(1_024),
@@ -253,7 +280,9 @@ export const persistedWindowStateSchema = z.object({
 
 export const keybindingSchema = z.object({
     key: z.string().min(1).max(100),
-    /** Catalog IDs are {@link CommandId}; unknown values stay visible as custom keybindings. */
+    /**
+     * Catalog IDs are `CommandId` (see `./commands.js`); unknown values stay visible as custom keybindings.
+     */
     command: z.string().min(1).max(200),
 });
 
@@ -262,7 +291,7 @@ export const keybindingConflictSchema = z.object({
     commands: z.array(z.string()),
 });
 
-const hex = z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/);
+const hex = z.string().regex(/^#[0-9a-f]{6}([0-9a-f]{2})?$/i);
 
 export const themeTokensSchema = z.object({
     id: z.string().min(1),
@@ -347,7 +376,9 @@ const fileMutationPhaseSchema = z.enum(['pre_stage', 'staged', 'completed', 'fai
 const fileMutationOperationBase = {
     id: identifierSchema,
     sessionId: identifierSchema,
-    /** Optional only so journals written before Workbench Roots remain recoverable. */
+    /**
+     * Optional only so journals written before Workbench Roots remain recoverable.
+     */
     workbenchProjectId: identifierSchema.optional(),
     phase: fileMutationPhaseSchema,
     startedAt: z.number(),
@@ -360,34 +391,46 @@ const fileMutationOperationBase = {
         .optional(),
 };
 
-/** Durable mutation records let a Renderer reconcile file side effects after an IPC or Runtime gap. */
+const fileNameSchema = z.string().min(1).max(255);
+
+const fileCreateInputSchema = z.object({
+    directory: pathSchema,
+    name: fileNameSchema,
+    kind: z.enum(['file', 'directory']),
+});
+
+const fileRenameInputSchema = z.object({ path: pathSchema, name: fileNameSchema });
+
+const fileMoveConflictSchema = z.enum(['reject', 'rename', 'replace']);
+
+const fileMoveInputSchema = z.object({
+    path: pathSchema,
+    directory: pathSchema,
+    conflict: fileMoveConflictSchema,
+});
+
+/**
+ * Durable mutation records let a Renderer reconcile file side effects after an IPC or Runtime gap.
+ */
 export const fileMutationOperationSchema = z.discriminatedUnion('kind', [
     z.object({
         ...fileMutationOperationBase,
         kind: z.literal('create'),
-        input: z.object({
-            directory: pathSchema,
-            name: z.string().min(1).max(255),
-            kind: z.enum(['file', 'directory']),
-        }),
+        input: fileCreateInputSchema,
         expectedResult: stagedCreatedFileEntrySchema.optional(),
         result: mutableFileEntrySchema.optional(),
     }),
     z.object({
         ...fileMutationOperationBase,
         kind: z.literal('rename'),
-        input: z.object({ path: pathSchema, name: z.string().min(1).max(255) }),
+        input: fileRenameInputSchema,
         expectedResult: stagedMovedFileEntrySchema.optional(),
         result: movedFileEntrySchema.optional(),
     }),
     z.object({
         ...fileMutationOperationBase,
         kind: z.literal('move'),
-        input: z.object({
-            path: pathSchema,
-            directory: pathSchema,
-            conflict: z.enum(['reject', 'rename', 'replace']),
-        }),
+        input: fileMoveInputSchema,
         expectedResult: stagedMovedFileEntrySchema.optional(),
         result: movedFileEntrySchema.optional(),
     }),
@@ -433,7 +476,7 @@ const gitFileStatusSchema = z.object({
     kind: z.enum(['modified', 'added', 'deleted', 'renamed', 'untracked', 'conflicted']),
 });
 
-const gitRepositorySummarySchema = z.object({
+const gitRepoSummarySchema = z.object({
     id: z.string(),
     kind: z.enum(['primary', 'worktree', 'nested', 'submodule']),
     name: z.string(),
@@ -512,13 +555,15 @@ export const terminalResourceUsageSchema = z.object({
 
 export const gitSummarySchema = z.object({
     isRepository: z.boolean(),
-    repositories: z.array(gitRepositorySummarySchema),
+    repositories: z.array(gitRepoSummarySchema),
     error: z.string().optional(),
 });
 
 export const gitBranchSchema = z.object({
     name: z.string().min(1).max(1_024),
-    /** Epoch milliseconds of the branch tip commit's committer date. */
+    /**
+     * Epoch milliseconds of the branch tip commit's committer date.
+     */
     committedAt: z.number().int().nonnegative(),
 });
 
@@ -555,7 +600,7 @@ const projectStatusErrorSchema = z.object({
     hint: z.string(),
 });
 
-const projectStatusRepositorySchema = z.object({
+const projectStatusRepoSchema = z.object({
     id: z.string(),
     kind: z.enum(['primary', 'worktree', 'nested', 'submodule']),
     name: z.string(),
@@ -587,29 +632,29 @@ const projectStatusRepositorySchema = z.object({
 });
 
 export const projectStatusSummarySchema = z.object({
-    repositories: z.array(projectStatusRepositorySchema),
+    repositories: z.array(projectStatusRepoSchema),
     refreshedAt: z.number(),
     error: z.string().optional(),
 });
 
+const projectStatusOverviewPullRequestSchema = z.object({
+    number: z.number().int().positive(),
+    title: z.string(),
+    url: z.url(),
+});
+
+const projectStatusOverviewRepoSchema = z.object({
+    id: z.string(),
+    branch: z.string(),
+    branchUrl: z.url().optional(),
+    changedFileCount: z.number().int().nonnegative(),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    pullRequest: projectStatusOverviewPullRequestSchema.optional(),
+});
+
 export const projectStatusOverviewSchema = z.object({
-    repository: z
-        .object({
-            id: z.string(),
-            branch: z.string(),
-            branchUrl: z.url().optional(),
-            changedFileCount: z.number().int().nonnegative(),
-            additions: z.number().int().nonnegative(),
-            deletions: z.number().int().nonnegative(),
-            pullRequest: z
-                .object({
-                    number: z.number().int().positive(),
-                    title: z.string(),
-                    url: z.url(),
-                })
-                .optional(),
-        })
-        .optional(),
+    repository: projectStatusOverviewRepoSchema.optional(),
     refreshedAt: z.number(),
     error: z.string().optional(),
 });
@@ -630,7 +675,9 @@ const updateVersionFields = {
     fileName: z.string().min(1).max(255),
 };
 
-/** Main-owned update state exposed to the Renderer without leaking download paths or URLs. */
+/**
+ * Main-owned update state exposed to the Renderer without leaking download paths or URLs.
+ */
 export const updateStateSchema = z.discriminatedUnion('status', [
     z.object({ status: z.literal('idle'), currentVersion: updateVersionFields.currentVersion }),
     z.object({ status: z.literal('checking'), currentVersion: updateVersionFields.currentVersion }),
@@ -681,7 +728,9 @@ export const bootstrapStateSchema = z.object({
 
 export interface AgentSnapshot {
     provider: AgentProvider;
-    /** Present only for a provider-owned reliable attention signal, never a process fallback. */
+    /**
+     * Present only for a provider-owned reliable attention signal, never a process fallback.
+     */
     attentionKind?: SessionAttentionKind;
     sessionId?: string;
     title?: string;
@@ -715,7 +764,8 @@ export type FileDocument = z.infer<typeof fileDocumentSchema>;
 export type FileSearchMode = z.infer<typeof fileSearchModeSchema>;
 export type FileSearchMatch = z.infer<typeof fileSearchMatchSchema>;
 export type GitFileStatus = z.infer<typeof gitFileStatusSchema>;
-export type GitRepositorySummary = z.infer<typeof gitRepositorySummarySchema>;
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/renderer and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+export type GitRepositorySummary = z.infer<typeof gitRepoSummarySchema>;
 export type GitSummary = z.infer<typeof gitSummarySchema>;
 export type GitPullRequestChanges = z.infer<typeof gitPullRequestChangesSchema>;
 export type GitCommit = z.infer<typeof gitCommitSchema>;
@@ -730,7 +780,8 @@ export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
 export type ProjectStatusDeployment = z.infer<typeof projectStatusDeploymentSchema>;
 export type ProjectStatusError = z.infer<typeof projectStatusErrorSchema>;
-export type ProjectStatusRepository = z.infer<typeof projectStatusRepositorySchema>;
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/renderer and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+export type ProjectStatusRepository = z.infer<typeof projectStatusRepoSchema>;
 export type ProjectStatusSummary = z.infer<typeof projectStatusSummarySchema>;
 export type ProjectStatusOverview = z.infer<typeof projectStatusOverviewSchema>;
 export type BootstrapState = z.infer<typeof bootstrapStateSchema>;

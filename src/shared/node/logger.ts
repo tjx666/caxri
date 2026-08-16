@@ -1,9 +1,13 @@
+import { Buffer } from 'node:buffer';
 import { appendFileSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { isSecretKey, redactLogValue } from './redaction';
 
-/** Node-only structured JSONL logger; never import from src/renderer. */
+/**
+ * Node-only structured JSONL logger; never import from src/renderer.
+ */
 export interface LogRecord {
     timestamp: string;
     process: 'host' | 'main' | 'runtime';
@@ -12,7 +16,9 @@ export interface LogRecord {
     correlationId?: string;
     durationMs?: number;
     fields?: Record<string, string | number | boolean | null>;
-    /** Build correlation, from `CAXRI_APP_VERSION`/`CAXRI_GIT_COMMIT`; omitted when unset. */
+    /**
+     * Build correlation, from `CAXRI_APP_VERSION`/`CAXRI_GIT_COMMIT`; omitted when unset.
+     */
     appVersion?: string;
     commit?: string;
 }
@@ -40,22 +46,26 @@ function safeFields(fields?: LogRecord['fields']): LogRecord['fields'] {
 }
 
 export class StructuredLogger {
-    readonly path: string;
     private bytesWritten: number;
-    /** Read once at construction, not per-write, since the build stamp never changes at runtime. */
+    /**
+     * Read once at construction, not per-write, since the build stamp never changes at runtime.
+     */
     private readonly appVersion?: string;
     private readonly commit?: string;
+    readonly path: string;
 
     constructor(
         logDirectory: string,
         private readonly processName: LogRecord['process'] = 'runtime',
         private readonly minimumLevel: LogRecord['level'] = 'debug',
     ) {
+        // eslint-disable-next-line n/no-sync -- deliberate: must exist before the first synchronous write() below.
         mkdirSync(logDirectory, { recursive: true });
         this.path = join(logDirectory, `${processName}.jsonl`);
         this.appVersion = process.env.CAXRI_APP_VERSION || undefined;
         this.commit = process.env.CAXRI_GIT_COMMIT || undefined;
         try {
+            // eslint-disable-next-line n/no-sync -- deliberate: this logger is synchronous by design, see class doc.
             this.bytesWritten = statSync(this.path).size;
         } catch {
             this.bytesWritten = 0;
@@ -82,14 +92,17 @@ export class StructuredLogger {
         const line = `${JSON.stringify(record)}\n`;
         if (this.bytesWritten + Buffer.byteLength(line, 'utf8') > MAX_LOG_BYTES) {
             const rotatedPath = `${this.path}.1`;
+            // eslint-disable-next-line n/no-sync -- deliberate: rotation must finish before the write() below.
             rmSync(rotatedPath, { force: true });
             try {
+                // eslint-disable-next-line n/no-sync -- deliberate: see the class doc comment above.
                 renameSync(this.path, rotatedPath);
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
             }
             this.bytesWritten = 0;
         }
+        // eslint-disable-next-line n/no-sync -- deliberate: synchronous by design, durable the instant this returns.
         appendFileSync(this.path, line, { encoding: 'utf8', mode: 0o600 });
         this.bytesWritten += Buffer.byteLength(line, 'utf8');
     }

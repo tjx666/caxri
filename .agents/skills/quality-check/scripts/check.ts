@@ -1,6 +1,8 @@
+import type { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { extname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
@@ -17,9 +19,9 @@ export interface CheckOptions {
     e2e: boolean;
     e2eGrep?: string;
     files: string[];
+    isStaged: boolean;
     knip: boolean;
     lint: boolean;
-    staged: boolean;
     test: boolean;
     type: boolean;
 }
@@ -51,57 +53,73 @@ Selectors:
 
 With no selector, --lint and --test are enabled.`;
 
-export function parseCheckArgs(args: string[]): CheckOptions {
+/**
+ * Applies a single CLI argument to `options` and reports whether the following argument in `arguments_` was consumed as
+ * its value (e.g. `--e2e-grep <pattern>`). Extracted out of the parsing loop so the `switch` cases can `return` instead
+ * of nesting `break` inside a loop.
+ */
+function didConsumeNextCheckArgument(
+    argument: string,
+    nextArgument: string | undefined,
+    options: CheckOptions,
+): boolean {
+    switch (argument) {
+        case '--help':
+        case '-h':
+            throw new CheckError(usage, 0);
+        case '--knip':
+            options.knip = true;
+            return false;
+        case '--e2e':
+            options.e2e = true;
+            return false;
+        case '--e2e-grep': {
+            if (!nextArgument || nextArgument.startsWith('--')) {
+                throw new CheckError('--e2e-grep requires a test-title pattern', 2);
+            }
+            options.e2eGrep = nextArgument;
+            return true;
+        }
+        case '--lint':
+            options.lint = true;
+            return false;
+        case '--staged':
+            options.isStaged = true;
+            return false;
+        case '--test':
+            options.test = true;
+            return false;
+        case '--type':
+            options.type = true;
+            return false;
+        default:
+            if (argument.startsWith('-')) {
+                throw new CheckError(`Unknown option: ${argument}\n\n${usage}`, 2);
+            }
+            options.files.push(argument);
+            return false;
+    }
+}
+
+export function parseCheckArguments(arguments_: string[]): CheckOptions {
     const options: CheckOptions = {
         e2e: false,
         e2eGrep: undefined,
         files: [],
+        isStaged: false,
         knip: false,
         lint: false,
-        staged: false,
         test: false,
         type: false,
     };
 
-    for (let index = 0; index < args.length; index += 1) {
-        const arg = args[index];
-        switch (arg) {
-            case '--help':
-            case '-h':
-                throw new CheckError(usage, 0);
-            case '--knip':
-                options.knip = true;
-                break;
-            case '--e2e':
-                options.e2e = true;
-                break;
-            case '--e2e-grep': {
-                const pattern = args[index + 1];
-                if (!pattern || pattern.startsWith('--')) {
-                    throw new CheckError('--e2e-grep requires a test-title pattern', 2);
-                }
-                options.e2eGrep = pattern;
-                index += 1;
-                break;
-            }
-            case '--lint':
-                options.lint = true;
-                break;
-            case '--staged':
-                options.staged = true;
-                break;
-            case '--test':
-                options.test = true;
-                break;
-            case '--type':
-                options.type = true;
-                break;
-            default:
-                if (arg.startsWith('-')) {
-                    throw new CheckError(`Unknown option: ${arg}\n\n${usage}`, 2);
-                }
-                options.files.push(arg);
-        }
+    for (let index = 0; index < arguments_.length; index += 1) {
+        const isConsumedNext = didConsumeNextCheckArgument(
+            arguments_[index],
+            arguments_[index + 1],
+            options,
+        );
+        if (isConsumedNext) index += 1;
     }
 
     if (options.e2eGrep && !options.e2e) {
@@ -141,6 +159,38 @@ export function lintPipelineForFile(file: string): 'code' | 'format' | undefined
     return undefined;
 }
 
+export interface LintBuckets {
+    codeFiles: string[];
+    markdownFiles: string[];
+    otherFormatFiles: string[];
+}
+
+/**
+ * Splits changed files into the three pipelines this gate runs, so `.md` files match CI's tool ownership split:
+ * markdownlint owns Markdown semantics, Prettier owns formatting for every `FORMAT_EXTENSIONS` file (including `.md`),
+ * and ESLint + Prettier own `CODE_EXTENSIONS`.
+ */
+export function lintBucketsForFiles(files: string[]): LintBuckets {
+    const codeFiles: string[] = [];
+    const markdownFiles: string[] = [];
+    const otherFormatFiles: string[] = [];
+
+    for (const file of files) {
+        const pipeline = lintPipelineForFile(file);
+        if (pipeline === 'code') {
+            codeFiles.push(file);
+        } else if (pipeline === 'format') {
+            if (extname(file).toLowerCase() === '.md') {
+                markdownFiles.push(file);
+            } else {
+                otherFormatFiles.push(file);
+            }
+        }
+    }
+
+    return { codeFiles, markdownFiles, otherFormatFiles };
+}
+
 export function testCandidatesForFile(file: string): string[] {
     const normalized = file.replaceAll('\\', '/');
     if (/\.test\.(?:cts|mts|ts|tsx)$/.test(normalized)) return [normalized];
@@ -166,7 +216,7 @@ export function testCandidatesForFile(file: string): string[] {
     // `runtime.integration.test.ts` for nearly every file directly under `src/runtime/`.
     const directorySegments = directory.split('/').filter(Boolean);
     if (directorySegments.length >= 3) {
-        const domain = directorySegments[directorySegments.length - 1];
+        const domain = directorySegments.at(-1);
         candidates.push(
             ...TEST_EXTENSIONS.flatMap((testExtension) => [
                 posix.join(directory, `${domain}.integration.test${testExtension}`),
@@ -179,11 +229,11 @@ export function testCandidatesForFile(file: string): string[] {
 }
 
 /**
- * Returns whether a test directly imports or re-exports a source file through a relative static
- * specifier. This intentionally does not walk transitive imports: broad runtime suites are much
- * less useful than the tests that name the changed module at their boundary.
+ * Returns whether a test directly imports or re-exports a source file through a relative static specifier. This
+ * intentionally does not walk transitive imports: broad runtime suites are much less useful than the tests that name
+ * the changed module at their boundary.
  */
-export function testDirectlyImportsSource(
+export function hasDirectSourceImport(
     testFile: string,
     testContents: string,
     sourceFile: string,
@@ -243,9 +293,9 @@ async function walkVitestTestFiles(root: string, directory: string): Promise<str
 }
 
 /**
- * Finds only direct static-import tests covered by Vitest's repository include patterns. Dynamic
- * imports and transitive dependency graphs are deliberately excluded so a focused source edit
- * cannot fan out into unrelated integration suites.
+ * Finds only direct static-import tests covered by Vitest's repository include patterns. Dynamic imports and transitive
+ * dependency graphs are deliberately excluded so a focused source edit cannot fan out into unrelated integration
+ * suites.
  */
 export async function directImportTestCandidates(
     root: string,
@@ -271,15 +321,15 @@ export async function directImportTestCandidates(
     );
     return contents
         .filter(({ test, contents }) =>
-            sources.some((source) => testDirectlyImportsSource(test, contents, source)),
+            sources.some((source) => hasDirectSourceImport(test, contents, source)),
         )
         .map(({ test }) => test)
-        .sort();
+        .toSorted((a, b) => a.localeCompare(b));
 }
 
-async function runCapture(command: string, args: string[], cwd: string): Promise<string> {
+async function runCapture(command: string, arguments_: string[], cwd: string): Promise<string> {
     try {
-        const { stdout } = await execFileAsync(command, args, {
+        const { stdout } = await execFileAsync(command, arguments_, {
             cwd,
             encoding: 'utf8',
             maxBuffer: MAX_OUTPUT_BYTES,
@@ -295,7 +345,7 @@ async function runCapture(command: string, args: string[], cwd: string): Promise
     }
 }
 
-async function repositoryRoot(cwd: string): Promise<string> {
+async function repoRoot(cwd: string): Promise<string> {
     return (await runCapture('git', ['rev-parse', '--show-toplevel'], cwd)).trim();
 }
 
@@ -303,20 +353,20 @@ function parseNullSeparated(value: string): string[] {
     return value.split('\0').filter(Boolean);
 }
 
-async function discoverChangedFiles(root: string, staged: boolean): Promise<string[]> {
-    const trackedArgs = staged
+async function discoverChangedFiles(root: string, isStaged: boolean): Promise<string[]> {
+    const trackedArguments = isStaged
         ? ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', '--']
         : ['diff', 'HEAD', '--name-only', '-z', '--diff-filter=ACMR', '--'];
-    const tracked = parseNullSeparated(await runCapture('git', trackedArgs, root));
-    if (staged) return tracked;
+    const tracked = parseNullSeparated(await runCapture('git', trackedArguments, root));
+    if (isStaged) return tracked;
 
     const untracked = parseNullSeparated(
         await runCapture('git', ['ls-files', '--others', '--exclude-standard', '-z', '--'], root),
     );
-    return [...new Set([...tracked, ...untracked])].sort();
+    return [...new Set([...tracked, ...untracked])].toSorted((a, b) => a.localeCompare(b));
 }
 
-function repositoryRelativePath(root: string, cwd: string, input: string): string {
+function repoRelativePath(root: string, cwd: string, input: string): string {
     const absolute = resolve(cwd, input);
     const result = relative(root, absolute);
     if (!result || result === '..' || result.startsWith(`..${sep}`) || isAbsolute(result)) {
@@ -331,33 +381,41 @@ async function existingFiles(root: string, files: string[]): Promise<string[]> {
             try {
                 return (await lstat(join(root, file))).isFile() ? file : undefined;
             } catch {
-                return undefined;
+                return;
             }
         }),
     );
-    return [...new Set(results.filter((file): file is string => Boolean(file)))].sort();
+    return [...new Set(results.filter((file): file is string => Boolean(file)))].toSorted((a, b) =>
+        a.localeCompare(b),
+    );
 }
 
-async function runTool(root: string, executable: string, args: string[]): Promise<void> {
-    await runCapture(join(root, 'node_modules', '.bin', executable), args, root);
+async function runTool(root: string, executable: string, arguments_: string[]): Promise<void> {
+    await runCapture(join(root, 'node_modules', '.bin', executable), arguments_, root);
 }
 
 async function runLint(root: string, files: string[]): Promise<number> {
-    const codeFiles = files.filter((file) => lintPipelineForFile(file) === 'code');
-    const formatFiles = files.filter((file) => lintPipelineForFile(file) === 'format');
+    const { codeFiles, markdownFiles, otherFormatFiles } = lintBucketsForFiles(files);
 
     if (codeFiles.length > 0) {
         await runTool(root, 'eslint', ['--fix', ...codeFiles]);
         await runTool(root, 'prettier', ['--write', ...codeFiles]);
     }
-    if (formatFiles.length > 0) {
+    if (markdownFiles.length > 0) {
+        // markdownlint owns Markdown semantics; run its autofix before Prettier reformats the
+        // same files, since a semantic fix (e.g. wrapping a bare URL) can change line width that
+        // Prettier still needs to reflow.
+        await runTool(root, 'markdownlint-cli2', ['--fix', ...markdownFiles]);
+    }
+    if (markdownFiles.length > 0 || otherFormatFiles.length > 0) {
         await runTool(root, 'prettier', [
             '--write',
             '--no-error-on-unmatched-pattern',
-            ...formatFiles,
+            ...markdownFiles,
+            ...otherFormatFiles,
         ]);
     }
-    return codeFiles.length + formatFiles.length;
+    return codeFiles.length + markdownFiles.length + otherFormatFiles.length;
 }
 
 export async function selectedTestCandidates(root: string, files: string[]): Promise<string[]> {
@@ -380,8 +438,8 @@ async function runTests(root: string, files: string[]): Promise<number> {
 
 async function runE2E(root: string, specs: string[], grep?: string): Promise<number> {
     /**
-     * A focused Electron run must never exercise stale output. Capturing both successful commands
-     * keeps the standard check result compact while runCapture still exposes complete failures.
+     * A focused Electron run must never exercise stale output. Capturing both successful commands keeps the standard
+     * check result compact while runCapture still exposes complete failures.
      */
     await runCapture('bun', ['run', 'build'], root);
     await runTool(root, 'playwright', playwrightArguments(specs, grep));
@@ -389,13 +447,13 @@ async function runE2E(root: string, specs: string[], grep?: string): Promise<num
 }
 
 async function main(): Promise<void> {
-    const options = parseCheckArgs(process.argv.slice(2));
+    const options = parseCheckArguments(process.argv.slice(2));
     const cwd = process.cwd();
-    const root = await repositoryRoot(cwd);
+    const root = await repoRoot(cwd);
     const requestedFiles =
         options.files.length > 0
-            ? options.files.map((file) => repositoryRelativePath(root, cwd, file))
-            : await discoverChangedFiles(root, options.staged);
+            ? options.files.map((file) => repoRelativePath(root, cwd, file))
+            : await discoverChangedFiles(root, options.isStaged);
     const files = await existingFiles(root, requestedFiles);
     const e2eSpecs = options.e2e ? selectE2ESpecs(files, options.files.length > 0) : [];
     const summaries: string[] = [];
@@ -419,14 +477,16 @@ async function main(): Promise<void> {
 
 const currentFile = fileURLToPath(import.meta.url);
 if (process.argv[1] && resolve(process.argv[1]) === currentFile) {
-    void main().catch((error: unknown) => {
+    try {
+        await main();
+    } catch (error) {
         if (error instanceof CheckError) {
             const writer = error.exitCode === 0 ? console.log : console.error;
             writer(error.message);
             process.exitCode = error.exitCode;
-            return;
+        } else {
+            console.error(error);
+            process.exitCode = 1;
         }
-        console.error(error);
-        process.exitCode = 1;
-    });
+    }
 }

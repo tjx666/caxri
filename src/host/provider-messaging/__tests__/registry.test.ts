@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AgentEndpointBeginParams } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
+import type { AgentEndpointBeginParams as AgentEndpointBeginParameters } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
 import type { ProviderMessageAck } from '../../../shared/ipc/provider-messaging-contract';
 import { AgentEndpointRegistry } from '../../agent-endpoints';
 import { ProviderMessagingAdapterRegistry } from '..';
@@ -9,7 +9,7 @@ const TOKEN = 'ab'.repeat(32);
 
 function setup() {
     const endpoints = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
-    const params = {
+    const parameters = {
         terminalId: 'terminal-1',
         sessionId: 'session-1',
         projectId: 'project-1',
@@ -25,13 +25,13 @@ function setup() {
             nextAction: 'none',
             providerVersion: '2.1.231',
         },
-    } satisfies AgentEndpointBeginParams;
-    const endpoint = endpoints.begin(params);
-    if (!endpoints.activate({ ref: endpoint.ref, launchId: params.launchId }))
+    } satisfies AgentEndpointBeginParameters;
+    const endpoint = endpoints.begin(parameters);
+    if (!endpoints.activate({ ref: endpoint.ref, launchId: parameters.launchId }))
         throw new Error('Agent Endpoint activation failed in test setup');
     const summary = endpoints.resolve(endpoint.ref);
     const registry = new ProviderMessagingAdapterRegistry(endpoints);
-    return { endpoint, endpoints, params, registry, summary };
+    return { endpoint, endpoints, params: parameters, registry, summary };
 }
 
 function inbound(to: ReturnType<typeof setup>['endpoint']['ref']) {
@@ -68,11 +68,15 @@ describe('ProviderMessagingAdapterRegistry', () => {
 
         const pending = registry.deliver(inbound(summary.ref));
         await Promise.resolve();
-        let settled = false;
-        void pending.finally(() => {
-            settled = true;
-        });
-        expect(settled).toBe(false);
+        let isSettled = false;
+        pending
+            // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget settlement tracker; `pending` is awaited below
+            .finally(() => {
+                isSettled = true;
+            })
+            // eslint-disable-next-line unicorn/prefer-await -- see comment above
+            .catch(() => {});
+        expect(isSettled).toBe(false);
         const deliveryId = deliver.mock.calls[0]?.[0].deliveryId;
         acknowledge({ deliveryId, outcome: 'accepted' });
         await expect(pending).resolves.toBeUndefined();

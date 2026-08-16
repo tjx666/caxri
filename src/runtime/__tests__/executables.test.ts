@@ -9,9 +9,9 @@ import { ExecutableResolver } from '../executables';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('ExecutableResolver', () => {
@@ -109,6 +109,7 @@ describe('ExecutableResolver', () => {
                 }),
         );
 
+        // eslint-disable-next-line no-await-in-loop -- LRU eviction is order-dependent; resolving concurrently would not exercise least-recently-used ordering.
         for (const name of names) await resolver.resolve(name);
         const directExecutable = join(directBin, names[0]);
         await writeFile(directExecutable, '#!/bin/sh\n');

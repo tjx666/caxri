@@ -1,51 +1,65 @@
+import { Buffer } from 'node:buffer';
 import { lstat, realpath } from 'node:fs/promises';
+import process from 'node:process';
 
 import * as pty from 'node-pty';
 
-import {
-    agentProviderCatalog,
-    type AgentLaunchSettings,
-    type AgentProvider,
-} from '../../shared/agents';
+import type { AgentLaunchSettings } from '../../shared/agents';
+import { agentProviderCatalog } from '../../shared/agents';
 import { CaxriError, errorMessage, toWireError } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
-import type { StructuredLogger } from '../../shared/node/logger';
 import {
     assertE2EAgentInput,
     assertE2EAgentLaunch,
     assertE2EShellLaunch,
     readE2EAgentPolicy,
 } from '../../shared/node/e2e-agent-policy';
+import type { StructuredLogger } from '../../shared/node/logger';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     TerminalFailureReason,
     TerminalKind,
-    ProcessState,
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '../../shared/types';
 import { discoverExecutable } from '../agents';
-import { runtimeProcessEnvironment } from '../executables';
 import type { CaxriDatabase } from '../db';
-import { shutdownOutcome, type ShutdownReason } from '../session-policy';
+import { runtimeProcessEnvironment } from '../executables';
+import type { ShutdownReason } from '../session-policy';
+import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
 import { oscColorReply, TerminalColorQueryResponder } from './color-query';
 import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
+import type {
+    AttachedSizeWaiter,
+    LiveTerminal,
+    TerminalGridSize,
+    TerminalManagerOptions,
+    TerminalStartOptions,
+    TerminalWorkingDirectoryIdentity,
+} from './manager-types';
 import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
 
+export type {
+    TerminalManagerOptions,
+    TerminalStartOptions,
+    TerminalWorkingDirectoryIdentity,
+} from './manager-types';
 export { TerminalRestoreSupervisor } from './restore-supervisor';
 export { ShellIntegrationService } from './shell-integration';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;
 
-/** Clears a possibly-unset timer and returns the `undefined` it should be replaced with. */
+/**
+ * Clears a possibly-unset timer and returns the `undefined` it should be replaced with.
+ */
 function clearScheduledTimer(timer: NodeJS.Timeout | undefined): undefined {
     if (timer) clearTimeout(timer);
-    return undefined;
+    return;
 }
 
 export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
@@ -56,83 +70,6 @@ export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): No
     };
     return environment;
 }
-
-interface LiveTerminal {
-    colorQuery?: TerminalColorQueryResponder;
-    imageRecovery: TerminalImageRecoveryFilter;
-    imageOutput: TerminalImageOutputFilter;
-    process: pty.IPty;
-    record: TerminalRecord;
-    screen: TerminalScreenState;
-    snapshot: TerminalSnapshotBuffer;
-    outputQueue: TerminalOutputQueue;
-    droppedBytes: number;
-    metricOutputBytes: number;
-    metricInputBytes: number;
-    metricDroppedBytes: number;
-    activityTimer?: NodeJS.Timeout;
-    outputTimer?: NodeJS.Timeout;
-    snapshotTimer?: NodeJS.Timeout;
-    metricTimer?: NodeJS.Timeout;
-}
-
-export interface TerminalManagerOptions {
-    resolveExecutable?: (
-        kind: TerminalKind,
-        launchSettings?: AgentLaunchSettings,
-    ) => Promise<string>;
-    agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
-    agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
-    /** Adds generation-scoped, non-secret integration variables immediately before PTY spawn. */
-    lifecycleEnvironment?: (
-        record: TerminalRecord,
-        launch?: AgentLaunchSettings,
-    ) => NodeJS.ProcessEnv | Promise<NodeJS.ProcessEnv>;
-    /** Publishes a prepared generation only after its PTY is registered as live. */
-    onLifecycleStarted?: (record: TerminalRecord) => void | Promise<void>;
-    /** Revokes lifecycle integration for a PTY generation before its durable record can be reused. */
-    onLifecycleRetired?: (terminalId: string) => void | Promise<void>;
-    /** Dispatch receipts observe durable process state without reading Terminal output. */
-    onStateChanged?: (terminalId: string, state: ProcessState) => void;
-    /** Signals raw PTY activity even while no Renderer view is attached; consumers receive no content. */
-    onOutputActivity?: (terminalId: string, processId: number) => void;
-    /** Test seam for exercising retention behavior without parsing the production 2 MiB ceiling. */
-    snapshotMaximumBytes?: number;
-    snapshotIntervalMs?: number;
-    spawn?: typeof pty.spawn;
-    sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
-    shellIntegration?: (
-        executable: string,
-        environment: NodeJS.ProcessEnv,
-    ) => { args: string[]; environment: NodeJS.ProcessEnv } | undefined;
-    /**
-     * Current theme terminal colors used to answer OSC 10/11 default-color queries at the PTY
-     * boundary. Without this, an Agent CLI's short startup color probe (Codex allows ~100ms)
-     * always expires before the Renderer's xterm.js attaches and can reply, so TUIs silently
-     * drop their themed backgrounds. See {@link TerminalColorQueryResponder}.
-     */
-    terminalColors?: () => { background: string; foreground: string };
-}
-
-export interface TerminalWorkingDirectoryIdentity {
-    device: string;
-    inode: string;
-    path: string;
-}
-
-export interface TerminalStartOptions {
-    expectedWorkingDirectory?: TerminalWorkingDirectoryIdentity;
-    resumeAgentSessionId?: string;
-    /** Restore generations use this to abandon stale discovery before it spawns a process. */
-    shouldStart?: () => boolean;
-    /** Cancels a visible restore's grid wait when its restore generation becomes stale. */
-    abortSignal?: AbortSignal;
-    /** Gives a visible restored Terminal time to publish its receiving Renderer grid. */
-    waitForAttachedSizeMs?: number;
-}
-
-type TerminalGridSize = { cols: number; rows: number };
-type AttachedSizeWaiter = () => void;
 
 export class TerminalManager {
     private readonly terminals = new Map<string, LiveTerminal>();
@@ -177,21 +114,15 @@ export class TerminalManager {
         this.terminalColors = options.terminalColors;
     }
 
-    start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
-        if (this.terminals.has(record.id))
-            return Promise.resolve(this.database.getTerminal(record.id)!);
-        return this.starts.run(record.id, () => this.spawn(record, options));
-    }
-
     private async spawn(
         record: TerminalRecord,
         options?: TerminalStartOptions,
     ): Promise<TerminalRecord> {
         const startedAt = performance.now();
         /**
-         * Tracks which spawn stage is in flight so the `catch` below can attach a precise
-         * `TerminalFailureReason` instead of pattern-matching the thrown error's message. Defaults
-         * to the last stage (`spawn_failed`) since a `pty.spawn` failure has no distinct guard.
+         * Tracks which spawn stage is in flight so the `catch` below can attach a precise `TerminalFailureReason`
+         * instead of pattern-matching the thrown error's message. Defaults to the last stage (`spawn_failed`) since a
+         * `pty.spawn` failure has no distinct guard.
          */
         let failureReason: TerminalFailureReason = 'spawn_failed';
         let spawned: pty.IPty | undefined;
@@ -215,9 +146,9 @@ export class TerminalManager {
                 );
             failureReason = 'executable_not_found';
             const executable = await this.resolveExecutable(record.kind, launch);
-            let args = record.kind === 'shell' ? ['-l'] : [...launch!.args];
+            let arguments_ = record.kind === 'shell' ? ['-l'] : [...launch!.args];
             if (record.kind !== 'shell' && options?.resumeAgentSessionId) {
-                args.push(
+                arguments_.push(
                     ...agentProviderCatalog[record.kind].resumeArguments(
                         options.resumeAgentSessionId,
                     ),
@@ -238,7 +169,7 @@ export class TerminalManager {
             failureReason = 'working_directory_unavailable';
             await this.assertWorkingDirectory(record.cwd, options?.expectedWorkingDirectory);
             failureReason = 'spawn_failed';
-            let env = {
+            let environment = {
                 ...(record.kind === 'shell'
                     ? terminalEnvironment()
                     : {
@@ -250,14 +181,16 @@ export class TerminalManager {
             };
             if (record.kind === 'shell') {
                 try {
-                    const integrated = this.shellIntegration?.(executable, env);
+                    const integrated = this.shellIntegration?.(executable, environment);
                     if (integrated) {
-                        args = integrated.args;
-                        env = integrated.environment;
+                        arguments_ = integrated.args;
+                        environment = integrated.environment;
                     }
                 } catch (error) {
-                    /** Shell integration is optional decoration metadata; startup must retain the
-                     *  ordinary login-shell path if its resolver becomes unavailable. */
+                    /**
+                     * Shell integration is optional decoration metadata; startup must retain the ordinary login-shell
+                     * path if its resolver becomes unavailable.
+                     */
                     this.logger.write('warn', 'pty.shell_integration_unavailable', {
                         fields: {
                             terminalId: record.id,
@@ -267,10 +200,12 @@ export class TerminalManager {
                 }
             }
             const storedSnapshot = this.database.getSnapshot(record.id);
-            /** A persisted snapshot can still hold color-query bytes captured by an older build;
-             *  replaying them would make the Renderer's xterm.js emit a stale, unsolicited reply
-             *  into the new process, so they are stripped without answering. */
-            const initialColorQuery = new TerminalColorQueryResponder(() => undefined);
+            /**
+             * A persisted snapshot can still hold color-query bytes captured by an older build; replaying them would
+             * make the Renderer's xterm.js emit a stale, unsolicited reply into the new process, so they are stripped
+             * without answering.
+             */
+            const initialColorQuery = new TerminalColorQueryResponder(() => {});
             const strippedSnapshot = `${initialColorQuery.push(
                 storedSnapshot?.payload ?? '',
             )}${initialColorQuery.finish()}`;
@@ -288,15 +223,17 @@ export class TerminalManager {
                 });
             }
             const initialSize = this.attachedSizes.get(record.id) ?? { cols: 100, rows: 30 };
-            const child = this.spawnProcess(executable, args, {
+            const child = this.spawnProcess(executable, arguments_, {
                 name: 'xterm-256color',
                 cols: initialSize.cols,
                 rows: initialSize.rows,
                 cwd: record.cwd,
-                env,
+                env: environment,
             });
             spawned = child;
-            /** A close or Session deletion can complete while Agent CLI discovery is awaiting the login shell. */
+            /**
+             * A close or Session deletion can complete while Agent CLI discovery is awaiting the login shell.
+             */
             if (!this.database.getTerminal(record.id)) {
                 throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
             }
@@ -309,8 +246,10 @@ export class TerminalManager {
                           slot === 10 ? colors.foreground : colors.background,
                           terminator,
                       );
-                      /** Protocol replies are Runtime-internal, so they bypass `write()`'s E2E
-                       *  agent-input policy; the liveness check drops a reply that raced retire. */
+                      /**
+                       * Protocol replies are Runtime-internal, so they bypass `write()`'s E2E agent-input policy; the
+                       * liveness check drops a reply that raced retire.
+                       */
                       if (!reply || this.terminals.get(record.id)?.process !== child) return;
                       child.write(reply);
                   })
@@ -400,7 +339,9 @@ export class TerminalManager {
         return executable;
     }
 
-    /** Revalidates the authorized cwd immediately before the path-based node-pty spawn. */
+    /**
+     * Revalidates the authorized cwd immediately before the path-based node-pty spawn.
+     */
     private async assertWorkingDirectory(
         path: string,
         expected?: TerminalWorkingDirectoryIdentity,
@@ -430,8 +371,10 @@ export class TerminalManager {
         }, 16);
         const dataBytes = Buffer.byteLength(data, 'utf8');
         live.metricOutputBytes += dataBytes;
-        /** Color queries are answered here and never reach the screen, snapshot, or Renderer —
-         *  a replayed query would otherwise make xterm.js send a duplicate, late reply. */
+        /**
+         * Color queries are answered here and never reach the screen, snapshot, or Renderer — a replayed query would
+         * otherwise make xterm.js send a duplicate, late reply.
+         */
         const filtered = live.colorQuery ? live.colorQuery.push(data) : data;
         const recoveryData = live.imageRecovery.push(filtered);
         live.screen.write(recoveryData);
@@ -478,7 +421,9 @@ export class TerminalManager {
             this.database.saveSnapshot(snapshot);
             live.snapshot.markPersisted();
         } catch (error) {
-            /** Snapshot persistence is recoverable and must never terminate the shared Runtime. */
+            /**
+             * Snapshot persistence is recoverable and must never terminate the shared Runtime.
+             */
             this.logger.write('warn', 'pty.snapshot_failed', {
                 fields: {
                     terminalId: live.record.id,
@@ -510,12 +455,17 @@ export class TerminalManager {
     }
 
     private onExit(live: LiveTerminal, exitCode: number, signal?: number): void {
-        /** onExit always persists the final snapshot; detach persists only when asked to preserve it. */
-        if (!this.retireLiveTerminal(live, { persist: true })) return;
-        /** node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected death. */
-        const exitedNormally = exitCode === 0 && !signal;
-        this.database.updateTerminalState(live.record.id, exitedNormally ? 'stopped' : 'dead');
-        this.onStateChanged?.(live.record.id, exitedNormally ? 'stopped' : 'dead');
+        /**
+         * OnExit always persists the final snapshot; detach persists only when asked to preserve it.
+         */
+        if (!this.retireLiveTerminal(live, { shouldPersist: true })) return;
+        /**
+         * Node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected
+         * death.
+         */
+        const isExitedNormally = exitCode === 0 && !signal;
+        this.database.updateTerminalState(live.record.id, isExitedNormally ? 'stopped' : 'dead');
+        this.onStateChanged?.(live.record.id, isExitedNormally ? 'stopped' : 'dead');
         this.emit({
             event: 'terminal.exit',
             payload: { terminalId: live.record.id, exitCode, signal },
@@ -529,37 +479,6 @@ export class TerminalManager {
         });
     }
 
-    write(terminalId: string, data: string): boolean {
-        const live = this.terminals.get(terminalId);
-        /** Input can already be queued across IPC when a PTY exits; dropping that stale input is an expected lifecycle race. */
-        if (!live) return false;
-        if (live.record.kind !== 'shell')
-            assertE2EAgentInput(readE2EAgentPolicy(), live.record.kind);
-        live.metricInputBytes += Buffer.byteLength(data, 'utf8');
-        live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
-        live.process.write(data);
-        return true;
-    }
-
-    /** Signals only the currently-owned PTY identity captured by the caller. */
-    signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {
-        const live = this.terminals.get(terminalId);
-        if (!live || live.process.pid !== expectedProcessId) return false;
-        live.process.kill(signal);
-        return true;
-    }
-
-    resize(terminalId: string, cols: number, rows: number): boolean {
-        const live = this.terminals.get(terminalId);
-        /** ResizeObserver callbacks may likewise arrive after the PTY has exited or its pane has detached. */
-        if (!live) return false;
-        /** A remounted Renderer forgets its last grid; avoid turning that first measurement into a redundant SIGWINCH. */
-        if (live.process.cols === cols && live.process.rows === rows) return true;
-        live.screen.resize(cols, rows);
-        live.process.resize(cols, rows);
-        return true;
-    }
-
     private waitForAttachedSize(
         terminalId: string,
         timeoutMs: number,
@@ -568,11 +487,17 @@ export class TerminalManager {
         if (this.attachedSizes.has(terminalId) || timeoutMs <= 0 || abortSignal?.aborted)
             return Promise.resolve();
         return new Promise((resolve) => {
-            let completed = false;
+            let isCompleted = false;
+            /**
+             * `setTimeout`'s callback must clear its own timer handle, and `clearTimeout` needs that handle before
+             * `setTimeout` returns it. A boxed reference (rather than a forward-declared `let`) resolves the mutual
+             * dependency without a reassigned binding.
+             */
+            const timerBox: { current?: NodeJS.Timeout } = {};
             const complete = (): void => {
-                if (completed) return;
-                completed = true;
-                clearTimeout(timer);
+                if (isCompleted) return;
+                isCompleted = true;
+                clearTimeout(timerBox.current);
                 abortSignal?.removeEventListener('abort', complete);
                 const waiters = this.attachedSizeWaiters.get(terminalId);
                 waiters?.delete(complete);
@@ -582,7 +507,7 @@ export class TerminalManager {
             const waiters = this.attachedSizeWaiters.get(terminalId) ?? new Set();
             waiters.add(complete);
             this.attachedSizeWaiters.set(terminalId, waiters);
-            const timer = setTimeout(complete, timeoutMs);
+            timerBox.current = setTimeout(complete, timeoutMs);
             abortSignal?.addEventListener('abort', complete, { once: true });
         });
     }
@@ -590,97 +515,30 @@ export class TerminalManager {
     private resolveAttachedSizeWaiters(terminalId: string): void {
         const waiters = this.attachedSizeWaiters.get(terminalId);
         if (!waiters) return;
-        for (const complete of [...waiters]) complete();
+        for (const complete of waiters) complete();
     }
 
-    async attach(
-        terminalId: string,
-        size?: { cols: number; rows: number },
-    ): Promise<TerminalSnapshot | null> {
-        const live = this.terminals.get(terminalId);
-        if (!live && !this.database.getTerminal(terminalId)) return null;
-        /** An interrupted Terminal may attach before its restore spawn. Retain the measured grid so
-         *  the resumed TUI starts at the visible geometry instead of the fallback 100x30 grid. */
-        if (size) {
-            this.attachedSizes.set(terminalId, size);
-            this.resolveAttachedSizeWaiters(terminalId);
-        }
-        /** Serialize at the receiving xterm's grid. Restoring addon-serialize output into another
-         *  size can irreversibly wrap cursor-addressed alternate-screen content. */
-        if (live && size) this.resize(terminalId, size.cols, size.rows);
-        const wasAttached = this.attached.has(terminalId);
-        this.attached.add(terminalId);
-        if (!live) return this.database.getSnapshot(terminalId) ?? null;
-        if (wasAttached) {
-            /** A repeated attach replays the parsed screen, so pending live bytes already included in
-             *  that screen must not also be delivered after the attachment response. */
-            live.outputTimer = clearScheduledTimer(live.outputTimer);
-            live.outputQueue.clear();
-            live.droppedBytes = 0;
-        }
-        return {
-            terminalId,
-            encodingVersion: 2,
-            ...(await live.screen.snapshot()),
-            updatedAt: Date.now(),
-        };
-    }
-
-    detachView(terminalId: string): void {
-        this.attached.delete(terminalId);
-        this.attachedSizes.delete(terminalId);
-        const live = this.terminals.get(terminalId);
-        if (!live) return;
-        live.outputTimer = clearScheduledTimer(live.outputTimer);
-        live.outputQueue.clear();
-        /** No destination: no Renderer view remains attached to read a placeholder here. */
-        live.imageOutput.finish();
-        live.droppedBytes = 0;
-    }
-
-    detachAllViews(): void {
-        for (const terminalId of [...this.attached]) this.detachView(terminalId);
-    }
-
-    async restart(terminalId: string, options?: TerminalStartOptions): Promise<TerminalRecord> {
-        const record = this.database.getTerminal(terminalId);
-        if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-        const live = this.terminals.get(terminalId);
-        const preserveAttachment = this.attached.has(terminalId);
-        const preservedSize = this.attachedSizes.get(terminalId);
-        if (live) {
-            /** Detach first so the old PTY's asynchronous exit cannot remove the replacement with the same durable ID. */
-            this.detach(live, true);
-            live.process.kill();
-        }
-        if (preserveAttachment) this.attached.add(terminalId);
-        if (preservedSize) this.attachedSizes.set(terminalId, preservedSize);
-        this.database.updateTerminalState(terminalId, 'starting');
-        this.onStateChanged?.(terminalId, 'starting');
-        const restarting = this.database.getTerminal(terminalId);
-        if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
-        return this.start(restarting, options);
-    }
-
-    private detach(live: LiveTerminal, persist: boolean): void {
-        this.retireLiveTerminal(live, { persist });
+    private detach(live: LiveTerminal, shouldPersist: boolean): void {
+        this.retireLiveTerminal(live, { shouldPersist });
     }
 
     /**
-     * Stops tracking a live PTY: clears its timers, flushes queued output and metrics, and
-     * optionally persists a final snapshot. Shared by `onExit` (always persists, then reports the
-     * exit) and `detach` (persists only when the caller wants the snapshot preserved, e.g. restart).
-     * Returns false when the terminal was already retired, which both callers treat as a no-op.
+     * Stops tracking a live PTY: clears its timers, flushes queued output and metrics, and optionally persists a final
+     * snapshot. Shared by `onExit` (always persists, then reports the exit) and `detach` (persists only when the caller
+     * wants the snapshot preserved, e.g. restart). Returns false when the terminal was already retired, which both
+     * callers treat as a no-op.
      */
-    private retireLiveTerminal(live: LiveTerminal, options: { persist: boolean }): boolean {
+    private retireLiveTerminal(live: LiveTerminal, options: { shouldPersist: boolean }): boolean {
         if (this.terminals.get(live.record.id) !== live) return false;
         this.clearTerminalTimers(live);
-        /** A view may still be attached at close/exit/restart, so pass the queue: an image still
-         *  mid-capture becomes one honest placeholder instead of a silent gap in the final output. */
+        /**
+         * A view may still be attached at close/exit/restart, so pass the queue: an image still mid-capture becomes one
+         * honest placeholder instead of a silent gap in the final output.
+         */
         live.droppedBytes += live.imageOutput.finish(live.outputQueue);
         this.flushOutput(live);
         this.flushMetrics(live);
-        if (options.persist) {
+        if (options.shouldPersist) {
             const colorTail = live.colorQuery?.finish() ?? '';
             const recoveryTail = `${
                 colorTail ? live.imageRecovery.push(colorTail) : ''
@@ -704,24 +562,159 @@ export class TerminalManager {
         live.metricTimer = clearScheduledTimer(live.metricTimer);
     }
 
-    /** Normal exit cannot await Host control; failures stay observable without retaining local state. */
+    /**
+     * Normal exit cannot await Host control; failures stay observable without retaining local state. The caller
+     * (`retireLiveTerminal`, itself invoked from the synchronous node-pty `onExit` handler and other sync methods)
+     * cannot become `async` without changing the PTY event-listener contract, so the rejection is handled via
+     * `.catch()` instead of `await`.
+     */
     private retireLifecycleSoon(terminalId: string): void {
-        void this.retireLifecycle(terminalId).catch((error: unknown) =>
+        // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget from a synchronous caller, see comment above
+        this.retireLifecycle(terminalId).catch((error: unknown) =>
             this.logger.write('warn', 'pty.lifecycle_retire_failed', {
                 fields: { terminalId, error: errorMessage(error, 'unknown') },
             }),
         );
     }
 
-    /** A pre-spawn failure awaits retirement so its prepared credential never outlives the failure. */
+    /**
+     * A pre-spawn failure awaits retirement so its prepared credential never outlives the failure.
+     */
     private async retireLifecycle(terminalId: string): Promise<void> {
         await this.onLifecycleRetired?.(terminalId);
+    }
+
+    start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
+        if (this.terminals.has(record.id))
+            return Promise.resolve(this.database.getTerminal(record.id)!);
+        return this.starts.run(record.id, () => this.spawn(record, options));
+    }
+
+    write(terminalId: string, data: string): boolean {
+        const live = this.terminals.get(terminalId);
+        /**
+         * Input can already be queued across IPC when a PTY exits; dropping that stale input is an expected lifecycle
+         * race.
+         */
+        if (!live) return false;
+        if (live.record.kind !== 'shell')
+            assertE2EAgentInput(readE2EAgentPolicy(), live.record.kind);
+        live.metricInputBytes += Buffer.byteLength(data, 'utf8');
+        live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
+        live.process.write(data);
+        return true;
+    }
+
+    /**
+     * Signals only the currently-owned PTY identity captured by the caller.
+     */
+    signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {
+        const live = this.terminals.get(terminalId);
+        if (!live || live.process.pid !== expectedProcessId) return false;
+        live.process.kill(signal);
+        return true;
+    }
+
+    resize(terminalId: string, cols: number, rows: number): boolean {
+        const live = this.terminals.get(terminalId);
+        /**
+         * ResizeObserver callbacks may likewise arrive after the PTY has exited or its pane has detached.
+         */
+        if (!live) return false;
+        /**
+         * A remounted Renderer forgets its last grid; avoid turning that first measurement into a redundant SIGWINCH.
+         */
+        if (live.process.cols === cols && live.process.rows === rows) return true;
+        live.screen.resize(cols, rows);
+        live.process.resize(cols, rows);
+        return true;
+    }
+
+    async attach(
+        terminalId: string,
+        size?: { cols: number; rows: number },
+    ): Promise<TerminalSnapshot | null> {
+        const live = this.terminals.get(terminalId);
+        if (!live && !this.database.getTerminal(terminalId)) return null;
+        /**
+         * An interrupted Terminal may attach before its restore spawn. Retain the measured grid so the resumed TUI
+         * starts at the visible geometry instead of the fallback 100x30 grid.
+         */
+        if (size) {
+            this.attachedSizes.set(terminalId, size);
+            this.resolveAttachedSizeWaiters(terminalId);
+        }
+        /**
+         * Serialize at the receiving xterm's grid. Restoring addon-serialize output into another size can irreversibly
+         * wrap cursor-addressed alternate-screen content.
+         */
+        if (live && size) this.resize(terminalId, size.cols, size.rows);
+        const wasAttached = this.attached.has(terminalId);
+        this.attached.add(terminalId);
+        if (!live) return this.database.getSnapshot(terminalId) ?? null;
+        if (wasAttached) {
+            /**
+             * A repeated attach replays the parsed screen, so pending live bytes already included in that screen must
+             * not also be delivered after the attachment response.
+             */
+            live.outputTimer = clearScheduledTimer(live.outputTimer);
+            live.outputQueue.clear();
+            live.droppedBytes = 0;
+        }
+        return {
+            terminalId,
+            encodingVersion: 2,
+            ...(await live.screen.snapshot()),
+            updatedAt: Date.now(),
+        };
+    }
+
+    detachView(terminalId: string): void {
+        this.attached.delete(terminalId);
+        this.attachedSizes.delete(terminalId);
+        const live = this.terminals.get(terminalId);
+        if (!live) return;
+        live.outputTimer = clearScheduledTimer(live.outputTimer);
+        live.outputQueue.clear();
+        /**
+         * No destination: no Renderer view remains attached to read a placeholder here.
+         */
+        live.imageOutput.finish();
+        live.droppedBytes = 0;
+    }
+
+    detachAllViews(): void {
+        for (const terminalId of this.attached) this.detachView(terminalId);
+    }
+
+    async restart(terminalId: string, options?: TerminalStartOptions): Promise<TerminalRecord> {
+        const record = this.database.getTerminal(terminalId);
+        if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+        const live = this.terminals.get(terminalId);
+        const isPreserveAttachment = this.attached.has(terminalId);
+        const preservedSize = this.attachedSizes.get(terminalId);
+        if (live) {
+            /**
+             * Detach first so the old PTY's asynchronous exit cannot remove the replacement with the same durable ID.
+             */
+            this.detach(live, true);
+            live.process.kill();
+        }
+        if (isPreserveAttachment) this.attached.add(terminalId);
+        if (preservedSize) this.attachedSizes.set(terminalId, preservedSize);
+        this.database.updateTerminalState(terminalId, 'starting');
+        this.onStateChanged?.(terminalId, 'starting');
+        const restarting = this.database.getTerminal(terminalId);
+        if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
+        return this.start(restarting, options);
     }
 
     close(terminalId: string): void {
         const live = this.terminals.get(terminalId);
         if (live) {
-            /** Remove ownership before metadata so late node-pty exit events cannot write through deleted foreign keys. */
+            /**
+             * Remove ownership before metadata so late node-pty exit events cannot write through deleted foreign keys.
+             */
             this.detach(live, false);
             live.process.kill();
         }
@@ -739,7 +732,7 @@ export class TerminalManager {
             this.resolveAttachedSizeWaiters(terminal.id);
             this.onStateChanged?.(terminal.id, 'stopped');
         }
-        for (const live of [...this.terminals.values()]) {
+        for (const live of this.terminals.values()) {
             if (live.record.sessionId !== sessionId) continue;
             this.detach(live, false);
             live.process.kill();
@@ -748,9 +741,10 @@ export class TerminalManager {
 
     runningCount(sessionId?: string): number {
         if (!sessionId) return this.terminals.size;
-        return [...this.terminals.values()].filter(
-            (terminal) => terminal.record.sessionId === sessionId,
-        ).length;
+        return this.terminals
+            .values()
+            .filter((terminal) => terminal.record.sessionId === sessionId)
+            .toArray().length;
     }
 
     processId(terminalId: string): number | undefined {
@@ -763,17 +757,19 @@ export class TerminalManager {
     }
 
     /**
-     * Kills every live PTY (final snapshot persisted) and bulk-marks Terminals per `reason`.
-     * `unclean` is excluded: that recovery path only ever runs from `openDatabase` on the next
-     * Runtime start, never from a live Runtime shutting itself down.
+     * Kills every live PTY (final snapshot persisted) and bulk-marks Terminals per `reason`. `unclean` is excluded:
+     * that recovery path only ever runs from `openDatabase` on the next Runtime start, never from a live Runtime
+     * shutting itself down.
      */
     shutdown(reason: Exclude<ShutdownReason, 'unclean'>): void {
-        /** Wake restore starts before their generation guard turns false so shutdown does not leave
-         *  the Runtime alive solely for the visible-Terminal grid grace period. */
-        for (const terminalId of [...this.attachedSizeWaiters.keys()])
+        /**
+         * Wake restore starts before their generation guard turns false so shutdown does not leave the Runtime alive
+         * solely for the visible-Terminal grid grace period.
+         */
+        for (const terminalId of this.attachedSizeWaiters.keys())
             this.resolveAttachedSizeWaiters(terminalId);
         const terminalProcessState = shutdownOutcome(reason).terminalProcessState;
-        for (const live of [...this.terminals.values()]) {
+        for (const live of this.terminals.values()) {
             this.detach(live, true);
             live.process.kill();
             this.onStateChanged?.(live.record.id, terminalProcessState);

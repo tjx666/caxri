@@ -9,11 +9,10 @@ import { CaxriDatabase } from '../../db/repository';
 import { FileService } from '../service';
 
 /**
- * `replace` mode's own file: `mutations.integration.test.ts` already sits at the repository's
- * 800-line file gate (AGENTS.md), and these cases only need the same minimal fixture the other
- * file also builds locally (there is no shared fixture module across `__tests__/mutations-*` files
- * in this domain), so duplicating the small helper here keeps both files under the limit instead of
- * introducing a new cross-file dependency for four tests.
+ * `replace` mode's own file: `mutations.integration.test.ts` already sits at the repository's 800-line file gate
+ * (AGENTS.md), and these cases only need the same minimal fixture the other file also builds locally (there is no
+ * shared fixture module across `__tests__/mutations-*` files in this domain), so duplicating the small helper here
+ * keeps both files under the limit instead of introducing a new cross-file dependency for four tests.
  */
 interface Fixture {
     database: CaxriDatabase;
@@ -33,7 +32,7 @@ async function createFixture(prefix: string): Promise<Fixture> {
     const session = database.createSession(database.createProject(root).id, 'shell').session;
     const service = new FileService(
         database,
-        () => undefined,
+        () => {},
         new StructuredLogger(join(directory, 'logs')),
         () => 1024,
     );
@@ -43,8 +42,10 @@ async function createFixture(prefix: string): Promise<Fixture> {
 }
 
 afterEach(async () => {
+    const pending = fixtures.slice();
+    fixtures.length = 0;
     await Promise.all(
-        fixtures.splice(0).map(async ({ database, directory, service }) => {
+        pending.map(async ({ database, directory, service }) => {
             await service.close();
             database.close();
             await rm(directory, { recursive: true, force: true });

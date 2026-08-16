@@ -7,14 +7,14 @@ import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
-import { openTerminalSearch } from './terminal-search';
+import type { TerminalCommandNavigationDirection } from './terminal-commands';
+import { didNavigateTerminalCommand } from './terminal-commands';
 import { clearTerminalProgress } from './terminal-progress';
-import {
-    navigateTerminalCommand,
-    type TerminalCommandNavigationDirection,
-} from './terminal-commands';
+import { openTerminalSearch } from './terminal-search';
 
-/** Drag payload type shared by the Terminal tab strip and the split-layout drop targets. */
+/**
+ * Drag payload type shared by the Terminal tab strip and the split-layout drop targets.
+ */
 export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
 
 export function activateTerminal(terminalId: string): void {
@@ -23,7 +23,7 @@ export function activateTerminal(terminalId: string): void {
 
 export async function createTerminal(
     kind: TerminalKind = 'shell',
-    split = false,
+    shouldSplit = false,
     cwd?: string,
 ): Promise<void> {
     const session = getSelectedSession();
@@ -32,14 +32,14 @@ export async function createTerminal(
         const terminal = await caxri.request('terminal.create', {
             sessionId: session.id,
             kind,
-            ...(cwd ? { cwd } : {}),
+            ...(cwd && { cwd }),
         });
         const currentState = getSessionState();
         const item: WorkItem = { kind: 'terminal', terminalId: terminal.id };
         useSessionViewStore.getState().setActiveWork(session.id, item);
         if (currentState) {
             const layout =
-                split && currentState.layout.activeGroupId
+                shouldSplit && currentState.layout.activeGroupId
                     ? splitTerminal(
                           currentState.layout,
                           terminal.id,
@@ -54,6 +54,8 @@ export async function createTerminal(
 }
 
 export function closeTerminal(terminalId: string): void {
+    // This is a sync UI handler; tryCommand already routes any failure into a toast.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         'Terminal close failed',
         async () => {
@@ -68,33 +70,45 @@ export function closeTerminal(terminalId: string): void {
 
 async function requestTerminalRestart(terminalId: string, mode: 'resume' | 'fresh'): Promise<void> {
     const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
-    /** A stopped PTY lost Runtime attachment ownership, while a running PTY must not be reattached
-     *  because replaying its screen without a new xterm consumer would discard queued live output. */
+    /**
+     * A stopped PTY lost Runtime attachment ownership, while a running PTY must not be reattached because replaying its
+     * screen without a new xterm consumer would discard queued live output.
+     */
     if (terminal?.lastProcessState !== 'running')
         await caxri.request('terminal.attach', { terminalId });
     await caxri.request('terminal.restart', { terminalId, mode });
 }
 
-/** Recovery path used by the in-pane Restart action. */
+/**
+ * Recovery path used by the in-pane Restart action.
+ */
 export function restartTerminal(terminalId: string): void {
+    // This is a sync UI handler; tryCommand already routes any failure into a toast.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Terminal restart failed', () => requestTerminalRestart(terminalId, 'resume'), {
         refresh: true,
     });
 }
 
 export function restartActiveTerminal(terminalId: string): void {
+    // This is a sync UI handler; tryCommand already routes any failure into a toast.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Terminal restart failed', () => requestTerminalRestart(terminalId, 'resume'), {
         refresh: true,
     });
 }
 
-/** The only user action allowed to clear a durable provider-session binding. */
+/**
+ * The only user action allowed to clear a durable provider-session binding.
+ */
 export function startNewAgentSession(terminalId: string): void {
     const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
     if (!terminal?.provider || !terminal.agentSessionId) {
         pushToast('info', 'The active Terminal has no Agent session to replace.');
         return;
     }
+    // This is a sync UI handler; tryCommand already routes any failure into a toast.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         'Starting a new Agent session failed',
         () => requestTerminalRestart(terminalId, 'fresh'),
@@ -103,9 +117,9 @@ export function startNewAgentSession(terminalId: string): void {
 }
 
 /**
- * The mounted {@link TerminalPane} registers its clear handler here so `terminal.clear` can reach the
- * live xterm instance with a direct call instead of a window-wide `CustomEvent`. Only one pane owns a
- * given Terminal at a time, so a plain `Map` keyed by id is enough.
+ * The mounted `TerminalPane` registers its clear handler here so `terminal.clear` can reach the live xterm instance
+ * with a direct call instead of a window-wide `CustomEvent`. Only one pane owns a given Terminal at a time, so a plain
+ * `Map` keyed by id is enough.
  */
 const clearHandlers = new Map<string, () => void>();
 
@@ -121,11 +135,10 @@ export function clearActiveTerminal(terminalId: string): void {
 }
 
 /**
- * The mounted {@link TerminalPane} registers its live xterm selection here, mirroring
- * {@link registerTerminalClearHandler}: `copySelection` reuses `TerminalSelectionClipboard` (already
- * serializing writes against a stale selection) instead of a second clipboard write path, and
- * `hasSelection` backs both the `terminal.copy` command's `when` gate and the context menu's
- * disabled state.
+ * The mounted `TerminalPane` registers its live xterm selection here, mirroring {@link registerTerminalClearHandler}:
+ * `copySelection` reuses `TerminalSelectionClipboard` (already serializing writes against a stale selection) instead of
+ * a second clipboard write path, and `hasSelection` backs both the `terminal.copy` command's `when` gate and the
+ * context menu's disabled state.
  */
 interface TerminalSelectionHandlers {
     copySelection(): void;
@@ -148,8 +161,10 @@ export function copyActiveTerminalSelection(terminalId: string): void {
     selectionHandlers.get(terminalId)?.copySelection();
 }
 
-/** Answers only "does this Terminal currently own a selection" — focus is checked by the caller. */
-export function activeTerminalHasSelection(terminalId: string): boolean {
+/**
+ * Answers only "does this Terminal currently own a selection" — focus is checked by the caller.
+ */
+export function hasActiveTerminalSelection(terminalId: string): boolean {
     return selectionHandlers.get(terminalId)?.hasSelection() ?? false;
 }
 
@@ -161,12 +176,12 @@ export function navigateActiveTerminalCommand(
     terminalId: string,
     direction: TerminalCommandNavigationDirection,
 ): void {
-    navigateTerminalCommand(terminalId, direction);
+    didNavigateTerminalCommand(terminalId, direction);
 }
 
 /**
- * Layout edits (drag, drop, splitter resize) clear `activeTab`; the drop handler re-activates the
- * moved Terminal right afterwards, and a resize leaves the layout's own active group in charge.
+ * Layout edits (drag, drop, splitter resize) clear `activeTab`; the drop handler re-activates the moved Terminal right
+ * afterwards, and a resize leaves the layout's own active group in charge.
  */
 export function applyTerminalLayout(layout: TerminalLayout): void {
     const current = getSessionState();

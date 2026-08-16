@@ -25,7 +25,7 @@ _Researched 2026-08-06._
 
 ## Community sentiment
 
-- Named among agent workbenches tried by @T_Zahil in an X thread on 2026-08-05 (https://x.com/T_Zahil/status/2085024540355166472).
+- Named among agent workbenches tried by @T_Zahil in an X thread on 2026-08-05 (<https://x.com/T_Zahil/status/2085024540355166472>).
 - Maintainer's own launch post (LinkedIn, 2026-02-11) frames it as a Conductor-inspired but more customizable alternative built after "needing some features for my open-source work"; early replies were enthusiastic, offering to test/contribute.
 - Third-party review (aicoolies.com) is positive, calling it a "credible open-source option" for developers wanting a unified cockpit instead of tmux panes, and groups it competitively with Emdash, Conductor, Sculptor, and Superset.
 - Recurring Linux packaging pain: multiple open GitHub issues report blank/frozen windows on Arch+Hyprland, Ubuntu, and Linux Mint AppImage builds due to missing GStreamer plugins / WebKit EGL failures — one commenter suggests Tauri's WebKit-on-Linux backend is the root cause and CEF would be more reliable, but Tauri doesn't yet support it. macOS is the only "tested" platform; Windows/Linux desktop builds are explicitly marked as needing more testing.

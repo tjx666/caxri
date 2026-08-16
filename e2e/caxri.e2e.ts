@@ -1,12 +1,13 @@
+import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -35,7 +36,7 @@ test('bundles the default terminal typeface and Nerd Font symbols', async () => 
                 document.fonts.load('700 13px "Caxri JetBrains Mono"', 'Caxri'),
                 document.fonts.load('italic 13px "Caxri JetBrains Mono"', 'Caxri'),
                 document.fonts.load('italic 700 13px "Caxri JetBrains Mono"', 'Caxri'),
-                document.fonts.load('13px "Caxri Nerd Symbols"', '\ue0b0\uf17c'),
+                document.fonts.load('13px "Caxri Nerd Symbols"', '\u{E0B0}\u{F17C}'),
             ]);
             return {
                 bold: bold.length,
@@ -54,7 +55,11 @@ test('bundles the default terminal typeface and Nerd Font symbols', async () => 
             symbols: 1,
         });
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -92,7 +97,11 @@ test('file changes refresh entries without collapsing expanded directories', asy
             running.page.getByRole('treeitem', { name: 'inside.txt', exact: true }),
         ).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -128,7 +137,11 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
         await expect(terminalTabs).toHaveCount(1);
         await expect(running.page.locator('.process-running')).toHaveCount(1);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -182,7 +195,11 @@ test('dragging the Sidebar divider resizes it and the width survives a reload', 
         await running.page.keyboard.press('Meta+]');
         await expect(running.page.locator('.inspector')).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -229,7 +246,11 @@ test('sidebar search finds and selects Projects instead of exporting diagnostics
             .click();
         await expect(running.page.locator('.project-group.active')).toContainText('beta-project');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -265,7 +286,11 @@ test('Info inspector lists only the current Session Terminals', async () => {
         await expect(terminalCards.locator('[data-agent-icon="codex"]')).toBeVisible();
         await expect(terminalCards.locator('[data-agent-icon="shell"]')).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -280,27 +305,34 @@ test('Project Status inspector renders and refreshes the current repository tree
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await openAddProjectDialog(running.page);
-        await running.page
-            .getByRole('dialog')
-            .getByRole('button', { name: 'Shell', exact: true })
-            .click({ timeout: 5_000 })
-            .catch(() => undefined);
+        try {
+            await running.page
+                .getByRole('dialog')
+                .getByRole('button', { name: 'Shell', exact: true })
+                .click({ timeout: 5_000 });
+        } catch {
+            // The Shell button may already have been dismissed by an earlier auto-selection.
+        }
         await expect(running.page.locator('.session-card')).toHaveCount(1);
         await running.page.getByRole('tab', { name: 'Status', exact: true }).click();
 
         await expect(running.page.getByText('Project Status', { exact: true })).toBeVisible();
-        const repository = running.page.locator('.project-status-repository');
-        await expect(repository).toHaveCount(1);
-        await expect(repository).toContainText('project');
-        await expect(repository).toContainText('feature/status');
+        const repo = running.page.locator('.project-status-repository');
+        await expect(repo).toHaveCount(1);
+        await expect(repo).toContainText('project');
+        await expect(repo).toContainText('feature/status');
 
-        await repository.locator('.project-status-repository-row').click();
-        await expect(repository.getByText('feature/status', { exact: true })).toHaveCount(0);
-        await repository.locator('.project-status-repository-row').click();
+        await repo.locator('.project-status-repository-row').click();
+        await expect(repo.getByText('feature/status', { exact: true })).toHaveCount(0);
+        await repo.locator('.project-status-repository-row').click();
         await running.page.getByRole('button', { name: 'Refresh Project Status' }).click();
-        await expect(repository.getByText('feature/status', { exact: true })).toBeVisible();
+        await expect(repo.getByText('feature/status', { exact: true })).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -325,13 +357,15 @@ test('Git inspector shows child repositories, submodule state, and changed-file 
         join(nested, 'assets'),
         join(submoduleSource, 'lib'),
     ]);
-    for (const repository of [root, nested, submoduleSource]) {
-        await execFileAsync('git', ['init', '-b', 'main'], { cwd: repository });
-        await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], {
-            cwd: repository,
-        });
-        await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: repository });
-    }
+    await Promise.all(
+        [root, nested, submoduleSource].map(async (repo) => {
+            await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
+            await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], {
+                cwd: repo,
+            });
+            await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: repo });
+        }),
+    );
     await writeFile(join(root, 'src/root.txt'), 'before\n', 'utf8');
     await execFileAsync('git', ['add', 'src/root.txt'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
@@ -367,39 +401,39 @@ test('Git inspector shows child repositories, submodule state, and changed-file 
     try {
         await createShellSession(running.page);
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
-        const repositorySections = running.page.locator('.git-repository-section');
-        await expect(repositorySections).toHaveCount(3);
-        const primary = repositorySections.filter({
+        const repoSections = running.page.locator('.git-repository-section');
+        await expect(repoSections).toHaveCount(3);
+        const primary = repoSections.filter({
             has: running.page.locator('.git-repository-row', { hasText: 'project' }),
         });
-        const nestedRepository = repositorySections.filter({
+        const nestedRepo = repoSections.filter({
             has: running.page.locator('.git-repository-row', { hasText: 'nested' }),
         });
-        const submodule = repositorySections.filter({
+        const submodule = repoSections.filter({
             has: running.page.locator('.git-repository-row', { hasText: 'submodule' }),
         });
 
         await expect(primary.locator('.git-files')).toContainText('root.txt');
         await expect(primary.locator('.git-files')).toContainText('sub');
         await expect(primary.locator('.git-files')).not.toContainText('nested.txt');
-        await expect(nestedRepository.locator('.git-files')).toContainText('nested.txt');
+        await expect(nestedRepo.locator('.git-files')).toContainText('nested.txt');
         await expect(submodule.locator('.git-files')).toContainText('submodule.txt');
 
-        await nestedRepository.locator('.git-repository-row').click();
-        await expect(nestedRepository.locator('.git-files')).toHaveCount(0);
+        await nestedRepo.locator('.git-repository-row').click();
+        await expect(nestedRepo.locator('.git-files')).toHaveCount(0);
         await expect(primary.locator('.git-files')).toContainText('root.txt');
         await expect(submodule.locator('.git-files')).toContainText('submodule.txt');
-        await nestedRepository.locator('.git-repository-row').click();
-        await nestedRepository.getByRole('button', { name: 'packages', exact: true }).click();
-        await expect(nestedRepository.getByRole('button', { name: 'nested.txt' })).toHaveCount(0);
-        await nestedRepository.getByRole('button', { name: 'packages', exact: true }).click();
-        await nestedRepository.getByRole('button', { name: 'nested.txt' }).click();
+        await nestedRepo.locator('.git-repository-row').click();
+        await nestedRepo.getByRole('button', { name: 'packages', exact: true }).click();
+        await expect(nestedRepo.getByRole('button', { name: 'nested.txt' })).toHaveCount(0);
+        await nestedRepo.getByRole('button', { name: 'packages', exact: true }).click();
+        await nestedRepo.getByRole('button', { name: 'nested.txt' }).click();
         await expect(running.page.locator('.work-tab', { hasText: 'nested.txt' })).toBeVisible();
         await expect(running.page.locator('.monaco-diff-editor')).toBeVisible();
         await expect(running.page.locator('.monaco-diff-editor')).toContainText('before');
         await expect(running.page.locator('.monaco-diff-editor')).toContainText('after');
 
-        await nestedRepository.getByRole('button', { name: 'Open Changes' }).click();
+        await nestedRepo.getByRole('button', { name: 'Open Changes' }).click();
         await expect(
             running.page.locator('.work-tab', { hasText: 'Changes: nested' }),
         ).toBeVisible();
@@ -427,7 +461,11 @@ test('Git inspector shows child repositories, submodule state, and changed-file 
             await running.page.locator('.git-multi-diff .monaco-diff-editor').count(),
         ).toBeLessThan(bulkPaths.length + 2);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -476,7 +514,11 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
         await expect(running.page.locator('.session-card')).toHaveCount(1);
         await expect(running.page.locator('.view-lines')).toContainText('unsaved deletion cancel');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -506,7 +548,11 @@ test('removing a Project deletes only Caxri metadata', async () => {
         await expect(running.page.locator('.session-card')).toHaveCount(0);
         await expect.poll(() => readFile(userFile, 'utf8')).toBe('user-owned\n');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -541,7 +587,11 @@ test('canceling the Agent choice revokes the selected Project root grant', async
         }
         await expect(running.page.locator('.session-card')).toHaveCount(0);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -574,10 +624,14 @@ test('Keep Running detaches the closed window and reattaches the live Terminal',
         const reopened = await reopenedPromise;
         await waitForRuntimeReady(reopened);
         await expect(reopened.locator('.process-running').first()).toBeVisible();
-        await typeTerminal(reopened, "printf 'KEEP_RUNNING_OK\\n'");
+        await typeTerminal(reopened, String.raw`printf 'KEEP_RUNNING_OK\n'`);
         await expect(reopened.locator('.xterm-rows')).toContainText('KEEP_RUNNING_OK');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -604,6 +658,9 @@ test('switching Sessions discards expanded file-tree state from the previous roo
     try {
         await createShellSession(running.page);
         for (const directory of expandedDirectories) {
+            // Each click must complete before the next, since expanding one directory changes the
+            // tree layout (and thus the position) of subsequent tree items.
+            // eslint-disable-next-line no-await-in-loop
             await running.page.getByRole('treeitem', { name: directory, exact: true }).click();
         }
         await expect(
@@ -627,7 +684,11 @@ test('switching Sessions discards expanded file-tree state from the previous roo
         );
         await expect(running.page.locator('.toast')).toHaveCount(0);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -677,7 +738,11 @@ test('editor buffers stay isolated between Sessions that share one root', async 
             'first Session dirty buffer',
         );
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

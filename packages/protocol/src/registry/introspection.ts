@@ -1,13 +1,9 @@
 import { z } from 'zod';
 
-import {
-    methods,
-    type CaxriMethod,
-    type CommandEffect,
-    type CommandIdempotency,
-    type CommandOwner,
-} from './methods.js';
+import type { CommandEffect, CommandIdempotency, CommandOwner } from '../transport/method-spec.js';
 import type { Capability } from '../transport/principal.js';
+import type { CaxriMethod } from './methods.js';
+import { methods } from './methods.js';
 
 export interface CaxriMethodDescription {
     capabilities: readonly Capability[];
@@ -19,7 +15,9 @@ export interface CaxriMethodDescription {
     resultSchema: Record<string, unknown>;
 }
 
-/** Serializes public registry metadata for offline CLI and future remote capability browsers. */
+/**
+ * Serializes public registry metadata for offline CLI and future remote capability browsers.
+ */
 export function describeCaxriMethod(method: CaxriMethod): CaxriMethodDescription {
     const spec = methods[method];
     return {

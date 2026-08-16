@@ -12,7 +12,12 @@ import {
 } from '../ci-fallback';
 import { createResumeCheckpoint } from '../resume';
 import { recordReviewDecision } from '../review-gate';
-import { createInitialState, recordPullRequest, transitionState, validateState } from '../state';
+import {
+    createInitialState,
+    recordPullRequest,
+    transitionState,
+    validateState,
+} from '../state-model';
 
 const headSha = 'abc123';
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');

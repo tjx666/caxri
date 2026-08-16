@@ -1,18 +1,19 @@
-import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu';
 import { useId } from 'react';
 
-import { ShortcutBadge } from '@/components/ShortcutBadge';
-import { cn } from '@/lib/utils';
+import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu';
 
-export function ContextMenu(props: ContextMenuPrimitive.Root.Props) {
-    return <ContextMenuPrimitive.Root {...props} />;
+import { ShortcutBadge } from '@/components/shortcut-badge';
+import { cn } from '@/lib/utilities';
+
+export function ContextMenu(properties: ContextMenuPrimitive.Root.Props) {
+    return <ContextMenuPrimitive.Root {...properties} />;
 }
 
-export function ContextMenuTrigger(props: ContextMenuPrimitive.Trigger.Props) {
-    return <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />;
+export function ContextMenuTrigger(properties: ContextMenuPrimitive.Trigger.Props) {
+    return <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...properties} />;
 }
 
-export function ContextMenuContent({ className, ...props }: ContextMenuPrimitive.Popup.Props) {
+export function ContextMenuContent({ className, ...properties }: ContextMenuPrimitive.Popup.Props) {
     return (
         <ContextMenuPrimitive.Portal>
             <ContextMenuPrimitive.Positioner className="z-[70]">
@@ -38,20 +39,22 @@ export function ContextMenuContent({ className, ...props }: ContextMenuPrimitive
                         // nothing and close unmounts without waiting a frame.
                         className,
                     )}
-                    {...props}
+                    {...properties}
                 />
             </ContextMenuPrimitive.Positioner>
         </ContextMenuPrimitive.Portal>
     );
 }
 
-export interface ContextMenuItemProps extends ContextMenuPrimitive.Item.Props {
+export interface ContextMenuItemProperties extends ContextMenuPrimitive.Item.Props {
     /**
-     * Accessible-only explanation for a disabled item (e.g. "Nothing to paste"). Screen readers
-     * announce it via `aria-describedby`; sighted users get it from the native `title` tooltip.
+     * Accessible-only explanation for a disabled item (e.g. "Nothing to paste"). Screen readers announce it via
+     * `aria-describedby`; sighted users get it from the native `title` tooltip.
      */
     disabledReason?: string;
-    /** Right-aligned live-keybinding hint, reusing the command palette's compact keycap chip. */
+    /**
+     * Right-aligned live-keybinding hint, reusing the command palette's compact keycap chip.
+     */
     hint?: string;
 }
 
@@ -60,8 +63,8 @@ export function ContextMenuItem({
     className,
     disabledReason,
     hint,
-    ...props
-}: ContextMenuItemProps) {
+    ...properties
+}: ContextMenuItemProperties) {
     const generatedId = useId();
     const reasonId = disabledReason ? `context-menu-item-reason-${generatedId}` : undefined;
     return (
@@ -70,10 +73,10 @@ export function ContextMenuItem({
             aria-describedby={reasonId}
             title={disabledReason}
             className={cn(
-                'flex h-7 cursor-default items-center gap-2 rounded px-2 text-[12px] outline-none data-highlighted:bg-[var(--selection)] data-disabled:pointer-events-none data-disabled:opacity-45',
+                'flex h-7 cursor-default items-center gap-2 rounded px-2 text-[12px] outline-none data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-[var(--selection)]',
                 className,
             )}
-            {...props}
+            {...properties}
         >
             <span className="flex-1 truncate">{children}</span>
             {hint && <ShortcutBadge compact shortcut={hint} />}
@@ -86,12 +89,12 @@ export function ContextMenuItem({
     );
 }
 
-export function ContextMenuSeparator(props: ContextMenuPrimitive.Separator.Props) {
+export function ContextMenuSeparator(properties: ContextMenuPrimitive.Separator.Props) {
     return (
         <ContextMenuPrimitive.Separator
             data-slot="context-menu-separator"
             className="my-1 h-px bg-border"
-            {...props}
+            {...properties}
         />
     );
 }

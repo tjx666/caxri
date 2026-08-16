@@ -4,10 +4,12 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { CaxriError, internalMethods, methods, type RuntimeMethod } from '../../shared/ipc';
+import type { RuntimeMethod } from '../../shared/ipc';
+import { CaxriError, internalMethods, methods } from '../../shared/ipc';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
-import { createDispatcher, type RuntimeHandlers } from '../dispatch';
+import type { RuntimeHandlers } from '../dispatch';
+import { createDispatcher } from '../dispatch';
 
 const temporaryDirectories: string[] = [];
 
@@ -17,12 +19,13 @@ async function temporaryDirectory(prefix: string): Promise<string> {
     return directory;
 }
 
-const runtimeMethodNames = [
-    ...Object.keys(methods),
-    ...Object.keys(internalMethods),
-].sort() as RuntimeMethod[];
+const runtimeMethodNames = [...Object.keys(methods), ...Object.keys(internalMethods)].toSorted(
+    (a, b) => a.localeCompare(b),
+) as RuntimeMethod[];
 
-/** Handlers whose only job is to observe dispatch behaviour, independent of real Runtime services. */
+/**
+ * Handlers whose only job is to observe dispatch behaviour, independent of real Runtime services.
+ */
 function stubHandlers(overrides: Partial<Record<RuntimeMethod, unknown>> = {}): RuntimeHandlers {
     const table = Object.fromEntries(runtimeMethodNames.map((method) => [method, () => null]));
     return { ...table, ...overrides } as unknown as RuntimeHandlers;
@@ -44,9 +47,9 @@ async function logRecords(logger: StructuredLogger) {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Runtime handler table', () => {
@@ -55,11 +58,13 @@ describe('Runtime handler table', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
         });
 
         try {
-            expect(Object.keys(runtime.handlers).sort()).toEqual(runtimeMethodNames);
+            expect(Object.keys(runtime.handlers).toSorted((a, b) => a.localeCompare(b))).toEqual(
+                runtimeMethodNames,
+            );
             for (const method of runtimeMethodNames)
                 expect(runtime.handlers[method]).toBeTypeOf('function');
         } finally {
@@ -89,7 +94,7 @@ describe('createDispatcher', () => {
             id: 'r3',
             method: 'bugReport.send',
             params: {
-                report: 'safe\u001B[201~unsafe',
+                report: 'safe\u{1B}[201~unsafe',
                 sessionId: 'session-1',
                 terminalId: 'terminal-1',
             },

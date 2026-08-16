@@ -1,23 +1,35 @@
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
 
-import { agentProviderIds, type AgentProvider } from '../../src/shared/agents';
+import type { AgentProvider } from '../../src/shared/agents';
+import { agentProviderIds } from '../../src/shared/agents';
 
 interface FakeAgentInputCapture {
     encoding: 'hex' | 'raw' | 'utf8';
-    /** Mirrors encoded input to the fake Terminal for interaction assertions. */
+    /**
+     * Mirrors encoded input to the fake Terminal for interaction assertions.
+     */
     echoPrefix?: string;
     path: string;
 }
 
 export interface FakeAgentDefinition {
-    /** Complete executable source for provider-specific state or lifecycle behavior. */
+    /**
+     * Complete executable source for provider-specific state or lifecycle behavior.
+     */
     executableSource?: string;
-    /** Deterministic text emitted after startup by the standard fake executable. */
+    /**
+     * Deterministic text emitted after startup by the standard fake executable.
+     */
     startupOutput?: string;
-    /** Optional raw input capture used by tests that assert Terminal input mappings. */
+    /**
+     * Optional raw input capture used by tests that assert Terminal input mappings.
+     */
     inputCapture?: FakeAgentInputCapture;
-    /** Delays raw mode and its ready marker to reproduce a slow hosted PTY startup boundary. */
+    /**
+     * Delays raw mode and its ready marker to reproduce a slow hosted PTY startup boundary.
+     */
     readinessDelayMs?: number;
 }
 
@@ -27,8 +39,10 @@ export interface FakeAgentMode {
     executables: Partial<Record<AgentProvider, string>>;
 }
 
-/** Structured argv accepted by the Runtime's manual, Codex-only real Agent smoke boundary. */
-export function realCodexSmokeArgs(prompt: string): string[] {
+/**
+ * Structured argv accepted by the Runtime's manual, Codex-only real Agent smoke boundary.
+ */
+export function realCodexSmokeArguments(prompt: string): string[] {
     return [
         'exec',
         '--sandbox',
@@ -62,9 +76,9 @@ function becomeReady() {
   ${
       capture.encoding === 'raw'
           ? `fs.appendFileSync(${JSON.stringify(capture.path)}, chunk);`
-          : `const value = chunk.toString(${JSON.stringify(capture.encoding)});
-  fs.appendFileSync(${JSON.stringify(capture.path)}, value + '\\n');
-  ${capture.echoPrefix ? `process.stdout.write(${JSON.stringify(capture.echoPrefix)} + value + '\\r\\n');` : ''}`
+          : String.raw`const value = chunk.toString(${JSON.stringify(capture.encoding)});
+  fs.appendFileSync(${JSON.stringify(capture.path)}, value + '\n');
+  ${capture.echoPrefix ? String.raw`process.stdout.write(${JSON.stringify(capture.echoPrefix)} + value + '\r\n');` : ''}`
   }
 });`
           : ''
@@ -76,9 +90,9 @@ ${definition.readinessDelayMs ? `setTimeout(becomeReady, ${definition.readinessD
 }
 
 /**
- * Creates provider executables and state homes under one E2E user-data directory. The returned
- * object is passed directly as `launchCaxri({ agentMode })`, keeping fake authority explicit and
- * preventing tests from rediscovering a developer's real CLI through PATH or a login shell.
+ * Creates provider executables and state homes under one E2E user-data directory. The returned object is passed
+ * directly as `launchCaxri({ agentMode })`, keeping fake authority explicit and preventing tests from rediscovering a
+ * developer's real CLI through PATH or a login shell.
  */
 export async function createFakeAgentMode(options: {
     userDataDir: string;
@@ -98,29 +112,34 @@ export async function createFakeAgentMode(options: {
         mkdir(xdg, { recursive: true }),
     ]);
 
-    const executables: Partial<Record<AgentProvider, string>> = {};
-    for (const [provider, definition] of Object.entries(options.providers) as Array<
+    const providerEntries = Object.entries(options.providers) as Array<
         [AgentProvider, FakeAgentDefinition]
-    >) {
+    >;
+    for (const [provider, definition] of providerEntries) {
         if (!agentProviderIds.includes(provider))
             throw new Error(`Unsupported fake Agent provider: ${provider}`);
         if (
             definition.readinessDelayMs !== undefined &&
-            (!Number.isInteger(definition.readinessDelayMs) ||
+            (!Number.isSafeInteger(definition.readinessDelayMs) ||
                 definition.readinessDelayMs < 1 ||
                 definition.readinessDelayMs > 5_000)
         ) {
             throw new RangeError('Fake Agent readiness delay must be an integer from 1 to 5000ms');
         }
-        const executable = join(bin, provider);
-        await writeFile(
-            executable,
-            definition.executableSource ?? standardExecutableSource(provider, definition),
-            'utf8',
-        );
-        await chmod(executable, 0o700);
-        executables[provider] = executable;
     }
+    const executables: Partial<Record<AgentProvider, string>> = {};
+    await Promise.all(
+        providerEntries.map(async ([provider, definition]) => {
+            const executable = join(bin, provider);
+            await writeFile(
+                executable,
+                definition.executableSource ?? standardExecutableSource(provider, definition),
+                'utf8',
+            );
+            await chmod(executable, 0o700);
+            executables[provider] = executable;
+        }),
+    );
 
     return {
         mode: 'fake',

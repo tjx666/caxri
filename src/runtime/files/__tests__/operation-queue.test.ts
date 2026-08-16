@@ -3,11 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileOperationQueue } from '../operation-queue';
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
-    let resolve!: () => void;
-    const promise = new Promise<void>((complete) => {
-        resolve = complete;
-    });
-    return { promise, resolve };
+    return Promise.withResolvers<void>();
 }
 
 describe('FileOperationQueue', () => {
@@ -43,27 +39,29 @@ describe('FileOperationQueue', () => {
         const queue = new FileOperationQueue(2);
         const firstRelease = deferred();
         let timedOutError: unknown;
-        let timedOutOperationRan = false;
+        let isTimedOutOperationRan = false;
 
         const first = queue.run(() => firstRelease.promise);
-        const timedOut = queue
-            .run(
-                () => {
-                    timedOutOperationRan = true;
-                    return Promise.resolve();
-                },
-                { maximumWaitMs: 10 },
-            )
-            .catch((error: unknown) => {
+        const timedOut = (async () => {
+            try {
+                await queue.run(
+                    () => {
+                        isTimedOutOperationRan = true;
+                        return Promise.resolve();
+                    },
+                    { maximumWaitMs: 10 },
+                );
+            } catch (error) {
                 timedOutError = error;
-            });
+            }
+        })();
 
         await vi.advanceTimersByTimeAsync(10);
         firstRelease.resolve();
         await Promise.all([first, timedOut]);
 
         expect(timedOutError).toMatchObject({ code: 'TIMEOUT' });
-        expect(timedOutOperationRan).toBe(false);
+        expect(isTimedOutOperationRan).toBe(false);
     });
 
     it('allows unrelated paths to proceed while overlapping paths remain ordered', async () => {

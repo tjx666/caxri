@@ -9,7 +9,8 @@ import type { RuntimeEvent } from '../../../shared/ipc';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
-import { AgentService, type AgentAdapter } from '../service';
+import type { AgentAdapter } from '../service';
+import { AgentService } from '../service';
 
 const temporaryDirectories: string[] = [];
 
@@ -21,9 +22,9 @@ function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingCleanup = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('AgentCoordinator', () => {
@@ -49,7 +50,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
         );
 
@@ -78,13 +79,13 @@ describe('AgentCoordinator', () => {
                     available: true,
                     sessionId: `${provider}-session`,
                     title: `${provider} from Shell`,
-                    ...(context.startedAt ? {} : { sessionId: undefined }),
+                    ...(!context.startedAt && { sessionId: undefined }),
                 }),
             );
             const coordinator = new AgentCoordinator(
                 database,
                 createAgents(snapshot),
-                () => undefined,
+                () => {},
                 new StructuredLogger(join(directory, 'logs')),
                 { refreshDelayMs: 5 },
             );
@@ -135,7 +136,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
@@ -176,11 +177,13 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { detectForegroundAgent, refreshDelayMs: 5 },
         );
-        /** Fake only Date so the probe-interval clock advances without touching real timers. */
+        /**
+         * Fake only Date so the probe-interval clock advances without touching real timers.
+         */
         vi.useFakeTimers({ toFake: ['Date'] });
 
         try {
@@ -189,6 +192,7 @@ describe('AgentCoordinator', () => {
             for (let round = 0; round < 10; round += 1) {
                 for (let chunk = 0; chunk < 20; chunk += 1)
                     coordinator.observeOutput(created.terminal!.id, 4242);
+                // eslint-disable-next-line no-await-in-loop -- each round must advance the fake clock only after the prior round's output settles
                 await new Promise((resolve) => setTimeout(resolve, 5));
                 vi.setSystemTime(Date.now() + 2_100);
             }
@@ -218,7 +222,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
@@ -262,7 +266,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
@@ -277,8 +281,10 @@ describe('AgentCoordinator', () => {
                 .poll(() =>
                     [created.terminal!.id, second.id]
                         .map((id) => database.getTerminal(id)?.agentSessionId)
-                        .filter(Boolean)
-                        .sort(),
+                        .filter((agentSessionId): agentSessionId is string =>
+                            Boolean(agentSessionId),
+                        )
+                        .toSorted((a, b) => a.localeCompare(b)),
                 )
                 .toEqual(['agent-session-1', 'agent-session-2']);
         } finally {
@@ -315,7 +321,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
         );
 
@@ -354,7 +360,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
         );
 
@@ -400,7 +406,9 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            (event) => events.push(event),
+            (event) => {
+                events.push(event);
+            },
             new StructuredLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
@@ -409,7 +417,9 @@ describe('AgentCoordinator', () => {
             coordinator.observeOutput(shell.id);
             coordinator.observeOutput(created.terminal!.id);
             await expect.poll(() => snapshot.mock.calls.length).toBe(1);
-            /** The first Agent Terminal owns the Session title, so its metadata reaches the Renderer. */
+            /**
+             * The first Agent Terminal owns the Session title, so its metadata reaches the Renderer.
+             */
             expect(events).toEqual([
                 {
                     event: 'state.changed',
@@ -448,7 +458,7 @@ describe('AgentCoordinator', () => {
         const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
             Promise.resolve({
                 provider: 'claude',
-                ...(status === 'waiting' ? { attentionKind: 'waiting' as const } : {}),
+                ...(status === 'waiting' && { attentionKind: 'waiting' as const }),
                 status,
                 observedAt: Date.now(),
                 available: true,
@@ -458,7 +468,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
@@ -508,7 +518,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
@@ -576,7 +586,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
@@ -623,7 +633,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
             { refreshDelayMs: 5 },
         );
@@ -673,7 +683,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(() => Promise.reject(new Error('not used'))),
-            () => undefined,
+            () => {},
             new StructuredLogger(join(directory, 'logs')),
         );
 
@@ -714,7 +724,7 @@ describe('AgentCoordinator', () => {
         const coordinator = new AgentCoordinator(
             database,
             createAgents(snapshot),
-            () => undefined,
+            () => {},
             logger,
         );
 

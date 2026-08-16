@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import type { MessageBoxOptions } from 'electron';
 
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     clickTerminalLink,
     createShellSession,
@@ -26,7 +26,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
     try {
         await createShellSession(running.page);
         const fileLink = 'link-target.ts:2:3';
-        await typeTerminal(running.page, `printf '%s\\n' '${fileLink}'`);
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${fileLink}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(fileLink);
         await clickTerminalLink(running.page, fileLink);
 
@@ -79,7 +79,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
         await running.page.evaluate(() => window.open('file:///tmp/caxri-denied-link'));
         const url = 'https://example.com/caxri-link';
         await running.page.getByRole('tab', { name: 'Shell' }).click();
-        await typeTerminal(running.page, `printf '%s\\n' '${url}'`);
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${url}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(url);
         await clickTerminalLink(running.page, url);
         await expect
@@ -101,7 +101,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             };
             target.caxriExternalLinkProbe!.response = 2;
         });
-        await typeTerminal(running.page, `printf '%s\\n' '${canceledUrl}'`);
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${canceledUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(canceledUrl);
         await clickTerminalLink(running.page, canceledUrl);
         await expect
@@ -124,7 +124,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             target.caxriExternalLinkProbe!.response = 0;
             target.caxriExternalLinkProbe!.failOpen = true;
         });
-        await typeTerminal(running.page, `printf '%s\\n' '${failedUrl}'`);
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${failedUrl}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(failedUrl);
         await clickTerminalLink(running.page, failedUrl);
         await expect(running.page.locator('.toast')).toContainText('browser unavailable');
@@ -149,7 +149,11 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             opened: [url],
         });
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

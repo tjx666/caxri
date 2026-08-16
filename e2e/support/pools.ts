@@ -10,9 +10,9 @@ export interface E2EPoolPlan {
 }
 
 /**
- * Specs in this allowlist use only per-launch profiles, roots, logs, PTYs, and fake/blocked Agents.
- * Everything else remains `@desktop-exclusive` by default, especially native focus, clipboard,
- * Process Explorer, Screencast, performance, updater, and real-Agent coverage.
+ * Specs in this allowlist use only per-launch profiles, roots, logs, PTYs, and fake/blocked Agents. Everything else
+ * remains `@desktop-exclusive` by default, especially native focus, clipboard, Process Explorer, Screencast,
+ * performance, updater, and real-Agent coverage.
  */
 export const parallelSafeSpecs = [
     'e2e/agent-icons.e2e.ts',
@@ -53,8 +53,10 @@ export function createE2EPoolPlan(
         if (!all.has(path)) throw new Error(`Unknown parallel-safe E2E spec: ${path}`);
         safe.add(path);
     }
-    const parallelSafe = [...safe].sort();
-    const desktopExclusive = [...all].filter((path) => !safe.has(path)).sort();
+    const parallelSafe = [...safe].toSorted((a, b) => a.localeCompare(b));
+    const desktopExclusive = [...all]
+        .filter((path) => !safe.has(path))
+        .toSorted((a, b) => a.localeCompare(b));
 
     return {
         desktopExclusive,

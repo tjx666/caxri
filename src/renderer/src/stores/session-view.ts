@@ -1,16 +1,13 @@
 import { useMemo } from 'react';
+
+import type { EditorDocument, SessionDocuments } from '@shared/editor-state';
+import { setSessionDocument } from '@shared/editor-state';
+import type { InspectorMode } from '@shared/types';
+import type { WorkItem } from '@shared/work-item';
+import { activateWorkState, resolveActiveWork } from '@shared/work-item';
 import { create } from 'zustand';
 
-import {
-    setSessionDocument,
-    type EditorDocument,
-    type SessionDocuments,
-} from '@shared/editor-state';
-import type { InspectorMode } from '@shared/types';
-import { activateWorkState, resolveActiveWork, type WorkItem } from '@shared/work-item';
-
-import { pathIsAtOrBelow, remapPath } from '../lib/file-path';
-
+import { isPathAtOrBelow, remapPath } from '../lib/file-path';
 import {
     getBootstrap,
     getSelectedSession,
@@ -23,19 +20,23 @@ import {
 import { patchSessionState } from './workbench';
 
 /**
- * Upper bound on cached file contents per Session. Closing a tab evicts its document immediately, so
- * this cap only matters for a Session with an unusually large open-tab set (`openTabs` allows 100).
- * Twenty documents keep every realistically reachable tab warm while bounding renderer memory; the
- * evicted tab stays open and re-reads from disk when it is selected again.
+ * Upper bound on cached file contents per Session. Closing a tab evicts its document immediately, so this cap only
+ * matters for a Session with an unusually large open-tab set (`openTabs` allows 100). Twenty documents keep every
+ * realistically reachable tab warm while bounding renderer memory; the evicted tab stays open and re-reads from disk
+ * when it is selected again.
  */
 export const MAX_CACHED_DOCUMENTS_PER_SESSION = 20;
 export const MAX_CACHED_DOCUMENT_BYTES_GLOBAL = 32 * 1024 * 1024;
 
 interface SessionViewState {
-    /** Locally focused WorkItem per Session; the persisted `activeTab` is the durable fallback. */
+    /**
+     * Locally focused WorkItem per Session; the persisted `activeTab` is the durable fallback.
+     */
     activeWork: Record<string, WorkItem | undefined>;
     documents: SessionDocuments;
-    /** Least-recently-used order per Session, most recent last. Drives {@link evictExcess}. */
+    /**
+     * Least-recently-used order per Session, most recent last. Drives {@link evictExcess}.
+     */
     recentDocuments: Record<string, string[]>;
     activateWork(item: WorkItem): void;
     setActiveWork(sessionId: string, item?: WorkItem, workbenchProjectId?: string): void;
@@ -59,8 +60,8 @@ interface SessionViewState {
 }
 
 /**
- * Owner-root state keeps its historical Session key; alternate roots add the independently
- * authorized Project ID so dirty buffers with the same path can never collide.
+ * Owner-root state keeps its historical Session key; alternate roots add the independently authorized Project ID so
+ * dirty buffers with the same path can never collide.
  */
 export function sessionViewScope(sessionId: string, workbenchProjectId?: string): string {
     const session = getBootstrap()?.sessions?.find((candidate) => candidate.id === sessionId);
@@ -69,32 +70,14 @@ export function sessionViewScope(sessionId: string, workbenchProjectId?: string)
     return `${sessionId}\0${rootProjectId}`;
 }
 
-export function getSessionDocuments(
-    sessionId: string,
-    workbenchProjectId?: string,
-): Record<string, EditorDocument> | undefined {
-    return useSessionViewStore.getState().documents[
-        sessionViewScope(sessionId, workbenchProjectId)
-    ];
-}
-
-export function getSessionActiveWork(
-    sessionId: string,
-    workbenchProjectId?: string,
-): WorkItem | undefined {
-    return useSessionViewStore.getState().activeWork[
-        sessionViewScope(sessionId, workbenchProjectId)
-    ];
-}
-
 function touch(recent: readonly string[] | undefined, path: string): string[] {
     return [...(recent ?? []).filter((value) => value !== path), path];
 }
 
 /**
- * Drops the least recently used clean documents once a Session exceeds the cache cap. A dirty buffer
- * is never evicted implicitly: unlike the external-change rule, which replaces a dirty buffer with a
- * newer disk state the user can see, silent eviction would simply lose unsaved edits.
+ * Drops the least recently used clean documents once a Session exceeds the cache cap. A dirty buffer is never evicted
+ * implicitly: unlike the external-change rule, which replaces a dirty buffer with a newer disk state the user can see,
+ * silent eviction would simply lose unsaved edits.
  */
 function evictExcess(
     documents: Record<string, EditorDocument>,
@@ -125,9 +108,9 @@ function retainedBytes(document: EditorDocument): number {
 }
 
 /**
- * Applies one process-wide content budget after the per-Session count cap. Dirty buffers are the
- * only exception because reclaiming them would destroy unsaved work; they still displace every
- * eligible clean buffer before the cache is allowed to exceed the budget.
+ * Applies one process-wide content budget after the per-Session count cap. Dirty buffers are the only exception because
+ * reclaiming them would destroy unsaved work; they still displace every eligible clean buffer before the cache is
+ * allowed to exceed the budget.
  */
 function evictToGlobalBudget(
     documents: SessionDocuments,
@@ -185,9 +168,9 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     recentDocuments: {},
 
     /**
-     * The single write path for "what is focused in the center pane": updates the Session-scoped
-     * `activeWork` plus the persisted `sessionState.activeTab` (and, for a Terminal, the layout's
-     * active group) in one update. `resolveActiveWork` is the corresponding single read path.
+     * The single write path for "what is focused in the center pane": updates the Session-scoped `activeWork` plus the
+     * persisted `sessionState.activeTab` (and, for a Terminal, the layout's active group) in one update.
+     * `resolveActiveWork` is the corresponding single read path.
      */
     activateWork(item) {
         const sessionId = getSelectedSession()?.id;
@@ -245,12 +228,14 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         get().cacheDocument(sessionId, { ...existing, content, dirty: true });
     },
 
-    /** Closing a tab releases its content; the tab itself is owned by the persisted Session state. */
+    /**
+     * Closing a tab releases its content; the tab itself is owned by the persisted Session state.
+     */
     evictDocument(sessionId, path, workbenchProjectId) {
         const scope = sessionViewScope(sessionId, workbenchProjectId);
         set((state) => {
             const cached = state.documents[scope];
-            if (!cached?.[path]) return state;
+            if (!cached || !Object.hasOwn(cached, path)) return state;
             const remaining = { ...cached };
             delete remaining[path];
             return {
@@ -267,17 +252,17 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         const scope = sessionViewScope(sessionId);
         set((state) => {
             const cached = state.documents[scope];
-            if (!cached || !Object.keys(cached).some((value) => pathIsAtOrBelow(value, path)))
+            if (!cached || Object.keys(cached).every((value) => !isPathAtOrBelow(value, path)))
                 return state;
             const remaining = Object.fromEntries(
-                Object.entries(cached).filter(([value]) => !pathIsAtOrBelow(value, path)),
+                Object.entries(cached).filter(([value]) => !isPathAtOrBelow(value, path)),
             );
             return {
                 documents: { ...state.documents, [scope]: remaining },
                 recentDocuments: {
                     ...state.recentDocuments,
                     [scope]: (state.recentDocuments[scope] ?? []).filter(
-                        (value) => !pathIsAtOrBelow(value, path),
+                        (value) => !isPathAtOrBelow(value, path),
                     ),
                 },
             };
@@ -288,7 +273,10 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         const scope = sessionViewScope(sessionId, workbenchProjectId);
         set((state) => {
             const cached = state.documents[scope];
-            if (!cached || !Object.keys(cached).some((path) => pathIsAtOrBelow(path, previousPath)))
+            if (
+                !cached ||
+                Object.keys(cached).every((path) => !isPathAtOrBelow(path, previousPath))
+            )
                 return state;
             const remapped = Object.fromEntries(
                 Object.entries(cached).map(([path, document]) => {
@@ -313,11 +301,10 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         if (removed.size === 0) return;
         const without = <T>(record: Record<string, T>): Record<string, T> =>
             Object.fromEntries(
-                Object.entries(record).filter(
-                    ([key]) =>
-                        ![...removed].some(
-                            (sessionId) => key === sessionId || key.startsWith(`${sessionId}\0`),
-                        ),
+                Object.entries(record).filter(([key]) =>
+                    [...removed].every(
+                        (sessionId) => !(key === sessionId || key.startsWith(`${sessionId}\0`)),
+                    ),
                 ),
             );
         set((state) => ({
@@ -327,14 +314,36 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         }));
     },
 
-    /** Inspector mode is persisted with the Session, so this writes through to the Runtime. */
+    /**
+     * Inspector mode is persisted with the Session, so this writes through to the Runtime.
+     */
     setInspectorMode(mode) {
         const current = getSessionState();
         if (current) patchSessionState({ ...current, inspectorMode: mode });
     },
 }));
 
-/** Non-React counterpart of {@link useActiveWork}, for command handlers and event listeners. */
+export function getSessionDocuments(
+    sessionId: string,
+    workbenchProjectId?: string,
+): Record<string, EditorDocument> | undefined {
+    return useSessionViewStore.getState().documents[
+        sessionViewScope(sessionId, workbenchProjectId)
+    ];
+}
+
+export function getSessionActiveWork(
+    sessionId: string,
+    workbenchProjectId?: string,
+): WorkItem | undefined {
+    return useSessionViewStore.getState().activeWork[
+        sessionViewScope(sessionId, workbenchProjectId)
+    ];
+}
+
+/**
+ * Non-React counterpart of {@link useActiveWork}, for command handlers and event listeners.
+ */
 export function getResolvedActiveWork(): WorkItem | undefined {
     const sessionId = getSelectedSession()?.id;
     return resolveActiveWork({
@@ -344,13 +353,17 @@ export function getResolvedActiveWork(): WorkItem | undefined {
     });
 }
 
-/** Reads the focused WorkItem through the single `resolveActiveWork` fallback ladder. */
+/**
+ * Reads the focused WorkItem through the single `resolveActiveWork` fallback ladder.
+ */
 export function useActiveWork(): WorkItem | undefined {
     const session = useSelectedSession();
     const sessionTerminals = useSessionTerminals();
     const sessionState = useSessionState();
-    /** Keep the Workbench Project in the reactive input set. React Compiler cannot observe the
-     * store read hidden inside `sessionViewScope(sessionId)` when the Session ID itself is stable. */
+    /**
+     * Keep the Workbench Project in the reactive input set. React Compiler cannot observe the store read hidden inside
+     * `sessionViewScope(sessionId)` when the Session ID itself is stable.
+     */
     const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
     const activeWork = useSessionViewStore((state) =>
         scope ? state.activeWork[scope] : undefined,

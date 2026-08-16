@@ -8,9 +8,23 @@ allowBuilds:
   electron-winstaller: false
   esbuild: true
   node-pty: true
+  unrs-resolver: true
 
 catalog:
+  '@yutengjing/eslint-config-typescript': ^4.0.0
+  '@yutengjing/prettier-config': ^2.0.0
+  markdownlint: ^0.41.1
+  markdownlint-cli2: ^0.23.2
+  oxlint: ^1.78.0
+  oxlint-tsgolint: ^7.0.2001
+  prettier-plugin-tailwindcss: ^0.8.1
   zod: 4.4.3
+
+minimumReleaseAgeExclude:
+  - '@yutengjing/eslint-config-basic@4.0.0'
+  - '@yutengjing/eslint-config-typescript@4.0.0'
+  - '@yutengjing/eslint-plugin@4.0.0'
+  - eslint-plugin-jsdoc@64.2.0
 
 overrides:
   dompurify: 3.4.13

@@ -24,6 +24,6 @@ _Researched 2026-08-06._
 
 ## Community sentiment
 
-- X thread, @T_Zahil, 2026-08-05 (https://x.com/T_Zahil/status/2085024540355166472): OP says they used only Conductor for 6+ months but recently soured on it after Conductor "introduced some changes I don't like" (its cloud-oriented pivot); a replier (@Moshe_Grunwald) still prefers it "cause I like the way it has workspaces and native agent views (don't need to use the cli tuis)."
+- X thread, @T_Zahil, 2026-08-05 (<https://x.com/T_Zahil/status/2085024540355166472>): OP says they used only Conductor for 6+ months but recently soured on it after Conductor "introduced some changes I don't like" (its cloud-oriented pivot); a replier (@Moshe_Grunwald) still prefers it "cause I like the way it has workspaces and native agent views (don't need to use the cli tuis)."
 - r/conductorbuild and LinkedIn reviews report real friction: broken `.env` copying into new worktrees, high battery/energy usage, terminal mouse-selection bugs, SSH-passphrase auth gaps, and startup crashes; one reviewer called onboarding "doing too much" while conceding "the worktree workflow has real potential."
 - Other feedback (LinkedIn, Jan–Mar 2026) is more positive on the core UX — "so close to my dream UI for coding agents," workspaces plus multi-thread-per-workspace and "Fix CI" praised — while criticizing UI gimmicks (animated plan-mode indicators) and, separately, performance slowdowns after rapid feature shipping.

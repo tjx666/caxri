@@ -5,12 +5,11 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
-async function configureRepository(path: string): Promise<void> {
+async function configureRepo(path: string): Promise<void> {
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: path });
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: path });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: path });
@@ -22,7 +21,7 @@ test('JSON and gitlink patches use VS Code-style Dracula colors', async () => {
     const root = join(testDirectory, 'project');
     const submoduleSource = join(testDirectory, 'submodule-source');
     await execFileAsync('mkdir', ['-p', root, submoduleSource]);
-    await Promise.all([configureRepository(root), configureRepository(submoduleSource)]);
+    await Promise.all([configureRepo(root), configureRepo(submoduleSource)]);
     await writeFile(
         join(root, 'theme.json'),
         '{\n  "name": "caxri",\n  "enabled": true,\n  "count": 1\n}\n',
@@ -101,7 +100,11 @@ test('JSON and gitlink patches use VS Code-style Dracula colors', async () => {
             'rgb(80, 250, 123)',
         );
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

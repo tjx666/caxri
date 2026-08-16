@@ -30,7 +30,9 @@ describe('TerminalScreenState', () => {
         const overflows: number[] = [];
         const screen = new TerminalScreenState('', 40, 6, {
             maximumQueuedBytes: 64,
-            onOverflow: (droppedBytes) => overflows.push(droppedBytes),
+            onOverflow: (droppedBytes) => {
+                overflows.push(droppedBytes);
+            },
         });
 
         for (let index = 0; index < 100; index += 1) screen.write('12345678');

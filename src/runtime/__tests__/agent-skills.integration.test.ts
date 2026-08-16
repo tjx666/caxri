@@ -5,17 +5,17 @@ import { join } from 'node:path';
 import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { agentSkillHealthSchema } from '../../../packages/protocol/src';
 import { executeSkillCommand } from '../../../packages/cli/src/skills';
+import { agentSkillHealthSchema } from '../../../packages/protocol/src';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Runtime Agent skill health', () => {
@@ -38,7 +38,7 @@ describe('Runtime Agent skill health', () => {
         const runtime = await createRuntime({
             agentEnvironment: { homeDirectory: home, variables: environment },
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 spawn: vi.fn(
                     () =>

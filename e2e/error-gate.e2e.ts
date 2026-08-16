@@ -4,16 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import {
-    allowE2EErrors,
-    errorGateSelfTest,
-    expect,
-    test,
-    type TestInfo,
-} from './support/fixtures.ts';
-
-import { launchCaxri, pageReply } from './support/helpers.ts';
 import { runWithE2EErrorGate } from './support/error-gate.ts';
+import type { TestInfo } from './support/fixtures.ts';
+import { allowE2EErrors, errorGateSelfTest, expect, test } from './support/fixtures.ts';
+import { launchCaxri, pageReply } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -21,7 +15,7 @@ async function observeIpcFailure(
     testInfo: TestInfo,
     name: string,
     method: string,
-    params: unknown,
+    parameters: unknown,
     expectedCode: string,
 ): Promise<void> {
     const testDirectory = await mkdtemp(join(tmpdir(), `caxri-error-gate-${name}-`));
@@ -31,12 +25,16 @@ async function observeIpcFailure(
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await expect(running.page.getByLabel('Add Project')).toBeAttached();
-        const reply = await pageReply(running.page, method, params);
+        const reply = await pageReply(running.page, method, parameters);
         expect(reply.ok).toBe(false);
         if (!reply.ok) expect(reply.error.code).toBe(expectedCode);
         await expect(running.page.getByLabel('Add Project')).toBeAttached();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await expect
             .poll(() => ({
                 main: testInfo.attachments.some((attachment) =>
@@ -51,23 +49,25 @@ async function observeIpcFailure(
     }
 }
 
-/** Runs the real gate directly so a negative regression can assert its exact teardown rejection. */
+/**
+ * Runs the real gate directly so a negative regression can assert its exact teardown rejection.
+ */
 async function expectGateFailure(
     testInfo: TestInfo,
     expectedMessage: string,
     runTest: () => Promise<void>,
 ): Promise<void> {
-    let bodyCompleted = false;
+    let isBodyCompleted = false;
     let failure: unknown;
     try {
         await runWithE2EErrorGate(testInfo, async () => {
             await runTest();
-            bodyCompleted = true;
+            isBodyCompleted = true;
         });
     } catch (error) {
         failure = error;
     }
-    expect(bodyCompleted).toBe(true);
+    expect(isBodyCompleted).toBe(true);
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).toBe(expectedMessage);
 }
@@ -98,7 +98,7 @@ test('issue-104-error-gate: observes a page exception while the UI remains usabl
         await running.page.evaluate(() => {
             setTimeout(() => {
                 throw new Error('CAXRI_EXPECTED_E2E_PAGE_EXCEPTION');
-            });
+            }, 0);
         });
         const mainLogPath = join(userData, 'logs', 'main.jsonl');
         await expect
@@ -106,15 +106,19 @@ test('issue-104-error-gate: observes a page exception while the UI remains usabl
             .toContain('"event":"renderer.page_exception"');
         await expect(running.page.getByLabel('Add Project')).toBeAttached();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
 
 errorGateSelfTest(
     'issue-104-error-gate: rejects an unexpected Main error after usable UI',
-    async ({ browserName }, testInfo) => {
-        void browserName;
+    // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
+    async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
             'Unexpected E2E errors: main/ipc.request_failed/VALIDATION x1',
@@ -123,18 +127,16 @@ errorGateSelfTest(
     },
 );
 
-test('issue-104-error-gate: consumes one exact Main error after usable UI', async ({
-    e2eErrorGate,
-}, testInfo) => {
-    void e2eErrorGate;
+// eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
+test('issue-104-error-gate: consumes one exact Main error after usable UI', async ({}, testInfo) => {
     allowE2EErrors([{ source: 'main', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 }]);
     await observeIpcFailure(testInfo, 'main-allowed', 'e2e.invalid', {}, 'VALIDATION');
 });
 
 errorGateSelfTest(
     'issue-104-error-gate: rejects an unexpected Runtime error after usable UI',
-    async ({ browserName }, testInfo) => {
-        void browserName;
+    // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
+    async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
             'Unexpected E2E errors: main/ipc.request_failed/NOT_FOUND x1, runtime/ipc.request_failed/NOT_FOUND x1',
@@ -150,10 +152,8 @@ errorGateSelfTest(
     },
 );
 
-test('issue-104-error-gate: consumes exact Main and Runtime errors after usable UI', async ({
-    e2eErrorGate,
-}, testInfo) => {
-    void e2eErrorGate;
+// eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
+test('issue-104-error-gate: consumes exact Main and Runtime errors after usable UI', async ({}, testInfo) => {
     allowE2EErrors([
         { source: 'main', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
         { source: 'runtime', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },

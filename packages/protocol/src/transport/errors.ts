@@ -1,12 +1,12 @@
 import type { ZodError } from 'zod';
 
 /**
- * Stable, cross-process error taxonomy. Every rejected Caxri request carries one of these codes so
- * Main, the Renderer, and tests can branch on classification instead of matching message strings.
+ * Stable, cross-process error taxonomy. Every rejected Caxri request carries one of these codes so Main, the Renderer,
+ * and tests can branch on classification instead of matching message strings.
  *
- * This module deliberately has no value-level imports. Electron's sandboxed preload can only
- * `require` Electron builtins and its own bundle, so pulling Zod (or any dependency) in here would
- * break `window.caxri` at load time. The Zod type import below is erased at build time.
+ * This module deliberately has no value-level imports. Electron's sandboxed preload can only `require` Electron
+ * builtins and its own bundle, so pulling Zod (or any dependency) in here would break `window.caxri` at load time. The
+ * Zod type import below is erased at build time.
  */
 export const errorCodes = [
     'VALIDATION',
@@ -42,9 +42,9 @@ export class CaxriError extends Error {
 }
 
 /**
- * Accepts equivalent instances emitted by another bundled copy of `@caxri/protocol`. Main embeds
- * the source protocol while the workspace CLI can load its built package, so `instanceof` alone
- * would erase a Host reply code when those copies meet at the Desktop adapter boundary.
+ * Accepts equivalent instances emitted by another bundled copy of `@caxri/protocol`. Main embeds the source protocol
+ * while the workspace CLI can load its built package, so `instanceof` alone would erase a Host reply code when those
+ * copies meet at the Desktop adapter boundary.
  */
 export function isCaxriError(value: unknown): value is CaxriError {
     if (value instanceof CaxriError) return true;
@@ -59,23 +59,25 @@ export function isCaxriError(value: unknown): value is CaxriError {
 }
 
 /**
- * Extracts a human-readable message from a caught value, falling back to a caller-supplied default
- * for non-`Error` throws (e.g. rejected primitives or `null`). Centralizes the
- * `error instanceof Error ? error.message : fallback` idiom repeated across every process.
+ * Extracts a human-readable message from a caught value, falling back to a caller-supplied default for non-`Error`
+ * throws (e.g. rejected primitives or `null`). Centralizes the `error instanceof Error ? error.message : fallback`
+ * idiom repeated across every process.
  */
 export function errorMessage(error: unknown, fallback: string): string {
     return error instanceof Error ? error.message : fallback;
 }
 
-/** Unknown codes decay to `INTERNAL` so a newer Runtime can never break an older reader. */
+/**
+ * Unknown codes decay to `INTERNAL` so a newer Runtime can never break an older reader.
+ */
 export function toErrorCode(value: unknown): CaxriErrorCode {
     return errorCodes.includes(value as CaxriErrorCode) ? (value as CaxriErrorCode) : 'INTERNAL';
 }
 
 /**
- * Recognizes a Zod failure structurally rather than with `instanceof`. Keeping the check nominal
- * would require importing Zod at runtime, and it would also miss errors thrown by a second copy of
- * Zod resolved elsewhere in the dependency graph.
+ * Recognizes a Zod failure structurally rather than with `instanceof`. Keeping the check nominal would require
+ * importing Zod at runtime, and it would also miss errors thrown by a second copy of Zod resolved elsewhere in the
+ * dependency graph.
  */
 function isZodError(value: unknown): value is ZodError {
     return (
@@ -87,7 +89,9 @@ function isZodError(value: unknown): value is ZodError {
 
 const MAX_REPORTED_ISSUES = 5;
 
-/** Renders a Zod failure as one readable sentence without echoing the rejected values. */
+/**
+ * Renders a Zod failure as one readable sentence without echoing the rejected values.
+ */
 function describeValidationError(error: ZodError): string {
     const issues = error.issues.slice(0, MAX_REPORTED_ISSUES).map((issue) => {
         const path = issue.path.join('.');
@@ -98,8 +102,8 @@ function describeValidationError(error: ZodError): string {
 }
 
 /**
- * Classifies any thrown value for the wire. Zod failures become `VALIDATION`, `CaxriError` keeps its
- * code, and anything else is an unclassified `INTERNAL` fault.
+ * Classifies any thrown value for the wire. Zod failures become `VALIDATION`, `CaxriError` keeps its code, and anything
+ * else is an unclassified `INTERNAL` fault.
  */
 export function toWireError(error: unknown): WireError {
     if (isCaxriError(error)) {
@@ -114,7 +118,9 @@ export function toWireError(error: unknown): WireError {
     };
 }
 
-/** Rebuilds a `CaxriError` after a structured-clone hop erased the prototype and own properties. */
+/**
+ * Rebuilds a `CaxriError` after a structured-clone hop erased the prototype and own properties.
+ */
 export function fromWireError(wire: unknown): CaxriError {
     if (typeof wire !== 'object' || wire === null)
         return new CaxriError('INTERNAL', 'Unknown Caxri error');

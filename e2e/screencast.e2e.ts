@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Page } from './support/fixtures.ts';
-
+import type { Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, waitForRuntimeReady } from './support/helpers.ts';
 
 async function toggleScreencastFromPalette(page: Page): Promise<void> {
@@ -64,7 +64,11 @@ test('Screencast Mode shows privacy-safe window input and leaves no state after 
         await running.page.locator('.workbench').click({ position: { x: 320, y: 200 } });
         await expect(running.page.locator('[data-screencast-click]')).toHaveCount(0);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

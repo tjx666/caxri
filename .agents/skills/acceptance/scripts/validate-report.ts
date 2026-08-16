@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-const CHINESE_TEXT = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/u;
-const CHINESE_CHARACTERS = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/gu;
+const CHINESE_TEXT = /[\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{F900}-\u{FAFF}]/u;
+const CHINESE_CHARACTERS = /[\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{F900}-\u{FAFF}]/gu;
 const LATIN_TEXT = /[A-Za-z]/u;
-const LATIN_CHARACTERS = /[A-Za-z]/g;
+const LATIN_CHARACTERS = /[A-Z]/gi;
 
 function isPrimarilyChinese(value: string): boolean {
     const chineseCount = value.match(CHINESE_CHARACTERS)?.length ?? 0;
@@ -14,16 +14,16 @@ function isPrimarilyChinese(value: string): boolean {
 }
 
 function withoutHtmlComments(value: string): string {
-    return value.replace(/<!--[\s\S]*?-->/g, (comment) => comment.replace(/[^\n]/g, ' '));
+    return value.replaceAll(/<!--[\s\S]*?-->/g, (comment) => comment.replaceAll(/[^\n]/g, ' '));
 }
 
 function visibleMarkdownProse(line: string): string {
     return line
-        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-        .replace(/<[^>]+>/g, '')
-        .replace(/https?:\/\/\S+/g, '')
-        .replace(/`[^`]+`/g, '')
+        .replaceAll(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+        .replaceAll(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replaceAll(/<[^>]+>/g, '')
+        .replaceAll(/https?:\/\/\S+/g, '')
+        .replaceAll(/`[^`]+`/g, '')
         .trim();
 }
 
@@ -60,25 +60,31 @@ export function validateHumanText(value: unknown, field: string): string {
     return parsed.data;
 }
 
+const comparisonEvidenceCaseSchema = z.object({ evidence: z.array(z.unknown()).optional() });
+const comparisonLabelReportSchema = z.object({ cases: z.array(comparisonEvidenceCaseSchema) });
+
+function validateComparisonLabel(evidence: unknown, field: string): void {
+    if (
+        typeof evidence !== 'object' ||
+        evidence === null ||
+        !('comparison' in evidence) ||
+        typeof evidence.comparison !== 'object' ||
+        evidence.comparison === null
+    ) {
+        return;
+    }
+    const label = 'label' in evidence.comparison ? evidence.comparison.label : undefined;
+    validateHumanText(label, field);
+}
+
 function validateComparisonLabels(report: unknown): void {
-    const parsed = z
-        .object({ cases: z.array(z.object({ evidence: z.array(z.unknown()).optional() })) })
-        .safeParse(report);
+    const parsed = comparisonLabelReportSchema.safeParse(report);
     if (!parsed.success) return;
     for (const [caseIndex, item] of parsed.data.cases.entries()) {
-        for (const [evidenceIndex, evidence] of (item.evidence ?? []).entries()) {
-            if (
-                typeof evidence !== 'object' ||
-                evidence === null ||
-                !('comparison' in evidence) ||
-                typeof evidence.comparison !== 'object' ||
-                evidence.comparison === null
-            ) {
-                continue;
-            }
-            const label = 'label' in evidence.comparison ? evidence.comparison.label : undefined;
-            validateHumanText(
-                label,
+        const evidenceList = item.evidence ?? [];
+        for (const [evidenceIndex, evidence] of evidenceList.entries()) {
+            validateComparisonLabel(
+                evidence,
                 `cases.${caseIndex}.evidence.${evidenceIndex}.comparison.label`,
             );
         }
@@ -102,14 +108,14 @@ export function validateReportLanguage({
         throw new Error(`${field} must be primarily Chinese`);
     }
     validateComparisonLabels(report);
-    let insideFence = false;
+    let isInsideFence = false;
     const lines = withoutHtmlComments(notes ?? '').split('\n');
     for (const [index, rawLine] of lines.entries()) {
-        if (/^\s*(```|~~~)/.test(rawLine)) {
-            insideFence = !insideFence;
+        if (/^\s*(?:```|~~~)/.test(rawLine)) {
+            isInsideFence = !isInsideFence;
             continue;
         }
-        if (insideFence) continue;
+        if (isInsideFence) continue;
         const line = visibleMarkdownProse(rawLine);
         if (!CHINESE_TEXT.test(line) && !LATIN_TEXT.test(line)) continue;
         if (!humanTextSchema.safeParse(line).success) {

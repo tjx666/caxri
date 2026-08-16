@@ -1,16 +1,16 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { expect, test } from './support/fixtures.ts';
+import process from 'node:process';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 /**
- * The opt-in checkbox and the preview's `alt` text both have to say that a screenshot, unlike the
- * text report, is captured pixel-for-pixel and cannot be redacted. Pinned here as constants so a
- * future copy edit that quietly drops the disclosure fails this spec instead of passing silently.
+ * The opt-in checkbox and the preview's `alt` text both have to say that a screenshot, unlike the text report, is
+ * captured pixel-for-pixel and cannot be redacted. Pinned here as constants so a future copy edit that quietly drops
+ * the disclosure fails this spec instead of passing silently.
  */
 const SCREENSHOT_CHECKBOX_LABEL =
     'Capture a screenshot of the current Caxri window, including any open files and terminal output visible on screen';
@@ -83,17 +83,21 @@ test('Bug report preview sends one redacted multiline prompt to the selected liv
         await expect
             .poll(async () => {
                 agentInput = await readFile(capture, 'utf8');
-                return agentInput.endsWith('\u001B[201~\r');
+                return agentInput.endsWith('\u{1B}[201~\r');
             })
             .toBe(true);
-        expect(agentInput.startsWith('\u001B[200~# Caxri Bug Report')).toBe(true);
+        expect(agentInput.startsWith('\u{1B}[200~# Caxri Bug Report')).toBe(true);
         expect(agentInput).toContain('The action failed with token=[REDACTED]');
         expect(agentInput).toContain('1. Open Caxri\n2. Run the action\n3. Observe the failure');
         expect(agentInput).not.toContain('private-value');
-        expect(agentInput.split('\u001B[200~')).toHaveLength(2);
-        expect(agentInput.split('\u001B[201~')).toHaveLength(2);
+        expect(agentInput.split('\u{1B}[200~')).toHaveLength(2);
+        expect(agentInput.split('\u{1B}[201~')).toHaveLength(2);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -147,12 +151,16 @@ test('Bug report delivers an opted-in screenshot through Codex image paste', asy
         await expect
             .poll(async () => {
                 agentInput = await readFile(capture, 'utf8');
-                return agentInput.endsWith('\u001B[201~\r');
+                return agentInput.endsWith('\u{1B}[201~\r');
             })
             .toBe(true);
-        expect(agentInput.startsWith('\x16\u001B[200~# Caxri Bug Report')).toBe(true);
+        expect(agentInput.startsWith('\u{16}\u{1B}[200~# Caxri Bug Report')).toBe(true);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

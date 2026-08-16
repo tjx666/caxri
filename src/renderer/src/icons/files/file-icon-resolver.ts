@@ -1,11 +1,7 @@
 import type { FileEntry } from '@shared/types';
 
-import {
-    fileIconAssets,
-    folderIconAssets,
-    type FileIconId,
-    type FolderIconId,
-} from './file-icon-assets';
+import type { FileIconId, FolderIconId } from './file-icon-assets';
+import { fileIconAssets, folderIconAssets } from './file-icon-assets';
 
 export interface ResolvedFileIcon {
     id: string;
@@ -135,13 +131,13 @@ function resolveFileId(name: string): FileIconId {
 
 export function resolveFileIcon(
     entry: Pick<FileEntry, 'kind' | 'name'>,
-    expanded = false,
+    isExpanded = false,
 ): ResolvedFileIcon {
     if (entry.kind === 'directory') {
         const id = folderNames.get(entry.name.toLowerCase()) ?? 'generic';
         return {
-            id: `folder-${id}${expanded ? '-open' : ''}`,
-            src: folderIconAssets[id][expanded ? 'open' : 'closed'],
+            id: `folder-${id}${isExpanded ? '-open' : ''}`,
+            src: folderIconAssets[id][isExpanded ? 'open' : 'closed'],
         };
     }
     const id = resolveFileId(entry.name);

@@ -1,4 +1,5 @@
-import { ipcMain, type WebContents } from 'electron';
+import type { WebContents } from 'electron';
+import { ipcMain } from 'electron';
 
 import { requestIdFromEnvelope } from '../shared/ipc/dispatcher';
 import { CaxriError, toWireError } from '../shared/ipc/errors';
@@ -16,7 +17,9 @@ export interface WorkbenchIpcOptions {
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
 }
 
-/** Installs the authenticated Electron transport without leaking Electron into the protocol. */
+/**
+ * Installs the authenticated Electron transport without leaking Electron into the protocol.
+ */
 export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
     function assertSender(sender: WebContents): void {
         if (!options.renderer() || sender !== options.renderer())
@@ -47,7 +50,9 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
     ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
         try {
             assertSender(event.sender);
-            /** Refuse queued Renderer work; explicit quit owns final Runtime I/O and shutdown. */
+            /**
+             * Refuse queued Renderer work; explicit quit owns final Runtime I/O and shutdown.
+             */
             if (options.isQuitting())
                 return {
                     protocolVersion: CAXRI_PROTOCOL_VERSION,
@@ -62,7 +67,9 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 });
             return reply;
         } catch (error) {
-            /** Replying with a classified envelope keeps the code intact across the preload. */
+            /**
+             * Replying with a classified envelope keeps the code intact across the preload.
+             */
             const wire = toWireError(error);
             options.logger()?.write('error', 'ipc.request_failed', {
                 fields: { code: wire.code, error: wire.message },

@@ -22,7 +22,7 @@ function createFakePty(): IPty {
 }
 
 function fakeAgentAdapters() {
-    const pending = new Promise<never>(() => undefined);
+    const pending = new Promise<never>(() => {});
     return {
         claude: { provider: 'claude' as const, snapshot: () => pending },
         codex: { provider: 'codex' as const, snapshot: () => pending },
@@ -30,9 +30,9 @@ function fakeAgentAdapters() {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Runtime bug report delivery', () => {
@@ -46,7 +46,7 @@ describe('Runtime bug report delivery', () => {
         const runtime = await createRuntime({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            send: () => undefined,
+            send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/echo'),
                 spawn: () => pty,
@@ -74,7 +74,7 @@ describe('Runtime bug report delivery', () => {
                     terminalId: claude.terminal!.id,
                 }),
             ).toBeNull();
-            expect(write).toHaveBeenCalledWith(`\u001B[200~${report}\u001B[201~\r`);
+            expect(write).toHaveBeenCalledWith(`\u{1B}[200~${report}\u{1B}[201~\r`);
             expect(() =>
                 runtime.handlers['bugReport.deliver']({
                     pasteImage: false,
@@ -105,7 +105,7 @@ describe('Runtime bug report delivery', () => {
                     terminalId: codex.terminal!.id,
                 }),
             ).toBeNull();
-            expect(write.mock.calls).toEqual([['\x16'], [`\u001B[200~${report}\u001B[201~\r`]]);
+            expect(write.mock.calls).toEqual([['\u{16}'], [`\u{1B}[200~${report}\u{1B}[201~\r`]]);
             await runtime.handlers['terminal.close']({ terminalId: claude.terminal!.id });
             expect(() =>
                 runtime.handlers['bugReport.deliver']({

@@ -1,4 +1,5 @@
-import { CaxriError, isCaxriError, type CaxriErrorCode, type WireError } from '@caxri/protocol';
+import type { CaxriErrorCode, WireError } from '@caxri/protocol';
+import { CaxriError, isCaxriError } from '@caxri/protocol';
 
 export type CliOutputMode = 'human' | 'json' | 'quiet';
 
@@ -8,7 +9,7 @@ function sorted(value: unknown): unknown {
     return Object.fromEntries(
         Object.entries(value)
             .filter(([, entry]) => entry !== undefined)
-            .sort(([left], [right]) => left.localeCompare(right))
+            .toSorted(([left], [right]) => left.localeCompare(right))
             .map(([key, entry]) => [key, sorted(entry)]),
     );
 }
@@ -48,8 +49,11 @@ const exitCodes: Record<CaxriErrorCode, number> = {
 
 function redactString(value: string, home: string | undefined): string {
     let redacted = home ? value.replaceAll(home, '$HOME') : value;
-    redacted = redacted.replace(/\b[0-9a-f]{48,}\b/giu, '[redacted]');
-    redacted = redacted.replace(/\b(token|secret|password|credential)=\S+/giu, '$1=[redacted]');
+    redacted = redacted.replaceAll(/\b[0-9a-f]{48,}\b/giu, '[redacted]');
+    redacted = redacted.replaceAll(
+        /\b(?:token|secret|password|credential)=\S+/giu,
+        (match) => `${match.split('=', 1)[0]}=[redacted]`,
+    );
     return redacted;
 }
 
@@ -59,7 +63,7 @@ function redactDetails(value: unknown, home: string | undefined): unknown {
     if (typeof value !== 'object' || value === null) return value;
     return Object.fromEntries(
         Object.entries(value)
-            .filter(([key]) => !/(token|secret|password|credential)/iu.test(key))
+            .filter(([key]) => !/token|secret|password|credential/iu.test(key))
             .slice(0, 32)
             .map(([key, entry]) => [key, redactDetails(entry, home)]),
     );
@@ -68,14 +72,11 @@ function redactDetails(value: unknown, home: string | undefined): unknown {
 export function normalizeCliError(error: unknown, home?: string): WireError {
     if (!isCaxriError(error)) return { code: 'INTERNAL', message: 'Internal Caxri CLI error' };
     if (error.code === 'INTERNAL') return { code: 'INTERNAL', message: 'Internal Caxri CLI error' };
-    const details = error.details ? redactDetails(error.details, home) : undefined;
-    return {
-        code: error.code,
-        message: redactString(error.message, home),
-        ...(details && typeof details === 'object'
-            ? { details: details as Record<string, unknown> }
-            : {}),
-    };
+    const details = error.details
+        ? (redactDetails(error.details, home) as Record<string, unknown>)
+        : undefined;
+    const message = redactString(error.message, home);
+    return details ? { code: error.code, message, details } : { code: error.code, message };
 }
 
 export function exitCodeFor(error: WireError): number {

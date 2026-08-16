@@ -1,6 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import type { BootstrapState, SessionState } from '@shared/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
     const state: { handler?: (event: unknown) => void } = {};
@@ -8,11 +7,11 @@ const mocks = vi.hoisted(() => {
         state,
         onEvent: vi.fn((handler: (event: unknown) => void) => {
             state.handler = handler;
-            return () => undefined;
+            return () => {};
         }),
-        request: vi.fn((_method: unknown, params: unknown) =>
+        request: vi.fn((_method: unknown, parameters: unknown) =>
             Promise.resolve({
-                path: (params as { path: string }).path,
+                path: (parameters as { path: string }).path,
                 content: 'content',
                 dirty: false,
                 mtimeMs: 1,
@@ -175,9 +174,9 @@ describe('subscribeExternalDocumentSync', () => {
             mtimeMs: 1,
             size: 7,
         });
-        mocks.request.mockImplementationOnce((_method, params) =>
+        mocks.request.mockImplementationOnce((_method, parameters) =>
             Promise.resolve({
-                path: (params as { path: string }).path,
+                path: (parameters as { path: string }).path,
                 content: 'disk content',
                 dirty: false,
                 mtimeMs: 2,
@@ -208,9 +207,9 @@ describe('subscribeExternalDocumentSync', () => {
         useWorkbenchStore.setState((state) => ({
             bootstrap: { ...state.bootstrap!, selectedSessionId: 'session-2' },
         }));
-        mocks.request.mockImplementationOnce((_method, params) =>
+        mocks.request.mockImplementationOnce((_method, parameters) =>
             Promise.resolve({
-                path: (params as { path: string }).path,
+                path: (parameters as { path: string }).path,
                 content: 'disk content',
                 dirty: false,
                 mtimeMs: 2,

@@ -14,28 +14,24 @@ const temporaryDirectories: string[] = [];
 const executeFile = promisify(execFile);
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingDirectories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
-function completeWithin<T>(promise: Promise<T>, timeoutMs = 750): Promise<T> {
-    return new Promise((resolve, reject) => {
-        const timeout = setTimeout(
+async function completeWithin<T>(promise: Promise<T>, timeoutMs = 750): Promise<T> {
+    let timeout: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
             () => reject(new Error(`Theme import did not settle within ${timeoutMs}ms`)),
             timeoutMs,
         );
-        void promise.then(
-            (value) => {
-                clearTimeout(timeout);
-                resolve(value);
-            },
-            (error: unknown) => {
-                clearTimeout(timeout);
-                reject(error instanceof Error ? error : new Error(String(error)));
-            },
-        );
     });
+    try {
+        return await Promise.race([promise, timeoutPromise]);
+    } finally {
+        clearTimeout(timeout!);
+    }
 }
 
 async function unblockFifoReader(path: string): Promise<void> {
@@ -197,7 +193,9 @@ describe('theme import mapping', () => {
     });
 });
 
-/** WCAG 2.1 relative luminance of an `#rrggbb` color. */
+/**
+ * WCAG 2.1 relative luminance of an `#rrggbb` color.
+ */
 function relativeLuminance(hex: string): number {
     const channels = [1, 3, 5].map((offset) => {
         const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
@@ -207,17 +205,18 @@ function relativeLuminance(hex: string): number {
 }
 
 function contrastRatio(foreground: string, background: string): number {
-    const [lighter, darker] = [relativeLuminance(foreground), relativeLuminance(background)].sort(
-        (a, b) => b - a,
-    );
+    const [lighter, darker] = [
+        relativeLuminance(foreground),
+        relativeLuminance(background),
+    ].toSorted((a, b) => b - a);
     return (lighter + 0.05) / (darker + 0.05);
 }
 
 describe('built-in theme contrast', () => {
     /**
-     * `muted` is the UI's secondary-text role, not a syntax color, so it must stay readable on every
-     * chrome surface. Imported themes clone this palette and never override `muted`, which makes
-     * this single constant the contrast floor for all 133 `text-muted` call sites in the Renderer.
+     * `muted` is the UI's secondary-text role, not a syntax color, so it must stay readable on every chrome surface.
+     * Imported themes clone this palette and never override `muted`, which makes this single constant the contrast
+     * floor for all 133 `text-muted` call sites in the Renderer.
      */
     it('keeps muted secondary text at WCAG AA on every chrome surface', () => {
         const { muted, background, surface, elevated } = draculaTheme.colors;
@@ -232,9 +231,9 @@ describe('built-in theme contrast', () => {
     });
 
     /**
-     * `styles/theme.css` hardcodes the same palette as the pre-Runtime fallback that paints the
-     * first frame before `applyCssTheme` runs. Drift between the two shows up as a color flash, so
-     * the stylesheet is asserted against the source of truth rather than eyeballed.
+     * `styles/theme.css` hardcodes the same palette as the pre-Runtime fallback that paints the first frame before
+     * `applyCssTheme` runs. Drift between the two shows up as a color flash, so the stylesheet is asserted against the
+     * source of truth rather than eyeballed.
      */
     it('mirrors the built-in palette in the Renderer stylesheet fallback', async () => {
         const stylesheet = await readFile(

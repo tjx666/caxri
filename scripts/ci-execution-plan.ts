@@ -31,17 +31,20 @@ function isDocumentationPath(path: string): boolean {
     return path.endsWith('.md') || path.startsWith('docs/');
 }
 
-function isRepositorySkillPath(path: string): boolean {
+function isRepoSkillPath(path: string): boolean {
     return path.startsWith('.agents/skills/') || path.startsWith('.claude/skills/');
 }
 
-function containsOnly(paths: readonly string[], predicate: (path: string) => boolean): boolean {
-    return paths.length > 0 && paths.every(predicate);
+function areAllPathsMatching(
+    paths: readonly string[],
+    isMatch: (path: string) => boolean,
+): boolean {
+    return paths.length > 0 && paths.every(isMatch);
 }
 
 /**
- * Selects the cheapest fail-closed CI path that still validates the event's product risk.
- * `ready_for_review` re-evaluates the same source SHA with `draft=false`, promoting it to full CI.
+ * Selects the cheapest fail-closed CI path that still validates the event's product risk. `ready_for_review`
+ * re-evaluates the same source SHA with `draft=false`, promoting it to full CI.
  */
 export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutionPlan {
     if (input.retryMode) {
@@ -67,24 +70,24 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
         const reusable = input.reusableGreenRun;
         if (
             reusable &&
-            Number.isInteger(reusable.runId) &&
+            Number.isSafeInteger(reusable.runId) &&
             reusable.runId > 0 &&
             /^[0-9a-f]{40}$/u.test(reusable.headSha) &&
-            containsOnly(reusable.changedFiles, isReusableGreenDeltaPath)
+            areAllPathsMatching(reusable.changedFiles, isReusableGreenDeltaPath)
         ) {
-            const skillDelta = reusable.changedFiles.some(isReusableGreenSkillPath);
+            const isSkillDelta = reusable.changedFiles.some(isReusableGreenSkillPath);
             return {
-                checksScope: skillDelta ? 'focused-skills' : 'focused-docs',
+                checksScope: isSkillDelta ? 'focused-skills' : 'focused-docs',
                 e2eProfile: 'control',
-                reason: `ancestor full-green run ${reusable.runId}; ${skillDelta ? 'repository-skill' : 'documentation'} delta`,
+                reason: `ancestor full-green run ${reusable.runId}; ${isSkillDelta ? 'repository-skill' : 'documentation'} delta`,
                 runE2E: false,
             };
         }
         if (
-            input.changedFiles.some(isRepositorySkillPath) &&
-            containsOnly(
+            input.changedFiles.some(isRepoSkillPath) &&
+            areAllPathsMatching(
                 input.changedFiles,
-                (path) => isDocumentationPath(path) || isRepositorySkillPath(path),
+                (path) => isDocumentationPath(path) || isRepoSkillPath(path),
             )
         ) {
             return {
@@ -94,7 +97,7 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
                 runE2E: false,
             };
         }
-        if (containsOnly(input.changedFiles, isDocumentationPath)) {
+        if (areAllPathsMatching(input.changedFiles, isDocumentationPath)) {
             return {
                 checksScope: 'focused-docs',
                 e2eProfile: 'control',
@@ -127,7 +130,9 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
         };
     }
 
-    /** Unknown future event types pay the macOS cost instead of silently weakening CI. */
+    /**
+     * Unknown future event types pay the macOS cost instead of silently weakening CI.
+     */
     return {
         checksScope: 'full',
         e2eProfile: 'control',

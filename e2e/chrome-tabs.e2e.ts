@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test, type Locator, type Page } from './support/fixtures.ts';
-
+import type { Locator, Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -27,7 +27,7 @@ async function expectIndicatorAligned(tablist: Locator, tab: Locator): Promise<v
         .toBe(true);
 }
 
-async function expectPanelAssociation(page: Page, tab: Locator, visible: boolean): Promise<void> {
+async function expectPanelAssociation(page: Page, tab: Locator, isVisible: boolean): Promise<void> {
     const panelId = await tab.getAttribute('aria-controls');
     const tabId = await tab.getAttribute('id');
     expect(panelId).toBeTruthy();
@@ -37,18 +37,18 @@ async function expectPanelAssociation(page: Page, tab: Locator, visible: boolean
     await expect(panel).toHaveCount(1);
     await expect(panel).toHaveAttribute('role', 'tabpanel');
     await expect(panel).toHaveAttribute('aria-labelledby', tabId);
-    if (visible) await expect(panel).toBeVisible();
+    if (isVisible) await expect(panel).toBeVisible();
     else await expect(panel).toBeHidden();
 }
 
 /**
- * The Settings dialog opens with a `zoom-in-95` keyframe, so a width measured while it plays is
- * scaled down by up to 5%. `expectIndicatorAligned` cannot catch that on its own: the indicator and
- * the tab content it tracks are scaled together and stay aligned throughout the animation. Poll for
- * two consecutive equal readings before pinning an absolute pixel baseline.
+ * The Settings dialog opens with a `zoom-in-95` keyframe, so a width measured while it plays is scaled down by up to
+ * 5%. `expectIndicatorAligned` cannot catch that on its own: the indicator and the tab content it tracks are scaled
+ * together and stay aligned throughout the animation. Poll for two consecutive equal readings before pinning an
+ * absolute pixel baseline.
  */
 async function stableWidth(locator: Locator): Promise<number> {
-    let previous = Number.NaN;
+    let previous = NaN;
     await expect
         .poll(async () => {
             const width = await locator.evaluate(
@@ -57,9 +57,9 @@ async function stableWidth(locator: Locator): Promise<number> {
                         requestAnimationFrame(() => resolve(element.getBoundingClientRect().width)),
                     ),
             );
-            const stable = width === previous;
+            const isStable = width === previous;
             previous = width;
-            return stable;
+            return isStable;
         })
         .toBe(true);
     return previous;
@@ -98,8 +98,10 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
 
         await inspectorTabs.locator('[data-slot="chrome-tab-indicator"]').evaluate((indicator) => {
             const evidence = [] as string[];
-            (window as unknown as { chromeTabTransitions: string[] }).chromeTabTransitions =
-                evidence;
+            Object.defineProperty(globalThis, 'chromeTabTransitions', {
+                configurable: true,
+                value: evidence,
+            });
             indicator.addEventListener('transitionrun', (event) => {
                 evidence.push((event as TransitionEvent).propertyName);
             });
@@ -112,7 +114,7 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
             .poll(() =>
                 running.page.evaluate(
                     () =>
-                        (window as unknown as { chromeTabTransitions?: string[] })
+                        (globalThis as unknown as { chromeTabTransitions?: string[] })
                             .chromeTabTransitions ?? [],
                 ),
             )
@@ -177,12 +179,11 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
             settingsTabs.locator('[data-slot="chrome-tab-indicator"]'),
         );
         /**
-         * Settings now apply immediately (`f4dfe59`): a field commits straight to disk as it
-         * changes, with no draft/Apply step and no per-tab dirty badge for the chrome tab to grow
-         * around — `[data-dirty="true"]` no longer exists anywhere in the DOM. The regression this
-         * sub-case protects is the new contract instead: editing a field must persist without an
-         * explicit Apply affordance, and the moving indicator must keep tracking the (visually
-         * unchanged) tab through that write rather than drifting or losing alignment.
+         * Settings now apply immediately (`f4dfe59`): a field commits straight to disk as it changes, with no
+         * draft/Apply step and no per-tab dirty badge for the chrome tab to grow around — `[data-dirty="true"]` no
+         * longer exists anywhere in the DOM. The regression this sub-case protects is the new contract instead: editing
+         * a field must persist without an explicit Apply affordance, and the moving indicator must keep tracking the
+         * (visually unchanged) tab through that write rather than drifting or losing alignment.
          */
         await dialog.getByLabel('Terminal font size').fill('14');
         await expect
@@ -215,7 +216,11 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         );
         await expectIndicatorAligned(settingsTabs, themeTab);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

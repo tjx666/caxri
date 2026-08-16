@@ -1,8 +1,5 @@
-import {
-    createCommandDispatcher,
-    createProtocolWelcome,
-    type CommandDispatcherOptions,
-} from '../shared/ipc/dispatcher';
+import type { CommandDispatcherOptions } from '../shared/ipc/dispatcher';
+import { createCommandDispatcher, createProtocolWelcome } from '../shared/ipc/dispatcher';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
 import type { CommandReplyEnvelope } from '../shared/ipc/transport';
 import type { ProtocolWelcome } from '../shared/ipc/version';
@@ -12,7 +9,9 @@ const electronDesktopContext = {
     principal: { kind: 'desktop', id: 'electron-main', generation: 1 },
 } satisfies CommandExecutionContext;
 
-/** Adapts Electron's untrusted invoke payload to the transport-neutral application dispatcher. */
+/**
+ * Adapts Electron's untrusted invoke payload to the transport-neutral application dispatcher.
+ */
 export function createElectronIpcCommandAdapter(options: CommandDispatcherOptions) {
     const dispatch = createCommandDispatcher(options);
     return {

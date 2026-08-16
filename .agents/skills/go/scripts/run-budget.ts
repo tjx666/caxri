@@ -110,7 +110,7 @@ export function updateRunBudgetPolicy(
     state.runBudget.policy = budgetPolicySchema.parse(policy);
 }
 
-function reaches(value: MeasuredValue, threshold: number): boolean {
+function hasReachedThreshold(value: MeasuredValue, threshold: number): boolean {
     return value !== 'unavailable' && value >= threshold;
 }
 
@@ -129,8 +129,8 @@ export function recordCostCheckpoint(
 ): RunBudget {
     const elapsed = elapsedSeconds(state.createdAt, recordedAt);
     const tokens = input.tokens ?? 'unavailable';
-    const hardThresholdReached =
-        reaches(tokens, state.runBudget.policy.hardTokens) ||
+    const isHardThresholdReached =
+        hasReachedThreshold(tokens, state.runBudget.policy.hardTokens) ||
         elapsed >= state.runBudget.policy.hardElapsedSeconds;
     const checkpoint = costCheckpointSchema.parse({
         boundary: input.boundary ?? 'manual',
@@ -138,7 +138,7 @@ export function recordCostCheckpoint(
         elapsedSeconds: elapsed,
         fileCount: input.fileCount ?? 'unavailable',
         fullReviewCount: state.reviewGate.rounds.filter(({ mode }) => mode === 'full').length,
-        hardThresholdReached,
+        hardThresholdReached: isHardThresholdReached,
         headSha: input.headSha ?? null,
         issueNumber: input.issueNumber ?? null,
         phase: state.phase,
@@ -153,7 +153,7 @@ export function recordCostCheckpoint(
         validationRepairCount: state.validations.filter(({ attempt }) => attempt > 1).length,
     });
     state.runBudget.checkpoints.push(checkpoint);
-    if (hardThresholdReached && !state.runBudget.containment) {
+    if (isHardThresholdReached && !state.runBudget.containment) {
         state.runBudget.containment = containmentSchema.parse({
             activatedAt: recordedAt,
             active: true,
@@ -180,8 +180,8 @@ export function enrichIssueCheckpoint(
 
 export function ensurePhaseCheckpoint(state: BudgetContext): RunBudget {
     if (
-        !state.runBudget.checkpoints.some(
-            ({ boundary, phase }) => boundary === 'phase' && phase === state.phase,
+        state.runBudget.checkpoints.every(
+            ({ boundary, phase }) => !(boundary === 'phase' && phase === state.phase),
         )
     ) {
         recordCostCheckpoint(state, { boundary: 'phase' });
@@ -195,7 +195,7 @@ export function routeWorkflowWork(
     recordedAt = new Date().toISOString(),
 ): 'current' | 'follow_up' {
     if (!state.runBudget.containment || input.blocking) return 'current';
-    if (!state.runBudget.routedWork.some(({ title }) => title === input.title)) {
+    if (state.runBudget.routedWork.every(({ title }) => title !== input.title)) {
         state.runBudget.routedWork.push({
             at: recordedAt,
             reason: 'Go hard budget threshold reached; non-blocking workflow work moved out of scope',

@@ -1,0 +1,95 @@
+# Unified Quality Toolchain
+
+Durable record of Caxri's mechanical-quality tooling after
+[issue #177](https://github.com/tjx666/caxri/issues/177): what each tool owns, where a given
+`AGENTS.md`/skill convention is actually enforced, what stays a prose-only judgment, and how the
+negative-fixture contract tests keep the wiring from silently rotting.
+
+## Tool ownership matrix
+
+| Concern                                                                   | Owning tool                                                                                                                                                            | Command                                 |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Code formatting (JS/TS/CSS/JSON/YAML/HTML)                                | Prettier (`@yutengjing/prettier-config`)                                                                                                                               | `bun run format` / `format:check`       |
+| Markdown formatting                                                       | Prettier (`prettier --write "**/*.md"`)                                                                                                                                | `bun run format:md` / `format:md:check` |
+| Markdown lint semantics (headings, links, lists)                          | markdownlint-cli2 (`.markdownlint-cli2.jsonc`)                                                                                                                         | `bun run lint:markdown`                 |
+| Syntactic and type-aware JS/TS rules, import boundaries                   | ESLint (`eslint.config.ts`)                                                                                                                                            | `bun run lint`                          |
+| Directory/domain/naming contracts too structural for a single ESLint rule | Vitest repository-contract tests (`scripts/__tests__/*.test.ts`, `src/runtime/__tests__/structure.test.ts`, `src/renderer/__tests__/renderer-design-contract.test.ts`) | `bun run test`                          |
+| Type correctness                                                          | `tsc --noEmit` (`tsconfig.node.json` / `tsconfig.web.json`) plus workspace `typecheck`                                                                                 | `bun run typecheck`                     |
+
+ESLint owns anything expressible as a syntactic or type-aware rule over a single file. Vitest
+contract tests own anything that needs to walk the tree, compare multiple files, or assert on
+`package.json`/`pnpm-workspace.yaml` shape — the same split the pre-existing `workspace-contract`,
+Runtime `structure`, and Renderer `design-contract` tests already used.
+
+## Where each convention is enforced
+
+### Already enforced before this stage
+
+| Convention                                                                                           | Enforcement                                                            |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Renderer never imports Node/Electron/native APIs                                                     | `eslint.config.ts` `no-restricted-imports` scoped to `src/renderer/**` |
+| 800 physical line cap                                                                                | `eslint.config.ts` `max-lines`                                         |
+| No default export on `.tsx` under `src/`                                                             | `eslint.config.ts` `no-restricted-syntax` (`ExportDefaultDeclaration`) |
+| `packages/protocol` stays browser-safe; `packages/cli` production graph excludes Desktop native deps | `scripts/__tests__/workspace-contract.test.ts`                         |
+| protocol/CLI locked domain lists and barrels                                                         | `scripts/__tests__/workspace-contract.test.ts`                         |
+| CLI tests live in `__tests__/`, not loose beside production files                                    | `scripts/__tests__/workspace-contract.test.ts`                         |
+| Runtime domains with 3+ modules need a barrel; no cross-domain deep import                           | `src/runtime/__tests__/structure.test.ts`                              |
+| Tailwind utilities are token-only, no literal colors, guarded arbitrary-value allowlist              | `src/renderer/__tests__/renderer-design-contract.test.ts`              |
+
+### New in this stage (issue #177 stage 5)
+
+| Convention                                                                                                                                       | Enforcement                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@shared/*`/`@/*` aliases are Renderer-only; Main/Preload/Runtime/Host/shared use relative imports                                               | `eslint.config.ts` `no-restricted-imports`, files scoped to `src/host\|main\|preload\|runtime\|shared/**`                                                                                                                                                           |
+| No `child_process` `exec`/`execSync` (shell-string execution); structured argv `spawn`/`execFile` stays allowed                                  | `eslint.config.ts` `no-restricted-imports` (named-import ban on `exec`/`execSync` from `child_process`/`node:child_process`), two config objects covering `src/{host,main,preload,runtime,shared}/**` and `scripts/**`, `.agents/**`, `e2e/**`, `packages/*/src/**` |
+| No `spawn`/`execFile` with `shell: true`                                                                                                         | `eslint.config.ts` `no-restricted-syntax` selector matching a `shell: true` option object, same directory scope as above, `.tsx` excluded to avoid colliding with the default-export-ban config object                                                              |
+| Async-first Node APIs (`*Sync` needs a justifying comment)                                                                                       | `eslint-plugin-n`'s `n/no-sync`, scoped to `src/main/**`, `src/runtime/**`, `src/shared/node/**`, `packages/cli/src/**`, `scripts/**`, `.agents/**/scripts/**`, excluding `*.test.ts` and `__tests__/`                                                              |
+| Component/hook filename maps to its primary export (`file-tree-panel.tsx` → `FileTreePanel`, `use-command-shortcuts.ts` → `useCommandShortcuts`) | Local `caxri/filename-export-mapping` ESLint rule (`scripts/eslint-rules/filename-export-mapping.ts`, plugin barrel `scripts/eslint-rules/index.ts`), wired for `src/**/*.tsx` and `src/**/use-*.ts`                                                                |
+| Main/Host/Runtime/shared Node tests live in `__tests__/`, not loose beside production files (Renderer colocated tests stay allowed)              | `scripts/__tests__/test-placement-contract.test.ts`                                                                                                                                                                                                                 |
+| No `*.test.tsx` anywhere (components are not unit-tested; logic gets extracted)                                                                  | `scripts/__tests__/test-placement-contract.test.ts`                                                                                                                                                                                                                 |
+
+Flat ESLint config objects replace, rather than merge, a later matching object's same-named rule
+for a given file. The two `no-restricted-imports` blocks above stay on non-overlapping `files`
+globs (Desktop `src/` subtrees vs. `scripts`/`.agents`/`e2e`/`packages`) instead of one broad glob,
+and the `shell: true` `no-restricted-syntax` block excludes `.tsx` so it never collides with the
+pre-existing default-export-ban block on the same directories. See the comments in
+`eslint.config.ts` at each of these blocks for the specific collision each scoping choice avoids.
+
+## Deferred (not implemented in this stage)
+
+| Item                                                                                             | Reason                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@yutengjing/prefer-jsdoc` (from `@yutengjing/eslint-plugin`)                                    | Its autofix would rewrite comments repository-wide immediately after the stage-4 Prettier/formatting baseline landed; adopt it as its own staged, reviewable change instead of folding a repo-wide comment rewrite into this stage. |
+| Cohesive-cluster / product-UI placement judgment                                                 | Requires product and architectural context a mechanical rule cannot evaluate; stays in `source-layout`/`project-architecture` skill prose and code review.                                                                          |
+| Workaround justification quality                                                                 | A disable comment or `// eslint-disable-next-line n/no-sync -- <reason>` can be mechanically required to _exist_, but whether the stated reason is actually correct is a review judgment.                                           |
+| Remote authorization / Acceptance decisions                                                      | Process and authority judgments (`AGENTS.md` "Forbidden", `go`/`acceptance` skills), not file-shape facts.                                                                                                                          |
+| English/Chinese language rules                                                                   | Requires understanding prose content, not syntax.                                                                                                                                                                                   |
+| "Thin barrel" judgment (`index.ts` should not become a multi-module dump)                        | Line count and import shape do not distinguish a legitimately thin barrel from a barrel that re-implements logic; stays a `source-layout` review judgment.                                                                          |
+| Drop-parent-prefix naming judgment (`command-catalog.ts` → `catalog.ts` once inside `commands/`) | Whether a prefix "still distinguishes siblings" depends on the folder's actual contents at review time, not a fixed pattern.                                                                                                        |
+
+## How the negative-fixture contract tests guard the wiring
+
+`scripts/__tests__/eslint-toolchain-contract.test.ts` lints small fixtures under
+`scripts/fixtures/eslint/` directly with `ignore: false` (bypassing the `globalIgnores` entry that
+keeps them out of the repository's own `--max-warnings=0` gate) and asserts the exact `ruleId`
+each one is supposed to trip. Every new rule in this stage has a paired positive fixture (silent)
+and negative fixture (fires):
+
+- `child-process-exec-fixture.ts` / `spawn-shell-true-fixture.ts` — trip the `exec`/`execSync`
+  import ban and the `shell: true` syntax ban.
+- `good-mapped-component-fixture.tsx` / `bad-mapped-component-fixture.tsx` and
+  `use-good-mapped-hook-fixture.ts` / `use-bad-mapped-hook-fixture.ts` — stay silent or fire
+  `caxri/filename-export-mapping` depending on whether the file's primary export matches its
+  filename mapping.
+
+`n/no-sync` and the `@shared/@` alias ban are asserted through
+`ESLint#calculateConfigForFile` (`effectiveConfigFor` in the same test file) instead of a fixture,
+mirroring how the pre-existing tests already assert `max-lines`/`no-restricted-imports` are wired
+onto a representative Renderer file — these two rules apply to real production directories, so
+proving the _effective config_ carries the rule is enough; no throwaway fixture is needed.
+
+This pairing is what makes the stage-5 rules durable: if a future `eslint.config.ts` edit
+accidentally drops or misscopes one of these blocks (for example, by letting a later config object
+silently replace an earlier `no-restricted-imports`/`no-restricted-syntax` entry — see "Where each
+convention is enforced" above), the corresponding contract test fails immediately instead of the
+gap surfacing only when a real violation ships.

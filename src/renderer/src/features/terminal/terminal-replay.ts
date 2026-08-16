@@ -1,4 +1,6 @@
-/** Match Runtime's delivery batch ceiling while also bounding many tiny IPC events. */
+/**
+ * Match Runtime's delivery batch ceiling while also bounding many tiny IPC events.
+ */
 const DEFAULT_MAXIMUM_PENDING_BYTES = 256 * 1024;
 const DEFAULT_MAXIMUM_PENDING_ITEMS = 256;
 const textEncoder = new TextEncoder();
@@ -16,19 +18,18 @@ function utf8Prefix(value: string, maximumBytes: number): string {
     let bytes = 0;
     let end = 0;
     while (end < value.length) {
-        const code = value.charCodeAt(end);
-        const isPair = code >= 0xd800 && code <= 0xdbff && end + 1 < value.length;
-        const next = value.charCodeAt(end + 1);
-        const width =
-            isPair && next >= 0xdc00 && next <= 0xdfff ? 4 : code < 0x80 ? 1 : code < 0x800 ? 2 : 3;
+        const codePoint = value.codePointAt(end) ?? 0;
+        const width = codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4;
         if (bytes + width > maximumBytes) break;
         bytes += width;
-        end += isPair && next >= 0xdc00 && next <= 0xdfff ? 2 : 1;
+        end += codePoint > 0xffff ? 2 : 1;
     }
     return value.slice(0, end);
 }
 
-/** Orders output received during terminal attachment behind its restored snapshot. */
+/**
+ * Orders output received during terminal attachment behind its restored snapshot.
+ */
 export class TerminalReplayBuffer {
     private restored = false;
     private restoration?: Promise<void>;
@@ -44,20 +45,10 @@ export class TerminalReplayBuffer {
     ) {
         this.maximumPendingBytes = options.maximumPendingBytes ?? DEFAULT_MAXIMUM_PENDING_BYTES;
         this.maximumPendingItems = options.maximumPendingItems ?? DEFAULT_MAXIMUM_PENDING_ITEMS;
-        if (!Number.isInteger(this.maximumPendingBytes) || this.maximumPendingBytes < 1)
+        if (!Number.isSafeInteger(this.maximumPendingBytes) || this.maximumPendingBytes < 1)
             throw new RangeError('Terminal replay byte limit must be a positive integer');
-        if (!Number.isInteger(this.maximumPendingItems) || this.maximumPendingItems < 1)
+        if (!Number.isSafeInteger(this.maximumPendingItems) || this.maximumPendingItems < 1)
             throw new RangeError('Terminal replay item limit must be a positive integer');
-    }
-
-    push(value: string): void {
-        if (this.restored) void this.write(value);
-        else this.enqueue(value);
-    }
-
-    restore(snapshot: string): Promise<void> {
-        this.restoration ??= this.restoreOnce(snapshot);
-        return this.restoration;
     }
 
     private async restoreOnce(snapshot: string): Promise<void> {
@@ -66,10 +57,13 @@ export class TerminalReplayBuffer {
     }
 
     /**
-     * Preserve xterm write order while draining output that may continue arriving during a write.
-     * Each captured batch is serialized, then a later batch picks up anything queued meanwhile.
+     * Preserve xterm write order while draining output that may continue arriving during a write. Each captured batch
+     * is serialized, then a later batch picks up anything queued meanwhile.
      */
     private async drainPending(): Promise<void> {
+        // The removed elements are the batch being drained below, so `.length = 0` would discard
+        // them; this call intentionally both empties `this.pending` and captures its prior contents.
+        // eslint-disable-next-line unicorn/no-unnecessary-splice -- return value is used, see above
         const pending = this.pending.splice(0);
         this.pendingBytes = 0;
         await this.writeBatch(pending);
@@ -80,7 +74,9 @@ export class TerminalReplayBuffer {
             const marker = this.write(
                 `\r\n[Caxri dropped ${droppedBytes} bytes while terminal output was replaying]\r\n`,
             );
-            /** Later output follows the marker directly, so a blocked marker cannot reopen the queue. */
+            /**
+             * Later output follows the marker directly, so a blocked marker cannot reopen the queue.
+             */
             this.restored = true;
             await marker;
             return;
@@ -119,9 +115,25 @@ export class TerminalReplayBuffer {
         await this.write(value);
         return this.writeBatch(pending, index + 1);
     }
+
+    push(value: string): void {
+        if (this.restored)
+            // This is a sync buffer API; once restored, output is written straight through and any
+            // failure is already surfaced by `write`'s own caller-side handling.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void this.write(value);
+        else this.enqueue(value);
+    }
+
+    restore(snapshot: string): Promise<void> {
+        this.restoration ??= this.restoreOnce(snapshot);
+        return this.restoration;
+    }
 }
 
-/** Replaces an already-mounted xterm from a fresh Runtime snapshot without losing live output. */
+/**
+ * Replaces an already-mounted xterm from a fresh Runtime snapshot without losing live output.
+ */
 export class TerminalReplayCoordinator {
     private readonly initial = Promise.withResolvers<void>();
     private replay: TerminalReplayBuffer;
@@ -149,7 +161,8 @@ export class TerminalReplayCoordinator {
     }
 
     reattach(loadSnapshot: () => Promise<string>): Promise<void> {
-        const task = this.tail.then(async () => {
+        const task = (async (): Promise<void> => {
+            await this.tail;
             const replay = new TerminalReplayBuffer(this.write, this.replayOptions);
             this.replay = replay;
             try {
@@ -157,13 +170,27 @@ export class TerminalReplayCoordinator {
                 this.reset();
                 await replay.restore(snapshot);
             } catch (error) {
-                /** Keep the existing screen on an attach failure, but release output buffered while
-                 *  the Runtime request was pending. */
+                /**
+                 * Keep the existing screen on an attach failure, but release output buffered while the Runtime request
+                 * was pending.
+                 */
                 await replay.restore('');
                 throw error;
             }
-        });
-        this.tail = task.catch(() => undefined);
+        })();
+        this.tail = settleQuietly(task);
         return task;
+    }
+}
+
+/**
+ * `tail` must never reject, or the next `reattach` call's `await this.tail` would throw before it ever starts its own
+ * attach attempt. The caller-visible failure still surfaces through the returned `task` in `reattach`.
+ */
+async function settleQuietly(task: Promise<void>): Promise<void> {
+    try {
+        await task;
+    } catch {
+        // Intentionally swallowed, see the function comment above.
     }
 }

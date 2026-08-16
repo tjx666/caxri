@@ -1,30 +1,30 @@
 import { Select as SelectPrimitive } from '@base-ui/react/select';
 import { Check, ChevronDown } from 'lucide-react';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utilities';
 
-export function Select<Value>(props: SelectPrimitive.Root.Props<Value>) {
-    return <SelectPrimitive.Root {...props} />;
+export function Select<Value>(properties: SelectPrimitive.Root.Props<Value>) {
+    return <SelectPrimitive.Root {...properties} />;
 }
 
-export function SelectValue(props: SelectPrimitive.Value.Props) {
-    return <SelectPrimitive.Value data-slot="select-value" {...props} />;
+export function SelectValue(properties: SelectPrimitive.Value.Props) {
+    return <SelectPrimitive.Value data-slot="select-value" {...properties} />;
 }
 
 export function SelectTrigger({
     className,
     children,
     showIcon = true,
-    ...props
+    ...properties
 }: SelectPrimitive.Trigger.Props & { showIcon?: boolean }) {
     return (
         <SelectPrimitive.Trigger
             data-slot="select-trigger"
             className={cn(
-                'flex h-9 w-full items-center justify-between gap-2 rounded border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] px-2 text-[13px] text-inherit outline-none transition-[border-color,box-shadow,background-color] duration-150 ease-out focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 [&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:overflow-hidden [&>[data-slot=select-value]]:text-ellipsis [&>[data-slot=select-value]]:whitespace-nowrap [&>svg]:flex-none',
+                'flex h-9 w-full items-center justify-between gap-2 rounded border border-border bg-[color-mix(in_srgb,var(--border)_30%,transparent)] px-2 text-[13px] text-inherit transition-[border-color,box-shadow,background-color] duration-150 ease-out outline-none focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_50%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 [&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:overflow-hidden [&>[data-slot=select-value]]:text-ellipsis [&>[data-slot=select-value]]:whitespace-nowrap [&>svg]:flex-none',
                 className,
             )}
-            {...props}
+            {...properties}
         >
             {children}
             {showIcon && (
@@ -34,14 +34,13 @@ export function SelectTrigger({
     );
 }
 
-export function SelectContent({ className, children, ...props }: SelectPrimitive.Popup.Props) {
+export function SelectContent({ className, children, ...properties }: SelectPrimitive.Popup.Props) {
     return (
         <SelectPrimitive.Portal>
             {/**
-             * Base UI defaults `alignItemWithTrigger` to true, which overlays the popup on the
-             * trigger (macOS-native style) and ignores `side`/`align` and `--available-height`.
-             * With long lists (e.g. the status-bar branch picker) that mode fills the window
-             * and spills past the viewport, so every Select uses regular popover positioning.
+             * Base UI defaults `alignItemWithTrigger` to true, which overlays the popup on the trigger (macOS-native style) and
+             * ignores `side`/`align` and `--available-height`. With long lists (e.g. the status-bar branch picker) that mode fills
+             * the window and spills past the viewport, so every Select uses regular popover positioning.
              */}
             <SelectPrimitive.Positioner
                 alignItemWithTrigger={false}
@@ -70,7 +69,7 @@ export function SelectContent({ className, children, ...props }: SelectPrimitive
                         // nothing and close unmounts without waiting a frame.
                         className,
                     )}
-                    {...props}
+                    {...properties}
                 >
                     <SelectPrimitive.List>{children}</SelectPrimitive.List>
                 </SelectPrimitive.Popup>
@@ -79,15 +78,15 @@ export function SelectContent({ className, children, ...props }: SelectPrimitive
     );
 }
 
-export function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Props) {
+export function SelectItem({ className, children, ...properties }: SelectPrimitive.Item.Props) {
     return (
         <SelectPrimitive.Item
             data-slot="select-item"
             className={cn(
-                'relative flex h-7 cursor-default items-center rounded pr-6 pl-2 text-[13px] outline-none data-highlighted:bg-[var(--selection)] data-highlighted:text-foreground data-disabled:pointer-events-none data-disabled:opacity-50',
+                'relative flex h-7 cursor-default items-center rounded pr-6 pl-2 text-[13px] outline-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-[var(--selection)] data-highlighted:text-foreground',
                 className,
             )}
-            {...props}
+            {...properties}
         >
             <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
             <SelectPrimitive.ItemIndicator className="absolute right-2 grid size-4 place-items-center">

@@ -1,6 +1,8 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -9,7 +11,7 @@ import {
     recordOrphanedAcceptance,
 } from '../acceptance-publication';
 import { createResumeCheckpoint } from '../resume';
-import { createInitialState } from '../state';
+import { createInitialState } from '../state-model';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const TEST_ROOT = join(
@@ -208,8 +210,10 @@ describe('Go Acceptance round publication', () => {
             runner,
         );
 
-        const ingestArgs = runner.mock.calls[1][1] as string[];
-        expect(ingestArgs.slice(ingestArgs.indexOf('--acceptance'), -1)).toContain('acc-1');
+        const ingestArguments = runner.mock.calls[1][1] as string[];
+        expect(ingestArguments.slice(ingestArguments.indexOf('--acceptance'), -1)).toContain(
+            'acc-1',
+        );
         expect(state.acceptance.publication.history.map(({ roundIndex }) => roundIndex)).toEqual([
             1, 2,
         ]);
@@ -406,7 +410,9 @@ describe('Go Acceptance round publication', () => {
             ),
         ).resolves.toMatchObject({ acceptanceId: 'acc-1', verifyRunId: 'run-1' });
         expect(
-            runner.mock.calls.filter(([, args]) => (args as string[]).includes('ingest')),
+            runner.mock.calls.filter(([, arguments_]) =>
+                (arguments_ as string[]).includes('ingest'),
+            ),
         ).toHaveLength(1);
         expect(state.acceptance.publication.history).toHaveLength(1);
     });
@@ -425,7 +431,9 @@ describe('Go Acceptance round publication', () => {
             runner,
         );
         expect(
-            runner.mock.calls.filter(([, args]) => (args as string[]).includes('ingest')),
+            runner.mock.calls.filter(([, arguments_]) =>
+                (arguments_ as string[]).includes('ingest'),
+            ),
         ).toHaveLength(0);
         expect(state.acceptance.publication.history).toHaveLength(1);
     });
@@ -474,7 +482,9 @@ describe('Go Acceptance round publication', () => {
             ),
         ).resolves.toMatchObject({ acceptanceId: 'acc-1', verifyRunId: 'run-1' });
         expect(
-            runner.mock.calls.filter(([, args]) => (args as string[]).includes('ingest')),
+            runner.mock.calls.filter(([, arguments_]) =>
+                (arguments_ as string[]).includes('ingest'),
+            ),
         ).toHaveLength(0);
     });
 });

@@ -20,9 +20,9 @@ interface MigrationJournal {
 }
 
 /**
- * Fails closed when the SQL bundled into the Runtime diverges from Drizzle's generated journal.
- * Keeping this check at module initialization makes an omitted, reordered, or duplicate manifest
- * entry fail in tests and at startup instead of silently splitting fresh and upgraded databases.
+ * Fails closed when the SQL bundled into the Runtime diverges from Drizzle's generated journal. Keeping this check at
+ * module initialization makes an omitted, reordered, or duplicate manifest entry fail in tests and at startup instead
+ * of silently splitting fresh and upgraded databases.
  */
 export function assertMigrationManifestMatchesJournal(
     manifestTags: readonly string[],
@@ -37,11 +37,11 @@ export function assertMigrationManifestMatchesJournal(
         manifestTags.some((tag, index) => tag !== journalTags[index]);
 
     if (
-        journal.dialect !== 'sqlite' ||
         hasDuplicateManifestTag ||
         hasDuplicateJournalTag ||
         hasInvalidJournalIndex ||
-        hasDifferentOrder
+        hasDifferentOrder ||
+        journal.dialect !== 'sqlite'
     ) {
         throw new Error('Migration manifest does not match the generated Drizzle journal');
     }
@@ -60,18 +60,24 @@ export const migrationManifest = [
     { tag: '0009_mature_agent_zero', sql: workbenchRootMigrationSql },
 ] as const;
 
+// Intentional: this check must run at module initialization (see the docstring above) so an
+// omitted, reordered, or duplicate manifest entry fails at import time in tests and at startup,
+// not only when a database is first opened.
+// eslint-disable-next-line unicorn/no-top-level-side-effects
 assertMigrationManifestMatchesJournal(
     migrationManifest.map((migration) => migration.tag),
     migrationJournal,
 );
 
-/** Schema 7 is the first preservation commitment; older pre-release databases may be rebuilt. */
+/**
+ * Schema 7 is the first preservation commitment; older pre-release databases may be rebuilt.
+ */
 export const PRESERVED_SCHEMA_VERSION = 7;
 
 const preservationFloorMigrationIndex = migrationManifest.findIndex(
     (migration) => migration.tag === '0001_slim_marvel_boy',
 );
-if (preservationFloorMigrationIndex < 0) {
+if (preservationFloorMigrationIndex === -1) {
     throw new Error('Migration manifest is missing the schema preservation floor');
 }
 
@@ -82,7 +88,9 @@ export const preservingMigrations = migrationManifest
         version: PRESERVED_SCHEMA_VERSION + index + 1,
     }));
 
-/** Derived from the preserved migration chain; appending a manifest entry advances it automatically. */
+/**
+ * Derived from the preserved migration chain; appending a manifest entry advances it automatically.
+ */
 export const CURRENT_SCHEMA_VERSION = PRESERVED_SCHEMA_VERSION + preservingMigrations.length;
 
 export type PreservingMigrationTag = (typeof preservingMigrations)[number]['tag'];

@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import process from 'node:process';
 
 import { defineConfig } from 'vitest/config';
 
@@ -24,7 +25,9 @@ export interface VitestPartitionConfig {
     serialNativeTests: string[];
 }
 
-/** Keeps the control profile available for same-head CI performance comparisons. */
+/**
+ * Keeps the control profile available for same-head CI performance comparisons.
+ */
 export function resolveVitestPartition(
     environment: NodeJS.ProcessEnv = process.env,
 ): VitestPartitionConfig {
@@ -84,7 +87,9 @@ export default defineConfig({
                 extends: true,
                 test: {
                     name: 'desktop-serial-native',
-                    /** Native watchers and process-global environment fixtures cannot overlap. */
+                    /**
+                     * Native watchers and process-global environment fixtures cannot overlap.
+                     */
                     fileParallelism: false,
                     include: serialNativeTests,
                 },

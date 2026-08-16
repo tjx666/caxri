@@ -1,6 +1,8 @@
+import { Buffer } from 'node:buffer';
+
 import { CaxriError } from '../../shared/ipc/errors';
-import type { AgentCoordinator } from '../agents';
 import type { RuntimeAgentEndpointLifecycle } from '../agent-endpoints';
+import type { AgentCoordinator } from '../agents';
 import type { RuntimeHandlers } from '../dispatch';
 import type { TerminalManager } from '../terminal';
 import type { AgentDispatchService } from './service';
@@ -31,7 +33,9 @@ export interface AgentCommandHandlerOptions {
     terminals: TerminalManager;
 }
 
-/** Keeps public Host ownership and private Runtime PTY ownership visibly separated. */
+/**
+ * Keeps public Host ownership and private Runtime PTY ownership visibly separated.
+ */
 export function createAgentCommandHandlers(
     options: AgentCommandHandlerOptions,
 ): Pick<RuntimeHandlers, AgentCommandMethod> {

@@ -23,7 +23,9 @@ export function parseProcessResourceEntries(output: string): ProcessResourceEntr
     });
 }
 
-/** Aggregates the PTY shell and all descendants while counting descendants only. */
+/**
+ * Aggregates the PTY shell and all descendants while counting descendants only.
+ */
 export function aggregateTerminalResources(
     rootPid: number,
     entries: readonly ProcessResourceEntry[],
@@ -62,7 +64,9 @@ export async function sampleTerminalResources(
         });
         return aggregateTerminalResources(rootPid, parseProcessResourceEntries(stdout));
     } catch {
-        /** The PTY may exit between resolving its PID and sampling the process table. */
+        /**
+         * The PTY may exit between resolving its PID and sampling the process table.
+         */
         return null;
     }
 }

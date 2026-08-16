@@ -2,23 +2,26 @@ import { execFile as execFileCallback } from 'node:child_process';
 import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import { describe, expect, it } from 'vitest';
 
 import {
     cleanup,
+    didRemoveCreatedRunRoot,
     ownedProcessIds,
     parseProcessTable,
     protectedProcessIds,
-    removeCreatedRunRoot,
     shortTemporaryLinkPath,
     validateRunnerOwner,
 } from '../self-hosted-runner';
 
 const execFile = promisify(execFileCallback);
 
-/** Overrides every runner path that the real setup action exports into hosted test processes. */
+/**
+ * Overrides every runner path that the real setup action exports into hosted test processes.
+ */
 function cleanupFixtureEnvironment(input: {
     githubSummary: string;
     owner: string;
@@ -73,16 +76,16 @@ describe('self-hosted E2E runner ownership', () => {
     it('rolls back only its run root when preflight fails after creating it', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-runner-prepare-'));
         const workspace = join(root, 'workspace');
-        const runnerTemp = join(root, 'runner-temp');
+        const runnerTemporary = join(root, 'runner-temp');
         const owner = `caxri-${Date.now()}-${process.pid}-prepare-rollback`;
         const temporaryLink = shortTemporaryLinkPath(owner);
-        const runRoot = join(runnerTemp, owner);
+        const runRoot = join(runnerTemporary, owner);
         const githubEnvironment = join(root, 'github-env');
         const githubSummary = join(root, 'github-summary');
 
         try {
             await mkdir(workspace, { recursive: true });
-            await mkdir(runnerTemp, { recursive: true });
+            await mkdir(runnerTemporary, { recursive: true });
             await writeFile(githubEnvironment, '');
             await writeFile(githubSummary, '');
             await execFile('git', ['init', '--quiet'], { cwd: workspace });
@@ -94,7 +97,9 @@ describe('self-hosted E2E runner ownership', () => {
             const { stdout: head } = await execFile('git', ['rev-parse', 'HEAD'], {
                 cwd: workspace,
             });
-            /** A non-link collision proves rollback cannot remove a path it did not create. */
+            /**
+             * A non-link collision proves rollback cannot remove a path it did not create.
+             */
             await mkdir(temporaryLink, { recursive: false });
 
             await expect(
@@ -120,7 +125,7 @@ describe('self-hosted E2E runner ownership', () => {
                             RUNNER_ENVIRONMENT: 'self-hosted',
                             RUNNER_NAME: 'test-runner',
                             RUNNER_OS: 'macOS',
-                            RUNNER_TEMP: runnerTemp,
+                            RUNNER_TEMP: runnerTemporary,
                         },
                     },
                 ),
@@ -136,9 +141,9 @@ describe('self-hosted E2E runner ownership', () => {
 
     it('preserves a replaced run root whose marker no longer belongs to the current owner', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-runner-rollback-marker-'));
-        const runnerTemp = join(root, 'runner-temp');
+        const runnerTemporary = join(root, 'runner-temp');
         const owner = `caxri-${Date.now()}-${process.pid}-rollback-marker`;
-        const runRoot = join(runnerTemp, owner);
+        const runRoot = join(runnerTemporary, owner);
 
         try {
             await mkdir(runRoot, { recursive: true });
@@ -147,7 +152,7 @@ describe('self-hosted E2E runner ownership', () => {
                 `${JSON.stringify({ owner: 'caxri-1-1-other' })}\n`,
             );
 
-            await expect(removeCreatedRunRoot(runnerTemp, runRoot, owner)).rejects.toThrow(
+            await expect(didRemoveCreatedRunRoot(runnerTemporary, runRoot, owner)).rejects.toThrow(
                 'Created runner job root marker does not match',
             );
             await expect(access(runRoot)).resolves.toBeUndefined();
@@ -159,9 +164,9 @@ describe('self-hosted E2E runner ownership', () => {
     it('finishes owned link and run-root cleanup after an earlier teardown failure', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-runner-cleanup-'));
         const workspace = join(root, 'workspace');
-        const runnerTemp = join(root, 'runner-temp');
+        const runnerTemporary = join(root, 'runner-temp');
         const owner = `caxri-${Date.now()}-${process.pid}-cleanup-continuation`;
-        const runRoot = join(runnerTemp, owner);
+        const runRoot = join(runnerTemporary, owner);
         const temporaryLink = shortTemporaryLinkPath(owner);
         const githubSummary = join(root, 'github-summary');
 
@@ -183,7 +188,7 @@ describe('self-hosted E2E runner ownership', () => {
                     cleanupFixtureEnvironment({
                         githubSummary,
                         owner,
-                        runnerTemp,
+                        runnerTemp: runnerTemporary,
                         runRoot,
                         workspace,
                     }),
@@ -211,9 +216,9 @@ describe('self-hosted E2E runner ownership', () => {
     it('preserves a foreign short TMPDIR link and fails closed', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-runner-foreign-link-'));
         const workspace = join(root, 'workspace');
-        const runnerTemp = join(root, 'runner-temp');
+        const runnerTemporary = join(root, 'runner-temp');
         const owner = `caxri-${Date.now()}-${process.pid}-foreign-link`;
-        const runRoot = join(runnerTemp, owner);
+        const runRoot = join(runnerTemporary, owner);
         const foreignTarget = join(root, 'foreign-tmp');
         const temporaryLink = shortTemporaryLinkPath(owner);
         const githubSummary = join(root, 'github-summary');
@@ -232,7 +237,7 @@ describe('self-hosted E2E runner ownership', () => {
                     cleanupFixtureEnvironment({
                         githubSummary,
                         owner,
-                        runnerTemp,
+                        runnerTemp: runnerTemporary,
                         runRoot,
                         workspace,
                     }),
@@ -253,9 +258,9 @@ describe('self-hosted E2E runner ownership', () => {
     it('preserves the first cleanup failure when writing the teardown summary also fails', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-runner-summary-failure-'));
         const workspace = join(root, 'workspace');
-        const runnerTemp = join(root, 'runner-temp');
+        const runnerTemporary = join(root, 'runner-temp');
         const owner = `caxri-${Date.now()}-${process.pid}-summary-failure`;
-        const runRoot = join(runnerTemp, owner);
+        const runRoot = join(runnerTemporary, owner);
         const temporaryLink = shortTemporaryLinkPath(owner);
         const summaryDirectory = join(root, 'summary-directory');
 
@@ -272,7 +277,7 @@ describe('self-hosted E2E runner ownership', () => {
                     cleanupFixtureEnvironment({
                         githubSummary: summaryDirectory,
                         owner,
-                        runnerTemp,
+                        runnerTemp: runnerTemporary,
                         runRoot,
                         workspace,
                     }),

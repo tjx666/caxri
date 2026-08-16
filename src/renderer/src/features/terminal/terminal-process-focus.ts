@@ -10,9 +10,9 @@ interface TerminalProcessFocusOptions {
 }
 
 /**
- * Work tab roving navigation deliberately leaves focus on the tab while activating its Terminal.
- * Both the initial attach completion and later process-state transitions use this gate so either
- * asynchronous path respects that keyboard ownership for the same Terminal.
+ * Work tab roving navigation deliberately leaves focus on the tab while activating its Terminal. Both the initial
+ * attach completion and later process-state transitions use this gate so either asynchronous path respects that
+ * keyboard ownership for the same Terminal.
  */
 export function shouldAutoFocusTerminal({
     active,
@@ -30,13 +30,13 @@ export function shouldAutoFocusTerminal({
     if (!active || !isRunning || isModalOpen) return false;
     return !(
         focusedElement?.dataset.preserveTerminalFocus === 'true' &&
-        focusedElement.closest('.work-tab')?.getAttribute('data-terminal-id') === terminalId
+        focusedElement.closest<HTMLElement>('.work-tab')?.dataset.terminalId === terminalId
     );
 }
 
 /**
- * A PTY can become running after a modal or keyboard-operated work tab takes focus. Check those
- * owners inside the scheduled frame so the delayed transition cannot steal newer keyboard intent.
+ * A PTY can become running after a modal or keyboard-operated work tab takes focus. Check those owners inside the
+ * scheduled frame so the delayed transition cannot steal newer keyboard intent.
  */
 export function reconcileTerminalProcessFocus({
     active,

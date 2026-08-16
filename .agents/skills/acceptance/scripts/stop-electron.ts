@@ -1,16 +1,15 @@
-#!/usr/bin/env bun
-
 import { readFile, unlink } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import type { RuntimeState } from './runtime-state';
 import {
     errorCode,
     isOwnedLauncher,
     isOwnedRuntime,
     removeOwnedUserData,
     runtimeStateSchema,
-    type RuntimeState,
 } from './runtime-state';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -33,22 +32,29 @@ async function main(): Promise<void> {
     }
 
     if (!(await isOwnedRuntime(runtime))) {
-        await unlink(RUNTIME_PATH).catch((error: unknown) => {
+        try {
+            await unlink(RUNTIME_PATH);
+        } catch (error: unknown) {
             if (errorCode(error) !== 'ENOENT') throw error;
-        });
+        }
         await removeOwnedUserData(runtime);
         console.log('Removed stale Caxri acceptance runtime state');
         return;
     }
 
-    const launcherAlive = await isOwnedLauncher(runtime);
-    const ownerPid = launcherAlive ? runtime.launcherPid : runtime.electronPid;
+    const isLauncherAlive = await isOwnedLauncher(runtime);
+    const ownerPid = isLauncherAlive ? runtime.launcherPid : runtime.electronPid;
     if (!ownerPid) throw new Error('Owned Acceptance runtime has no live process PID');
     process.kill(ownerPid, 'SIGTERM');
 
     const deadline = Date.now() + 10_000;
+    // This is a poll loop: each iteration must await the previous liveness check and retry
+    // delay before deciding whether to poll again, so the awaits below are intentionally
+    // sequential.
+    // eslint-disable-next-line no-await-in-loop
     while ((await isOwnedRuntime(runtime)) && Date.now() < deadline) {
-        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 250));
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
     }
     if (await isOwnedRuntime(runtime)) {
         throw new Error(
@@ -56,14 +62,18 @@ async function main(): Promise<void> {
         );
     }
 
-    await unlink(RUNTIME_PATH).catch((error: unknown) => {
+    try {
+        await unlink(RUNTIME_PATH);
+    } catch (error: unknown) {
         if (errorCode(error) !== 'ENOENT') throw error;
-    });
+    }
     await removeOwnedUserData(runtime);
     console.log('Stopped owned Caxri acceptance instance');
 }
 
-void main().catch((error: unknown) => {
+try {
+    await main();
+} catch (error: unknown) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
-});
+}

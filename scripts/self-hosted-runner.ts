@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import {
     appendFile,
@@ -12,6 +13,7 @@ import {
     writeFile,
 } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import {
@@ -20,7 +22,7 @@ import {
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
 
 const execFileAsync = promisify(execFile);
-const ownerPattern = /^caxri-[0-9]+-[0-9]+-[a-z0-9-]+$/u;
+const ownerPattern = /^caxri-\d+-\d+-[a-z0-9-]+$/u;
 const generatedWorkspacePaths = [
     '.cache',
     'logs',
@@ -30,20 +32,25 @@ const generatedWorkspacePaths = [
     'test-results',
 ];
 
-export interface ProcessRecord {
+interface ProcessRecord {
     command: string;
     pid: number;
     ppid: number;
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
 export function parseProcessTable(output: string): ProcessRecord[] {
     return output.split('\n').flatMap((line) => {
-        const match = /^\s*(\d+)\s+(\d+)\s+(.+)$/u.exec(line);
+        // The command group requires a leading non-space character so it cannot absorb the same
+        // whitespace as the preceding separator, which would otherwise let the engine explore
+        // polynomially many equivalent splits on pathologically long whitespace runs.
+        const match = /^\s*(\d+)\s+(\d+)\s+(\S.*)$/u.exec(line);
         if (!match) return [];
         return [{ command: match[3], pid: Number(match[1]), ppid: Number(match[2]) }];
     });
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
 export function protectedProcessIds(records: readonly ProcessRecord[], pid: number): Set<number> {
     const byPid = new Map(records.map((record) => [record.pid, record]));
     const protectedIds = new Set<number>();
@@ -55,6 +62,7 @@ export function protectedProcessIds(records: readonly ProcessRecord[], pid: numb
     return protectedIds;
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
 export function ownedProcessIds(
     records: readonly ProcessRecord[],
     owner: string,
@@ -68,7 +76,7 @@ export function ownedProcessIds(
                 !protectedIds.has(pid),
         )
         .map(({ pid }) => pid)
-        .sort((left, right) => right - left);
+        .toSorted((left, right) => right - left);
 }
 
 function requiredEnvironment(environment: NodeJS.ProcessEnv, key: string): string {
@@ -77,18 +85,19 @@ function requiredEnvironment(environment: NodeJS.ProcessEnv, key: string): strin
     return value;
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
 export function validateRunnerOwner(owner: string): string {
     if (!ownerPattern.test(owner)) throw new Error('Invalid CAXRI_RUNNER_OWNER');
     return owner;
 }
 
 /**
- * macOS rejects AF_UNIX socket paths longer than 104 bytes (sun_path), and RUNNER_TEMP sits deep
- * inside the runner install, so pointing TMPDIR at the owned run root breaks every Unix-socket
- * consumer under it — the Runtime agent-hook bridge socket and Chromium's singleton socket both
- * live in TMPDIR. Jobs therefore reach the run-owned temp directory through this short
- * /private/tmp symlink; the budget keeps roughly 40 bytes free for socket file names.
+ * MacOS rejects AF_UNIX socket paths longer than 104 bytes (sun_path), and RUNNER_TEMP sits deep inside the runner
+ * install, so pointing TMPDIR at the owned run root breaks every Unix-socket consumer under it — the Runtime agent-hook
+ * bridge socket and Chromium's singleton socket both live in TMPDIR. Jobs therefore reach the run-owned temp directory
+ * through this short /private/tmp symlink; the budget keeps roughly 40 bytes free for socket file names.
  */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
 export function shortTemporaryLinkPath(owner: string): string {
     const linkPath = join('/private/tmp', owner);
     if (Buffer.byteLength(linkPath, 'utf8') > 60) {
@@ -97,8 +106,8 @@ export function shortTemporaryLinkPath(owner: string): string {
     return linkPath;
 }
 
-async function capture(command: string, args: string[], cwd: string): Promise<string> {
-    const { stdout } = await execFileAsync(command, args, { cwd, encoding: 'utf8' });
+async function capture(command: string, arguments_: string[], cwd: string): Promise<string> {
+    const { stdout } = await execFileAsync(command, arguments_, { cwd, encoding: 'utf8' });
     return stdout.trim();
 }
 
@@ -131,9 +140,13 @@ async function terminateOwnedProcesses(owner: string, cwd: string): Promise<numb
         }
     }
     for (let attempt = 0; attempt < 20 && owned.some(isAlive); attempt += 1) {
-        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 100));
+        // Polling delay: each iteration must wait for the previous one before re-checking
+        // liveness, so this cannot be parallelized.
+        // eslint-disable-next-line no-await-in-loop -- sequential liveness-polling delay
+        await new Promise<void>((resolve) => setTimeout(resolve, 100));
     }
-    for (const pid of owned.filter(isAlive)) {
+    const survivingPids = owned.filter(isAlive);
+    for (const pid of survivingPids) {
         try {
             process.kill(pid, 'SIGKILL');
         } catch (error) {
@@ -142,6 +155,18 @@ async function terminateOwnedProcesses(owner: string, cwd: string): Promise<numb
     }
     if (owned.some(isAlive)) throw new Error('Owned runner processes survived SIGKILL');
     return owned.length;
+}
+
+/**
+ * Returns `undefined` for a missing path instead of throwing, while still failing closed on every other `lstat` error.
+ */
+async function lstatIfExists(path: string): Promise<Awaited<ReturnType<typeof lstat>> | undefined> {
+    try {
+        return await lstat(path);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+        throw error;
+    }
 }
 
 async function assertCleanWorkspace(workspace: string): Promise<void> {
@@ -153,22 +178,20 @@ async function assertCleanWorkspace(workspace: string): Promise<void> {
     if (status) throw new Error('Self-hosted runner workspace is not clean');
 }
 
-export async function removeCreatedRunRoot(
-    runnerTemp: string,
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
+export async function didRemoveCreatedRunRoot(
+    runnerTemporary: string,
     runRoot: string,
     owner: string,
 ): Promise<boolean> {
-    const stats = await lstat(runRoot).catch((error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return undefined;
-        throw error;
-    });
+    const stats = await lstatIfExists(runRoot);
     if (!stats) return false;
     if (!stats.isDirectory() || stats.isSymbolicLink()) {
         throw new Error('Created runner job root must remain a real directory');
     }
-    const resolvedRunnerTemp = await realpath(runnerTemp);
+    const resolvedRunnerTemporary = await realpath(runnerTemporary);
     const resolvedRunRoot = await realpath(runRoot);
-    const relativePath = relative(resolvedRunnerTemp, resolvedRunRoot);
+    const relativePath = relative(resolvedRunnerTemporary, resolvedRunRoot);
     if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) {
         throw new Error('Refusing to roll back a runner job root outside RUNNER_TEMP');
     }
@@ -183,11 +206,11 @@ export async function removeCreatedRunRoot(
 }
 
 async function rollbackPrepare(
-    runnerTemp: string,
+    runnerTemporary: string,
     runRoot: string,
     owner: string,
-    runRootCreated: boolean,
-    temporaryLinkCreated: boolean,
+    isRunRootCreated: boolean,
+    isTemporaryLinkCreated: boolean,
 ): Promise<Error[]> {
     const failures: Error[] = [];
     const attempt = async (operation: () => Promise<unknown>): Promise<void> => {
@@ -198,14 +221,17 @@ async function rollbackPrepare(
         }
     };
 
-    if (temporaryLinkCreated) await attempt(() => removeShortTemporaryLink(owner, runnerTemp));
-    if (runRootCreated) await attempt(() => removeCreatedRunRoot(runnerTemp, runRoot, owner));
+    if (isTemporaryLinkCreated) {
+        await attempt(() => didRemoveShortTemporaryLink(owner, runnerTemporary));
+    }
+    if (isRunRootCreated)
+        await attempt(() => didRemoveCreatedRunRoot(runnerTemporary, runRoot, owner));
     return failures;
 }
 
 async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
     const workspace = resolve(requiredEnvironment(environment, 'GITHUB_WORKSPACE'));
-    const runnerTemp = resolve(requiredEnvironment(environment, 'RUNNER_TEMP'));
+    const runnerTemporary = resolve(requiredEnvironment(environment, 'RUNNER_TEMP'));
     const owner = validateRunnerOwner(requiredEnvironment(environment, 'CAXRI_RUNNER_OWNER'));
     if (environment.CAXRI_DESKTOP_LEASE_OWNER !== owner) {
         throw new Error('Desktop lease owner must match the runner job owner');
@@ -231,15 +257,15 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
     await assertCleanWorkspace(workspace);
     await assertDesktopLeasesReleased(workspace);
 
-    const runRoot = join(runnerTemp, owner);
-    if (!isAbsolute(runRoot) || relative(runnerTemp, runRoot).startsWith('..')) {
+    const runRoot = join(runnerTemporary, owner);
+    if (!isAbsolute(runRoot) || relative(runnerTemporary, runRoot).startsWith('..')) {
         throw new Error('Owned runner job root escaped RUNNER_TEMP');
     }
-    let runRootCreated = false;
-    let temporaryLinkCreated = false;
+    let isRunRootCreated = false;
+    let isTemporaryLinkCreated = false;
     try {
         await mkdir(runRoot, { mode: 0o700 });
-        runRootCreated = true;
+        isRunRootCreated = true;
         await writeFile(join(runRoot, 'owner.json'), `${JSON.stringify({ owner })}\n`, {
             encoding: 'utf8',
             mode: 0o600,
@@ -255,7 +281,7 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
         // Fails closed on EEXIST, mirroring the non-recursive mkdir of the run root above.
         const temporaryLink = shortTemporaryLinkPath(owner);
         await symlink(temporaryDirectory, temporaryLink);
-        temporaryLinkCreated = true;
+        isTemporaryLinkCreated = true;
         const githubEnvironment = requiredEnvironment(environment, 'GITHUB_ENV');
         await appendFile(
             githubEnvironment,
@@ -288,40 +314,47 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
         );
     } catch (error) {
         const rollbackFailures = await rollbackPrepare(
-            runnerTemp,
+            runnerTemporary,
             runRoot,
             owner,
-            runRootCreated,
-            temporaryLinkCreated,
+            isRunRootCreated,
+            isTemporaryLinkCreated,
         );
         if (rollbackFailures.length > 0) {
-            await appendSummary(
-                [
-                    '## Self-hosted runner preflight rollback',
-                    '',
-                    `| Rollback failures | \`${rollbackFailures.length}\` |`,
-                    '',
-                ],
-                environment,
-            ).catch(() => undefined);
+            try {
+                await appendSummary(
+                    [
+                        '## Self-hosted runner preflight rollback',
+                        '',
+                        `| Rollback failures | \`${rollbackFailures.length}\` |`,
+                        '',
+                    ],
+                    environment,
+                );
+            } catch {
+                // Best-effort summary write; the rollback failures themselves already surface
+                // through the thrown `error` below.
+            }
         }
         throw error;
     }
 }
 
-async function removeOwnedRunRoot(environment: NodeJS.ProcessEnv, owner: string): Promise<boolean> {
-    const runnerTemp = await realpath(resolve(requiredEnvironment(environment, 'RUNNER_TEMP')));
-    const runRootSource = environment.CAXRI_RUNNER_ROOT ?? join(runnerTemp, owner);
-    const stats = await lstat(runRootSource).catch((error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return undefined;
-        throw error;
-    });
+async function didRemoveOwnedRunRoot(
+    environment: NodeJS.ProcessEnv,
+    owner: string,
+): Promise<boolean> {
+    const runnerTemporary = await realpath(
+        resolve(requiredEnvironment(environment, 'RUNNER_TEMP')),
+    );
+    const runRootSource = environment.CAXRI_RUNNER_ROOT ?? join(runnerTemporary, owner);
+    const stats = await lstatIfExists(runRootSource);
     if (!stats) return false;
     if (!stats.isDirectory() || stats.isSymbolicLink()) {
         throw new Error('Owned runner job root must be a real directory');
     }
     const runRoot = await realpath(runRootSource);
-    const relativePath = relative(runnerTemp, runRoot);
+    const relativePath = relative(runnerTemporary, runRoot);
     if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) {
         throw new Error('Refusing to clean a runner job root outside RUNNER_TEMP');
     }
@@ -333,17 +366,17 @@ async function removeOwnedRunRoot(environment: NodeJS.ProcessEnv, owner: string)
     return true;
 }
 
-async function removeShortTemporaryLink(owner: string, runnerTemp: string): Promise<boolean> {
+async function didRemoveShortTemporaryLink(
+    owner: string,
+    runnerTemporary: string,
+): Promise<boolean> {
     const linkPath = shortTemporaryLinkPath(owner);
-    const stats = await lstat(linkPath).catch((error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return undefined;
-        throw error;
-    });
+    const stats = await lstatIfExists(linkPath);
     if (!stats) return false;
     if (!stats.isSymbolicLink()) {
         throw new Error('Owned short temporary path must be a symlink');
     }
-    const expectedTarget = await realpath(join(resolve(runnerTemp), owner, 'tmp'));
+    const expectedTarget = await realpath(join(resolve(runnerTemporary), owner, 'tmp'));
     const actualTarget = await realpath(linkPath);
     if (actualTarget !== expectedTarget) {
         throw new Error(
@@ -354,10 +387,11 @@ async function removeShortTemporaryLink(owner: string, runnerTemp: string): Prom
     return true;
 }
 
-export interface CleanupOperations {
+interface CleanupOperations {
     terminateOwnedProcesses?: (owner: string, workspace: string) => Promise<number>;
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
 export async function cleanup(
     environment: NodeJS.ProcessEnv,
     operations: CleanupOperations = {},
@@ -385,7 +419,7 @@ export async function cleanup(
         0,
     );
     const leases = await attempt('leases', () => reclaimDesktopLeasesByOwner(workspace, owner), 0);
-    const desktopLeaseReleased = await attempt(
+    const isDesktopLeaseReleased = await attempt(
         'lease verification',
         async () => {
             await assertDesktopLeasesReleased(workspace);
@@ -393,17 +427,17 @@ export async function cleanup(
         },
         false,
     );
-    const removedTemporaryLink = await attempt(
+    const isRemovedTemporaryLink = await attempt(
         'temporary link',
-        () => removeShortTemporaryLink(owner, requiredEnvironment(environment, 'RUNNER_TEMP')),
+        () => didRemoveShortTemporaryLink(owner, requiredEnvironment(environment, 'RUNNER_TEMP')),
         false,
     );
-    const removedRunRoot = await attempt(
+    const isRemovedRunRoot = await attempt(
         'run root',
-        () => removeOwnedRunRoot(environment, owner),
+        () => didRemoveOwnedRunRoot(environment, owner),
         false,
     );
-    const generatedOutputsRemoved = await attempt(
+    const isGeneratedOutputsRemoved = await attempt(
         'workspace outputs',
         async () => {
             await Promise.all(
@@ -415,7 +449,7 @@ export async function cleanup(
         },
         false,
     );
-    const workspaceClean = await attempt(
+    const isWorkspaceClean = await attempt(
         'workspace verification',
         async () => {
             await assertCleanWorkspace(workspace);
@@ -423,25 +457,30 @@ export async function cleanup(
         },
         false,
     );
-    const summaryFailure = await appendSummary(
-        [
-            '## Self-hosted runner teardown',
-            '',
-            '| Check | Result |',
-            '| --- | --- |',
-            `| Owned processes terminated | \`${processes}\` |`,
-            `| Stale owned leases reclaimed | \`${leases}\` |`,
-            `| Desktop lease | \`${desktopLeaseReleased ? 'free' : 'not verified'}\` |`,
-            `| Temporary profile | \`${removedRunRoot ? 'removed' : 'not created'}\` |`,
-            `| Short TMPDIR link | \`${removedTemporaryLink ? 'removed' : 'not created'}\` |`,
-            `| Generated workspace outputs | \`${generatedOutputsRemoved ? 'removed' : 'not verified'}\` |`,
-            `| Workspace | \`${workspaceClean ? 'clean' : 'not verified'}\` |`,
-            `| Cleanup stage failures | \`${failures.length}\` |`,
-            `| Failed stages | \`${failedStages.join(', ') || 'none'}\` |`,
-            '',
-        ],
-        environment,
-    ).catch((error) => (error instanceof Error ? error : new Error(String(error))));
+    let summaryFailure: Error | undefined;
+    try {
+        await appendSummary(
+            [
+                '## Self-hosted runner teardown',
+                '',
+                '| Check | Result |',
+                '| --- | --- |',
+                `| Owned processes terminated | \`${processes}\` |`,
+                `| Stale owned leases reclaimed | \`${leases}\` |`,
+                `| Desktop lease | \`${isDesktopLeaseReleased ? 'free' : 'not verified'}\` |`,
+                `| Temporary profile | \`${isRemovedRunRoot ? 'removed' : 'not created'}\` |`,
+                `| Short TMPDIR link | \`${isRemovedTemporaryLink ? 'removed' : 'not created'}\` |`,
+                `| Generated workspace outputs | \`${isGeneratedOutputsRemoved ? 'removed' : 'not verified'}\` |`,
+                `| Workspace | \`${isWorkspaceClean ? 'clean' : 'not verified'}\` |`,
+                `| Cleanup stage failures | \`${failures.length}\` |`,
+                `| Failed stages | \`${failedStages.join(', ') || 'none'}\` |`,
+                '',
+            ],
+            environment,
+        );
+    } catch (error) {
+        summaryFailure = error instanceof Error ? error : new Error(String(error));
+    }
     if (failures.length > 0) throw failures[0];
     if (summaryFailure) throw summaryFailure;
 }
@@ -455,15 +494,19 @@ async function main(): Promise<void> {
         if (command === 'prepare') await prepare(process.env);
         else await cleanup(process.env);
     } catch (error) {
-        await appendSummary(
-            [
-                `## Self-hosted runner ${command}`,
-                '',
-                `**Failed closed:** ${error instanceof Error ? error.message : String(error)}`,
-                '',
-            ],
-            process.env,
-        ).catch(() => undefined);
+        try {
+            await appendSummary(
+                [
+                    `## Self-hosted runner ${command}`,
+                    '',
+                    `**Failed closed:** ${error instanceof Error ? error.message : String(error)}`,
+                    '',
+                ],
+                process.env,
+            );
+        } catch {
+            // Best-effort summary write; the original failure is rethrown below regardless.
+        }
         throw error;
     }
 }

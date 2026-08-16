@@ -8,7 +8,9 @@ export interface EditorDocument extends FileDocument {
 
 export type SessionDocuments = Record<string, Record<string, EditorDocument>>;
 
-/** Monaco models are URI-keyed, so Session identity must be part of the URI even for a shared root. */
+/**
+ * Monaco models are URI-keyed, so Session identity must be part of the URI even for a shared root.
+ */
 export function editorModelPath(sessionId: string, path: string): string {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
     const encodedPath = normalizedPath.split('/').map(encodeURIComponent).join('/');
@@ -29,41 +31,45 @@ export function setSessionDocument(
     };
 }
 
-/** Durable Session state records tab placement only because unsaved document bodies are Renderer-owned. */
+/**
+ * Durable Session state records tab placement only because unsaved document bodies are Renderer-owned.
+ */
 export function withoutEditorTabDirtiness(state: SessionState): SessionState {
-    if (!state.openTabs.some((tab) => tab.dirty)) return state;
+    if (state.openTabs.every((tab) => !tab.dirty)) return state;
     return {
         ...state,
         openTabs: state.openTabs.map((tab) => ({ ...tab, dirty: false })),
     };
 }
 
-/** Rebuilds transient tab dirtiness exclusively from the document bodies that still exist. */
+/**
+ * Rebuilds transient tab dirtiness exclusively from the document bodies that still exist.
+ */
 export function reconcileEditorTabDirtiness(
     state: SessionState,
     documents: Readonly<Record<string, EditorDocument>> | undefined,
 ): SessionState {
-    let changed = false;
+    let isChanged = false;
     const openTabs = state.openTabs.map((tab) => {
-        const dirty = documents?.[tab.path]?.dirty === true;
-        if (tab.dirty === dirty && (!dirty || !tab.preview)) return tab;
-        changed = true;
-        return dirty ? { path: tab.path, dirty: true } : { ...tab, dirty: false };
+        const isDirty = documents?.[tab.path]?.dirty === true;
+        if (tab.dirty === isDirty && (!isDirty || !tab.preview)) return tab;
+        isChanged = true;
+        return isDirty ? { path: tab.path, dirty: true } : { ...tab, dirty: false };
     });
-    return changed ? { ...state, openTabs } : state;
+    return isChanged ? { ...state, openTabs } : state;
 }
 
 /**
- * Manages the open-tabs bookkeeping only (add tab, update dirty flag). Which WorkItem is focused is
- * `activeTab`, owned exclusively by `activateWork` in App.tsx — this function never touches it.
+ * Manages the open-tabs bookkeeping only (add tab, update dirty flag). Which WorkItem is focused is `activeTab`, owned
+ * exclusively by `activateWork` in app.tsx — this function never touches it.
  */
 export function updateEditorTabState(
     state: SessionState,
     path: string,
-    dirty: boolean,
+    isDirty: boolean,
 ): SessionState {
     const existing = state.openTabs.find((tab) => tab.path === path);
-    if (existing?.dirty === dirty && (!dirty || !existing.preview)) return state;
+    if (existing?.dirty === isDirty && (!isDirty || !existing.preview)) return state;
     return {
         ...state,
         openTabs: existing
@@ -71,24 +77,26 @@ export function updateEditorTabState(
                   tab.path === path
                       ? {
                             path: tab.path,
-                            dirty,
-                            ...(tab.preview && !dirty ? { preview: true } : {}),
+                            dirty: isDirty,
+                            ...(tab.preview && !isDirty && { preview: true }),
                         }
                       : tab,
               )
-            : [...state.openTabs, { path, dirty }],
+            : [...state.openTabs, { path, dirty: isDirty }],
     };
 }
 
-/** Opens one replaceable clean preview while preserving every pinned or dirty editor. */
+/**
+ * Opens one replaceable clean preview while preserving every pinned or dirty editor.
+ */
 export function openEditorTabState(
     state: SessionState,
     path: string,
-    preview: boolean,
+    isPreview: boolean,
 ): { replacedPath?: string; state: SessionState } {
     const existing = state.openTabs.find((tab) => tab.path === path);
     if (existing) {
-        if (preview || !existing.preview) return { state };
+        if (isPreview || !existing.preview) return { state };
         return {
             state: {
                 ...state,
@@ -99,10 +107,10 @@ export function openEditorTabState(
         };
     }
 
-    const nextTab = { path, dirty: false, ...(preview ? { preview: true as const } : {}) };
-    if (!preview) return { state: { ...state, openTabs: [...state.openTabs, nextTab] } };
+    const nextTab = { path, dirty: false, ...(isPreview && { preview: true as const }) };
+    if (!isPreview) return { state: { ...state, openTabs: [...state.openTabs, nextTab] } };
     const previewIndex = state.openTabs.findIndex((tab) => tab.preview && !tab.dirty);
-    if (previewIndex < 0) return { state: { ...state, openTabs: [...state.openTabs, nextTab] } };
+    if (previewIndex === -1) return { state: { ...state, openTabs: [...state.openTabs, nextTab] } };
     const replacedPath = state.openTabs[previewIndex].path;
     const openTabs = [...state.openTabs];
     openTabs[previewIndex] = nextTab;
@@ -126,7 +134,7 @@ export function editorTabPathsToClose(
     mode: EditorTabCloseMode,
 ): string[] {
     const targetIndex = openTabs.findIndex((tab) => tab.path === targetPath);
-    if (targetIndex < 0) return [];
+    if (targetIndex === -1) return [];
     if (mode === 'all') return openTabs.map((tab) => tab.path);
     if (mode === 'one') return [targetPath];
     if (mode === 'others')
@@ -137,12 +145,16 @@ export function editorTabPathsToClose(
     return openTabs.slice(targetIndex + 1).map((tab) => tab.path);
 }
 
-/** Disk state always wins, even over a dirty buffer, by explicit Caxri product policy. */
+/**
+ * Disk state always wins, even over a dirty buffer, by explicit Caxri product policy.
+ */
 export function replaceWithExternalDocument(document: FileDocument): EditorDocument {
     return { ...document, dirty: false };
 }
 
-/** Clear only reloaded tab dirtiness so delayed file reads cannot overwrite newer layout or inspector choices. */
+/**
+ * Clear only reloaded tab dirtiness so delayed file reads cannot overwrite newer layout or inspector choices.
+ */
 export function markTabsClean(state: SessionState, paths: readonly string[]): SessionState {
     const reloadedPaths = new Set(paths);
     return {

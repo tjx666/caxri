@@ -3,8 +3,11 @@ import { dirname } from 'node:path';
 
 import Database from 'better-sqlite3';
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
-import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 
+import type { ShutdownReason } from '../session-policy';
+import { shutdownOutcome } from '../session-policy';
 import {
     CURRENT_SCHEMA_VERSION,
     migrationManifest,
@@ -14,16 +17,15 @@ import {
 } from './migrations/manifest';
 import * as schema from './schema';
 import { sessions, terminals } from './schema';
-import { shutdownOutcome, type ShutdownReason } from '../session-policy';
 
 export { CURRENT_SCHEMA_VERSION } from './migrations/manifest';
-
 export { DEFAULT_LAYOUT_VERSION } from './schema';
 
 export type CaxriDrizzleDatabase = BetterSQLite3Database<typeof schema>;
 
 function restrictPath(path: string, mode: number): void {
     try {
+        // eslint-disable-next-line n/no-sync -- better-sqlite3 has no async API; runs on the synchronous open path.
         chmodSync(path, mode);
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
@@ -40,7 +42,9 @@ function installCurrentSchema(database: Database.Database): void {
 
 const PROJECT_ORDER_SCHEMA_VERSION = schemaVersionForMigration('0004_wonderful_gladiator');
 
-/** Preserves the v9 Sidebar order, which was defined by `created_at, id`, as explicit indexes. */
+/**
+ * Preserves the v9 Sidebar order, which was defined by `created_at, id`, as explicit indexes.
+ */
 function backfillProjectOrder(database: Database.Database): void {
     const legacyProjects = database
         .prepare('SELECT id FROM projects ORDER BY created_at, id')
@@ -65,7 +69,9 @@ function initializeSchema(database: Database.Database): void {
     }
     database.transaction(() => {
         if (version > 0 && version < PRESERVED_SCHEMA_VERSION) {
-            /** Pre-release metadata can be rebuilt; Project directories and user files are never touched. */
+            /**
+             * Pre-release metadata can be rebuilt; Project directories and user files are never touched.
+             */
             database.exec(`
                 DROP TABLE IF EXISTS agent_dispatch_receipts;
                 DROP TABLE IF EXISTS terminal_snapshots;
@@ -84,55 +90,63 @@ function initializeSchema(database: Database.Database): void {
 }
 
 /**
- * Bulk-marks Terminals that were still alive as of `reason` (see {@link ShutdownReason}) with the
- * resulting Terminal/Session state pair decided by `session-policy.ts`'s {@link shutdownOutcome}.
- * This module owns only the query/update mechanics; which states apply is a domain decision.
- * Exported as `markShutdown` for both the recovery path at {@link openDatabase} (always `unclean`)
- * and `./index.ts`'s `CaxriDb.markShutdown` (orderly/terminate, chosen by the caller).
+ * Bulk-marks Terminals that were still alive as of `reason` (see {@link ShutdownReason}) with the resulting
+ * Terminal/Session state pair decided by `session-policy.ts`'s {@link shutdownOutcome}. This module owns only the
+ * query/update mechanics; which states apply is a domain decision. Exported as `markShutdown` for both the recovery
+ * path at {@link openDatabase} (always `unclean`) and `./index.ts`'s `CaxriDatabaseConnection.markShutdown`
+ * (orderly/terminate, chosen by the caller).
  */
-export function markShutdown(db: CaxriDrizzleDatabase, now: number, reason: ShutdownReason): void {
+export function markShutdown(
+    database: CaxriDrizzleDatabase,
+    now: number,
+    reason: ShutdownReason,
+): void {
     const { liveProcessStates, terminalProcessState, primaryAgentSessionState } =
         shutdownOutcome(reason);
-    db.update(terminals)
+    database
+        .update(terminals)
         .set({ lastProcessState: terminalProcessState, updatedAt: now })
         .where(inArray(terminals.lastProcessState, liveProcessStates))
         .run();
-    db.update(sessions)
-        .set({ lastActivityState: primaryAgentSessionState })
+    const affectedTerminalIds = database
+        .select({ id: terminals.id })
+        .from(terminals)
         .where(
-            inArray(
-                sessions.primaryAgentTerminalId,
-                db
-                    .select({ id: terminals.id })
-                    .from(terminals)
-                    .where(
-                        and(
-                            isNotNull(terminals.provider),
-                            eq(terminals.lastProcessState, terminalProcessState),
-                        ),
-                    ),
+            and(
+                isNotNull(terminals.provider),
+                eq(terminals.lastProcessState, terminalProcessState),
             ),
-        )
+        );
+    database
+        .update(sessions)
+        .set({ lastActivityState: primaryAgentSessionState })
+        .where(inArray(sessions.primaryAgentTerminalId, affectedTerminalIds))
         .run();
 }
 
 export interface OpenedDatabase {
-    /** Raw better-sqlite3 handle; still needed for pragmas and integration tests that inspect
-        `table_info`/`user_version` directly. */
+    /**
+     * Raw better-sqlite3 handle; still needed for pragmas and integration tests that inspect
+     * `table_info`/`user_version` directly.
+     */
     database: Database.Database;
-    /** Drizzle query-builder instance bound to the same connection and to `./schema`. */
+    /**
+     * Drizzle query-builder instance bound to the same connection and to `./schema`.
+     */
     db: CaxriDrizzleDatabase;
 }
 
 /**
- * Opens (creating if needed) the Caxri SQLite database: restricts the owning directory and file to
- * the current user, enables WAL/foreign-keys/busy-timeout, runs schema initialization, and recovers
- * from any unclean previous shutdown.
+ * Opens (creating if needed) the Caxri SQLite database: restricts the owning directory and file to the current user,
+ * enables WAL/foreign-keys/busy-timeout, runs schema initialization, and recovers from any unclean previous shutdown.
  */
 export function openDatabase(path: string): OpenedDatabase {
     if (path !== ':memory:') {
+        // eslint-disable-next-line n/no-sync -- deliberate startup boundary before the synchronous `Database` open below.
         mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-        /** Electron owns this userData directory, so restricting it also protects adjacent Caxri configuration and logs. */
+        /**
+         * Electron owns this userData directory, so restricting it also protects adjacent Caxri configuration and logs.
+         */
         restrictPath(dirname(path), 0o700);
     }
     const database = new Database(path);
@@ -142,13 +156,13 @@ export function openDatabase(path: string): OpenedDatabase {
         database.pragma('foreign_keys = ON');
         database.pragma('busy_timeout = 5000');
         initializeSchema(database);
-        const db = drizzle(database, { schema });
-        markShutdown(db, Date.now(), 'unclean');
+        const database_ = drizzle(database, { schema });
+        markShutdown(database_, Date.now(), 'unclean');
         if (path !== ':memory:') {
             restrictPath(`${path}-wal`, 0o600);
             restrictPath(`${path}-shm`, 0o600);
         }
-        return { database, db };
+        return { database, db: database_ };
     } catch (error) {
         database.close();
         throw error;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveXtermBetaLine, type XtermRegistryRunner } from '../xterm-beta-line';
+import type { XtermRegistryRunner } from '../xterm-beta-line-core';
+import { resolveXtermBetaLine } from '../xterm-beta-line-core';
 
 const metadata = {
     '@xterm/addon-image@0.10.0-beta.299': {

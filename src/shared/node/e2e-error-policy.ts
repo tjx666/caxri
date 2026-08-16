@@ -22,8 +22,8 @@ function formatCounts(counts: ReadonlyMap<string, number>): string {
 }
 
 /**
- * Enforces the E2E error contract with exact tuples and counts. Missing allowances fail as well as
- * unexpected errors so a stale exception suppression cannot silently remain after a repair.
+ * Enforces the E2E error contract with exact tuples and counts. Missing allowances fail as well as unexpected errors so
+ * a stale exception suppression cannot silently remain after a repair.
  */
 export function assertE2EErrorPolicy(
     actual: readonly E2EErrorEvent[],
@@ -65,5 +65,6 @@ export function assertE2EErrorPolicy(
         unexpected.size > 0 ? `Unexpected E2E errors: ${formatCounts(unexpected)}` : undefined,
         missing.size > 0 ? `Missing E2E errors: ${formatCounts(missing)}` : undefined,
     ].filter(Boolean);
-    if (failures.length > 0) throw new Error(failures.join('\n'));
+    if (failures.length > 0)
+        throw new Error(failures.join('\n') || 'Unexpected E2E error-count mismatch');
 }

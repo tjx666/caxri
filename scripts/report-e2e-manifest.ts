@@ -3,15 +3,19 @@
 import { createHash } from 'node:crypto';
 import { appendFile, readFile, rename, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import process from 'node:process';
 
+import type {
+    E2EFailureGroup,
+    E2EPoolReceipt,
+    E2ETestReceipt,
+} from './reporters/e2e-receipt-reporter';
 import {
-    assertE2EPoolReceipt,
     assertE2EPoolCensusComplete,
-    type E2EFailureGroup,
-    type E2EPoolReceipt,
-    type E2ETestReceipt,
+    assertE2EPoolReceipt,
 } from './reporters/e2e-receipt-reporter';
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/report-e2e-manifest.test.ts
 export interface E2EManifestSummary {
     failed: number;
     failureGroups: E2EFailureGroup[];
@@ -27,7 +31,10 @@ export interface E2EManifestSummary {
     unknown: number;
 }
 
-/** Verifies the union of actual pool executions, rather than collecting a separate test list. */
+/**
+ * Verifies the union of actual pool executions, rather than collecting a separate test list.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/report-e2e-manifest.test.ts
 export function summarizeE2EReceipts(receipts: readonly E2EPoolReceipt[]): E2EManifestSummary {
     if (receipts.length === 0) throw new Error('At least one E2E pool receipt is required');
     for (const receipt of receipts) {
@@ -48,7 +55,8 @@ export function summarizeE2EReceipts(receipts: readonly E2EPoolReceipt[]): E2EMa
     }
     const finished = receipts.reduce((total, receipt) => total + receipt.finished, 0);
     const groupedFailures = new Map<string, string[]>();
-    for (const group of receipts.flatMap(({ failureGroups }) => failureGroups)) {
+    const failureGroupLists = receipts.flatMap(({ failureGroups }) => failureGroups);
+    for (const group of failureGroupLists) {
         groupedFailures.set(group.identity, [
             ...(groupedFailures.get(group.identity) ?? []),
             ...group.testIds,
@@ -58,23 +66,23 @@ export function summarizeE2EReceipts(receipts: readonly E2EPoolReceipt[]): E2EMa
         .update(
             JSON.stringify(
                 [...tests]
-                    .sort((left, right) => left.id.localeCompare(right.id))
+                    .toSorted((left, right) => left.id.localeCompare(right.id))
                     .map(({ id, location, title }: E2ETestReceipt) => ({ id, location, title })),
             ),
         )
         .digest('hex');
     return {
         failed: receipts.reduce((total, receipt) => total + receipt.failed, 0),
-        failureGroups: [...groupedFailures.entries()].map(([identity, testIds]) => ({
+        failureGroups: [...groupedFailures].map(([identity, testIds]) => ({
             count: testIds.length,
             identity,
-            testIds: testIds.sort(),
+            testIds: testIds.toSorted((left, right) => left.localeCompare(right)),
         })),
         finished,
         hash,
         passed: receipts.reduce((total, receipt) => total + receipt.passed, 0),
         planned,
-        pools: [...poolNames].sort(),
+        pools: [...poolNames].toSorted((left, right) => left.localeCompare(right)),
         skipped: receipts.reduce((total, receipt) => total + receipt.skipped, 0),
         started: receipts.reduce((total, receipt) => total + receipt.started, 0),
         status: receipts.every((receipt) => receipt.status === 'passed') ? 'passed' : 'failed',
@@ -83,6 +91,7 @@ export function summarizeE2EReceipts(receipts: readonly E2EPoolReceipt[]): E2EMa
     };
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/report-e2e-manifest.test.ts
 export function formatE2EManifestMetric(manifest: E2EManifestSummary): string {
     return `CAXRI_E2E_MANIFEST ${JSON.stringify(manifest)}`;
 }

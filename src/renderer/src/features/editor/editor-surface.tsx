@@ -1,0 +1,89 @@
+import { createElement, lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
+
+import { editorModelPath } from '@shared/editor-state';
+import { parseGitDiffTab } from '@shared/git-diff';
+
+import { useSelectedSession, useTheme } from '../../stores/selectors';
+import { sessionViewScope, useDocument } from '../../stores/session-view';
+import type { CodeEditorProperties } from './code-editor';
+import { cacheDocument, changeDocument } from './document-actions';
+import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
+import { editorStatusKey } from './editor-status';
+
+const GitDiffEditor = lazy(async () => {
+    const module = await import('./git-diff-editor');
+    return { default: module.GitDiffEditor };
+});
+
+const emptyWorkClassName =
+    'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
+
+async function loadCodeEditorIgnoringFailure(): Promise<void> {
+    try {
+        await loadCodeEditor();
+    } catch {
+        // ignored: see the call site's eslint-disable comment.
+    }
+}
+
+function LoadedCodeEditor(properties: CodeEditorProperties) {
+    const CodeEditor = useSyncExternalStore(
+        subscribeLoadedCodeEditor,
+        getLoadedCodeEditor,
+        getLoadedCodeEditor,
+    );
+    useEffect(() => {
+        // Fire-and-forget: a failed dynamic import leaves `CodeEditor` unset and the "Loading
+        // editor…" fallback below stays visible; there is no separate error UI to report into.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void loadCodeEditorIgnoringFailure();
+    }, []);
+    return CodeEditor ? (
+        createElement(CodeEditor, properties)
+    ) : (
+        <div className={emptyWorkClassName}>Loading editor…</div>
+    );
+}
+
+/**
+ * Renders the focused editor tab. A tab whose content is not cached — restored from a previous run, or evicted by the
+ * document cache cap — reads it on demand instead of being closed.
+ */
+function FileEditorSurface({ path }: { path: string }) {
+    const session = useSelectedSession();
+    const sessionId = session?.id;
+    const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
+    const theme = useTheme();
+    const document = useDocument(sessionId, path, session?.workbenchProjectId);
+
+    useEffect(() => {
+        if (!sessionId || document) return;
+        // Fire-and-forget: `cacheDocument` funnels its own failures into a toast via `tryCommand`,
+        // so there is nothing left for this effect to await or react to.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void cacheDocument(sessionId, path);
+    }, [document, path, sessionId]);
+
+    if (!sessionId || !scope || !theme) return null;
+    if (!document) return <div className={emptyWorkClassName}>Loading file…</div>;
+    return (
+        <LoadedCodeEditor
+            path={editorModelPath(scope, path)}
+            statusKey={editorStatusKey(scope, path)}
+            value={document.content}
+            theme={theme}
+            onChange={(content) => changeDocument(path, content ?? '')}
+        />
+    );
+}
+
+export function EditorSurface({ path }: { path: string }) {
+    const gitDiffTab = parseGitDiffTab(path);
+    if (gitDiffTab)
+        return (
+            <Suspense fallback={<div className={emptyWorkClassName}>Loading diff editor…</div>}>
+                <GitDiffEditor tab={gitDiffTab} />
+            </Suspense>
+        );
+    return <FileEditorSurface path={path} />;
+}

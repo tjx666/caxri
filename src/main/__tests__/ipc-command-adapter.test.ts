@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { createCommandDispatcher, type CommandAdapter } from '../../shared/ipc/dispatcher';
+import type { CommandAdapter } from '../../shared/ipc/dispatcher';
+import { createCommandDispatcher } from '../../shared/ipc/dispatcher';
 import type { CommandExecutionContext } from '../../shared/ipc/principal';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import { createElectronIpcCommandAdapter } from '../ipc-command-adapter';

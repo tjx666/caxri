@@ -1,8 +1,10 @@
+// eslint-disable-next-line unicorn/name-replacements -- this file tests `application.ts`, the CLI composition root's documented name (see AGENTS.md); renaming it would contradict that architecture contract.
+import type { ProtocolWelcome } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { CaxriError, CAXRI_PROTOCOL_VERSION, type ProtocolWelcome } from '@caxri/protocol';
-
-import { runCli, type CliConnectOptions, type CliHostClient, type CliIo } from '../application';
+import type { CliConnectOptions, CliHostClient, CliIo } from '../application';
+import { runCli } from '../application';
 
 function io(options: Partial<CliIo> = {}) {
     let stdout = '';
@@ -194,10 +196,9 @@ describe('CLI application', () => {
             capabilities: ['agents.read'],
             commands: ['agent.context'],
         };
-        const connect = vi.fn((options: CliConnectOptions) => {
-            void options;
-            return Promise.resolve(client);
-        });
+        const connect = vi.fn<(options: CliConnectOptions) => Promise<CliHostClient>>(() =>
+            Promise.resolve(client),
+        );
 
         await expect(
             runCli(['agent-context', '--json'], {
@@ -256,7 +257,7 @@ describe('CLI application', () => {
             CAXRI_AGENT_ENDPOINT_TOKEN: 'ab'.repeat(32),
             CAXRI_USER_DATA_DIR: '/profiles/agent',
         };
-        const peerRef = `${'a'.repeat(32)}:endpoint-2:1`;
+        const peerReference = `${'a'.repeat(32)}:endpoint-2:1`;
         const receipt = {
             messageId: 'message-1',
             from: { hostId: 'a'.repeat(32), endpointId: 'endpoint-1', generation: 2 },
@@ -288,7 +289,7 @@ describe('CLI application', () => {
                     'message',
                     'send',
                     '--to',
-                    peerRef,
+                    peerReference,
                     '--body',
                     'private peer body',
                     '--request-id',

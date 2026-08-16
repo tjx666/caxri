@@ -8,7 +8,7 @@ describe('terminalEnvironment', () => {
             CAXRI_USER_DATA_PATH: '/private/data',
             CAXRI_HOOK_TOKEN: 'previous-generation-secret',
             HOME: '/Users/example',
-            HTTPS_PROXY: 'http://proxy.example',
+            HTTPS_PROXY: 'https://proxy.example',
             NODE_EXTRA_CA_CERTS: '/etc/company-ca.pem',
             OPENAI_API_KEY: 'secret',
             PATH: '/usr/bin',
@@ -20,7 +20,7 @@ describe('terminalEnvironment', () => {
         expect(environment).toMatchObject({
             COLORTERM: 'truecolor',
             HOME: '/Users/example',
-            HTTPS_PROXY: 'http://proxy.example',
+            HTTPS_PROXY: 'https://proxy.example',
             NODE_EXTRA_CA_CERTS: '/etc/company-ca.pem',
             PATH: '/usr/bin',
             SHELL: '/bin/zsh',

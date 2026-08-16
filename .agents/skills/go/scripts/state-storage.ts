@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { constants, type Stats } from 'node:fs';
+import type { Stats } from 'node:fs';
+import { constants } from 'node:fs';
 import { lstat, mkdir, open, realpath, rename, rm, rmdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { verifyFinalizationArtifact } from './finalization';
+import { wasFinalizationArtifactRecovered } from './finalization';
 import { verifyHandoffReportArtifact } from './handoff-report';
 import { applyLedgerRetention, verifyLedgerRetention } from './ledger-retention';
-import { now, type GoState, validateState } from './state-model';
+import type { GoState } from './state-model';
+import { now, validateState } from './state-model';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 export const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
@@ -48,7 +51,7 @@ function assertOwned(metadata: Stats, label: string): void {
         throw new Error(`${label} must be owned by this user`);
 }
 
-function sameIdentity(left: { dev: number; ino: number }, right: { dev: number; ino: number }) {
+function hasSameIdentity(left: { dev: number; ino: number }, right: { dev: number; ino: number }) {
     return left.dev === right.dev && left.ino === right.ino;
 }
 
@@ -79,14 +82,14 @@ function assertSameDirectory(
     actual: DirectDirectorySnapshot,
     expected: DirectDirectorySnapshot,
 ): void {
-    if (actual.canonicalPath !== expected.canonicalPath || !sameIdentity(actual, expected)) {
+    if (actual.canonicalPath !== expected.canonicalPath || !hasSameIdentity(actual, expected)) {
         throw new Error('Go state parent changed during the filesystem operation');
     }
 }
 
 function assertSameFile(actual: DirectFileSnapshot, expected: DirectFileSnapshot): void {
     assertSameDirectory(actual.parent, expected.parent);
-    if (!sameIdentity(actual, expected)) {
+    if (!hasSameIdentity(actual, expected)) {
         throw new Error('Go state target changed during the filesystem operation');
     }
 }
@@ -96,7 +99,7 @@ async function readDirectFile(path: string, expected?: DirectFileSnapshot): Prom
     const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
         const opened = await handle.stat();
-        if (!sameIdentity(opened, before)) {
+        if (!hasSameIdentity(opened, before)) {
             throw new Error('Go state target changed before it could be opened');
         }
         const source = await handle.readFile('utf8');
@@ -120,7 +123,7 @@ async function writeExclusiveFile(path: string, source: string): Promise<DirectF
         const opened = await handle.stat();
         const written = await inspectDirectFile(path);
         assertSameDirectory(written.parent, parent);
-        if (!sameIdentity(opened, written)) {
+        if (!hasSameIdentity(opened, written)) {
             throw new Error('Go state temporary file changed while it was open');
         }
         return written;
@@ -156,14 +159,16 @@ async function ensureDirectDirectory(path: string): Promise<void> {
     }
 }
 
-async function validateStateRoot(): Promise<string> {
-    for (const path of [RECORDS_ROOT, STATE_ROOT]) {
-        const metadata = await lstat(path);
-        if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
-            throw new Error(`Go state directory must not contain symbolic links: ${path}`);
-        }
-        assertOwned(metadata, 'Go state directory');
+async function assertDirectStateDirectory(path: string): Promise<void> {
+    const metadata = await lstat(path);
+    if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+        throw new Error(`Go state directory must not contain symbolic links: ${path}`);
     }
+    assertOwned(metadata, 'Go state directory');
+}
+
+async function validateStateRoot(): Promise<string> {
+    await Promise.all([RECORDS_ROOT, STATE_ROOT].map((path) => assertDirectStateDirectory(path)));
     const [canonicalProjectRoot, canonicalStateRoot] = await Promise.all([
         realpath(PROJECT_ROOT),
         realpath(STATE_ROOT),
@@ -209,9 +214,12 @@ export async function readState(path: string): Promise<GoState> {
     await verifyLedgerRetention(path, state, snapshot.parent.canonicalPath);
     const runDirectory = dirname(path);
     await verifyHandoffReportArtifact(state, runDirectory);
-    const recoveredFinalizationDelivery = await verifyFinalizationArtifact(state, runDirectory);
+    const isRecoveredFinalizationDelivery = await wasFinalizationArtifactRecovered(
+        state,
+        runDirectory,
+    );
     assertSameFile(await inspectDirectFile(path), snapshot);
-    if (recoveredFinalizationDelivery) await writeState(path, state);
+    if (isRecoveredFinalizationDelivery) await writeState(path, state);
     return state;
 }
 
@@ -224,15 +232,17 @@ export async function writeState(path: string, state: GoState): Promise<void> {
     assertSameFile(await inspectDirectFile(path), target);
 
     const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
-    let replacement: DirectFileSnapshot | undefined;
     try {
-        replacement = await writeExclusiveFile(temporary, `${JSON.stringify(state, null, 2)}\n`);
+        const replacement = await writeExclusiveFile(
+            temporary,
+            `${JSON.stringify(state, null, 2)}\n`,
+        );
         assertSameFile(await inspectDirectFile(path), target);
         assertSameDirectory(replacement.parent, target.parent);
         await rename(temporary, path);
         const written = await inspectDirectFile(path);
         assertSameDirectory(written.parent, target.parent);
-        if (!sameIdentity(written, replacement)) {
+        if (!hasSameIdentity(written, replacement)) {
             throw new Error('Go state replacement did not preserve the exclusive temporary file');
         }
     } finally {
@@ -246,12 +256,14 @@ export async function writeState(path: string, state: GoState): Promise<void> {
 export async function writeInitialState(path: string, state: GoState): Promise<void> {
     state.updatedAt = now();
     validateState(state);
-    await writeExclusiveFile(path, `${JSON.stringify(state, null, 2)}\n`).catch(
-        (error: unknown) => {
-            if (errorCode(error) === 'EEXIST') throw new Error(`Go run already exists: ${path}`);
-            throw error;
-        },
-    );
+    try {
+        await writeExclusiveFile(path, `${JSON.stringify(state, null, 2)}\n`);
+    } catch (error: unknown) {
+        if (errorCode(error) === 'EEXIST') {
+            throw new Error(`Go run already exists: ${path}`, { cause: error });
+        }
+        throw error;
+    }
 }
 
 export async function withStateLock<T>(path: string, action: () => Promise<T>): Promise<T> {
@@ -278,7 +290,7 @@ export async function withStateLock<T>(path: string, action: () => Promise<T>): 
         const currentParent = await inspectDirectDirectory(dirname(path));
         assertSameDirectory(currentParent, target.parent);
         const currentLock = await inspectDirectDirectory(lockPath);
-        if (!sameIdentity(currentLock, lock)) {
+        if (!hasSameIdentity(currentLock, lock)) {
             throw new Error('Go state writer lock ownership changed before release');
         }
         await rmdir(lockPath);

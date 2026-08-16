@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
 import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
-import { commandPolicy, type MethodSpec } from '../transport/method-spec.js';
+import type { MethodSpec } from '../transport/method-spec.js';
+import { commandPolicy } from '../transport/method-spec.js';
 import { capabilitySchema } from '../transport/principal.js';
 
-const noParams = z.object({}).default({});
+const noParameters = z.object({}).default({});
 
+// eslint-disable-next-line unicorn/name-replacements -- exported schema is imported across the Host/Runtime process boundary (e.g. src/runtime/db/models/agent-dispatch-receipts.ts), which is outside this change's authorized file scope.
 export const agentEndpointRefSchema = z.object({
     hostId: identifierSchema,
     endpointId: identifierSchema,
@@ -78,27 +80,27 @@ export const agentListResultSchema = z.object({
     agents: z.array(agentEndpointSummarySchema).max(128),
 });
 
-const endpointTargetParamsSchema = z.object({ endpoint: agentEndpointRefSchema });
+const endpointTargetParametersSchema = z.object({ endpoint: agentEndpointRefSchema });
 
 export const agentEndpointMethods = {
     'agent.context': {
         ...commandPolicy('host', 'read', ['agents.read']),
-        params: noParams,
+        params: noParameters,
         result: agentContextResultSchema,
     },
     'agent.list': {
         ...commandPolicy('host', 'read', ['agents.read']),
-        params: noParams,
+        params: noParameters,
         result: agentListResultSchema,
     },
     'agent.grants': {
         ...commandPolicy('host', 'read', ['agents.grant']),
-        params: endpointTargetParamsSchema,
+        params: endpointTargetParametersSchema,
         result: z.object({ grants: z.array(agentEndpointGrantSchema).max(32) }),
     },
     'agent.grant': {
         ...commandPolicy('host', 'write', ['agents.grant']),
-        params: endpointTargetParamsSchema.extend({
+        params: endpointTargetParametersSchema.extend({
             policy: agentGrantPolicySchema,
             ttlMs: z.number().int().min(1_000).max(3_600_000).default(900_000),
         }),
@@ -106,11 +108,12 @@ export const agentEndpointMethods = {
     },
     'agent.revoke': {
         ...commandPolicy('host', 'write', ['agents.grant']),
-        params: endpointTargetParamsSchema.extend({ grantId: identifierSchema }),
+        params: endpointTargetParametersSchema.extend({ grantId: identifierSchema }),
         result: z.object({ revoked: z.boolean() }),
     },
 } as const satisfies Record<string, MethodSpec>;
 
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/host and src/runtime, which is outside this change's authorized file scope.
 export type AgentEndpointRef = z.infer<typeof agentEndpointRefSchema>;
 export type AgentEndpointSummary = z.infer<typeof agentEndpointSummarySchema>;
 export type AgentEndpointGrant = z.infer<typeof agentEndpointGrantSchema>;

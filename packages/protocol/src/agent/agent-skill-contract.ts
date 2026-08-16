@@ -53,7 +53,9 @@ export const installedAgentSkillHealthSchema = z.object({
     status: agentSkillStatusSchema,
 });
 
-/** Path-free compatibility health shared by the offline CLI and Desktop Settings. */
+/**
+ * Path-free compatibility health shared by the offline CLI and Desktop Settings.
+ */
 export const agentSkillHealthSchema = z.object({
     bundled: bundledAgentSkillMetadataSchema,
     installations: z.array(installedAgentSkillHealthSchema).max(4),

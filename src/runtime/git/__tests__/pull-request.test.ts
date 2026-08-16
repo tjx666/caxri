@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { GitRepositorySummary } from '../../../shared/types';
+import type { GitRepositorySummary as GitRepoSummary } from '../../../shared/types';
 import { GitPullRequestService, parsePullRequestView } from '../pull-request';
 
 const BASE_OID = 'a'.repeat(40);
 const HEAD_OID = 'b'.repeat(40);
 
-function repository(sessionId: string, repositoryId: string): GitRepositorySummary {
+function repo(sessionId: string, repoId: string): GitRepoSummary {
     return {
         additions: 0,
         ahead: 0,
@@ -15,10 +15,10 @@ function repository(sessionId: string, repositoryId: string): GitRepositorySumma
         deletions: 0,
         files: [],
         head: HEAD_OID,
-        id: repositoryId,
+        id: repoId,
         kind: 'primary',
-        name: repositoryId,
-        rootPath: `/repository/${sessionId}/${repositoryId}`,
+        name: repoId,
+        rootPath: `/repository/${sessionId}/${repoId}`,
     };
 }
 
@@ -41,8 +41,7 @@ function createService(options: { capacity?: number; now?: () => number } = {}) 
         {
             git: vi.fn(() => Promise.resolve('')),
             ghPullRequestView,
-            resolveRepository: (sessionId, repositoryId) =>
-                Promise.resolve(repository(sessionId, repositoryId)),
+            resolveRepository: (sessionId, repoId) => Promise.resolve(repo(sessionId, repoId)),
         },
         {
             maximumCacheEntries: options.capacity,
@@ -52,8 +51,8 @@ function createService(options: { capacity?: number; now?: () => number } = {}) 
     return { ghPullRequestView, service };
 }
 
-function changes(service: GitPullRequestService, sessionId: string, repositoryId = 'repository') {
-    return service.changes({ refresh: 0, repositoryId, sessionId });
+function changes(service: GitPullRequestService, sessionId: string, repoId = 'repository') {
+    return service.changes({ refresh: 0, repositoryId: repoId, sessionId });
 }
 
 describe('parsePullRequestView', () => {
@@ -157,8 +156,7 @@ describe('GitPullRequestService', () => {
         const service = new GitPullRequestService({
             git: vi.fn(() => Promise.resolve('')),
             ghPullRequestView,
-            resolveRepository: (sessionId, repositoryId) =>
-                Promise.resolve(repository(sessionId, repositoryId)),
+            resolveRepository: (sessionId, repoId) => Promise.resolve(repo(sessionId, repoId)),
         });
 
         const first = changes(service, 'session-a');
@@ -181,8 +179,7 @@ describe('GitPullRequestService', () => {
         const service = new GitPullRequestService({
             git: vi.fn(() => Promise.resolve('')),
             ghPullRequestView,
-            resolveRepository: (sessionId, repositoryId) =>
-                Promise.resolve(repository(sessionId, repositoryId)),
+            resolveRepository: (sessionId, repoId) => Promise.resolve(repo(sessionId, repoId)),
         });
 
         const staleRequest = changes(service, 'session-a');
@@ -196,26 +193,24 @@ describe('GitPullRequestService', () => {
     });
 
     it('invalidates a request deleted while repository resolution is still pending', async () => {
-        let resolveRepository: ((value: GitRepositorySummary) => void) | undefined;
+        let resolveRepo: ((value: GitRepoSummary) => void) | undefined;
         const ghPullRequestView = vi.fn(() => Promise.resolve(pullRequestView(1)));
-        const repositoryLookup = vi
-            .fn<(sessionId: string, repositoryId: string) => Promise<GitRepositorySummary>>()
+        const repoLookup = vi
+            .fn<(sessionId: string, repoId: string) => Promise<GitRepoSummary>>()
             .mockImplementationOnce(
-                () => new Promise<GitRepositorySummary>((resolve) => (resolveRepository = resolve)),
+                () => new Promise<GitRepoSummary>((resolve) => (resolveRepo = resolve)),
             )
-            .mockImplementation((sessionId, repositoryId) =>
-                Promise.resolve(repository(sessionId, repositoryId)),
-            );
+            .mockImplementation((sessionId, repoId) => Promise.resolve(repo(sessionId, repoId)));
         const service = new GitPullRequestService({
             git: vi.fn(() => Promise.resolve('')),
             ghPullRequestView,
-            resolveRepository: repositoryLookup,
+            resolveRepository: repoLookup,
         });
 
         const staleRequest = changes(service, 'session-a');
-        await vi.waitFor(() => expect(repositoryLookup).toHaveBeenCalledOnce());
+        await vi.waitFor(() => expect(repoLookup).toHaveBeenCalledOnce());
         service.evictSessions(['session-a']);
-        resolveRepository?.(repository('session-a', 'repository'));
+        resolveRepo?.(repo('session-a', 'repository'));
         await staleRequest;
         await changes(service, 'session-a');
 

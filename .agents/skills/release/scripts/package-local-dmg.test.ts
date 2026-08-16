@@ -4,11 +4,10 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type {CommandExecutor, CommandResult} from './package-local-dmg';
 import {
     packageLocalDmg,
-    parseLocalDmgArguments,
-    type CommandExecutor,
-    type CommandResult,
+    parseLocalDmgArguments
 } from './package-local-dmg';
 
 const temporaryDirectories: string[] = [];
@@ -26,24 +25,24 @@ async function fixture() {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })),
-    );
+    const paths = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { force: true, recursive: true })));
 });
 
 function success(stdout = '', stderr = ''): CommandResult {
     return { exitCode: 0, stderr, stdout };
 }
 
-function fakeExecutor(cwd: string, packageFails = false) {
+function fakeExecutor(cwd: string, shouldPackageFail = false) {
     const calls: string[] = [];
     const executor: CommandExecutor = {
-        async run(command, args) {
-            calls.push(`${command} ${args.join(' ')}`);
-            if (command === 'git' && args[0] === 'status') return success('');
-            if (command === 'git' && args[0] === 'rev-parse') return success('head-sha\n');
+        async run(command, arguments_) {
+            calls.push(`${command} ${arguments_.join(' ')}`);
+            if (command === 'git' && arguments_[0] === 'status') return success('');
+            if (command === 'git' && arguments_[0] === 'rev-parse') return success('head-sha\n');
             if (command === 'pnpm') {
-                const version = args[1];
+                const version = arguments_[1];
                 await writeFile(
                     join(cwd, 'package.json'),
                     `{\n    "name": "caxri",\n    "version": "${version}"\n}\n`,
@@ -57,7 +56,7 @@ function fakeExecutor(cwd: string, packageFails = false) {
                 return success(`v${version}\n`);
             }
             if (command === 'bun') {
-                if (packageFails) return { exitCode: 1, stderr: 'builder failed', stdout: '' };
+                if (shouldPackageFail) return { exitCode: 1, stderr: 'builder failed', stdout: '' };
                 const app = join(cwd, 'release', 'mac-arm64', 'Caxri.app');
                 await mkdir(join(app, 'Contents', 'MacOS'), { recursive: true });
                 await Promise.all([
@@ -71,13 +70,13 @@ function fakeExecutor(cwd: string, packageFails = false) {
             if (command === 'plutil') return success('0.0.7\n');
             if (command === 'lipo') return success('arm64\n');
             if (command === 'file') return success('zlib compressed data\n');
-            if (command === 'codesign' && args[0] === '-dv') {
+            if (command === 'codesign' && arguments_[0] === '-dv') {
                 return success('', 'Signature=adhoc\nTeamIdentifier=not set\n');
             }
             if (command === 'codesign') {
                 return { exitCode: 1, stderr: 'unsigned bundle', stdout: '' };
             }
-            throw new Error(`Unexpected command: ${command} ${args.join(' ')}`);
+            throw new Error(`Unexpected command: ${command} ${arguments_.join(' ')}`);
         },
     };
     return { calls, executor };
@@ -139,11 +138,11 @@ describe('local DMG packaging', () => {
         const { cwd } = await fixture();
         const { executor } = fakeExecutor(cwd);
         const dirtyExecutor: CommandExecutor = {
-            async run(command, args, options) {
-                if (command === 'git' && args[0] === 'status' && args.includes('--untracked-files=all')) {
+            async run(command, arguments_, options) {
+                if (command === 'git' && arguments_[0] === 'status' && arguments_.includes('--untracked-files=all')) {
                     return success(' M src/example.ts\n');
                 }
-                return executor.run(command, args, options);
+                return executor.run(command, arguments_, options);
             },
         };
         await expect(

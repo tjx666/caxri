@@ -1,29 +1,29 @@
 import { randomUUID } from 'node:crypto';
+import process from 'node:process';
 
+import type {
+    AgentEndpointActivateParams as AgentEndpointActivateParameters,
+    AgentEndpointBeginParams as AgentEndpointBeginParameters,
+    AgentEndpointBeginResult,
+    AgentEndpointMessagingParams as AgentEndpointMessagingParameters,
+    AgentEndpointRetireParams as AgentEndpointRetireParameters,
+} from '../../../packages/protocol/src/agent/agent-endpoint-control';
 import type { AgentLaunchSettings, AgentProviderSettings } from '../../shared/agents';
 import { agentProviderCatalog } from '../../shared/agents';
 import type {
-    AgentEndpointActivateParams,
-    AgentEndpointBeginParams,
-    AgentEndpointBeginResult,
-    AgentEndpointMessagingParams,
-    AgentEndpointRetireParams,
-} from '../../../packages/protocol/src/agent/agent-endpoint-control';
-import type { AgentPermissionClass } from '../../shared/ipc/agent-endpoint-contract';
-import type { AgentEndpointRef } from '../../shared/ipc/agent-endpoint-contract';
+    AgentEndpointRef as AgentEndpointReference,
+    AgentPermissionClass,
+} from '../../shared/ipc/agent-endpoint-contract';
 import { CaxriError } from '../../shared/ipc/errors';
 import type { AgentProvider, TerminalRecord } from '../../shared/types';
-import {
-    AgentMessagingCapabilityProbe,
-    pendingMessagingCapability,
-    type AgentMessagingProbeInput,
-} from '../agent-messaging';
+import type { AgentMessagingProbeInput } from '../agent-messaging';
+import { AgentMessagingCapabilityProbe, pendingMessagingCapability } from '../agent-messaging';
 
 export interface RuntimeAgentEndpointControl {
-    activate(params: AgentEndpointActivateParams): Promise<boolean>;
-    begin(params: AgentEndpointBeginParams): Promise<AgentEndpointBeginResult>;
-    messaging(params: AgentEndpointMessagingParams): Promise<boolean>;
-    retire(params: AgentEndpointRetireParams): Promise<boolean>;
+    activate(parameters: AgentEndpointActivateParameters): Promise<boolean>;
+    begin(parameters: AgentEndpointBeginParameters): Promise<AgentEndpointBeginResult>;
+    messaging(parameters: AgentEndpointMessagingParameters): Promise<boolean>;
+    retire(parameters: AgentEndpointRetireParameters): Promise<boolean>;
 }
 
 interface ActiveEndpoint {
@@ -40,7 +40,7 @@ interface ActiveEndpoint {
 
 export interface RuntimeAgentControlTarget {
     launchId: string;
-    ref: AgentEndpointRef;
+    ref: AgentEndpointReference;
     terminalId: string;
 }
 
@@ -49,7 +49,9 @@ const ELEVATED_ARGUMENTS: Record<AgentProvider, ReadonlySet<string>> = {
     codex: new Set(['--dangerously-bypass-approvals-and-sandbox']),
 };
 
-/** Only exact built-in launch configuration is known-standard; all custom evidence fails closed. */
+/**
+ * Only exact built-in launch configuration is known-standard; all custom evidence fails closed.
+ */
 export function classifyAgentPermission(
     provider: AgentProvider,
     launch: AgentLaunchSettings,
@@ -61,7 +63,9 @@ export function classifyAgentPermission(
     return 'unknown';
 }
 
-/** Owns the endpoint lease alongside its live direct-Agent PTY generation. */
+/**
+ * Owns the endpoint lease alongside its live direct-Agent PTY generation.
+ */
 export class RuntimeAgentEndpointLifecycle {
     private readonly active = new Map<string, ActiveEndpoint>();
 
@@ -72,6 +76,50 @@ export class RuntimeAgentEndpointLifecycle {
             cliPath: process.env.CAXRI_CLI_PATH,
         }),
     ) {}
+
+    /**
+     * Fires without blocking `activate()`; failures are swallowed since this is a best-effort refresh.
+     */
+    private scheduleMessagingRefresh(endpoint: ActiveEndpoint): void {
+        const input = {
+            enabled: endpoint.messagingEnabled,
+            launch: endpoint.launch,
+            provider: endpoint.provider,
+        } satisfies AgentMessagingProbeInput;
+        // eslint-disable-next-line unicorn/prefer-await -- must stay synchronous so activate() is not blocked on this best-effort background refresh
+        this.refreshMessaging(endpoint, endpoint.messagingRevision, input).catch(() => {});
+    }
+
+    private async refreshMessaging(
+        endpoint: ActiveEndpoint,
+        revision: number,
+        input: AgentMessagingProbeInput,
+    ): Promise<void> {
+        const messaging = await this.messagingProbe.check(input);
+        await this.updateMessaging(endpoint, revision, messaging);
+    }
+
+    /**
+     * A delayed capability result must never update a replacement Endpoint or newer settings revision.
+     */
+    private async updateMessaging(
+        endpoint: ActiveEndpoint,
+        revision: number,
+        messaging: Parameters<RuntimeAgentEndpointControl['messaging']>[0]['messaging'],
+    ): Promise<void> {
+        if (
+            this.active.get(endpoint.terminalId) !== endpoint ||
+            !endpoint.activated ||
+            endpoint.retiring ||
+            endpoint.messagingRevision !== revision
+        )
+            return;
+        await this.control.messaging({
+            ref: endpoint.ref,
+            launchId: endpoint.launchId,
+            messaging,
+        });
+    }
 
     async environment(
         terminal: TerminalRecord,
@@ -89,7 +137,9 @@ export class RuntimeAgentEndpointLifecycle {
             launchId,
             name: terminal.title,
             permissionClass: classifyAgentPermission(terminal.kind, settings.launch),
-            /** A credential exists for the child env before spawn, but the Host keeps it inert. */
+            /**
+             * A credential exists for the child env before spawn, but the Host keeps it inert.
+             */
             messaging: pendingMessagingCapability(),
         });
         this.active.set(terminal.id, {
@@ -108,21 +158,23 @@ export class RuntimeAgentEndpointLifecycle {
             CAXRI_AGENT_ENDPOINT_ID: endpoint.ref.endpointId,
             CAXRI_AGENT_ENDPOINT_GENERATION: String(endpoint.ref.generation),
             CAXRI_AGENT_ENDPOINT_TOKEN: endpoint.token,
-            ...(process.env.CAXRI_CLI_PATH ? { CAXRI_CLI_PATH: process.env.CAXRI_CLI_PATH } : {}),
+            ...(process.env.CAXRI_CLI_PATH && { CAXRI_CLI_PATH: process.env.CAXRI_CLI_PATH }),
             CAXRI_USER_DATA_DIR: this.userDataPath,
         };
     }
 
-    /** Activates the exact prepared credential after TerminalManager has registered the live PTY. */
+    /**
+     * Activates the exact prepared credential after TerminalManager has registered the live PTY.
+     */
     async activate(terminalId: string): Promise<void> {
         const endpoint = this.active.get(terminalId);
         if (!endpoint || endpoint.retiring)
             throw new CaxriError('UNAVAILABLE', 'Agent Endpoint is unavailable after PTY launch');
-        const activated = await this.control.activate({
+        const isActivated = await this.control.activate({
             ref: endpoint.ref,
             launchId: endpoint.launchId,
         });
-        if (!activated || endpoint.retiring || this.active.get(terminalId) !== endpoint)
+        if (!isActivated || endpoint.retiring || this.active.get(terminalId) !== endpoint)
             throw new CaxriError(
                 'UNAVAILABLE',
                 'Agent Endpoint generation changed before activation',
@@ -157,7 +209,7 @@ export class RuntimeAgentEndpointLifecycle {
             groups.set(key, group);
         }
         await Promise.all(
-            [...groups.values()].map(async ({ endpoints, input }) => {
+            groups.values().map(async ({ endpoints, input }) => {
                 const messaging = await this.messagingProbe.check(input);
                 await Promise.all(
                     endpoints.map((endpoint) =>
@@ -172,7 +224,9 @@ export class RuntimeAgentEndpointLifecycle {
         const endpoint = this.active.get(terminalId);
         if (!endpoint) return;
         endpoint.retiring = true;
-        /** Keep the local generation fenced if Host retirement fails, so a later caller may retry safely. */
+        /**
+         * Keep the local generation fenced if Host retirement fails, so a later caller may retry safely.
+         */
         await this.control.retire({ ref: endpoint.ref, launchId: endpoint.launchId });
         if (this.active.get(terminalId) === endpoint) this.active.delete(terminalId);
     }
@@ -184,16 +238,20 @@ export class RuntimeAgentEndpointLifecycle {
             : undefined;
     }
 
-    /** Resolves an exact live Endpoint generation before a Runtime-owned PTY side effect. */
-    controlTarget(ref: AgentEndpointRef): RuntimeAgentControlTarget {
-        const endpoint = [...this.active.values()].find(
-            (candidate) =>
-                candidate.activated &&
-                !candidate.retiring &&
-                candidate.ref.hostId === ref.hostId &&
-                candidate.ref.endpointId === ref.endpointId &&
-                candidate.ref.generation === ref.generation,
-        );
+    /**
+     * Resolves an exact live Endpoint generation before a Runtime-owned PTY side effect.
+     */
+    controlTarget(reference: AgentEndpointReference): RuntimeAgentControlTarget {
+        const endpoint = this.active
+            .values()
+            .find(
+                (candidate) =>
+                    candidate.activated &&
+                    !candidate.retiring &&
+                    candidate.ref.hostId === reference.hostId &&
+                    candidate.ref.endpointId === reference.endpointId &&
+                    candidate.ref.generation === reference.generation,
+            );
         if (!endpoint) throw new CaxriError('UNAVAILABLE', 'Agent Endpoint is unavailable');
         return { launchId: endpoint.launchId, ref: endpoint.ref, terminalId: endpoint.terminalId };
     }
@@ -211,41 +269,6 @@ export class RuntimeAgentEndpointLifecycle {
     }
 
     async close(): Promise<void> {
-        await Promise.allSettled(
-            [...this.active.keys()].map((terminalId) => this.retire(terminalId)),
-        );
-    }
-
-    private scheduleMessagingRefresh(endpoint: ActiveEndpoint): void {
-        const input = {
-            enabled: endpoint.messagingEnabled,
-            launch: endpoint.launch,
-            provider: endpoint.provider,
-        } satisfies AgentMessagingProbeInput;
-        const revision = endpoint.messagingRevision;
-        void this.messagingProbe
-            .check(input)
-            .then((messaging) => this.updateMessaging(endpoint, revision, messaging))
-            .catch(() => undefined);
-    }
-
-    /** A delayed capability result must never update a replacement Endpoint or newer settings revision. */
-    private async updateMessaging(
-        endpoint: ActiveEndpoint,
-        revision: number,
-        messaging: Parameters<RuntimeAgentEndpointControl['messaging']>[0]['messaging'],
-    ): Promise<void> {
-        if (
-            this.active.get(endpoint.terminalId) !== endpoint ||
-            !endpoint.activated ||
-            endpoint.retiring ||
-            endpoint.messagingRevision !== revision
-        )
-            return;
-        await this.control.messaging({
-            ref: endpoint.ref,
-            launchId: endpoint.launchId,
-            messaging,
-        });
+        await Promise.allSettled(this.active.keys().map((terminalId) => this.retire(terminalId)));
     }
 }

@@ -1,8 +1,8 @@
 import {
     chmod,
     link,
-    mkdtemp,
     mkdir,
+    mkdtemp,
     open,
     readdir,
     readFile,
@@ -24,14 +24,15 @@ import { DocumentService } from '../documents';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })),
-    );
+    const paths = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { force: true, recursive: true })));
 });
 
 describe('DocumentService', () => {
     it('keeps the previous file intact when writing the replacement fails', async () => {
-        const root = await realpath(await mkdtemp(join(tmpdir(), 'caxri-document-save-')));
+        const rootDirectory = await mkdtemp(join(tmpdir(), 'caxri-document-save-'));
+        const root = await realpath(rootDirectory);
         temporaryDirectories.push(root);
         const path = join(root, 'document.txt');
         await writeFile(path, 'previous complete content', 'utf8');
@@ -51,7 +52,8 @@ describe('DocumentService', () => {
     });
 
     it('atomically replaces the complete file while preserving its permission bits', async () => {
-        const root = await realpath(await mkdtemp(join(tmpdir(), 'caxri-document-save-')));
+        const rootDirectory = await mkdtemp(join(tmpdir(), 'caxri-document-save-'));
+        const root = await realpath(rootDirectory);
         temporaryDirectories.push(root);
         const path = join(root, 'document.txt');
         await writeFile(path, 'previous', 'utf8');
@@ -72,7 +74,8 @@ describe('DocumentService', () => {
     it.each(['different inode', 'hard link', 'symlink'] as const)(
         'rejects a %s swapped in before the final target validation',
         async (replacementKind) => {
-            const root = await realpath(await mkdtemp(join(tmpdir(), 'caxri-document-save-')));
+            const rootDirectory = await mkdtemp(join(tmpdir(), 'caxri-document-save-'));
+            const root = await realpath(rootDirectory);
             temporaryDirectories.push(root);
             const path = join(root, 'document.txt');
             const originalPath = join(root, 'document.original.txt');
@@ -105,7 +108,8 @@ describe('DocumentService', () => {
     );
 
     it('does not write replacement bytes through a swapped parent symlink', async () => {
-        const testRoot = await realpath(await mkdtemp(join(tmpdir(), 'caxri-document-save-')));
+        const testRootDirectory = await mkdtemp(join(tmpdir(), 'caxri-document-save-'));
+        const testRoot = await realpath(testRootDirectory);
         temporaryDirectories.push(testRoot);
         const root = join(testRoot, 'project');
         const parent = join(root, 'nested');
@@ -122,13 +126,13 @@ describe('DocumentService', () => {
             new StructuredLogger(join(testRoot, 'logs')),
             () => 1_024,
             {
-                openFile: async (...args) => {
+                openFile: async (...arguments_) => {
                     openCount += 1;
                     if (openCount === 2) {
                         await rename(parent, originalParent);
                         await symlink(outside, parent, 'dir');
                     }
-                    return open(...args);
+                    return open(...arguments_);
                 },
                 beforeReplaceValidation: async () => {
                     const [outsideEntry] = await readdir(outside);
@@ -151,7 +155,8 @@ describe('DocumentService', () => {
     });
 
     it('does not remove an outside file through a swapped temporary parent', async () => {
-        const testRoot = await realpath(await mkdtemp(join(tmpdir(), 'caxri-document-save-')));
+        const testRootDirectory = await mkdtemp(join(tmpdir(), 'caxri-document-save-'));
+        const testRoot = await realpath(testRootDirectory);
         temporaryDirectories.push(testRoot);
         const root = join(testRoot, 'project');
         const parent = join(root, 'nested');
