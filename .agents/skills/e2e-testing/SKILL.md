@@ -7,6 +7,31 @@ description: Validate Caxri through focused Playwright Electron workflows, real 
 
 Use the smallest real Electron workflow that proves the changed boundary.
 
+## When a behavior earns an Electron workflow
+
+E2E specs launch a real Electron app under the repository desktop lease and mostly run serially,
+so each spec is expensive. Reserve them for failure modes that cannot exist below the desktop
+boundary:
+
+- A user-visible flow spanning process boundaries (Renderer → IPC → Main/Runtime → back into the
+  UI), where every layer can pass its unit tests while the wiring between them is wrong.
+- Native desktop capability with no faithful mock: window lifecycle, native menus and dialogs,
+  focus, keyboard shortcuts as wired, a real PTY running real processes.
+- Persistence and recovery across a process restart — Session/layout/Terminal restore, Runtime
+  crash and reconnect. The restart itself is the behavior under test.
+- A small set of critical-journey smokes (launch → Project → Session → Terminal/Agent) whose
+  failure means the product does not work at all.
+- A regression test for a bug whose root cause was integration-level (preload contract, packaging
+  difference, CSP, event ordering); a unit-level test would not have caught it and will not guard
+  it.
+- Pure UI interaction contracts (drag, tooltips, keyboard navigation): `.tsx` components are never
+  unit-tested, so E2E is their only verification surface. Assert what the user can accomplish,
+  not pixels or styling.
+
+Everything else — pure computation, store state machines, invalidation predicates, protocol
+schemas — belongs to `unit-testing`. Before writing an E2E spec, ask whether the logic can be
+extracted below the boundary and tested there; if yes, extract it instead.
+
 ## Focused workflow
 
 1. Finish source edits and focused `unit-testing` coverage first when both layers apply.
