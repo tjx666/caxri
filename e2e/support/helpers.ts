@@ -458,12 +458,10 @@ export async function createProjectSession(
 }
 
 /**
- * Reveals the quiet titlebar action before activating it, matching pointer use at rest.
+ * The sidebar hosts no Add Project button; the default `Cmd+O` keybinding is the primary entry point.
  */
 export async function openAddProjectDialog(page: Page): Promise<void> {
-    const titlebar = page.locator('.sidebar-title');
-    await titlebar.hover({ position: { x: 90, y: 22 } });
-    await titlebar.getByRole('button', { name: 'Add Project', exact: true }).click();
+    await page.keyboard.press('Meta+o');
 }
 
 export async function createShellSession(page: Page): Promise<void> {

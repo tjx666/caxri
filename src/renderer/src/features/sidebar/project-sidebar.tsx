@@ -5,8 +5,6 @@ import { Plus } from 'lucide-react';
 
 import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { executeCommand } from '../../commands/execute';
-import { Button } from '../../components/ui/button';
-import { CommandTooltip } from '../../components/ui/tooltip';
 import {
     useIsFullScreen,
     useProjects,
@@ -180,9 +178,9 @@ export function ProjectSidebar() {
     };
 
     return (
-        <aside className="session-sidebar group/sidebar flex min-w-0 flex-col bg-surface">
+        <aside className="session-sidebar flex min-w-0 flex-col bg-surface">
             <div
-                className={`sidebar-title group/sidebar-title flex h-11 items-center justify-end border-b border-border py-0 pr-2 font-semibold ${isFullScreen ? 'pl-3' : 'pl-[84px]'}`}
+                className={`sidebar-title flex h-11 items-center border-b border-border py-0 pr-2 font-semibold ${isFullScreen ? 'pl-3' : 'pl-[84px]'}`}
                 style={{ WebkitAppRegion: 'drag' } as CSSProperties}
             >
                 {isFullScreen && (
@@ -198,18 +196,6 @@ export function ProjectSidebar() {
                         data-caxri-logo
                     />
                 )}
-                <CommandTooltip commandId="project.create">
-                    <Button
-                        className="pointer-events-none opacity-0 transition-opacity group-focus-within/sidebar-title:pointer-events-auto group-focus-within/sidebar-title:opacity-100 group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100"
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Add Project"
-                        onClick={onAddProject}
-                        style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
-                    >
-                        <Plus size={15} />
-                    </Button>
-                </CommandTooltip>
             </div>
             <div
                 ref={treeReference}

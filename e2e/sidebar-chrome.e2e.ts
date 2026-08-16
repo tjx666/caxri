@@ -78,7 +78,7 @@ async function publishFullScreenState(
     }, isFullScreen);
 }
 
-test('sidebar is logo-free and reveals Add Project on hover or focus', async () => {
+test('sidebar titlebar is logo-free, button-free, and fully draggable', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-titlebar-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -87,10 +87,10 @@ test('sidebar is logo-free and reveals Add Project on hover or focus', async () 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         const titlebar = running.page.locator('.sidebar-title');
-        const projectAddButton = titlebar.getByRole('button', { name: 'Add Project' });
         await expect(titlebar.locator('[data-caxri-logo]')).toHaveCount(0);
-        await expect(projectAddButton).toHaveCSS('opacity', '0');
-        await expect(projectAddButton).toHaveCSS('pointer-events', 'none');
+        // The Add Project entry points are the `Cmd+O` shortcut, the Project menu, and the command
+        // palette; the titlebar stays a quiet drag surface.
+        await expect(titlebar.getByRole('button')).toHaveCount(0);
         const titlebarMetrics = await titlebar.evaluate((element) => {
             const titlebarBounds = element.getBoundingClientRect();
             return {
@@ -99,25 +99,6 @@ test('sidebar is logo-free and reveals Add Project on hover or focus', async () 
             };
         });
         expect(titlebarMetrics).toMatchObject({ appRegion: 'drag', height: 44 });
-
-        await running.page.locator('.project-list').hover({ position: { x: 20, y: 100 } });
-        await expect(projectAddButton).toHaveCSS('opacity', '1');
-        await expect(projectAddButton).toHaveCSS('pointer-events', 'auto');
-        await running.page.mouse.move(500, 300);
-        await expect(projectAddButton).toHaveCSS('opacity', '0');
-        await expect(projectAddButton).toHaveCSS('pointer-events', 'none');
-
-        await titlebar.hover({ position: { x: 90, y: 22 } });
-        await expect(projectAddButton).toHaveCSS('opacity', '1');
-        await expect(projectAddButton).toHaveCSS('pointer-events', 'auto');
-        expect(
-            await projectAddButton.evaluate((element) =>
-                getComputedStyle(element).getPropertyValue('-webkit-app-region'),
-            ),
-        ).toBe('no-drag');
-        await running.page.mouse.move(500, 300);
-        await projectAddButton.focus();
-        await expect(projectAddButton).toHaveCSS('opacity', '1');
         expect(
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.getWindowButtonPosition(),

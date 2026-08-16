@@ -23,7 +23,13 @@ function fromCatalog(
  * the shared catalog has a matching registry entry before the app runs.
  */
 export const commandDefinitions: CommandDefinition[] = [
-    fromCatalog('project.create', (context) => context.project.create()),
+    /**
+     * `Cmd+O` must work from anywhere, including a focused Terminal or editor — it opens a native folder dialog and
+     * types nothing into the editable surface.
+     */
+    fromCatalog('project.create', (context) => context.project.create(), {
+        allowInEditable: true,
+    }),
     fromCatalog(
         'project.delete',
         (context) => context.project.removeSelected(),

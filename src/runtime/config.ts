@@ -66,12 +66,19 @@ const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
 /**
+ * The defaults shipped while "Add Project" was still bound to `Cmd+N`, before it moved to the macOS-conventional
+ * `Cmd+O`.
+ */
+const preProjectOpenDefaultKeybindings = defaultKeybindings.map((binding) =>
+    binding.command === 'project.create' ? { ...binding, key: 'cmd+n' } : binding,
+);
+/**
  * The defaults shipped immediately before Terminal Copy and tab cycling were added and `pathBrowser.open` moved off
  * `Cmd+P`. Each historical set below is derived from the one after it, so a new default has to be stripped here as well
  * — otherwise every older set would also claim to contain bindings that release never had, and no untouched file would
  * match any of them.
  */
-const preTerminalCopyDefaultKeybindings = defaultKeybindings.flatMap((binding) => {
+const preTerminalCopyDefaultKeybindings = preProjectOpenDefaultKeybindings.flatMap((binding) => {
     if (['terminal.copy', 'workbench.nextTab', 'workbench.previousTab'].includes(binding.command))
         return [];
     return binding.command === 'pathBrowser.open' ? [{ ...binding, key: 'cmd+p' }] : [binding];
@@ -102,6 +109,7 @@ const newlyAddedDefaultCommands = new Set([
  * that release never shipped.
  */
 export const previousDefaultKeybindingSets = [
+    preProjectOpenDefaultKeybindings,
     preTerminalCopyDefaultKeybindings,
     preCommandNavigationDefaultKeybindings,
     previousDefaultKeybindings,
