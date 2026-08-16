@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { editorModelPath } from '@shared/editor-state';
 import type { FileSearchMatch, FileSearchMode } from '@shared/types';
-import { ChevronDown, ChevronRight, ListFilter, LoaderCircle, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, ListFilter, Search, X } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Input, InputGroup } from '../../../../components/ui/input';
+import { Spinner } from '../../../../components/ui/spinner';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
 import { cn } from '../../../../lib/utilities';
@@ -317,7 +318,7 @@ export function ProjectSearch({
                         size="dense"
                     />
                     {(result.isFetching || (isActive && !isSettled)) && (
-                        <LoaderCircle size={13} className="shrink-0 animate-spin text-muted" />
+                        <Spinner size={13} className="shrink-0 text-muted" />
                     )}
                     {isActive && (
                         <Tooltip content="Clear Search">

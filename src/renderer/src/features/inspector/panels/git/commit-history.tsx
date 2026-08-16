@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { GitCommit, GitRepositorySummary } from '@shared/types';
-import { ChevronDown, ChevronRight, GitCommitHorizontal, LoaderCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitCommitHorizontal } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
+import { Spinner } from '../../../../components/ui/spinner';
 import { caxri } from '../../../../lib/caxri';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery } from '../../../../queries/client';
@@ -241,7 +242,7 @@ export function CommitHistory({
                             <div className="px-3 py-2 text-[11px] text-danger">{error}</div>
                         ) : loading && commits.length === 0 ? (
                             <div className="flex items-center gap-1.5 px-3 py-2 text-[11px] text-muted">
-                                <LoaderCircle size={12} className="animate-spin" /> Loading commits…
+                                <Spinner size={12} /> Loading commits…
                             </div>
                         ) : commits.length === 0 ? (
                             <div className="px-3 py-2 text-[11px] text-muted">No commits.</div>
