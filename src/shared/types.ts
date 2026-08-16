@@ -14,6 +14,8 @@ export {
     type AgentProvider,
     type AgentSnapshot,
     type AppSettings,
+    type ArgvConfig,
+    type ArgvConfigChanges,
     type BootstrapState,
     type CommandId,
     DEFAULT_FILES_EXCLUDE,

@@ -12,6 +12,7 @@ import {
     MAX_KEYBINDINGS,
 } from '../configuration/configuration-contract.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from '../configuration/trusted-domains.js';
+import { argvConfigChangesSchema, argvConfigSchema } from '../desktop/argv-config.js';
 import { desktopHostMethods, desktopStatusResultSchema } from '../desktop/desktop-contract.js';
 import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
@@ -186,6 +187,20 @@ export const methods = {
         ...desktopControl,
         params: z.object({ kind: z.enum(['settings', 'keybindings', 'theme']) }),
         result: z.null(),
+    },
+    /**
+     * Main-owned boot configuration (`argv.jsonc`); separate from `settings.*` because its values gate pre-`whenReady`
+     * Chromium switches and only take effect on the next launch.
+     */
+    'argv.get': {
+        ...desktopRead,
+        params: noParameters,
+        result: z.object({ value: argvConfigSchema }),
+    },
+    'argv.update': {
+        ...desktopWrite,
+        params: z.object({ changes: argvConfigChangesSchema }),
+        result: z.object({ value: argvConfigSchema }),
     },
     'external.open': {
         ...desktopControl,

@@ -514,6 +514,8 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         },
         'app.openConfigFile': () => mainOwned('app.openConfigFile'),
         'external.open': () => mainOwned('external.open'),
+        'argv.get': () => mainOwned('argv.get'),
+        'argv.update': () => mainOwned('argv.update'),
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),

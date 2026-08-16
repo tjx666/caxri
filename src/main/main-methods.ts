@@ -5,6 +5,7 @@ import { agentProviderCatalog } from '../shared/agents';
 import { CaxriError } from '../shared/ipc/errors';
 import type { MainRequest } from '../shared/ipc/methods';
 import { themeImportExtensions } from '../shared/theme-import';
+import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
     deleteProjectPrompt,
     deleteSessionPrompt,
@@ -22,6 +23,7 @@ import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
 interface MainMethodHandlerOptions {
     getProcessExplorer(): ProcessExplorerWindowController;
+    getUserDataPath(): string;
     getSupervisor(): DesktopHostConnection;
     getUpdateService(): UpdateService;
     getWindow(): BrowserWindow | undefined;
@@ -70,6 +72,15 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         const supervisor = options.getSupervisor();
         const mainWindow = options.getWindow();
         switch (request.method) {
+            case 'argv.get':
+                return { value: await readArgvConfig(options.getUserDataPath()) };
+            case 'argv.update':
+                return {
+                    value: await updateArgvConfig(
+                        options.getUserDataPath(),
+                        request.params.changes,
+                    ),
+                };
             case 'external.open':
                 return handleExternalUrl(request.params.url, {
                     allowTrust: true,
