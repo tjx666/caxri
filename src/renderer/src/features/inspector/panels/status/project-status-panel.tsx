@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import { useState } from 'react';
 
 import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
@@ -10,7 +11,6 @@ import {
     CircleCheck,
     CircleDot,
     CircleX,
-    ExternalLink,
     EyeOff,
     GitBranch,
     GitPullRequest,
@@ -24,9 +24,11 @@ import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
 import { Spinner } from '../../../../components/ui/spinner';
 import { Tooltip } from '../../../../components/ui/tooltip';
+import { openExternalUrl } from '../../../../lib/external-link';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
+import { pushToast } from '../../../../stores/toasts';
 import type { ProjectStatusTreeNode } from './project-status-tree';
 import { buildProjectStatusNodes } from './project-status-tree';
 
@@ -36,13 +38,15 @@ import { buildProjectStatusNodes } from './project-status-tree';
 const PROJECT_STATUS_REFETCH_INTERVAL_MS = 60_000;
 
 const rowClassName =
-    'project-status-row flex w-full min-w-0 items-center gap-1.5 h-7 pr-2 border-0 bg-surface text-foreground text-left no-underline hover:bg-elevated';
+    'project-status-row flex w-full min-w-0 items-center gap-1.5 h-7 pr-2 border-0 bg-surface text-foreground text-left no-underline hover:bg-elevated [&>svg]:flex-none';
 
 function StateIcon({ state }: { state?: ProjectStatusState }) {
     if (state === 'success')
         return <CircleCheck className="state-success text-success" size={14} />;
     if (state === 'failure') return <CircleX className="state-failure text-danger" size={14} />;
-    if (state === 'pending') return <Spinner className="state-pending text-warning" size={14} />;
+    // Spinner bakes in `size-4` (16px); `size-3.5` (14px) here wins via the component's internal
+    // cn/tailwind-merge so this icon matches its 14px siblings instead of rendering oversized.
+    if (state === 'pending') return <Spinner className="state-pending size-3.5 text-warning" />;
     if (state === 'neutral') return <Circle className="state-neutral text-muted" size={14} />;
     return <CircleDot className="state-unknown text-muted" size={14} />;
 }
@@ -64,13 +68,25 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
     const [expanded, setExpanded] = useState(
         node.kind === 'pullRequest' && node.state === 'failure',
     );
+    const chevron = expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />;
+    /**
+     * Main denies every `window.open`/target=_blank navigation, so `node.url` anchors below stay semantic-only `<a
+     * href>` elements and route the actual navigation through `external.open`.
+     */
+    const openNodeUrl = (url: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+        event.preventDefault();
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
+        void openExternalUrl(url, (message) => pushToast('error', message));
+    };
     const content = (
         <>
             {isExpandable ? (
-                expanded ? (
-                    <ChevronDown size={13} />
+                // Expandable rows with a `url` render the chevron in a dedicated toggle button
+                // (see below) instead of inline, so the rest of the row can become a plain link.
+                node.url ? (
+                    <span className="project-status-indent w-[13px] flex-none" />
                 ) : (
-                    <ChevronRight size={13} />
+                    chevron
                 )
             ) : (
                 <span className="project-status-indent w-[13px] flex-none" />
@@ -99,40 +115,47 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
     const style = { paddingLeft: 8 + depth * 16 };
     return (
         <>
-            {isExpandable ? (
+            {isExpandable && node.url ? (
                 <div
                     className="project-status-expandable-row flex min-w-0 items-center bg-surface"
                     style={style}
                 >
                     <button
-                        className={cn(rowClassName, 'min-w-0 flex-1 cursor-pointer pl-0')}
+                        className="project-status-toggle grid h-7 w-[26px] flex-none cursor-pointer place-items-center border-0 bg-surface text-muted hover:bg-elevated hover:text-foreground"
                         aria-expanded={expanded}
-                        title={node.label}
+                        aria-label="Toggle checks"
                         onClick={() => setExpanded((value) => !value)}
                     >
-                        {content}
+                        {chevron}
                     </button>
-                    {node.url && (
-                        <a
-                            className="project-status-external grid h-7 w-[26px] place-items-center text-muted hover:text-foreground"
-                            href={node.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label={`Open ${node.label}`}
-                            title={`Open ${node.label}`}
-                        >
-                            <ExternalLink size={13} />
-                        </a>
-                    )}
+                    <a
+                        className={cn(rowClassName, 'min-w-0 flex-1 pl-0')}
+                        href={node.url}
+                        rel="noreferrer"
+                        title={node.label}
+                        onClick={openNodeUrl(node.url)}
+                    >
+                        {content}
+                    </a>
                 </div>
+            ) : isExpandable ? (
+                <button
+                    className={cn(rowClassName, 'min-w-0 cursor-pointer')}
+                    style={style}
+                    aria-expanded={expanded}
+                    title={node.label}
+                    onClick={() => setExpanded((value) => !value)}
+                >
+                    {content}
+                </button>
             ) : node.url ? (
                 <a
                     className={rowClassName}
                     style={style}
                     href={node.url}
-                    target="_blank"
                     rel="noreferrer"
                     title={node.description ?? node.label}
+                    onClick={openNodeUrl(node.url)}
                 >
                     {content}
                 </a>
