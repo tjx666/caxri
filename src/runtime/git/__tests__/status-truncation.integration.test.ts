@@ -105,6 +105,7 @@ describe('GitRepoService status truncation', () => {
         expect(overviewRepo.truncated).toBe(true);
         expect(overviewRepo.changedFileCount).toBe(MAX_GIT_STATUS_FILES + extraFileCount);
 
+        await git.close();
         database.close();
     });
 
@@ -122,6 +123,7 @@ describe('GitRepoService status truncation', () => {
         expect(repo.changedFileCount).toBe(3);
         expect(repo.files).toHaveLength(3);
 
+        await git.close();
         database.close();
     });
 
@@ -140,6 +142,7 @@ describe('GitRepoService status truncation', () => {
         expect(refreshedRepo.generation).toBeGreaterThan(firstRepo.generation);
         expect(refreshedRepo.files.map((file) => file.path)).toContain('refreshed.txt');
 
+        await git.close();
         database.close();
     });
 });
