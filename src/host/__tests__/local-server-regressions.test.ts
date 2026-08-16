@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { HostClient } from '../../../packages/cli/src/host';
 import type { CommandAdapter } from '../../shared/ipc/dispatcher';
@@ -125,6 +125,63 @@ describe('local Host transport regressions', () => {
         await expect(
             client.request('files.read', { sessionId: 'session-1', path: '/project/large.txt' }),
         ).resolves.toMatchObject({ content: largeRead });
+    });
+
+    it('severs the replaced Desktop socket without accumulating connection state', async () => {
+        const lease = await profile();
+        const server = new LocalHostServer({
+            adapters: { host: { invoke: () => null } },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+
+        const socket = await connect(lease.paths.endpoint);
+        const read = lineReader(socket);
+        socket.write(
+            `${JSON.stringify({
+                type: 'hello',
+                supportedVersions: [CAXRI_PROTOCOL_VERSION],
+                profileId: lease.manifest.profileId,
+                credential: {
+                    kind: 'desktop',
+                    token: lease.desktopCredential.desktopToken,
+                    desktopId: 'desktop-replaced',
+                },
+            })}\n`,
+        );
+        const welcome = localServerWelcomeSchema.parse(await read());
+        const generation = welcome.desktopLease!.generation;
+        socket.write(`${JSON.stringify({ type: 'desktop.ready', generation })}\n`);
+        await vi.waitFor(() => expect(server.desktopLease()?.generation).toBe(generation));
+        const closed = new Promise<void>((resolve) => socket.once('close', resolve));
+        // A reverse command the replaced Desktop never answers must settle with a stable error
+        // before its socket is destroyed, not hang until the command timeout.
+        const pending = expect(
+            server.invokeDesktop({ kind: 'focus' }, generation),
+        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+
+        const replacement = await HostClient.connect(lease.manifest, 2_000, {
+            kind: 'desktop',
+            desktopId: 'desktop-replacement',
+            credential: lease.desktopCredential,
+            handleCommand: () => Promise.resolve(null),
+        });
+        cleanups.push(() => {
+            replacement.close();
+            return Promise.resolve();
+        });
+        await pending;
+        await closed;
+        expect(server.clientCount()).toBe(1);
+        const sockets = Reflect.get(server, 'sockets') as Set<unknown>;
+        await vi.waitFor(() => expect(sockets.size).toBe(1));
+        // The replacement keeps full Desktop capability after the takeover.
+        await replacement.markDesktopReady();
+        await vi.waitFor(() =>
+            expect(server.desktopLease()?.generation).toBe(replacement.desktopLease!.generation),
+        );
     });
 
     it('renews the Desktop lease while an ordered business request is still running', async () => {
