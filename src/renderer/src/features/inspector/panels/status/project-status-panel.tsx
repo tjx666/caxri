@@ -80,12 +80,12 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
     };
     const content = (
         <>
+            {/*
+             * Expandable rows with a `url` render the chevron in a dedicated sibling toggle button occupying this
+             * slot, so their content contributes nothing here and the icon column stays aligned across all rows.
+             */}
             {isExpandable ? (
-                // Expandable rows with a `url` render the chevron in a dedicated toggle button
-                // (see below) instead of inline, so the rest of the row can become a plain link.
-                node.url ? (
-                    <span className="project-status-indent w-[13px] flex-none" />
-                ) : (
+                node.url ? undefined : (
                     chevron
                 )
             ) : (
@@ -117,11 +117,11 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
         <>
             {isExpandable && node.url ? (
                 <div
-                    className="project-status-expandable-row flex min-w-0 items-center bg-surface"
+                    className="project-status-expandable-row flex min-w-0 items-center gap-1.5 bg-surface"
                     style={style}
                 >
                     <button
-                        className="project-status-toggle grid h-7 w-[26px] flex-none cursor-pointer place-items-center border-0 bg-surface text-muted hover:bg-elevated hover:text-foreground"
+                        className="project-status-toggle grid h-7 w-[13px] flex-none cursor-pointer place-items-center border-0 bg-surface text-muted hover:bg-elevated hover:text-foreground"
                         aria-expanded={expanded}
                         aria-label="Toggle checks"
                         onClick={() => setExpanded((value) => !value)}
