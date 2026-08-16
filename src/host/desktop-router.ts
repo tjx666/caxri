@@ -41,7 +41,7 @@ export interface DesktopRouterOptions {
 const DEFAULT_TARGET_TTL_MS = 15_000;
 const DEFAULT_MAXIMUM_TARGETS = 128;
 
-function sameIdentity(left: AuthorizedEntry, right: AuthorizedEntry): boolean {
+function isSameIdentity(left: AuthorizedEntry, right: AuthorizedEntry): boolean {
     return (
         left.kind === right.kind &&
         left.path === right.path &&
@@ -53,7 +53,9 @@ function sameIdentity(left: AuthorizedEntry, right: AuthorizedEntry): boolean {
     );
 }
 
-/** Resolves raw paths inside Runtime, then exposes only one-use generation-bound targets to Main. */
+/**
+ * Resolves raw paths inside Runtime, then exposes only one-use generation-bound targets to Main.
+ */
 export class HostDesktopRouter {
     private readonly maximumTargets: number;
     private readonly now: () => number;
@@ -67,101 +69,21 @@ export class HostDesktopRouter {
         this.targetTtlMs = options.targetTtlMs ?? DEFAULT_TARGET_TTL_MS;
     }
 
-    async status(): Promise<DesktopStatus> {
-        const lease = this.options.bridge.lease();
-        if (!lease) return { state: 'offline' };
-        const result = await this.options.bridge.invoke({ kind: 'status' }, lease.generation);
-        if (
-            typeof result !== 'object' ||
-            result === null ||
-            !('state' in result) ||
-            (result.state !== 'background' && result.state !== 'window')
-        )
-            throw new CaxriError('INTERNAL', 'Desktop returned an invalid status');
-        return { state: result.state, generation: lease.generation };
-    }
-
-    async focus(launchIfNeeded: boolean): Promise<{ state: 'focused'; generation: number }> {
-        const lease = await this.requireLease(launchIfNeeded);
-        await this.options.bridge.invoke({ kind: 'focus' }, lease.generation);
-        return { state: 'focused', generation: lease.generation };
-    }
-
-    async open(
-        operation: 'open' | 'reveal',
-        requestedKind: 'directory' | 'file' | undefined,
-        params: { launchIfNeeded: boolean; path: string; sessionId?: string },
-    ): Promise<{
-        state: 'requested' | 'revealed';
-        generation: number;
-        projectId: string;
-        sessionId: string;
-    }> {
-        const resolved = await this.resolveTarget(params.path, params.sessionId);
-        if (requestedKind && resolved.entry.kind !== requestedKind)
-            throw new CaxriError(
-                'VALIDATION',
-                requestedKind === 'file'
-                    ? 'The requested Desktop target is not a file'
-                    : 'The requested Desktop target is not a directory',
-            );
-        /** Reject a raw target in the headless Host before a CLI open is allowed to launch Desktop. */
-        const lease = await this.requireLease(params.launchIfNeeded);
-        const target = this.issueTarget(operation, lease.generation, resolved);
-        try {
-            await this.options.bridge.invoke(
-                { kind: operation, targetId: target.id },
-                lease.generation,
-            );
-        } catch (error) {
-            this.targets.delete(target.id);
-            throw error;
-        }
-        return {
-            /** Renderer work is intentionally one-shot and asynchronous after Main dispatches it. */
-            state: operation === 'reveal' ? 'revealed' : 'requested',
-            generation: lease.generation,
-            projectId: resolved.projectId,
-            sessionId: resolved.sessionId,
-        };
-    }
-
-    async consumeTarget(targetId: string, generation: number): Promise<DesktopTargetPayload> {
-        const target = this.targets.get(targetId);
-        if (!target) throw new CaxriError('NOT_FOUND', 'Desktop target is missing or already used');
-        this.targets.delete(targetId);
-        if (target.expiresAt < this.now())
-            throw new CaxriError('NOT_FOUND', 'Desktop target expired');
-        if (target.generation !== generation)
-            throw new CaxriError('CONFLICT', 'Desktop target belongs to a stale generation');
-        const current = await this.options.runtime.request('files.authorizeOpen', {
-            sessionId: target.sessionId,
-            path: target.entry.path,
-        });
-        if (!sameIdentity(target.entry, current))
-            throw new CaxriError('CONFLICT', 'Desktop target changed before use');
-        return {
-            targetId,
-            operation: target.operation,
-            kind: current.kind,
-            sessionId: target.sessionId,
-            path: current.path,
-        };
-    }
-
-    private async requireLease(launchIfNeeded: boolean): Promise<DesktopLease> {
+    private async requireLease(shouldLaunch: boolean): Promise<DesktopLease> {
         const current = this.options.bridge.lease();
         if (current) return current;
-        if (!launchIfNeeded)
+        if (!shouldLaunch)
             throw new CaxriError('UNAVAILABLE', 'Desktop is not running for this profile');
         if (!this.options.bridge.launch || !this.options.bridge.waitForLease)
             throw new CaxriError('UNAVAILABLE', 'Desktop launcher is unavailable');
-        this.launching ??= this.options.bridge
-            .launch()
-            .then(() => this.options.bridge.waitForLease!(15_000))
-            .finally(() => {
+        this.launching ??= (async () => {
+            try {
+                await this.options.bridge.launch!();
+                return await this.options.bridge.waitForLease!(15_000);
+            } finally {
                 this.launching = undefined;
-            });
+            }
+        })();
         return this.launching;
     }
 
@@ -205,7 +127,7 @@ export class HostDesktopRouter {
                 representatives.set(session.projectId, session);
         const matches = (
             await Promise.all(
-                [...representatives.values()].map(async (session) => {
+                representatives.values().map(async (session) => {
                     try {
                         const entry = await this.options.runtime.request('files.authorizeOpen', {
                             sessionId: session.id,
@@ -217,7 +139,7 @@ export class HostDesktopRouter {
                             isCaxriError(error) &&
                             (error.code === 'PATH_DENIED' || error.code === 'NOT_FOUND')
                         )
-                            return undefined;
+                            return;
                         throw error;
                     }
                 }),
@@ -255,5 +177,91 @@ export class HostDesktopRouter {
             path,
         });
         return { entry, projectId: session.projectId, sessionId };
+    }
+
+    async status(): Promise<DesktopStatus> {
+        const lease = this.options.bridge.lease();
+        if (!lease) return { state: 'offline' };
+        const result = await this.options.bridge.invoke({ kind: 'status' }, lease.generation);
+        if (
+            typeof result !== 'object' ||
+            result === null ||
+            !('state' in result) ||
+            (result.state !== 'background' && result.state !== 'window')
+        )
+            throw new CaxriError('INTERNAL', 'Desktop returned an invalid status');
+        return { state: result.state, generation: lease.generation };
+    }
+
+    async focus(shouldLaunch: boolean): Promise<{ state: 'focused'; generation: number }> {
+        const lease = await this.requireLease(shouldLaunch);
+        await this.options.bridge.invoke({ kind: 'focus' }, lease.generation);
+        return { state: 'focused', generation: lease.generation };
+    }
+
+    async open(
+        operation: 'open' | 'reveal',
+        requestedKind: 'directory' | 'file' | undefined,
+        parameters: { launchIfNeeded: boolean; path: string; sessionId?: string },
+    ): Promise<{
+        state: 'requested' | 'revealed';
+        generation: number;
+        projectId: string;
+        sessionId: string;
+    }> {
+        const resolved = await this.resolveTarget(parameters.path, parameters.sessionId);
+        if (requestedKind && resolved.entry.kind !== requestedKind)
+            throw new CaxriError(
+                'VALIDATION',
+                requestedKind === 'file'
+                    ? 'The requested Desktop target is not a file'
+                    : 'The requested Desktop target is not a directory',
+            );
+        /**
+         * Reject a raw target in the headless Host before a CLI open is allowed to launch Desktop.
+         */
+        const lease = await this.requireLease(parameters.launchIfNeeded);
+        const target = this.issueTarget(operation, lease.generation, resolved);
+        try {
+            await this.options.bridge.invoke(
+                { kind: operation, targetId: target.id },
+                lease.generation,
+            );
+        } catch (error) {
+            this.targets.delete(target.id);
+            throw error;
+        }
+        return {
+            /**
+             * Renderer work is intentionally one-shot and asynchronous after Main dispatches it.
+             */
+            state: operation === 'reveal' ? 'revealed' : 'requested',
+            generation: lease.generation,
+            projectId: resolved.projectId,
+            sessionId: resolved.sessionId,
+        };
+    }
+
+    async consumeTarget(targetId: string, generation: number): Promise<DesktopTargetPayload> {
+        const target = this.targets.get(targetId);
+        if (!target) throw new CaxriError('NOT_FOUND', 'Desktop target is missing or already used');
+        this.targets.delete(targetId);
+        if (target.expiresAt < this.now())
+            throw new CaxriError('NOT_FOUND', 'Desktop target expired');
+        if (target.generation !== generation)
+            throw new CaxriError('CONFLICT', 'Desktop target belongs to a stale generation');
+        const current = await this.options.runtime.request('files.authorizeOpen', {
+            sessionId: target.sessionId,
+            path: target.entry.path,
+        });
+        if (!isSameIdentity(target.entry, current))
+            throw new CaxriError('CONFLICT', 'Desktop target changed before use');
+        return {
+            targetId,
+            operation: target.operation,
+            kind: current.kind,
+            sessionId: target.sessionId,
+            path: current.path,
+        };
     }
 }

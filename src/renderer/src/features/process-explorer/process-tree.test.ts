@@ -12,7 +12,11 @@ describe('buildProcessTree', () => {
         ]);
 
         expect(tree.map(({ pid }) => pid)).toEqual([1, 4]);
+        // `children` here is the plain ProcessTree node array from `buildProcessTree`, not a DOM
+        // collection; `.firstElementChild` does not apply.
+        // eslint-disable-next-line unicorn/better-dom-traversing -- see above
         expect(tree[0].children[0]).toMatchObject({ pid: 2 });
+        // eslint-disable-next-line unicorn/better-dom-traversing -- same non-DOM `children` array, see above
         expect(tree[0].children[0].children[0]).toMatchObject({ pid: 3 });
     });
 });

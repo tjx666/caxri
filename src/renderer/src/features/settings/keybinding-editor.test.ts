@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import type { Keybinding } from '@shared/types';
+import { describe, expect, it } from 'vitest';
 
 import { formatShortcut, formatShortcutParts } from '../../lib/keybindings';
 import {

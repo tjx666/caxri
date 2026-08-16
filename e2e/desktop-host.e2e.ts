@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import process from 'node:process';
 
 import { connectToHost } from '@caxri/cli';
 
@@ -19,15 +20,15 @@ const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');
 
 function runCli(
-    args: readonly string[],
+    arguments_: readonly string[],
 ): Promise<{ code: number; stderr: string; stdout: string }> {
-    return new Promise((resolveRun) => {
+    return new Promise((resolve) => {
         execFile(
             process.execPath,
-            [cliPath, ...args],
+            [cliPath, ...arguments_],
             { env: process.env, maxBuffer: 1024 * 1024, timeout: 10_000 },
             (error, stdout, stderr) => {
-                resolveRun({
+                resolve({
                     code: typeof error?.code === 'number' ? error.code : error ? 1 : 0,
                     stderr,
                     stdout,
@@ -175,7 +176,11 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
         ).toContainText('desktopReopen');
     } finally {
         client.close();
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -226,7 +231,9 @@ test('queues concurrent Host open requests by their exact Session targets', asyn
             }),
         ]);
 
-        /** The Host has routed the request; Renderer work remains asynchronous and ordered below. */
+        /**
+         * The Host has routed the request; Renderer work remains asynchronous and ordered below.
+         */
         expect(first).toMatchObject({ state: 'requested', sessionId: firstSessionId });
         expect(secondOpen).toMatchObject({ state: 'requested', sessionId: second.session.id });
         await pageRequest(running.page, 'session.select', { sessionId: second.session.id });
@@ -241,7 +248,11 @@ test('queues concurrent Host open requests by their exact Session targets', asyn
         ).toBeVisible();
     } finally {
         client.close();
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -265,18 +276,20 @@ test('reconnects a new Desktop generation to the same live PTY', async () => {
         }>(first.page, 'app.bootstrap');
         await typeTerminal(
             first.page,
-            "printf 'BEFORE_RECONNECT\\n'; sleep 1; printf 'AFTER_RECONNECT\\n'",
+            String.raw`printf 'BEFORE_RECONNECT\n'; sleep 1; printf 'AFTER_RECONNECT\n'`,
         );
         await expect(first.page.locator('.xterm-rows')).toContainText('BEFORE_RECONNECT');
         const hostBefore = await client.request('host.status');
         await first.app.close();
         await expect
-            .poll(() =>
-                client
-                    .request('desktop.status')
-                    .then((status) => status.state)
-                    .catch(() => 'disconnecting'),
-            )
+            .poll(async () => {
+                try {
+                    const status = await client.request('desktop.status');
+                    return status.state;
+                } catch {
+                    return 'disconnecting';
+                }
+            })
             .toBe('offline');
         await new Promise((resolve) => setTimeout(resolve, 1_100));
 
@@ -292,11 +305,28 @@ test('reconnects a new Desktop generation to the same live PTY', async () => {
         expect(hostAfter.desktop).toMatchObject({ state: 'window' });
     } finally {
         client.close();
-        await first.app.close().catch(() => undefined);
-        await second?.app.close().catch(() => undefined);
+        try {
+            await first.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        try {
+            await second?.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         if (!second) {
-            const cleanup = await connectToHost(userData, 2_000).catch(() => undefined);
-            await cleanup?.request('host.stop', { confirmLivePtys: true }).catch(() => undefined);
+            let cleanup: Awaited<ReturnType<typeof connectToHost>> | undefined;
+            try {
+                cleanup = await connectToHost(userData, 2_000);
+            } catch {
+                // The Host may already be offline; nothing left to stop.
+            }
+            try {
+                await cleanup?.request('host.stop', { confirmLivePtys: true });
+            } catch {
+                // Ignore host-stop errors during test cleanup.
+            }
             cleanup?.close();
         }
         await rm(testDirectory, { recursive: true, force: true });

@@ -2,11 +2,11 @@ import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
-import { expect, test } from './support/fixtures.ts';
-
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
@@ -50,16 +50,16 @@ test('Agent output refreshes the Session title without opening Info', async () =
         userDataDir: userData,
         providers: {
             codex: {
-                executableSource: `#!/bin/sh
+                executableSource: String.raw`#!/bin/sh
 if [ "$1" = "--version" ]; then
-  printf 'codex-test 1.0\\n'
+  printf 'codex-test 1.0\n'
   exit 0
 fi
-printf 'Fake Codex ready\\n'
+printf 'Fake Codex ready\n'
 while IFS= read -r line; do
   now_ms="$(date +%s)999"
   /usr/bin/sqlite3 "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', '[Image #1] hello', $now_ms, $now_ms, 0, 0);"
-  printf 'received %s\\n' "$line"
+  printf 'received %s\n' "$line"
 done
 `,
             },
@@ -104,7 +104,11 @@ done
         await expect(page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
         await expect(page.locator('.session-card strong')).toHaveText('hello');
     } finally {
-        await app.close().catch(() => undefined);
+        try {
+            await app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -127,17 +131,17 @@ test('starting Claude through a Shell alias promotes the Terminal to Claude Code
         userDataDir: userData,
         providers: {
             claude: {
-                executableSource: `#!/bin/zsh
+                executableSource: String.raw`#!/bin/zsh
 if [ "$1" = "--version" ]; then
-  printf 'claude-test 1.0\\n'
+  printf 'claude-test 1.0\n'
   exit 0
 fi
 now_ms="$(date +%s)999"
-printf '{"cwd":"${canonicalRoot}","name":"Claude from Shell","sessionId":"shell-claude-session","startedAt":%s,"updatedAt":%s,"status":"busy"}\\n' "$now_ms" "$now_ms" > "$CLAUDE_CONFIG_DIR/sessions/current.json"
-printf 'Fake Claude ready\\n'
+printf '{"cwd":"${canonicalRoot}","name":"Claude from Shell","sessionId":"shell-claude-session","startedAt":%s,"updatedAt":%s,"status":"busy"}\n' "$now_ms" "$now_ms" > "$CLAUDE_CONFIG_DIR/sessions/current.json"
+printf 'Fake Claude ready\n'
 # Rename to the provider executable and keep emitting output like a real Agent TUI:
 # foreground-process probes are bounded and only run when Terminal output arrives.
-exec -a claude /bin/zsh -c 'while :; do printf "tick\\n"; sleep 1; done'
+exec -a claude /bin/zsh -c 'while :; do printf "tick\n"; sleep 1; done'
 `,
             },
         },
@@ -190,7 +194,11 @@ exec -a claude /bin/zsh -c 'while :; do printf "tick\\n"; sleep 1; done'
                 provider: 'claude',
             });
     } finally {
-        await app.close().catch(() => undefined);
+        try {
+            await app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

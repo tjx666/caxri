@@ -4,20 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import {
-    allowE2EErrors,
-    expect,
-    test,
-    type ElectronApplication,
-    type Page,
-} from './support/fixtures.ts';
-
+import type { ElectronApplication as ElectronApp, Page } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
 interface RunningCaxri {
-    app: ElectronApplication;
+    app: ElectronApp;
     page: Page;
 }
 
@@ -30,7 +24,7 @@ async function openProcessExplorer(running: RunningCaxri): Promise<Page> {
     return running.app.windows().find((page) => page !== running.page)!;
 }
 
-async function processExplorerWindowId(app: ElectronApplication): Promise<number> {
+async function processExplorerWindowId(app: ElectronApp): Promise<number> {
     return app.evaluate(({ BrowserWindow }) => {
         const processExplorer = BrowserWindow.getAllWindows().find(
             (window) => window.getTitle() === 'Process Explorer — Caxri',
@@ -40,10 +34,7 @@ async function processExplorerWindowId(app: ElectronApplication): Promise<number
     });
 }
 
-async function forceProcessExplorerCrash(
-    app: ElectronApplication,
-    windowId: number,
-): Promise<void> {
+async function forceProcessExplorerCrash(app: ElectronApp, windowId: number): Promise<void> {
     await app.evaluate(({ BrowserWindow }, id) => {
         const processExplorer = BrowserWindow.fromId(id);
         if (!processExplorer) throw new Error('Process Explorer window was not found');
@@ -51,25 +42,22 @@ async function forceProcessExplorerCrash(
     }, windowId);
 }
 
-async function waitForReadyProcessExplorer(
-    app: ElectronApplication,
-    windowId: number,
-): Promise<void> {
+async function waitForReadyProcessExplorer(app: ElectronApp, windowId: number): Promise<void> {
     await expect
         .poll(
             () =>
                 app.evaluate(async ({ BrowserWindow }, id) => {
                     const processExplorer = BrowserWindow.fromId(id);
                     if (!processExplorer) return { exists: false, ready: false };
-                    const crashed = processExplorer.webContents.isCrashed();
+                    const isCrashed = processExplorer.webContents.isCrashed();
                     const status = {
                         exists: true,
-                        crashed,
+                        crashed: isCrashed,
                         loading: processExplorer.webContents.isLoading(),
                         ready: false,
                         url: processExplorer.webContents.getURL(),
                     };
-                    if (crashed) return status;
+                    if (isCrashed) return status;
                     try {
                         status.ready = Boolean(
                             await processExplorer.webContents.executeJavaScript(
@@ -136,7 +124,7 @@ test('Process Explorer render exceptions offer a working reload', async () => {
         await processPage.evaluate(() => {
             setTimeout(() => {
                 throw new Error('CAXRI_EXPECTED_PROCESS_EXPLORER_PAGE_EXCEPTION');
-            });
+            }, 0);
         });
         await expect
             .poll(() =>
@@ -147,7 +135,11 @@ test('Process Explorer render exceptions offer a working reload', async () => {
             )
             .toBe(1);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -189,10 +181,15 @@ test('Process Explorer bounds renderer crash recovery and reopens cleanly', asyn
         await waitForReadyProcessExplorer(running.app, windowId);
 
         for (let crashCount = 1; crashCount <= 3; crashCount += 1) {
+            // Each iteration must crash and fully recover the same window before the next crash is
+            // forced, so the iterations are intentionally sequential.
+            // eslint-disable-next-line no-await-in-loop
             await forceProcessExplorerCrash(running.app, windowId);
+            // eslint-disable-next-line no-await-in-loop
             await expect
                 .poll(() => countLogEvents(mainLogPath, 'process_explorer.render_process_gone'))
                 .toBe(crashCount);
+            // eslint-disable-next-line no-await-in-loop
             await waitForReadyProcessExplorer(running.app, windowId);
         }
 
@@ -207,7 +204,11 @@ test('Process Explorer bounds renderer crash recovery and reopens cleanly', asyn
             processPage.getByText('Process Explorer — Caxri', { exact: true }),
         ).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

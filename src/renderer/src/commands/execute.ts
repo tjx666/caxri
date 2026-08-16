@@ -1,11 +1,13 @@
+import './definitions';
+
 import type { CommandId } from '@shared/commands';
 
-import { caxri } from '../lib/caxri';
 import { closeEditor, saveActiveEditor } from '../features/editor/document-actions';
 import {
     closeFileSearch,
     requestFileSearchFocus,
 } from '../features/inspector/panels/files/file-search-state';
+import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     beginSessionCreation,
     chooseProjectDirectory,
@@ -13,28 +15,28 @@ import {
     deleteSelectedSession,
     selectAdjacentSession,
 } from '../features/session/session-actions';
-import { toggleScreencastMode } from '../features/screencast/screencast';
 import { cycleActiveWork } from '../features/tabs/tab-navigation';
 import {
-    activeTerminalHasSelection,
     clearActiveTerminal,
     closeTerminal,
     copyActiveTerminalSelection,
     createTerminal,
     findInActiveTerminal,
+    hasActiveTerminalSelection,
     navigateActiveTerminalCommand,
     restartActiveTerminal,
     startNewAgentSession,
 } from '../features/terminal/terminal-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
+import { caxri } from '../lib/caxri';
 import { isEditableEventTarget } from '../lib/keybindings';
 import { useDialogStore } from '../stores/dialogs';
 import { usePanelLayoutStore } from '../stores/panel-layout';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';
 import { getResolvedActiveWork, useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
-import './definitions';
-import { getRegisteredCommand, type CommandContext } from './registry';
+import type { CommandContext } from './registry';
+import { getRegisteredCommand } from './registry';
 
 export type { CommandContext } from './registry';
 
@@ -44,9 +46,8 @@ function activeTerminalId(): string | undefined {
 }
 
 /**
- * Makes an Inspector mode reachable before persisting it into the selected Session. Callers such
- * as the Status Bar and Command Palette must share this boundary so selecting a mode cannot leave
- * the Inspector collapsed.
+ * Makes an Inspector mode reachable before persisting it into the selected Session. Callers such as the Status Bar and
+ * Command Palette must share this boundary so selecting a mode cannot leave the Inspector collapsed.
  */
 function activateInspectorMode(
     mode: Parameters<CommandContext['inspector']['activateMode']>[0],
@@ -60,20 +61,24 @@ function activateInspectorMode(
 }
 
 /**
- * `terminal.copy` binds `Cmd+C`, the single most overloaded chord in the app, and is
- * `allowInEditable` so it can reach through the xterm surface. Availability therefore cannot rest on
- * "the active tab is a terminal with a selection" alone: a sidebar rename field or the path browser
- * input can hold focus while a stale terminal selection is still highlighted behind them, and
- * hijacking their `Cmd+C` would silently copy the wrong text. Requiring focus to actually sit inside
- * the terminal keeps the chord falling through to the native copy everywhere else.
+ * `terminal.copy` binds `Cmd+C`, the single most overloaded chord in the app, and is `allowInEditable` so it can reach
+ * through the xterm surface. Availability therefore cannot rest on "the active tab is a terminal with a selection"
+ * alone: a sidebar rename field or the path browser input can hold focus while a stale terminal selection is still
+ * highlighted behind them, and hijacking their `Cmd+C` would silently copy the wrong text. Requiring focus to actually
+ * sit inside the terminal keeps the chord falling through to the native copy everywhere else.
  */
-function terminalSurfaceHasFocus(): boolean {
+function isTerminalSurfaceFocused(): boolean {
     const focused = document.activeElement;
     return focused instanceof Element && focused.closest('.xterm') !== null;
 }
 
+// Command handlers below are fire-and-forget by design: each async action already funnels its
+// own failures into a toast via `tryCommand` (or an equivalent internal try/catch), and the
+// registry's `run(context, arguments_)` contract (see `./registry`) is synchronous, so none of
+// these can be awaited by their caller anyway.
 const commandContext: CommandContext = {
     project: {
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void chooseProjectDirectory(),
         removeSelected: deleteSelectedProject,
     },
@@ -81,12 +86,14 @@ const commandContext: CommandContext = {
         create: () => {
             const project = selectSelectedProject(getBootstrap());
             if (project) beginSessionCreation(project.id);
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else void chooseProjectDirectory();
         },
         deleteSelected: deleteSelectedSession,
         selectAdjacent: selectAdjacentSession,
     },
     terminal: {
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void createTerminal('shell'),
         clearActive: () => {
             const terminalId = activeTerminalId();
@@ -103,8 +110,8 @@ const commandContext: CommandContext = {
         hasActive: () => Boolean(activeTerminalId()),
         hasSelection: () => {
             const terminalId = activeTerminalId();
-            if (!terminalId || !terminalSurfaceHasFocus()) return false;
-            return activeTerminalHasSelection(terminalId);
+            if (!terminalId || !isTerminalSurfaceFocused()) return false;
+            return hasActiveTerminalSelection(terminalId);
         },
         navigateCommand: (direction) => {
             const terminalId = activeTerminalId();
@@ -128,10 +135,12 @@ const commandContext: CommandContext = {
         closeActiveTab: () => {
             const active = getResolvedActiveWork();
             if (active?.kind === 'terminal') closeTerminal(active.terminalId);
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else if (active?.kind === 'editor') void closeEditor(active.path);
         },
         cycleTab: cycleActiveWork,
     },
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     editor: { saveActive: () => void saveActiveEditor() },
     inspector: {
         searchFiles: () => {
@@ -155,6 +164,7 @@ const commandContext: CommandContext = {
     },
     windows: {
         openProcessExplorer: () => {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void tryCommand('Unable to open Process Explorer', () =>
                 caxri.request('processExplorer.open'),
             );
@@ -166,6 +176,7 @@ const commandContext: CommandContext = {
     },
     diagnostics: {
         export: () => {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void tryCommand('Diagnostics export failed', async () => {
                 const result = await caxri.request('diagnostics.export');
                 if (result) pushToast('success', `Diagnostics exported to ${result.path}`);
@@ -184,13 +195,13 @@ export function isCommandAvailable(
 }
 
 /**
- * Entry point for the palette, buttons, tabs, and the shortcut dispatcher. Looks the command up in
- * the registry populated by `./definitions`; an unknown id surfaces exactly one error toast instead
- * of throwing, since it may be reached from a stale keybinding or menu entry.
+ * Entry point for the palette, buttons, tabs, and the shortcut dispatcher. Looks the command up in the registry
+ * populated by `./definitions`; an unknown id surfaces exactly one error toast instead of throwing, since it may be
+ * reached from a stale keybinding or menu entry.
  */
 export function executeCommand(
     command: CommandId,
-    args?: unknown,
+    arguments_?: unknown,
     context: CommandContext = commandContext,
 ): void {
     const definition = getRegisteredCommand(command);
@@ -199,30 +210,28 @@ export function executeCommand(
         return;
     }
     if (!isCommandAvailable(command, context)) return;
-    definition.run(context, args);
+    definition.run(context, arguments_);
 }
 
 /**
- * Entry point for shortcuts and the native menu. App-wide commands must not mutate workbench state
- * behind a modal dialog, which is why the guard lives here and not in {@link executeCommand}.
+ * Entry point for shortcuts and the native menu. App-wide commands must not mutate workbench state behind a modal
+ * dialog, which is why the guard lives here and not in {@link executeCommand}.
  *
- * This is also the single authority for the editable-focus shortcut policy (DESIGN.md:121-123) on
- * the native menu path: `useCommandShortcuts` already applies the same gate — using
- * `event.target` — before ever calling `runCommand`, so a keyboard shortcut typed while a Terminal
- * or the editor has focus never reaches here. The native menu's accelerator, however, is delivered
- * by Electron independently of that DOM keydown listener and previously bypassed the policy
- * entirely (e.g. `Cmd+N` still created a Project while a Terminal was focused). `viaAccelerator`
- * (set by the Main-process menu from `event.triggeredByAccelerator`, see `main/index.ts`) lets this
- * function re-apply the same `isEditableEventTarget` + `allowInEditable` gate — using
- * `document.activeElement` in place of a keydown `event.target` — but only for that accelerator
- * path. A menu item invoked by an actual mouse/touch click is a deliberate user action and Electron
- * cannot report focus state for it, so it is intentionally left ungated here; the tradeoff is that
- * a non-`allowInEditable` command remains reachable by clicking the native menu while a Terminal or
+ * This is also the single authority for the editable-focus shortcut policy (DESIGN.md:121-123) on the native menu path:
+ * `useCommandShortcuts` already applies the same gate — using `event.target` — before ever calling `runCommand`, so a
+ * keyboard shortcut typed while a Terminal or the editor has focus never reaches here. The native menu's accelerator,
+ * however, is delivered by Electron independently of that DOM keydown listener and previously bypassed the policy
+ * entirely (e.g. `Cmd+N` still created a Project while a Terminal was focused). `viaAccelerator` (set by the
+ * Main-process menu from `event.triggeredByAccelerator`, see `main/index.ts`) lets this function re-apply the same
+ * `isEditableEventTarget` + `allowInEditable` gate — using `document.activeElement` in place of a keydown
+ * `event.target` — but only for that accelerator path. A menu item invoked by an actual mouse/touch click is a
+ * deliberate user action and Electron cannot report focus state for it, so it is intentionally left ungated here; the
+ * tradeoff is that a non-`allowInEditable` command remains reachable by clicking the native menu while a Terminal or
  * the editor has focus, which matches the least-surprising behaviour for a mouse-driven action.
  */
 export function runCommand(
     command: CommandId,
-    args?: unknown,
+    arguments_?: unknown,
     options?: { viaAccelerator?: boolean },
 ): void {
     if (useDialogStore.getState().isModalOpen()) return;
@@ -230,5 +239,5 @@ export function runCommand(
         const definition = getRegisteredCommand(command);
         if (isEditableEventTarget(document.activeElement) && !definition?.allowInEditable) return;
     }
-    executeCommand(command, args);
+    executeCommand(command, arguments_);
 }

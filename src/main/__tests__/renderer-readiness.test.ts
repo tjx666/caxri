@@ -4,7 +4,12 @@ import { describe, expect, it } from 'vitest';
 
 import { RendererReadiness } from '../renderer-readiness';
 
+/**
+ * Mocks Electron's WebContents, which is EventEmitter-based, and is consumed via `.on()`/`.emit()` by the production
+ * `RendererReadiness` tracker.
+ */
 function contents(): EventEmitter {
+    // eslint-disable-next-line unicorn/prefer-event-target -- see comment above
     return new EventEmitter();
 }
 
@@ -13,13 +18,16 @@ describe('Renderer readiness', () => {
         const renderer = contents();
         const readiness = new RendererReadiness(1_000);
         readiness.track(renderer as never);
-        let settled = false;
+        let isSettled = false;
+        // `waiting` is intentionally observed here without awaiting so the assertion below can
+        // check its not-yet-settled state; it is awaited later via `waiting` itself.
+        // eslint-disable-next-line unicorn/prefer-await -- see comment above
         const waiting = readiness.wait(renderer as never).finally(() => {
-            settled = true;
+            isSettled = true;
         });
 
         await Promise.resolve();
-        expect(settled).toBe(false);
+        expect(isSettled).toBe(false);
         readiness.ready(renderer as never);
         await expect(waiting).resolves.toBeUndefined();
     });

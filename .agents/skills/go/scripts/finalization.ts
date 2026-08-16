@@ -1,8 +1,11 @@
 import { lstat, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
+
 import { z } from 'zod';
 
-import { assertIssueExpectationDriftReady, type IssueExpectationDrift } from './issue-drift';
+import type { IssueExpectationDrift } from './issue-drift';
+import { assertIssueExpectationDriftReady } from './issue-drift';
 
 const finalIssueSchema = z.object({
     number: z.number().int().positive(),
@@ -115,7 +118,8 @@ ${bullets(finalResponse.automationCandidates)}`;
 }
 
 function assertFinalizationDriftReady(state: FinalizationContext, headSha: string): void {
-    for (const issue of state.issues.filter(({ status }) => status !== 'deferred')) {
+    for (const issue of state.issues) {
+        if (issue.status === 'deferred') continue;
         assertIssueExpectationDriftReady(issue, headSha);
     }
 }
@@ -151,12 +155,12 @@ export async function generateFinalization(
     const intendedIssues = state.issues
         .filter(({ status }) => status !== 'deferred')
         .map(({ number, status }) => ({ number, status }))
-        .sort((a, b) => a.number - b.number);
+        .toSorted((a, b) => a.number - b.number);
     if (intendedIssues.some(({ status }) => status !== 'complete')) {
         throw new Error('Finalization requires every intended ledger issue to be complete');
     }
     assertFinalizationDriftReady(state, input.headSha);
-    const suppliedNumbers = input.issues.map(({ number }) => number).sort((a, b) => a - b);
+    const suppliedNumbers = input.issues.map(({ number }) => number).toSorted((a, b) => a - b);
     if (
         JSON.stringify(suppliedNumbers) !==
         JSON.stringify(intendedIssues.map(({ number }) => number))
@@ -223,10 +227,10 @@ export function assertFinalizationComplete(state: FinalizationContext): void {
     const intendedIssueNumbers = state.issues
         .filter(({ status }) => status !== 'deferred')
         .map(({ number }) => number)
-        .sort((a, b) => a - b);
+        .toSorted((a, b) => a - b);
     const finalizedIssueNumbers = state.finalization.issues
         .map(({ number }) => number)
-        .sort((a, b) => a - b);
+        .toSorted((a, b) => a - b);
     if (
         JSON.stringify(intendedIssueNumbers) !== JSON.stringify(finalizedIssueNumbers) ||
         state.issues.some(({ status }) => status !== 'complete' && status !== 'deferred')
@@ -235,15 +239,18 @@ export function assertFinalizationComplete(state: FinalizationContext): void {
     }
 }
 
-export async function verifyFinalizationArtifact(
+export async function wasFinalizationArtifactRecovered(
     state: FinalizationContext,
     runDirectory: string,
 ): Promise<boolean> {
     if (!state.finalization) return false;
     const path = join(runDirectory, state.finalization.path);
-    const metadata = await lstat(path).catch(() => {
+    let metadata: Awaited<ReturnType<typeof lstat>>;
+    try {
+        metadata = await lstat(path);
+    } catch {
         throw new Error('Persisted finalization receipt is missing');
-    });
+    }
     if (metadata.isSymbolicLink() || !metadata.isFile()) {
         throw new Error('Persisted finalization receipt must be a direct regular file');
     }
@@ -252,9 +259,9 @@ export async function verifyFinalizationArtifact(
     if (JSON.stringify(persisted) === JSON.stringify(state.finalization)) return false;
 
     /**
-     * Delivery writes the immutable artifact before the ledger. If the process stops between
-     * those two atomic replacements, accept only the single monotonic `deliveredAt` transition
-     * and let state storage persist the recovered ledger before continuing.
+     * Delivery writes the immutable artifact before the ledger. If the process stops between those two atomic
+     * replacements, accept only the single monotonic `deliveredAt` transition and let state storage persist the
+     * recovered ledger before continuing.
      */
     const pendingReceipt = { ...persisted, deliveredAt: null };
     if (

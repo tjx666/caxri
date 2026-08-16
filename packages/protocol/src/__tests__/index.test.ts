@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { CommandAdapter, CommandExecutionContext, RuntimeEvent } from '../index';
 import {
-    CAXRI_PROTOCOL_VERSION,
-    MAX_EVENT_JOURNAL_EVENTS,
     acceptEventSequence,
     agentSkillHealthSchema,
     capabilityIds,
+    CAXRI_PROTOCOL_VERSION,
     createCommandDispatcher,
     createEventJournal,
     createProtocolWelcome,
@@ -13,6 +13,7 @@ import {
     errorCodes,
     hostManifestSchema,
     isNonExpiringRuntimeMethod,
+    MAX_EVENT_JOURNAL_EVENTS,
     methods,
     negotiateProtocolVersion,
     parseRuntimeRequest,
@@ -21,9 +22,6 @@ import {
     protocolWelcomeSchema,
     requestEnvelopeSchema,
     runtimeEventSchema,
-    type CommandAdapter,
-    type CommandExecutionContext,
-    type RuntimeEvent,
 } from '../index';
 
 const desktop = {
@@ -68,8 +66,8 @@ const projects = [
     },
 ];
 
-function request(id: string, method: keyof typeof methods, params: unknown = {}) {
-    return { protocolVersion: CAXRI_PROTOCOL_VERSION, id, method, params };
+function request(id: string, method: keyof typeof methods, parameters: unknown = {}) {
+    return { protocolVersion: CAXRI_PROTOCOL_VERSION, id, method, params: parameters };
 }
 
 describe('@caxri/protocol contract', () => {
@@ -302,14 +300,12 @@ describe('transport-neutral dispatcher', () => {
                 },
             },
         });
-        let releaseFirstDigest = (): void => undefined;
+        const firstDigestGate = Promise.withResolvers<void>();
+        const releaseFirstDigest = firstDigestGate.resolve;
         let digestCalls = 0;
         const digest = vi.spyOn(crypto.subtle, 'digest').mockImplementation(async () => {
             digestCalls += 1;
-            if (digestCalls === 1)
-                await new Promise<void>((resolve) => {
-                    releaseFirstDigest = resolve;
-                });
+            if (digestCalls === 1) await firstDigestGate.promise;
             return new Uint8Array(32).buffer;
         });
 
@@ -457,10 +453,9 @@ describe('transport-neutral dispatcher', () => {
 
     it('coalesces repeated write request IDs and rejects mismatched replay', async () => {
         let writes = 0;
-        let release!: () => void;
-        const gate = new Promise<void>((resolve) => {
-            release = resolve;
-        });
+        const gateResolvers = Promise.withResolvers<void>();
+        const release = gateResolvers.resolve;
+        const gate = gateResolvers.promise;
         const dispatch = createCommandDispatcher({
             host: {
                 invoke: async (command, context, invocation) => {
@@ -611,10 +606,9 @@ describe('recoverable event cursor', () => {
     });
 
     it('keeps events published during an asynchronous snapshot behind its frozen cursor', async () => {
-        let releaseSnapshot!: () => void;
-        const snapshotBlocked = new Promise<void>((resolve) => {
-            releaseSnapshot = resolve;
-        });
+        const snapshotBlockedResolvers = Promise.withResolvers<void>();
+        const releaseSnapshot = snapshotBlockedResolvers.resolve;
+        const snapshotBlocked = snapshotBlockedResolvers.promise;
         const journal = createEventJournal({
             maximumEvents: 1,
             snapshot: async (cursor) => {
@@ -660,7 +654,9 @@ describe('recoverable event cursor', () => {
         });
         const first = journal.publish(changed('project.create'));
         const client = createRecoveringEventClient({
-            emit: (event) => emitted.push(event),
+            emit: (event) => {
+                emitted.push(event);
+            },
             recover: (cursor) => journal.recover(cursor),
         });
 
@@ -685,7 +681,9 @@ describe('recoverable event cursor', () => {
         journal.publish(changed('project.create'));
         const snapshotClientEvents: RuntimeEvent[] = [];
         const snapshotClient = createRecoveringEventClient({
-            emit: (event) => snapshotClientEvents.push(event),
+            emit: (event) => {
+                snapshotClientEvents.push(event);
+            },
             recover: (cursor) => journal.recover(cursor),
         });
         await snapshotClient.start();
@@ -695,14 +693,12 @@ describe('recoverable event cursor', () => {
     });
 
     it('bounds delayed recovery and converges from a fresh snapshot after the journal capacity', async () => {
-        let releaseFirstRecovery!: () => void;
-        let firstRecoveryStarted!: () => void;
-        const firstRecovery = new Promise<void>((resolve) => {
-            releaseFirstRecovery = resolve;
-        });
-        const recoveryStarted = new Promise<void>((resolve) => {
-            firstRecoveryStarted = resolve;
-        });
+        const firstRecoveryResolvers = Promise.withResolvers<void>();
+        const releaseFirstRecovery = firstRecoveryResolvers.resolve;
+        const firstRecovery = firstRecoveryResolvers.promise;
+        const recoveryStartedResolvers = Promise.withResolvers<void>();
+        const firstRecoveryStarted = recoveryStartedResolvers.resolve;
+        const recoveryStarted = recoveryStartedResolvers.promise;
         const journal = createEventJournal({
             snapshot: (cursor) => ({
                 cursor,
@@ -717,7 +713,9 @@ describe('recoverable event cursor', () => {
         const emitted: RuntimeEvent[] = [];
         let recoveryCalls = 0;
         const client = createRecoveringEventClient({
-            emit: (event) => emitted.push(event),
+            emit: (event) => {
+                emitted.push(event);
+            },
             recover: async (cursor) => {
                 recoveryCalls += 1;
                 if (recoveryCalls === 1) {

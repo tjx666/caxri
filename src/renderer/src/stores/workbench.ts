@@ -1,5 +1,3 @@
-import { create } from 'zustand';
-
 import { reconcileEditorTabDirtiness, withoutEditorTabDirtiness } from '@shared/editor-state';
 import { assertNever } from '@shared/ipc';
 import type { RuntimeEvent } from '@shared/ipc/events';
@@ -10,59 +8,158 @@ import type {
     SessionState,
     TerminalRecord,
 } from '@shared/types';
+import { create } from 'zustand';
 
-import { caxri } from '../lib/caxri';
-import { mergeStructurally } from './structural-sharing';
-import { describeFailure, pushToast } from './toasts';
 import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
-} from '../features/workbench/workbench-root-prompt';
+} from '../features/workbench/workbench-root-prompt-store';
+import { caxri } from '../lib/caxri';
+import { mergeStructurally } from './structural-sharing';
+import { describeFailure, pushToast } from './toasts';
 
 interface WorkbenchState {
-    /** The last Runtime snapshot, or `undefined` until the first `app.bootstrap` resolves. */
+    /**
+     * The last Runtime snapshot, or `undefined` until the first `app.bootstrap` resolves.
+     */
     bootstrap?: BootstrapState;
     /**
-     * Bumped every time the Runtime reports ready again. Mounted Terminal panes watch this to
-     * re-issue `terminal.attach`, because a Runtime restart drops attachment state the pane cannot
-     * observe on its own.
+     * Bumped every time the Runtime reports ready again. Mounted Terminal panes watch this to re-issue
+     * `terminal.attach`, because a Runtime restart drops attachment state the pane cannot observe on its own.
      */
     attachEpoch: number;
-    /** Mirrors the native window's fullscreen state, pushed by Main via `window.fullScreen`. */
+    /**
+     * Mirrors the native window's fullscreen state, pushed by Main via `window.fullScreen`.
+     */
     isFullScreen: boolean;
-    /** Idempotent attach used on mount; joins an in-flight snapshot read instead of duplicating it. */
+    /**
+     * Idempotent attach used on mount; joins an in-flight snapshot read instead of duplicating it.
+     */
     initialize(): Promise<void>;
-    /** Re-reads the snapshot, coalescing concurrent callers into at most one follow-up read. */
+    /**
+     * Re-reads the snapshot, coalescing concurrent callers into at most one follow-up read.
+     */
     refresh(): Promise<void>;
-    /** Optimistically applies a Session layout/tab/inspector change and reports persistence. */
+    /**
+     * Optimistically applies a Session layout/tab/inspector change and reports persistence.
+     */
     patchSessionState(
         next: SessionState,
         failureLabel?: string,
         onLatestFailure?: () => void,
         failureMode?: SessionStateFailureMode,
-        reportFailure?: boolean,
+        shouldReportFailure?: boolean,
     ): Promise<boolean>;
 }
 
 type SessionStateFailureMode = 'retain' | 'rollback';
 
-let inFlight: Promise<void> | undefined;
-let queued: Promise<void> | undefined;
-let recordRefreshInFlight: Promise<void> | undefined;
+// Mutable module state is held in `.current` fields (not bare top-level `let`s) so writing to it
+// from inside store actions satisfies unicorn/no-top-level-assignment-in-function.
+const bootstrapRead = { inFlight: undefined as Promise<void> | undefined };
+const queuedRead = { current: undefined as Promise<void> | undefined };
+const recordRefresh = { inFlight: undefined as Promise<void> | undefined };
 const pendingSessionRecordIds = new Set<string>();
 const pendingTerminalRecordIds = new Set<string>();
-let configurationErrorsReported = false;
-let nextSessionPatchRevision = 0;
+const configErrors = { reported: false };
+const sessionPatchRevision = { current: 0 };
 const pendingSessionPatches = new Map<string, { revision: number; state: SessionState }>();
 
 function sessionPatchKey(state: Pick<SessionState, 'sessionId' | 'workbenchProjectId'>): string {
     return `${state.sessionId}\0${state.workbenchProjectId}`;
 }
 
+export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
+    bootstrap: undefined,
+    attachEpoch: 0,
+    isFullScreen: false,
+    initialize: initializeWorkbench,
+    refresh: refreshWorkbench,
+    async patchSessionState(
+        next,
+        failureLabel = 'Session layout could not be saved',
+        onLatestFailure,
+        failureMode = 'rollback',
+        shouldReportFailure = true,
+    ) {
+        const bootstrap = get().bootstrap;
+        if (!bootstrap) return false;
+        const previous = bootstrap.sessionStates.find(
+            (state) =>
+                state.sessionId === next.sessionId &&
+                state.workbenchProjectId === next.workbenchProjectId,
+        );
+        /**
+         * Async UI work may finish after a root switch. Never make that stale root visible or submit a write Runtime
+         * must reject.
+         */
+        if (!previous) return false;
+        sessionPatchRevision.current += 1;
+        const revision = sessionPatchRevision.current;
+        const patchKey = sessionPatchKey(next);
+        pendingSessionPatches.set(patchKey, { revision, state: next });
+        set({
+            bootstrap: {
+                ...bootstrap,
+                sessionStates: bootstrap.sessionStates.map((state) =>
+                    state.sessionId === next.sessionId &&
+                    state.workbenchProjectId === next.workbenchProjectId
+                        ? next
+                        : state,
+                ),
+            },
+        });
+        const finish = (): void => {
+            if (pendingSessionPatches.get(patchKey)?.revision === revision)
+                pendingSessionPatches.delete(patchKey);
+        };
+        try {
+            await caxri.request('session.updateState', withoutEditorTabDirtiness(next));
+            finish();
+            return true;
+        } catch (error: unknown) {
+            // Only the latest pending revision for this Session may roll back: an older
+            // request's failure must not clobber a newer optimistic write (or the newer
+            // write's own later success/failure) that has since superseded it.
+            const isLatestRevision = pendingSessionPatches.get(patchKey)?.revision === revision;
+            /**
+             * A durable file move cannot safely restore its old path. Retaining the latest optimistic patch also
+             * shields it from stale bootstrap reads until retry replaces this revision and eventually persists it.
+             */
+            const isRetainLatest = isLatestRevision && failureMode === 'retain';
+            if (!isRetainLatest) finish();
+            const visibleState = get().bootstrap?.sessionStates.find(
+                (state) => state.sessionId === next.sessionId,
+            );
+            const isRootIsStillVisible =
+                visibleState?.workbenchProjectId === next.workbenchProjectId;
+            if (!isRetainLatest && isLatestRevision && isRootIsStillVisible) {
+                set((current) => {
+                    if (!current.bootstrap) return current;
+                    return {
+                        bootstrap: {
+                            ...current.bootstrap,
+                            sessionStates: current.bootstrap.sessionStates.map((state) =>
+                                state.sessionId === next.sessionId &&
+                                state.workbenchProjectId === next.workbenchProjectId
+                                    ? previous
+                                    : state,
+                            ),
+                        },
+                    };
+                });
+            }
+            if (isLatestRevision && isRootIsStillVisible) onLatestFailure?.();
+            if (shouldReportFailure) pushToast('error', describeFailure(error, failureLabel));
+            return false;
+        }
+    },
+}));
+
 /**
- * A bootstrap read started before `session.updateState` can resolve after the optimistic Renderer
- * write. Preserve the latest unacknowledged Session state so that stale Runtime snapshots cannot
- * make a just-selected tab or layout visibly jump backwards.
+ * A bootstrap read started before `session.updateState` can resolve after the optimistic Renderer write. Preserve the
+ * latest unacknowledged Session state so that stale Runtime snapshots cannot make a just-selected tab or layout visibly
+ * jump backwards.
  */
 function applyPendingSessionPatches(state: BootstrapState): BootstrapState {
     if (pendingSessionPatches.size === 0) return state;
@@ -74,7 +171,9 @@ function applyPendingSessionPatches(state: BootstrapState): BootstrapState {
 }
 
 async function applySnapshot(state: BootstrapState): Promise<void> {
-    /** Dynamic import avoids a static store cycle: `session-view` uses this module to persist UI state. */
+    /**
+     * Dynamic import avoids a static store cycle: `session-view` uses this module to persist UI state.
+     */
     const { sessionViewScope, useSessionViewStore } = await import('./session-view');
     const documents = useSessionViewStore.getState().documents;
     const pending = applyPendingSessionPatches(state);
@@ -92,8 +191,8 @@ async function applySnapshot(state: BootstrapState): Promise<void> {
     useWorkbenchStore.setState((previous) => ({
         bootstrap: mergeStructurally(previous.bootstrap, current),
     }));
-    if (configurationErrorsReported) return;
-    configurationErrorsReported = true;
+    if (configErrors.reported) return;
+    configErrors.reported = true;
     if (current.configurationErrors?.[0]) pushToast('error', current.configurationErrors[0]);
 }
 
@@ -138,26 +237,37 @@ function applyRecordSnapshot(
     });
 }
 
+async function runRecordRefresh(
+    sessionIds: ReadonlySet<string>,
+    terminalIds: ReadonlySet<string>,
+): Promise<void> {
+    try {
+        const records = await caxri.request('app.records', {
+            sessionIds: [...sessionIds],
+            terminalIds: [...terminalIds],
+        });
+        applyRecordSnapshot(sessionIds, terminalIds, records);
+    } catch {
+        await refreshWorkbench();
+    } finally {
+        recordRefresh.inFlight = undefined;
+        if (pendingSessionRecordIds.size > 0 || pendingTerminalRecordIds.size > 0)
+            // Genuinely fire-and-forget: this kicks off the next coalesced refresh round, and
+            // scheduleRecordRefresh() already catches its own failures internally.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void scheduleRecordRefresh();
+    }
+}
+
 function scheduleRecordRefresh(): Promise<void> {
-    if (recordRefreshInFlight) return recordRefreshInFlight;
+    if (recordRefresh.inFlight) return recordRefresh.inFlight;
     if (!useWorkbenchStore.getState().bootstrap) return refreshWorkbench();
     const sessionIds = new Set(pendingSessionRecordIds);
     const terminalIds = new Set(pendingTerminalRecordIds);
     pendingSessionRecordIds.clear();
     pendingTerminalRecordIds.clear();
-    recordRefreshInFlight = caxri
-        .request('app.records', {
-            sessionIds: [...sessionIds],
-            terminalIds: [...terminalIds],
-        })
-        .then((records) => applyRecordSnapshot(sessionIds, terminalIds, records))
-        .catch(() => refreshWorkbench())
-        .finally(() => {
-            recordRefreshInFlight = undefined;
-            if (pendingSessionRecordIds.size > 0 || pendingTerminalRecordIds.size > 0)
-                void scheduleRecordRefresh();
-        });
-    return recordRefreshInFlight;
+    recordRefresh.inFlight = runRecordRefresh(sessionIds, terminalIds);
+    return recordRefresh.inFlight;
 }
 
 function applyStateChange(
@@ -169,134 +279,58 @@ function applyStateChange(
     return scheduleRecordRefresh();
 }
 
+async function runLoadBootstrap(): Promise<void> {
+    try {
+        const state = await caxri.request('app.bootstrap');
+        await applySnapshot(state);
+    } catch (error: unknown) {
+        pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
+    } finally {
+        bootstrapRead.inFlight = undefined;
+    }
+}
+
 function loadBootstrap(): Promise<void> {
-    inFlight = caxri
-        .request('app.bootstrap')
-        .then(applySnapshot)
-        .catch((error: unknown) => {
-            pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
-        })
-        .finally(() => {
-            inFlight = undefined;
-        });
-    return inFlight;
+    bootstrapRead.inFlight = runLoadBootstrap();
+    return bootstrapRead.inFlight;
 }
 
 /**
- * Single-flight snapshot read. A caller that arrives while a read is already in flight cannot reuse
- * it — its own mutation may not be reflected there — so every such caller shares one follow-up read
- * instead of issuing a burst of `app.bootstrap` requests. React StrictMode's double mount therefore
- * never doubles the Runtime work, and neither does a burst of `state.changed` events.
+ * Single-flight snapshot read. A caller that arrives while a read is already in flight cannot reuse it — its own
+ * mutation may not be reflected there — so every such caller shares one follow-up read instead of issuing a burst of
+ * `app.bootstrap` requests. React StrictMode's double mount therefore never doubles the Runtime work, and neither does
+ * a burst of `state.changed` events.
  */
 export function initializeWorkbench(): Promise<void> {
-    return inFlight ?? loadBootstrap();
+    return bootstrapRead.inFlight ?? loadBootstrap();
+}
+
+async function runQueuedRefresh(waitFor: Promise<void>): Promise<void> {
+    await waitFor;
+    queuedRead.current = undefined;
+    return bootstrapRead.inFlight ?? loadBootstrap();
 }
 
 export function refreshWorkbench(): Promise<void> {
-    if (!inFlight) return loadBootstrap();
-    queued ??= inFlight.then(() => {
-        queued = undefined;
-        return inFlight ?? loadBootstrap();
-    });
-    return queued;
+    if (!bootstrapRead.inFlight) return loadBootstrap();
+    queuedRead.current ??= runQueuedRefresh(bootstrapRead.inFlight);
+    return queuedRead.current;
 }
-
-export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
-    bootstrap: undefined,
-    attachEpoch: 0,
-    isFullScreen: false,
-    initialize: initializeWorkbench,
-    refresh: refreshWorkbench,
-    patchSessionState(
-        next,
-        failureLabel = 'Session layout could not be saved',
-        onLatestFailure,
-        failureMode = 'rollback',
-        reportFailure = true,
-    ) {
-        const bootstrap = get().bootstrap;
-        if (!bootstrap) return Promise.resolve(false);
-        const previous = bootstrap.sessionStates.find(
-            (state) =>
-                state.sessionId === next.sessionId &&
-                state.workbenchProjectId === next.workbenchProjectId,
-        );
-        /** Async UI work may finish after a root switch. Never make that stale root visible or
-         *  submit a write Runtime must reject. */
-        if (!previous) return Promise.resolve(false);
-        const revision = ++nextSessionPatchRevision;
-        const patchKey = sessionPatchKey(next);
-        pendingSessionPatches.set(patchKey, { revision, state: next });
-        set({
-            bootstrap: {
-                ...bootstrap,
-                sessionStates: bootstrap.sessionStates.map((state) =>
-                    state.sessionId === next.sessionId &&
-                    state.workbenchProjectId === next.workbenchProjectId
-                        ? next
-                        : state,
-                ),
-            },
-        });
-        const finish = (): void => {
-            if (pendingSessionPatches.get(patchKey)?.revision === revision)
-                pendingSessionPatches.delete(patchKey);
-        };
-        return caxri
-            .request('session.updateState', withoutEditorTabDirtiness(next))
-            .then(() => {
-                finish();
-                return true;
-            })
-            .catch((error: unknown) => {
-                // Only the latest pending revision for this Session may roll back: an older
-                // request's failure must not clobber a newer optimistic write (or the newer
-                // write's own later success/failure) that has since superseded it.
-                const isLatestRevision = pendingSessionPatches.get(patchKey)?.revision === revision;
-                /** A durable file move cannot safely restore its old path. Retaining the latest
-                 * optimistic patch also shields it from stale bootstrap reads until retry replaces
-                 * this revision and eventually persists it. */
-                const retainLatest = isLatestRevision && failureMode === 'retain';
-                if (!retainLatest) finish();
-                const visibleState = get().bootstrap?.sessionStates.find(
-                    (state) => state.sessionId === next.sessionId,
-                );
-                const rootIsStillVisible =
-                    visibleState?.workbenchProjectId === next.workbenchProjectId;
-                if (!retainLatest && isLatestRevision && rootIsStillVisible) {
-                    set((current) => {
-                        if (!current.bootstrap) return current;
-                        return {
-                            bootstrap: {
-                                ...current.bootstrap,
-                                sessionStates: current.bootstrap.sessionStates.map((state) =>
-                                    state.sessionId === next.sessionId &&
-                                    state.workbenchProjectId === next.workbenchProjectId
-                                        ? previous
-                                        : state,
-                                ),
-                            },
-                        };
-                    });
-                }
-                if (isLatestRevision && rootIsStillVisible) onLatestFailure?.();
-                if (reportFailure) pushToast('error', describeFailure(error, failureLabel));
-                return false;
-            });
-    },
-}));
 
 export function patchSessionState(
     next: SessionState,
     failureLabel?: string,
     onLatestFailure?: () => void,
 ): void {
+    // Fire-and-forget: the store method already funnels every failure into a toast internally and
+    // never rejects, so this synchronous-looking wrapper never needs to await the outcome.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void useWorkbenchStore.getState().patchSessionState(next, failureLabel, onLatestFailure);
 }
 
 /**
- * Allows durable workflows to wait until an optimistic Session-state patch reaches Runtime.
- * `retainOnFailure` pins a target-path state that would be unsafe to roll back after disk mutation.
+ * Allows durable workflows to wait until an optimistic Session-state patch reaches Runtime. `retainOnFailure` pins a
+ * target-path state that would be unsafe to roll back after disk mutation.
  */
 export function persistSessionState(
     next: SessionState,
@@ -319,24 +353,28 @@ export function persistSessionState(
 
 export interface WorkbenchEventHandlers {
     /**
-     * Runs a command id pushed by the native menu, honouring the modal guard. `viaAccelerator`
-     * forwards whether the menu item fired from its keyboard accelerator rather than a mouse/touch
-     * click, so the caller can apply the editable-focus shortcut policy only to the accelerator path.
+     * Runs a command id pushed by the native menu, honouring the modal guard. `wasViaAccelerator` forwards whether the
+     * menu item fired from its keyboard accelerator rather than a mouse/touch click, so the caller can apply the
+     * editable-focus shortcut policy only to the accelerator path.
      */
-    onCommand(command: CommandId, viaAccelerator: boolean): void;
-    /** Applies an authenticated Host open request after Main redeemed its one-use target. */
+    onCommand(command: CommandId, wasViaAccelerator: boolean): void;
+    /**
+     * Applies an authenticated Host open request after Main redeemed its one-use target.
+     */
     onDesktopOpen(sessionId: string, path?: string): void;
 }
 
 /**
- * The single `onEvent` subscription for Runtime-driven workbench state. Every listener that used to
- * live inside App's mount effect dispatches into this store instead. Unhandled events must be
- * listed as explicit no-ops so a new Runtime event fails compile instead of disappearing.
+ * The single `onEvent` subscription for Runtime-driven workbench state. Every listener that used to live inside App's
+ * mount effect dispatches into this store instead. Unhandled events must be listed as explicit no-ops so a new Runtime
+ * event fails compile instead of disappearing.
  */
 export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
     return caxri.onEvent((event) => {
         switch (event.event) {
             case 'state.changed':
+                // Fire-and-forget: applyStateChange() catches its own Runtime request failures.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void applyStateChange(event.payload);
                 return;
             case 'runtime.status': {
@@ -350,6 +388,8 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     useWorkbenchStore.setState((current) => ({
                         attachEpoch: current.attachEpoch + 1,
                     }));
+                    // Fire-and-forget: refreshWorkbench() catches its own Runtime request failures.
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                     void refreshWorkbench();
                 }
                 return;
@@ -358,6 +398,8 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'keybindings.changed':
             case 'theme.changed':
                 if (event.payload.error) pushToast('error', event.payload.error);
+                // Fire-and-forget: refreshWorkbench() catches its own Runtime request failures.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 else void refreshWorkbench();
                 return;
             case 'command.execute':

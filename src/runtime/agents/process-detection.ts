@@ -2,7 +2,8 @@ import { execFile } from 'node:child_process';
 import { basename } from 'node:path';
 import { promisify } from 'node:util';
 
-import { agentProviderCatalog, agentProviderIds, type AgentProvider } from '../../shared/agents';
+import type { AgentProvider } from '../../shared/agents';
+import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
 
 const execFileAsync = promisify(execFile);
 const PROCESS_QUERY_TIMEOUT_MS = 2_000;
@@ -23,7 +24,7 @@ const providerByExecutableName = new Map<string, AgentProvider>(
 function parseProcessList(output: string): ProcessEntry[] {
     const processes: ProcessEntry[] = [];
     for (const line of output.split('\n')) {
-        const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(.+?)\s*$/.exec(line);
+        const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(\S.*)$/.exec(line);
         if (!match) continue;
         const [pid, parentPid, pgid, terminalForegroundPgid] = match.slice(1, 5).map(Number);
         if (![pid, parentPid, pgid, terminalForegroundPgid].every(Number.isFinite) || pid <= 0)
@@ -33,7 +34,7 @@ function parseProcessList(output: string): ProcessEntry[] {
             parentPid,
             pgid,
             terminalForegroundPgid,
-            command: match[5],
+            command: match[5].trimEnd(),
         });
     }
     return processes;
@@ -48,9 +49,9 @@ function commandProvider(command: string): AgentProvider | undefined {
 }
 
 /**
- * Identifies an Agent only when its executable belongs to the Shell PTY's active foreground process
- * group. This resolves shell aliases without reading shell configuration or mistaking a background
- * Agent in the same process tree for the command the user just submitted.
+ * Identifies an Agent only when its executable belongs to the Shell PTY's active foreground process group. This
+ * resolves shell aliases without reading shell configuration or mistaking a background Agent in the same process tree
+ * for the command the user just submitted.
  */
 export function foregroundAgentProviderFromProcessList(
     output: string,
@@ -80,12 +81,15 @@ export function foregroundAgentProviderFromProcessList(
             const provider = commandProvider(process.command);
             if (provider) providers.add(provider);
         }
-        for (const child of children.get(pid) ?? []) pending.push(child.pid);
+        const siblings = children.get(pid) ?? [];
+        for (const child of siblings) pending.push(child.pid);
     }
     return providers.size === 1 ? [...providers][0] : undefined;
 }
 
-/** Reads process identity only; the output is never logged, persisted, or sent to the Renderer. */
+/**
+ * Reads process identity only; the output is never logged, persisted, or sent to the Renderer.
+ */
 export async function detectForegroundAgentProvider(
     shellPid: number,
 ): Promise<AgentProvider | undefined> {

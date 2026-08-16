@@ -1,16 +1,18 @@
+import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { open, readdir, type FileHandle } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
+import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import {
-    logQueryRecordSchema,
-    type LogQueryParams,
-    type LogQueryRecord,
-    type LogQueryResult,
+import type {
+    LogQueryParams as LogQueryParameters,
+    LogQueryRecord,
+    LogQueryResult,
 } from '../../shared/ipc/business-contract';
+import { logQueryRecordSchema } from '../../shared/ipc/business-contract';
 import { CaxriError } from '../../shared/ipc/errors';
 
-const LOG_NAME = /^(host|main|runtime)\.jsonl(?:\.1)?$/u;
+const LOG_NAME = /^(?:host|main|runtime)\.jsonl(?:\.1)?$/u;
 const DEFAULT_MAXIMUM_RECORDS = 4_096;
 const DEFAULT_MAXIMUM_BYTES_PER_FILE = 512 * 1024;
 
@@ -65,7 +67,9 @@ async function readSuffix(path: string, maximumBytes: number): Promise<string> {
 function safeRecord(line: string): LogQueryRecord | undefined {
     try {
         const value = JSON.parse(line) as Record<string, unknown>;
-        /** Content identity survives the logger's atomic `.jsonl` to `.jsonl.1` rotation. */
+        /**
+         * Content identity survives the logger's atomic `.jsonl` to `.jsonl.1` rotation.
+         */
         const id = createHash('sha256').update(line).digest('hex').slice(0, 24);
         return logQueryRecordSchema.parse({
             id,
@@ -81,7 +85,7 @@ function safeRecord(line: string): LogQueryRecord | undefined {
     }
 }
 
-function matches(record: LogQueryRecord, query: LogQueryParams): boolean {
+function isRecordMatching(record: LogQueryRecord, query: LogQueryParameters): boolean {
     return (
         (!query.since || record.timestamp >= query.since) &&
         (!query.process || record.process === query.process) &&
@@ -91,7 +95,9 @@ function matches(record: LogQueryRecord, query: LogQueryParams): boolean {
     );
 }
 
-/** Reads only bounded log suffixes and projects a content-free record model. */
+/**
+ * Reads only bounded log suffixes and projects a content-free record model.
+ */
 export class LogQueryService {
     private readonly maximumBytesPerFile: number;
     private readonly maximumRecords: number;
@@ -104,10 +110,15 @@ export class LogQueryService {
         this.maximumRecords = options.maximumRecords ?? DEFAULT_MAXIMUM_RECORDS;
     }
 
-    async query(query: LogQueryParams): Promise<LogQueryResult> {
-        const names = (await readdir(this.directory).catch(() => []))
-            .filter((name) => LOG_NAME.test(name))
-            .sort();
+    async query(query: LogQueryParameters): Promise<LogQueryResult> {
+        let names: string[];
+        try {
+            names = (await readdir(this.directory))
+                .filter((name) => LOG_NAME.test(name))
+                .toSorted((left, right) => left.localeCompare(right));
+        } catch {
+            names = [];
+        }
         const sources = await Promise.all(
             names.map(async (name) => ({
                 name,
@@ -127,22 +138,22 @@ export class LogQueryService {
 
         const after = query.afterCursor ? parseCursor(query.afterCursor) : undefined;
         const earliest = records[0] ? recordCursor(records[0]) : undefined;
-        const gap = Boolean(after && earliest && compareCursor(after, earliest) < 0);
+        const isGap = Boolean(after && earliest && compareCursor(after, earliest) < 0);
         const afterRecords = after
             ? records.filter((record) => compareCursor(recordCursor(record), after) > 0)
             : records;
-        const matching = afterRecords.filter((record) => matches(record, query));
+        const matching = afterRecords.filter((record) => isRecordMatching(record, query));
         const selected = after ? matching.slice(0, query.limit) : matching.slice(-query.limit);
-        const truncated = dropped > 0 || matching.length > selected.length;
+        const isTruncated = dropped > 0 || matching.length > selected.length;
         const cursorRecord =
             after && matching.length > selected.length
                 ? selected.at(-1)
                 : (afterRecords.at(-1) ?? records.at(-1));
         return {
             records: selected,
-            ...(cursorRecord ? { nextCursor: cursorFor(cursorRecord) } : {}),
-            gap,
-            truncated,
+            ...(cursorRecord && { nextCursor: cursorFor(cursorRecord) }),
+            gap: isGap,
+            truncated: isTruncated,
         };
     }
 }

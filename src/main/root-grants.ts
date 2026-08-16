@@ -13,7 +13,9 @@ export class ProjectRootGrants {
         this.roots.delete(rootPath);
     }
 
-    /** Reserve the single-use grant while creating, then restore it only when creation fails. */
+    /**
+     * Reserve the single-use grant while creating, then restore it only when creation fails.
+     */
     async use<T>(rootPath: string, create: () => Promise<T>): Promise<T> {
         const expiresAt = this.roots.get(rootPath);
         if (expiresAt === undefined)

@@ -2,11 +2,11 @@ import { constants } from 'node:fs';
 import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
+import process from 'node:process';
 
 import { agentProviderCatalog } from '../shared/agents';
 import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeMethod } from '../shared/ipc/methods';
-import { resolveActiveWork } from '../shared/work-item';
 import type {
     AgentProvider,
     BootstrapState,
@@ -14,6 +14,8 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '../shared/types';
+import { resolveActiveWork } from '../shared/work-item';
+import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import {
     AgentCoordinator,
     AgentHookManager,
@@ -21,54 +23,59 @@ import {
     createLocalAgentAdapters,
     defaultAgentEnvironment,
 } from './agents';
-import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
-import { agentSkillHealthReader } from './agent-skills';
-import type { Runtime, RuntimeDeps } from './bootstrap-types';
+import { createServiceHandlers } from './bootstrap-service-handlers';
+import type { Runtime, RuntimeDependencies } from './bootstrap-types';
 import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
 import { createIntrospectionServices } from './introspection';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
-import {
-    ShellIntegrationService,
-    TerminalManager,
-    TerminalRestoreSupervisor,
-    type TerminalWorkingDirectoryIdentity,
-} from './terminal';
+import type { TerminalWorkingDirectoryIdentity } from './terminal';
+import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
 import { createWorkbenchRootHandlers } from './workbench-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
-export type { Runtime, RuntimeDeps } from './bootstrap-types';
-/** Methods the Renderer may call but that only Electron Main can satisfy. */
+export type { Runtime, RuntimeDependencies } from './bootstrap-types';
+/**
+ * Methods the Renderer may call but that only Electron Main can satisfy.
+ */
 function mainOwned(method: RuntimeMethod): never {
     throw new CaxriError('CONFLICT', `${method} must be handled by Electron Main`);
 }
 
 /**
- * Composition root: constructs every Runtime service, wires the event flow between them, and returns
- * the typed handler table plus one disposal path. Nothing is constructed at module scope, so a test
- * can create several isolated Runtimes in one process.
+ * Composition root: constructs every Runtime service, wires the event flow between them, and returns the typed handler
+ * table plus one disposal path. Nothing is constructed at module scope, so a test can create several isolated Runtimes
+ * in one process.
  */
-export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
-    const { logger, send, userDataPath } = deps;
-    const startedAt = deps.startedAt ?? Date.now();
-    const pid = deps.pid ?? process.pid;
+export async function createRuntime(dependencies: RuntimeDependencies): Promise<Runtime> {
+    const { logger, send, userDataPath } = dependencies;
+    const startedAt = dependencies.startedAt ?? Date.now();
+    const pid = dependencies.pid ?? process.pid;
 
     const { acknowledgeFileMutation, configuration, database, files, git, workbenchRoots } =
-        await createRootServices(deps);
+        await createRootServices(dependencies);
     workbenchRoots.setRootChangedHandler((sessionId) => {
-        if (selectedSessionId() === sessionId) void files.refreshWatchSession(sessionId);
+        if (selectedSessionId() === sessionId)
+            // `setRootChangedHandler` takes a synchronous callback, so this cannot become `await`.
+            // eslint-disable-next-line unicorn/prefer-await -- sync callback signature; see comment above
+            files.refreshWatchSession(sessionId).catch((error: unknown) =>
+                logger.write('error', 'files.refresh_watch_session_failed', {
+                    fields: { sessionId, error: errorMessage(error, 'unknown') },
+                }),
+            );
     });
     const agentLaunchSettings = (provider: AgentProvider) =>
         configuration.getSettings().value['agents.providers'][provider].launch;
-    const agentEnvironment = deps.agentEnvironment ?? defaultAgentEnvironment();
+    const agentEnvironment = dependencies.agentEnvironment ?? defaultAgentEnvironment();
     const agents = new AgentService(
         logger,
-        deps.agentAdapters ?? createLocalAgentAdapters(agentEnvironment, agentLaunchSettings),
+        dependencies.agentAdapters ??
+            createLocalAgentAdapters(agentEnvironment, agentLaunchSettings),
     );
     const coordinator = new AgentCoordinator(database, agents, send, logger, {
-        refreshDelayMs: deps.agentRefreshDelayMs,
+        refreshDelayMs: dependencies.agentRefreshDelayMs,
     });
     const agentHooks = new AgentHookManager({
         environment: agentEnvironment,
@@ -83,51 +90,55 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             signal.phase === 'shellToolFinished'
                 ? workbenchRoots.observeShellToolFinished(signal)
                 : coordinator.observeLifecycleSignal(signal),
-        runtimeExecutable: deps.runtimeExecutable ?? process.execPath,
+        runtimeExecutable: dependencies.runtimeExecutable ?? process.execPath,
         send,
-        sharedPath: deps.agentHooksPath,
+        sharedPath: dependencies.agentHooksPath,
         userDataPath,
     });
     await agentHooks.initialize(configuration.getSettings().value['agents.providers']);
     let agentSettingsReconcile = Promise.resolve();
     const unsubscribeHookSettings = configuration.subscribeSettings((settings) => {
-        /** Preserve setting-update order so a slow probe cannot restore authority after disable. */
-        agentSettingsReconcile = agentSettingsReconcile
-            .catch((error: unknown) =>
+        /**
+         * Preserve setting-update order so a slow probe cannot restore authority after disable.
+         */
+        agentSettingsReconcile = (async () => {
+            try {
+                await agentSettingsReconcile;
+            } catch (error: unknown) {
                 logger.write('warn', 'agent.integration_reconcile_failed', {
                     fields: { error: errorMessage(error, 'unknown') },
-                }),
-            )
-            .then(() =>
-                Promise.all([
-                    agentHooks.reconcile(settings['agents.providers']),
-                    deps.agentEndpoints?.reconcile(settings['agents.providers']),
-                ]).then(() => undefined),
-            );
+                });
+            }
+            await Promise.all([
+                agentHooks.reconcile(settings['agents.providers']),
+                dependencies.agentEndpoints?.reconcile(settings['agents.providers']),
+            ]);
+        })();
     });
-    const shellIntegration = await ShellIntegrationService.create(userDataPath).catch(
-        (error: unknown) => {
-            logger.write('warn', 'pty.shell_integration_unavailable', {
-                fields: { error: error instanceof Error ? error.message : String(error) },
-            });
-            return undefined;
-        },
-    );
-    /** Explicit Terminal-to-Agent wiring keeps provider checks in the composition root instead of a
-     * shared event sink. */
+    let shellIntegration: ShellIntegrationService | undefined;
+    try {
+        shellIntegration = await ShellIntegrationService.create(userDataPath);
+    } catch (error: unknown) {
+        logger.write('warn', 'pty.shell_integration_unavailable', {
+            fields: { error: error instanceof Error ? error.message : String(error) },
+        });
+    }
+    /**
+     * Explicit Terminal-to-Agent wiring keeps provider checks in the composition root instead of a shared event sink.
+     */
     const agentDispatchState: { service?: AgentDispatchService } = {};
     const terminals = new TerminalManager(database, send, logger, {
-        ...deps.terminal,
-        agentLaunchSettings: deps.terminal?.agentLaunchSettings ?? agentLaunchSettings,
+        ...dependencies.terminal,
+        agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
         lifecycleEnvironment: async (terminal, launch) => {
             const hookEnvironment = agentHooks.terminalEnvironment(terminal.id, terminal.provider);
-            if (terminal.kind === 'shell' || !launch || !deps.agentEndpoints)
+            if (!launch || terminal.kind === 'shell' || !dependencies.agentEndpoints)
                 return hookEnvironment;
             const session = database.getSession(terminal.sessionId);
             if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
             return {
                 ...hookEnvironment,
-                ...(await deps.agentEndpoints.environment(
+                ...(await dependencies.agentEndpoints.environment(
                     terminal,
                     session.projectId,
                     configuration.getSettings().value['agents.providers'][terminal.kind],
@@ -135,17 +146,21 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             };
         },
         onLifecycleStarted: (terminal) =>
-            terminal.kind === 'shell' ? undefined : deps.agentEndpoints?.activate(terminal.id),
+            terminal.kind === 'shell'
+                ? undefined
+                : dependencies.agentEndpoints?.activate(terminal.id),
         onLifecycleRetired: async (terminalId) => {
             agentHooks.endTerminalLaunch(terminalId);
-            await deps.agentEndpoints?.retire(terminalId).catch((error: unknown) =>
+            try {
+                await dependencies.agentEndpoints?.retire(terminalId);
+            } catch (error: unknown) {
                 logger.write('warn', 'agent_endpoint.retire_failed', {
                     fields: {
                         terminalId,
                         error: error instanceof Error ? error.message : String(error),
                     },
-                }),
-            );
+                });
+            }
         },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
@@ -154,7 +169,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         shellIntegration: (executable, environment) =>
             shellIntegration?.resolve(executable, environment),
         terminalColors:
-            deps.terminal?.terminalColors ?? (() => configuration.getTheme().value.terminal),
+            dependencies.terminal?.terminalColors ??
+            (() => configuration.getTheme().value.terminal),
     });
     const terminalRestores = new TerminalRestoreSupervisor();
     const projectStatus = new ProjectStatusService(git, logger);
@@ -301,15 +317,14 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     }
 
     /**
-     * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue
-     * #18). A Terminal with a bound Agent conversation (`terminal.provider` set) resumes it via
-     * `resumeArguments`, so `coordinator.prepareTerminalStart` — which clears the Agent session
-     * binding through `resetAgentMetadataForStart` — must be skipped for that Terminal; that clearing
-     * is exactly what a normal (non-resuming) start wants. A Terminal without a bound conversation
-     * (a shell, or an Agent Terminal that never reached a capability-detected session id) gets a
-     * fresh start instead. A spawn failure is left as `failed`; the user can restart it manually.
-     * Restore work shares a global concurrency budget. Selecting another Session invalidates queued
-     * work, and the generation is checked again after executable discovery immediately before spawn.
+     * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18). A Terminal
+     * with a bound Agent conversation (`terminal.provider` set) resumes it via `resumeArguments`, so
+     * `coordinator.prepareTerminalStart` — which clears the Agent session binding through `resetAgentMetadataForStart`
+     * — must be skipped for that Terminal; that clearing is exactly what a normal (non-resuming) start wants. A
+     * Terminal without a bound conversation (a shell, or an Agent Terminal that never reached a capability-detected
+     * session id) gets a fresh start instead. A spawn failure is left as `failed`; the user can restart it manually.
+     * Restore work shares a global concurrency budget. Selecting another Session invalidates queued work, and the
+     * generation is checked again after executable discovery immediately before spawn.
      */
     async function restoreInterruptedTerminals(sessionId: string): Promise<void> {
         const sessionTerminals = database.listTerminals(sessionId);
@@ -339,7 +354,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                         abortSignal,
                         waitForAttachedSizeMs:
                             terminal.id === visibleTerminalId
-                                ? (deps.terminalRestoreGridWaitMs ??
+                                ? (dependencies.terminalRestoreGridWaitMs ??
                                   VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS)
                                 : undefined,
                     });
@@ -381,11 +396,40 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             });
     }
 
+    /**
+     * File watching is recoverable background work (`FileWatcherService#watchSession` already catches and logs its own
+     * setup failures) and must never delay a Runtime IPC response, so every call site fires this without awaiting it.
+     */
+    function watchSessionInBackground(sessionId: string | undefined): void {
+        // This helper is intentionally synchronous (`void` return) so sync IPC handlers such as
+        // `project.delete` can call it without becoming `async`; it cannot `await` its own promise.
+        // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget helper, see comment above
+        files.watchSession(sessionId).catch((error: unknown) =>
+            logger.write('error', 'files.watch_session_failed', {
+                fields: { sessionId: sessionId ?? 'none', error: errorMessage(error, 'unknown') },
+            }),
+        );
+    }
+
+    /**
+     * Restoring interrupted Terminals spawns PTYs and probes Agent CLIs; it must never delay the triggering IPC
+     * response, so every call site fires this without awaiting it.
+     */
+    function restoreInterruptedTerminalsInBackground(sessionId: string): void {
+        // Same fire-and-forget rationale as `watchSessionInBackground` above.
+        // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget helper, see comment above
+        restoreInterruptedTerminals(sessionId).catch((error: unknown) =>
+            logger.write('error', 'terminal.restore_interrupted_failed', {
+                fields: { sessionId, error: errorMessage(error, 'unknown') },
+            }),
+        );
+    }
+
     const dispatchService = new AgentDispatchService({
         database,
         coordinator,
         emit: send,
-        endpoints: deps.agentEndpoints,
+        endpoints: dependencies.agentEndpoints,
         launchSettings: agentLaunchSettings,
         terminalDirectoryIdentity,
         terminalWorkingDirectory,
@@ -394,10 +438,10 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
     agentDispatchState.service = dispatchService;
     dispatchService.initialize();
 
-    let closed = false;
+    let isClosed = false;
     async function close(): Promise<void> {
-        if (closed) return;
-        closed = true;
+        if (isClosed) return;
+        isClosed = true;
         terminalRestores.close();
         coordinator.close();
         terminals.shutdown('orderly');
@@ -406,7 +450,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         unsubscribeHookSettings();
         await agentSettingsReconcile;
         await agentHooks.close();
-        await deps.agentEndpoints?.close();
+        await dependencies.agentEndpoints?.close();
         await files.close();
         await configuration.close();
         git.close();
@@ -421,7 +465,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         ...createAgentCommandHandlers({
             coordinator,
             dispatch: dispatchService,
-            endpoints: deps.agentEndpoints,
+            endpoints: dependencies.agentEndpoints,
             mainOwned,
             terminals,
         }),
@@ -506,9 +550,11 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 if (!terminals.write(terminalId, imageInput.terminalInput))
                     throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
             }
-            /** Bracketed paste keeps Markdown newlines inside one Agent prompt; the validated report
-             *  cannot contain control characters capable of terminating the paste sequence. */
-            if (!terminals.write(terminalId, `\u001B[200~${report}\u001B[201~\r`))
+            /**
+             * Bracketed paste keeps Markdown newlines inside one Agent prompt; the validated report cannot contain
+             * control characters capable of terminating the paste sequence.
+             */
+            if (!terminals.write(terminalId, `\u{1B}[200~${report}\u{1B}[201~\r`))
                 throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
             return null;
         },
@@ -547,7 +593,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             git.evictPullRequestSessions(affectedSessionIds);
             database.deleteProject(projectId);
             workbenchRoots.projectDeleted(affectedWorkbenchSessions.map((session) => session.id));
-            void files.watchSession(selectedSessionId());
+            watchSessionInBackground(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.delete' } });
             return bootstrapState();
         },
@@ -575,7 +621,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
                 }
             }
             database.selectSession(created.session.id);
-            void files.watchSession(created.session.id);
+            watchSessionInBackground(created.session.id);
             if (created.terminal?.provider) coordinator.probeTerminal(created.terminal.id);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.create' } });
             return {
@@ -586,10 +632,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'session.select': async ({ sessionId }) => {
             await workbenchRoots.validateSession(sessionId);
             database.selectSession(sessionId);
-            void files.watchSession(sessionId);
-            /** Restoring interrupted Terminals spawns PTYs and probes Agent CLIs; it must never delay
-                the Session-select response, so it runs fire-and-forget like `files.watchSession`. */
-            void restoreInterruptedTerminals(sessionId);
+            watchSessionInBackground(sessionId);
+            restoreInterruptedTerminalsInBackground(sessionId);
             coordinator.probeSessionPrimaryAgent(sessionId);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.select' } });
             return database.getSession(sessionId)!;
@@ -614,7 +658,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
         'session.archive': ({ sessionId }) => {
             terminalRestores.cancel(sessionId);
             const session = database.archiveSession(sessionId);
-            void files.watchSession(selectedSessionId());
+            watchSessionInBackground(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.archive' } });
             return session;
         },
@@ -632,7 +676,7 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             terminals.terminateSession(sessionId);
             git.evictPullRequestSessions([sessionId]);
             database.deleteSession(sessionId);
-            void files.watchSession(selectedSessionId());
+            watchSessionInBackground(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
             return bootstrapState();
         },
@@ -663,7 +707,9 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             const sessionId = database.getTerminal(terminalId)?.sessionId;
             coordinator.forgetTerminal(terminalId);
             terminals.close(terminalId);
-            /** Closing the primary Agent Terminal promotes another one, whose metadata must catch up. */
+            /**
+             * Closing the primary Agent Terminal promotes another one, whose metadata must catch up.
+             */
             if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.close' } });
             return null;
@@ -685,8 +731,8 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             const current = database.getTerminal(terminalId);
             if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
             const expectedWorkingDirectory = await terminalDirectoryIdentity(current.cwd);
-            const startsFresh = mode === 'fresh';
-            const resumeAgentSessionId = startsFresh ? undefined : current.agentSessionId;
+            const isStartsFresh = mode === 'fresh';
+            const resumeAgentSessionId = isStartsFresh ? undefined : current.agentSessionId;
             if (resumeAgentSessionId) coordinator.prepareTerminalResume(terminalId);
             else coordinator.prepareTerminalStart(terminalId);
             const terminal = await terminals.restart(terminalId, {
@@ -712,88 +758,34 @@ export async function createRuntime(deps: RuntimeDeps): Promise<Runtime> {
             terminals.shutdown('terminate');
             return null;
         },
-        'files.list': ({ sessionId, directory }) => files.list(sessionId, directory),
-        'files.browse': (params) => files.browse(params),
-        'files.create': (params) => files.create(params),
-        'files.copy': (params) => files.copy(params),
-        'files.rename': (params) => files.rename(params),
-        'files.move': (params) => files.move(params),
-        'files.operation.get': async ({ operationId }) =>
-            (await files.getMutationOperation(operationId)) ?? null,
-        'files.operation.list': () => files.listMutationOperations(),
-        'files.operation.cancel': ({ operationId }) => files.cancelMutationOperation(operationId),
-        'files.operation.acknowledge': async ({ operationId }) => {
-            await acknowledgeFileMutation(operationId);
-            return null;
-        },
-        'files.authorizeTrash': (params) => files.authorizeTrash(params),
-        'files.authorizeOpen': (params) => files.authorizeOpen(params),
-        'files.read': ({ sessionId, path }) => files.read(sessionId, path),
-        'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
-        'files.search': (params) => files.search(params),
-        'git.summary': ({ sessionId }) => git.summary(sessionId),
-        'git.branches': (params) => git.branches(params),
-        'git.switchBranch': (params) => git.switchBranch(params),
-        'git.diffDocument': ({ sessionId, repositoryId, path }) =>
-            git.diffDocument(sessionId, repositoryId, path),
-        'git.pullRequestChanges': (params) => git.pullRequestChanges(params),
-        'git.pullRequestDiffDocument': (params) => git.pullRequestDiffDocument(params),
-        'git.commits': (params) => git.commits(params),
-        'git.commitDetails': (params) => git.commitDetails(params),
-        'git.blame': (params) => git.blame(params),
-        'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
-        'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
-        'settings.get': () => configuration.getSettings(),
-        'settings.inspect': () => configuration.inspectSettings(),
-        'settings.patch': ({ changes, dryRun }) => configuration.patchSettings(changes, dryRun),
-        'agentHooks.get': () => agentHooks.getHealth(),
-        'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
-        'settings.update': async ({ source }) => {
-            await configuration.updateSettings(source);
-            await agentSettingsReconcile;
-            return configuration.getSettings();
-        },
-        'settings.trustDomain': async ({ domain }) => {
-            await configuration.trustDomain(domain);
-            return configuration.getSettings();
-        },
-        'keybindings.get': () => configuration.getKeybindings(),
-        'keybindings.update': async ({ source }) => {
-            await configuration.updateKeybindings(source);
-            return configuration.getKeybindings();
-        },
-        'theme.get': () => configuration.getTheme(),
-        'theme.update': async ({ source }) => {
-            await configuration.updateTheme(source);
-            database.setAppState('activeThemeId', configuration.getTheme().value.id);
-            return configuration.getTheme();
-        },
-        'theme.importPath': async ({ path }) => {
-            const theme = await configuration.importTheme(path);
-            database.setAppState('activeThemeId', theme.id);
-            return theme;
-        },
-        'config.paths': () => ({
-            settings: configuration.settingsPath,
-            keybindings: configuration.keybindingsPath,
-            theme: configuration.themePath,
+        ...createServiceHandlers({
+            acknowledgeFileMutation,
+            agentEnvironment,
+            agentHooks,
+            awaitAgentSettingsReconcile: () => agentSettingsReconcile,
+            configuration,
+            database,
+            diagnostics,
+            files,
+            git,
+            introspection,
+            projectStatus,
+            userDataPath,
         }),
-        'diagnostics.exportPath': ({ destination }) => diagnostics.export(destination),
-        'diagnostics.snapshot': () => diagnostics.snapshot(),
-        'logs.query': (params) => introspection.logs.query(params),
         'runtime.shutdown': async () => {
             await close();
             return null;
         },
     };
-    /** File watching is recoverable background work and must never delay Runtime IPC or the first Terminal. */
-    void files.watchSession(selectedSessionId());
+    watchSessionInBackground(selectedSessionId());
     workbenchRoots.primeAll();
-    /** Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected
-        Session's interrupted Terminals must never delay Runtime startup past the 3s large-Project gate. */
+    /**
+     * Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected Session's
+     * interrupted Terminals must never delay Runtime startup past the 3s large-Project gate.
+     */
     const initialSessionId = selectedSessionId();
     if (initialSessionId) {
-        void restoreInterruptedTerminals(initialSessionId);
+        restoreInterruptedTerminalsInBackground(initialSessionId);
         coordinator.probeSessionPrimaryAgent(initialSessionId);
     }
     return { handlers, close };

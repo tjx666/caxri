@@ -1,11 +1,27 @@
-#!/usr/bin/env bun
-
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { basename, dirname, join, relative, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { assertBuildOutputsFresh } from '../../../../src/shared/node/build-freshness';
+import {
+    acquireDesktopLease,
+    beginDesktopLeaseHandoff,
+    releaseDesktopLease,
+    transferDesktopLease,
+} from '../../switch-worktree/scripts/desktop-lease';
+import { assertAcceptanceBuildCommit } from './build-identity';
+import {
+    beginCaseLifecycle,
+    completeCaseLifecycle,
+    loadAcceptanceCasePlan,
+    markCaseLifecycleReady,
+    validateAcceptanceCaseLaunch,
+} from './report';
+import type { RuntimeState } from './runtime-state';
 import {
     errorCode,
     getProcessIdentity,
@@ -14,23 +30,7 @@ import {
     prepareAcceptanceUserData,
     removeOwnedUserData,
     runtimeStateSchema,
-    type RuntimeState,
 } from './runtime-state';
-import { assertAcceptanceBuildCommit } from './build-identity';
-import {
-    acquireDesktopLease,
-    beginDesktopLeaseHandoff,
-    releaseDesktopLease,
-    transferDesktopLease,
-} from '../../switch-worktree/scripts/desktop-lease';
-import { assertBuildOutputsFresh } from '../../../../src/shared/node/build-freshness';
-import {
-    beginCaseLifecycle,
-    completeCaseLifecycle,
-    loadAcceptanceCasePlan,
-    markCaseLifecycleReady,
-    validateAcceptanceCaseLaunch,
-} from './report';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
@@ -94,7 +94,7 @@ function parseOptions(argv: string[]): ParsedOptions {
 
 function stringOptions(options: ParsedOptions, key: string): string[] {
     const values = options[key] ?? [];
-    if (values.some((value) => value === true)) throw new Error(`--${key} requires a value`);
+    if (values.includes(true)) throw new Error(`--${key} requires a value`);
     return values as string[];
 }
 
@@ -106,7 +106,7 @@ function stringOption(options: ParsedOptions, key: string): string | undefined {
     return value;
 }
 
-function booleanOption(options: ParsedOptions, key: string): boolean {
+function hasBooleanOption(options: ParsedOptions, key: string): boolean {
     const values = options[key] ?? [];
     if (values.length > 1) throw new Error(`--${key} may only be provided once`);
     if (values.some((value) => value !== true)) throw new Error(`--${key} does not take a value`);
@@ -147,7 +147,9 @@ async function removeStaleRuntime(): Promise<void> {
         );
     }
 
-    /** Preserve a verified live owner; only stale identity can release its state. */
+    /**
+     * Preserve a verified live owner; only stale identity can release its state.
+     */
     if (await isOwnedRuntime(current)) {
         throw new Error('Acceptance instance already running with a live owned process');
     }
@@ -158,16 +160,18 @@ async function removeStaleRuntime(): Promise<void> {
 async function assertPortAvailable(port: number): Promise<void> {
     const server = createServer();
     server.unref();
-    await new Promise<void>((resolveListen, rejectListen) => {
-        server.once('error', rejectListen);
-        server.listen(port, '127.0.0.1', resolveListen);
-    }).catch((error: unknown) => {
+    try {
+        await new Promise<void>((resolve, reject) => {
+            server.once('error', reject);
+            server.listen(port, '127.0.0.1', resolve);
+        });
+    } catch (error: unknown) {
         if (errorCode(error) === 'EADDRINUSE')
-            throw new Error(`CDP port ${port} is already in use`);
+            throw new Error(`CDP port ${port} is already in use`, { cause: error });
         throw error;
-    });
-    await new Promise<void>((resolveClose, rejectClose) =>
-        server.close((error) => (error ? rejectClose(error) : resolveClose())),
+    }
+    await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
     );
 }
 
@@ -180,17 +184,21 @@ async function writeRuntime(state: RuntimeState): Promise<void> {
 
 async function waitForCdp(port: number, child: ChildProcess): Promise<void> {
     const deadline = Date.now() + 30_000;
+    // This is a poll loop: each iteration must await the previous probe and retry delay before
+    // deciding whether to poll again, so the awaits below are intentionally sequential.
     while (Date.now() < deadline) {
         if (child.exitCode !== null) {
             throw new Error(`Electron exited before CDP became ready (${child.exitCode})`);
         }
         try {
+            // eslint-disable-next-line no-await-in-loop
             const response = await fetch(`http://127.0.0.1:${port}/json/version`);
             if (response.ok) return;
         } catch {
             // The listener is expected to reject connections while Electron starts.
         }
-        await new Promise<void>((resolveWait) => setTimeout(resolveWait, 250));
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
     }
     throw new Error(`Timed out waiting for CDP on port ${port}`);
 }
@@ -203,7 +211,7 @@ async function main(): Promise<void> {
     }
 
     const port = Number(stringOption(options, 'port') ?? 9222);
-    if (!Number.isInteger(port) || port < 1024 || port > 65_535) {
+    if (!Number.isSafeInteger(port) || port < 1024 || port > 65_535) {
         throw new Error('--port must be an integer between 1024 and 65535');
     }
 
@@ -224,11 +232,13 @@ async function main(): Promise<void> {
             (root) => resolve(PROJECT_ROOT, root),
         );
         await Promise.all(
-            testRootPaths.map((root) =>
-                access(root).catch(() => {
+            testRootPaths.map(async (root) => {
+                try {
+                    await access(root);
+                } catch {
                     throw new Error(`Test root does not exist: ${root}`);
-                }),
-            ),
+                }
+            }),
         );
         const testRootPath = testRootPaths[0];
         const caseId = stringOption(options, 'case-id');
@@ -238,8 +248,8 @@ async function main(): Promise<void> {
         }
         const caseMode = (stringOption(options, 'case-mode') ?? 'isolated') as
             'isolated' | 'restart';
-        const reuseUserDataDir = stringOption(options, 'reuse-user-data');
-        const cleanupReusable = booleanOption(options, 'cleanup-reused-user-data');
+        const reuseUserDataDirectory = stringOption(options, 'reuse-user-data');
+        const isCleanupReusable = hasBooleanOption(options, 'cleanup-reused-user-data');
         const plannedCase = await loadAcceptanceCasePlan(reportDirectory, caseId);
         assertAcceptanceBuildCommit({
             builtMainSource: await readFile(BUILT_MAIN_PATH, 'utf8'),
@@ -247,26 +257,29 @@ async function main(): Promise<void> {
         });
         const { profileId } = validateAcceptanceCaseLaunch(plannedCase.item.stateIsolation, {
             caseMode,
-            cleanupReusable,
-            reuseUserData: Boolean(reuseUserDataDir),
+            cleanupReusable: isCleanupReusable,
+            reuseUserData: Boolean(reuseUserDataDirectory),
         });
         const launcherIdentity = await getProcessIdentity(process.pid);
         if (!launcherIdentity) throw new Error('Could not establish Acceptance launcher identity');
         const { acceptanceCase, ownedUserData, userDataDir } = await prepareAcceptanceUserData({
             caseId,
             caseMode,
-            cleanupReusable,
+            cleanupReusable: isCleanupReusable,
             profileId,
-            reuseUserDataDir,
+            reuseUserDataDir: reuseUserDataDirectory,
         });
-        const lifecycleLaunchId = await beginCaseLifecycle(plannedCase.directory, {
-            caseId,
-            profileIdentity: profileId ?? basename(userDataDir),
-            stateIsolation: plannedCase.item.stateIsolation,
-        }).catch(async (error: unknown) => {
+        let lifecycleLaunchId: string;
+        try {
+            lifecycleLaunchId = await beginCaseLifecycle(plannedCase.directory, {
+                caseId,
+                profileIdentity: profileId ?? basename(userDataDir),
+                stateIsolation: plannedCase.item.stateIsolation,
+            });
+        } catch (error: unknown) {
             await removeOwnedUserData({ ownedUserData, userDataDir });
             throw error;
-        });
+        }
 
         try {
             desktopLease = await beginDesktopLeaseHandoff(desktopLease);
@@ -283,15 +296,21 @@ async function main(): Promise<void> {
                 stdio: 'inherit',
             });
             const childExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-                (resolveExit, rejectExit) => {
-                    child.once('error', rejectExit);
-                    child.once('exit', (code, signal) => resolveExit({ code, signal }));
+                (resolve, reject) => {
+                    child.once('error', reject);
+                    child.once('exit', (code, signal) => resolve({ code, signal }));
                 },
             );
-            let stopping = false;
+            async function rejectOnChildExit(): Promise<never> {
+                const { code, signal } = await childExit;
+                throw new Error(
+                    `Electron exited before CDP was ready (${code ?? signal ?? 'unknown'})`,
+                );
+            }
+            let isStopping = false;
             const stop = (): void => {
-                if (stopping) return;
-                stopping = true;
+                if (isStopping) return;
+                isStopping = true;
                 if (isAlive(child.pid)) child.kill('SIGTERM');
                 const forceTimer = setTimeout(() => {
                     if (isAlive(child.pid)) child.kill('SIGKILL');
@@ -322,41 +341,45 @@ async function main(): Promise<void> {
                     userDataDir,
                 };
                 await writeRuntime(runtime);
-                await Promise.race([
-                    waitForCdp(port, child),
-                    childExit.then<never>(({ code, signal }) => {
-                        throw new Error(
-                            `Electron exited before CDP was ready (${code ?? signal ?? 'unknown'})`,
-                        );
-                    }),
-                ]);
+                await Promise.race([waitForCdp(port, child), rejectOnChildExit()]);
                 await markCaseLifecycleReady(plannedCase.directory, {
                     caseId,
                     launchId: lifecycleLaunchId,
                 });
                 console.log(JSON.stringify({ ...runtime, status: 'ready' }));
                 const { code, signal } = await childExit;
-                if (!stopping && code !== 0) {
+                if (!isStopping && code !== 0) {
                     throw new Error(`Electron exited with code ${code} (${signal ?? 'no signal'})`);
                 }
             } finally {
                 stop();
-                await childExit.catch(() => undefined);
+                try {
+                    await childExit;
+                } catch {
+                    // Ignored during cleanup; the process is already being torn down.
+                }
                 process.off('SIGINT', stop);
                 process.off('SIGTERM', stop);
-                await unlink(RUNTIME_PATH).catch((error: unknown) => {
+                try {
+                    await unlink(RUNTIME_PATH);
+                } catch (error: unknown) {
+                    // A non-ENOENT failure to remove the owned runtime.json is itself an
+                    // unexpected filesystem error worth surfacing over an in-flight launch
+                    // failure; this intentionally preserves the pre-existing
+                    // `.catch()`-chain masking behavior rather than silently swallowing it.
+                    // eslint-disable-next-line no-unsafe-finally
                     if (errorCode(error) !== 'ENOENT') throw error;
-                });
+                }
             }
         } finally {
-            let cleanupCompleted = false;
+            let isCleanupCompleted = false;
             try {
                 await removeOwnedUserData({ ownedUserData, userDataDir });
-                cleanupCompleted = ownedUserData;
+                isCleanupCompleted = ownedUserData;
             } finally {
                 await completeCaseLifecycle(plannedCase.directory, {
                     caseId,
-                    cleanupCompleted,
+                    cleanupCompleted: isCleanupCompleted,
                     cleanupRequested: ownedUserData,
                     launchId: lifecycleLaunchId,
                 });
@@ -367,7 +390,9 @@ async function main(): Promise<void> {
     }
 }
 
-void main().catch((error: unknown) => {
+try {
+    await main();
+} catch (error: unknown) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
-});
+}

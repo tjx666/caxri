@@ -1,21 +1,22 @@
 import { createHash } from 'node:crypto';
 
-import { agentProviderCatalog, type AgentLaunchSettings } from '../../shared/agents';
+import type { AgentLaunchSettings } from '../../shared/agents';
+import { agentProviderCatalog } from '../../shared/agents';
 import type {
     AgentDispatchFailure,
     AgentDispatchLaunch,
     AgentDispatchReceipt,
-    AgentDispatchResumeParams,
-    AgentDispatchStartParams,
+    AgentDispatchResumeParams as AgentDispatchResumeParameters,
+    AgentDispatchStartParams as AgentDispatchStartParameters,
     AgentDispatchWaitResult,
 } from '../../shared/ipc/agent-dispatch-contract';
-import type { AgentEndpointRef } from '../../shared/ipc/agent-endpoint-contract';
+import type { AgentEndpointRef as AgentEndpointReference } from '../../shared/ipc/agent-endpoint-contract';
 import { CaxriError, toWireError } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { Principal } from '../../shared/ipc/principal';
 import type { AgentProvider, ProcessState, TerminalRecord } from '../../shared/types';
-import type { AgentCoordinator } from '../agents';
 import type { RuntimeAgentEndpointLifecycle } from '../agent-endpoints';
+import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
 import type { TerminalManager, TerminalWorkingDirectoryIdentity } from '../terminal';
@@ -75,11 +76,29 @@ function launchProjection(
     };
 }
 
-function settled(receipt: AgentDispatchReceipt): boolean {
+function isSettled(receipt: AgentDispatchReceipt): boolean {
     return ['stopped', 'interrupted', 'failed'].includes(receipt.status);
 }
 
-/** Runtime-owned dispatch lifecycle with durable idempotency before the first PTY side effect. */
+function terminalStatePatch(
+    state: ProcessState,
+): { status: AgentDispatchReceipt['status']; failure?: AgentDispatchFailure } | undefined {
+    switch (state) {
+        case 'stopped':
+            return { status: 'stopped' };
+        case 'interrupted':
+            return { status: 'interrupted' };
+        case 'dead':
+        case 'failed':
+            return { status: 'failed', failure: { code: 'UNAVAILABLE', reason: 'process_failed' } };
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * Runtime-owned dispatch lifecycle with durable idempotency before the first PTY side effect.
+ */
 export class AgentDispatchService {
     private readonly inFlight = new SingleFlight<string, AgentDispatchReceipt>();
     private readonly now: () => number;
@@ -89,154 +108,26 @@ export class AgentDispatchService {
         this.now = options.now ?? Date.now;
     }
 
-    initialize(): void {
-        /** A Runtime restart cannot retain its PTY/Endpoint proof; never retry an ambiguous spawn. */
-        for (const { receipt } of this.options.database.activeAgentDispatches())
-            this.update(receipt.dispatchId, {
-                status: 'failed',
-                failure: { code: 'UNAVAILABLE', reason: 'host_reset' },
-            });
-    }
-
-    start(
-        dispatchId: string,
-        principal: Principal,
-        input: AgentDispatchStartParams,
-    ): Promise<AgentDispatchReceipt> {
-        return this.inFlight.run(dispatchId, () => this.startOnce(dispatchId, principal, input));
-    }
-
-    resume(
-        dispatchId: string,
-        principal: Principal,
-        input: AgentDispatchResumeParams,
-    ): Promise<AgentDispatchReceipt> {
-        return this.inFlight.run(dispatchId, () =>
-            this.resumeOnce(dispatchId, principal, input, 'resume'),
-        );
-    }
-
-    wake(
-        dispatchId: string,
-        principal: Principal,
-        target: { projectId: string; sessionId: string; terminalId: string },
-    ): Promise<AgentDispatchReceipt> {
-        return this.inFlight.run(dispatchId, async () => {
-            const fingerprint = dispatchFingerprint(principal, 'wake', target);
-            const existing = this.existing(dispatchId, fingerprint);
-            if (existing) return existing;
-            const terminal = this.targetTerminal(target);
-            if (!terminal.agentSessionId)
-                throw new CaxriError(
-                    'UNAVAILABLE',
-                    'Stopped Agent has no resumable Provider session',
-                );
-            return this.resumeOnce(
-                dispatchId,
-                principal,
-                { ...target, providerSessionId: terminal.agentSessionId },
-                'wake',
-                fingerprint,
-            );
-        });
-    }
-
-    status(dispatchId: string, projectScope: readonly string[] | null): AgentDispatchReceipt {
-        const stored = this.options.database.getAgentDispatch(dispatchId);
-        if (!stored || (projectScope && !projectScope.includes(stored.receipt.projectId)))
-            throw new CaxriError('NOT_FOUND', 'Agent dispatch receipt was not found');
-        return stored.receipt;
-    }
-
-    wait(
-        dispatchId: string,
-        projectScope: readonly string[] | null,
-        afterRevision: number,
-        timeoutMs: number,
+    private cancelWaitersInGroup(
+        waiters: Set<DispatchWaiter>,
         waitId: string,
-    ): Promise<AgentDispatchWaitResult> {
-        const current = this.status(dispatchId, projectScope);
-        if (current.revision > afterRevision || settled(current))
-            return Promise.resolve({ receipt: current, outcome: 'changed' });
-        const waiters = this.waiters.get(dispatchId) ?? new Set();
-        const waiterCount = [...this.waiters.values()].reduce(
-            (count, group) => count + group.size,
-            0,
-        );
-        if (waiterCount >= MAX_DISPATCH_WAITERS || waiters.size >= MAX_WAITERS_PER_DISPATCH)
-            throw new CaxriError('CAPACITY', 'Too many Agent dispatch waits are pending');
-        return new Promise((resolve) => {
-            const waiter: DispatchWaiter = {
-                afterRevision,
-                resolve,
-                timer: setTimeout(() => {
-                    const currentWaiters = this.waiters.get(dispatchId);
-                    currentWaiters?.delete(waiter);
-                    if (currentWaiters?.size === 0) this.waiters.delete(dispatchId);
-                    resolve({
-                        receipt: this.status(dispatchId, projectScope),
-                        outcome: 'timed_out',
-                    });
-                }, timeoutMs),
-                waitId,
-            };
-            waiter.timer.unref();
-            waiters.add(waiter);
-            this.waiters.set(dispatchId, waiters);
-        });
-    }
-
-    cancelWait(waitId: string): boolean {
-        let canceled = false;
-        for (const [dispatchId, waiters] of this.waiters) {
-            const receipt = this.options.database.getAgentDispatch(dispatchId)?.receipt;
-            if (!receipt) continue;
-            for (const waiter of [...waiters]) {
-                if (waiter.waitId !== waitId) continue;
-                clearTimeout(waiter.timer);
-                waiters.delete(waiter);
-                waiter.resolve({ receipt, outcome: 'canceled' });
-                canceled = true;
-            }
-            if (waiters.size === 0) this.waiters.delete(dispatchId);
+        receipt: AgentDispatchReceipt,
+    ): boolean {
+        let isCanceled = false;
+        for (const waiter of waiters) {
+            if (waiter.waitId !== waitId) continue;
+            clearTimeout(waiter.timer);
+            waiters.delete(waiter);
+            waiter.resolve({ receipt, outcome: 'canceled' });
+            isCanceled = true;
         }
-        return canceled;
-    }
-
-    observeTerminalState(terminalId: string, state: ProcessState): void {
-        for (const { receipt } of this.options.database.agentDispatchesForTerminal(terminalId)) {
-            if (settled(receipt)) continue;
-            if (state === 'starting') {
-                if (receipt.status === 'running')
-                    this.update(receipt.dispatchId, { status: 'interrupted' });
-                continue;
-            }
-            if (state === 'stopped') this.update(receipt.dispatchId, { status: 'stopped' });
-            else if (state === 'interrupted')
-                this.update(receipt.dispatchId, { status: 'interrupted' });
-            else if (state === 'dead' || state === 'failed')
-                this.update(receipt.dispatchId, {
-                    status: 'failed',
-                    failure: { code: 'UNAVAILABLE', reason: 'process_failed' },
-                });
-        }
-    }
-
-    close(): void {
-        for (const [dispatchId, waiters] of this.waiters) {
-            const receipt = this.options.database.getAgentDispatch(dispatchId)?.receipt;
-            for (const waiter of waiters) {
-                clearTimeout(waiter.timer);
-                if (receipt) waiter.resolve({ receipt, outcome: 'canceled' });
-            }
-        }
-        this.waiters.clear();
+        return isCanceled;
     }
 
     private async startOnce(
         dispatchId: string,
         principal: Principal,
-        input: AgentDispatchStartParams,
+        input: AgentDispatchStartParameters,
     ): Promise<AgentDispatchReceipt> {
         const fingerprint = dispatchFingerprint(principal, 'start', input);
         const existing = this.existing(dispatchId, fingerprint);
@@ -279,7 +170,7 @@ export class AgentDispatchService {
     private async resumeOnce(
         dispatchId: string,
         principal: Principal,
-        input: AgentDispatchResumeParams,
+        input: AgentDispatchResumeParameters,
         operation: 'resume' | 'wake',
         requestFingerprint?: string,
     ): Promise<AgentDispatchReceipt> {
@@ -297,11 +188,16 @@ export class AgentDispatchService {
         )
             throw new CaxriError('CONFLICT', 'Agent Terminal is already running');
         const launch = this.options.launchSettings(terminal.provider);
-        const resumeArgs = agentProviderCatalog[terminal.provider].resumeArguments(
+        const resumeArguments = agentProviderCatalog[terminal.provider].resumeArguments(
             input.providerSessionId,
         );
         const requested = launchProjection(terminal.provider, launch, 'resume');
-        const effective = launchProjection(terminal.provider, launch, 'resume', resumeArgs.length);
+        const effective = launchProjection(
+            terminal.provider,
+            launch,
+            'resume',
+            resumeArguments.length,
+        );
         const stored = this.options.database.createAgentDispatch({
             dispatchId,
             requestFingerprint: fingerprint,
@@ -412,7 +308,7 @@ export class AgentDispatchService {
         patch: {
             status: AgentDispatchReceipt['status'];
             terminalId?: string;
-            endpoint?: AgentEndpointRef;
+            endpoint?: AgentEndpointReference;
             failure?: AgentDispatchFailure;
         },
     ): AgentDispatchReceipt {
@@ -428,12 +324,143 @@ export class AgentDispatchService {
         this.options.emit({ event: 'agent.dispatch.changed', payload: receipt });
         const waiters = this.waiters.get(receipt.dispatchId);
         if (!waiters) return;
-        for (const waiter of [...waiters]) {
-            if (receipt.revision <= waiter.afterRevision && !settled(receipt)) continue;
+        for (const waiter of waiters) {
+            if (receipt.revision <= waiter.afterRevision && !isSettled(receipt)) continue;
             clearTimeout(waiter.timer);
             waiters.delete(waiter);
             waiter.resolve({ receipt, outcome: 'changed' });
         }
         if (waiters.size === 0) this.waiters.delete(receipt.dispatchId);
+    }
+
+    initialize(): void {
+        /**
+         * A Runtime restart cannot retain its PTY/Endpoint proof; never retry an ambiguous spawn.
+         */
+        for (const { receipt } of this.options.database.activeAgentDispatches())
+            this.update(receipt.dispatchId, {
+                status: 'failed',
+                failure: { code: 'UNAVAILABLE', reason: 'host_reset' },
+            });
+    }
+
+    start(
+        dispatchId: string,
+        principal: Principal,
+        input: AgentDispatchStartParameters,
+    ): Promise<AgentDispatchReceipt> {
+        return this.inFlight.run(dispatchId, () => this.startOnce(dispatchId, principal, input));
+    }
+
+    resume(
+        dispatchId: string,
+        principal: Principal,
+        input: AgentDispatchResumeParameters,
+    ): Promise<AgentDispatchReceipt> {
+        return this.inFlight.run(dispatchId, () =>
+            this.resumeOnce(dispatchId, principal, input, 'resume'),
+        );
+    }
+
+    wake(
+        dispatchId: string,
+        principal: Principal,
+        target: { projectId: string; sessionId: string; terminalId: string },
+    ): Promise<AgentDispatchReceipt> {
+        return this.inFlight.run(dispatchId, async () => {
+            const fingerprint = dispatchFingerprint(principal, 'wake', target);
+            const existing = this.existing(dispatchId, fingerprint);
+            if (existing) return existing;
+            const terminal = this.targetTerminal(target);
+            if (!terminal.agentSessionId)
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    'Stopped Agent has no resumable Provider session',
+                );
+            return this.resumeOnce(
+                dispatchId,
+                principal,
+                { ...target, providerSessionId: terminal.agentSessionId },
+                'wake',
+                fingerprint,
+            );
+        });
+    }
+
+    status(dispatchId: string, projectScope: readonly string[] | null): AgentDispatchReceipt {
+        const stored = this.options.database.getAgentDispatch(dispatchId);
+        if (!stored || (projectScope && !projectScope.includes(stored.receipt.projectId)))
+            throw new CaxriError('NOT_FOUND', 'Agent dispatch receipt was not found');
+        return stored.receipt;
+    }
+
+    wait(
+        dispatchId: string,
+        projectScope: readonly string[] | null,
+        afterRevision: number,
+        timeoutMs: number,
+        waitId: string,
+    ): Promise<AgentDispatchWaitResult> {
+        const current = this.status(dispatchId, projectScope);
+        if (current.revision > afterRevision || isSettled(current))
+            return Promise.resolve({ receipt: current, outcome: 'changed' });
+        const waiters = this.waiters.get(dispatchId) ?? new Set();
+        const waiterCount = this.waiters.values().reduce((count, group) => count + group.size, 0);
+        if (waiterCount >= MAX_DISPATCH_WAITERS || waiters.size >= MAX_WAITERS_PER_DISPATCH)
+            throw new CaxriError('CAPACITY', 'Too many Agent dispatch waits are pending');
+        return new Promise((resolve) => {
+            const waiter: DispatchWaiter = {
+                afterRevision,
+                resolve,
+                timer: setTimeout(() => {
+                    const currentWaiters = this.waiters.get(dispatchId);
+                    currentWaiters?.delete(waiter);
+                    if (currentWaiters?.size === 0) this.waiters.delete(dispatchId);
+                    resolve({
+                        receipt: this.status(dispatchId, projectScope),
+                        outcome: 'timed_out',
+                    });
+                }, timeoutMs),
+                waitId,
+            };
+            waiter.timer.unref();
+            waiters.add(waiter);
+            this.waiters.set(dispatchId, waiters);
+        });
+    }
+
+    cancelWait(waitId: string): boolean {
+        let isCanceled = false;
+        for (const [dispatchId, waiters] of this.waiters) {
+            const receipt = this.options.database.getAgentDispatch(dispatchId)?.receipt;
+            if (!receipt) continue;
+            if (this.cancelWaitersInGroup(waiters, waitId, receipt)) isCanceled = true;
+            if (waiters.size === 0) this.waiters.delete(dispatchId);
+        }
+        return isCanceled;
+    }
+
+    observeTerminalState(terminalId: string, state: ProcessState): void {
+        for (const { receipt } of this.options.database.agentDispatchesForTerminal(terminalId)) {
+            if (isSettled(receipt)) continue;
+            if (state === 'starting') {
+                if (receipt.status === 'running')
+                    this.update(receipt.dispatchId, { status: 'interrupted' });
+                continue;
+            }
+            const patch = terminalStatePatch(state);
+            if (patch) this.update(receipt.dispatchId, patch);
+        }
+    }
+
+    close(): void {
+        for (const [dispatchId, waiters] of this.waiters) {
+            const receipt = this.options.database.getAgentDispatch(dispatchId)?.receipt;
+            for (const waiter of waiters) {
+                clearTimeout(waiter.timer);
+                if (receipt) waiter.resolve({ receipt, outcome: 'canceled' });
+            }
+        }
+        this.waiters.clear();
     }
 }

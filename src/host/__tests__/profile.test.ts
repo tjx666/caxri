@@ -1,7 +1,10 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { createServer, type Server } from 'node:net';
+import type { Server } from 'node:net';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -27,16 +30,20 @@ async function listen(path: string): Promise<Server> {
 }
 
 afterEach(async () => {
+    const serversToClose = servers.slice();
+    servers.length = 0;
     await Promise.all(
-        servers.splice(0).map(
+        serversToClose.map(
             (server) =>
                 new Promise<void>((resolve) => {
                     server.close(() => resolve());
                 }),
         ),
     );
+    const directoriesToRemove = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
     );
 });
 

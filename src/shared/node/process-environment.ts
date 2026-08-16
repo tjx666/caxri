@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 const INHERITED_ENVIRONMENT_KEYS = [
     'HOME',
     'USER',
@@ -29,7 +31,9 @@ const INHERITED_ENVIRONMENT_KEYS = [
     'CLAUDE_CONFIG_DIR',
 ] as const;
 
-/** Retains explicit launch context without copying unrelated application credentials. */
+/**
+ * Retains explicit launch context without copying unrelated application credentials.
+ */
 export function safeProcessEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
     const environment: NodeJS.ProcessEnv = {};
     for (const key of INHERITED_ENVIRONMENT_KEYS) {

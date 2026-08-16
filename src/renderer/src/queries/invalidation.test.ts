@@ -1,8 +1,7 @@
-import { QueryClient } from '@tanstack/react-query';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import type { RuntimeEvent } from '@shared/ipc';
 import type { BootstrapState } from '@shared/types';
+import { QueryClient } from '@tanstack/react-query';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
     const state: { handler?: (event: RuntimeEvent) => void } = {};
@@ -10,7 +9,7 @@ const mocks = vi.hoisted(() => {
         state,
         onEvent: vi.fn((handler: (event: RuntimeEvent) => void) => {
             state.handler = handler;
-            return () => undefined;
+            return () => {};
         }),
     };
 });

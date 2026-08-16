@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => {
-    const handles = new Map<string, (...args: unknown[]) => unknown>();
-    const listeners = new Map<string, (...args: unknown[]) => unknown>();
+    const handles = new Map<string, (...arguments_: unknown[]) => unknown>();
+    const listeners = new Map<string, (...arguments_: unknown[]) => unknown>();
     return {
         handles,
         listeners,
         ipcMain: {
-            handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) =>
+            handle: vi.fn((channel: string, handler: (...arguments_: unknown[]) => unknown) =>
                 handles.set(channel, handler),
             ),
-            on: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) =>
+            on: vi.fn((channel: string, handler: (...arguments_: unknown[]) => unknown) =>
                 listeners.set(channel, handler),
             ),
         },
@@ -42,7 +42,7 @@ describe('workbench IPC sender boundary', () => {
         onEventsReady.mockClear();
         installWorkbenchIpc({
             isQuitting: () => false,
-            logger: () => undefined,
+            logger: () => {},
             onEventsReady,
             renderer: () => renderer as never,
             transport: { dispatch, negotiate },

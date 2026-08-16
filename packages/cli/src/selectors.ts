@@ -26,7 +26,7 @@ export function resolveSelector<T extends SelectableRecord>(
             candidates: matches.slice(0, 32).map(({ id, displayTitle, projectId }) => ({
                 id,
                 displayTitle,
-                ...(projectId ? { projectId } : {}),
+                ...(projectId && { projectId }),
             })),
         });
     throw new CaxriError('NOT_FOUND', `${options.kind} selector did not match`);

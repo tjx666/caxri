@@ -50,9 +50,9 @@ type OpenTerminalSearchHandler = () => void;
 const openHandlers = new Map<string, OpenTerminalSearchHandler>();
 
 /**
- * Connects the command registry to the mounted xterm pane without exposing Terminal content or
- * search state outside the Renderer. Identity-checked cleanup prevents a stale pane from removing
- * a newer handler when a Terminal tab changes in place.
+ * Connects the command registry to the mounted xterm pane without exposing Terminal content or search state outside the
+ * Renderer. Identity-checked cleanup prevents a stale pane from removing a newer handler when a Terminal tab changes in
+ * place.
  */
 export function registerTerminalSearchHandler(
     terminalId: string,

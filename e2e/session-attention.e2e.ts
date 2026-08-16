@@ -2,9 +2,8 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './support/fixtures.ts';
-
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createProjectSession,
@@ -59,16 +58,16 @@ test('Session attention persists until the selected Session is visibly focused',
         userDataDir: userData,
         providers: {
             claude: {
-                executableSource: `#!/bin/sh
+                executableSource: String.raw`#!/bin/sh
 if [ "$1" = "--version" ]; then
-  printf 'claude-test 1.0\\n'
+  printf 'claude-test 1.0\n'
   exit 0
 fi
-printf 'Fake Claude ready\\n'
+printf 'Fake Claude ready\n'
 while true; do
   if [ -f "$CLAUDE_CONFIG_DIR/trigger" ]; then
     /bin/rm -f "$CLAUDE_CONFIG_DIR/trigger"
-    printf 'metadata changed\\n'
+    printf 'metadata changed\n'
   fi
   sleep 0.05
 done
@@ -229,7 +228,9 @@ done
         await running.page.keyboard.press('Escape');
         await expect(activityCard).toBeHidden();
         await expect(firstRow).toBeFocused();
-        /** Outlasts PreviewCard's hover delay so a leaked focus timer cannot reopen the card. */
+        /**
+         * Outlasts PreviewCard's hover delay so a leaked focus timer cannot reopen the card.
+         */
         await running.page.waitForTimeout(600);
         await expect(activityCard).toBeHidden();
         await expect(firstRow).toBeFocused();
@@ -249,8 +250,10 @@ done
         const processPage = running.app.windows().find((page) => page !== running.page)!;
         await processPage.waitForLoadState('domcontentloaded');
         await expect.poll(() => processPage.evaluate(() => document.hasFocus())).toBe(true);
-        /** Playwright focus emulation reports both Electron pages as focused; align the main
-            document with the real native focus owner while Process Explorer is in front. */
+        /**
+         * Playwright focus emulation reports both Electron pages as focused; align the main document with the real
+         * native focus owner while Process Explorer is in front.
+         */
         await running.page.evaluate(() =>
             Object.defineProperty(document, 'hasFocus', {
                 configurable: true,
@@ -266,7 +269,7 @@ done
 
         await running.page.evaluate(() => Reflect.deleteProperty(document, 'hasFocus'));
         await running.page.bringToFront();
-        await running.page.evaluate(() => window.dispatchEvent(new Event('focus')));
+        await running.page.evaluate(() => dispatchEvent(new Event('focus')));
         await expect
             .poll(() =>
                 running.page.evaluate(
@@ -294,7 +297,11 @@ done
                 .getByRole('img', { name: 'Unread: Finished' }),
         ).toBeVisible();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

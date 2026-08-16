@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
-import { capabilityIds, methods, type CaxriMethod } from '@caxri/protocol';
+import type { CaxriMethod } from '@caxri/protocol';
+import { capabilityIds, methods } from '@caxri/protocol';
 
 import { findCliCommand, parseCliArguments } from '../src/commands';
 
@@ -13,21 +14,24 @@ function tokenize(command: string): string[] {
     return command.trim().split(/\s+/u).filter(Boolean);
 }
 
-const commandLines = [...skill.matchAll(/^caxri (.+)$/gmu)].map((match) => match[1]);
+const commandLines = skill
+    .matchAll(/^caxri (.+)$/gmu)
+    .map((match) => match[1])
+    .toArray();
 if (commandLines.length === 0) throw new Error('caxri-cli skill has no command examples');
 
 for (const source of commandLines) {
     const parsed = parseCliArguments(tokenize(source));
     const command = findCliCommand(parsed.tokens);
     if (!command) throw new Error(`Skill references an unknown command: caxri ${source}`);
-    const params = command.parseParams(parsed.tokens.slice(command.path.length));
+    const parameters = command.parseParams(parsed.tokens.slice(command.path.length));
     if (command.kind === 'remote') {
-        let requestParams = params;
+        let requestParameters = parameters;
         if (command.method === 'agent.message.wait')
-            requestParams = { timeoutMs: parsed.timeoutMs };
-        if (command.method === 'agent.dispatch.wait')
-            requestParams = { ...(params as object), timeoutMs: parsed.timeoutMs };
-        methods[command.method].params.parse(requestParams);
+            requestParameters = { timeoutMs: parsed.timeoutMs };
+        else if (command.method === 'agent.dispatch.wait')
+            requestParameters = { ...(parameters as object), timeoutMs: parsed.timeoutMs };
+        methods[command.method].params.parse(requestParameters);
     }
 }
 

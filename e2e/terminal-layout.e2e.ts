@@ -1,13 +1,13 @@
+import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test, type ElectronApplication, type Page } from './support/fixtures.ts';
-
 import type { ThemeTokens } from '../src/shared/types.ts';
-
+import type { ElectronApplication as ElectronApp, Page } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
@@ -24,13 +24,38 @@ interface TerminalGlyphPixels {
 }
 
 async function terminalGlyphPixelCounts(
-    app: ElectronApplication,
+    app: ElectronApp,
     page: Page,
     terminalId: string,
     glyph: string,
 ): Promise<TerminalGlyphPixels[]> {
     const pane = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
     const geometry = await pane.evaluate((paneElement, target) => {
+        /**
+         * Locate the DOM range for `target` inside a single row's text nodes, if present. Extracted so the outer row
+         * loop below can `continue` without nesting a `break` inside two loop levels
+         * (unicorn/no-break-in-nested-loop).
+         */
+        function findRowMatch(row: Element, matchTarget: string) {
+            const text = row.textContent ?? '';
+            if (text.trim() !== matchTarget) return null;
+            const index = text.indexOf(matchTarget);
+            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+            let offset = 0;
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                const length = node.textContent?.length ?? 0;
+                if (index < offset || index + matchTarget.length > offset + length) {
+                    offset += length;
+                    continue;
+                }
+                const range = document.createRange();
+                range.setStart(node, index - offset);
+                range.setEnd(node, index + matchTarget.length - offset);
+                return range.getBoundingClientRect();
+            }
+            return null;
+        }
+
         const paneBounds = paneElement.getBoundingClientRect();
         const screenElement = paneElement.querySelector('.xterm-screen');
         if (!screenElement) throw new Error('Terminal screen is unavailable');
@@ -38,29 +63,14 @@ async function terminalGlyphPixelCounts(
         if (!rows) throw new Error('Terminal rows are unavailable');
         const matches: Array<{ height: number; width: number; x: number; y: number }> = [];
         for (const row of rows.children) {
-            const text = row.textContent ?? '';
-            if (text.trim() !== target) continue;
-            const index = text.indexOf(target);
-            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-            let offset = 0;
-            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-                const length = node.textContent?.length ?? 0;
-                if (index < offset || index + target.length > offset + length) {
-                    offset += length;
-                    continue;
-                }
-                const range = document.createRange();
-                range.setStart(node, index - offset);
-                range.setEnd(node, index + target.length - offset);
-                const bounds = range.getBoundingClientRect();
-                matches.push({
-                    height: bounds.height,
-                    width: bounds.width,
-                    x: bounds.x - paneBounds.x,
-                    y: bounds.y - paneBounds.y,
-                });
-                break;
-            }
+            const bounds = findRowMatch(row, target);
+            if (!bounds) continue;
+            matches.push({
+                height: bounds.height,
+                width: bounds.width,
+                x: bounds.x - paneBounds.x,
+                y: bounds.y - paneBounds.y,
+            });
         }
         return { height: paneBounds.height, matches, width: paneBounds.width };
     }, glyph);
@@ -122,11 +132,14 @@ function alignedTerminalGlyphs(samples: TerminalGlyphPixels[]): {
 }
 
 async function terminalEdgeGlyphEvidence(
-    app: ElectronApplication,
+    app: ElectronApp,
     page: Page,
     terminalId: string,
     output: string,
-    minimumSamples = { ascii: 3, cjk: 3 },
+    {
+        ascii: minimumAsciiSamples = 3,
+        cjk: minimumCjkSamples = 3,
+    }: { ascii?: number; cjk?: number } = {},
 ): Promise<{
     alignedAscii: ReturnType<typeof alignedTerminalGlyphs>;
     alignedCjk: ReturnType<typeof alignedTerminalGlyphs>;
@@ -147,7 +160,7 @@ async function terminalEdgeGlyphEvidence(
                         .length,
             ),
         )
-        .toBeGreaterThanOrEqual(minimumSamples.ascii);
+        .toBeGreaterThanOrEqual(minimumAsciiSamples);
     const ascii = await terminalGlyphPixelCounts(app, page, terminalId, 'W');
     await input.press('Control+C');
 
@@ -163,11 +176,11 @@ async function terminalEdgeGlyphEvidence(
                         .length,
             ),
         )
-        .toBeGreaterThanOrEqual(minimumSamples.cjk);
+        .toBeGreaterThanOrEqual(minimumCjkSamples);
     const cjk = await terminalGlyphPixelCounts(app, page, terminalId, '界');
     await input.press('Control+C');
-    expect(ascii.length).toBeGreaterThanOrEqual(minimumSamples.ascii);
-    expect(cjk.length).toBeGreaterThanOrEqual(minimumSamples.cjk);
+    expect(ascii.length).toBeGreaterThanOrEqual(minimumAsciiSamples);
+    expect(cjk.length).toBeGreaterThanOrEqual(minimumCjkSamples);
     return {
         alignedAscii: alignedTerminalGlyphs(ascii),
         alignedCjk: alignedTerminalGlyphs(cjk),
@@ -192,7 +205,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await initialInput.focus();
         await initialInput.pressSequentially('export CAXRI_SPLIT_CONTINUITY=alive');
         await initialInput.press('Enter');
-        await initialInput.pressSequentially('printf "$CAXRI_SPLIT_CONTINUITY\\n"');
+        await initialInput.pressSequentially(String.raw`printf "$CAXRI_SPLIT_CONTINUITY\n"`);
         await initialInput.press('Enter');
         await expect(
             running.page.locator(
@@ -229,7 +242,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
             running.page.evaluate(
                 ({ firstTerminalId, targetIndex, xRatio, yRatio }) => {
                     const source = document.querySelector(
-                        `.work-tab[data-terminal-id="${firstTerminalId}"]`,
+                        `.work-tab[data-terminal-id="${CSS.escape(firstTerminalId)}"]`,
                     );
                     const target = document.querySelectorAll('.terminal-group')[targetIndex];
                     if (!source || !target) throw new Error('Terminal drag fixture not found');
@@ -259,7 +272,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
             `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-helper-textarea`,
         );
         await firstInput.focus();
-        await firstInput.pressSequentially('printf "$CAXRI_SPLIT_CONTINUITY\\n"');
+        await firstInput.pressSequentially(String.raw`printf "$CAXRI_SPLIT_CONTINUITY\n"`);
         await firstInput.press('Enter');
         await expect(
             running.page.locator(
@@ -294,7 +307,11 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await restoredFirstTab.locator('.tab-close').click();
         await expect(running.page.locator('.terminal-group')).toHaveCount(1);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -347,7 +364,7 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                     const screen = pane.querySelector('.xterm-screen')?.getBoundingClientRect();
                     const scrollbar = pane
                         .querySelector(
-                            '.xterm-scrollable-element > .xterm-scrollbar.xterm-vertical',
+                            ':scope .xterm-scrollable-element > .xterm-scrollbar.xterm-vertical',
                         )
                         ?.getBoundingClientRect();
                     if (!screen || !scrollbar) throw new Error('Terminal geometry is unavailable');
@@ -359,8 +376,12 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
             });
 
         for (const width of [1_160, 1_300]) {
+            // eslint-disable-next-line no-await-in-loop -- each viewport width must settle before the next resize.
             await running.page.setViewportSize({ width, height: 800 });
-            /** xterm fits asynchronously after the viewport resize; measure only after both panes converge. */
+            /**
+             * Xterm fits asynchronously after the viewport resize; measure only after both panes converge.
+             */
+            // eslint-disable-next-line no-await-in-loop -- each viewport width must settle before the next resize.
             await expect
                 .poll(async () => {
                     const geometry = await readGeometry();
@@ -369,6 +390,7 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                     );
                 })
                 .toBe(true);
+            // eslint-disable-next-line no-await-in-loop -- each viewport width must settle before the next resize.
             const geometry = await readGeometry();
 
             for (const [index, pane] of geometry.entries()) {
@@ -383,7 +405,11 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
             }
         }
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -396,20 +422,20 @@ test('Terminal paints complete ASCII and CJK glyphs in the final grid cells', as
     await execFileAsync('mkdir', ['-p', root]);
     await writeFile(
         output,
-        `#!/bin/sh
+        String.raw`#!/bin/sh
 i=0
-while [ "$i" -lt 80 ]; do printf 'filler-%03d\\n' "$i"; i=$((i + 1)); done
+while [ "$i" -lt 80 ]; do printf 'filler-%03d\n' "$i"; i=$((i + 1)); done
 cols=$(tput cols)
 if [ "$1" = ascii ]; then
   for offset in 2 3 4 5 6 7 8 9 10 11 12; do
-    if [ "$offset" -lt "$((cols - 1))" ]; then printf '%*sW\\n' "$((cols - 1 - offset))" ''; fi
+    if [ "$offset" -lt "$((cols - 1))" ]; then printf '%*sW\n' "$((cols - 1 - offset))" ''; fi
   done
-  printf '%*sW\\n' "$((cols - 1))" ''
+  printf '%*sW\n' "$((cols - 1))" ''
 else
   for offset in 2 3 4 5 6 7 8 9 10 11 12; do
-    if [ "$offset" -lt "$((cols - 2))" ]; then printf '%*s界\\n' "$((cols - 2 - offset))" ''; fi
+    if [ "$offset" -lt "$((cols - 2))" ]; then printf '%*s界\n' "$((cols - 2 - offset))" ''; fi
   done
-  printf '%*s界\\n' "$((cols - 2))" ''
+  printf '%*s界\n' "$((cols - 2))" ''
 fi
 sleep 30
 `,
@@ -444,24 +470,34 @@ sleep 30
             { fontSize: 32, width: 900 },
             { fontSize: 32, width: 1_160 },
         ]) {
+            // eslint-disable-next-line no-await-in-loop -- each font-size/width case must apply and settle before the next.
             await pageRequest(running.page, 'settings.update', {
                 source: JSON.stringify({
                     ...settings.value,
                     'terminal.fontSize': fontSize,
                 }),
             });
+            // eslint-disable-next-line no-await-in-loop -- each font-size/width case must apply and settle before the next.
             await running.page.setViewportSize({ height: 800, width });
+            // eslint-disable-next-line no-await-in-loop -- each font-size/width case must apply and settle before the next.
             await expect
                 .poll(() =>
-                    rows.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+                    // `getComputedStyle().fontSize` is a pixel string like "16px"; `Number()` would
+                    // produce `NaN` here, so `Number.parseFloat` remains required.
+                    rows.evaluate((element) => {
+                        // eslint-disable-next-line unicorn/prefer-number-coercion
+                        return Number.parseFloat(getComputedStyle(element).fontSize);
+                    }),
                 )
                 .toBe(fontSize);
+            // eslint-disable-next-line no-await-in-loop -- each font-size/width case must apply and settle before the next.
             await running.page.evaluate(
                 () =>
                     new Promise<void>((resolve) =>
                         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
                     ),
             );
+            // eslint-disable-next-line no-await-in-loop -- each font-size/width case must apply and settle before the next.
             const { alignedAscii, alignedCjk } = await terminalEdgeGlyphEvidence(
                 running.app,
                 running.page,
@@ -489,7 +525,12 @@ sleep 30
         );
         await expect
             .poll(() =>
-                secondRows.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+                // `getComputedStyle().fontSize` is a pixel string like "16px"; `Number()` would
+                // produce `NaN` here, so `Number.parseFloat` remains required.
+                secondRows.evaluate((element) => {
+                    // eslint-disable-next-line unicorn/prefer-number-coercion
+                    return Number.parseFloat(getComputedStyle(element).fontSize);
+                }),
             )
             .toBe(13);
         await running.page.evaluate(
@@ -521,7 +562,11 @@ sleep 30
             );
         }
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

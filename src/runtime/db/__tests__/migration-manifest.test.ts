@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import migrationJournal from '../migrations/meta/_journal.json';
 import {
     assertMigrationManifestMatchesJournal,
     CURRENT_SCHEMA_VERSION,
@@ -8,6 +7,7 @@ import {
     PRESERVED_SCHEMA_VERSION,
     preservingMigrations,
 } from '../migrations/manifest';
+import migrationJournal from '../migrations/meta/_journal.json';
 
 describe('migration manifest', () => {
     it('matches every Drizzle journal entry in order and derives schema versions', () => {

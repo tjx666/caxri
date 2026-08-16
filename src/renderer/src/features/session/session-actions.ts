@@ -9,7 +9,7 @@ import { useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 
-export async function selectSession(sessionId: string): Promise<boolean> {
+export async function didSelectSession(sessionId: string): Promise<boolean> {
     const selected = await tryCommand(
         'Session selection failed',
         () => caxri.request('session.select', { sessionId }),
@@ -35,17 +35,24 @@ async function createProjectSession(
 ): Promise<void> {
     await tryCommand('Project creation failed', async () => {
         const project = await caxri.request('project.create', { rootPath });
-        /** Keeps the Agent-choice dialog open, now anchored to the created Project. */
+        /**
+         * Keeps the Agent-choice dialog open, now anchored to the created Project.
+         */
         useDialogStore.getState().askAgentForProject(project.id);
         await createSession(project.id, defaultAgent);
     });
 }
 
-/** Skips the Agent-choice dialog whenever the user configured a default Agent. */
+/**
+ * Skips the Agent-choice dialog whenever the user configured a default Agent.
+ */
 export function beginSessionCreation(projectId: string): void {
     const defaultAgent = getBootstrap()?.settings['session.defaultAgent'];
-    if (defaultAgent) void createSession(projectId, defaultAgent);
-    else useDialogStore.getState().askAgentForProject(projectId);
+    if (defaultAgent) {
+        // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void createSession(projectId, defaultAgent);
+    } else useDialogStore.getState().askAgentForProject(projectId);
 }
 
 export async function chooseProjectDirectory(): Promise<void> {
@@ -62,10 +69,12 @@ export function selectProject(projectId: string): void {
     const session = getBootstrap()?.sessions.find(
         (item) => item.projectId === projectId && item.archivedAt === undefined,
     );
-    if (session) void selectSession(session.id);
+    // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    if (session) void didSelectSession(session.id);
 }
 
-export async function reorderProject(projectId: string, targetIndex: number): Promise<boolean> {
+export async function didReorderProject(projectId: string, targetIndex: number): Promise<boolean> {
     const reordered = await tryCommand('Project reordering failed', () =>
         caxri.request('project.reorder', { projectId, targetIndex }),
     );
@@ -73,6 +82,8 @@ export async function reorderProject(projectId: string, targetIndex: number): Pr
 }
 
 export function archiveSession(sessionId: string): void {
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         'Session archive failed',
         () => caxri.request('session.archive', { sessionId }),
@@ -81,6 +92,8 @@ export function archiveSession(sessionId: string): void {
 }
 
 export function unarchiveSession(sessionId: string): void {
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         'Session restore failed',
         () => caxri.request('session.unarchive', { sessionId }),
@@ -88,7 +101,7 @@ export function unarchiveSession(sessionId: string): void {
     );
 }
 
-export async function renameSession(sessionId: string, displayTitle: string): Promise<boolean> {
+export async function didRenameSession(sessionId: string, displayTitle: string): Promise<boolean> {
     const renamed = await tryCommand(
         'Session rename failed',
         () => caxri.request('session.rename', { sessionId, displayTitle }),
@@ -98,25 +111,39 @@ export async function renameSession(sessionId: string, displayTitle: string): Pr
 }
 
 /**
- * The directory-picker grant is a single-use Main-process authorization, so abandoning the Agent
- * choice must revoke it instead of leaving the root reachable.
+ * The directory-picker grant is a single-use Main-process authorization, so abandoning the Agent choice must revoke it
+ * instead of leaving the root reachable.
  */
 export function cancelPendingSession(): void {
     const pendingRoot = useDialogStore.getState().pendingRoot;
-    if (pendingRoot) void caxri.request('project.cancelCreate', { rootPath: pendingRoot });
+    if (pendingRoot) {
+        // Fire-and-forget: revoking an abandoned directory-picker grant has no UI-visible outcome
+        // to await, and a failure here has nothing left to affect besides the grant itself.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void caxri.request('project.cancelCreate', { rootPath: pendingRoot });
+    }
     clearPendingSession();
 }
 
 export function confirmPendingSession(kind: TerminalKind | null): void {
     const { pendingRoot, pendingProjectId } = useDialogStore.getState();
-    if (pendingRoot) void createProjectSession(pendingRoot, kind);
-    else if (pendingProjectId) void createSession(pendingProjectId, kind);
+    // Fire-and-forget: both `createProjectSession` and `createSession` funnel their own failures
+    // into a toast via `tryCommand`.
+    if (pendingRoot) {
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void createProjectSession(pendingRoot, kind);
+    } else if (pendingProjectId) {
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void createSession(pendingProjectId, kind);
+    }
 }
 
 export function deleteSelectedProject(): void {
     const bootstrap = getBootstrap();
     const project = selectSelectedProject(bootstrap);
     if (!bootstrap || !project) return;
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Project deletion failed', async () => {
         const result = await caxri.request('project.delete', { projectId: project.id });
         if ('canceled' in result) return;
@@ -130,6 +157,8 @@ export function deleteSelectedProject(): void {
 }
 
 export function deleteSession(sessionId: string): void {
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Session deletion failed', async () => {
         const result = await caxri.request('session.delete', { sessionId });
         if ('canceled' in result) return;
@@ -153,8 +182,10 @@ export function selectAdjacentSession(delta: 1 | -1): void {
     const selectedIndex = activeSessions.findIndex(
         (session) => session.id === getSelectedSession()?.id,
     );
-    if (selectedIndex < 0) return;
+    if (selectedIndex === -1) return;
     const next =
         activeSessions[(selectedIndex + delta + activeSessions.length) % activeSessions.length];
-    if (next) void selectSession(next.id);
+    // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    if (next) void didSelectSession(next.id);
 }

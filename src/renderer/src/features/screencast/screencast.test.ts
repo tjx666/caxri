@@ -1,12 +1,11 @@
+import type { Keybinding } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
-import type { Keybinding } from '@shared/types';
-
+import type { ScreencastKeyboardInput } from './screencast';
 import {
     describeScreencastKey,
     screencastToggleToastMessage,
     useScreencastStore,
-    type ScreencastKeyboardInput,
 } from './screencast';
 
 const keybindings: Keybinding[] = [

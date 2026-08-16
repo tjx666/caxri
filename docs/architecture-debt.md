@@ -126,7 +126,7 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 ### AD-ui-work-tab-tablist — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Open Work now implements automatic keyboard activation, roving focus, an actual active tabpanel association, and text alternatives for dirty and process state.
-- **Evidence:** `src/renderer/src/features/tabs/WorkTabStrip.tsx:298-318` implements Arrow, Home, and End navigation. `src/renderer/src/features/tabs/WorkTab.tsx:127-173` owns tab semantics and descriptions. `e2e/editor-tabs.e2e.ts:275-354` covers mixed Terminal/editor keyboard and accessibility behavior, including preserving roving focus after Terminal attachment.
+- **Evidence:** `src/renderer/src/features/tabs/work-tab-strip.tsx:298-318` implements Arrow, Home, and End navigation. `src/renderer/src/features/tabs/work-tab.tsx:127-173` owns tab semantics and descriptions. `e2e/editor-tabs.e2e.ts:275-354` covers mixed Terminal/editor keyboard and accessibility behavior, including preserving roving focus after Terminal attachment.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ 43af4d6 via [issue caxri#171](https://github.com/tjx666/caxri/issues/171).
 - **Remediation target / Acceptance:** Arrow/Home/End changes and focuses the active work target, one tab participates in sequential focus, the active surface is associated, and color-only state has a screen-reader description.
@@ -257,7 +257,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-typescript-6-eslint-plus-7-tsc   | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                | electron-toolchain / stack-baseline                              |
 | IT-electron-vite-beta               | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                       | package.json, electron-toolchain.md                              |
 | IT-runtime-integration-not-inferred | `check` does not map every `src/runtime/*.ts` edit onto `runtime.integration.test.ts`                           | `check.ts`, `check.test.ts`                                      |
-| IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload, not nested feature boundaries           | `ErrorBoundary.tsx`, both Renderer entries                       |
+| IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload, not nested feature boundaries           | `error-boundary.tsx`, both Renderer entries                      |
 | IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk          | `eslint.config.ts`, `BrowserWindow` webPreferences               |
 
 ---

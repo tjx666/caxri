@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { agentProviderCatalog, agentProviderIds, type AgentProvider } from '../../shared/agents';
+import type { AgentProvider } from '../../shared/agents';
+import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
 import { readE2EAgentPolicy, selectE2EAgentExecutable } from '../../shared/node/e2e-agent-policy';
 import {
     clearRuntimeExecutableCache,
@@ -36,11 +37,13 @@ export async function discoverExecutable(
     const requestKey = `${name}:${selectedExecutable}`;
     const pending = executableRequests.get(requestKey);
     if (pending) return pending;
-    const request = resolveRuntimeExecutable(selectedExecutable).finally(() =>
-        executableRequests.delete(requestKey),
-    );
+    const request = resolveRuntimeExecutable(selectedExecutable);
     executableRequests.set(requestKey, request);
-    return request;
+    try {
+        return await request;
+    } finally {
+        executableRequests.delete(requestKey);
+    }
 }
 
 export async function readVersion(
@@ -50,9 +53,9 @@ export async function readVersion(
     const cached = versionCache.get(provider);
     if (cached?.executable === executable) return cached.version;
     try {
-        const env = await runtimeProcessEnvironment();
+        const environment = await runtimeProcessEnvironment();
         const { stdout, stderr } = await execFileAsync(executable, ['--version'], {
-            env,
+            env: environment,
             timeout: 5_000,
             maxBuffer: 64 * 1024,
         });

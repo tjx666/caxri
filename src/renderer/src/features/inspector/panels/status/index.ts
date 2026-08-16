@@ -1,7 +1,7 @@
 import { Activity } from 'lucide-react';
 
 import type { InspectorPanelDefinition } from '../types';
-import { ProjectStatusPanel } from './ProjectStatusPanel';
+import { ProjectStatusPanel } from './project-status-panel';
 
 export const statusPanel: InspectorPanelDefinition<'status'> = {
     id: 'status',

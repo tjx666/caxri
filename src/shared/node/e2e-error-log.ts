@@ -22,7 +22,7 @@ const fatalLogEvents = new Set([
 ]);
 
 function fallbackCode(event: string): string {
-    return event.replaceAll(/[^A-Za-z0-9]+/g, '_').toUpperCase();
+    return event.replaceAll(/[^A-Z0-9]+/gi, '_').toUpperCase();
 }
 
 function errorFromLog(record: StructuredErrorRecord): E2EErrorEvent | undefined {
@@ -60,15 +60,16 @@ function parseSnapshotErrors(snapshot: E2ELogSnapshot): E2EErrorEvent[] {
 }
 
 /**
- * Reads the bounded logger rotation set synchronously so Electron teardown cannot delete the
- * isolated profile before Playwright has captured both the older and active process logs.
+ * Reads the bounded logger rotation set synchronously so Electron teardown cannot delete the isolated profile before
+ * Playwright has captured both the older and active process logs.
  */
-export function readE2ELogSnapshots(userDataDir: string): E2ELogSnapshot[] {
+export function readE2ELogSnapshots(userDataDirectory: string): E2ELogSnapshot[] {
     const snapshots: E2ELogSnapshot[] = [];
     for (const source of ['host', 'main', 'runtime'] as const) {
-        const activePath = join(userDataDir, 'logs', `${source}.jsonl`);
+        const activePath = join(userDataDirectory, 'logs', `${source}.jsonl`);
         for (const path of [`${activePath}.1`, activePath]) {
             try {
+                // eslint-disable-next-line n/no-sync -- deliberate synchronous read; see the function doc comment above.
                 snapshots.push({ source, path, contents: readFileSync(path, 'utf8') });
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;

@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
-import type { SessionRecord, SessionState, TerminalRecord } from '../../shared/types';
 import { createTerminalLayout, splitTerminal } from '../../shared/terminal-layout';
+import type { SessionRecord, SessionState, TerminalRecord } from '../../shared/types';
 import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
-    DEFAULT_SESSION_TITLE,
     decideAgentMetadataUpdate,
+    DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     processActivityState,
     selectFallbackAfterDeletion,

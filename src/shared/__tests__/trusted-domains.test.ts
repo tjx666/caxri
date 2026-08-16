@@ -1,3 +1,11 @@
+/**
+ * This suite deliberately exercises `http://` inputs (protocol-mismatch normalization, exact-origin and wildcard-origin
+ * rules rejecting a Loopback default) to prove `parseExternalHttpUrl` and `isExternalUrlTrusted` treat HTTP and HTTPS
+ * as distinct origins. `unicorn/prefer-https` correctly flags string literals that look like a real URL to visit, but
+ * every literal below is test fixture data whose HTTP scheme is the exact behavior under test, not a URL Caxri would
+ * navigate to.
+ */
+/* eslint-disable unicorn/prefer-https */
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -44,7 +52,7 @@ describe('external URL parsing', () => {
 
         expect(result).toMatchObject({ ok: true });
         if (!result.ok) throw new Error(result.reason);
-        expect(result.url.toString()).toBe('https://xn--fsqu00a.xn--0zwm56d/a?b=1#c');
+        expect(result.url.href).toBe('https://xn--fsqu00a.xn--0zwm56d/a?b=1#c');
         expect(externalUrlOrigin(result.url)).toBe('https://xn--fsqu00a.xn--0zwm56d');
     });
 
@@ -97,3 +105,4 @@ describe('trusted domain matching', () => {
         expect(isExternalUrlTrusted(parsedUrl('https://example.com'), ['*', 'broken'])).toBe(false);
     });
 });
+/* eslint-enable unicorn/prefer-https */

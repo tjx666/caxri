@@ -1,17 +1,18 @@
 import { createWriteStream } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import process from 'node:process';
 
 import { ZipArchive } from 'archiver';
 
+import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { StructuredLogger } from '../shared/node/logger';
 import { redactLogValue, redactSecrets } from '../shared/node/redaction';
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { AppSettings } from '../shared/types';
 import type { CaxriDatabase } from './db';
 
-const DIAGNOSTIC_LOG_NAME = /^(host|main|runtime)\.jsonl(?:\.1)?$/u;
+const DIAGNOSTIC_LOG_NAME = /^(?:host|main|runtime)\.jsonl(?:\.1)?$/u;
 
 export function normalizeHome(path: string): string {
     const home = homedir();
@@ -46,7 +47,9 @@ interface ErrorIdentifierRecord {
     timestamp: string;
 }
 
-/** Selects identifiers only; error messages, stacks, and structured fields never leave the logs. */
+/**
+ * Selects identifiers only; error messages, stacks, and structured fields never leave the logs.
+ */
 export function summarizeRecentErrorIds(logs: string, limit = 5): string[] {
     const records: ErrorIdentifierRecord[] = [];
     for (const line of logs.split('\n')) {
@@ -79,7 +82,7 @@ export function summarizeRecentErrorIds(logs: string, limit = 5): string[] {
     }
     const boundedLimit = Math.min(5, Math.max(0, Math.trunc(limit)));
     if (boundedLimit === 0) return [];
-    const recent = records.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+    const recent = records.toSorted((left, right) => left.timestamp.localeCompare(right.timestamp));
     const unique: string[] = [];
     const seen = new Set<string>();
     for (const record of recent.toReversed()) {
@@ -89,38 +92,44 @@ export function summarizeRecentErrorIds(logs: string, limit = 5): string[] {
         }
         if (unique.length === boundedLimit) break;
     }
-    return unique.reverse();
+    return unique.toReversed();
 }
 
-/** Builds a content-free timing summary from already structured operation logs. */
-export function summarizePerformanceLogs(logs: string[]): PerformanceSummary[] {
-    const aggregates = new Map<string, PerformanceAggregate>();
-    for (const log of logs) {
-        for (const line of log.split('\n')) {
-            if (!line) continue;
-            try {
-                const entry = JSON.parse(line) as { durationMs?: unknown; event?: unknown };
-                if (typeof entry.event !== 'string' || typeof entry.durationMs !== 'number')
-                    continue;
-                if (!Number.isFinite(entry.durationMs) || entry.durationMs < 0) continue;
-                const aggregate = aggregates.get(entry.event) ?? {
-                    count: 0,
-                    maximumMs: entry.durationMs,
-                    minimumMs: entry.durationMs,
-                    totalMs: 0,
-                };
-                aggregate.count += 1;
-                aggregate.maximumMs = Math.max(aggregate.maximumMs, entry.durationMs);
-                aggregate.minimumMs = Math.min(aggregate.minimumMs, entry.durationMs);
-                aggregate.totalMs += entry.durationMs;
-                aggregates.set(entry.event, aggregate);
-            } catch {
-                // Ignore truncated lines left by an interrupted log write.
-            }
+function accumulatePerformanceLogLines(
+    log: string,
+    aggregates: Map<string, PerformanceAggregate>,
+): void {
+    for (const line of log.split('\n')) {
+        if (!line) continue;
+        try {
+            const entry = JSON.parse(line) as { durationMs?: unknown; event?: unknown };
+            if (typeof entry.event !== 'string' || typeof entry.durationMs !== 'number') continue;
+            if (!Number.isFinite(entry.durationMs) || entry.durationMs < 0) continue;
+            const aggregate = aggregates.get(entry.event) ?? {
+                count: 0,
+                maximumMs: entry.durationMs,
+                minimumMs: entry.durationMs,
+                totalMs: 0,
+            };
+            aggregate.count += 1;
+            aggregate.maximumMs = Math.max(aggregate.maximumMs, entry.durationMs);
+            aggregate.minimumMs = Math.min(aggregate.minimumMs, entry.durationMs);
+            aggregate.totalMs += entry.durationMs;
+            aggregates.set(entry.event, aggregate);
+        } catch {
+            // Ignore truncated lines left by an interrupted log write.
         }
     }
-    return [...aggregates.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
+}
+
+/**
+ * Builds a content-free timing summary from already structured operation logs.
+ */
+export function summarizePerformanceLogs(logs: string[]): PerformanceSummary[] {
+    const aggregates = new Map<string, PerformanceAggregate>();
+    for (const log of logs) accumulatePerformanceLogLines(log, aggregates);
+    return [...aggregates]
+        .toSorted(([left], [right]) => left.localeCompare(right))
         .map(([event, aggregate]) => ({
             event,
             count: aggregate.count,
@@ -141,15 +150,29 @@ export class DiagnosticsService {
 
     private async readLogs(): Promise<string[]> {
         const logDirectory = dirname(this.logger.path);
-        const logNames = (await readdir(logDirectory).catch(() => []))
+        let names: string[];
+        try {
+            names = await readdir(logDirectory);
+        } catch {
+            names = [];
+        }
+        const logNames = names
             .filter((name) => DIAGNOSTIC_LOG_NAME.test(name))
-            .sort();
+            .toSorted((left, right) => left.localeCompare(right));
         return Promise.all(
-            logNames.map((name) => readFile(join(logDirectory, name), 'utf8').catch(() => '')),
+            logNames.map(async (name) => {
+                try {
+                    return await readFile(join(logDirectory, name), 'utf8');
+                } catch {
+                    return '';
+                }
+            }),
         );
     }
 
-    /** Returns only bounded counters and identifiers; paths, messages, and log fields stay local. */
+    /**
+     * Returns only bounded counters and identifiers; paths, messages, and log fields stay local.
+     */
     async snapshot() {
         const logs = await this.readLogs();
         return {
@@ -215,7 +238,7 @@ export class DiagnosticsService {
         const logDirectory = dirname(this.logger.path);
         const logNames = (await readdir(logDirectory))
             .filter((name) => DIAGNOSTIC_LOG_NAME.test(name))
-            .sort();
+            .toSorted((left, right) => left.localeCompare(right));
         const redactedLogs = await Promise.all(
             logNames.map(async (name) => ({
                 name,
@@ -258,7 +281,11 @@ export class DiagnosticsService {
             archive.append(json(performance), { name: 'diagnostics/performance.json' });
             for (const log of redactedLogs)
                 archive.append(log.content, { name: `diagnostics/logs/${log.name}` });
-            void archive.finalize();
+            // The Promise executor is a synchronous callback, so this cannot become `await`; the
+            // `archive.on('error', reject)` listener above already rejects the outer Promise for
+            // the same failure, so this `.catch()` only silences the now-redundant rejection.
+            // eslint-disable-next-line unicorn/prefer-await -- sync Promise-executor callback, see comment above
+            archive.finalize().catch(() => {});
         });
         this.logger.write('info', 'diagnostics.exported');
         return { path: destination };

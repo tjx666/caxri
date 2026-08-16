@@ -6,16 +6,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
 import { clearExecutableCache, discoverExecutable } from '../discovery';
-import { AgentService, type AgentAdapter } from '../service';
+import type { AgentAdapter } from '../service';
+import { AgentService } from '../service';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
     clearExecutableCache();
     vi.unstubAllEnvs();
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pendingCleanup = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Agent adapter fallback', () => {

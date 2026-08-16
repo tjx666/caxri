@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { expect, test } from './support/fixtures.ts';
 import type { ElectronApplication } from 'playwright';
 
+import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createProjectSession,
@@ -20,6 +20,17 @@ import {
 const execFileAsync = promisify(execFile);
 const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
 
+/**
+ * Closes the Electron app during teardown without letting an already-closed app fail the test.
+ */
+async function closeAppQuietly(app: ElectronApplication): Promise<void> {
+    try {
+        await app.close();
+    } catch {
+        // Ignore close failures during cleanup.
+    }
+}
+
 async function stubMessageBoxResponse(app: ElectronApplication, response: number): Promise<void> {
     await app.evaluate(({ dialog }, nextResponse) => {
         Reflect.set(globalThis, '__caxriE2EMessageBoxCallCount', 0);
@@ -32,8 +43,8 @@ async function stubMessageBoxResponse(app: ElectronApplication, response: number
 }
 
 /**
- * A row that remains visible does not prove its canceled deletion request completed. Wait until
- * Main consumes the native-dialog response before replacing the stub for a subsequent request.
+ * A row that remains visible does not prove its canceled deletion request completed. Wait until Main consumes the
+ * native-dialog response before replacing the stub for a subsequent request.
  */
 async function waitForMessageBoxCall(app: ElectronApplication): Promise<void> {
     await expect
@@ -47,9 +58,9 @@ async function waitForMessageBoxCall(app: ElectronApplication): Promise<void> {
 }
 
 /**
- * Drives the same Main-to-Renderer event that native macOS fullscreen transitions publish. The
- * chrome assertions do not need to move the test runner into a native Space, which is unavailable
- * when a local CI fallback runs with the console locked.
+ * Drives the same Main-to-Renderer event that native macOS fullscreen transitions publish. The chrome assertions do not
+ * need to move the test runner into a native Space, which is unavailable when a local CI fallback runs with the console
+ * locked.
  */
 async function publishFullScreenState(
     app: ElectronApplication,
@@ -74,10 +85,10 @@ test('sidebar is logo-free and reveals Add Project on hover or focus', async () 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         const titlebar = running.page.locator('.sidebar-title');
-        const addProject = titlebar.getByRole('button', { name: 'Add Project' });
+        const projectAddButton = titlebar.getByRole('button', { name: 'Add Project' });
         await expect(titlebar.locator('[data-caxri-logo]')).toHaveCount(0);
-        await expect(addProject).toHaveCSS('opacity', '0');
-        await expect(addProject).toHaveCSS('pointer-events', 'none');
+        await expect(projectAddButton).toHaveCSS('opacity', '0');
+        await expect(projectAddButton).toHaveCSS('pointer-events', 'none');
         const titlebarMetrics = await titlebar.evaluate((element) => {
             const titlebarBounds = element.getBoundingClientRect();
             return {
@@ -88,23 +99,23 @@ test('sidebar is logo-free and reveals Add Project on hover or focus', async () 
         expect(titlebarMetrics).toMatchObject({ appRegion: 'drag', height: 44 });
 
         await running.page.locator('.project-list').hover({ position: { x: 20, y: 100 } });
-        await expect(addProject).toHaveCSS('opacity', '1');
-        await expect(addProject).toHaveCSS('pointer-events', 'auto');
+        await expect(projectAddButton).toHaveCSS('opacity', '1');
+        await expect(projectAddButton).toHaveCSS('pointer-events', 'auto');
         await running.page.mouse.move(500, 300);
-        await expect(addProject).toHaveCSS('opacity', '0');
-        await expect(addProject).toHaveCSS('pointer-events', 'none');
+        await expect(projectAddButton).toHaveCSS('opacity', '0');
+        await expect(projectAddButton).toHaveCSS('pointer-events', 'none');
 
         await titlebar.hover({ position: { x: 90, y: 22 } });
-        await expect(addProject).toHaveCSS('opacity', '1');
-        await expect(addProject).toHaveCSS('pointer-events', 'auto');
+        await expect(projectAddButton).toHaveCSS('opacity', '1');
+        await expect(projectAddButton).toHaveCSS('pointer-events', 'auto');
         expect(
-            await addProject.evaluate((element) =>
+            await projectAddButton.evaluate((element) =>
                 getComputedStyle(element).getPropertyValue('-webkit-app-region'),
             ),
         ).toBe('no-drag');
         await running.page.mouse.move(500, 300);
-        await addProject.focus();
-        await expect(addProject).toHaveCSS('opacity', '1');
+        await projectAddButton.focus();
+        await expect(projectAddButton).toHaveCSS('opacity', '1');
         expect(
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.getWindowButtonPosition(),
@@ -123,7 +134,7 @@ test('sidebar is logo-free and reveals Add Project on hover or focus', async () 
         await expect(titlebar.locator('[data-caxri-logo]')).toHaveCount(0);
         await expect(titlebar).toHaveCSS('padding-left', '84px');
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -168,7 +179,7 @@ test('active and inactive Project navigation keeps full contrast', async () => {
         ]);
         expect(backgrounds[0]).not.toBe(backgrounds[1]);
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -195,7 +206,7 @@ test('Session inline rename validates input and survives Renderer reload', async
             })),
         ).toEqual({ end: 8, start: 0, value: 'Untitled' });
 
-        await input.fill('   ');
+        await input.fill(' '.repeat(3));
         await input.press('Enter');
         await expect(input).toHaveAttribute('aria-invalid', 'true');
         await expect(card.getByRole('alert')).toHaveText('Session name is required');
@@ -216,7 +227,7 @@ test('Session inline rename validates input and survives Renderer reload', async
         const emptyBlurInput = card.getByRole('textbox', {
             name: 'Rename Blurred investigation',
         });
-        await emptyBlurInput.fill('   ');
+        await emptyBlurInput.fill(' '.repeat(3));
         await filesTab.click();
         await expect(card.getByRole('textbox')).toHaveCount(0);
         await expect(card.locator('strong')).toHaveText('Blurred investigation');
@@ -245,7 +256,7 @@ test('Session inline rename validates input and survives Renderer reload', async
             'Manual investigation',
         );
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -303,7 +314,7 @@ test('Session rows support keyboard selection independently from rename', async 
         await expect(secondCard).toHaveCount(0);
         await expect(firstCard).toBeFocused();
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -367,7 +378,7 @@ test('Project and Files actions reveal on hover or focus', async () => {
         await newSession.focus();
         await expect(newSession).toHaveCSS('opacity', '1');
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -469,7 +480,7 @@ test('Project titles toggle disclosure when no active Session can be selected', 
         );
         expect(finalSnapshot.sessions).toHaveLength(1);
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -539,7 +550,7 @@ test('work tabs leave a draggable titlebar and keep New Terminal beside the last
         await expect(tooltip).toContainText('Create a Terminal in the current Session');
         await expect(tooltip.locator('kbd')).toHaveText(['⌘', 'T']);
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -579,16 +590,16 @@ test('Session archive hides active navigation without stopping Terminals and can
             .poll(() => pageRequest<number>(running.page, 'terminal.runningCount'))
             .toBe(runningBeforeArchive);
         await expect(running.page.locator('.project-group .archived-sessions')).toHaveCount(0);
-        // The sidebar footer entry is gone (the manager lives in Settings now); the per-Project
-        // heading affix (`ProjectGroup.tsx`) is the sidebar's only archived-count surface.
-        const projectArchivedBadge = running.page.locator('.project-archived-count');
-        await expect(projectArchivedBadge).toHaveText('1');
-        // Derived from `root` rather than hardcoded: the badge scopes its accessible name with the
-        // Project's display title, which is this fixture directory's basename.
-        await expect(projectArchivedBadge).toHaveAccessibleName(
-            `1 archived Session in ${basename(root)}`,
-        );
-        await projectArchivedBadge.click();
+        // The per-Project archived-count badge was dropped from the sidebar, so archived Sessions
+        // leave no sidebar trace and the manager's only entry point is Settings.
+        await expect(running.page.locator('.project-archived-count')).toHaveCount(0);
+        await running.page.keyboard.press('Meta+,');
+        const settingsDialog = running.page
+            .getByRole('dialog')
+            .filter({ has: running.page.getByRole('heading', { name: 'Settings' }) });
+        await settingsDialog.locator('.archived-sessions-entry').click();
+        // Opening the manager closes Settings first, so only one dialog remains.
+        await expect(settingsDialog).toHaveCount(0);
         const dialog = running.page.getByRole('dialog');
         await expect(dialog.getByRole('heading', { name: 'Archived Sessions' })).toBeVisible();
         await dialog.getByLabel('Search').fill('investigation');
@@ -606,9 +617,6 @@ test('Session archive hides active navigation without stopping Terminals and can
             .toBe(runningBeforeArchive);
         await dialog.getByRole('button', { name: 'Done' }).click();
         await expect(dialog).toHaveCount(0);
-        // Restoring the last archived Session in the Project drops the affix entirely (it only
-        // renders while `archivedCount > 0`).
-        await expect(projectArchivedBadge).toHaveCount(0);
         const snapshot = await pageRequest<{
             sessions: Array<{ archivedAt?: number; id: string }>;
         }>(running.page, 'app.bootstrap');
@@ -616,7 +624,7 @@ test('Session archive hides active navigation without stopping Terminals and can
             snapshot.sessions.find((session) => session.id === secondSessionId)?.archivedAt,
         ).toBe(undefined);
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -649,18 +657,18 @@ test('Archived Sessions manager deletes only after native confirmation', async (
         const dialog = running.page.getByRole('dialog');
         const archivedRow = dialog.locator('.archived-manager-row');
         await expect(archivedRow).toHaveCount(1);
-        const deleteButton = archivedRow.getByRole('button', { name: /^Delete / });
-        await expect(deleteButton).toBeVisible();
+        const archivedRowDeleteButton = archivedRow.getByRole('button', { name: /^Delete / });
+        await expect(archivedRowDeleteButton).toBeVisible();
 
         // Cancel keeps the archived row.
         await stubMessageBoxResponse(running.app, 1);
-        await deleteButton.click();
+        await archivedRowDeleteButton.click();
         await waitForMessageBoxCall(running.app);
         await expect(archivedRow).toHaveCount(1);
 
         // Confirm removes the archived row and the now-empty Archived group.
         await stubMessageBoxResponse(running.app, 0);
-        await deleteButton.click();
+        await archivedRowDeleteButton.click();
 
         await expect(archivedRow).toHaveCount(0);
         await expect(dialog.getByText('No archived Sessions yet')).toBeVisible();
@@ -676,7 +684,7 @@ test('Archived Sessions manager deletes only after native confirmation', async (
             snapshot.sessions.find((session) => session.id === archivedSessionId),
         ).toBeUndefined();
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -756,7 +764,7 @@ test('sidebar omits Settings and Search while shortcuts and app menu keep both c
             { accelerator: 'Command+W', id: 'command.workbench.closeActiveTab' },
         ]);
     } finally {
-        await running.app.close().catch(() => undefined);
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

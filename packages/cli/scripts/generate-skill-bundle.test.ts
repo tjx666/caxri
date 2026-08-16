@@ -4,14 +4,14 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { writeFileIfChanged } from './generate-skill-bundle';
+import { didWriteFileIfChanged } from './generate-skill-bundle';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })),
-    );
+    const pending = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pending.map((path) => rm(path, { force: true, recursive: true })));
 });
 
 describe('skill bundle generation', () => {
@@ -23,9 +23,9 @@ describe('skill bundle generation', () => {
         await writeFile(path, 'same\n', 'utf8');
         await utimes(path, timestamp, timestamp);
 
-        await expect(writeFileIfChanged(path, 'same\n')).resolves.toBe(false);
+        await expect(didWriteFileIfChanged(path, 'same\n')).resolves.toBe(false);
         expect((await stat(path)).mtimeMs).toBe(timestamp.getTime());
-        await expect(writeFileIfChanged(path, 'changed\n')).resolves.toBe(true);
+        await expect(didWriteFileIfChanged(path, 'changed\n')).resolves.toBe(true);
         expect(await readFile(path, 'utf8')).toBe('changed\n');
     });
 });

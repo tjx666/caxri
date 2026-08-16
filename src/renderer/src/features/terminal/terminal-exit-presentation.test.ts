@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import type { ProcessState } from '@shared/types';
+import { describe, expect, it } from 'vitest';
 
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 

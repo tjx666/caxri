@@ -46,20 +46,23 @@ const arbitraryDesignClassPattern =
     /(?<![\w-])(?:[\w-]+:)*-?(?:text-\[(?!var\()[^\]]+\]|(?:h|w|min-h|max-h|min-w|max-w|size)-\[-?\d+(?:\.\d+)?px\]|(?:leading|tracking|gap|gap-x|gap-y|space-x|space-y|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|rounded(?:-[trbl]{1,2})?)-\[[^\]]+\])/g;
 
 async function listProductionSources(directory: string): Promise<string[]> {
-    const sources: string[] = [];
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-        const path = join(directory, entry.name);
-        if (entry.isDirectory()) sources.push(...(await listProductionSources(path)));
-        else if (
-            entry.isFile() &&
-            (path.endsWith('.ts') || path.endsWith('.tsx')) &&
-            !path.endsWith('.test.ts') &&
-            !path.endsWith('.test.tsx')
-        ) {
-            sources.push(path);
-        }
-    }
-    return sources;
+    const entries = await readdir(directory, { withFileTypes: true });
+    const nested = await Promise.all(
+        entries.map(async (entry): Promise<string[]> => {
+            const path = join(directory, entry.name);
+            if (entry.isDirectory()) return listProductionSources(path);
+            if (
+                entry.isFile() &&
+                (path.endsWith('.ts') || path.endsWith('.tsx')) &&
+                !path.endsWith('.test.ts') &&
+                !path.endsWith('.test.tsx')
+            ) {
+                return [path];
+            }
+            return [];
+        }),
+    );
+    return nested.flat();
 }
 
 function sourceLocation(path: string, sourceFile: ts.SourceFile, position: number): string {
@@ -84,62 +87,79 @@ describe('Renderer design contract', () => {
     });
 
     it('routes text inputs through the shared Input primitive', async () => {
-        const violations: string[] = [];
-        for (const path of await listProductionSources(rendererRoot)) {
-            if (!path.endsWith('.tsx')) continue;
-            const sourceFile = ts.createSourceFile(
-                path,
-                await readFile(path, 'utf8'),
-                ts.ScriptTarget.Latest,
-                true,
-                ts.ScriptKind.TSX,
-            );
-            const visit = (node: ts.Node): void => {
-                if (
-                    (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
-                    node.tagName.getText(sourceFile) === 'input'
-                ) {
-                    const typeAttribute = node.attributes.properties.find(
-                        (attribute): attribute is ts.JsxAttribute =>
-                            ts.isJsxAttribute(attribute) &&
-                            attribute.name.getText(sourceFile) === 'type',
-                    );
-                    const type =
-                        typeAttribute?.initializer && ts.isStringLiteral(typeAttribute.initializer)
-                            ? typeAttribute.initializer.text
-                            : undefined;
-                    if (!type || !nativeInputTypes.has(type)) {
-                        violations.push(
-                            sourceLocation(path, sourceFile, node.getStart(sourceFile)),
+        const paths = (await listProductionSources(rendererRoot)).filter((path) =>
+            path.endsWith('.tsx'),
+        );
+        const violationsByFile = await Promise.all(
+            paths.map(async (path): Promise<string[]> => {
+                const sourceFile = ts.createSourceFile(
+                    path,
+                    await readFile(path, 'utf8'),
+                    ts.ScriptTarget.Latest,
+                    true,
+                    ts.ScriptKind.TSX,
+                );
+                const fileViolations: string[] = [];
+                const visit = (node: ts.Node): void => {
+                    if (
+                        (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+                        node.tagName.getText(sourceFile) === 'input'
+                    ) {
+                        const typeAttribute = node.attributes.properties.find(
+                            (attribute): attribute is ts.JsxAttribute =>
+                                ts.isJsxAttribute(attribute) &&
+                                attribute.name.getText(sourceFile) === 'type',
                         );
+                        const type =
+                            typeAttribute?.initializer &&
+                            ts.isStringLiteral(typeAttribute.initializer)
+                                ? typeAttribute.initializer.text
+                                : undefined;
+                        if (!type || !nativeInputTypes.has(type)) {
+                            fileViolations.push(
+                                sourceLocation(path, sourceFile, node.getStart(sourceFile)),
+                            );
+                        }
                     }
-                }
-                ts.forEachChild(node, visit);
-            };
-            visit(sourceFile);
-        }
+                    ts.forEachChild(node, visit);
+                };
+                visit(sourceFile);
+                return fileViolations;
+            }),
+        );
 
-        expect(violations, 'raw text inputs bypass components/ui/input.tsx').toEqual([]);
+        expect(violationsByFile.flat(), 'raw text inputs bypass components/ui/input.tsx').toEqual(
+            [],
+        );
     });
 
     it('rejects arbitrary typography, spacing, and radius classes outside DESIGN.md', async () => {
-        const violations: string[] = [];
-        for (const path of await listProductionSources(rendererRoot)) {
-            const source = await readFile(path, 'utf8');
-            for (const match of source.matchAll(arbitraryDesignClassPattern)) {
-                const className = match[0].replace(/^(?:[\w-]+:)*/, '');
-                if (!allowedArbitraryClasses.has(className)) {
-                    const sourceFile = ts.createSourceFile(
-                        path,
-                        source,
-                        ts.ScriptTarget.Latest,
-                        true,
-                    );
-                    violations.push(`${sourceLocation(path, sourceFile, match.index)} ${match[0]}`);
+        const paths = await listProductionSources(rendererRoot);
+        const violationsByFile = await Promise.all(
+            paths.map(async (path): Promise<string[]> => {
+                const source = await readFile(path, 'utf8');
+                const fileViolations: string[] = [];
+                for (const match of source.matchAll(arbitraryDesignClassPattern)) {
+                    const className = match[0].replace(/^(?:[\w-]+:)*/, '');
+                    if (!allowedArbitraryClasses.has(className)) {
+                        const sourceFile = ts.createSourceFile(
+                            path,
+                            source,
+                            ts.ScriptTarget.Latest,
+                            true,
+                        );
+                        fileViolations.push(
+                            `${sourceLocation(path, sourceFile, match.index)} ${match[0]}`,
+                        );
+                    }
                 }
-            }
-        }
+                return fileViolations;
+            }),
+        );
 
-        expect(violations, 'arbitrary classes missing from the DESIGN.md allowlist').toEqual([]);
+        expect(
+            violationsByFile.flat(),
+            'arbitrary classes missing from the DESIGN.md allowlist',
+        ).toEqual([]);
     });
 });

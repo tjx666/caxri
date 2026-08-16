@@ -1,22 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { commandDefinitions as sharedCommandDefinitions, type CommandId } from '@shared/commands';
+import type { CommandId } from '@shared/commands';
+import { commandDefinitions as sharedCommandDefinitions } from '@shared/commands';
 import { inspectorModeRegistrations } from '@shared/inspector';
 import type { BootstrapState } from '@shared/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useFileSearchStore } from '../features/inspector/panels/files/file-search-state';
 import { isEditableEventTarget } from '../lib/keybindings';
 import { usePanelLayoutStore } from '../stores/panel-layout';
 import { useWorkbenchStore } from '../stores/workbench';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
-import { executeCommand, isCommandAvailable, runCommand, type CommandContext } from './execute';
+import type { CommandContext } from './execute';
+import { executeCommand, isCommandAvailable, runCommand } from './execute';
 import { registerCommand } from './registry';
 
 /**
- * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), so `Element`
- * and a real `document` do not exist; `isEditableEventTarget` itself is exercised elsewhere by the
- * keyboard-shortcut listener it backs. Here it is mocked so `runCommand`'s gate can be driven by a
- * plain boolean instead of a real DOM focus target.
+ * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), so `Element` and a real
+ * `document` do not exist; `isEditableEventTarget` itself is exercised elsewhere by the keyboard-shortcut listener it
+ * backs. Here it is mocked so `runCommand`'s gate can be driven by a plain boolean instead of a real DOM focus target.
  */
 vi.mock('../lib/keybindings', () => ({ isEditableEventTarget: vi.fn() }));
 const mockedIsEditableEventTarget = vi.mocked(isEditableEventTarget);
@@ -25,8 +25,8 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
     const calls: string[] = [];
     const record =
         (name: string) =>
-        (...args: unknown[]): void => {
-            calls.push(args.length > 0 ? `${name}(${String(args[0])})` : name);
+        (...arguments_: unknown[]): void => {
+            calls.push(arguments_.length > 0 ? `${name}(${String(arguments_[0])})` : name);
         };
     return {
         calls,
@@ -125,8 +125,8 @@ describe('executeCommand', () => {
     });
 
     /**
-     * `terminal.copy` binds `Cmd+C`. Without a Terminal selection the command must decline so the
-     * chord falls through to the native copy an input or Monaco would otherwise handle.
+     * `terminal.copy` binds `Cmd+C`. Without a Terminal selection the command must decline so the chord falls through
+     * to the native copy an input or Monaco would otherwise handle.
      */
     it('keeps Terminal Copy contextual on the presence of a selection', () => {
         const { calls, context } = recordingContext();
@@ -266,15 +266,17 @@ describe('executeCommand', () => {
 });
 
 /**
- * Regression coverage for the DESIGN.md:121-123 editable-focus shortcut policy on the native menu
- * path (see `runCommand`'s JSDoc). `useCommandShortcuts` already covers the DOM keydown path by
- * gating before it ever calls `runCommand`; these tests cover the other caller — the native menu,
- * whose accelerator bypasses that DOM listener entirely.
+ * Regression coverage for the DESIGN.md:121-123 editable-focus shortcut policy on the native menu path (see
+ * `runCommand`'s JSDoc). `useCommandShortcuts` already covers the DOM keydown path by gating before it ever calls
+ * `runCommand`; these tests cover the other caller — the native menu, whose accelerator bypasses that DOM listener
+ * entirely.
  */
 describe('runCommand editable-focus gate', () => {
     beforeEach(() => {
-        /** `runCommand` reads `document.activeElement`; a minimal stub is enough since
-         *  `isEditableEventTarget` itself is mocked above and never inspects it. */
+        /**
+         * `runCommand` reads `document.activeElement`; a minimal stub is enough since `isEditableEventTarget` itself is
+         * mocked above and never inspects it.
+         */
         vi.stubGlobal('document', { activeElement: null });
         mockedIsEditableEventTarget.mockReset();
     });

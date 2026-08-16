@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import type * as fsPromises from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,9 +21,9 @@ const temporaryDirectories: string[] = [];
 afterEach(async () => {
     vi.restoreAllMocks();
     readFileMock.mockReset();
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const pending = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(pending.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('Host discovery', () => {

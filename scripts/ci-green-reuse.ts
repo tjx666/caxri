@@ -42,16 +42,16 @@ export function isReusableGreenDeltaPath(path: string): boolean {
 }
 
 /**
- * Reuses macOS evidence only when a prior same-PR run fully validated the unchanged product tree.
- * The current head still receives focused self-hosted checks for its narrow non-product delta.
+ * Reuses macOS evidence only when a prior same-PR run fully validated the unchanged product tree. The current head
+ * still receives focused self-hosted checks for its narrow non-product delta.
  */
 export function evaluateGreenReusePolicy(input: GreenReusePolicyInput): GreenReusePolicyDecision {
     const reject = (reason: string): GreenReusePolicyDecision => ({ eligible: false, reason });
-    const candidate = input.candidate;
 
     if (input.eventName !== 'pull_request') return reject('green reuse is pull-request only');
+    const candidate = input.candidate;
     if (
-        !Number.isInteger(candidate.id) ||
+        !Number.isSafeInteger(candidate.id) ||
         candidate.id <= 0 ||
         !/^[0-9a-f]{40}$/u.test(candidate.headSha)
     ) {

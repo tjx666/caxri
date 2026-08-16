@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import type { TerminalFixture } from './fixture-preflight';
 import {
     createTerminalFixturePreflightReceipt,
     preflightTerminalFixture,
-    type TerminalFixture,
 } from './fixture-preflight';
 
 function fixture(overrides: Partial<TerminalFixture> = {}): TerminalFixture {
@@ -12,7 +12,7 @@ function fixture(overrides: Partial<TerminalFixture> = {}): TerminalFixture {
         domRowCount: 3,
         firstGridMarker: { columns: 8, generation: 'fixture-1', rows: 3 },
         generation: 'fixture-1',
-        lines: ['│12345 │', '│A中🙂 │', '│e\u0301     │'],
+        lines: ['│12345 │', '│A中🙂 │', '│e\u{301}     │'],
         rows: 3,
         ...overrides,
     };
@@ -33,7 +33,7 @@ describe('Acceptance Terminal fixture preflight', () => {
 
     it('blocks the old UTF-16-padding failure before product verdict or recording', () => {
         const result = preflightTerminalFixture(
-            fixture({ lines: ['│12345 │', '│中🙂   │', '│e\u0301     │'] }),
+            fixture({ lines: ['│12345 │', '│中🙂   │', '│e\u{301}     │'] }),
         );
 
         expect(result.status).toBe('fixture_blocked');

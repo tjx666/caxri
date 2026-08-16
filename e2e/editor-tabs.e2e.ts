@@ -7,7 +7,6 @@ import { promisify } from 'node:util';
 import type { Locator, Page } from '@playwright/test';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -46,16 +45,16 @@ async function startEditorPresenceProbe(page: Page): Promise<void> {
                 ] as const) {
                     for (const node of nodes) {
                         if (
-                            !(node instanceof HTMLElement) ||
-                            !node.matches('.work-tab:not([data-terminal-id])')
-                        )
-                            continue;
-                        events.push({
-                            identity: node.dataset.motionIdentity,
-                            kind,
-                            maxWidth: node.style.maxWidth,
-                            opacity: node.style.opacity,
-                        });
+                            node instanceof HTMLElement &&
+                            node.matches('.work-tab:not([data-terminal-id])')
+                        ) {
+                            events.push({
+                                identity: node.dataset.motionIdentity,
+                                kind,
+                                maxWidth: node.style.maxWidth,
+                                opacity: node.style.opacity,
+                            });
+                        }
                     }
                 }
             }
@@ -68,18 +67,17 @@ async function startEditorPresenceProbe(page: Page): Promise<void> {
             childList: true,
             subtree: true,
         });
-        (
-            window as unknown as {
-                editorPresenceProbe: { events: EditorPresenceEvent[]; observer: MutationObserver };
-            }
-        ).editorPresenceProbe = { events, observer };
+        Object.defineProperty(globalThis, 'editorPresenceProbe', {
+            configurable: true,
+            value: { events, observer },
+        });
     });
 }
 
 async function stopEditorPresenceProbe(page: Page): Promise<EditorPresenceEvent[]> {
     return page.evaluate(() => {
         const probe = (
-            window as unknown as {
+            globalThis as unknown as {
                 editorPresenceProbe?: {
                     events: EditorPresenceEvent[];
                     observer: MutationObserver;
@@ -97,6 +95,9 @@ async function tabMotionSettleMs(page: Page): Promise<number> {
         const style = getComputedStyle(document.documentElement);
         const durationMs = (token: string): number => {
             const raw = style.getPropertyValue(token).trim();
+            // `raw` is a CSS <time> value like "300ms" or "0.3s": the unit suffix means
+            // `Number()` would return NaN, so `Number.parseFloat` is required here.
+            // eslint-disable-next-line unicorn/prefer-number-coercion
             return raw.endsWith('ms') ? Number.parseFloat(raw) : Number.parseFloat(raw) * 1_000;
         };
         return Math.max(durationMs('--motion-tab-enter'), durationMs('--motion-tab-exit'));
@@ -167,7 +168,9 @@ test('editor previews pin and expose the standard close actions', async () => {
         await bTab.getByRole('tab').dblclick();
         await expect(bTab).not.toHaveAttribute('data-preview');
 
-        /** Reproduces the custom tokenizer race seen on loaded GitHub-hosted runners. */
+        /**
+         * Reproduces the custom tokenizer race seen on loaded GitHub-hosted runners.
+         */
         const cdp = await running.page.context().newCDPSession(running.page);
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
         await startEditorPresenceProbe(running.page);
@@ -267,7 +270,11 @@ test('editor previews pin and expose the standard close actions', async () => {
         expect(closeEvents.map((event) => event.kind)).toEqual(['exiting', 'removed']);
         expect(closeEvents[0]).toMatchObject({ ariaHidden: 'true', kind: 'exiting' });
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -349,7 +356,11 @@ test('Open Work tabs provide roving keyboard navigation and accessible state', a
             running.page.getByRole('button', { name: 'New Terminal', exact: true }),
         ).toBeFocused();
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

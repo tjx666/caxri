@@ -101,7 +101,7 @@ describe('TerminalReplayBuffer', () => {
         );
 
         const restoration = buffer.restore('snapshot');
-        buffer.push('\x1b[31mA');
+        buffer.push('\u{1B}[31mA');
         buffer.push('🙂');
         buffer.push('z');
         snapshotWrite.resolve();
@@ -109,7 +109,7 @@ describe('TerminalReplayBuffer', () => {
 
         expect(writes).toEqual([
             'snapshot',
-            '\x1b[31mA',
+            '\u{1B}[31mA',
             '\r\n[Caxri dropped 5 bytes while terminal output was replaying]\r\n',
         ]);
     });
@@ -124,7 +124,9 @@ describe('TerminalReplayCoordinator', () => {
                 events.push(`write:${value}`);
                 return Promise.resolve();
             },
-            () => events.push('reset'),
+            () => {
+                events.push('reset');
+            },
         );
         await coordinator.restoreInitial('old-screen');
 
@@ -151,7 +153,9 @@ describe('TerminalReplayCoordinator', () => {
                 writes.push(`write:${value}`);
                 return Promise.resolve();
             },
-            () => writes.push('reset'),
+            () => {
+                writes.push('reset');
+            },
             { maximumPendingBytes: 5, maximumPendingItems: 2 },
         );
         await coordinator.restoreInitial('old-screen');

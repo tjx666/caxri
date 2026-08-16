@@ -1,8 +1,12 @@
 import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
+import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
+import type { InitializeReportInput } from './report';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
@@ -10,13 +14,13 @@ import {
     initializeReport,
     markCaseLifecycleReady,
     rebindReportHead,
-    type InitializeReportInput,
     validateAcceptanceCaseLaunch,
 } from './report';
-import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-/** The production path guard requires fixtures under the real project `.records/` root. */
+/**
+ * The production path guard requires fixtures under the real project `.records/` root.
+ */
 const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const TEST_ROOT = join(RECORDS_ROOT, '__test__', `acceptance-report-${process.pid}`);
 const acceptanceRoots: string[] = [];
@@ -91,9 +95,9 @@ async function writeIsolatedLifecycle(directory: string, caseId = 'terminal-layo
 }
 
 afterEach(async () => {
-    await Promise.all(
-        acceptanceRoots.splice(0).map((directory) => rm(directory, { recursive: true })),
-    );
+    const directories = [...acceptanceRoots];
+    acceptanceRoots.length = 0;
+    await Promise.all(directories.map((directory) => rm(directory, { recursive: true })));
 });
 
 afterAll(async () => {
@@ -132,9 +136,8 @@ describe('Acceptance report scaffold', () => {
         expect(result.plan[0]).toMatchObject({ stateIsolation: { mode: 'isolated' } });
         expect(result).not.toHaveProperty('summary');
         await expect(access(join(directory, 'assets'))).resolves.toBeUndefined();
-        await expect(readFile(join(dirname(directory), 'requirement.txt'), 'utf8')).resolves.toBe(
-            `${requirement}\n`,
-        );
+        const requirementPath = join(dirname(directory), 'requirement.txt');
+        await expect(readFile(requirementPath, 'utf8')).resolves.toBe(`${requirement}\n`);
         await expect(readFile(join(directory, 'report.md'), 'utf8')).resolves.toBe(
             '本轮暂无补充说明。\n',
         );
@@ -289,8 +292,9 @@ describe('Acceptance report scaffold', () => {
     it('rejects requirement drift between rounds and inside a round', async () => {
         const directory = await reportDirectory();
         await initialize(directory);
+        const secondRoundDirectory = join(dirname(directory), 'round-2');
         await expect(
-            initialize(join(dirname(directory), 'round-2'), {
+            initialize(secondRoundDirectory, {
                 requirement: 'Caxri 终端应完整填满整个工作区。',
             }),
         ).rejects.toThrow('must match the frozen requirement');
@@ -446,24 +450,23 @@ describe('Acceptance report scaffold', () => {
             status: 'pass',
             surface: 'desktop',
         };
+        const mismatchedPreflightReceipt = createTerminalFixturePreflightReceipt(
+            {
+                columns: 8,
+                domRowCount: 1,
+                firstGridMarker: { columns: 8, generation: 'fixture-1', rows: 1 },
+                generation: 'fixture-1',
+                lines: ['│中🙂   │'],
+                rows: 1,
+            },
+            'terminal-layout',
+        );
         await Promise.all([
             writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
             writeFile(join(directory, 'assets/terminal.png'), 'image'),
             writeFile(
                 join(directory, preflightEvidence),
-                JSON.stringify(
-                    createTerminalFixturePreflightReceipt(
-                        {
-                            columns: 8,
-                            domRowCount: 1,
-                            firstGridMarker: { columns: 8, generation: 'fixture-1', rows: 1 },
-                            generation: 'fixture-1',
-                            lines: ['│中🙂   │'],
-                            rows: 1,
-                        },
-                        'terminal-layout',
-                    ),
-                ),
+                JSON.stringify(mismatchedPreflightReceipt),
             ),
         ]);
 

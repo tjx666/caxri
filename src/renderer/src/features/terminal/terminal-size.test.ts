@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { terminalSizeChanged, terminalSizeWithScrollbarGutter } from './terminal-size';
+import { didTerminalSizeChange, terminalSizeWithScrollbarGutter } from './terminal-size';
 
 describe('Terminal scrollbar gutter', () => {
     it('reserves one text column without dropping below xterm minimum dimensions', () => {
@@ -18,9 +18,9 @@ describe('Terminal scrollbar gutter', () => {
 
 describe('Terminal resize deduplication', () => {
     it('suppresses an unchanged grid while preserving either dimension change', () => {
-        expect(terminalSizeChanged(undefined, { cols: 100, rows: 30 })).toBe(true);
-        expect(terminalSizeChanged({ cols: 100, rows: 30 }, { cols: 100, rows: 30 })).toBe(false);
-        expect(terminalSizeChanged({ cols: 100, rows: 30 }, { cols: 101, rows: 30 })).toBe(true);
-        expect(terminalSizeChanged({ cols: 100, rows: 30 }, { cols: 100, rows: 31 })).toBe(true);
+        expect(didTerminalSizeChange(undefined, { cols: 100, rows: 30 })).toBe(true);
+        expect(didTerminalSizeChange({ cols: 100, rows: 30 }, { cols: 100, rows: 30 })).toBe(false);
+        expect(didTerminalSizeChange({ cols: 100, rows: 30 }, { cols: 101, rows: 30 })).toBe(true);
+        expect(didTerminalSizeChange({ cols: 100, rows: 30 }, { cols: 100, rows: 31 })).toBe(true);
     });
 });

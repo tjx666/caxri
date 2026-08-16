@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { CaxriError } from './errors.js';
 import { capabilitySchema, principalSchema } from './principal.js';
 
-/** Version 2 makes every `files.changed` event carry its immutable Workbench Project scope. */
+/**
+ * Version 2 makes every `files.changed` event carry its immutable Workbench Project scope.
+ */
 export const CAXRI_PROTOCOL_VERSION = 2 as const;
 export const supportedProtocolVersions = [CAXRI_PROTOCOL_VERSION] as const;
 export const protocolVersionSchema = z.literal(CAXRI_PROTOCOL_VERSION);
@@ -24,12 +26,14 @@ export const protocolWelcomeSchema = z.object({
 export type ProtocolHello = z.infer<typeof protocolHelloSchema>;
 export type ProtocolWelcome = z.infer<typeof protocolWelcomeSchema>;
 
-/** Chooses the newest common version without binding negotiation to a concrete transport. */
+/**
+ * Chooses the newest common version without binding negotiation to a concrete transport.
+ */
 export function negotiateProtocolVersion(clientVersions: readonly number[]): CaxriProtocolVersion {
     const clientVersionSet = new Set(clientVersions);
-    const version = [...supportedProtocolVersions]
-        .reverse()
-        .find((candidate) => clientVersionSet.has(candidate));
+    const version = supportedProtocolVersions.findLast((candidate) =>
+        clientVersionSet.has(candidate),
+    );
     if (!version) throw new CaxriError('CONFLICT', 'No compatible Caxri protocol version');
     return version;
 }

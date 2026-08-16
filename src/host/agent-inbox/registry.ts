@@ -1,5 +1,10 @@
+import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 
+import type {
+    AgentEndpointRef as AgentEndpointReference,
+    AgentEndpointSummary,
+} from '../../shared/ipc/agent-endpoint-contract';
 import type {
     AgentHeldMessage,
     AgentHeldMessageDetail,
@@ -10,15 +15,12 @@ import type {
     AgentMessageReceipt,
 } from '../../shared/ipc/agent-inbox-contract';
 import { AGENT_MESSAGE_APPROVAL_TTL_MS } from '../../shared/ipc/agent-inbox-contract';
-import type {
-    AgentEndpointRef,
-    AgentEndpointSummary,
-} from '../../shared/ipc/agent-endpoint-contract';
 import { CaxriError } from '../../shared/ipc/errors';
 import type { CommandExecutionContext } from '../../shared/ipc/principal';
 import type { AgentEndpointRegistry } from '../agent-endpoints';
 import {
     agentMessageDigest,
+    areReferencesEqual as referencesEqual,
     decideInboundStatus,
     DUPLICATE_WINDOW_MS,
     endpointKey,
@@ -32,7 +34,6 @@ import {
     MAX_RECEIPTS,
     MAX_REPLY_DEPTH,
     MAX_WAITING_PER_ENDPOINT,
-    refsEqual,
     resolvePullReceiver,
     resolveSender,
 } from './rules';
@@ -43,10 +44,21 @@ import type {
     DuplicateReceipt,
     IdempotencyReceipt,
     MessageWaiter,
+    PendingState,
     StoredMessage,
 } from './types';
 
-/** Host-memory Peer Inbox. Bodies never cross into persistence, logs, Runtime, or terminal input. */
+// A message is still "in flight" toward eventual delivery in exactly these states; shared so
+// every guard below checks membership consistently instead of repeating equality chains.
+const PENDING_MESSAGE_STATES: ReadonlyArray<StoredMessage['state']> = [
+    'waiting',
+    'held',
+    'delivering',
+] satisfies readonly PendingState[];
+
+/**
+ * Host-memory Peer Inbox. Bodies never cross into persistence, logs, Runtime, or terminal input.
+ */
 export class AgentInboxRegistry {
     private readonly duplicates = new Map<string, DuplicateReceipt>();
     private readonly held = new Map<string, string[]>();
@@ -81,235 +93,8 @@ export class AgentInboxRegistry {
         });
     }
 
-    send(
-        context: CommandExecutionContext,
-        input: AgentMessageSendInput,
-        requestId: string,
-        wakeDispatchId?: string,
-    ): AgentMessageReceipt {
-        return this.admit(
-            context,
-            wakeDispatchId ? { ...input, dispatchId: wakeDispatchId } : input,
-            input.idempotencyKey ?? requestId,
-        );
-    }
-
-    reply(
-        context: CommandExecutionContext,
-        input: AgentMessageSendInput & { replyTo: string },
-        requestId: string,
-    ): AgentMessageReceipt {
-        return this.admit(context, input, input.idempotencyKey ?? requestId);
-    }
-
-    receipt(context: CommandExecutionContext, messageId: string): AgentMessageReceipt {
-        this.sweep();
-        const sender = resolveSender(this.endpoints, context);
-        const message = this.messages.get(messageId);
-        if (!message || !refsEqual(message.from.ref, sender.ref))
-            throw new CaxriError('NOT_FOUND', 'Agent message receipt was not found');
-        return message.receipt;
-    }
-
-    policy(context: CommandExecutionContext): {
-        policy: AgentInboundPolicy;
-        heldRetention: AgentHeldRetention;
-    } {
-        const endpoint = resolveSender(this.endpoints, context);
-        return (
-            this.policies.get(endpointKey(endpoint.ref)) ?? {
-                policy: 'auto',
-                heldRetention: 'approval-window',
-            }
-        );
-    }
-
-    setPolicy(
-        context: CommandExecutionContext,
-        value: { policy: AgentInboundPolicy; heldRetention: AgentHeldRetention },
-    ): { policy: AgentInboundPolicy; heldRetention: AgentHeldRetention } {
-        const endpoint = resolveSender(this.endpoints, context);
-        const normalized =
-            value.policy === 'hold'
-                ? value
-                : { policy: value.policy, heldRetention: 'approval-window' as const };
-        this.policies.set(endpointKey(endpoint.ref), normalized);
-        return normalized;
-    }
-
-    listHeld(): AgentHeldMessage[] {
-        this.sweep();
-        return [...this.messages.values()]
-            .filter((message) => message.state === 'held' && message.body && message.to)
-            .sort((left, right) => left.receipt.createdAt - right.receipt.createdAt)
-            .map(heldMessageProjection);
-    }
-
-    heldDetail(messageId: string): AgentHeldMessageDetail {
-        this.sweep();
-        const message = this.messages.get(messageId);
-        if (!message || message.state !== 'held')
-            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
-        return heldMessageDetail(message);
-    }
-
-    approve(messageId: string): AgentMessageReceipt {
-        this.sweep();
-        const message = this.messages.get(messageId);
-        if (!message || message.state !== 'held' || !message.to)
-            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
-        this.endpoints.resolve(message.to.ref);
-        const receiverKey = endpointKey(message.to.ref);
-        if ((this.waiting.get(receiverKey)?.length ?? 0) >= MAX_WAITING_PER_ENDPOINT) {
-            this.finish(message, 'capacity');
-            return message.receipt;
-        }
-        this.removeQueued(this.held, endpointKey(message.to.ref), messageId);
-        message.state = 'waiting';
-        message.receipt = {
-            ...message.receipt,
-            status: 'waiting',
-            updatedAt: this.now(),
-        };
-        this.pushQueued(this.waiting, receiverKey, messageId);
-        this.emitReceipt(message);
-        this.satisfyWaiter(receiverKey);
-        return message.receipt;
-    }
-
-    deny(messageId: string): AgentMessageReceipt {
-        this.sweep();
-        const message = this.messages.get(messageId);
-        if (!message || message.state !== 'held')
-            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
-        this.finish(message, 'refused');
-        return message.receipt;
-    }
-
-    wait(
-        context: CommandExecutionContext,
-        timeoutMs: number,
-        requestId: string,
-    ): Promise<AgentMessagePullResult> {
-        this.sweep();
-        const receiver = resolvePullReceiver(this.endpoints, context);
-        const key = endpointKey(receiver.ref);
-        if (
-            this.waiters.has(key) ||
-            [...this.reservations.values()].some((reservation) => reservation.endpointKey === key)
-        )
-            throw new CaxriError('CONFLICT', 'Agent Endpoint already has an active message wait');
-        const message = this.shiftWaiting(key);
-        if (message)
-            return Promise.resolve({
-                message: this.reserve(message, key, requestId),
-                outcome: 'message',
-            });
-        return new Promise((resolve) => {
-            const waiter: MessageWaiter = {
-                endpointKey: key,
-                requestId,
-                resolve,
-                timer: setTimeout(() => {
-                    if (this.waiters.get(key) === waiter) this.waiters.delete(key);
-                    resolve({ message: null, outcome: 'timed_out' });
-                }, timeoutMs),
-            };
-            waiter.timer.unref();
-            this.waiters.set(key, waiter);
-        });
-    }
-
-    check(context: CommandExecutionContext, requestId: string): AgentMessagePullResult {
-        this.sweep();
-        const receiver = resolvePullReceiver(this.endpoints, context);
-        const key = endpointKey(receiver.ref);
-        if (
-            this.waiters.has(key) ||
-            [...this.reservations.values()].some((reservation) => reservation.endpointKey === key)
-        )
-            throw new CaxriError('CONFLICT', 'Agent Endpoint already has an active message wait');
-        const message = this.shiftWaiting(key);
-        return message
-            ? { message: this.reserve(message, key, requestId), outcome: 'message' }
-            : { message: null, outcome: 'empty' };
-    }
-
-    /** Marks a pull delivered only after LocalHostServer confirms its reply crossed the socket. */
-    confirmWait(requestId: string, context: CommandExecutionContext): void {
-        const reservation = this.reservations.get(requestId);
-        if (!reservation) return;
-        let receiver: AgentEndpointSummary;
-        try {
-            receiver = resolveSender(this.endpoints, context);
-        } catch {
-            this.cancelWait(requestId);
-            return;
-        }
-        if (endpointKey(receiver.ref) !== reservation.endpointKey) return;
-        this.reservations.delete(requestId);
-        const message = this.messages.get(reservation.messageId);
-        if (message?.state === 'delivering') this.finish(message, 'delivered');
-    }
-
-    /** Requeues an unflushed pull at the FIFO front, or resolves an abandoned long poll. */
-    cancelWait(requestId: string): void {
-        for (const [key, waiter] of this.waiters) {
-            if (waiter.requestId !== requestId) continue;
-            clearTimeout(waiter.timer);
-            this.waiters.delete(key);
-            waiter.resolve({ message: null, outcome: 'empty' });
-            return;
-        }
-        const reservation = this.reservations.get(requestId);
-        if (!reservation) return;
-        this.reservations.delete(requestId);
-        const message = this.messages.get(reservation.messageId);
-        if (!message || message.state !== 'delivering') return;
-        if (message.receipt.expiresAt <= this.now()) {
-            this.finish(message, 'expired');
-            return;
-        }
-        try {
-            this.endpoints.resolve(message.receipt.to);
-        } catch {
-            this.finish(message, 'expired');
-            return;
-        }
-        message.state = 'waiting';
-        const queue = this.waiting.get(reservation.endpointKey) ?? [];
-        queue.unshift(message.receipt.messageId);
-        this.waiting.set(reservation.endpointKey, queue);
-    }
-
-    retire(ref: AgentEndpointRef): void {
-        const key = endpointKey(ref);
-        const waiter = this.waiters.get(key);
-        if (waiter) {
-            clearTimeout(waiter.timer);
-            this.waiters.delete(key);
-            waiter.resolve({ message: null, outcome: 'empty' });
-        }
-        for (const [requestId, reservation] of this.reservations) {
-            if (reservation.endpointKey === key) this.reservations.delete(requestId);
-        }
-        for (const message of [...this.messages.values()]) {
-            if (refsEqual(message.receipt.from, ref)) this.releaseIdempotency(message);
-            if (
-                (refsEqual(message.receipt.from, ref) || refsEqual(message.receipt.to, ref)) &&
-                (message.state === 'waiting' ||
-                    message.state === 'held' ||
-                    message.state === 'delivering')
-            )
-                this.finish(message, 'expired');
-        }
-        this.policies.delete(key);
-        this.waiting.delete(key);
-        this.held.delete(key);
-    }
-
-    private disablePull(ref: AgentEndpointRef, unavailable: boolean): void {
-        const key = endpointKey(ref);
+    private disablePull(reference: AgentEndpointReference, isUnavailable: boolean): void {
+        const key = endpointKey(reference);
         const waiter = this.waiters.get(key);
         if (waiter) {
             clearTimeout(waiter.timer);
@@ -320,37 +105,14 @@ export class AgentInboxRegistry {
             if (reservation.endpointKey !== key) continue;
             this.cancelWait(requestId);
         }
-        if (!unavailable) return;
-        for (const message of [...this.messages.values()]) {
+        if (!isUnavailable) return;
+        for (const message of this.messages.values()) {
             if (
-                refsEqual(message.receipt.to, ref) &&
-                (message.state === 'waiting' ||
-                    message.state === 'held' ||
-                    message.state === 'delivering')
+                referencesEqual(message.receipt.to, reference) &&
+                PENDING_MESSAGE_STATES.includes(message.state)
             )
                 this.finish(message, 'unavailable');
         }
-    }
-
-    close(): void {
-        for (const waiter of this.waiters.values()) {
-            clearTimeout(waiter.timer);
-            waiter.resolve({ message: null, outcome: 'empty' });
-        }
-        this.waiters.clear();
-        this.reservations.clear();
-        for (const message of this.messages.values()) {
-            if (message.timer) clearTimeout(message.timer);
-            message.body = undefined;
-        }
-        this.messages.clear();
-        this.waiting.clear();
-        this.held.clear();
-        this.idempotency.clear();
-        this.duplicates.clear();
-        this.pairTraffic.clear();
-        this.pendingBytes = 0;
-        this.pendingMessages = 0;
     }
 
     private admit(
@@ -365,7 +127,7 @@ export class AgentInboxRegistry {
                 reason: from.messaging.reason,
                 nextAction: from.messaging.nextAction,
             });
-        if (refsEqual(from.ref, input.to))
+        if (referencesEqual(from.ref, input.to))
             throw new CaxriError('VALIDATION', 'An Agent Endpoint cannot message itself');
         const canonicalDigest = agentMessageDigest({
             to: input.to,
@@ -438,8 +200,8 @@ export class AgentInboxRegistry {
             if (
                 !parent ||
                 parent.receipt.status !== 'delivered' ||
-                !refsEqual(parent.receipt.to, from.ref) ||
-                !refsEqual(parent.receipt.from, input.to)
+                !referencesEqual(parent.receipt.to, from.ref) ||
+                !referencesEqual(parent.receipt.from, input.to)
             )
                 throw new CaxriError(
                     'VALIDATION',
@@ -586,7 +348,7 @@ export class AgentInboxRegistry {
     }
 
     private newReceipt(
-        from: AgentEndpointRef,
+        from: AgentEndpointReference,
         input: AgentMessageSendInput,
         messageId: string,
         createdAt: number,
@@ -601,8 +363,8 @@ export class AgentInboxRegistry {
             createdAt,
             updatedAt: createdAt,
             expiresAt: Math.max(createdAt + 1, expiresAt),
-            ...(input.replyTo ? { replyTo: input.replyTo } : {}),
-            ...(input.dispatchId ? { dispatchId: input.dispatchId } : {}),
+            ...(input.replyTo && { replyTo: input.replyTo }),
+            ...(input.dispatchId && { dispatchId: input.dispatchId }),
         };
     }
 
@@ -621,7 +383,7 @@ export class AgentInboxRegistry {
 
     private admitReceipt(): void {
         if (this.messages.size < MAX_RECEIPTS) return;
-        const terminal = [...this.messages.entries()].find(
+        const terminal = [...this.messages].find(
             ([, message]) =>
                 message.state !== 'waiting' &&
                 message.state !== 'held' &&
@@ -658,7 +420,7 @@ export class AgentInboxRegistry {
             body: message.body,
             createdAt: message.receipt.createdAt,
             expiresAt: message.receipt.expiresAt,
-            ...(message.receipt.replyTo ? { replyTo: message.receipt.replyTo } : {}),
+            ...(message.receipt.replyTo && { replyTo: message.receipt.replyTo }),
         };
     }
 
@@ -693,12 +455,7 @@ export class AgentInboxRegistry {
             'capacity' | 'delivered' | 'expired' | 'refused' | 'unavailable'
         >,
     ): void {
-        if (
-            message.state !== 'waiting' &&
-            message.state !== 'held' &&
-            message.state !== 'delivering'
-        )
-            return;
+        if (!PENDING_MESSAGE_STATES.includes(message.state)) return;
         if (message.to) {
             const key = endpointKey(message.to.ref);
             this.removeQueued(this.waiting, key, message.receipt.messageId);
@@ -727,8 +484,14 @@ export class AgentInboxRegistry {
         message.timer.unref();
     }
 
-    private admitPairTraffic(from: AgentEndpointRef, to: AgentEndpointRef, now: number): boolean {
-        const key = [endpointKey(from), endpointKey(to)].sort().join('|');
+    private admitPairTraffic(
+        from: AgentEndpointReference,
+        to: AgentEndpointReference,
+        now: number,
+    ): boolean {
+        const key = [endpointKey(from), endpointKey(to)]
+            .toSorted((left, right) => left.localeCompare(right))
+            .join('|');
         const recent = (this.pairTraffic.get(key) ?? []).filter(
             (timestamp) => timestamp > now - LOOP_WINDOW_MS,
         );
@@ -744,12 +507,7 @@ export class AgentInboxRegistry {
     private sweep(): void {
         const now = this.now();
         for (const message of this.messages.values()) {
-            if (
-                message.receipt.expiresAt <= now &&
-                (message.state === 'waiting' ||
-                    message.state === 'held' ||
-                    message.state === 'delivering')
-            )
+            if (message.receipt.expiresAt <= now && PENDING_MESSAGE_STATES.includes(message.state))
                 this.finish(message, 'expired');
         }
         for (const [fingerprint, record] of this.duplicates) {
@@ -757,7 +515,7 @@ export class AgentInboxRegistry {
         }
         for (const [key, timestamps] of this.pairTraffic) {
             const recent = timestamps.filter((timestamp) => timestamp > now - LOOP_WINDOW_MS);
-            if (recent.length) this.pairTraffic.set(key, recent);
+            if (recent.length > 0) this.pairTraffic.set(key, recent);
             else this.pairTraffic.delete(key);
         }
     }
@@ -772,7 +530,260 @@ export class AgentInboxRegistry {
         const queue = map.get(key);
         if (!queue) return;
         const index = queue.indexOf(messageId);
-        if (index >= 0) queue.splice(index, 1);
+        if (index !== -1) queue.splice(index, 1);
         if (queue.length === 0) map.delete(key);
+    }
+
+    send(
+        context: CommandExecutionContext,
+        input: AgentMessageSendInput,
+        requestId: string,
+        wakeDispatchId?: string,
+    ): AgentMessageReceipt {
+        return this.admit(
+            context,
+            wakeDispatchId ? { ...input, dispatchId: wakeDispatchId } : input,
+            input.idempotencyKey ?? requestId,
+        );
+    }
+
+    reply(
+        context: CommandExecutionContext,
+        input: AgentMessageSendInput & { replyTo: string },
+        requestId: string,
+    ): AgentMessageReceipt {
+        return this.admit(context, input, input.idempotencyKey ?? requestId);
+    }
+
+    receipt(context: CommandExecutionContext, messageId: string): AgentMessageReceipt {
+        this.sweep();
+        const sender = resolveSender(this.endpoints, context);
+        const message = this.messages.get(messageId);
+        if (!message || !referencesEqual(message.from.ref, sender.ref))
+            throw new CaxriError('NOT_FOUND', 'Agent message receipt was not found');
+        return message.receipt;
+    }
+
+    policy(context: CommandExecutionContext): {
+        policy: AgentInboundPolicy;
+        heldRetention: AgentHeldRetention;
+    } {
+        const endpoint = resolveSender(this.endpoints, context);
+        return (
+            this.policies.get(endpointKey(endpoint.ref)) ?? {
+                policy: 'auto',
+                heldRetention: 'approval-window',
+            }
+        );
+    }
+
+    setPolicy(
+        context: CommandExecutionContext,
+        value: { policy: AgentInboundPolicy; heldRetention: AgentHeldRetention },
+    ): { policy: AgentInboundPolicy; heldRetention: AgentHeldRetention } {
+        const endpoint = resolveSender(this.endpoints, context);
+        const normalized =
+            value.policy === 'hold'
+                ? value
+                : { policy: value.policy, heldRetention: 'approval-window' as const };
+        this.policies.set(endpointKey(endpoint.ref), normalized);
+        return normalized;
+    }
+
+    listHeld(): AgentHeldMessage[] {
+        this.sweep();
+        return this.messages
+            .values()
+            .filter((message) => message.state === 'held' && message.body && message.to)
+            .toArray()
+            .toSorted((left, right) => left.receipt.createdAt - right.receipt.createdAt)
+            .map(heldMessageProjection);
+    }
+
+    heldDetail(messageId: string): AgentHeldMessageDetail {
+        this.sweep();
+        const message = this.messages.get(messageId);
+        if (!message || message.state !== 'held')
+            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        return heldMessageDetail(message);
+    }
+
+    approve(messageId: string): AgentMessageReceipt {
+        this.sweep();
+        const message = this.messages.get(messageId);
+        if (!message || message.state !== 'held' || !message.to)
+            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        this.endpoints.resolve(message.to.ref);
+        const receiverKey = endpointKey(message.to.ref);
+        if ((this.waiting.get(receiverKey)?.length ?? 0) >= MAX_WAITING_PER_ENDPOINT) {
+            this.finish(message, 'capacity');
+            return message.receipt;
+        }
+        this.removeQueued(this.held, endpointKey(message.to.ref), messageId);
+        message.state = 'waiting';
+        message.receipt = {
+            ...message.receipt,
+            status: 'waiting',
+            updatedAt: this.now(),
+        };
+        this.pushQueued(this.waiting, receiverKey, messageId);
+        this.emitReceipt(message);
+        this.satisfyWaiter(receiverKey);
+        return message.receipt;
+    }
+
+    deny(messageId: string): AgentMessageReceipt {
+        this.sweep();
+        const message = this.messages.get(messageId);
+        if (!message || message.state !== 'held')
+            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        this.finish(message, 'refused');
+        return message.receipt;
+    }
+
+    wait(
+        context: CommandExecutionContext,
+        timeoutMs: number,
+        requestId: string,
+    ): Promise<AgentMessagePullResult> {
+        this.sweep();
+        const receiver = resolvePullReceiver(this.endpoints, context);
+        const key = endpointKey(receiver.ref);
+        if (
+            this.waiters.has(key) ||
+            this.reservations.values().some((reservation) => reservation.endpointKey === key)
+        )
+            throw new CaxriError('CONFLICT', 'Agent Endpoint already has an active message wait');
+        const message = this.shiftWaiting(key);
+        if (message)
+            return Promise.resolve({
+                message: this.reserve(message, key, requestId),
+                outcome: 'message',
+            });
+        return new Promise((resolve) => {
+            const waiter: MessageWaiter = {
+                endpointKey: key,
+                requestId,
+                resolve,
+                timer: setTimeout(() => {
+                    if (this.waiters.get(key) === waiter) this.waiters.delete(key);
+                    resolve({ message: null, outcome: 'timed_out' });
+                }, timeoutMs),
+            };
+            waiter.timer.unref();
+            this.waiters.set(key, waiter);
+        });
+    }
+
+    check(context: CommandExecutionContext, requestId: string): AgentMessagePullResult {
+        this.sweep();
+        const receiver = resolvePullReceiver(this.endpoints, context);
+        const key = endpointKey(receiver.ref);
+        if (
+            this.waiters.has(key) ||
+            this.reservations.values().some((reservation) => reservation.endpointKey === key)
+        )
+            throw new CaxriError('CONFLICT', 'Agent Endpoint already has an active message wait');
+        const message = this.shiftWaiting(key);
+        return message
+            ? { message: this.reserve(message, key, requestId), outcome: 'message' }
+            : { message: null, outcome: 'empty' };
+    }
+
+    /**
+     * Marks a pull delivered only after LocalHostServer confirms its reply crossed the socket.
+     */
+    confirmWait(requestId: string, context: CommandExecutionContext): void {
+        const reservation = this.reservations.get(requestId);
+        if (!reservation) return;
+        let receiver: AgentEndpointSummary;
+        try {
+            receiver = resolveSender(this.endpoints, context);
+        } catch {
+            this.cancelWait(requestId);
+            return;
+        }
+        if (endpointKey(receiver.ref) !== reservation.endpointKey) return;
+        this.reservations.delete(requestId);
+        const message = this.messages.get(reservation.messageId);
+        if (message?.state === 'delivering') this.finish(message, 'delivered');
+    }
+
+    /**
+     * Requeues an unflushed pull at the FIFO front, or resolves an abandoned long poll.
+     */
+    cancelWait(requestId: string): void {
+        for (const [key, waiter] of this.waiters) {
+            if (waiter.requestId !== requestId) continue;
+            clearTimeout(waiter.timer);
+            this.waiters.delete(key);
+            waiter.resolve({ message: null, outcome: 'empty' });
+            return;
+        }
+        const reservation = this.reservations.get(requestId);
+        if (!reservation) return;
+        this.reservations.delete(requestId);
+        const message = this.messages.get(reservation.messageId);
+        if (!message || message.state !== 'delivering') return;
+        if (message.receipt.expiresAt <= this.now()) {
+            this.finish(message, 'expired');
+            return;
+        }
+        try {
+            this.endpoints.resolve(message.receipt.to);
+        } catch {
+            this.finish(message, 'expired');
+            return;
+        }
+        message.state = 'waiting';
+        const queue = this.waiting.get(reservation.endpointKey) ?? [];
+        queue.unshift(message.receipt.messageId);
+        this.waiting.set(reservation.endpointKey, queue);
+    }
+
+    retire(reference: AgentEndpointReference): void {
+        const key = endpointKey(reference);
+        const waiter = this.waiters.get(key);
+        if (waiter) {
+            clearTimeout(waiter.timer);
+            this.waiters.delete(key);
+            waiter.resolve({ message: null, outcome: 'empty' });
+        }
+        for (const [requestId, reservation] of this.reservations) {
+            if (reservation.endpointKey === key) this.reservations.delete(requestId);
+        }
+        for (const message of this.messages.values()) {
+            if (referencesEqual(message.receipt.from, reference)) this.releaseIdempotency(message);
+            if (
+                (referencesEqual(message.receipt.from, reference) ||
+                    referencesEqual(message.receipt.to, reference)) &&
+                PENDING_MESSAGE_STATES.includes(message.state)
+            )
+                this.finish(message, 'expired');
+        }
+        this.policies.delete(key);
+        this.waiting.delete(key);
+        this.held.delete(key);
+    }
+
+    close(): void {
+        for (const waiter of this.waiters.values()) {
+            clearTimeout(waiter.timer);
+            waiter.resolve({ message: null, outcome: 'empty' });
+        }
+        this.waiters.clear();
+        this.reservations.clear();
+        for (const message of this.messages.values()) {
+            if (message.timer) clearTimeout(message.timer);
+            message.body = undefined;
+        }
+        this.messages.clear();
+        this.waiting.clear();
+        this.held.clear();
+        this.idempotency.clear();
+        this.duplicates.clear();
+        this.pairTraffic.clear();
+        this.pendingBytes = 0;
+        this.pendingMessages = 0;
     }
 }

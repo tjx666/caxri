@@ -1,7 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { CaxriError } from '@shared/ipc';
 import type { BootstrapState, FileMutationOperation } from '@shared/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }));
 
@@ -10,9 +9,12 @@ vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 import { caxriQueryKey, queryClient } from '../../../../queries/client';
 import { dismissToast, useToastStore } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
+import { didTrashFile, duplicateFile, moveFile, pasteFile, renameFile } from './file-actions';
 import { useFileClipboardStore } from './file-clipboard';
-import { resolveFileConflictChoice, useFileConflictDialogStore } from './file-conflict-dialog';
-import { duplicateFile, moveFile, pasteFile, renameFile, trashFile } from './file-actions';
+import {
+    resolveFileConflictChoice,
+    useFileConflictDialogStore,
+} from './file-conflict-dialog-store';
 import {
     failureToastSuppressionSizeForTests,
     reconcileFileMutation,
@@ -20,14 +22,13 @@ import {
 import { useFileOperationStore } from './file-operation-state';
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
-    let resolve!: (value: T) => void;
-    const promise = new Promise<T>((complete) => {
-        resolve = complete;
-    });
+    const { promise, resolve } = Promise.withResolvers<T>();
     return { promise, resolve };
 }
 
-/** A `files.list` stub that reports one plain-file entry for any directory it is asked about. */
+/**
+ * A `files.list` stub that reports one plain-file entry for any directory it is asked about.
+ */
 function fileEntryListing(name: string): unknown[] {
     return [{ name, path: `/anywhere/${name}`, kind: 'file' }];
 }
@@ -231,7 +232,7 @@ describe('file action lifecycle', () => {
             path: '/project/source.txt',
         });
 
-        await expect(trashFile('session-a', '/project/source.txt')).resolves.toBe(true);
+        await expect(didTrashFile('session-a', '/project/source.txt')).resolves.toBe(true);
 
         expect(useToastStore.getState().toasts).toContainEqual(
             expect.objectContaining({ kind: 'success', message: "Moved 'source.txt' to Trash" }),
@@ -241,7 +242,7 @@ describe('file action lifecycle', () => {
     it('does not toast when Move to Trash is canceled', async () => {
         mocks.request.mockResolvedValue({ canceled: true });
 
-        await expect(trashFile('session-a', '/project/source.txt')).resolves.toBe(false);
+        await expect(didTrashFile('session-a', '/project/source.txt')).resolves.toBe(false);
 
         expect(useToastStore.getState().toasts).toEqual([]);
     });
@@ -268,7 +269,7 @@ describe('file action lifecycle', () => {
             path: '/project/source.txt',
         });
 
-        await expect(trashFile('session-a', '/project/source.txt')).resolves.toBe(true);
+        await expect(didTrashFile('session-a', '/project/source.txt')).resolves.toBe(true);
 
         expect(mocks.request).toHaveBeenCalledWith('files.trash', {
             sessionId: 'session-a',
@@ -307,7 +308,7 @@ describe('file action lifecycle', () => {
             path: '/project/source.txt',
         });
 
-        await expect(trashFile('session-a', '/project/source.txt')).resolves.toBe(true);
+        await expect(didTrashFile('session-a', '/project/source.txt')).resolves.toBe(true);
 
         expect(mocks.request).toHaveBeenCalledWith('files.trash', {
             sessionId: 'session-a',
@@ -331,9 +332,9 @@ describe('moveFile conflict prompt', () => {
 
     function rejectFirstAttempt(
         method: string,
-        params: Record<string, unknown>,
+        parameters: Record<string, unknown>,
     ): Promise<unknown> | undefined {
-        if (method === 'files.move' && params.conflict === 'reject')
+        if (method === 'files.move' && parameters.conflict === 'reject')
             return Promise.reject(
                 new CaxriError('CONFLICT', 'A file or folder with that name already exists'),
             );
@@ -376,13 +377,13 @@ describe('moveFile conflict prompt', () => {
             startedAt: 3,
             updatedAt: 4,
         };
-        mocks.request.mockImplementation((method: string, params: Record<string, unknown>) => {
-            const rejected = rejectFirstAttempt(method, params);
+        mocks.request.mockImplementation((method: string, parameters: Record<string, unknown>) => {
+            const rejected = rejectFirstAttempt(method, parameters);
             if (rejected) return rejected;
             if (method === 'files.move') return Promise.resolve(movedResult);
             if (method === 'files.operation.get')
                 return Promise.resolve(
-                    params.operationId === 'conflict-replace-1' ? failed : completed,
+                    parameters.operationId === 'conflict-replace-1' ? failed : completed,
                 );
             return Promise.resolve(null);
         });
@@ -443,13 +444,13 @@ describe('moveFile conflict prompt', () => {
             startedAt: 3,
             updatedAt: 4,
         };
-        mocks.request.mockImplementation((method: string, params: Record<string, unknown>) => {
-            const rejected = rejectFirstAttempt(method, params);
+        mocks.request.mockImplementation((method: string, parameters: Record<string, unknown>) => {
+            const rejected = rejectFirstAttempt(method, parameters);
             if (rejected) return rejected;
             if (method === 'files.move') return Promise.resolve(movedResult);
             if (method === 'files.operation.get')
                 return Promise.resolve(
-                    params.operationId === 'conflict-keep-both-1' ? failed : completed,
+                    parameters.operationId === 'conflict-keep-both-1' ? failed : completed,
                 );
             return Promise.resolve(null);
         });
@@ -486,8 +487,8 @@ describe('moveFile conflict prompt', () => {
             startedAt: 1,
             updatedAt: 2,
         };
-        mocks.request.mockImplementation((method: string, params: Record<string, unknown>) => {
-            const rejected = rejectFirstAttempt(method, params);
+        mocks.request.mockImplementation((method: string, parameters: Record<string, unknown>) => {
+            const rejected = rejectFirstAttempt(method, parameters);
             if (rejected) return rejected;
             if (method === 'files.operation.get') return Promise.resolve(failed);
             return Promise.resolve(null);
@@ -593,7 +594,7 @@ describe('moveFile conflict prompt', () => {
         await expect(moveFile('session-a', source, directory)).resolves.toMatchObject({
             name: 'source.txt',
         });
-        // A conflict-free move never reaches `consumeFailureToastSuppression` (only the failed
+        // A conflict-free move never reaches `didConsumeFailureToastSuppression` (only the failed
         // branch of `reconcileFileMutation` calls it), so only `moveFile`'s own `finally` can clear
         // the registration it made before this attempt. Without that `finally`, this entry would
         // stay registered for the life of the Renderer.

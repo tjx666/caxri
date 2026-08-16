@@ -3,7 +3,9 @@ import type { ThemeTokens } from '@shared/types';
 import { monacoBaseThemeFor } from './editor-theme-base';
 import { monaco } from './monaco';
 
-/** Keeps every Monaco surface aligned with the active Caxri theme. */
+/**
+ * Keeps every Monaco surface aligned with the active Caxri theme.
+ */
 export function applyEditorTheme(theme: ThemeTokens): void {
     monaco.editor.defineTheme('caxri-active', {
         base: monacoBaseThemeFor(theme.editor.background),

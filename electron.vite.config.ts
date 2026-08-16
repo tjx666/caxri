@@ -6,11 +6,14 @@ import { promisify } from 'node:util';
 import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
-import { defineConfig, type UserConfig } from 'electron-vite';
+import type { UserConfig } from 'electron-vite';
+import { defineConfig } from 'electron-vite';
 
 const execFileAsync = promisify(execFile);
 
-/** Best-effort short commit hash; packaged builds outside a Git checkout fall back to 'unknown'. */
+/**
+ * Best-effort short commit hash; packaged builds outside a Git checkout fall back to 'unknown'.
+ */
 async function resolveGitCommit(): Promise<string> {
     try {
         const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], {
@@ -25,9 +28,9 @@ async function resolveGitCommit(): Promise<string> {
 
 export default defineConfig(async ({ command }) => {
     /**
-     * `@rolldown/plugin-babel` returns a Vite-supported Promise, but electron-vite 6 beta deep-clones
-     * each process config before Vite resolves async plugins. Resolve it here so the official React
-     * Compiler preset reaches only the Renderer pipeline as a plain plugin object.
+     * `@rolldown/plugin-babel` returns a Vite-supported Promise, but electron-vite 6 beta deep-clones each process
+     * config before Vite resolves async plugins. Resolve it here so the official React Compiler preset reaches only the
+     * Renderer pipeline as a plain plugin object.
      */
     const reactCompiler = await babel({ presets: [reactCompilerPreset()] });
     const packageJson = JSON.parse(await readFile(resolve('package.json'), 'utf8')) as {
@@ -38,9 +41,9 @@ export default defineConfig(async ({ command }) => {
     return {
         main: {
             /**
-             * Stamps every Main/Runtime build with the package version and commit it was built from, so
-             * logs and diagnostics exports can be correlated to a specific build. See src/main/global.d.ts
-             * for the corresponding ambient type declarations.
+             * Stamps every Main/Runtime build with the package version and commit it was built from, so logs and
+             * diagnostics exports can be correlated to a specific build. See src/main/global.d.ts for the corresponding
+             * ambient type declarations.
              */
             define: {
                 __CAXRI_VERSION__: JSON.stringify(packageJson.version),
@@ -96,7 +99,7 @@ export default defineConfig(async ({ command }) => {
                     transformIndexHtml(html: string) {
                         const connectSource =
                             command === 'serve' ? "'self' ws://localhost:*" : "'self'";
-                        return html.replace('__CAXRI_CONNECT_SRC__', connectSource);
+                        return html.replace('__CAXRI_CONNECT_SRC__', () => connectSource);
                     },
                 },
             ],

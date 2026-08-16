@@ -1,24 +1,26 @@
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
+import process from 'node:process';
 
-import { expect, type ElectronApplication, type Page } from '@playwright/test';
-import { _electron as electron } from 'playwright';
 import { connectToHost, discoverHostManifest } from '@caxri/cli';
+import type { ElectronApplication, Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { _electron as electron } from 'playwright';
 
+import type { DesktopLeaseHandle } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
 import {
     acquireDesktopLease,
     beginDesktopLeaseHandoff,
     releaseDesktopLease,
     transferDesktopLease,
-    type DesktopLeaseHandle,
 } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
+import type { AgentProvider } from '../../src/shared/agents.ts';
 import { createBuildFreshnessGuard } from '../../src/shared/node/build-freshness.ts';
 import {
     e2eAgentPolicyEnvironment,
     e2eAgentShellShims,
     e2eFakeExecutableEnvironmentKeys,
 } from '../../src/shared/node/e2e-agent-policy.ts';
-import type { AgentProvider } from '../../src/shared/agents.ts';
 import { registerE2ELaunch } from './error-gate.ts';
 import { resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
@@ -70,9 +72,9 @@ const e2eAgentEnvironmentKeys = [
 ] as const;
 
 /**
- * Guards against testing stale build output. The standard focused entrypoint
- * (`bun run --silent check e2e/foo.e2e.ts --e2e`) builds first, while direct Playwright invocations may
- * skip that step and otherwise silently launch a previously built `out/main/index.js`.
+ * Guards against testing stale build output. The standard focused entrypoint (`bun run --silent check e2e/foo.e2e.ts
+ * --e2e`) builds first, while direct Playwright invocations may skip that step and otherwise silently launch a
+ * previously built `out/main/index.js`.
  */
 const buildFreshnessGuard = createBuildFreshnessGuard({
     inputPaths: buildInputPaths,
@@ -86,25 +88,38 @@ async function assertBuildIsFresh(): Promise<void> {
 }
 
 export interface LaunchCaxriOptions {
-    /** Electron `userData` directory; callers create this with `mkdtemp`. */
+    /**
+     * Electron `userData` directory; callers create this with `mkdtemp`.
+     */
     userDataDir: string;
-    /** Project root exposed to the app through `CAXRI_TEST_ROOT_PATH`. */
+    /**
+     * Project root exposed to the app through `CAXRI_TEST_ROOT_PATH`.
+     */
     testRootPath: string;
     /**
-     * Extra environment variables layered over `process.env` and the Caxri
-     * E2E defaults below. Agent executables and provider state belong in
-     * `agentMode`; use this only for a scenario-specific shell or tool environment.
+     * Extra environment variables layered over `process.env` and the Caxri E2E defaults below. Agent executables and
+     * provider state belong in `agentMode`; use this only for a scenario-specific shell or tool environment.
      */
     env?: NodeJS.ProcessEnv;
-    /** Launches a packaged build instead of `.` (used by the startup benchmark). */
+    /**
+     * Launches a packaged build instead of `.` (used by the startup benchmark).
+     */
     executablePath?: string;
-    /** Hidden by default; use visible only for native focus, pointer, or desktop behavior. */
+    /**
+     * Hidden by default; use visible only for native focus, pointer, or desktop behavior.
+     */
     windowMode?: 'hidden' | 'visible';
-    /** Keeps deterministic software rendering by default; WebGL renderer specs opt into GPU. */
+    /**
+     * Keeps deterministic software rendering by default; WebGL renderer specs opt into GPU.
+     */
     gpuMode?: 'disabled' | 'enabled';
-    /** Blocks host Agents by default; fake and real modes require an explicit per-spec choice. */
+    /**
+     * Blocks host Agents by default; fake and real modes require an explicit per-spec choice.
+     */
     agentMode?: E2EAgentMode;
-    /** Restart workflows let the next launch inherit the same live Host; the final launch cleans it. */
+    /**
+     * Restart workflows let the next launch inherit the same live Host; the final launch cleans it.
+     */
     preserveHostOnClose?: boolean;
 }
 
@@ -118,7 +133,7 @@ type E2EAgentMode =
     | { mode: 'real'; provider?: AgentProvider };
 
 async function e2eAgentEnvironment(
-    userDataDir: string,
+    userDataDirectory: string,
     agentMode: E2EAgentMode,
     sourceEnvironment: NodeJS.ProcessEnv,
 ): Promise<NodeJS.ProcessEnv> {
@@ -128,7 +143,7 @@ async function e2eAgentEnvironment(
             provider: agentMode.provider ?? 'codex',
         });
     }
-    const fixtureRoot = join(userDataDir, 'e2e-agents');
+    const fixtureRoot = join(userDataDirectory, 'e2e-agents');
     const home = join(fixtureRoot, 'home');
     const codexState = join(fixtureRoot, 'codex');
     const claudeState = join(fixtureRoot, 'claude');
@@ -160,11 +175,13 @@ async function e2eAgentEnvironment(
 
     const shellBin = join(fixtureRoot, 'shell-bin');
     await mkdir(shellBin, { recursive: true });
-    for (const shim of e2eAgentShellShims(fakeExecutables)) {
-        const executable = join(shellBin, shim.executable);
-        await writeFile(executable, shim.source, 'utf8');
-        await chmod(executable, 0o700);
-    }
+    await Promise.all(
+        e2eAgentShellShims(fakeExecutables).map(async (shim) => {
+            const executable = join(shellBin, shim.executable);
+            await writeFile(executable, shim.source, 'utf8');
+            await chmod(executable, 0o700);
+        }),
+    );
     const shellPath = `${shellBin}:${sourceEnvironment.PATH ?? process.env.PATH ?? '/usr/bin:/bin'}`;
     const profile = `export PATH=${shellQuote(shellPath)}\n`;
     const isolatedHome = isolatedEnvironment.HOME;
@@ -199,10 +216,10 @@ function errorCode(error: unknown): string | undefined {
         : undefined;
 }
 
-async function stopE2EHost(userDataDir: string): Promise<void> {
+async function stopE2EHost(userDataDirectory: string): Promise<void> {
     let client: Awaited<ReturnType<typeof connectToHost>> | undefined;
     try {
-        client = await connectToHost(userDataDir, 2_000);
+        client = await connectToHost(userDataDirectory, 2_000);
         await client.request('host.stop', { confirmLivePtys: true });
     } catch (error) {
         if (errorCode(error) !== 'NOT_FOUND' && errorCode(error) !== 'UNAVAILABLE') throw error;
@@ -212,17 +229,22 @@ async function stopE2EHost(userDataDir: string): Promise<void> {
     }
     for (let attempt = 0; attempt < 100; attempt += 1) {
         try {
-            await discoverHostManifest(userDataDir);
+            // Sequential polling by design: each attempt depends on the previous one finishing.
+            // eslint-disable-next-line no-await-in-loop
+            await discoverHostManifest(userDataDirectory);
         } catch (error) {
             if (errorCode(error) === 'NOT_FOUND') return;
             throw error;
         }
+        // eslint-disable-next-line no-await-in-loop -- deliberate delay between poll attempts
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
     throw new Error('Timed out waiting for the E2E Host to stop');
 }
 
-/** Waits for the asynchronous New Terminal action to become observable through Runtime state. */
+/**
+ * Waits for the asynchronous New Terminal action to become observable through Runtime state.
+ */
 export async function waitForNewTerminalId(
     page: Page,
     existingIds: readonly string[],
@@ -244,10 +266,9 @@ export async function waitForNewTerminalId(
 }
 
 /**
- * Launches the Caxri Electron app for e2e tests without waiting for the
- * Runtime to become ready. Most specs should use {@link launchCaxri} instead;
- * this lower-level entry point exists for specs (eg. the startup benchmark)
- * that need to measure the readiness wait themselves.
+ * Launches the Caxri Electron app for e2e tests without waiting for the Runtime to become ready. Most specs should use
+ * {@link launchCaxri} instead; this lower-level entry point exists for specs (eg. the startup benchmark) that need to
+ * measure the readiness wait themselves.
  */
 export async function launchCaxriApp(
     options: LaunchCaxriOptions,
@@ -256,30 +277,32 @@ export async function launchCaxriApp(
     const {
         userDataDir,
         testRootPath,
-        env = {},
+        env: environment = {},
         executablePath,
         gpuMode = 'disabled',
         windowMode = 'hidden',
         agentMode = { mode: 'blocked' },
         preserveHostOnClose = false,
     } = options;
-    const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, env);
+    const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
     const workerIsolation = resolveE2EWorkerIsolation(process.env);
     const launchEnvironmentSource: NodeJS.ProcessEnv = {
         ...process.env,
-        ...env,
+        ...environment,
         ...agentEnvironment,
         CAXRI_E2E: '1',
         CAXRI_E2E_WINDOW_MODE: windowMode,
         CAXRI_USER_DATA_DIR: userDataDir,
         CAXRI_TEST_ROOT_PATH: testRootPath,
-        ...(workerIsolation.workerNamespace
-            ? { CAXRI_E2E_WORKER_NAMESPACE: workerIsolation.workerNamespace }
-            : {}),
+        ...(workerIsolation.workerNamespace && {
+            CAXRI_E2E_WORKER_NAMESPACE: workerIsolation.workerNamespace,
+        }),
     };
-    /** Prevent ambient internal test switches from adding an undeclared fake provider. */
+    /**
+     * Prevent ambient internal test switches from adding an undeclared fake provider.
+     */
     for (const key of e2eAgentEnvironmentKeys) {
-        if (!(key in agentEnvironment)) delete launchEnvironmentSource[key];
+        if (!Object.hasOwn(agentEnvironment, key)) delete launchEnvironmentSource[key];
     }
     const launchEnvironment = Object.fromEntries(
         Object.entries(launchEnvironmentSource).filter(
@@ -301,7 +324,7 @@ export async function launchCaxriApp(
     try {
         lease = await beginDesktopLeaseHandoff(lease);
         app = await electron.launch({
-            ...(executablePath ? { executablePath } : {}),
+            ...(executablePath && { executablePath }),
             args: executablePath
                 ? gpuMode === 'enabled'
                     ? []
@@ -338,8 +361,16 @@ export async function launchCaxriApp(
         const page = await app.firstWindow();
         return { app, page };
     } catch (error) {
-        await app.close().catch(() => undefined);
-        await releaseLease().catch(() => undefined);
+        try {
+            await app.close();
+        } catch {
+            // Ignore close failures while unwinding a failed launch.
+        }
+        try {
+            await releaseLease();
+        } catch {
+            // Ignore release failures while unwinding a failed launch.
+        }
         throw error;
     }
 }
@@ -347,8 +378,8 @@ export async function launchCaxriApp(
 /**
  * Waits for the Runtime-ready signal that every spec relies on for readiness.
  *
- * The status bar only renders a *visible* state chip while Caxri is degraded, so readiness is
- * published as a data attribute that exists in every visual state instead of as display copy.
+ * The status bar only renders a _visible_ state chip while Caxri is degraded, so readiness is published as a data
+ * attribute that exists in every visual state instead of as display copy.
  */
 export function runtimeStatus(page: Page) {
     return page.locator('.statusbar');
@@ -358,7 +389,9 @@ export async function waitForRuntimeReady(page: Page): Promise<void> {
     await expect(runtimeStatus(page)).toHaveAttribute('data-runtime-status', 'ready');
 }
 
-/** Launches Caxri and waits for the Runtime to report ready. */
+/**
+ * Launches Caxri and waits for the Runtime to report ready.
+ */
 export async function launchCaxri(
     options: LaunchCaxriOptions,
 ): Promise<{ app: ElectronApplication; page: Page }> {
@@ -368,9 +401,9 @@ export async function launchCaxri(
 }
 
 /**
- * Waits until Project creation has converged across Runtime state and the visible workbench.
- * A dialog closing or a Session card rendering alone is insufficient: hosted runners can expose
- * either before the selected Session and its first durable Terminal are available together.
+ * Waits until Project creation has converged across Runtime state and the visible workbench. A dialog closing or a
+ * Session card rendering alone is insufficient: hosted runners can expose either before the selected Session and its
+ * first durable Terminal are available together.
  */
 export async function waitForCreatedSession(
     page: Page,
@@ -388,12 +421,12 @@ export async function waitForCreatedSession(
             if (
                 !candidate ||
                 candidate === previousSessionId ||
-                !state.sessions.some(({ id }) => id === candidate) ||
-                !state.terminals.some(({ sessionId }) => sessionId === candidate) ||
+                state.sessions.every(({ id }) => id !== candidate) ||
+                state.terminals.every(({ sessionId }) => sessionId !== candidate) ||
                 (await page.getByRole('dialog').count()) > 0 ||
                 (await sessionCard(page, candidate).count()) === 0
             ) {
-                return undefined;
+                return;
             }
             createdSessionId = candidate;
             return candidate;
@@ -403,9 +436,9 @@ export async function waitForCreatedSession(
 }
 
 /**
- * Opens the "Add Project" dialog, picks the requested default Terminal, and returns only after
- * the new Session satisfies {@link waitForCreatedSession}. Specs that also need a writable Shell
- * surface should use {@link createShellSession} instead.
+ * Opens the "Add Project" dialog, picks the requested default Terminal, and returns only after the new Session
+ * satisfies {@link waitForCreatedSession}. Specs that also need a writable Shell surface should use
+ * {@link createShellSession} instead.
  */
 export async function createProjectSession(
     page: Page,
@@ -424,7 +457,9 @@ export async function createProjectSession(
     return waitForCreatedSession(page, previous.selectedSessionId);
 }
 
-/** Reveals the quiet titlebar action before activating it, matching pointer use at rest. */
+/**
+ * Reveals the quiet titlebar action before activating it, matching pointer use at rest.
+ */
 export async function openAddProjectDialog(page: Page): Promise<void> {
     const titlebar = page.locator('.sidebar-title');
     await titlebar.hover({ position: { x: 90, y: 22 } });
@@ -435,7 +470,9 @@ export async function createShellSession(page: Page): Promise<void> {
     await createProjectSession(page, 'shell');
     const terminalInput = page.locator('.xterm-helper-textarea');
     await expect(terminalInput).toBeVisible();
-    /** The initial Terminal focus effect is part of creation completing, not caller setup. */
+    /**
+     * The initial Terminal focus effect is part of creation completing, not caller setup.
+     */
     await expect(terminalInput).toBeFocused();
 }
 
@@ -472,30 +509,41 @@ export async function typeTerminal(page: Page, command: string): Promise<void> {
 
 async function terminalTextBounds(page: Page, text: string) {
     return page.locator('.xterm-rows').evaluate((rows, target) => {
-        let matched: { x: number; y: number; width: number; height: number } | undefined;
-        for (const row of rows.children) {
-            const rowText = row.textContent ?? '';
-            const targetStart = rowText.indexOf(target);
-            if (targetStart < 0) continue;
-            const range = document.createRange();
+        /**
+         * Finds the text-node offsets spanning `[targetStart, targetStart + target.length)` within `row`.
+         */
+        function findTextNodeRange(
+            row: Element,
+            targetStart: number,
+        ):
+            | { start: { node: Node; offset: number }; end: { node: Node; offset: number } }
+            | undefined {
             const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
             let offset = 0;
             let start: { node: Node; offset: number } | undefined;
-            let end: { node: Node; offset: number } | undefined;
             for (let node = walker.nextNode(); node; node = walker.nextNode()) {
                 const length = node.textContent?.length ?? 0;
                 if (!start && targetStart >= offset && targetStart <= offset + length)
                     start = { node, offset: targetStart - offset };
                 const targetEnd = targetStart + target.length;
                 if (targetEnd >= offset && targetEnd <= offset + length) {
-                    end = { node, offset: targetEnd - offset };
-                    break;
+                    return start ? { start, end: { node, offset: targetEnd - offset } } : undefined;
                 }
                 offset += length;
             }
-            if (!start || !end) continue;
-            range.setStart(start.node, start.offset);
-            range.setEnd(end.node, end.offset);
+            return undefined;
+        }
+
+        let matched: { x: number; y: number; width: number; height: number } | undefined;
+        for (const row of rows.children) {
+            const rowText = row.textContent ?? '';
+            const targetStart = rowText.indexOf(target);
+            if (targetStart === -1) continue;
+            const found = findTextNodeRange(row, targetStart);
+            if (!found) continue;
+            const range = document.createRange();
+            range.setStart(found.start.node, found.start.offset);
+            range.setEnd(found.end.node, found.end.offset);
             const bounds = range.getBoundingClientRect();
             matched = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
         }
@@ -504,8 +552,8 @@ async function terminalTextBounds(page: Page, text: string) {
 }
 
 /**
- * Moves off the target row before waiting for xterm's asynchronous link provider. xterm caches
- * an empty provider result when output replaces a blank row beneath a stationary pointer.
+ * Moves off the target row before waiting for xterm's asynchronous link provider. xterm caches an empty provider result
+ * when output replaces a blank row beneath a stationary pointer.
  */
 export async function clickTerminalLink(page: Page, text: string): Promise<void> {
     await expect.poll(() => terminalTextBounds(page, text)).not.toBeNull();
@@ -538,25 +586,28 @@ export type PageReply<T> =
     { ok: true; result: T } | { ok: false; error: { code: string; message: string } };
 
 /**
- * Calls the preload bridge from inside the page and returns the raw reply envelope. `window.caxri`
- * resolves instead of rejecting because `contextBridge` copies only `message` and `stack` off a
- * thrown error, so the Caxri error code has to travel as data. Use this when a spec asserts a
- * failure; use {@link pageRequest} when it only needs the result.
+ * Calls the preload bridge from inside the page and returns the raw reply envelope. `window.caxri` resolves instead of
+ * rejecting because `contextBridge` copies only `message` and `stack` off a thrown error, so the Caxri error code has
+ * to travel as data. Use this when a spec asserts a failure; use {@link pageRequest} when it only needs the result.
  */
-export function pageReply<T>(page: Page, method: string, params?: unknown): Promise<PageReply<T>> {
+export function pageReply<T>(
+    page: Page,
+    method: string,
+    parameters?: unknown,
+): Promise<PageReply<T>> {
     return page.evaluate(
-        ([requestMethod, requestParams]) =>
+        ([requestMethod, requestParameters]) =>
             (
-                window as unknown as {
-                    caxri: { request(method: string, params?: unknown): Promise<unknown> };
+                globalThis as unknown as {
+                    caxri: { request(method: string, parameters_?: unknown): Promise<unknown> };
                 }
-            ).caxri.request(requestMethod, requestParams),
-        [method, params] as const,
+            ).caxri.request(requestMethod, requestParameters),
+        [method, parameters] as const,
     ) as Promise<PageReply<T>>;
 }
 
-export async function pageRequest<T>(page: Page, method: string, params?: unknown): Promise<T> {
-    const reply = await pageReply<T>(page, method, params);
+export async function pageRequest<T>(page: Page, method: string, parameters?: unknown): Promise<T> {
+    const reply = await pageReply<T>(page, method, parameters);
     if (!reply.ok) throw new Error(`${reply.error.code}: ${reply.error.message}`);
     return reply.result;
 }
@@ -571,12 +622,16 @@ export function sessionCard(page: Page, sessionId: string) {
     return page.locator(`.session-card[data-session-id="${sessionId}"]`);
 }
 
-/** Splits an existing Terminal by exercising the same tab-to-pane drag gesture as a user. */
+/**
+ * Splits an existing Terminal by exercising the same tab-to-pane drag gesture as a user.
+ */
 export async function splitTerminalToRight(page: Page, terminalId: string): Promise<void> {
     await expect(page.locator(`.work-tab[data-terminal-id="${terminalId}"]`)).toBeAttached();
     await expect(page.locator('.terminal-group').first()).toBeAttached();
     await page.evaluate((draggedTerminalId) => {
-        const source = document.querySelector(`.work-tab[data-terminal-id="${draggedTerminalId}"]`);
+        const source = document.querySelector(
+            `.work-tab[data-terminal-id="${CSS.escape(draggedTerminalId)}"]`,
+        );
         const target = document.querySelector('.terminal-group');
         if (!source || !target) throw new Error('Terminal split drag fixture not found');
         const transfer = new DataTransfer();

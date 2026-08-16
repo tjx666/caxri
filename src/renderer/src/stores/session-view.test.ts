@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-
 import type { EditorDocument } from '@shared/editor-state';
 import type { BootstrapState } from '@shared/types';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
     getSessionDocuments,
@@ -12,12 +11,16 @@ import {
 } from './session-view';
 import { useWorkbenchStore } from './workbench';
 
-const document = (path: string, dirty = false): EditorDocument => ({
+/**
+ * `isDirty` maps to the shared `EditorDocument.dirty` field (defined outside src/renderer); the local parameter is
+ * renamed for unicorn/consistent-boolean-name without touching that shared type.
+ */
+const document = (path: string, isDirty = false): EditorDocument => ({
     path,
     content: path,
     mtimeMs: 1,
     size: path.length,
-    dirty,
+    dirty: isDirty,
 });
 
 const cachedPaths = (sessionId: string): string[] =>

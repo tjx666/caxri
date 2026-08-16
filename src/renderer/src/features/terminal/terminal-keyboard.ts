@@ -8,8 +8,10 @@ interface ClipboardDataLike {
     types: readonly string[];
 }
 
-/** Detects an image-only browser paste before xterm discards its non-text clipboard payload. */
-export function clipboardContainsImage(data: ClipboardDataLike): boolean {
+/**
+ * Detects an image-only browser paste before xterm discards its non-text clipboard payload.
+ */
+export function isClipboardContainingImage(data: ClipboardDataLike): boolean {
     return (
         data.types.some((type) => type.toLowerCase().startsWith('image/')) ||
         Array.from(data.files).some((file) => file.type.toLowerCase().startsWith('image/')) ||
@@ -18,9 +20,8 @@ export function clipboardContainsImage(data: ClipboardDataLike): boolean {
 }
 
 /**
- * Maps macOS editing gestures onto the control bytes supported by shells and Codex. Codex binds
- * Alt+Enter to newline by default, so Shift+Enter uses ESC+CR without depending on a terminal's
- * optional enhanced-keyboard protocol.
+ * Maps macOS editing gestures onto the control bytes supported by shells and Codex. Codex binds Alt+Enter to newline by
+ * default, so Shift+Enter uses ESC+CR without depending on a terminal's optional enhanced-keyboard protocol.
  */
 export function terminalKeyboardInput(
     event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'key' | 'metaKey' | 'shiftKey' | 'type'>,
@@ -35,9 +36,9 @@ export function terminalKeyboardInput(
         !event.ctrlKey &&
         !event.metaKey
     )
-        return '\x1b\r';
+        return '\u{1B}\r';
     if (!event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return undefined;
-    if (event.key === 'ArrowLeft') return '\x01';
-    if (event.key === 'ArrowRight') return '\x05';
+    if (event.key === 'ArrowLeft') return '\u{1}';
+    if (event.key === 'ArrowRight') return '\u{5}';
     return undefined;
 }

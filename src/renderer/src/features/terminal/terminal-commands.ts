@@ -29,8 +29,8 @@ function opaqueColor(color: string): string {
 }
 
 /**
- * Maps explicit OSC 133/633 lifecycle controls to content-free xterm markers. It never inspects or
- * retains command text, prompt text, or output, and unsupported protocol fields are ignored.
+ * Maps explicit OSC 133/633 lifecycle controls to content-free xterm markers. It never inspects or retains command
+ * text, prompt text, or output, and unsupported protocol fields are ignored.
  */
 export class TerminalCommandTracker {
     private readonly commands: CommandBoundary[] = [];
@@ -49,37 +49,6 @@ export class TerminalCommandTracker {
             terminal.parser.registerOscHandler(protocol, (data) => this.handle(data)),
         );
         this.publishStatus();
-    }
-
-    dispose(): void {
-        for (const disposable of this.protocolDisposables) disposable.dispose();
-        this.promptDecoration?.dispose();
-        this.promptMarker?.dispose();
-        for (const command of this.commands) {
-            command.decoration?.dispose();
-            command.finishMarker?.dispose();
-            command.startMarker.dispose();
-        }
-        this.commands.length = 0;
-        this.promptDecoration = undefined;
-        this.promptMarker = undefined;
-        this.running = undefined;
-    }
-
-    navigate(direction: TerminalCommandNavigationDirection): boolean {
-        const commands = this.commands.filter(({ startMarker }) => startMarker.line >= 0);
-        if (commands.length === 0) return false;
-        if (this.navigationIndex === undefined)
-            this.navigationIndex = direction === 'previous' ? commands.length - 1 : 0;
-        else
-            this.navigationIndex = Math.min(
-                commands.length - 1,
-                Math.max(0, this.navigationIndex + (direction === 'previous' ? -1 : 1)),
-            );
-        const command = commands[this.navigationIndex];
-        if (!command) return false;
-        this.terminal.scrollToLine(command.startMarker.line);
-        return true;
     }
 
     private handle(data: string): boolean {
@@ -128,8 +97,10 @@ export class TerminalCommandTracker {
         this.publishStatus();
     }
 
-    /** xterm disposes markers as their scrollback lines are trimmed. Release our matching
-     *  decoration references before adding another boundary so a long-running shell stays bounded. */
+    /**
+     * Xterm disposes markers as their scrollback lines are trimmed. Release our matching decoration references before
+     * adding another boundary so a long-running shell stays bounded.
+     */
     private pruneDisposedCommands(): void {
         for (let index = this.commands.length - 1; index >= 0; index -= 1) {
             const command = this.commands[index];
@@ -139,8 +110,10 @@ export class TerminalCommandTracker {
         }
     }
 
-    /** OSC controls can repeat without advancing the screen, so xterm may never trim their markers.
-     *  Enforce an independent cap before retaining another command boundary. */
+    /**
+     * OSC controls can repeat without advancing the screen, so xterm may never trim their markers. Enforce an
+     * independent cap before retaining another command boundary.
+     */
     private pruneExcessCommands(): void {
         while (this.commands.length >= MAX_RETAINED_COMMANDS) {
             const command = this.commands.shift();
@@ -199,10 +172,41 @@ export class TerminalCommandTracker {
         this.publish({
             commandCount: this.commands.length,
             completedCount: completed.length,
-            ...(completed.at(-1)?.status !== undefined
-                ? { lastExitStatus: completed.at(-1)!.status }
-                : {}),
+            ...(completed.at(-1)?.status !== undefined && {
+                lastExitStatus: completed.at(-1)!.status,
+            }),
         });
+    }
+
+    dispose(): void {
+        for (const disposable of this.protocolDisposables) disposable.dispose();
+        this.promptDecoration?.dispose();
+        this.promptMarker?.dispose();
+        for (const command of this.commands) {
+            command.decoration?.dispose();
+            command.finishMarker?.dispose();
+            command.startMarker.dispose();
+        }
+        this.commands.length = 0;
+        this.promptDecoration = undefined;
+        this.promptMarker = undefined;
+        this.running = undefined;
+    }
+
+    navigate(direction: TerminalCommandNavigationDirection): boolean {
+        const commands = this.commands.filter(({ startMarker }) => startMarker.line >= 0);
+        if (commands.length === 0) return false;
+        if (this.navigationIndex === undefined)
+            this.navigationIndex = direction === 'previous' ? commands.length - 1 : 0;
+        else
+            this.navigationIndex = Math.min(
+                commands.length - 1,
+                Math.max(0, this.navigationIndex + (direction === 'previous' ? -1 : 1)),
+            );
+        const command = commands[this.navigationIndex];
+        if (!command) return false;
+        this.terminal.scrollToLine(command.startMarker.line);
+        return true;
     }
 }
 
@@ -219,15 +223,16 @@ const navigationHandlers = new Map<
 
 export function registerTerminalCommandNavigation(
     terminalId: string,
-    handler: (direction: TerminalCommandNavigationDirection) => boolean,
+    canNavigate: (direction: TerminalCommandNavigationDirection) => boolean,
 ): () => void {
-    navigationHandlers.set(terminalId, handler);
+    navigationHandlers.set(terminalId, canNavigate);
     return () => {
-        if (navigationHandlers.get(terminalId) === handler) navigationHandlers.delete(terminalId);
+        if (navigationHandlers.get(terminalId) === canNavigate)
+            navigationHandlers.delete(terminalId);
     };
 }
 
-export function navigateTerminalCommand(
+export function didNavigateTerminalCommand(
     terminalId: string,
     direction: TerminalCommandNavigationDirection,
 ): boolean {

@@ -1,17 +1,18 @@
+import type { EditorTabCloseMode } from '@shared/editor-state';
 import {
     editorTabPathsToClose,
     openEditorTabState,
     pinEditorTabState,
     reconcileEditorTabDirtiness,
     updateEditorTabState,
-    type EditorTabCloseMode,
 } from '@shared/editor-state';
 import { isGitDiffTabPath } from '@shared/git-diff';
 import type { SessionState } from '@shared/types';
-import { activateWorkState, resolveActiveWork, type WorkItem } from '@shared/work-item';
+import type { WorkItem } from '@shared/work-item';
+import { activateWorkState, resolveActiveWork } from '@shared/work-item';
 
 import { caxri } from '../../lib/caxri';
-import { pathIsAtOrBelow, remapPath } from '../../lib/file-path';
+import { isPathAtOrBelow, remapPath } from '../../lib/file-path';
 import {
     getBootstrap,
     getProjectSessionIds,
@@ -30,9 +31,9 @@ import { tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState, useWorkbenchStore } from '../../stores/workbench';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 
-let fileOpenIntent = 0;
+const fileOpenIntentState = { current: 0 };
 
-const fileName = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? path;
+const fileName = (path: string): string => path.split('/').findLast(Boolean) ?? path;
 
 interface PendingDocumentOperation {
     discarded: boolean;
@@ -42,8 +43,8 @@ interface PendingDocumentOperation {
 }
 
 /**
- * Reads and writes can finish after a rename, move, or Trash request. Tracking only active work
- * lets file mutations remap or invalidate it without retaining an unbounded path history.
+ * Reads and writes can finish after a rename, move, or Trash request. Tracking only active work lets file mutations
+ * remap or invalidate it without retaining an unbounded path history.
  */
 const pendingDocumentOperations = new Set<PendingDocumentOperation>();
 
@@ -66,7 +67,7 @@ function remapPendingDocumentOperations(
         if (
             operation.sessionId === sessionId &&
             operation.workbenchProjectId === workbenchProjectId &&
-            pathIsAtOrBelow(operation.path, previousPath)
+            isPathAtOrBelow(operation.path, previousPath)
         )
             operation.path = remapPath(operation.path, previousPath, nextPath);
     }
@@ -74,16 +75,18 @@ function remapPendingDocumentOperations(
 
 function discardPendingDocumentOperations(sessionId: string, path: string): void {
     for (const operation of pendingDocumentOperations) {
-        if (operation.sessionId === sessionId && pathIsAtOrBelow(operation.path, path))
+        if (operation.sessionId === sessionId && isPathAtOrBelow(operation.path, path))
             operation.discarded = true;
     }
 }
 
-/** Updates dirtiness and pins a preview as soon as it contains an edit. */
+/**
+ * Updates dirtiness and pins a preview as soon as it contains an edit.
+ */
 function updateOpenTab(
     sessionId: string,
     path: string,
-    dirty: boolean,
+    isDirty: boolean,
     workbenchProjectId?: string,
 ): void {
     const current = useWorkbenchStore
@@ -94,11 +97,13 @@ function updateOpenTab(
                 (!workbenchProjectId || state.workbenchProjectId === workbenchProjectId),
         );
     if (!current) return;
-    const next = updateEditorTabState(current, path, dirty);
+    const next = updateEditorTabState(current, path, isDirty);
     if (next !== current) patchSessionState(next);
 }
 
-/** Opens a Renderer-owned editor surface whose content has already been loaded or is virtual. */
+/**
+ * Opens a Renderer-owned editor surface whose content has already been loaded or is virtual.
+ */
 function openEditorTabForSession(
     sessionId: string,
     path: string,
@@ -111,7 +116,7 @@ function openEditorTabForSession(
     const workbenchProjectId = current.workbenchProjectId;
     const view = useSessionViewStore.getState();
     const previousActiveWork = getSessionActiveWork(session.id, workbenchProjectId);
-    const pathWasOpen = current.openTabs.some((tab) => tab.path === path);
+    const isPathWasOpen = current.openTabs.some((tab) => tab.path === path);
     const reconciled = reconcileEditorTabDirtiness(
         current,
         getSessionDocuments(session.id, workbenchProjectId),
@@ -125,25 +130,31 @@ function openEditorTabForSession(
     const item: WorkItem = { kind: 'editor', path };
     view.setActiveWork(session.id, item, workbenchProjectId);
     const next = activateWorkState(opened.state, item);
-    /** Session persistence rollback must also undo the Renderer-owned half of preview replacement. */
+    /**
+     * Session persistence rollback must also undo the Renderer-owned half of preview replacement.
+     */
     if (next !== current)
         patchSessionState(next, undefined, () => {
             const currentView = useSessionViewStore.getState();
-            if (!pathWasOpen) currentView.evictDocument(session.id, path, workbenchProjectId);
+            if (!isPathWasOpen) currentView.evictDocument(session.id, path, workbenchProjectId);
             if (replacedDocument)
                 currentView.cacheDocument(session.id, replacedDocument, workbenchProjectId);
             currentView.setActiveWork(session.id, previousActiveWork, workbenchProjectId);
         });
 }
 
-/** Opens an editor tab in the currently selected Session. */
+/**
+ * Opens an editor tab in the currently selected Session.
+ */
 export function openEditorTab(path: string, options: { preview?: boolean } = {}): void {
     const session = getSelectedSession();
     if (!session) return;
     openEditorTabForSession(session.id, path, options);
 }
 
-/** Reads a file into the Session document cache without changing the focused WorkItem. */
+/**
+ * Reads a file into the Session document cache without changing the focused WorkItem.
+ */
 export async function cacheDocument(sessionId: string, path: string): Promise<void> {
     const operation = trackDocumentOperation(sessionId, path);
     try {
@@ -174,7 +185,9 @@ export async function openFile(
     return openFileForSession(session.id, path, options);
 }
 
-/** Opens a Host-routed target against its exact Session rather than the transient selected Session. */
+/**
+ * Opens a Host-routed target against its exact Session rather than the transient selected Session.
+ */
 export async function openFileForSession(
     sessionId: string,
     path: string,
@@ -182,15 +195,16 @@ export async function openFileForSession(
 ): Promise<string | false> {
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
     if (!session) return false;
-    const intent = ++fileOpenIntent;
+    fileOpenIntentState.current += 1;
+    const intent = fileOpenIntentState.current;
     const operation = trackDocumentOperation(session.id, path);
     markEditorOpenStarted();
     try {
         const opened = await tryCommand('Unable to open file', async () => {
             const document = await caxri.request('files.read', { sessionId: session.id, path });
             if (
+                intent !== fileOpenIntentState.current ||
                 operation.discarded ||
-                intent !== fileOpenIntent ||
                 !getBootstrap()?.sessions.some((candidate) => candidate.id === session.id) ||
                 getBootstrap()?.sessions.find((candidate) => candidate.id === session.id)
                     ?.workbenchProjectId !== operation.workbenchProjectId
@@ -216,13 +230,21 @@ export async function openFileForSession(
     }
 }
 
-/** Selecting an already open tab reuses the cached buffer; an evicted one is read again. */
+/**
+ * Selecting an already open tab reuses the cached buffer; an evicted one is read again.
+ */
 export function selectEditorTab(path: string): void {
     const session = getSelectedSession();
     if (!session) return;
-    if (isGitDiffTabPath(path) || getSessionDocuments(session.id)?.[path])
+    const documents = getSessionDocuments(session.id);
+    if (isGitDiffTabPath(path) || (documents && Object.hasOwn(documents, path)))
         useSessionViewStore.getState().activateWork({ kind: 'editor', path });
-    else void openFile(path);
+    else {
+        // Fire-and-forget: `openFile` funnels its own failures into a toast via `tryCommand`, so
+        // there is nothing left for this handler to await or react to.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void openFile(path);
+    }
 }
 
 export function changeDocument(path: string, content: string): void {
@@ -239,12 +261,14 @@ export function pinEditorTab(path: string): void {
     if (next !== current) patchSessionState(next);
 }
 
-/** Writes one document's current content to disk; returns false only when the write itself failed. */
-async function saveDocumentAt(sessionId: string, path: string): Promise<boolean> {
+/**
+ * Writes one document's current content to disk; returns false only when the write itself failed.
+ */
+async function didSaveDocumentAt(sessionId: string, path: string): Promise<boolean> {
     const document = getSessionDocuments(sessionId)?.[path];
     if (!document) return true;
     const operation = trackDocumentOperation(sessionId, path);
-    let saved = false;
+    let isSaved = false;
     try {
         await tryCommand('Save failed', async () => {
             const result = await caxri.request('files.write', {
@@ -257,31 +281,31 @@ async function saveDocumentAt(sessionId: string, path: string): Promise<boolean>
                     operation.path
                 ];
                 if (current) {
-                    const changedDuringSave = current.content !== document.content;
+                    const isChangedDuringSave = current.content !== document.content;
                     useSessionViewStore.getState().cacheDocument(
                         sessionId,
                         {
                             ...result,
                             path: operation.path,
-                            content: changedDuringSave ? current.content : result.content,
-                            dirty: changedDuringSave,
+                            content: isChangedDuringSave ? current.content : result.content,
+                            dirty: isChangedDuringSave,
                         },
                         operation.workbenchProjectId,
                     );
                     updateOpenTab(
                         sessionId,
                         operation.path,
-                        changedDuringSave,
+                        isChangedDuringSave,
                         operation.workbenchProjectId,
                     );
                 }
             }
-            saved = true;
+            isSaved = true;
         });
     } finally {
         pendingDocumentOperations.delete(operation);
     }
-    return saved;
+    return isSaved;
 }
 
 export async function saveActiveEditor(): Promise<void> {
@@ -290,25 +314,30 @@ export async function saveActiveEditor(): Promise<void> {
     if (!session || active?.kind !== 'editor') return;
     const path = active.path;
     if (isGitDiffTabPath(path)) return;
-    await saveDocumentAt(session.id, path);
+    await didSaveDocumentAt(session.id, path);
 }
 
 /**
- * Confirms discarding unsaved changes for each dirty tab about to close, one native "Do you want to
- * save…" sheet at a time (macOS only ever shows one modal sheet). Choosing Cancel on any of them
- * aborts the whole close — a bulk Close Others/Close All must never end up half applied, silently
- * dropping some dirty buffers while leaving others open.
+ * Confirms discarding unsaved changes for each dirty tab about to close, one native "Do you want to save…" sheet at a
+ * time (macOS only ever shows one modal sheet). Choosing Cancel on any of them aborts the whole close — a bulk Close
+ * Others/Close All must never end up half applied, silently dropping some dirty buffers while leaving others open.
  */
-async function confirmDirtyEditorCloses(
+async function didConfirmDirtyEditorCloses(
     sessionId: string,
     openTabs: SessionState['openTabs'],
     paths: readonly string[],
 ): Promise<boolean> {
     const dirtyPaths = paths.filter((path) => openTabs.find((tab) => tab.path === path)?.dirty);
     for (const path of dirtyPaths) {
+        // Intentionally sequential: macOS only ever shows one modal "Do you want to save…" sheet, so
+        // each confirmation must resolve before the next one is requested.
+        // eslint-disable-next-line no-await-in-loop -- intentional sequential await, see comment above
         const { choice } = await caxri.request('editor.confirmDiscard', { name: fileName(path) });
         if (choice === 'cancel') return false;
-        if (choice === 'save') await saveDocumentAt(sessionId, path);
+        // Intentionally sequential: a bulk close must never end up half applied, so each save
+        // completes before the next tab is confirmed.
+        // eslint-disable-next-line no-await-in-loop -- intentional sequential await, see comment above
+        if (choice === 'save') await didSaveDocumentAt(sessionId, path);
     }
     return true;
 }
@@ -339,8 +368,8 @@ function applyEditorTabClose(
           : undefined;
     useSessionViewStore.getState().setActiveWork(session.id, nextItem);
     /**
-     * Reuses `activateWorkState` rather than `activateWork` so the openTabs removal and the fallback
-     * selection persist atomically instead of as two IPC round trips.
+     * Reuses `activateWorkState` rather than `activateWork` so the openTabs removal and the fallback selection persist
+     * atomically instead of as two IPC round trips.
      */
     patchSessionState(
         nextItem
@@ -350,9 +379,9 @@ function applyEditorTabClose(
 }
 
 /**
- * Closing a dirty tab must never silently destroy work: every dirty path about to close is
- * confirmed (Save/Don't Save/Cancel) before anything is evicted. The tab list is re-read after the
- * confirmation round trip in case a concurrent operation (rename, Trash) changed it meanwhile.
+ * Closing a dirty tab must never silently destroy work: every dirty path about to close is confirmed (Save/Don't
+ * Save/Cancel) before anything is evicted. The tab list is re-read after the confirmation round trip in case a
+ * concurrent operation (rename, Trash) changed it meanwhile.
  */
 async function closeEditors(targetPath: string, mode: EditorTabCloseMode): Promise<void> {
     const session = getSelectedSession();
@@ -360,7 +389,7 @@ async function closeEditors(targetPath: string, mode: EditorTabCloseMode): Promi
     if (!session || !initial) return;
     const paths = editorTabPathsToClose(initial.openTabs, targetPath, mode);
     if (paths.length === 0) return;
-    if (!(await confirmDirtyEditorCloses(session.id, initial.openTabs, paths))) return;
+    if (!(await didConfirmDirtyEditorCloses(session.id, initial.openTabs, paths))) return;
     const current = getSessionState();
     if (!current) return;
     const remainingPaths = paths.filter((path) =>
@@ -391,20 +420,25 @@ function remapOpenEditorsInSession(
     workbenchProjectId: string,
     previousPath: string,
     nextPath: string,
-    durable = false,
+    isDurable = false,
     operationId?: string,
 ): Promise<boolean> | undefined {
     const bootstrap = useWorkbenchStore.getState().bootstrap;
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
-    const rootIsCurrent = current?.workbenchProjectId === workbenchProjectId;
-    if (durable && operationId && rootIsCurrent && current.editorRemapOperationId === operationId)
+    const isRootIsCurrent = current?.workbenchProjectId === workbenchProjectId;
+    if (
+        isDurable &&
+        operationId &&
+        isRootIsCurrent &&
+        current.editorRemapOperationId === operationId
+    )
         return persistSessionState(current, {
             failureLabel: 'Moved editor state could not be saved',
             reportFailure: false,
             retainOnFailure: true,
         });
     remapPendingDocumentOperations(sessionId, workbenchProjectId, previousPath, nextPath);
-    if (previousPath === nextPath) return durable ? Promise.resolve(true) : undefined;
+    if (previousPath === nextPath) return isDurable ? Promise.resolve(true) : undefined;
     const remapEditorPath = (path: string): string =>
         isGitDiffTabPath(path) ? path : remapPath(path, previousPath, nextPath);
     const activeWork = getSessionActiveWork(sessionId, workbenchProjectId);
@@ -419,7 +453,7 @@ function remapOpenEditorsInSession(
                 { kind: 'editor', path: remapEditorPath(activeWork.path) },
                 workbenchProjectId,
             );
-    if (!current || !rootIsCurrent) return durable ? Promise.resolve(true) : undefined;
+    if (!current || !isRootIsCurrent) return isDurable ? Promise.resolve(true) : undefined;
     const openTabs = current.openTabs.map((tab) => ({
         ...tab,
         path: remapEditorPath(tab.path),
@@ -432,10 +466,10 @@ function remapOpenEditorsInSession(
         ...current,
         openTabs,
         activeTab,
-        ...(operationId ? { editorRemapOperationId: operationId } : {}),
+        ...(operationId && { editorRemapOperationId: operationId }),
     };
     const failureLabel = 'Moved editor state could not be saved';
-    if (durable)
+    if (isDurable)
         return persistSessionState(nextState, {
             failureLabel,
             reportFailure: false,
@@ -445,11 +479,16 @@ function remapOpenEditorsInSession(
     return undefined;
 }
 
-/** Keeps every same-Project Session's normal tabs and dirty buffers attached after a move. */
+/**
+ * Keeps every same-Project Session's normal tabs and dirty buffers attached after a move.
+ */
 export function remapOpenEditors(sessionId: string, previousPath: string, nextPath: string): void {
     const workbenchProjectId = getSessionProjectId(sessionId);
     if (!workbenchProjectId) return;
     for (const projectSessionId of getProjectSessionIds(sessionId))
+        // Fire-and-forget: the non-durable remap only touches in-memory Renderer state and never
+        // rejects, so there is nothing for this loop to await or react to.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void remapOpenEditorsInSession(
             projectSessionId,
             workbenchProjectId,
@@ -458,7 +497,9 @@ export function remapOpenEditors(sessionId: string, previousPath: string, nextPa
         );
 }
 
-/** Remaps transient state for the originating root; Runtime acknowledgement owns inactive storage. */
+/**
+ * Remaps transient state for the originating root; Runtime acknowledgement owns inactive storage.
+ */
 export async function remapOpenEditorsDurably(
     sessionId: string,
     workbenchProjectId: string,
@@ -488,7 +529,7 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
     if (!current) return;
     const closingPaths = current.openTabs.flatMap((tab) =>
-        !isGitDiffTabPath(tab.path) && pathIsAtOrBelow(tab.path, path) ? [tab.path] : [],
+        !isGitDiffTabPath(tab.path) && isPathAtOrBelow(tab.path, path) ? [tab.path] : [],
     );
     if (closingPaths.length === 0) return;
     const closing = new Set(closingPaths);
@@ -501,11 +542,11 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
         sessionState: current,
         sessionTerminals,
     });
-    const activeWasClosed =
+    const isActiveWasClosed =
         (resolvedActive?.kind === 'editor' && closing.has(resolvedActive.path)) ||
         (current.activeTab?.kind === 'editor' && closing.has(current.activeTab.path));
     useSessionViewStore.getState().evictDocumentsUnderPath(sessionId, path);
-    if (!activeWasClosed) {
+    if (!isActiveWasClosed) {
         patchSessionState({ ...current, openTabs });
         return;
     }
@@ -525,23 +566,24 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
     );
 }
 
-/** Closes matching normal editors in every same-Project Session after Main confirms Trash. */
+/**
+ * Closes matching normal editors in every same-Project Session after Main confirms Trash.
+ */
 export function closeOpenEditorsUnderPath(sessionId: string, path: string): void {
     for (const projectSessionId of getProjectSessionIds(sessionId))
         closeOpenEditorsUnderPathInSession(projectSessionId, path);
 }
 
 /**
- * True when a file at or below `path` is open with unsaved edits in any same-Project Session. Lets
- * a Trash confirmation stop promising full recoverability when it would actually discard a dirty
- * buffer that was never written to disk.
+ * True when a file at or below `path` is open with unsaved edits in any same-Project Session. Lets a Trash confirmation
+ * stop promising full recoverability when it would actually discard a dirty buffer that was never written to disk.
  */
 export function hasUnsavedChangesUnderPath(sessionId: string, path: string): boolean {
     const bootstrap = useWorkbenchStore.getState().bootstrap;
     return getProjectSessionIds(sessionId).some((projectSessionId) => {
         const state = bootstrap?.sessionStates.find((item) => item.sessionId === projectSessionId);
         return state?.openTabs.some(
-            (tab) => !isGitDiffTabPath(tab.path) && tab.dirty && pathIsAtOrBelow(tab.path, path),
+            (tab) => !isGitDiffTabPath(tab.path) && tab.dirty && isPathAtOrBelow(tab.path, path),
         );
     });
 }

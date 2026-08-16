@@ -1,12 +1,13 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import process from 'node:process';
 
-import { HostClient, discoverHostManifest } from '@caxri/cli';
+import { discoverHostManifest, HostClient } from '@caxri/cli';
 
 import type { RuntimeEvent } from '../src/shared/ipc/events';
 import type { AppSettings } from '../src/shared/types';
-
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
@@ -57,11 +58,11 @@ test('Peer Inbox delivers, holds, denies, fences restart, and keeps bodies out o
         userDataDir: userData,
         providers: {
             codex: {
-                executableSource: `#!${process.execPath}
+                executableSource: String.raw`#!${process.execPath}
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 if (process.argv.includes('--version')) {
-  process.stdout.write('codex-inbox-test 1.0\\n');
+  process.stdout.write('codex-inbox-test 1.0\n');
   process.exit(0);
 }
 const invocation = spawnSync(process.execPath, [${JSON.stringify(cliPath)}, 'agent-context', '--json'], {
@@ -76,9 +77,9 @@ fs.appendFileSync(${JSON.stringify(capturePath)}, JSON.stringify({
     generation: Number(process.env.CAXRI_AGENT_ENDPOINT_GENERATION),
     token: process.env.CAXRI_AGENT_ENDPOINT_TOKEN,
   },
-}) + '\\n');
+}) + '\n');
 process.stdin.on('data', (chunk) => fs.appendFileSync(${JSON.stringify(terminalInputPath)}, chunk));
-process.stdout.write('Peer Inbox ready\\r\\n');
+process.stdout.write('Peer Inbox ready\r\n');
 process.stdin.resume();
 `,
             },
@@ -280,7 +281,12 @@ process.stdin.resume();
                 terminalId: receiverCapture.context.endpoint.terminalId,
             }),
         ]);
-        const terminalInput = await readFile(terminalInputPath).catch(() => Buffer.alloc(0));
+        let terminalInput: Buffer;
+        try {
+            terminalInput = await readFile(terminalInputPath);
+        } catch {
+            terminalInput = Buffer.alloc(0);
+        }
         for (const body of [directBody, checkBody, heldBody, staleBody]) {
             expect(database.includes(Buffer.from(body))).toBe(false);
             expect(hostLog).not.toContain(body);
@@ -292,7 +298,11 @@ process.stdin.resume();
     } finally {
         sender?.close();
         receiver?.close();
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

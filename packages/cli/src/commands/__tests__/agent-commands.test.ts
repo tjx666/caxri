@@ -1,8 +1,9 @@
+import type { ProtocolWelcome } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { CAXRI_PROTOCOL_VERSION, type ProtocolWelcome } from '@caxri/protocol';
-
-import { runCli, type CliHostClient, type CliIo } from '../../application';
+import type { CliHostClient, CliIo } from '../../application';
+import { runCli } from '../../application';
 
 function io(options: Partial<CliIo> = {}) {
     let stdout = '';

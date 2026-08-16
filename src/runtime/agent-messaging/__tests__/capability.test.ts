@@ -104,7 +104,7 @@ describe('AgentMessagingCapabilityProbe', () => {
             const blocked = new AgentMessagingCapabilityProbe({
                 cliAvailable: () => Promise.resolve(true),
                 cliPath: '/caxri',
-                probe: () => new Promise(() => undefined),
+                probe: () => new Promise(() => {}),
                 timeoutMs: 10,
             });
             const pending = blocked.check({ enabled: true, launch, provider: 'codex' });

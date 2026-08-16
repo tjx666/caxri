@@ -1,9 +1,9 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
-
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -15,7 +15,7 @@ import {
 } from './support/helpers.ts';
 
 function osc52(payload: string, selection = 'c'): string {
-    return `printf '\\033]52;${selection};${payload}\\007'`;
+    return String.raw`printf '\033]52;${selection};${payload}\007'`;
 }
 
 const encoded = (text: string): string => Buffer.from(text).toString('base64');
@@ -42,11 +42,11 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await running.page.evaluate(() => {
             const clipboard = navigator.clipboard;
             const originalRead = clipboard.readText.bind(clipboard);
-            Object.defineProperty(window, '__osc52ReadCount', { value: 0, writable: true });
+            Object.defineProperty(globalThis, '__osc52ReadCount', { value: 0, writable: true });
             Object.defineProperty(clipboard, 'readText', {
                 configurable: true,
                 value: () => {
-                    const state = window as unknown as { __osc52ReadCount: number };
+                    const state = globalThis as unknown as { __osc52ReadCount: number };
                     state.__osc52ReadCount += 1;
                     return originalRead();
                 },
@@ -55,9 +55,11 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
 
         await typeTerminal(running.page, osc52(encoded('DEFAULT_BLOCKED')));
         await typeTerminal(running.page, osc52('?'));
-        /** A write blocked because the setting is off now reports through the same notification
-         *  path as a real clipboard failure, with plain language pointing at Settings. Both writes
-         *  above land inside the same per-reason throttle window, so only one toast is expected. */
+        /**
+         * A write blocked because the setting is off now reports through the same notification path as a real clipboard
+         * failure, with plain language pointing at Settings. Both writes above land inside the same per-reason throttle
+         * window, so only one toast is expected.
+         */
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.disabled, { exact: true }),
         ).toBeVisible();
@@ -66,7 +68,7 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         );
         expect(
             await running.page.evaluate(
-                () => (window as unknown as { __osc52ReadCount: number }).__osc52ReadCount,
+                () => (globalThis as unknown as { __osc52ReadCount: number }).__osc52ReadCount,
             ),
         ).toBe(0);
 
@@ -75,8 +77,10 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         const setting = dialog.getByLabel('Allow OSC 52 clipboard writes');
         await expect(setting).not.toBeChecked();
         await setting.check();
-        /** Settings apply immediately (there is no Apply button); the observable invariant is the
-         *  Runtime actually persisting the change, not an arbitrary wait. */
+        /**
+         * Settings apply immediately (there is no Apply button); the observable invariant is the Runtime actually
+         * persisting the change, not an arbitrary wait.
+         */
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{
@@ -89,13 +93,14 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
 
         await typeTerminal(
             running.page,
-            `printf '\\033]52;c;${encoded('FIRST_WRITE')}\\007\\033]52;c;${encoded('RATE_BLOCKED')}\\007'`,
+            String.raw`printf '\033]52;c;${encoded('FIRST_WRITE')}\007\033]52;c;${encoded('RATE_BLOCKED')}\007'`,
         );
-        /** The second write inside the same 1s window is blocked by rate limiting, not silently
-         *  dropped, and reports through its own distinct message. Asserted before the clipboard
-         *  poll below because an `info` toast auto-dismisses after 4s (`stores/toasts.ts`) while
-         *  the clipboard keeps its contents indefinitely: waiting on the expiring signal first
-         *  costs the durable one nothing, but not the other way round. */
+        /**
+         * The second write inside the same 1s window is blocked by rate limiting, not silently dropped, and reports
+         * through its own distinct message. Asserted before the clipboard poll below because an `info` toast
+         * auto-dismisses after 4s (`stores/toasts.ts`) while the clipboard keeps its contents indefinitely: waiting on
+         * the expiring signal first costs the durable one nothing, but not the other way round.
+         */
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.rateLimited, { exact: true }),
         ).toBeVisible();
@@ -106,8 +111,10 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await running.page.waitForTimeout(1_050);
         await typeTerminal(running.page, osc52('%%%'));
         await typeTerminal(running.page, osc52(encoded('PRIMARY_BLOCKED'), 'p'));
-        /** Malformed base64 ('%%%') reports its own message; a valid write to a non-primary
-         *  selection ('p') stays a silent no-op, so exactly one new toast is expected here. */
+        /**
+         * Malformed base64 ('%%%') reports its own message; a valid write to a non-primary selection ('p') stays a
+         * silent no-op, so exactly one new toast is expected here.
+         */
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.malformed, { exact: true }),
         ).toBeVisible();
@@ -166,7 +173,11 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await typeTerminal(running.page, osc52(encoded('SECOND_PERMISSION_FIXTURE')));
         await expect(permissionToast).toHaveCount(1);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

@@ -3,8 +3,8 @@ import { z } from 'zod';
 
 import { identifierSchema, persistedWindowStateSchema } from '../../../shared/ipc/domain';
 import { CaxriError } from '../../../shared/ipc/errors';
-import { appState } from '../schema';
 import type { CaxriDrizzleDatabase } from '../connection';
+import { appState } from '../schema';
 
 const appStateValueSchemas = {
     schemaVersion: z.number().int(),
@@ -21,7 +21,9 @@ const appStateValueSchemas = {
 export type AppStateKey = keyof typeof appStateValueSchemas;
 export type AppStateValue<K extends AppStateKey> = z.infer<(typeof appStateValueSchemas)[K]>;
 
-/** Parses one `app_state` JSON cell. Malformed JSON or a shape mismatch is VALIDATION, not `as T`. */
+/**
+ * Parses one `app_state` JSON cell. Malformed JSON or a shape mismatch is VALIDATION, not `as T`.
+ */
 export function parseAppStateValue<K extends AppStateKey>(
     key: K,
     valueJson: string,
@@ -37,12 +39,14 @@ export function parseAppStateValue<K extends AppStateKey>(
     return result.data as AppStateValue<K>;
 }
 
-/** Pure key/value CRUD over the `app_state` table. */
+/**
+ * Pure key/value CRUD over the `app_state` table.
+ */
 export class AppStateModel {
-    constructor(private readonly db: CaxriDrizzleDatabase) {}
+    constructor(private readonly database: CaxriDrizzleDatabase) {}
 
     get<K extends AppStateKey>(key: K): AppStateValue<K> | undefined {
-        const row = this.db
+        const row = this.database
             .select({ valueJson: appState.valueJson })
             .from(appState)
             .where(eq(appState.key, key))
@@ -52,7 +56,7 @@ export class AppStateModel {
 
     set<K extends AppStateKey>(key: K, value: AppStateValue<K>): void {
         const valueJson = JSON.stringify(value);
-        this.db
+        this.database
             .insert(appState)
             .values({ key, valueJson })
             .onConflictDoUpdate({ target: appState.key, set: { valueJson } })

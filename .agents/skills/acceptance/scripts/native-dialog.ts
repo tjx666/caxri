@@ -1,8 +1,7 @@
-#!/usr/bin/env bun
-
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
@@ -51,19 +50,20 @@ function commandFailureDetail(error: unknown, timeoutMs: number): string {
     return 'osascript exited unsuccessfully';
 }
 
-export function parseDialogOptions(args: string[]): DialogOptions | 'help' {
-    if (args.length === 0 || args.includes('--help') || args.includes('-h')) return 'help';
-    const command = args[0];
+export function parseDialogOptions(arguments_: string[]): DialogOptions | 'help' {
+    if (arguments_.length === 0 || arguments_.includes('--help') || arguments_.includes('-h'))
+        return 'help';
+    const command = arguments_[0];
     if (command !== 'click' && command !== 'inspect') {
         throw new Error(`Unknown command: ${command}`);
     }
 
     let button: string | undefined;
     let timeoutMs = 10_000;
-    for (let index = 1; index < args.length; index += 2) {
-        const option = args[index];
-        const value = args[index + 1];
-        if (!option?.startsWith('--') || !value || value.startsWith('--')) {
+    for (let index = 1; index < arguments_.length; index += 2) {
+        const option = arguments_[index];
+        const value = arguments_[index + 1];
+        if (!value || !option?.startsWith('--') || value.startsWith('--')) {
             throw new Error(`Invalid option: ${option ?? '(missing)'}`);
         }
         if (option === '--button') button = value;
@@ -71,7 +71,7 @@ export function parseDialogOptions(args: string[]): DialogOptions | 'help' {
         else throw new Error(`Unknown option: ${option}`);
     }
     if (!button) throw new Error('--button is required');
-    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_DIALOG_TIMEOUT_MS) {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_DIALOG_TIMEOUT_MS) {
         throw new Error(`--timeout-ms must be an integer between 1 and ${MAX_DIALOG_TIMEOUT_MS}`);
     }
     return { button, command, timeoutMs };
@@ -104,7 +104,7 @@ async function processTree(rootPid: number): Promise<number[]> {
         .split('\n')
         .filter((line) => line.trim().length > 0)
         .map((line) => line.trim().split(/\s+/).map(Number))
-        .filter(([pid, ppid]) => Number.isInteger(pid) && Number.isInteger(ppid))
+        .filter(([pid, ppid]) => Number.isSafeInteger(pid) && Number.isSafeInteger(ppid))
         .map(([pid, ppid]) => ({ pid, ppid }));
     return collectProcessTree(rootPid, rows);
 }
@@ -177,17 +177,21 @@ async function queryNativeDialog(
     options: Pick<DialogOptions, 'button' | 'command'>,
     timeoutMs: number,
 ): Promise<DialogMatch> {
-    const commandArgs = NATIVE_DIALOG_SCRIPT.flatMap((line) => ['-e', line]);
+    const commandArguments = NATIVE_DIALOG_SCRIPT.flatMap((line) => ['-e', line]);
     try {
         const { stdout } = await execFileAsync(
             'osascript',
-            [...commandArgs, options.command, options.button, ...pids.map(String)],
+            [...commandArguments, options.command, options.button, ...pids.map(String)],
             { timeout: timeoutMs },
         );
-        const [rawCount, rawPid] = stdout.trimEnd().split('\t');
+        const [rawCount, rawPid] = stdout.trimEnd().split('\t', 2);
         const count = Number(rawCount);
         const pid = rawPid ? Number(rawPid) : null;
-        if (!Number.isInteger(count) || count < 0 || (pid !== null && !Number.isInteger(pid))) {
+        if (
+            !Number.isSafeInteger(count) ||
+            count < 0 ||
+            (pid !== null && !Number.isSafeInteger(pid))
+        ) {
             throw new Error(`Unexpected Accessibility response: ${stdout.trim()}`);
         }
         return { count, pid };
@@ -202,9 +206,12 @@ async function queryNativeDialog(
 
 async function waitForSingleDialog(pids: number[], options: DialogOptions): Promise<number> {
     const deadline = Date.now() + options.timeoutMs;
+    // This is a poll loop: each iteration must await the previous query and retry delay before
+    // deciding whether to poll again, so the awaits below are intentionally sequential.
     do {
         const remainingMs = deadline - Date.now();
         if (remainingMs <= 0) break;
+        // eslint-disable-next-line no-await-in-loop
         const match = await queryNativeDialog(pids, options, remainingMs);
         if (match.count > 1) {
             throw new Error(
@@ -212,9 +219,9 @@ async function waitForSingleDialog(pids: number[], options: DialogOptions): Prom
             );
         }
         if (match.count === 1 && match.pid) return match.pid;
-        await new Promise<void>((resolveWait) =>
-            setTimeout(resolveWait, Math.min(200, Math.max(0, deadline - Date.now()))),
-        );
+        const pollDelayMs = Math.min(200, Math.max(0, deadline - Date.now()));
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((resolve) => setTimeout(resolve, pollDelayMs));
     } while (Date.now() < deadline);
     throw new Error(`Timed out waiting for one native dialog with button "${options.button}"`);
 }
@@ -239,8 +246,10 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-    void main().catch((error: unknown) => {
+    try {
+        await main();
+    } catch (error: unknown) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
-    });
+    }
 }

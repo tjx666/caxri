@@ -16,7 +16,9 @@ export function describeGitFailure(error: unknown): string {
     return 'The Git operation failed. See Runtime logs for details.';
 }
 
-/** Wraps a raw `execFile` fault as a `GIT` error while keeping the user-facing wording. */
+/**
+ * Wraps a raw `execFile` fault as a `GIT` error while keeping the user-facing wording.
+ */
 export function toGitError(error: unknown): CaxriError {
     return isCaxriError(error) ? error : new CaxriError('GIT', describeGitFailure(error));
 }

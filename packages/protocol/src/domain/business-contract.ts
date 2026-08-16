@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
+import { observableEventRecoverySchema } from '../transport/event-journal.js';
+import type { MethodSpec } from '../transport/method-spec.js';
+import { commandPolicy } from '../transport/method-spec.js';
+import { principalSchema } from '../transport/principal.js';
+import { protocolVersionSchema } from '../transport/version.js';
 import {
     appSettingsSchema,
     identifierSchema,
@@ -10,13 +16,8 @@ import {
     terminalKindSchema,
     terminalRecordSchema,
 } from './domain.js';
-import { commandPolicy, type MethodSpec } from '../transport/method-spec.js';
-import { observableEventRecoverySchema } from '../transport/event-journal.js';
-import { principalSchema } from '../transport/principal.js';
-import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
-import { protocolVersionSchema } from '../transport/version.js';
 
-const noParams = z.object({}).default({});
+const noParameters = z.object({}).default({});
 const principalViewSchema = z.enum(['desktop', 'human-cli', 'agent', 'paired-device']);
 const listQuerySchema = z.object({ mode: z.literal('list') });
 const showQuerySchema = z.object({
@@ -142,7 +143,7 @@ export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
             .max(SETTINGS_BOUNDS['files.maxFileBytes'].max),
     }),
 ]);
-export const settingsPatchParamsSchema = z.object({
+export const settingsPatchParametersSchema = z.object({
     changes: z.array(settingsPatchChangeSchema).min(1).max(32),
     dryRun: z.boolean().default(false),
 });
@@ -159,7 +160,7 @@ export const settingsPatchResultSchema = settingsInspectionSchema.extend({
 
 export const logLevelSchema = z.enum(['debug', 'info', 'warn', 'error']);
 export const logProcessSchema = z.enum(['host', 'main', 'runtime']);
-export const logQueryParamsSchema = z
+export const logQueryParametersSchema = z
     .object({
         afterCursor: z.string().min(1).max(512).optional(),
         correlationId: z.string().min(1).max(200).optional(),
@@ -209,7 +210,7 @@ export const diagnosticsSnapshotSchema = z.object({
 export const businessMethods = {
     'project.list': {
         ...commandPolicy('host', 'read', ['projects.read']),
-        params: noParams,
+        params: noParameters,
         result: projectListResultSchema,
         projectResult: projectListForPrincipal,
     },
@@ -230,22 +231,22 @@ export const businessMethods = {
     },
     'settings.inspect': {
         ...commandPolicy('host', 'read', ['settings.read']),
-        params: noParams,
+        params: noParameters,
         result: settingsInspectionSchema,
     },
     'settings.patch': {
         ...commandPolicy('host', 'write', ['settings.write']),
-        params: settingsPatchParamsSchema,
+        params: settingsPatchParametersSchema,
         result: settingsPatchResultSchema,
     },
     'logs.query': {
         ...commandPolicy('host', 'read', ['diagnostics.read']),
-        params: logQueryParamsSchema,
+        params: logQueryParametersSchema,
         result: logQueryResultSchema,
     },
     'diagnostics.snapshot': {
         ...commandPolicy('host', 'read', ['diagnostics.read']),
-        params: noParams,
+        params: noParameters,
         result: diagnosticsSnapshotSchema,
     },
     'events.query': {
@@ -281,6 +282,7 @@ export type SessionQueryResult = z.infer<typeof sessionQueryResultSchema>;
 export type TerminalQueryResult = z.infer<typeof terminalQueryResultSchema>;
 export type SettingsPatchChange = z.infer<typeof settingsPatchChangeSchema>;
 export type SettingsPatchResult = z.infer<typeof settingsPatchResultSchema>;
-export type LogQueryParams = z.infer<typeof logQueryParamsSchema>;
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by src/runtime/introspection/logs.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+export type LogQueryParams = z.infer<typeof logQueryParametersSchema>;
 export type LogQueryRecord = z.infer<typeof logQueryRecordSchema>;
 export type LogQueryResult = z.infer<typeof logQueryResultSchema>;

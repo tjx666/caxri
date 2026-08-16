@@ -9,7 +9,7 @@ function port() {
         send,
         value: {
             connected: () => true,
-            onMessage: () => undefined,
+            onMessage: () => {},
             send,
         } satisfies RuntimeParentPort,
     };

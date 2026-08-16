@@ -9,7 +9,7 @@ type SkillCommandProvider = (typeof providers)[number];
 
 function rejectOptions(tokens: readonly string[]): Record<string, never> {
     if (tokens.length > 0)
-        throw new CaxriError('VALIDATION', `Unexpected argument: ${tokens[0].split('=')[0]}`);
+        throw new CaxriError('VALIDATION', `Unexpected argument: ${tokens[0].split('=', 1)[0]}`);
     return {};
 }
 
@@ -29,7 +29,7 @@ function getSkill(tokens: readonly string[]): { full: boolean; name: typeof SKIL
     const name = skillName(tokens[0]);
     if (tokens.length === 1) return { full: false, name };
     if (tokens.length === 2 && tokens[1] === '--full') return { full: true, name };
-    throw new CaxriError('VALIDATION', `Unknown option: ${tokens[1]?.split('=')[0] ?? ''}`);
+    throw new CaxriError('VALIDATION', `Unknown option: ${tokens[1]?.split('=', 1)[0] ?? ''}`);
 }
 
 interface SkillCommandSelection {
@@ -53,7 +53,7 @@ function selection(tokens: readonly string[]): SkillCommandSelection {
             if (scope)
                 throw new CaxriError('VALIDATION', 'Choose exactly one of --local or --global');
             scope = token === '--local' ? 'local' : 'global';
-        } else throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=')[0]}`);
+        } else throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=', 1)[0]}`);
     }
     if (!selectedProvider)
         throw new CaxriError('VALIDATION', 'Skill installation requires --provider claude|codex');
@@ -76,11 +76,11 @@ function statusSelection(tokens: readonly string[]): Partial<Omit<SkillCommandSe
             if (scope)
                 throw new CaxriError('VALIDATION', 'Choose at most one of --local or --global');
             scope = token === '--local' ? 'local' : 'global';
-        } else throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=')[0]}`);
+        } else throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=', 1)[0]}`);
     }
     return {
-        ...(selectedProvider ? { provider: selectedProvider } : {}),
-        ...(scope ? { scope } : {}),
+        ...(selectedProvider && { provider: selectedProvider }),
+        ...(scope && { scope }),
     };
 }
 

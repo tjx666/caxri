@@ -1,6 +1,7 @@
 import { isAbsolute, join } from 'node:path';
 
-import { parse, type ParseError } from 'jsonc-parser';
+import type { ParseError } from 'jsonc-parser';
+import { parse } from 'jsonc-parser';
 
 import type { AgentHookAdapter, AgentHookDocuments } from '../../hooks/contract';
 import { inspectJsonHooks, removeJsonHooks, renderJsonHooks } from '../../hooks/json-config';
@@ -29,7 +30,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
         allowTrailingComma: true,
         disallowComments: false,
     });
-    if (errors.length > 0 || typeof parsed !== 'object' || parsed === null) return undefined;
+    if (parsed === null || typeof parsed !== 'object' || errors.length > 0) return undefined;
     const settings = parsed as Record<string, unknown>;
     if (settings.allowManagedHooksOnly === true)
         return 'Claude Code allows only managed hooks in settings.json';

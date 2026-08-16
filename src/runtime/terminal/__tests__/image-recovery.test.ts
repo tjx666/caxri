@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import { describe, expect, it } from 'vitest';
 
 import { TerminalOutputQueue } from '../buffer';
@@ -12,8 +14,8 @@ describe('TerminalImageRecoveryFilter', () => {
     it('redacts chunked IIP payloads and preserves later text', () => {
         const filter = new TerminalImageRecoveryFilter();
 
-        expect(filter.push('before\x1b]1337;Fi')).toBe('before');
-        const output = filter.push('le=inline=1:PNG_SECRET\x07after');
+        expect(filter.push('before\u{1B}]1337;Fi')).toBe('before');
+        const output = filter.push('le=inline=1:PNG_SECRET\u{7}after');
 
         expect(output).toBe(`${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}after`);
         expect(output).not.toContain('PNG_SECRET');
@@ -22,7 +24,9 @@ describe('TerminalImageRecoveryFilter', () => {
     it('redacts SIXEL and unsupported Kitty payloads', () => {
         const filter = new TerminalImageRecoveryFilter();
 
-        const output = filter.push('a\x1bP1;2qSIXEL_SECRET\x1b\\b\x1b_Gf=100;KITTY_SECRET\x1b\\c');
+        const output = filter.push(
+            'a\u{1B}P1;2qSIXEL_SECRET\u{1B}\\b\u{1B}_Gf=100;KITTY_SECRET\u{1B}\\c',
+        );
 
         expect(output).toBe(
             `a${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}b${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}c`,
@@ -34,10 +38,10 @@ describe('TerminalImageRecoveryFilter', () => {
         const filter = new TerminalImageRecoveryFilter();
 
         const output = filter.push(
-            '\x1b]1337;MultipartFile=inline=1\x07' +
-                '\x1b]1337;FilePart=MULTIPART_SECRET\x1b\\' +
-                '\x90qC1_SIXEL_SECRET\x9c' +
-                '\x9fGC1_KITTY_SECRET\x9cafter',
+            '\u{1B}]1337;MultipartFile=inline=1\u{7}' +
+                '\u{1B}]1337;FilePart=MULTIPART_SECRET\u{1B}\\' +
+                '\u{90}qC1_SIXEL_SECRET\u{9C}' +
+                '\u{9F}GC1_KITTY_SECRET\u{9C}after',
         );
 
         expect(output).toBe(`${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER.repeat(4)}after`);
@@ -46,7 +50,7 @@ describe('TerminalImageRecoveryFilter', () => {
 
     it('leaves non-image OSC and DCS sequences unchanged', () => {
         const filter = new TerminalImageRecoveryFilter();
-        const source = '\x1b]0;Window title\x07\x1bP1;2pORDINARY_DCS\x1b\\text';
+        const source = '\u{1B}]0;Window title\u{7}\u{1B}P1;2pORDINARY_DCS\u{1B}\\text';
 
         expect(filter.push(source)).toBe(source);
         expect(filter.finish()).toBe('');
@@ -55,8 +59,8 @@ describe('TerminalImageRecoveryFilter', () => {
     it('bounds an oversized image and emits exactly one placeholder', () => {
         const filter = new TerminalImageRecoveryFilter(8);
 
-        const first = filter.push('\x1b]1337;File=x:123456789');
-        const second = filter.push('MORE_SECRET\x1b\\after');
+        const first = filter.push('\u{1B}]1337;File=x:123456789');
+        const second = filter.push('MORE_SECRET\u{1B}\\after');
 
         expect(first).toBe(TERMINAL_IMAGE_RECOVERY_PLACEHOLDER);
         expect(second).toBe('after');
@@ -65,17 +69,17 @@ describe('TerminalImageRecoveryFilter', () => {
 
     it('bounds a malformed DCS header instead of retaining it indefinitely', () => {
         const filter = new TerminalImageRecoveryFilter();
-        const oversizedHeader = `\x1bP${'1;'.repeat(40)}`;
+        const oversizedHeader = `\u{1B}P${'1;'.repeat(40)}`;
 
         expect(filter.push(oversizedHeader)).toBe('');
-        expect(filter.push('SECRET\x1b\\after')).toBe(
+        expect(filter.push('SECRET\u{1B}\\after')).toBe(
             `${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}after`,
         );
     });
 
     it('turns an incomplete image at process exit into a placeholder', () => {
         const filter = new TerminalImageRecoveryFilter();
-        expect(filter.push('\x1bPqUNFINISHED_SECRET')).toBe('');
+        expect(filter.push('\u{1B}PqUNFINISHED_SECRET')).toBe('');
 
         expect(filter.finish()).toBe(TERMINAL_IMAGE_RECOVERY_PLACEHOLDER);
     });
@@ -83,9 +87,9 @@ describe('TerminalImageRecoveryFilter', () => {
 
 describe('TerminalImageOutputFilter', () => {
     it.each([
-        ['IIP', '\x1b]1337;File=inline=1:SECRET\x07'],
-        ['C1 SIXEL', '\x90qSECRET\x9c'],
-        ['multipart IIP', '\x1b]1337;FilePart=SECRET\x1b\\'],
+        ['IIP', '\u{1B}]1337;File=inline=1:SECRET\u{7}'],
+        ['C1 SIXEL', '\u{90}qSECRET\u{9C}'],
+        ['multipart IIP', '\u{1B}]1337;FilePart=SECRET\u{1B}\\'],
     ])('delivers a chunked %s control atomically', (_name, sequence) => {
         const filter = new TerminalImageOutputFilter();
         const output = new TerminalOutputQueue(128);
@@ -98,9 +102,9 @@ describe('TerminalImageOutputFilter', () => {
     });
 
     it.each([
-        ['IIP', '\x1b]1337;File=inline=1:SECRET\x07'],
-        ['C1 SIXEL', '\x90qSECRET\x9c'],
-        ['multipart IIP', '\x1b]1337;FilePart=SECRET\x1b\\'],
+        ['IIP', '\u{1B}]1337;File=inline=1:SECRET\u{7}'],
+        ['C1 SIXEL', '\u{90}qSECRET\u{9C}'],
+        ['multipart IIP', '\u{1B}]1337;FilePart=SECRET\u{1B}\\'],
     ])(
         'drops a complete %s control rather than truncating it at backpressure',
         (_name, sequence) => {
@@ -119,11 +123,13 @@ describe('TerminalImageOutputFilter', () => {
         const filter = new TerminalImageOutputFilter(16);
         const output = new TerminalOutputQueue(128);
 
-        const firstBackpressure = filter.push('\x1b]1337;File=inline=1:TOO_LARGE', output);
-        const secondBackpressure = filter.push('_SECRET\x1b\\after', output);
+        const firstBackpressure = filter.push('\u{1B}]1337;File=inline=1:TOO_LARGE', output);
+        const secondBackpressure = filter.push('_SECRET\u{1B}\\after', output);
 
-        /** The oversized image itself never counts as backpressure: only genuine `destination`
-         *  capacity refusals would, and this queue has plenty of room for the small placeholder. */
+        /**
+         * The oversized image itself never counts as backpressure: only genuine `destination` capacity refusals would,
+         * and this queue has plenty of room for the small placeholder.
+         */
         expect(firstBackpressure).toBe(0);
         expect(secondBackpressure).toBe(0);
         expect(output.drain()).toBe(`${TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER}after`);
@@ -132,7 +138,7 @@ describe('TerminalImageOutputFilter', () => {
     describe('finish', () => {
         it('discards a still-buffered sequence silently when no destination is given', () => {
             const filter = new TerminalImageOutputFilter();
-            filter.push('\x1b]1337;File=inline=1:UNFINISHED', new TerminalOutputQueue(128));
+            filter.push('\u{1B}]1337;File=inline=1:UNFINISHED', new TerminalOutputQueue(128));
 
             expect(filter.finish()).toBe(0);
         });
@@ -140,7 +146,7 @@ describe('TerminalImageOutputFilter', () => {
         it('replaces a still-capturing sequence with the placeholder when a destination is given', () => {
             const filter = new TerminalImageOutputFilter();
             const output = new TerminalOutputQueue(128);
-            filter.push('\x1b]1337;File=inline=1:UNFINISHED', output);
+            filter.push('\u{1B}]1337;File=inline=1:UNFINISHED', output);
 
             expect(filter.finish(output)).toBe(0);
             expect(output.drain()).toBe(TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER);

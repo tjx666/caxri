@@ -3,9 +3,9 @@ import { z } from 'zod';
 import type { InspectorCommandId } from './inspector.js';
 
 /**
- * Catalog IDs for palette, shortcuts, native menus, and command-backed buttons. Inspector mode
- * commands stay listed here so {@link commandIdSchema} remains a closed enum; a type check below
- * fails if a registration is added without an ID here.
+ * Catalog IDs for palette, shortcuts, native menus, and command-backed buttons. Inspector mode commands stay listed
+ * here so {@link commandIdSchema} remains a closed enum; a type check below fails if a registration is added without an
+ * ID here.
  */
 export const commandIds = [
     'project.create',
@@ -49,7 +49,9 @@ export const commandIds = [
 
 export type CommandId = (typeof commandIds)[number];
 
-/** Keeps Inspector mode command IDs inside the catalog enum. */
+/**
+ * Keeps Inspector mode command IDs inside the catalog enum.
+ */
 export function inspectorCommandId(id: InspectorCommandId): CommandId {
     return id;
 }

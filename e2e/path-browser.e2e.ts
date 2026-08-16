@@ -5,18 +5,16 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 /**
- * Simulates the literal keystroke macOS delivers for Option+P: the OS composes Option+<letter>
- * into a symbol (`event.key === 'π'` for Option+P), not the plain letter. Playwright's synthetic
- * `press('Alt+P')` cannot reproduce this composition — its USKeyboardLayout table reports
- * `key: 'p'` for `KeyP` unconditionally, regardless of the Alt modifier, so it would pass equally
- * well against the pre-fix `event.key`-based chord matching and prove nothing about the regression
- * this shortcut migration fixed (see `keybindings.ts`'s `shortcutMainKey`). Dispatching the exact
- * composed event on the currently focused element instead exercises the real `event.code`-based
- * resolution end to end, the same way `keybindings.test.ts` already covers it at the unit level.
+ * Simulates the literal keystroke macOS delivers for Option+P: the OS composes Option+<letter> into a symbol
+ * (`event.key === 'π'` for Option+P), not the plain letter. Playwright's synthetic `press('Alt+P')` cannot reproduce
+ * this composition — its USKeyboardLayout table reports `key: 'p'` for `KeyP` unconditionally, regardless of the Alt
+ * modifier, so it would pass equally well against the pre-fix `event.key`-based chord matching and prove nothing about
+ * the regression this shortcut migration fixed (see `keybindings.ts`'s `shortcutMainKey`). Dispatching the exact
+ * composed event on the currently focused element instead exercises the real `event.code`-based resolution end to end,
+ * the same way `keybindings.test.ts` already covers it at the unit level.
  */
 async function pressOptionP(page: Page): Promise<void> {
     await page.evaluate(() => {
@@ -146,7 +144,11 @@ test('Opt+P lazily browses Project paths from Terminal, Editor, and Files focus'
         await running.page.keyboard.press('Meta+Shift+P');
         await expect(running.page.getByRole('dialog')).toContainText('Commands');
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
@@ -174,19 +176,25 @@ test('typing a name that does not exist offers to create a file or folder', asyn
         await input.fill('notes.md');
         await expect(input).toHaveAttribute('aria-busy', 'false');
         await expect(dialog.getByRole('option')).toHaveCount(0);
-        const createFile = dialog.getByRole('button', { name: 'Create file' });
-        await expect(createFile).toBeVisible();
-        await expect(createFile).toContainText('notes.md');
+        const fileCreateButton = dialog.getByRole('button', { name: 'Create file' });
+        await expect(fileCreateButton).toBeVisible();
+        await expect(fileCreateButton).toContainText('notes.md');
         await expect(dialog).toContainText('Enter Create');
 
         await input.press('Enter');
         await expect(dialog).toHaveCount(0);
         await expect(running.page.locator('.work-tab', { hasText: 'notes.md' })).toBeVisible();
-        // `.catch` rather than a bare `readFile`: the create is asynchronous, so the first poll can
+        // Try/catch rather than a bare `readFile`: the create is asynchronous, so the first poll can
         // land before the file exists and an ENOENT rejection would fail the whole assertion
         // instead of retrying.
         await expect
-            .poll(() => readFile(join(root, 'notes.md'), 'utf8').catch(() => undefined))
+            .poll(async () => {
+                try {
+                    return await readFile(join(root, 'notes.md'), 'utf8');
+                } catch {
+                    return;
+                }
+            })
             .toBe('');
 
         await pressOptionP(running.page);
@@ -195,27 +203,34 @@ test('typing a name that does not exist offers to create a file or folder', asyn
         await expect(secondInput).toBeFocused();
         await secondInput.fill('drafts/');
         await expect(secondInput).toHaveAttribute('aria-busy', 'false');
-        const createFolder = secondDialog.getByRole('button', { name: 'Create folder' });
-        await expect(createFolder).toBeVisible();
-        await expect(createFolder).toContainText('drafts');
-        await createFolder.click();
+        const folderCreateButton = secondDialog.getByRole('button', { name: 'Create folder' });
+        await expect(folderCreateButton).toBeVisible();
+        await expect(folderCreateButton).toContainText('drafts');
+        await folderCreateButton.click();
         // Creating a folder navigates into it instead of closing the dialog, matching the folder
         // affordance in the existing entry list (`CornerDownLeft`/`ArrowRight`).
         await expect(secondDialog).toBeVisible();
         await expect(secondDialog).toContainText('drafts/');
         await expect(secondInput).toHaveValue('');
         await expect
-            .poll(() =>
-                stat(join(root, 'drafts'))
-                    .then((entry) => entry.isDirectory())
-                    .catch(() => false),
-            )
+            .poll(async () => {
+                try {
+                    const entry = await stat(join(root, 'drafts'));
+                    return entry.isDirectory();
+                } catch {
+                    return false;
+                }
+            })
             .toBe(true);
 
         await secondInput.press('Escape');
         await expect(secondDialog).toHaveCount(0);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

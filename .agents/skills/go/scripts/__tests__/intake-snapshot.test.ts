@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    createIntakeSnapshot,
-    parseIntakeSnapshotArguments,
-    type CommandRunner,
-} from '../intake-snapshot';
+import type { CommandRunner } from '../intake-snapshot';
+import { createIntakeSnapshot, parseIntakeSnapshotArguments } from '../intake-snapshot';
 
 type FixtureResponse = string | Error;
 
@@ -33,8 +30,8 @@ function fixtureRunner(overrides: Record<string, FixtureResponse | FixtureRespon
         'lobehub whoami --json': JSON.stringify({ userId: 'user-1' }),
     };
     const runner: CommandRunner = {
-        capture(command, args) {
-            const exact = `${command} ${args.join(' ')}`;
+        capture(command, arguments_) {
+            const exact = `${command} ${arguments_.join(' ')}`;
             calls.push(exact);
             const projectPrefix =
                 'gh project item-list 2 --owner tjx666 --format json --limit 1000 --jq ';

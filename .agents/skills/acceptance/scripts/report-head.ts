@@ -11,23 +11,23 @@ export interface RebindReportHeadInput {
     reason: string;
 }
 
+const reportHeadRebindSchema = z.object({
+    fromCommit: z.string().min(1),
+    reason: z.string().min(1),
+    reboundAt: z.string().min(1),
+    toCommit: z.string().min(1),
+});
+
 const reportHeadSchema = z.looseObject({
     commit: z.string().min(1),
     createdAt: z.string().min(1),
     entry: z.string().min(1),
-    headRebinds: z
-        .array(
-            z.object({
-                fromCommit: z.string().min(1),
-                reason: z.string().min(1),
-                reboundAt: z.string().min(1),
-                toCommit: z.string().min(1),
-            }),
-        )
-        .optional(),
+    headRebinds: z.array(reportHeadRebindSchema).optional(),
 });
 
-/** Builds the audited replacement document after the report boundary validates its safe path. */
+/**
+ * Builds the audited replacement document after the report boundary validates its safe path.
+ */
 export function rebindReportDocument(raw: unknown, input: RebindReportHeadInput) {
     const report = reportHeadSchema.parse(raw);
     if ('summary' in report) {

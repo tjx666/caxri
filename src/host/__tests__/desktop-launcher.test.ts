@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createDesktopLauncher } from '../desktop-launcher';
 
+// Mocks Node's ChildProcess, which is itself an EventEmitter and is consumed via
+// `.on()`/`.emit()` by the production launcher; EventTarget is not a drop-in replacement here.
+// eslint-disable-next-line unicorn/prefer-event-target -- interoperates with Node's EventEmitter-based ChildProcess API
 class FakeDesktopProcess extends EventEmitter {
     unref = vi.fn();
 }

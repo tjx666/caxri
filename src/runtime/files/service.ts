@@ -2,18 +2,28 @@ import { randomUUID } from 'node:crypto';
 import { basename, dirname, resolve } from 'node:path';
 
 import type { RuntimeEvent } from '../../shared/ipc/events';
-import type { RuntimeMethodParams, RuntimeMethodResult } from '../../shared/ipc/methods';
+import type {
+    RuntimeMethodParams as RuntimeMethodParameters,
+    RuntimeMethodResult,
+} from '../../shared/ipc/methods';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { AppSettings, FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../db';
-import { ProjectRootResolver, type ResolvedSessionPath } from '../project-roots';
-import { DocumentService, type OpenFile } from './documents';
-import { ListingService, type GitIgnoreDecorator, type OpenDirectory } from './listing';
-import { FileMutationService, type FileMutationServiceOptions } from './mutations';
-import { FileMutationJournal, type FileMutationJournalOptions } from './mutation-journal';
+import type { ResolvedSessionPath } from '../project-roots';
+import { ProjectRootResolver } from '../project-roots';
+import type { OpenFile } from './documents';
+import { DocumentService } from './documents';
+import type { GitIgnoreDecorator, OpenDirectory } from './listing';
+import { ListingService } from './listing';
+import type { FileMutationJournalOptions } from './mutation-journal';
+import { FileMutationJournal } from './mutation-journal';
+import type { FileMutationServiceOptions } from './mutations';
+import { FileMutationService } from './mutations';
 import { FileOperationQueue } from './operation-queue';
-import { SearchService, type SearchServiceOptions } from './search';
-import { WatcherService, type WatcherServiceOptions } from './watcher';
+import type { SearchServiceOptions } from './search';
+import { SearchService } from './search';
+import type { WatcherServiceOptions } from './watcher';
+import { WatcherService } from './watcher';
 
 const MAXIMUM_DOCUMENT_QUEUE_WAIT_MS = 15_000;
 const COPY_OPERATION_GROUP = 'files.copy';
@@ -31,9 +41,9 @@ export interface FileServiceOptions extends WatcherServiceOptions {
 }
 
 /**
- * Composes Session-root resolution, document read/write, directory listing, and watching into the
- * Runtime's file surface. Each concern lives in its own module under `files/`; this class only
- * wires them together and preserves the public API bootstrap.ts and tests depend on.
+ * Composes Session-root resolution, document read/write, directory listing, and watching into the Runtime's file
+ * surface. Each concern lives in its own module under `files/`; this class only wires them together and preserves the
+ * public API bootstrap.ts and tests depend on.
  */
 export class FileService {
     private readonly projectRoots: ProjectRootResolver;
@@ -54,9 +64,8 @@ export class FileService {
     ) {
         this.projectRoots = new ProjectRootResolver(database);
         /**
-         * Sub-services call back through `this.resolveSessionPath` (a real prototype method) rather
-         * than `projectRoots` directly, so a test spying on `service.resolveSessionPath` still
-         * observes every internal call.
+         * Sub-services call back through `this.resolveSessionPath` (a real prototype method) rather than `projectRoots`
+         * directly, so a test spying on `service.resolveSessionPath` still observes every internal call.
          */
         const resolveSessionPath = (sessionId: string, input?: string) =>
             this.resolveSessionPath(sessionId, input);
@@ -96,7 +105,9 @@ export class FileService {
         return this.mutationJournal.initialize();
     }
 
-    /** Returns durable Project roots that the user explicitly granted to Caxri. */
+    /**
+     * Returns durable Project roots that the user explicitly granted to Caxri.
+     */
     listApprovedProjectRoots(): string[] {
         return this.projectRoots.listApprovedProjectRoots();
     }
@@ -106,112 +117,125 @@ export class FileService {
     }
 
     browse(
-        params: RuntimeMethodParams<'files.browse'>,
+        parameters: RuntimeMethodParameters<'files.browse'>,
     ): Promise<RuntimeMethodResult<'files.browse'>> {
-        return this.listing.browse(params);
+        return this.listing.browse(parameters);
     }
 
     async create(
-        params: Omit<RuntimeMethodParams<'files.create'>, 'operationId'> & {
+        parameters: Omit<RuntimeMethodParameters<'files.create'>, 'operationId'> & {
             operationId?: string;
         },
     ): Promise<RuntimeMethodResult<'files.create'>> {
         const now = Date.now();
-        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(params.sessionId);
+        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(
+            parameters.sessionId,
+        );
         return this.mutationJournal.run(
             {
-                id: params.operationId ?? randomUUID(),
+                id: parameters.operationId ?? randomUUID(),
                 kind: 'create',
-                sessionId: params.sessionId,
+                sessionId: parameters.sessionId,
                 workbenchProjectId,
                 phase: 'pre_stage',
-                input: { directory: params.directory, kind: params.kind, name: params.name },
+                input: {
+                    directory: parameters.directory,
+                    kind: parameters.kind,
+                    name: parameters.name,
+                },
                 startedAt: now,
                 updatedAt: now,
             },
             async (stage) => {
                 const { path: directory } = await this.projectRoots.resolveSessionPath(
-                    params.sessionId,
-                    params.directory,
+                    parameters.sessionId,
+                    parameters.directory,
                 );
-                return this.operations.run(() => this.mutations.create(params, stage), {
-                    paths: [resolve(directory, params.name)],
+                return this.operations.run(() => this.mutations.create(parameters, stage), {
+                    paths: [resolve(directory, parameters.name)],
                 });
             },
         );
     }
 
     async copy(
-        params: RuntimeMethodParams<'files.copy'>,
+        parameters: RuntimeMethodParameters<'files.copy'>,
     ): Promise<RuntimeMethodResult<'files.copy'>> {
         const [source, directory] = await Promise.all([
-            this.projectRoots.resolveSessionPath(params.sessionId, params.path),
-            this.projectRoots.resolveSessionPath(params.sessionId, params.directory),
+            this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.path),
+            this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.directory),
         ]);
-        return this.operations.run(() => this.mutations.copy(params), {
+        return this.operations.run(() => this.mutations.copy(parameters), {
             group: `${COPY_OPERATION_GROUP}:${source.root}`,
             paths: [source.path, resolve(directory.path, basename(source.path))],
         });
     }
 
     async rename(
-        params: Omit<RuntimeMethodParams<'files.rename'>, 'operationId'> & {
+        parameters: Omit<RuntimeMethodParameters<'files.rename'>, 'operationId'> & {
             operationId?: string;
         },
     ): Promise<RuntimeMethodResult<'files.rename'>> {
         const now = Date.now();
-        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(params.sessionId);
+        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(
+            parameters.sessionId,
+        );
         return this.mutationJournal.run(
             {
-                id: params.operationId ?? randomUUID(),
+                id: parameters.operationId ?? randomUUID(),
                 kind: 'rename',
-                sessionId: params.sessionId,
+                sessionId: parameters.sessionId,
                 workbenchProjectId,
                 phase: 'pre_stage',
-                input: { name: params.name, path: params.path },
+                input: { name: parameters.name, path: parameters.path },
                 startedAt: now,
                 updatedAt: now,
             },
             async (stage) => {
                 const { path: source } = await this.projectRoots.resolveSessionPath(
-                    params.sessionId,
-                    params.path,
+                    parameters.sessionId,
+                    parameters.path,
                 );
-                return this.operations.run(() => this.mutations.rename(params, stage), {
-                    paths: [source, resolve(dirname(source), params.name)],
+                return this.operations.run(() => this.mutations.rename(parameters, stage), {
+                    paths: [source, resolve(dirname(source), parameters.name)],
                 });
             },
         );
     }
 
     async move(
-        params: Omit<RuntimeMethodParams<'files.move'>, 'operationId'> & {
+        parameters: Omit<RuntimeMethodParameters<'files.move'>, 'operationId'> & {
             operationId?: string;
         },
     ): Promise<RuntimeMethodResult<'files.move'>> {
         const now = Date.now();
-        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(params.sessionId);
+        const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(
+            parameters.sessionId,
+        );
         return this.mutationJournal.run(
             {
-                id: params.operationId ?? randomUUID(),
+                id: parameters.operationId ?? randomUUID(),
                 kind: 'move',
-                sessionId: params.sessionId,
+                sessionId: parameters.sessionId,
                 workbenchProjectId,
                 phase: 'pre_stage',
                 input: {
-                    conflict: params.conflict,
-                    directory: params.directory,
-                    path: params.path,
+                    conflict: parameters.conflict,
+                    directory: parameters.directory,
+                    path: parameters.path,
                 },
                 startedAt: now,
                 updatedAt: now,
             },
             async (stage) => {
                 const [source, directory] = await Promise.all([
-                    this.projectRoots.resolveSessionPath(params.sessionId, params.path),
-                    this.projectRoots.resolveSessionPath(params.sessionId, params.directory),
+                    this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.path),
+                    this.projectRoots.resolveSessionPath(
+                        parameters.sessionId,
+                        parameters.directory,
+                    ),
                 ]);
-                return this.operations.run(() => this.mutations.move(params, stage), {
+                return this.operations.run(() => this.mutations.move(parameters, stage), {
                     paths: [source.path, resolve(directory.path, basename(source.path))],
                 });
             },
@@ -235,17 +259,27 @@ export class FileService {
     }
 
     async authorizeTrash(
-        params: RuntimeMethodParams<'files.authorizeTrash'>,
+        parameters: RuntimeMethodParameters<'files.authorizeTrash'>,
     ): Promise<RuntimeMethodResult<'files.authorizeTrash'>> {
-        const { path } = await this.projectRoots.resolveSessionPath(params.sessionId, params.path);
-        return this.operations.run(() => this.mutations.authorizeTrash(params), { paths: [path] });
+        const { path } = await this.projectRoots.resolveSessionPath(
+            parameters.sessionId,
+            parameters.path,
+        );
+        return this.operations.run(() => this.mutations.authorizeTrash(parameters), {
+            paths: [path],
+        });
     }
 
     async authorizeOpen(
-        params: RuntimeMethodParams<'files.authorizeOpen'>,
+        parameters: RuntimeMethodParameters<'files.authorizeOpen'>,
     ): Promise<RuntimeMethodResult<'files.authorizeOpen'>> {
-        const { path } = await this.projectRoots.resolveSessionPath(params.sessionId, params.path);
-        return this.operations.run(() => this.mutations.authorizeOpen(params), { paths: [path] });
+        const { path } = await this.projectRoots.resolveSessionPath(
+            parameters.sessionId,
+            parameters.path,
+        );
+        return this.operations.run(() => this.mutations.authorizeOpen(parameters), {
+            paths: [path],
+        });
     }
 
     async read(sessionId: string, path: string): Promise<FileDocument> {
@@ -265,9 +299,9 @@ export class FileService {
     }
 
     search(
-        params: RuntimeMethodParams<'files.search'>,
+        parameters: RuntimeMethodParameters<'files.search'>,
     ): Promise<RuntimeMethodResult<'files.search'>> {
-        return this.searcher.search(params);
+        return this.searcher.search(parameters);
     }
 
     watchSession(sessionId?: string): Promise<void> {
@@ -281,7 +315,9 @@ export class FileService {
         );
     }
 
-    /** Reinstalls the selected watcher after its Session atomically changes Workbench Root. */
+    /**
+     * Reinstalls the selected watcher after its Session atomically changes Workbench Root.
+     */
     refreshWatchSession(sessionId: string): Promise<void> {
         return this.watcher.watchSession(
             {

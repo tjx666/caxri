@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    evaluateGreenReusePolicy,
-    isReusableGreenDeltaPath,
-    type GreenReusePolicyInput,
-} from '../ci-green-reuse';
+import type { GreenReusePolicyInput } from '../ci-green-reuse';
+import { evaluateGreenReusePolicy, isReusableGreenDeltaPath } from '../ci-green-reuse';
 
 const headSha = 'b'.repeat(40);
 const candidateHeadSha = 'a'.repeat(40);

@@ -1,19 +1,15 @@
 import { join } from 'node:path';
 
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import type { IpcMainInvokeEvent } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 
 import { CaxriError } from '../shared/ipc/errors';
-import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
-import {
-    processExplorerSnapshotSchema,
-    type ProcessExplorerSnapshot,
-} from '../shared/process-explorer';
 import type { StructuredLogger } from '../shared/node/logger';
-import {
-    isRendererErrorKind,
-    RENDERER_ERROR_CHANNELS,
-    type RendererErrorKind,
-} from '../shared/renderer-error';
+import type { ProcessExplorerSnapshot } from '../shared/process-explorer';
+import { processExplorerSnapshotSchema } from '../shared/process-explorer';
+import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
+import type { RendererErrorKind } from '../shared/renderer-error';
+import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '../shared/renderer-error';
 import type { ThemeTokens } from '../shared/types';
 import { decideCrashRecovery } from './crash-policy';
 import type { ProcessExplorerSampler } from './process-explorer';
@@ -22,7 +18,9 @@ import type { E2EWindowMode } from './window-mode';
 
 interface ProcessExplorerWindowOptions {
     currentDirectory: string;
-    /** E2E-only render-exception seam; Main never enables it in normal launches. */
+    /**
+     * E2E-only render-exception seam; Main never enables it in normal launches.
+     */
     forceRenderError?: boolean;
     logger: StructuredLogger;
     isPackaged: boolean;
@@ -37,6 +35,26 @@ export class ProcessExplorerWindowController {
     private window?: BrowserWindow;
 
     constructor(private readonly options: ProcessExplorerWindowOptions) {}
+
+    private resolveRendererUrl(): string {
+        const rendererUrl = new URL(
+            resolveRendererEntryUrl({
+                currentDirectory: this.options.currentDirectory,
+                isPackaged: this.options.isPackaged,
+                page: 'process-explorer.html',
+                rendererUrl: this.options.rendererUrl,
+            }),
+        );
+        if (this.options.forceRenderError)
+            rendererUrl.searchParams.set('caxri-test-render-error', '1');
+        return rendererUrl.href;
+    }
+
+    private assertSender(event: IpcMainInvokeEvent): void {
+        if (!this.window || event.sender !== this.window.webContents) {
+            throw new CaxriError('PATH_DENIED', 'Untrusted Process Explorer IPC sender');
+        }
+    }
 
     installIpc(): void {
         ipcMain.on(RENDERER_ERROR_CHANNELS.processExplorer, (event, rawKind: unknown) => {
@@ -77,9 +95,9 @@ export class ProcessExplorerWindowController {
     }
 
     /**
-     * OS process id of this window's renderer, or `undefined` while it is closed. The sampler uses
-     * it to label Caxri's two renderer processes by role; Electron's `getAppMetrics()` reports no
-     * name for `Tab` processes, so the diagnostics window could not otherwise identify itself.
+     * OS process id of this window's renderer, or `undefined` while it is closed. The sampler uses it to label Caxri's
+     * two renderer processes by role; Electron's `getAppMetrics()` reports no name for `Tab` processes, so the
+     * diagnostics window could not otherwise identify itself.
      */
     processId(): number | undefined {
         if (!this.window || this.window.isDestroyed()) return undefined;
@@ -120,8 +138,8 @@ export class ProcessExplorerWindowController {
         window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
         window.webContents.on('will-navigate', (event, url) => {
             /**
-             * A crashed WebContents may no longer report its current URL. Compare against the
-             * immutable entry URL so recovery is allowed without widening navigation privileges.
+             * A crashed WebContents may no longer report its current URL. Compare against the immutable entry URL so
+             * recovery is allowed without widening navigation privileges.
              */
             if (url === rendererUrl) return;
             event.preventDefault();
@@ -156,7 +174,11 @@ export class ProcessExplorerWindowController {
                 });
                 setTimeout(() => {
                     if (this.window === window && !window.isDestroyed())
-                        void window.loadURL(rendererUrl);
+                        // `render-process-gone` recovery reload is best-effort: a failed reload
+                        // here re-triggers this same crash-recovery handler on the next crash
+                        // event, so it is deliberately fire-and-forget rather than awaited.
+                        // eslint-disable-next-line unicorn/prefer-await -- see comment above
+                        window.loadURL(rendererUrl).catch(() => {});
                 }, decision.delayMs);
                 return;
             }
@@ -168,34 +190,18 @@ export class ProcessExplorerWindowController {
                 },
             });
             /**
-             * Process Explorer is optional diagnostics, so stop only its failed window. Creating
-             * the next window resets crash history and leaves the healthy workbench untouched.
+             * Process Explorer is optional diagnostics, so stop only its failed window. Creating the next window resets
+             * crash history and leaves the healthy workbench untouched.
              */
             window.destroy();
         });
         window.on('closed', () => {
             if (this.window === window) this.window = undefined;
         });
-        void window.loadURL(rendererUrl);
-    }
-
-    private resolveRendererUrl(): string {
-        const rendererUrl = new URL(
-            resolveRendererEntryUrl({
-                currentDirectory: this.options.currentDirectory,
-                isPackaged: this.options.isPackaged,
-                page: 'process-explorer.html',
-                rendererUrl: this.options.rendererUrl,
-            }),
-        );
-        if (this.options.forceRenderError)
-            rendererUrl.searchParams.set('caxri-test-render-error', '1');
-        return rendererUrl.toString();
-    }
-
-    private assertSender(event: IpcMainInvokeEvent): void {
-        if (!this.window || event.sender !== this.window.webContents) {
-            throw new CaxriError('PATH_DENIED', 'Untrusted Process Explorer IPC sender');
-        }
+        // `open()` creates the window synchronously and returns before navigation settles;
+        // load failures surface through the 'render-process-gone'/'preload-error' handlers
+        // above, so this is deliberately fire-and-forget rather than awaited.
+        // eslint-disable-next-line unicorn/prefer-await -- see comment above
+        window.loadURL(rendererUrl).catch(() => {});
     }
 }

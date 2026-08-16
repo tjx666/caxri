@@ -62,11 +62,10 @@ function presentation(
 }
 
 /**
- * `--accent` is DESIGN.md's single per-screen focus color (the focused pane/tab); the Sidebar stays
- * entirely neutral otherwise, so unread-attention chrome borrows the same success/warning/danger/
- * neutral tone as the activity dot instead. `border-danger`/`border-warning`/`bg-danger/10`/etc. are
- * literal keys here (not built from a template string) so Tailwind's static class scanner can find
- * and generate them.
+ * `--accent` is DESIGN.md's single per-screen focus color (the focused pane/tab); the Sidebar stays entirely neutral
+ * otherwise, so unread-attention chrome borrows the same success/warning/danger/ neutral tone as the activity dot
+ * instead. `border-danger`/`border-warning`/`bg-danger/10`/etc. are literal keys here (not built from a template
+ * string) so Tailwind's static class scanner can find and generate them.
  */
 const TONE_BORDER_CLASSNAME: Record<SessionActivityPresentation['tone'], string> = {
     danger: 'border-danger',
@@ -89,17 +88,23 @@ const TONE_CALLOUT_CLASSNAME: Record<SessionActivityPresentation['tone'], string
     warning: 'bg-warning/10 text-warning',
 };
 
-/** `border-*` utility for a tone-colored ring (e.g. the unread-attention indicator). */
+/**
+ * `border-*` utility for a tone-colored ring (e.g. the unread-attention indicator).
+ */
 export function sessionToneBorderClassName(tone: SessionActivityPresentation['tone']): string {
     return TONE_BORDER_CLASSNAME[tone];
 }
 
-/** `bg-*` utility for a tone-colored dot/fill, matching {@link sessionToneBorderClassName}'s tone. */
+/**
+ * `bg-*` utility for a tone-colored dot/fill, matching {@link sessionToneBorderClassName}'s tone.
+ */
 export function sessionToneBackgroundClassName(tone: SessionActivityPresentation['tone']): string {
     return TONE_BACKGROUND_CLASSNAME[tone];
 }
 
-/** Soft background + matching text for a tone-colored callout chip (e.g. the unread explanation). */
+/**
+ * Soft background + matching text for a tone-colored callout chip (e.g. the unread explanation).
+ */
 export function sessionToneCalloutClassName(tone: SessionActivityPresentation['tone']): string {
     return TONE_CALLOUT_CLASSNAME[tone];
 }
@@ -113,7 +118,9 @@ export function formatSessionRelativeTime(timestamp: number, now = Date.now()): 
     return RELATIVE_TIME_FORMATTER.format(seconds, 'second');
 }
 
-/** Single source of truth for every visual and accessible Session activity explanation. */
+/**
+ * Single source of truth for every visual and accessible Session activity explanation.
+ */
 export function sessionActivityPresentation(
     state: AgentActivityState,
 ): SessionActivityPresentation {

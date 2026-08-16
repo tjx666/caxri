@@ -63,8 +63,8 @@ interface AgentHookSupport {
 }
 
 /**
- * Provider-owned, filesystem-free hook configuration behavior. The generic hook manager owns every
- * read, lock, atomic replace, read-back check, watcher, bridge, and socket operation.
+ * Provider-owned, filesystem-free hook configuration behavior. The generic hook manager owns every read, lock, atomic
+ * replace, read-back check, watcher, bridge, and socket operation.
  */
 export interface AgentHookAdapter {
     readonly bindings: readonly AgentHookBinding[];

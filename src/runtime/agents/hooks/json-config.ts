@@ -1,4 +1,5 @@
-import { applyEdits, modify, parse, type FormattingOptions, type ParseError } from 'jsonc-parser';
+import type { FormattingOptions, ParseError } from 'jsonc-parser';
+import { applyEdits, modify, parse } from 'jsonc-parser';
 
 import type { AgentProvider } from '../../../shared/agents';
 import type {
@@ -44,8 +45,8 @@ function parseDocument(source: string | undefined): Record<string, unknown> | un
 }
 
 /**
- * Provider hook files are user-owned. Treat an unknown tree shape as malformed instead of
- * normalizing it, because replacing a scalar or array could destroy foreign configuration.
+ * Provider hook files are user-owned. Treat an unknown tree shape as malformed instead of normalizing it, because
+ * replacing a scalar or array could destroy foreign configuration.
  */
 function malformedHookTree(document: Record<string, unknown>): string | undefined {
     if (!Object.hasOwn(document, 'hooks')) return undefined;
@@ -57,7 +58,7 @@ function malformedHookTree(document: Record<string, unknown>): string | undefine
             const group = record(groupValue);
             if (!group || !Array.isArray(group.hooks))
                 return 'A provider hook group does not contain a hooks array';
-            if (!group.hooks.every((handler) => record(handler) !== undefined))
+            if (group.hooks.some((handler) => record(handler) === undefined))
                 return 'A provider hook handler is not an object';
         }
     }
@@ -65,10 +66,12 @@ function malformedHookTree(document: Record<string, unknown>): string | undefine
 }
 
 function shellQuote(value: string): string {
-    return `'${value.replaceAll("'", "'\\''")}'`;
+    return `'${value.replaceAll("'", String.raw`'\''`)}'`;
 }
 
-/** Creates a stable hook definition; ordinary bridge/app upgrades do not change Codex's trust hash. */
+/**
+ * Creates a stable hook definition; ordinary bridge/app upgrades do not change Codex's trust hash.
+ */
 function buildBridgeCommand(
     desired: DesiredHookInstall,
     phase: AgentHookBinding['phase'],
@@ -86,7 +89,7 @@ function buildBridgeCommand(
 
 function expectedGroup(desired: DesiredHookInstall, binding: AgentHookBinding): JsonHookGroup {
     return {
-        ...(binding.matcher ? { matcher: binding.matcher } : {}),
+        ...(binding.matcher && { matcher: binding.matcher }),
         hooks: [
             {
                 type: 'command',
@@ -114,6 +117,23 @@ function ownedHandlers(group: unknown, provider: AgentProvider): JsonHookHandler
     );
 }
 
+function installedOwnedEntriesForEvent(
+    event: string,
+    groups: unknown[],
+    provider: AgentProvider,
+): Array<{ event: string; group: JsonHookGroup; schema: number }> {
+    const installed: Array<{ event: string; group: JsonHookGroup; schema: number }> = [];
+    for (const candidate of groups) {
+        const group = record(candidate) as JsonHookGroup | undefined;
+        if (!group) continue;
+        for (const handler of ownedHandlers(group, provider)) {
+            const schema = ownedSchema(handler.command, provider);
+            if (schema !== undefined) installed.push({ event, group, schema });
+        }
+    }
+    return installed;
+}
+
 function installedOwnedEntries(
     document: Record<string, unknown>,
     provider: AgentProvider,
@@ -123,19 +143,12 @@ function installedOwnedEntries(
     const installed: Array<{ event: string; group: JsonHookGroup; schema: number }> = [];
     for (const [event, groups] of Object.entries(hooks)) {
         if (!Array.isArray(groups)) continue;
-        for (const candidate of groups) {
-            const group = record(candidate) as JsonHookGroup | undefined;
-            if (!group) continue;
-            for (const handler of ownedHandlers(group, provider)) {
-                const schema = ownedSchema(handler.command, provider);
-                if (schema !== undefined) installed.push({ event, group, schema });
-            }
-        }
+        installed.push(...installedOwnedEntriesForEvent(event, groups, provider));
     }
     return installed;
 }
 
-function sameJson(left: unknown, right: unknown): boolean {
+function isSameJson(left: unknown, right: unknown): boolean {
     return JSON.stringify(left) === JSON.stringify(right);
 }
 
@@ -161,7 +174,7 @@ export function inspectJsonHooks(
         const matching = installed.filter((entry) => entry.event === binding.event);
         if (
             matching.length !== 1 ||
-            !sameJson(matching[0]?.group, expectedGroup(desired, binding))
+            !isSameJson(matching[0]?.group, expectedGroup(desired, binding))
         ) {
             return { kind: 'drifted' };
         }
@@ -176,6 +189,34 @@ function apply(source: string, path: Array<string | number>, value: unknown): st
     );
 }
 
+function withoutOwnedHandlersForEvent(
+    source: string,
+    event: string,
+    groupsValue: unknown[],
+    provider: AgentProvider,
+): string {
+    let next = source;
+    let remainingGroups = groupsValue.length;
+    for (let groupIndex = groupsValue.length - 1; groupIndex >= 0; groupIndex -= 1) {
+        const group = record(groupsValue[groupIndex]);
+        const handlers = group?.hooks;
+        if (!Array.isArray(handlers)) continue;
+        const ownedIndexes = handlers.flatMap((handler, index) =>
+            ownedSchema(record(handler)?.command, provider) === undefined ? [] : [index],
+        );
+        if (ownedIndexes.length === 0) continue;
+        if (ownedIndexes.length === handlers.length) {
+            next = apply(next, ['hooks', event, groupIndex], undefined);
+            remainingGroups -= 1;
+            continue;
+        }
+        for (const handlerIndex of ownedIndexes.toReversed())
+            next = apply(next, ['hooks', event, groupIndex, 'hooks', handlerIndex], undefined);
+    }
+    if (remainingGroups === 0) next = apply(next, ['hooks', event], undefined);
+    return next;
+}
+
 function withoutOwnedHandlers(source: string, provider: AgentProvider): string {
     const document = parseDocument(source);
     const hooks = record(document?.hooks);
@@ -183,24 +224,7 @@ function withoutOwnedHandlers(source: string, provider: AgentProvider): string {
     let next = source;
     for (const [event, groupsValue] of Object.entries(hooks)) {
         if (!Array.isArray(groupsValue)) continue;
-        let remainingGroups = groupsValue.length;
-        for (let groupIndex = groupsValue.length - 1; groupIndex >= 0; groupIndex -= 1) {
-            const group = record(groupsValue[groupIndex]);
-            const handlers = group?.hooks;
-            if (!Array.isArray(handlers)) continue;
-            const ownedIndexes = handlers.flatMap((handler, index) =>
-                ownedSchema(record(handler)?.command, provider) === undefined ? [] : [index],
-            );
-            if (ownedIndexes.length === 0) continue;
-            if (ownedIndexes.length === handlers.length) {
-                next = apply(next, ['hooks', event, groupIndex], undefined);
-                remainingGroups -= 1;
-                continue;
-            }
-            for (const handlerIndex of ownedIndexes.toReversed())
-                next = apply(next, ['hooks', event, groupIndex, 'hooks', handlerIndex], undefined);
-        }
-        if (remainingGroups === 0) next = apply(next, ['hooks', event], undefined);
+        next = withoutOwnedHandlersForEvent(next, event, groupsValue, provider);
     }
     const remainingDocument = parseDocument(next);
     const remainingHooks = record(remainingDocument?.hooks);

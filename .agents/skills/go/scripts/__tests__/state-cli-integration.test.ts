@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import process from 'node:process';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runStateCli } from '../state-cli';
@@ -16,9 +18,9 @@ import {
 const cleanupPaths: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        cleanupPaths.splice(0).map((path) => rm(path, { force: true, recursive: true })),
-    );
+    const paths = [...cleanupPaths];
+    cleanupPaths.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { force: true, recursive: true })));
 });
 
 async function fixture() {

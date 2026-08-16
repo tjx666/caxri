@@ -1,10 +1,11 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
-import { runInElectron } from './run-in-electron.ts';
+import { didRelaunchInElectron } from './run-in-electron.ts';
 
-if (!(await runInElectron(import.meta.url))) {
+if (!(await didRelaunchInElectron(import.meta.url))) {
     const [{ default: Database }, watcher, pty, { app }] = await Promise.all([
         import('better-sqlite3'),
         import('@parcel/watcher'),
@@ -15,7 +16,7 @@ if (!(await runInElectron(import.meta.url))) {
     let subscription: Awaited<ReturnType<typeof watcher.subscribe>> | undefined;
 
     try {
-        subscription = await watcher.subscribe(watcherRoot, () => undefined);
+        subscription = await watcher.subscribe(watcherRoot, () => {});
         const database = new Database(':memory:');
         const sqliteVersion = (
             database.prepare('select sqlite_version() as version').get() as { version: string }

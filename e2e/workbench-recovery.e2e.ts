@@ -2,10 +2,10 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -45,7 +45,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
     try {
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
-        await typeTerminal(running.page, "printf 'CAXRI_E2E_OK\\n'");
+        await typeTerminal(running.page, String.raw`printf 'CAXRI_E2E_OK\n'`);
         await expect(running.page.locator('.xterm-rows')).toContainText('CAXRI_E2E_OK');
 
         await createAdditionalShellSession(running.page);
@@ -56,7 +56,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         const secondSession = sessionCard(running.page, secondSessionId);
         await firstSession.click();
         await expect(firstSession).toHaveClass(/active/);
-        await typeTerminal(running.page, "sleep 1; printf 'BACKGROUND_CONTINUED\\n'");
+        await typeTerminal(running.page, String.raw`sleep 1; printf 'BACKGROUND_CONTINUED\n'`);
         await secondSession.click();
         await expect(secondSession).toHaveClass(/active/);
         await running.page.waitForTimeout(1_400);
@@ -128,12 +128,12 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .filter({ hasText: 'Shell' })
             .first()
             .click();
-        await typeTerminal(running.page, "sleep 1; printf 'AFTER_RENDERER_RELOAD\\n'");
+        await typeTerminal(running.page, String.raw`sleep 1; printf 'AFTER_RENDERER_RELOAD\n'`);
         await running.page.reload();
         await waitForRuntimeReady(running.page);
         await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_RENDERER_RELOAD');
 
-        await typeTerminal(running.page, "printf 'STALE_RENDERER_ONLY\\n'");
+        await typeTerminal(running.page, String.raw`printf 'STALE_RENDERER_ONLY\n'`);
         await expect(running.page.locator('.xterm-rows')).toContainText('STALE_RENDERER_ONLY');
         const hostStatus = await pageRequest<{ runtimePid?: number }>(running.page, 'host.status');
         if (!hostStatus.runtimePid) throw new Error('Host-owned Runtime process not found');
@@ -151,7 +151,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(running.page.locator('.xterm-rows').first()).not.toContainText(
             'STALE_RENDERER_ONLY',
         );
-        await typeTerminal(running.page, "printf 'AFTER_RUNTIME_RESTART\\n'");
+        await typeTerminal(running.page, String.raw`printf 'AFTER_RUNTIME_RESTART\n'`);
         await expect(running.page.locator('.xterm-rows').first()).toContainText(
             'AFTER_RUNTIME_RESTART',
         );
@@ -185,7 +185,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         );
         await waitForRuntimeReady(running.page);
     } finally {
-        await running.app.close().catch(() => undefined);
+        await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

@@ -29,9 +29,9 @@ async function setMtime(path: string, seconds: number): Promise<void> {
 }
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const paths = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 describe('assertBuildOutputsFresh', () => {
@@ -108,12 +108,13 @@ describe('createBuildFreshnessGuard', () => {
             {
                 watch: (path, _options, listener) => {
                     if (path === paths.source) invalidateSource = listener;
-                    return {
+                    const watcher = {
                         close() {},
                         on() {
-                            return this;
+                            return watcher;
                         },
-                    } as unknown as FSWatcher;
+                    };
+                    return watcher as unknown as FSWatcher;
                 },
             },
         );
@@ -195,16 +196,18 @@ describe('createBuildFreshnessGuard', () => {
                 staleMessage,
             },
             {
-                watch: (path) =>
-                    ({
+                watch: (path) => {
+                    const watcher = {
                         close() {},
                         on(event: string, listener: () => void) {
-                            if (path === paths.source && event === 'error') {
+                            if (event === 'error' && path === paths.source) {
                                 sourceWatcherError = listener;
                             }
-                            return this;
+                            return watcher;
                         },
-                    }) as unknown as FSWatcher,
+                    };
+                    return watcher as unknown as FSWatcher;
+                },
             },
         );
         await guard.assertFresh();

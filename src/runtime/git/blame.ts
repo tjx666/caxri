@@ -1,6 +1,6 @@
 import { relative } from 'node:path';
 
-import type { RuntimeMethodParams } from '../../shared/ipc/methods';
+import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
 import type { GitBlame, GitSummary } from '../../shared/types';
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
@@ -9,7 +9,7 @@ import { SingleFlight } from '../single-flight';
 interface GitBlameServiceOptions {
     git: (
         cwd: string,
-        args: string[],
+        arguments_: string[],
         options?: { allowFailure?: boolean; maxBufferBytes?: number },
     ) => Promise<string>;
     summary: (sessionId: string) => Promise<GitSummary>;
@@ -43,37 +43,42 @@ export class GitBlameService {
         private readonly options: GitBlameServiceOptions,
     ) {}
 
-    blame(params: RuntimeMethodParams<'git.blame'>): Promise<GitBlame | null> {
-        return this.requests.run(JSON.stringify(params), async () => {
+    blame(parameters: RuntimeMethodParameters<'git.blame'>): Promise<GitBlame | null> {
+        return this.requests.run(JSON.stringify(parameters), async () => {
             let path: string;
             try {
-                ({ path } = await this.paths.resolveSessionPath(params.sessionId, params.path));
+                ({ path } = await this.paths.resolveSessionPath(
+                    parameters.sessionId,
+                    parameters.path,
+                ));
             } catch (error) {
-                /** A file move can rekey the active editor after this optional blame request starts;
-                 * a now-missing target is stale metadata, not an IPC failure. */
+                /**
+                 * A file move can rekey the active editor after this optional blame request starts; a now-missing
+                 * target is stale metadata, not an IPC failure.
+                 */
                 if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
                 throw error;
             }
-            const summary = await this.options.summary(params.sessionId);
-            const repository = summary.repositories
+            const summary = await this.options.summary(parameters.sessionId);
+            const repo = summary.repositories
                 .filter((candidate) => !isOutsideRoot(relative(candidate.rootPath, path)))
-                .sort((left, right) => right.rootPath.length - left.rootPath.length)[0];
-            if (!repository?.head) return null;
-            const relativePath = relative(repository.rootPath, path);
+                .toSorted((left, right) => right.rootPath.length - left.rootPath.length)[0];
+            if (!repo?.head) return null;
+            const relativePath = relative(repo.rootPath, path);
             if (!relativePath || isOutsideRoot(relativePath)) return null;
             const output = await this.options.git(
-                repository.rootPath,
+                repo.rootPath,
                 [
                     'blame',
                     '--line-porcelain',
                     '-L',
-                    `${params.line},${params.line}`,
+                    `${parameters.line},${parameters.line}`,
                     '--',
                     relativePath,
                 ],
                 { allowFailure: true },
             );
-            return parseBlame(output, params.line);
+            return parseBlame(output, parameters.line);
         });
     }
 }

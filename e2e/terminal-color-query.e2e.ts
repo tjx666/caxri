@@ -5,17 +5,15 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { expect, test } from './support/fixtures.ts';
-
 import { createShellSession, launchCaxri, typeTerminal } from './support/helpers.ts';
 
 const execFileAsync = promisify(execFile);
 
 /**
- * Agent CLIs (Codex) probe the terminal's default colors with OSC 10/11 right after spawn and
- * give up within ~100ms. The Runtime must answer at the PTY boundary because the Renderer's
- * xterm.js attaches too late to make that deadline (`src/runtime/terminal/color-query.ts`).
- * This regression test replays the probe from inside a real shell Terminal and requires an
- * `rgb:` reply to come back through the PTY within the probe-scale timeout.
+ * Agent CLIs (Codex) probe the terminal's default colors with OSC 10/11 right after spawn and give up within ~100ms.
+ * The Runtime must answer at the PTY boundary because the Renderer's xterm.js attaches too late to make that deadline
+ * (`src/runtime/terminal/color-query.ts`). This regression test replays the probe from inside a real shell Terminal and
+ * requires an `rgb:` reply to come back through the PTY within the probe-scale timeout.
  */
 test('Runtime answers OSC 10/11 color queries at the PTY boundary', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-color-query-e2e-'));
@@ -35,7 +33,11 @@ test('Runtime answers OSC 10/11 color queries at the PTY boundary', async () => 
         );
         await expect(running.page.locator('.xterm-rows')).toContainText(/COLOR-REPLY-\]11;rgb:/);
     } finally {
-        await running.app.close().catch(() => undefined);
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

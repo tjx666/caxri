@@ -1,14 +1,15 @@
 import { z } from 'zod';
 
-import {
-    agentEndpointRefSchema,
-    agentMessagingCapabilitySchema,
-    agentPermissionClassSchema,
-} from './agent-endpoint-contract.js';
 import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
 import { hostCredentialTokenSchema } from '../transport/local-transport.js';
 import { wireErrorSchema } from '../transport/transport.js';
+import {
+    agentEndpointRefSchema as agentEndpointReferenceSchema,
+    agentMessagingCapabilitySchema,
+    agentPermissionClassSchema,
+} from './agent-endpoint-contract.js';
 
+// eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export const agentEndpointBeginParamsSchema = z.object({
     terminalId: identifierSchema,
     sessionId: identifierSchema,
@@ -21,28 +22,33 @@ export const agentEndpointBeginParamsSchema = z.object({
 });
 
 export const agentEndpointBeginResultSchema = z.object({
-    ref: agentEndpointRefSchema,
+    ref: agentEndpointReferenceSchema,
     token: hostCredentialTokenSchema,
     expiresAt: z.number().int().positive(),
 });
 
-/** Publishes a prepared credential only after Runtime has a live PTY for this exact launch. */
+/**
+ * Publishes a prepared credential only after Runtime has a live PTY for this exact launch.
+ */
+// eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export const agentEndpointActivateParamsSchema = z.object({
-    ref: agentEndpointRefSchema,
+    ref: agentEndpointReferenceSchema,
     launchId: identifierSchema,
 });
 
 export const agentEndpointActivateResultSchema = z.object({ activated: z.boolean() });
 
+// eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export const agentEndpointRetireParamsSchema = z.object({
-    ref: agentEndpointRefSchema,
+    ref: agentEndpointReferenceSchema,
     launchId: identifierSchema,
 });
 
 export const agentEndpointRetireResultSchema = z.object({ retired: z.boolean() });
 
+// eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export const agentEndpointMessagingParamsSchema = z.object({
-    ref: agentEndpointRefSchema,
+    ref: agentEndpointReferenceSchema,
     launchId: identifierSchema,
     messaging: agentMessagingCapabilitySchema,
 });
@@ -91,9 +97,13 @@ export const runtimeHostControlReplySchema = z.discriminatedUnion('ok', [
     }),
 ]);
 
+// eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type AgentEndpointBeginParams = z.infer<typeof agentEndpointBeginParamsSchema>;
 export type AgentEndpointBeginResult = z.infer<typeof agentEndpointBeginResultSchema>;
+// eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type AgentEndpointActivateParams = z.infer<typeof agentEndpointActivateParamsSchema>;
+// eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type AgentEndpointRetireParams = z.infer<typeof agentEndpointRetireParamsSchema>;
+// eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type AgentEndpointMessagingParams = z.infer<typeof agentEndpointMessagingParamsSchema>;
 export type RuntimeHostControlRequest = z.infer<typeof runtimeHostControlRequestSchema>;

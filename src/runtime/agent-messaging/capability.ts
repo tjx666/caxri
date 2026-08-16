@@ -3,8 +3,10 @@ import { access, constants } from 'node:fs/promises';
 import type { AgentLaunchSettings, AgentProvider } from '../../shared/agents';
 import type { AgentMessagingCapability } from '../../shared/ipc/agent-endpoint-contract';
 import { readE2EAgentPolicy } from '../../shared/node/e2e-agent-policy';
-/** Runtime domains expose public root barrels by architecture contract; deep imports are rejected
- * by `src/runtime/__tests__/structure.test.ts`. */
+/**
+ * Runtime domains expose public root barrels by architecture contract; deep imports are rejected by
+ * `src/runtime/__tests__/structure.test.ts`.
+ */
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { discoverExecutable, readVersion } from '../agents';
 
@@ -42,27 +44,29 @@ interface CachedCapability {
 }
 
 function normalizedLaunchKey(provider: AgentProvider, launch: AgentLaunchSettings): string {
-    /** Positional serialization makes independently allocated but equivalent launch settings share one probe. */
+    /**
+     * Positional serialization makes independently allocated but equivalent launch settings share one probe.
+     */
     return JSON.stringify([provider, launch.executable, ...launch.args]);
 }
 
 function parseVersion(source: string): [number, number, number] | undefined {
-    const match = /(?:^|[^0-9])(\d+)\.(\d+)\.(\d+)(?:[^0-9]|$)/u.exec(source);
+    const match = /(?:^|\D)(\d+)\.(\d+)\.(\d+)(?:\D|$)/u.exec(source);
     if (!match) return undefined;
     return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
-function atLeast(
+function isAtLeast(
     candidate: readonly [number, number, number],
     minimum: readonly [number, number, number],
 ): boolean {
-    for (let index = 0; index < minimum.length; index += 1) {
-        if (candidate[index] !== minimum[index]) return candidate[index] > minimum[index];
+    for (const [index, element] of minimum.entries()) {
+        if (candidate[index] !== element) return candidate[index] > element;
     }
     return true;
 }
 
-async function defaultCliAvailable(path: string): Promise<boolean> {
+async function isCliAvailableDefault(path: string): Promise<boolean> {
     try {
         await access(path, constants.R_OK);
         return true;
@@ -78,7 +82,7 @@ async function defaultProbe(
     const executable = await discoverExecutable(provider, launch.executable);
     return {
         executable,
-        ...(executable ? { version: await readVersion(provider, executable) } : {}),
+        ...(executable && { version: await readVersion(provider, executable) }),
     };
 }
 
@@ -112,13 +116,13 @@ function unavailable(
         reason,
         checkedAt,
         nextAction,
-        ...(providerVersion ? { providerVersion } : {}),
+        ...(providerVersion && { providerVersion }),
     };
 }
 
 /**
- * A prepared Endpoint is not visible yet. Once activated it can be listed and authenticated, but
- * messaging remains unavailable until this capability probe finishes.
+ * A prepared Endpoint is not visible yet. Once activated it can be listed and authenticated, but messaging remains
+ * unavailable until this capability probe finishes.
  */
 export function pendingMessagingCapability(checkedAt = Date.now()): AgentMessagingCapability {
     return {
@@ -130,7 +134,9 @@ export function pendingMessagingCapability(checkedAt = Date.now()): AgentMessagi
     };
 }
 
-/** Bounded, cached capability probe. Unknown Provider versions fail closed without blocking PTY. */
+/**
+ * Bounded, cached capability probe. Unknown Provider versions fail closed without blocking PTY.
+ */
 export class AgentMessagingCapabilityProbe {
     private readonly cache = new Map<string, CachedCapability>();
     private readonly inFlight = new Map<string, Promise<AgentMessagingCapability>>();
@@ -143,41 +149,12 @@ export class AgentMessagingCapabilityProbe {
     private readonly timeoutMs: number;
 
     constructor(options: AgentMessagingProbeOptions = {}) {
-        this.cliAvailable = options.cliAvailable ?? defaultCliAvailable;
+        this.cliAvailable = options.cliAvailable ?? isCliAvailableDefault;
         this.cliPath = options.cliPath;
         this.fixtureMode = options.fixtureMode ?? readE2EAgentPolicy()?.mode === 'fake';
         this.now = options.now ?? Date.now;
         this.probe = options.probe ?? defaultProbe;
         this.timeoutMs = options.timeoutMs ?? PROBE_TIMEOUT_MS;
-    }
-
-    invalidate(provider?: AgentProvider): void {
-        const providers: readonly AgentProvider[] = provider ? [provider] : ['claude', 'codex'];
-        for (const current of providers) {
-            this.providerEpochs.set(current, (this.providerEpochs.get(current) ?? 0) + 1);
-            for (const key of this.cache.keys()) {
-                if (key.startsWith(`${current}\u0000`)) this.cache.delete(key);
-            }
-        }
-    }
-
-    async check(input: AgentMessagingProbeInput): Promise<AgentMessagingCapability> {
-        const checkedAt = this.now();
-        if (!input.enabled) return unavailable(checkedAt, 'integration_disabled');
-        const epoch = this.providerEpochs.get(input.provider) ?? 0;
-        const key = `${input.provider}\u0000${epoch}\u0000${normalizedLaunchKey(input.provider, input.launch)}`;
-        const cached = this.cache.get(key);
-        if (cached && cached.expiresAt > checkedAt) return cached.capability;
-        const pending = this.inFlight.get(key);
-        if (pending) return pending;
-
-        const request = this.checkOnce(input, checkedAt, key);
-        this.inFlight.set(key, request);
-        try {
-            return await request;
-        } finally {
-            if (this.inFlight.get(key) === request) this.inFlight.delete(key);
-        }
     }
 
     private async checkOnce(
@@ -223,7 +200,7 @@ export class AgentMessagingCapabilityProbe {
             const version = parseVersion(result.version);
             const supported = VERIFIED_PROVIDER_RANGE[input.provider];
             capability =
-                version && version[0] === supported.major && atLeast(version, supported.minimum)
+                version && version[0] === supported.major && isAtLeast(version, supported.minimum)
                     ? {
                           deliveryMode: 'pull',
                           health: 'ready',
@@ -236,5 +213,34 @@ export class AgentMessagingCapabilityProbe {
         }
         this.cache.set(key, { capability, expiresAt: checkedAt + CACHE_TTL_MS });
         return capability;
+    }
+
+    invalidate(provider?: AgentProvider): void {
+        const providers: readonly AgentProvider[] = provider ? [provider] : ['claude', 'codex'];
+        for (const current of providers) {
+            this.providerEpochs.set(current, (this.providerEpochs.get(current) ?? 0) + 1);
+            for (const key of this.cache.keys()) {
+                if (key.startsWith(`${current}\u{0}`)) this.cache.delete(key);
+            }
+        }
+    }
+
+    async check(input: AgentMessagingProbeInput): Promise<AgentMessagingCapability> {
+        const checkedAt = this.now();
+        if (!input.enabled) return unavailable(checkedAt, 'integration_disabled');
+        const epoch = this.providerEpochs.get(input.provider) ?? 0;
+        const key = `${input.provider}\u{0}${epoch}\u{0}${normalizedLaunchKey(input.provider, input.launch)}`;
+        const cached = this.cache.get(key);
+        if (cached && cached.expiresAt > checkedAt) return cached.capability;
+        const pending = this.inFlight.get(key);
+        if (pending) return pending;
+
+        const request = this.checkOnce(input, checkedAt, key);
+        this.inFlight.set(key, request);
+        try {
+            return await request;
+        } finally {
+            if (this.inFlight.get(key) === request) this.inFlight.delete(key);
+        }
     }
 }

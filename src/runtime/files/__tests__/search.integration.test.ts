@@ -1,10 +1,11 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { RuntimeMethodParams } from '../../../shared/ipc/methods';
+import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../../shared/ipc/methods';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
 import { FileService } from '../service';
@@ -12,9 +13,9 @@ import { FileService } from '../service';
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-    await Promise.all(
-        temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-    );
+    const paths = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
 });
 
 async function fixture(options?: ConstructorParameters<typeof FileService>[4]) {
@@ -49,7 +50,7 @@ async function fixture(options?: ConstructorParameters<typeof FileService>[4]) {
     const session = database.createSession(database.createProject(root).id, 'shell').session;
     const service = new FileService(
         database,
-        () => undefined,
+        () => {},
         new StructuredLogger(join(directory, 'logs')),
         () => 1_024,
         options,
@@ -57,10 +58,10 @@ async function fixture(options?: ConstructorParameters<typeof FileService>[4]) {
     return { database, root, service, session };
 }
 
-function searchParams(
+function searchParameters(
     sessionId: string,
-    overrides: Partial<RuntimeMethodParams<'files.search'>> = {},
-): RuntimeMethodParams<'files.search'> {
+    overrides: Partial<RuntimeMethodParameters<'files.search'>> = {},
+): RuntimeMethodParameters<'files.search'> {
     return {
         sessionId,
         mode: 'content',
@@ -79,7 +80,7 @@ describe('SearchService', () => {
         const { database, service, session } = await fixture();
         try {
             const names = await service.search(
-                searchParams(session.id, { mode: 'name', query: 'alpha' }),
+                searchParameters(session.id, { mode: 'name', query: 'alpha' }),
             );
             expect(names.matches.map((match) => match.relativePath)).toEqual([
                 'src/alpha.test.ts',
@@ -87,7 +88,7 @@ describe('SearchService', () => {
             ]);
 
             const content = await service.search(
-                searchParams(session.id, { include: 'src/**', exclude: '*.test.ts' }),
+                searchParameters(session.id, { include: 'src/**', exclude: '*.test.ts' }),
             );
             expect(content.matches).toMatchObject([
                 { relativePath: 'src/alpha.ts', line: 1, column: 7, previewMatchIndex: 6 },
@@ -96,22 +97,22 @@ describe('SearchService', () => {
             expect(content.matches.every((match) => match.preview!.length <= 300)).toBe(true);
 
             const caseSensitive = await service.search(
-                searchParams(session.id, { caseSensitive: true }),
+                searchParameters(session.id, { caseSensitive: true }),
             );
-            expect(caseSensitive.matches.map((match) => match.relativePath).sort()).toEqual([
-                'docs/guide.md',
-                'src/alpha.test.ts',
-                'src/alpha.ts',
-            ]);
+            expect(
+                caseSensitive.matches
+                    .map((match) => match.relativePath)
+                    .toSorted((a, b) => a.localeCompare(b)),
+            ).toEqual(['docs/guide.md', 'src/alpha.test.ts', 'src/alpha.ts']);
 
             const wholeWord = await service.search(
-                searchParams(session.id, { query: 'Token', wholeWord: true }),
+                searchParameters(session.id, { query: 'Token', wholeWord: true }),
             );
             expect(wholeWord.matches).toHaveLength(1);
             expect(wholeWord.matches[0]).toMatchObject({ relativePath: 'src/alpha.ts', line: 3 });
 
             const regex = await service.search(
-                searchParams(session.id, { query: 'MagicN[a-z]+', regex: true }),
+                searchParameters(session.id, { query: 'MagicN[a-z]+', regex: true }),
             );
             expect(regex.matches).toHaveLength(4);
             expect(regex.matches.some((match) => match.relativePath.includes('node_modules'))).toBe(
@@ -132,11 +133,13 @@ describe('SearchService', () => {
         const { database, service, session } = await fixture();
         try {
             await expect(
-                service.search(searchParams(session.id, { query: '[', regex: true })),
+                service.search(searchParameters(session.id, { query: '[', regex: true })),
             ).rejects.toMatchObject({ code: 'VALIDATION' });
-            await expect(service.search(searchParams('missing-session'))).rejects.toMatchObject({
-                code: 'NOT_FOUND',
-            });
+            await expect(service.search(searchParameters('missing-session'))).rejects.toMatchObject(
+                {
+                    code: 'NOT_FOUND',
+                },
+            );
         } finally {
             await service.close();
             database.close();
@@ -146,15 +149,15 @@ describe('SearchService', () => {
     it('cancels superseded work and reports result and time bounds explicitly', async () => {
         const bounded = await fixture({ search: { maxResults: 1 } });
         try {
-            const result = await bounded.service.search(searchParams(bounded.session.id));
+            const result = await bounded.service.search(searchParameters(bounded.session.id));
             expect(result.matches).toHaveLength(1);
             expect(result.truncated).toBe(true);
 
             const first = bounded.service.search(
-                searchParams(bounded.session.id, { query: 'never-found' }),
+                searchParameters(bounded.session.id, { query: 'never-found' }),
             );
             const second = bounded.service.search(
-                searchParams(bounded.session.id, { mode: 'name', query: 'alpha' }),
+                searchParameters(bounded.session.id, { mode: 'name', query: 'alpha' }),
             );
             await expect(first).resolves.toMatchObject({ canceled: true, matches: [] });
             await expect(second).resolves.toMatchObject({ canceled: false });
@@ -166,7 +169,7 @@ describe('SearchService', () => {
         const timed = await fixture({ search: { timeoutMs: 0 } });
         try {
             await expect(
-                timed.service.search(searchParams(timed.session.id)),
+                timed.service.search(searchParameters(timed.session.id)),
             ).resolves.toMatchObject({ truncated: true, canceled: false });
         } finally {
             await timed.service.close();

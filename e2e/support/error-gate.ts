@@ -2,26 +2,19 @@ import { writeFileSync } from 'node:fs';
 
 import type { ElectronApplication, Page, TestInfo } from '@playwright/test';
 
-import {
-    assertE2EErrorPolicy,
-    type E2EErrorAllowance,
-    type E2EErrorEvent,
-} from '../../src/shared/node/e2e-error-policy.ts';
-import {
-    parseE2ELogErrors,
-    readE2ELogSnapshots,
-    type E2ELogSnapshot,
-} from '../../src/shared/node/e2e-error-log.ts';
-import {
-    createE2ELaunchFinalizer,
-    type E2ELaunchFinalizer,
-} from '../../src/shared/node/e2e-launch-finalizer.ts';
-let activeGate: E2EErrorGate | undefined;
+import type { E2ELogSnapshot } from '../../src/shared/node/e2e-error-log.ts';
+import { parseE2ELogErrors, readE2ELogSnapshots } from '../../src/shared/node/e2e-error-log.ts';
+import type { E2EErrorAllowance, E2EErrorEvent } from '../../src/shared/node/e2e-error-policy.ts';
+import { assertE2EErrorPolicy } from '../../src/shared/node/e2e-error-policy.ts';
+import type { E2ELaunchFinalizer } from '../../src/shared/node/e2e-launch-finalizer.ts';
+import { createE2ELaunchFinalizer } from '../../src/shared/node/e2e-launch-finalizer.ts';
+
+const gateState: { current: E2EErrorGate | undefined } = { current: undefined };
 
 interface E2ELaunch {
     app: ElectronApplication;
     finalizer: E2ELaunchFinalizer;
-    userDataDir: string;
+    userDataDirectory: string;
 }
 
 class E2EErrorGate {
@@ -31,30 +24,10 @@ class E2EErrorGate {
     private readonly logSnapshots = new Map<string, E2ELogSnapshot>();
     private readonly launches: E2ELaunch[] = [];
     private readonly captureFailures: unknown[] = [];
-    private readonly pendingAttachments: Promise<void>[] = [];
+    private readonly pendingAttachments: Array<Promise<void>> = [];
     private attachmentIndex = 0;
 
     constructor(private readonly testInfo: TestInfo) {}
-
-    allow(allowances: readonly E2EErrorAllowance[]): void {
-        this.allowances.push(...allowances);
-    }
-
-    register(app: ElectronApplication, userDataDir: string, cleanup: () => Promise<void>): void {
-        const finalizer = createE2ELaunchFinalizer(cleanup);
-        this.launches.push({ app, finalizer, userDataDir });
-        for (const page of app.windows()) this.attachPage(page);
-        app.on('window', (page) => this.attachPage(page));
-        app.once('close', () => {
-            try {
-                this.captureLogs(userDataDir);
-            } catch (error) {
-                this.captureFailures.push(error);
-            } finally {
-                void finalizer.begin().catch(() => undefined);
-            }
-        });
-    }
 
     private attachPage(page: Page): void {
         if (this.attachedPages.has(page)) return;
@@ -76,9 +49,11 @@ class E2EErrorGate {
         });
     }
 
-    /** Captures and attaches log bodies synchronously before tests remove their temporary profile. */
-    private captureLogs(userDataDir: string): void {
-        for (const snapshot of readE2ELogSnapshots(userDataDir)) {
+    /**
+     * Captures and attaches log bodies synchronously before tests remove their temporary profile.
+     */
+    private captureLogs(userDataDirectory: string): void {
+        for (const snapshot of readE2ELogSnapshots(userDataDirectory)) {
             const { contents, path, source } = snapshot;
             if (this.logSnapshots.get(path)?.contents === contents) continue;
             this.logSnapshots.set(path, snapshot);
@@ -96,6 +71,34 @@ class E2EErrorGate {
         }
     }
 
+    allow(allowances: readonly E2EErrorAllowance[]): void {
+        this.allowances.push(...allowances);
+    }
+
+    register(
+        app: ElectronApplication,
+        userDataDirectory: string,
+        cleanup: () => Promise<void>,
+    ): void {
+        const finalizer = createE2ELaunchFinalizer(cleanup);
+        this.launches.push({ app, finalizer, userDataDirectory });
+        for (const page of app.windows()) this.attachPage(page);
+        app.on('window', (page) => this.attachPage(page));
+        app.once('close', async () => {
+            try {
+                this.captureLogs(userDataDirectory);
+            } catch (error) {
+                this.captureFailures.push(error);
+            } finally {
+                try {
+                    await finalizer.begin();
+                } catch {
+                    // Finalization failures surface through `finish()`'s settled results.
+                }
+            }
+        });
+    }
+
     async finish(): Promise<void> {
         const finalizations = await Promise.allSettled(
             this.launches.map(({ app, finalizer }) => finalizer.finish(() => app.close())),
@@ -104,9 +107,9 @@ class E2EErrorGate {
         for (const result of finalizations) {
             if (result.status === 'rejected') finalizationFailures.push(result.reason as unknown);
         }
-        for (const { userDataDir } of this.launches) {
+        for (const { userDataDirectory } of this.launches) {
             try {
-                this.captureLogs(userDataDir);
+                this.captureLogs(userDataDirectory);
             } catch (error) {
                 this.captureFailures.push(error);
             }
@@ -115,7 +118,7 @@ class E2EErrorGate {
         const teardownFailures = [...finalizationFailures, ...this.captureFailures];
         if (teardownFailures.length > 0)
             throw new AggregateError(teardownFailures, 'Could not finalize E2E launches');
-        const logErrors = parseE2ELogErrors([...this.logSnapshots.values()]);
+        const logErrors = parseE2ELogErrors(this.logSnapshots.values().toArray());
         assertE2EErrorPolicy([...this.directErrors, ...logErrors], this.allowances);
     }
 }
@@ -124,33 +127,35 @@ export async function runWithE2EErrorGate(
     testInfo: TestInfo,
     runTest: () => Promise<void>,
 ): Promise<void> {
+    if (gateState.current) throw new Error('Only one E2E error gate may run in a worker at a time');
     const gate = new E2EErrorGate(testInfo);
-    if (activeGate) throw new Error('Only one E2E error gate may run in a worker at a time');
-    activeGate = gate;
+    gateState.current = gate;
     try {
         await runTest();
     } finally {
         try {
             await gate.finish();
         } finally {
-            activeGate = undefined;
+            gateState.current = undefined;
         }
     }
 }
 
 export function registerE2ELaunch(
     app: ElectronApplication,
-    userDataDir: string,
+    userDataDirectory: string,
     cleanup: () => Promise<void>,
 ): void {
-    const gate = activeGate;
+    const gate = gateState.current;
     if (!gate) throw new Error('launchCaxri must run inside the shared E2E test fixture');
-    gate.register(app, userDataDir, cleanup);
+    gate.register(app, userDataDirectory, cleanup);
 }
 
-/** Declares exact errors that must be observed and consumed by the current E2E test. */
+/**
+ * Declares exact errors that must be observed and consumed by the current E2E test.
+ */
 export function allowE2EErrors(allowances: readonly E2EErrorAllowance[]): void {
-    const gate = activeGate;
+    const gate = gateState.current;
     if (!gate) throw new Error('allowE2EErrors must run inside the shared E2E test fixture');
     gate.allow(allowances);
 }

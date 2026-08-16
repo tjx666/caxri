@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createTerminalLayout, splitTerminal } from '../terminal-layout';
 import type { SessionState } from '../types';
-import { activateWorkState, resolveActiveWork, workItemKey, workItemsEqual } from '../work-item';
+import { activateWorkState, areWorkItemsEqual, resolveActiveWork, workItemKey } from '../work-item';
 
 const ids = (() => {
     let value = 0;
@@ -31,25 +31,28 @@ describe('workItemKey', () => {
     });
 });
 
-describe('workItemsEqual', () => {
+describe('areWorkItemsEqual', () => {
     it('compares by kind and identity, not by reference', () => {
         expect(
-            workItemsEqual(
+            areWorkItemsEqual(
                 { kind: 'terminal', terminalId: 'a' },
                 { kind: 'terminal', terminalId: 'a' },
             ),
         ).toBe(true);
         expect(
-            workItemsEqual(
+            areWorkItemsEqual(
                 { kind: 'terminal', terminalId: 'a' },
                 { kind: 'terminal', terminalId: 'b' },
             ),
         ).toBe(false);
         expect(
-            workItemsEqual({ kind: 'editor', path: '/a' }, { kind: 'terminal', terminalId: '/a' }),
+            areWorkItemsEqual(
+                { kind: 'editor', path: '/a' },
+                { kind: 'terminal', terminalId: '/a' },
+            ),
         ).toBe(false);
-        expect(workItemsEqual(undefined, undefined)).toBe(true);
-        expect(workItemsEqual({ kind: 'editor', path: '/a' }, undefined)).toBe(false);
+        expect(areWorkItemsEqual(undefined, undefined)).toBe(true);
+        expect(areWorkItemsEqual({ kind: 'editor', path: '/a' }, undefined)).toBe(false);
     });
 });
 

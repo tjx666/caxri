@@ -30,7 +30,9 @@ describe('decideCrashRecovery', () => {
         const history = [0, 59_000];
         const result = decideCrashRecovery(history, 61_000);
 
-        /** 61_000 - 0 = 61_000ms (outside the window, dropped); 61_000 - 59_000 = 2_000ms (kept). */
+        /**
+         * 61_000 - 0 = 61_000ms (outside the window, dropped); 61_000 - 59_000 = 2_000ms (kept).
+         */
         expect(result.decision).toEqual({ action: 'reload', delayMs: 1_000, crashCount: 2 });
         expect(result.crashTimestampsMs).toEqual([59_000, 61_000]);
     });

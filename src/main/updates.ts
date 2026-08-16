@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { mkdir, open, rename, rm, type FileHandle } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
+import { mkdir, open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { z } from 'zod';
@@ -14,17 +15,17 @@ const MAX_DMG_BYTES = 1024 * 1024 * 1024;
 const PROGRESS_INTERVAL_MS = 100;
 const CHECK_TIMEOUT_MS = 15_000;
 
+const releaseAssetSchema = z.object({
+    name: z.string(),
+    size: z.number().int().nonnegative(),
+    browser_download_url: z.url(),
+});
+
 const releaseSchema = z.object({
     tag_name: z.string(),
     draft: z.boolean(),
     prerelease: z.boolean(),
-    assets: z.array(
-        z.object({
-            name: z.string(),
-            size: z.number().int().nonnegative(),
-            browser_download_url: z.url(),
-        }),
-    ),
+    assets: z.array(releaseAssetSchema),
 });
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -53,23 +54,27 @@ interface AutomaticUpdateCheckOptions {
     isPackaged: boolean;
 }
 
-/** Packaged E2E profiles stay deterministic and must never contact the release service. */
+/**
+ * Packaged E2E profiles stay deterministic and must never contact the release service.
+ */
 export function shouldStartAutomaticUpdateCheck(options: AutomaticUpdateCheckOptions): boolean {
     return options.isPackaged && !options.isE2E && !options.alreadyStarted;
 }
 
 function stableVersionParts(version: string): [number, number, number] {
-    const match = /^(?:v)?(\d+)\.(\d+)\.(\d+)$/.exec(version);
+    const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(version);
     if (!match) throw new Error('The release has an unsupported version number.');
     return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
-/** Compares the stable `major.minor.patch` versions used by Caxri releases. */
+/**
+ * Compares the stable `major.minor.patch` versions used by Caxri releases.
+ */
 export function compareStableVersions(left: string, right: string): number {
     const leftParts = stableVersionParts(left);
     const rightParts = stableVersionParts(right);
-    for (let index = 0; index < leftParts.length; index += 1) {
-        const difference = leftParts[index] - rightParts[index];
+    for (const [index, leftPart] of leftParts.entries()) {
+        const difference = leftPart - rightParts[index];
         if (difference !== 0) return Math.sign(difference);
     }
     return 0;
@@ -90,6 +95,9 @@ async function readBoundedResponse(response: Response, maximumBytes: number): Pr
     let totalBytes = 0;
     try {
         while (true) {
+            // Each read must observe the previous chunk before deciding whether to request more,
+            // so this stream cannot be drained in parallel.
+            // eslint-disable-next-line no-await-in-loop -- sequential stream read, see comment above
             const result = await reader.read();
             if (result.done) break;
             totalBytes += result.value.byteLength;
@@ -110,7 +118,7 @@ async function readBoundedResponse(response: Response, maximumBytes: number): Pr
     return bytes;
 }
 
-function exactReleaseAssetUrl(url: string, version: string, fileName: string): boolean {
+function isExactReleaseAssetUrl(url: string, version: string, fileName: string): boolean {
     try {
         const parsed = new URL(url);
         return (
@@ -125,9 +133,17 @@ function exactReleaseAssetUrl(url: string, version: string, fileName: string): b
 }
 
 function parseChecksum(source: string, fileName: string): string {
-    const match = /^([0-9a-fA-F]{64})\s+\*?(.+)$/.exec(source.trim());
-    if (!match || match[2] !== fileName) throw new Error('The release checksum file is invalid.');
-    return match[1].toLowerCase();
+    // Parsed without a single combined `\s+\*?` pattern, which is vulnerable to super-linear
+    // backtracking; the hex digest, optional binary-mode marker, and file name are each matched
+    // independently instead.
+    const trimmed = source.trim();
+    const separatorIndex = trimmed.search(/\s/);
+    if (separatorIndex === -1) throw new Error('The release checksum file is invalid.');
+    const hex = trimmed.slice(0, separatorIndex);
+    const name = trimmed.slice(separatorIndex).trimStart().replace(/^\*/, '');
+    if (name !== fileName || !/^[0-9a-f]{64}$/i.test(hex))
+        throw new Error('The release checksum file is invalid.');
+    return hex.toLowerCase();
 }
 
 function isAbortError(error: unknown): boolean {
@@ -141,6 +157,9 @@ function updateErrorMessage(error: unknown, fallback: string): string {
 async function writeAll(file: FileHandle, bytes: Uint8Array): Promise<void> {
     let offset = 0;
     while (offset < bytes.byteLength) {
+        // Each write must observe the previous write's byte count before advancing the offset,
+        // so this cannot be parallelized.
+        // eslint-disable-next-line no-await-in-loop -- sequential file write, see comment above
         const { bytesWritten } = await file.write(bytes, offset);
         if (bytesWritten === 0) throw new Error('The update file could not be written.');
         offset += bytesWritten;
@@ -163,33 +182,10 @@ export class UpdateService {
         this.state = { status: 'idle', currentVersion: options.currentVersion };
     }
 
-    getState(): UpdateState {
-        return this.state;
-    }
-
     private publish(state: UpdateState): UpdateState {
         this.state = state;
         this.options.onState?.(state);
         return state;
-    }
-
-    check(): Promise<UpdateState> {
-        if (this.checkPromise) return this.checkPromise;
-        if (this.downloadPromise) return Promise.resolve(this.state);
-        if (!this.options.enabled)
-            return Promise.resolve(
-                this.publish({
-                    status: 'unavailable',
-                    currentVersion: this.options.currentVersion,
-                    reason: 'Update checks are available in packaged Caxri builds.',
-                }),
-            );
-
-        this.publish({ status: 'checking', currentVersion: this.options.currentVersion });
-        this.checkPromise = this.performCheck().finally(() => {
-            this.checkPromise = undefined;
-        });
-        return this.checkPromise;
     }
 
     private async performCheck(): Promise<UpdateState> {
@@ -239,8 +235,8 @@ export class UpdateService {
             if (dmg.size > MAX_DMG_BYTES || checksum.size > MAX_CHECKSUM_BYTES)
                 throw new Error('A release asset is larger than the allowed update size.');
             if (
-                !exactReleaseAssetUrl(dmg.browser_download_url, version, fileName) ||
-                !exactReleaseAssetUrl(checksum.browser_download_url, version, checksumName)
+                !isExactReleaseAssetUrl(dmg.browser_download_url, version, fileName) ||
+                !isExactReleaseAssetUrl(checksum.browser_download_url, version, checksumName)
             ) {
                 throw new Error('A release asset URL does not match the requested version.');
             }
@@ -250,7 +246,7 @@ export class UpdateService {
                 fileName,
                 dmgUrl: dmg.browser_download_url,
                 checksumUrl: checksum.browser_download_url,
-                ...(dmg.size > 0 ? { expectedBytes: dmg.size } : {}),
+                ...(dmg.size > 0 && { expectedBytes: dmg.size }),
             };
             this.readyPath = undefined;
             return this.publish({
@@ -269,30 +265,6 @@ export class UpdateService {
         }
     }
 
-    download(): Promise<UpdateState> {
-        if (this.downloadPromise) return this.downloadPromise;
-        const release = this.release;
-        if (!release)
-            return Promise.resolve(
-                this.publish({
-                    status: 'error',
-                    currentVersion: this.options.currentVersion,
-                    action: 'check',
-                    message: 'Check for an available update before downloading it.',
-                }),
-            );
-
-        this.downloadController = new AbortController();
-        this.downloadPromise = this.performDownload(
-            release,
-            this.downloadController.signal,
-        ).finally(() => {
-            this.downloadPromise = undefined;
-            this.downloadController = undefined;
-        });
-        return this.downloadPromise;
-    }
-
     private async performDownload(
         release: AvailableRelease,
         signal: AbortSignal,
@@ -309,7 +281,7 @@ export class UpdateService {
             version: release.version,
             fileName: release.fileName,
             receivedBytes: 0,
-            ...(release.expectedBytes ? { totalBytes: release.expectedBytes } : {}),
+            ...(release.expectedBytes && { totalBytes: release.expectedBytes }),
         });
 
         const finalPath = join(this.options.downloadDirectory, release.fileName);
@@ -337,7 +309,7 @@ export class UpdateService {
                     : release.expectedBytes;
             if (totalBytes && totalBytes > MAX_DMG_BYTES)
                 throw new Error('The DMG is larger than the allowed update size.');
-            if (release.expectedBytes && totalBytes && release.expectedBytes !== totalBytes)
+            if (totalBytes && release.expectedBytes && release.expectedBytes !== totalBytes)
                 throw new Error('The DMG size does not match the release metadata.');
 
             const reader = response.body.getReader();
@@ -348,11 +320,17 @@ export class UpdateService {
             try {
                 file = await open(temporaryPath, 'w', 0o600);
                 while (true) {
+                    // Each read must observe the previous chunk before deciding whether to request
+                    // more, so this stream cannot be drained in parallel.
+                    // eslint-disable-next-line no-await-in-loop -- sequential stream read, see comment above
                     const result = await reader.read();
                     if (result.done) break;
                     receivedBytes += result.value.byteLength;
                     if (receivedBytes > MAX_DMG_BYTES)
                         throw new Error('The DMG is larger than the allowed update size.');
+                    // The chunk must be fully written to disk before the next chunk is read, so
+                    // this write cannot be parallelized with the loop's next iteration.
+                    // eslint-disable-next-line no-await-in-loop -- sequential file write, see comment above
                     await writeAll(file, result.value);
                     hash.update(result.value);
                     const now = this.now();
@@ -364,13 +342,17 @@ export class UpdateService {
                             version: release.version,
                             fileName: release.fileName,
                             receivedBytes,
-                            ...(totalBytes ? { totalBytes } : {}),
+                            ...(totalBytes && { totalBytes }),
                         });
                     }
                 }
                 await file.sync();
             } finally {
-                await reader.cancel().catch(() => undefined);
+                try {
+                    await reader.cancel();
+                } catch {
+                    // Best-effort cleanup; the outer try already owns the result or error.
+                }
                 reader.releaseLock();
                 await file?.close();
             }
@@ -389,7 +371,11 @@ export class UpdateService {
                 fileName: release.fileName,
             });
         } catch (error) {
-            await rm(temporaryPath, { force: true }).catch(() => undefined);
+            try {
+                await rm(temporaryPath, { force: true });
+            } catch {
+                // Best-effort cleanup; the outer catch already owns the error.
+            }
             if (isAbortError(error)) return this.publish(availableState());
             return this.publish({
                 status: 'error',
@@ -400,6 +386,59 @@ export class UpdateService {
                 fileName: release.fileName,
             });
         }
+    }
+
+    getState(): UpdateState {
+        return this.state;
+    }
+
+    check(): Promise<UpdateState> {
+        if (this.checkPromise) return this.checkPromise;
+        if (this.downloadPromise) return Promise.resolve(this.state);
+        if (!this.options.enabled)
+            return Promise.resolve(
+                this.publish({
+                    status: 'unavailable',
+                    currentVersion: this.options.currentVersion,
+                    reason: 'Update checks are available in packaged Caxri builds.',
+                }),
+            );
+
+        this.publish({ status: 'checking', currentVersion: this.options.currentVersion });
+        // Coalesces overlapping check() calls onto the same in-flight promise, so this method
+        // returns it directly rather than awaiting it itself.
+        // eslint-disable-next-line unicorn/prefer-await -- see comment above
+        this.checkPromise = this.performCheck().finally(() => {
+            this.checkPromise = undefined;
+        });
+        return this.checkPromise;
+    }
+
+    download(): Promise<UpdateState> {
+        if (this.downloadPromise) return this.downloadPromise;
+        const release = this.release;
+        if (!release)
+            return Promise.resolve(
+                this.publish({
+                    status: 'error',
+                    currentVersion: this.options.currentVersion,
+                    action: 'check',
+                    message: 'Check for an available update before downloading it.',
+                }),
+            );
+
+        this.downloadController = new AbortController();
+        // Coalesces overlapping download() calls onto the same in-flight promise, so this method
+        // returns it directly rather than awaiting it itself.
+        this.downloadPromise = this.performDownload(
+            release,
+            this.downloadController.signal,
+            // eslint-disable-next-line unicorn/prefer-await -- see comment above
+        ).finally(() => {
+            this.downloadPromise = undefined;
+            this.downloadController = undefined;
+        });
+        return this.downloadPromise;
     }
 
     async cancel(): Promise<UpdateState> {
@@ -416,7 +455,7 @@ export class UpdateService {
                 currentVersion: this.options.currentVersion,
                 action: 'download',
                 message: 'Download and verify the update before opening it.',
-                ...(release ? { version: release.version, fileName: release.fileName } : {}),
+                ...(release && { version: release.version, fileName: release.fileName }),
             });
         const error = await this.options.openPath(this.readyPath);
         if (error)

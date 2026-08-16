@@ -1,5 +1,6 @@
 export const PLATFORM_NEUTRAL_CI_COMMANDS = [
     'bun run lint',
+    'bun run lint:markdown',
     'bun run knip',
     'bun run doctor:changed',
     'bun run typecheck',
@@ -12,7 +13,9 @@ interface PlatformNeutralGateContext {
     validations: Array<{ command: string; headSha: string; kind: string; result: string }>;
 }
 
-/** Requires every canonical CI command to have a passed receipt on the review's exact head. */
+/**
+ * Requires every canonical CI command to have a passed receipt on the review's exact head.
+ */
 export function assertCanonicalPlatformNeutralGate(
     state: PlatformNeutralGateContext,
     headSha: string,

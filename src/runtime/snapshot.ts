@@ -6,7 +6,7 @@ export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
 function countLines(payload: string): number {
     let lineCount = 1;
     for (let index = 0; index < payload.length; index += 1)
-        if (payload.charCodeAt(index) === 10) lineCount += 1;
+        if (payload.codePointAt(index) === 10) lineCount += 1;
     return lineCount;
 }
 

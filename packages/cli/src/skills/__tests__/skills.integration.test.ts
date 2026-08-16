@@ -1,10 +1,10 @@
 import {
     lstat,
-    mkdtemp,
     mkdir,
+    mkdtemp,
+    readdir,
     readFile,
     readlink,
-    readdir,
     realpath,
     rename,
     rm,
@@ -14,11 +14,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { agentMessagePullResultSchema } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { agentMessagePullResultSchema } from '@caxri/protocol';
-
-import { runCli, type CliIo } from '../../application';
+import type { CliIo } from '../../application';
+import { runCli } from '../../application';
 import { CLI_VERSION } from '../../version';
 import { CAXRI_SKILL_FILES } from '../caxri-skill.generated';
 import {
@@ -32,12 +32,20 @@ import {
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+    const directories = temporaryDirectories.slice();
+    temporaryDirectories.length = 0;
     await Promise.all(
-        temporaryDirectories
-            .splice(0)
-            .map((directory) => rm(directory, { force: true, recursive: true })),
+        directories.map((directory) => rm(directory, { force: true, recursive: true })),
     );
 });
+
+async function readdirOrEmpty(directory: string): Promise<string[]> {
+    try {
+        return await readdir(directory);
+    } catch {
+        return [];
+    }
+}
 
 async function isolatedDirectory(name: string): Promise<string> {
     const directory = await mkdtemp(join(tmpdir(), `caxri-skill-${name}-`));
@@ -275,7 +283,7 @@ describe('bundled Caxri Agent skill', () => {
         expect([first.code, second.code]).toEqual([0, 0]);
         const changes = [first, second]
             .map((result) => (JSON.parse(result.stdout) as { changed: boolean }).changed)
-            .sort();
+            .toSorted((left, right) => Number(left) - Number(right));
         expect(changes).toEqual([false, true]);
 
         const removed = await invoke(
@@ -414,6 +422,10 @@ describe('bundled Caxri Agent skill', () => {
             ['codex', join(codexHome, 'skills', 'caxri-cli')],
             ['claude', join(claudeConfig, 'skills', 'caxri-cli')],
         ] as const) {
+            // Each provider iteration installs then uninstalls against the same shared `home`
+            // fixture; iterations must run sequentially to observe a clean state transition per
+            // provider, not concurrently.
+            // eslint-disable-next-line no-await-in-loop
             const installed = await invoke(
                 [
                     'skills',
@@ -431,11 +443,13 @@ describe('bundled Caxri Agent skill', () => {
                 changed: true,
                 skill: { provider, scope: 'global', status: 'compatible' },
             });
+            // eslint-disable-next-line no-await-in-loop -- see the install-call justification above.
             expect(await readFile(join(target, 'SKILL.md'), 'utf8')).toBe(
                 CAXRI_SKILL_FILES['SKILL.md'],
             );
             expect(installed.stdout).not.toContain(root);
 
+            // eslint-disable-next-line no-await-in-loop -- see the install-call justification above.
             const removed = await invoke(
                 [
                     'skills',
@@ -454,7 +468,7 @@ describe('bundled Caxri Agent skill', () => {
                 skill: { provider, scope: 'global', status: 'missing' },
             });
         }
-        expect(await readdir(home).catch(() => [])).toEqual([]);
+        expect(await readdirOrEmpty(home)).toEqual([]);
     });
 
     it('fails closed on a future global marker schema and reports actionable path-free health', async () => {
@@ -557,9 +571,10 @@ describe('bundled Caxri Agent skill', () => {
             'agents/openai.yaml': canonicalMetadata,
         });
 
-        const examples = [...canonicalSkill.matchAll(/```json\n([^`]+)\n```/gu)].map(
-            (match) => JSON.parse(match[1]) as unknown,
-        );
+        const examples = canonicalSkill
+            .matchAll(/```json\n([^`]+)\n```/gu)
+            .map((match) => JSON.parse(match[1]) as unknown)
+            .toArray();
         expect(examples).toHaveLength(1);
         expect(agentMessagePullResultSchema.parse(examples[0])).toEqual({
             message: null,

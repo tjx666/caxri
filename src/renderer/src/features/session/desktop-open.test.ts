@@ -4,10 +4,8 @@ import { createDesktopOpenQueue } from './desktop-open';
 
 describe('Host Desktop open queue', () => {
     it('serializes concurrent targets without losing their Session identity', async () => {
-        let releaseFirstSelection!: () => void;
-        const firstSelection = new Promise<void>((resolve) => {
-            releaseFirstSelection = resolve;
-        });
+        const { promise: firstSelection, resolve: releaseFirstSelection } =
+            Promise.withResolvers<void>();
         const selected = vi.fn(async (sessionId: string) => {
             if (sessionId === 'session-first') await firstSelection;
             return true;

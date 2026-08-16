@@ -5,9 +5,9 @@ import { and, asc, eq, lt, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
-import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { withoutEditorTabDirtiness } from '../../../shared/editor-state';
 import { isGitDiffTabPath } from '../../../shared/git-diff';
+import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { CaxriError } from '../../../shared/ipc/errors';
 import { createTerminalLayout } from '../../../shared/terminal-layout';
 import type {
@@ -17,14 +17,15 @@ import type {
     SessionState,
     SessionTitleMode,
 } from '../../../shared/types';
+import type { CaxriDrizzleDatabase } from '../connection';
+import { DEFAULT_LAYOUT_VERSION } from '../connection';
 import {
     CURRENT_SESSION_STATE_VERSION,
     projects,
-    sessionState as sessionStateTable,
     sessions,
+    sessionState as sessionStateTable,
     terminals,
 } from '../schema';
-import { DEFAULT_LAYOUT_VERSION, type CaxriDrizzleDatabase } from '../connection';
 
 const workbenchProjects = alias(projects, 'workbench_projects');
 const effectiveWorkbenchProjectId = sql<string>`COALESCE(${sessions.workbenchProjectId}, ${sessions.projectId})`;
@@ -169,22 +170,20 @@ function parseSessionState(
         return { reason: 'invalid_shape' };
     const workbenchProjectId = row.workbenchProjectId ?? row.projectId;
     const rootState = workbenchStatesResult.data[workbenchProjectId];
-    const legacyOwnerState = workbenchProjectId === row.projectId && !rootState;
+    const isLegacyOwnerState = workbenchProjectId === row.projectId && !rootState;
     const activeTab = activeTabResult.data;
     const candidate: unknown = {
         sessionId: row.sessionId,
         workbenchProjectId,
-        openTabs: rootState?.openTabs ?? (legacyOwnerState ? legacyOpenTabs : []),
+        openTabs: rootState?.openTabs ?? (isLegacyOwnerState ? legacyOpenTabs : []),
         activeTab:
             rootState?.activeTab ??
-            (legacyOwnerState && activeTab?.kind === 'editor'
+            ((isLegacyOwnerState && activeTab?.kind === 'editor') || activeTab?.kind === 'terminal'
                 ? activeTab
-                : activeTab?.kind === 'terminal'
-                  ? activeTab
-                  : undefined),
+                : undefined),
         editorRemapOperationId:
             rootState?.editorRemapOperationId ??
-            (legacyOwnerState ? (row.editorRemapOperationId ?? undefined) : undefined),
+            (isLegacyOwnerState ? (row.editorRemapOperationId ?? undefined) : undefined),
         inspectorMode: row.inspectorMode,
         layout,
     };
@@ -193,19 +192,19 @@ function parseSessionState(
 }
 
 /**
- * Pure CRUD over `sessions` and its 1:1 `session_state` child row. Primary-Agent succession,
- * default titles, and deletion-fallback selection are decided in `../../session-policy.ts` and applied
- * here through plain setters. Session JSON is versioned and schema-validated at this boundary so a
- * corrupt or future row can be repaired without failing the full Runtime bootstrap.
+ * Pure CRUD over `sessions` and its 1:1 `session_state` child row. Primary-Agent succession, default titles, and
+ * deletion-fallback selection are decided in `../../session-policy.ts` and applied here through plain setters. Session
+ * JSON is versioned and schema-validated at this boundary so a corrupt or future row can be repaired without failing
+ * the full Runtime bootstrap.
  */
 export class SessionsModel {
     constructor(
-        private readonly db: CaxriDrizzleDatabase,
+        private readonly database: CaxriDrizzleDatabase,
         private readonly onStateRepair?: (repair: SessionStateRepair) => void,
     ) {}
 
     private defaultState(sessionId: string): SessionState {
-        const session = this.db
+        const session = this.database
             .select({
                 projectId: sessions.projectId,
                 workbenchProjectId: sessions.workbenchProjectId,
@@ -213,7 +212,7 @@ export class SessionsModel {
             .from(sessions)
             .where(eq(sessions.id, sessionId))
             .get();
-        const firstTerminal = this.db
+        const firstTerminal = this.database
             .select({ id: terminals.id })
             .from(terminals)
             .where(eq(terminals.sessionId, sessionId))
@@ -247,7 +246,7 @@ export class SessionsModel {
 
     list(projectId?: string): SessionRecord[] {
         const rows = projectId
-            ? this.db
+            ? this.database
                   .select(sessionSelection)
                   .from(sessions)
                   .innerJoin(
@@ -257,7 +256,7 @@ export class SessionsModel {
                   .where(eq(sessions.projectId, projectId))
                   .orderBy(asc(sessions.createdAt), asc(sessions.id))
                   .all()
-            : this.db
+            : this.database
                   .select(sessionSelection)
                   .from(sessions)
                   .innerJoin(
@@ -270,7 +269,7 @@ export class SessionsModel {
     }
 
     get(id: string): SessionRecord | undefined {
-        const row = this.db
+        const row = this.database
             .select(sessionSelection)
             .from(sessions)
             .innerJoin(workbenchProjects, eq(workbenchProjects.id, effectiveWorkbenchProjectId))
@@ -280,7 +279,7 @@ export class SessionsModel {
     }
 
     getWorkbenchBinding(id: string): SessionWorkbenchBinding | undefined {
-        const row = this.db
+        const row = this.database
             .select({
                 projectId: sessions.projectId,
                 workbenchProjectId: sessions.workbenchProjectId,
@@ -299,26 +298,28 @@ export class SessionsModel {
         };
     }
 
-    /** Persists an alternate authorized Project, or null-normalizes the owning Project. */
+    /**
+     * Persists an alternate authorized Project, or null-normalizes the owning Project.
+     */
     setWorkbenchProject(
         sessionId: string,
         projectId: string,
         identity?: { device: string; inode: string },
     ): boolean {
-        const owner = this.db
+        const owner = this.database
             .select({ projectId: sessions.projectId })
             .from(sessions)
             .where(eq(sessions.id, sessionId))
             .get();
         if (!owner) return false;
-        const alternate = projectId !== owner.projectId;
+        const isAlternate = projectId !== owner.projectId;
         return (
-            this.db
+            this.database
                 .update(sessions)
                 .set({
-                    workbenchProjectId: alternate ? projectId : null,
-                    workbenchRootDevice: alternate ? (identity?.device ?? null) : null,
-                    workbenchRootInode: alternate ? (identity?.inode ?? null) : null,
+                    workbenchProjectId: isAlternate ? projectId : null,
+                    workbenchRootDevice: isAlternate ? (identity?.device ?? null) : null,
+                    workbenchRootInode: isAlternate ? (identity?.inode ?? null) : null,
                 })
                 .where(eq(sessions.id, sessionId))
                 .run().changes === 1
@@ -326,7 +327,7 @@ export class SessionsModel {
     }
 
     listUsingWorkbenchProject(projectId: string): SessionRecord[] {
-        const ids = this.db
+        const ids = this.database
             .select({ id: sessions.id })
             .from(sessions)
             .where(eq(sessions.workbenchProjectId, projectId))
@@ -337,16 +338,18 @@ export class SessionsModel {
         });
     }
 
-    /** Clears explicit bindings before an authorized Project row can be deleted. */
+    /**
+     * Clears explicit bindings before an authorized Project row can be deleted.
+     */
     resetWorkbenchProject(projectId: string): string[] {
-        const sessionIds = this.db
+        const sessionIds = this.database
             .select({ id: sessions.id })
             .from(sessions)
             .where(eq(sessions.workbenchProjectId, projectId))
             .all()
             .map(({ id }) => id);
         if (sessionIds.length > 0)
-            this.db
+            this.database
                 .update(sessions)
                 .set({
                     workbenchProjectId: null,
@@ -358,11 +361,13 @@ export class SessionsModel {
         return sessionIds;
     }
 
-    /** A new Session never starts with a primary Agent Terminal; the caller assigns one afterward. */
+    /**
+     * A new Session never starts with a primary Agent Terminal; the caller assigns one afterward.
+     */
     insert(input: NewSessionInput): SessionRecord {
         const id = randomUUID();
         const now = Date.now();
-        this.db
+        this.database
             .insert(sessions)
             .values({
                 id,
@@ -383,21 +388,28 @@ export class SessionsModel {
     }
 
     remove(id: string): boolean {
-        return this.db.delete(sessions).where(eq(sessions.id, id)).run().changes === 1;
+        return this.database.delete(sessions).where(eq(sessions.id, id)).run().changes === 1;
     }
 
-    /** Returns true when a row existed and was touched. */
+    /**
+     * Returns true when a row existed and was touched.
+     */
     touchLastOpened(id: string, now = Date.now()): boolean {
         return (
-            this.db.update(sessions).set({ lastOpenedAt: now }).where(eq(sessions.id, id)).run()
-                .changes === 1
+            this.database
+                .update(sessions)
+                .set({ lastOpenedAt: now })
+                .where(eq(sessions.id, id))
+                .run().changes === 1
         );
     }
 
-    /** Archiving is reversible metadata; it never removes or stops the Session's Terminals. */
+    /**
+     * Archiving is reversible metadata; it never removes or stops the Session's Terminals.
+     */
     setArchived(id: string, archivedAt: number | null): boolean {
         return (
-            this.db.update(sessions).set({ archivedAt }).where(eq(sessions.id, id)).run()
+            this.database.update(sessions).set({ archivedAt }).where(eq(sessions.id, id)).run()
                 .changes === 1
         );
     }
@@ -410,7 +422,7 @@ export class SessionsModel {
             lastActivityState: AgentActivityState;
         },
     ): void {
-        this.db
+        this.database
             .update(sessions)
             .set({
                 primaryAgentTerminalId: patch.primaryAgentTerminalId,
@@ -427,26 +439,26 @@ export class SessionsModel {
         lastActivityState: AgentActivityState,
         attentionKind?: SessionAttentionKind,
     ): void {
-        this.db
+        this.database
             .update(sessions)
             .set({
                 displayTitle,
                 lastActivityState,
-                ...(attentionKind
-                    ? {
-                          attentionEpoch: sql`${sessions.attentionEpoch} + 1`,
-                          lastAttentionKind: attentionKind,
-                      }
-                    : {}),
+                ...(attentionKind && {
+                    attentionEpoch: sql`${sessions.attentionEpoch} + 1`,
+                    lastAttentionKind: attentionKind,
+                }),
             })
             .where(eq(sessions.id, id))
             .run();
     }
 
-    /** Acknowledges only the generation the Renderer actually displayed. */
+    /**
+     * Acknowledges only the generation the Renderer actually displayed.
+     */
     acknowledgeAttention(id: string, attentionEpoch: number): boolean {
         return (
-            this.db
+            this.database
                 .update(sessions)
                 .set({ readAttentionEpoch: attentionEpoch })
                 .where(
@@ -462,7 +474,7 @@ export class SessionsModel {
 
     rename(id: string, displayTitle: string): boolean {
         return (
-            this.db
+            this.database
                 .update(sessions)
                 .set({ displayTitle, titleMode: 'manual' })
                 .where(eq(sessions.id, id))
@@ -474,7 +486,7 @@ export class SessionsModel {
         terminalId: string,
         lastActivityState: AgentActivityState,
     ): void {
-        this.db
+        this.database
             .update(sessions)
             .set({ lastActivityState })
             .where(eq(sessions.primaryAgentTerminalId, terminalId))
@@ -482,7 +494,7 @@ export class SessionsModel {
     }
 
     getState(sessionId: string): SessionState {
-        const row = this.db
+        const row = this.database
             .select({
                 sessionId: sessionStateTable.sessionId,
                 projectId: sessions.projectId,
@@ -503,9 +515,11 @@ export class SessionsModel {
         return this.readState(row);
     }
 
-    /** Loads every 1:1 Session state row in the same stable order as {@link list}. */
+    /**
+     * Loads every 1:1 Session state row in the same stable order as {@link list}.
+     */
     listStates(): SessionState[] {
-        const rows = this.db
+        const rows = this.database
             .select({
                 sessionId: sessionStateTable.sessionId,
                 projectId: sessions.projectId,
@@ -526,7 +540,7 @@ export class SessionsModel {
     }
 
     insertInitialState(sessionId: string, terminalId?: string): void {
-        this.db
+        this.database
             .insert(sessionStateTable)
             .values({
                 sessionId,
@@ -545,7 +559,7 @@ export class SessionsModel {
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
         if (binding.workbenchProjectId !== state.workbenchProjectId)
             throw new CaxriError('CONFLICT', 'Session state belongs to a stale Workbench Root');
-        const existing = this.db
+        const existing = this.database
             .select()
             .from(sessionStateTable)
             .where(eq(sessionStateTable.sessionId, state.sessionId))
@@ -560,10 +574,10 @@ export class SessionsModel {
             ...workbenchStates,
             [state.workbenchProjectId]: {
                 openTabs: durableState.openTabs,
-                ...(rootActiveTab ? { activeTab: rootActiveTab } : {}),
-                ...(durableState.editorRemapOperationId
-                    ? { editorRemapOperationId: durableState.editorRemapOperationId }
-                    : {}),
+                ...(rootActiveTab && { activeTab: rootActiveTab }),
+                ...(durableState.editorRemapOperationId && {
+                    editorRemapOperationId: durableState.editorRemapOperationId,
+                }),
             },
         };
         let existingTerminalActiveTab: SessionState['activeTab'];
@@ -597,7 +611,7 @@ export class SessionsModel {
             inspectorMode: durableState.inspectorMode,
             layoutJson: JSON.stringify(durableState.layout),
         };
-        this.db
+        this.database
             .insert(sessionStateTable)
             .values(values)
             .onConflictDoUpdate({
@@ -615,14 +629,16 @@ export class SessionsModel {
             .run();
     }
 
-    /** Remaps one durable root snapshot even when its Session has since selected another root. */
+    /**
+     * Remaps one durable root snapshot even when its Session has since selected another root.
+     */
     remapWorkbenchEditorState(
         workbenchProjectId: string,
         operationId: string,
         previousPath: string,
         nextPath: string,
     ): number {
-        const rows = this.db
+        const rows = this.database
             .select({
                 sessionId: sessionStateTable.sessionId,
                 projectId: sessions.projectId,
@@ -643,8 +659,8 @@ export class SessionsModel {
             const isActiveRoot = (row.workbenchProjectId ?? row.projectId) === workbenchProjectId;
             let rootState = workbenchStates[workbenchProjectId];
             let legacyActiveTab: SessionState['activeTab'];
-            const usingLegacyOwnerState = isOwnerRoot && !rootState;
-            if (usingLegacyOwnerState) {
+            const isUsingLegacyOwnerState = isOwnerRoot && !rootState;
+            if (isUsingLegacyOwnerState) {
                 let legacyOpenTabs: unknown;
                 let legacyActiveWork: unknown;
                 try {
@@ -661,10 +677,10 @@ export class SessionsModel {
                 legacyActiveTab = activeTab.data;
                 rootState = {
                     openTabs: openTabs.data,
-                    ...(activeTab.data ? { activeTab: activeTab.data } : {}),
-                    ...(row.editorRemapOperationId
-                        ? { editorRemapOperationId: row.editorRemapOperationId }
-                        : {}),
+                    ...(activeTab.data && { activeTab: activeTab.data }),
+                    ...(row.editorRemapOperationId && {
+                        editorRemapOperationId: row.editorRemapOperationId,
+                    }),
                 };
             }
             if (!rootState && isActiveRoot) rootState = { openTabs: [] };
@@ -696,10 +712,10 @@ export class SessionsModel {
             if (isOwnerRoot) {
                 values.openTabsJson = JSON.stringify(remappedState.openTabs);
                 values.editorRemapOperationId = operationId;
-                if (usingLegacyOwnerState && legacyActiveTab?.kind === 'editor')
+                if (isUsingLegacyOwnerState && legacyActiveTab?.kind === 'editor')
                     values.activeTabJson = JSON.stringify(remappedState.activeTab);
             }
-            this.db
+            this.database
                 .update(sessionStateTable)
                 .set(values)
                 .where(eq(sessionStateTable.sessionId, row.sessionId))

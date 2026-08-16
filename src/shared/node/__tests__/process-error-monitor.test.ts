@@ -2,11 +2,8 @@ import { EventEmitter } from 'node:events';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-    installProcessErrorMonitor,
-    type ProcessErrorTarget,
-    type ProcessErrorWriter,
-} from '../process-error-monitor';
+import type { ProcessErrorTarget, ProcessErrorWriter } from '../process-error-monitor';
+import { installProcessErrorMonitor } from '../process-error-monitor';
 
 function createWriter() {
     return {
@@ -16,6 +13,10 @@ function createWriter() {
 
 describe('installProcessErrorMonitor', () => {
     it('buffers an early fault until the structured logger is available', () => {
+        // Node's `process` (the real production target) is an EventEmitter exposing
+        // `uncaughtExceptionMonitor`, which has no EventTarget equivalent; the test double must
+        // match that same Node-specific contract.
+        // eslint-disable-next-line unicorn/prefer-event-target
         const target = new EventEmitter();
         const writer = createWriter();
         const monitor = installProcessErrorMonitor({
@@ -36,6 +37,10 @@ describe('installProcessErrorMonitor', () => {
     });
 
     it('uses the bootstrap writer before normal logger attachment', () => {
+        // Node's `process` (the real production target) is an EventEmitter exposing
+        // `uncaughtExceptionMonitor`, which has no EventTarget equivalent; the test double must
+        // match that same Node-specific contract.
+        // eslint-disable-next-line unicorn/prefer-event-target
         const target = new EventEmitter();
         const writer = createWriter();
         installProcessErrorMonitor({
@@ -56,6 +61,10 @@ describe('installProcessErrorMonitor', () => {
     });
 
     it('observes without installing a handler that changes fatal error semantics', () => {
+        // Node's `process` (the real production target) is an EventEmitter exposing
+        // `uncaughtExceptionMonitor`, which has no EventTarget equivalent; the test double must
+        // match that same Node-specific contract.
+        // eslint-disable-next-line unicorn/prefer-event-target
         const target = new EventEmitter();
         const monitor = installProcessErrorMonitor({
             processName: 'main',

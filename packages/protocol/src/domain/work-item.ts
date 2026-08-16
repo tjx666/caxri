@@ -8,5 +8,7 @@ export const workItemSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('editor'), path: workItemPathSchema }),
 ]);
 
-/** Browser-safe center-pane identity shared by persistence and every transport adapter. */
+/**
+ * Browser-safe center-pane identity shared by persistence and every transport adapter.
+ */
 export type WorkItem = z.infer<typeof workItemSchema>;

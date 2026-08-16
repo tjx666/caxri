@@ -1,7 +1,7 @@
 import { Files } from 'lucide-react';
 
 import type { InspectorPanelDefinition } from '../types';
-import { FileTreePanel } from './FileTreePanel';
+import { FileTreePanel } from './file-tree-panel';
 
 export const filesPanel: InspectorPanelDefinition<'files'> = {
     id: 'files',
