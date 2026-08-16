@@ -35,6 +35,7 @@ import {
     MAX_RECEIPTS,
     MAX_REPLY_DEPTH,
     MAX_WAITING_PER_ENDPOINT,
+    PENDING_MESSAGE_STATES,
     resolvePullReceiver,
     resolveSender,
 } from './rules';
@@ -45,17 +46,8 @@ import type {
     DuplicateReceipt,
     IdempotencyReceipt,
     MessageWaiter,
-    PendingState,
     StoredMessage,
 } from './types';
-
-// A message is still "in flight" toward eventual delivery in exactly these states; shared so
-// every guard below checks membership consistently instead of repeating equality chains.
-const PENDING_MESSAGE_STATES: ReadonlyArray<StoredMessage['state']> = [
-    'waiting',
-    'held',
-    'delivering',
-] satisfies readonly PendingState[];
 
 /**
  * Host-memory Peer Inbox. Bodies never cross into persistence, logs, Runtime, or terminal input.
@@ -376,8 +368,9 @@ export class AgentInboxRegistry {
             digest: canonicalDigest,
             messageId: message.receipt.messageId,
         });
-        // Fixed TTL makes Map insertion order equal expiry order, so evicting the oldest entry
-        // under capacity pressure is exactly the entry closest to its TTL boundary.
+        // Fixed TTL makes Map insertion order equal expiry order, so capacity eviction removes the
+        // oldest entry; `set` keeps an existing key's position, so delete first to preserve that.
+        this.duplicates.delete(message.fingerprint);
         while (this.duplicates.size >= MAX_DUPLICATES)
             this.duplicates.delete(this.duplicates.keys().next().value!);
         this.duplicates.set(message.fingerprint, {
@@ -767,8 +760,8 @@ export class AgentInboxRegistry {
             const isSender = referencesEqual(message.receipt.from, reference);
             if (isSender) this.releaseIdempotency(message);
             if (!isSender && !referencesEqual(message.receipt.to, reference)) continue;
-            // A retired generation can never satisfy the same fingerprint again, so releasing its
-            // duplicate records keeps retirement consistent with receipt eviction and close.
+            // A retired generation can never satisfy its fingerprints again; releasing them keeps
+            // retirement consistent with receipt eviction and close.
             this.releaseDuplicate(message);
             if (PENDING_MESSAGE_STATES.includes(message.state)) this.finish(message, 'expired');
         }
