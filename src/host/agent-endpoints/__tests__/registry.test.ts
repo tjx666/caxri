@@ -206,6 +206,57 @@ describe('AgentEndpointRegistry', () => {
         expect(registry.list(owner).map(({ name }) => name)).toEqual(['Codex', 'Codex', 'Codex']);
     });
 
+    it('keeps a monotonic generation across restart retirement of the same live Terminal', () => {
+        const tokens = [TOKEN, 'cd'.repeat(32), 'ef'.repeat(32)];
+        const registry = new AgentEndpointRegistry('host-1', { token: () => tokens.shift()! });
+        begin(registry);
+        registry.retireTerminal('terminal-1');
+        const second = begin(registry, { launchId: 'launch-2' });
+        expect(second.ref.generation).toBe(2);
+        registry.retireTerminal('terminal-1');
+        const third = begin(registry, { launchId: 'launch-3' });
+        expect(third.ref.generation).toBe(3);
+    });
+
+    it('recycles generation state when a Terminal is permanently forgotten', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const generations = Reflect.get(registry, 'generations') as Map<string, unknown>;
+        for (let index = 0; index < 100; index += 1) {
+            begin(registry, { terminalId: `terminal-${index}` });
+            registry.forgetTerminal(`terminal-${index}`);
+        }
+        expect(generations).toHaveLength(0);
+    });
+
+    it('recycles owned generations on Session and Project deletion without crossing scopes', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const generations = Reflect.get(registry, 'generations') as Map<string, unknown>;
+        begin(registry, { terminalId: 'terminal-a', sessionId: 'session-1' });
+        const survivor = begin(registry, {
+            terminalId: 'terminal-b',
+            sessionId: 'session-2',
+            launchId: 'launch-b',
+        });
+        activate(registry, survivor, 'launch-b');
+        begin(registry, {
+            terminalId: 'terminal-c',
+            sessionId: 'session-3',
+            projectId: 'project-2',
+        });
+        // Session-owned Terminals stay recycled even when their endpoint already retired earlier
+        // (the Terminal exited before the Session was deleted).
+        registry.retireTerminal('terminal-a');
+        expect(generations).toHaveLength(3);
+
+        registry.forgetSession('session-1');
+        expect(generations.keys().toArray()).toEqual(['terminal-b', 'terminal-c']);
+        expect(() => registry.resolveTerminal('terminal-b')).not.toThrow();
+
+        registry.forgetProject('project-2');
+        expect(generations.keys().toArray()).toEqual(['terminal-b']);
+        expect(() => registry.resolveTerminal('terminal-b')).not.toThrow();
+    });
+
     it('updates messaging health only for the exact live launch generation', () => {
         const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
         const endpoint = begin(registry);

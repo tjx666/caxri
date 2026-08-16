@@ -65,6 +65,17 @@ export interface AgentEndpointRegistryOptions {
     token?: () => string;
 }
 
+/**
+ * Generation fencing state must outlive the endpoint record so a same-Terminal restart keeps a monotonic generation,
+ * but it carries its owning scope so permanent Terminal/Session/Project deletion can recycle it and keep long-lived
+ * Hosts bounded.
+ */
+interface GenerationRecord {
+    generation: number;
+    projectId: string;
+    sessionId: string;
+}
+
 export type AgentEndpointRetiredListener = (endpoint: AgentEndpointSummary) => void;
 export type AgentEndpointMessagingChangedListener = (
     endpoint: AgentEndpointSummary,
@@ -91,7 +102,7 @@ function capabilitiesFor(record: StoredEndpoint, now: number): Capability[] {
 export class AgentEndpointRegistry {
     private readonly byEndpoint = new Map<string, StoredEndpoint>();
     private readonly byTerminal = new Map<string, StoredEndpoint>();
-    private readonly generations = new Map<string, number>();
+    private readonly generations = new Map<string, GenerationRecord>();
     private readonly messagingChangedListeners = new Set<AgentEndpointMessagingChangedListener>();
     private readonly retiredListeners = new Set<AgentEndpointRetiredListener>();
     private readonly retired = new Map<string, AgentEndpointSummary>();
@@ -162,6 +173,12 @@ export class AgentEndpointRegistry {
         }
     }
 
+    private forgetGenerationsWhere(shouldForget: (record: GenerationRecord) => boolean): void {
+        for (const [terminalId, record] of this.generations) {
+            if (shouldForget(record)) this.generations.delete(terminalId);
+        }
+    }
+
     private sweep(): void {
         for (const record of this.byEndpoint.values()) {
             if (record.expiresAt <= this.now()) this.remove(record);
@@ -184,8 +201,12 @@ export class AgentEndpointRegistry {
     begin(raw: AgentEndpointBeginParameters): AgentEndpointBeginResult {
         const input = agentEndpointBeginParametersSchema.parse(raw);
         this.retireTerminal(input.terminalId);
-        const generation = (this.generations.get(input.terminalId) ?? 0) + 1;
-        this.generations.set(input.terminalId, generation);
+        const generation = (this.generations.get(input.terminalId)?.generation ?? 0) + 1;
+        this.generations.set(input.terminalId, {
+            generation,
+            projectId: input.projectId,
+            sessionId: input.sessionId,
+        });
         const token = this.token();
         const expiresAt = this.now() + ENDPOINT_TTL_MS;
         const reference = {
@@ -243,17 +264,31 @@ export class AgentEndpointRegistry {
         return true;
     }
 
+    /**
+     * Temporary retirement (restart, PTY exit, Runtime crash): the Terminal identity survives, so its generation record
+     * must survive to keep the next `begin()` monotonic.
+     */
     retireTerminal(terminalId: string): void {
         const record = this.byTerminal.get(terminalId);
         if (record) this.remove(record);
     }
 
-    retireSession(sessionId: string): void {
-        this.retireWhere((record) => record.summary.sessionId === sessionId);
+    /**
+     * Permanent deletion: recycles the generation record together with the active endpoint.
+     */
+    forgetTerminal(terminalId: string): void {
+        this.retireTerminal(terminalId);
+        this.generations.delete(terminalId);
     }
 
-    retireProject(projectId: string): void {
+    forgetSession(sessionId: string): void {
+        this.retireWhere((record) => record.summary.sessionId === sessionId);
+        this.forgetGenerationsWhere((record) => record.sessionId === sessionId);
+    }
+
+    forgetProject(projectId: string): void {
         this.retireWhere((record) => record.summary.projectId === projectId);
+        this.forgetGenerationsWhere((record) => record.projectId === projectId);
     }
 
     clear(): void {

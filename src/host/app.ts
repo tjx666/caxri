@@ -151,17 +151,22 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         if (spec.effect === 'read') return supervisor.forward(request.method, request.params);
         if (isMutationAdmissionClosed) throw new CaxriError('UNAVAILABLE', 'Host is stopping');
         switch (request.method) {
-            case 'terminal.close':
+            case 'terminal.close': {
+                agentEndpoints.forgetTerminal(request.params.terminalId);
+                break;
+            }
+            // Restart keeps the Terminal identity alive, so only the endpoint retires and the
+            // generation record stays for the next monotonic `begin()`.
             case 'terminal.restart': {
                 agentEndpoints.retireTerminal(request.params.terminalId);
                 break;
             }
             case 'session.delete': {
-                agentEndpoints.retireSession(request.params.sessionId);
+                agentEndpoints.forgetSession(request.params.sessionId);
                 break;
             }
             case 'project.delete': {
-                agentEndpoints.retireProject(request.params.projectId);
+                agentEndpoints.forgetProject(request.params.projectId);
                 break;
             }
             case 'terminal.terminateAll':
