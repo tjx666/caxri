@@ -11,6 +11,7 @@ const nativeDesktopDependencies = ['@parcel/watcher', 'better-sqlite3', 'electro
 interface PackageManifest {
     build?: { files?: string[] };
     dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
     name?: string;
     packageManager?: string;
     private?: boolean;
@@ -42,7 +43,11 @@ function lockfiles(directory: string): string[] {
             continue;
         const path = join(directory, entry.name);
         if (entry.isDirectory()) found.push(...lockfiles(path));
-        else if (/^(?:bun|npm-shrinkwrap|package-lock|pnpm-lock|yarn\.lock)/u.test(entry.name))
+        else if (
+            /^(?:bun\.lockb?|npm-shrinkwrap\.json|package-lock\.json|pnpm-lock\.(?:json|yaml)|yarn\.lock)$/u.test(
+                entry.name,
+            )
+        )
             found.push(path);
     }
     return found;
@@ -102,6 +107,7 @@ describe('pnpm workspace contract', () => {
             'oxlint': '^1.78.0',
             'oxlint-tsgolint': '^7.0.2001',
             'prettier-plugin-tailwindcss': '^0.8.1',
+            'sonda': '^0.14.0',
             'zod': '4.4.3',
         });
         expect(workspace.allowBuilds).toEqual({
@@ -193,7 +199,7 @@ describe('pnpm workspace contract', () => {
         expect(protocolManifest.name).toBe('@caxri/protocol');
         expect(cliManifest.name).toBe('@caxri/cli');
         expect(protocolManifest.dependencies).toEqual({ zod: 'catalog:' });
-        expect(rootManifest.dependencies?.['@caxri/cli']).toBe('workspace:*');
+        expect(rootManifest.devDependencies?.['@caxri/cli']).toBe('workspace:*');
         expect(cliManifest.dependencies).toEqual({
             '@caxri/protocol': 'workspace:*',
             'zod': 'catalog:',
@@ -228,9 +234,17 @@ describe('pnpm workspace contract', () => {
         }
     });
 
-    it('excludes workspace links from implicit Desktop packaging', () => {
-        expect(rootManifest.build?.files).toContain('!node_modules/@caxri/cli{,/**}');
-        expect(rootManifest.build?.files).toContain('!node_modules/@caxri/protocol{,/**}');
+    it('keeps root production dependencies limited to native Desktop modules', () => {
+        /**
+         * Electron-builder copies the entire production dependency tree into the asar, so every pure-JS dependency
+         * (workspace links included) must live in devDependencies and be bundled by electron-vite instead. See
+         * docs/bundle-size.md.
+         */
+        expect(
+            Object.keys(rootManifest.dependencies ?? {}).toSorted((left, right) =>
+                left.localeCompare(right),
+            ),
+        ).toEqual(['@parcel/watcher', 'better-sqlite3', 'node-pty']);
     });
 
     it('keeps generated workspace distributions outside source linting', async () => {

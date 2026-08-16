@@ -1,21 +1,11 @@
 import { Buffer } from 'node:buffer';
-import { createRequire } from 'node:module';
 
-import type * as SerializeAddonModule from '@xterm/addon-serialize';
-import type * as Unicode11AddonModule from '@xterm/addon-unicode11';
-import type * as HeadlessModule from '@xterm/headless';
+import { SerializeAddon } from '@xterm/addon-serialize';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import type { Terminal as HeadlessTerminal } from '@xterm/headless';
+import { Terminal } from '@xterm/headless';
 
 import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from '../snapshot';
-
-/**
- * Electron-vite externalizes production dependencies, and these xterm Node packages publish CommonJS entry points whose
- * named exports Node ESM cannot load directly.
- */
-const runtimeRequire = createRequire(import.meta.url);
-const { SerializeAddon } = runtimeRequire('@xterm/addon-serialize') as typeof SerializeAddonModule;
-const { Unicode11Addon } = runtimeRequire('@xterm/addon-unicode11') as typeof Unicode11AddonModule;
-const { Terminal } = runtimeRequire('@xterm/headless') as typeof HeadlessModule;
 
 type ScreenOperation =
     | { chunks: string[]; type: 'write' }

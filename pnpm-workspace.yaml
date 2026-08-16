@@ -18,6 +18,7 @@ catalog:
   oxlint: ^1.78.0
   oxlint-tsgolint: ^7.0.2001
   prettier-plugin-tailwindcss: ^0.8.1
+  sonda: ^0.14.0
   zod: 4.4.3
 
 minimumReleaseAgeExclude:
@@ -28,3 +29,6 @@ minimumReleaseAgeExclude:
 
 overrides:
   dompurify: 3.4.13
+
+patchedDependencies:
+  app-builder-lib: patches/app-builder-lib.patch

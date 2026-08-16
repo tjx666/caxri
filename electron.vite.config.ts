@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import babel from '@rolldown/plugin-babel';
@@ -8,6 +9,28 @@ import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import type { UserConfig } from 'electron-vite';
 import { defineConfig } from 'electron-vite';
+import Sonda from 'sonda/vite';
+import type { PluginOption } from 'vite';
+
+/**
+ * Opt-in bundle analysis: `CAXRI_BUNDLE_ANALYZE=1 bun run build:desktop` writes an interactive HTML + JSON report per
+ * process (main/preload/renderer) under `.cache/bundle-analysis/`. Sonda needs source maps to attribute minified bytes
+ * to packages, so the flag also turns them on.
+ */
+const isBundleAnalysisEnabled = process.env.CAXRI_BUNDLE_ANALYZE === '1';
+
+function bundleAnalysisPlugins(reportName: string): PluginOption[] {
+    if (!isBundleAnalysisEnabled) return [];
+    return [
+        Sonda({
+            filename: `${reportName}.[index]`,
+            format: ['html', 'json'],
+            outputDir: '.cache/bundle-analysis',
+            deep: true,
+            open: false,
+        }),
+    ];
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -50,7 +73,13 @@ export default defineConfig(async ({ command }) => {
                 __CAXRI_COMMIT__: JSON.stringify(gitCommit),
             },
             build: {
-                externalizeDeps: { exclude: ['@caxri/cli', '@caxri/protocol', '@caxri/utils'] },
+                sourcemap: isBundleAnalysisEnabled,
+                /**
+                 * Only the native modules left in `dependencies` (@parcel/watcher, better-sqlite3, node-pty) stay
+                 * external; every pure-JS dependency lives in `devDependencies` so electron-vite bundles it and
+                 * electron-builder never copies it into the asar.
+                 */
+                externalizeDeps: true,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
                 // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
                 // report the whole process-explorer entry chain as unused. Keep the deprecated name until
@@ -64,9 +93,11 @@ export default defineConfig(async ({ command }) => {
                     },
                 },
             },
+            plugins: bundleAnalysisPlugins('main'),
         },
         preload: {
             build: {
+                sourcemap: isBundleAnalysisEnabled,
                 externalizeDeps: true,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
                 // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
@@ -84,9 +115,11 @@ export default defineConfig(async ({ command }) => {
                     },
                 },
             },
+            plugins: bundleAnalysisPlugins('preload'),
         },
         renderer: {
             build: {
+                sourcemap: isBundleAnalysisEnabled,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
                 // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
                 // report the whole process-explorer entry chain as unused. Keep the deprecated name until
@@ -117,6 +150,7 @@ export default defineConfig(async ({ command }) => {
                         return html.replace('__CAXRI_CONNECT_SRC__', () => connectSource);
                     },
                 },
+                ...bundleAnalysisPlugins('renderer'),
             ],
         },
     } satisfies UserConfig;

@@ -23,7 +23,9 @@ Routing this skill for a readiness question is read-only and never grants remote
    observable behavior, validation, non-goals, and closing issue links. Read back the resulting PR.
 5. Treat queued or failed required checks, unresolved conflicts, and active review findings as real
    readiness blockers. Repair the owning branch and refresh the exact-head state instead of merging
-   stale evidence.
+   stale evidence. Watch checks with `bun run scripts/watch-ci.ts [--run <id>]` rather than ad-hoc
+   polling loops: concurrent sessions (any worktree) share one GitHub poller, job failures notify
+   immediately, and the watch survives offline windows.
 6. Merge only when explicitly authorized by the user or an active workflow such as `go`. Verify the
    remote merged state and merge commit before reporting completion.
 7. After a merge initiated from the primary checkout, return that checkout to `main` and fast-forward
