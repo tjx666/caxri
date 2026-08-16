@@ -26,6 +26,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -132,9 +133,50 @@ async function writeState(state: WatchState): Promise<void> {
     await rename(temporaryPath, finalPath);
 }
 
-async function notify(title: string, message: string): Promise<void> {
+/**
+ * Repository icon shown on alerter notifications; resolved from the script location so worktrees work too.
+ */
+const APP_ICON_PATH = fileURLToPath(new URL('../build/icon.png', import.meta.url));
+
+/**
+ * How long an alerter notification stays up (and the poller blocks) waiting for a click before auto-closing. Failure
+ * notifications are rare, so pausing the 20s poll cadence for up to this long is an acceptable trade for
+ * click-to-open.
+ */
+const NOTIFICATION_TIMEOUT_SECONDS = 10;
+
+/**
+ * Best-effort macOS notification. Prefers `alerter` (brew) over `osascript` because AppleScript notifications are
+ * permanently branded with the Script Editor icon and cannot react to clicks; alerter shows the repository icon and
+ * clicking the notification opens the run page. Falls back to `osascript` only when alerter is not installed.
+ */
+async function notify(title: string, message: string, url?: string): Promise<void> {
     console.log(`${title}: ${message}`);
     if (process.platform !== 'darwin') return;
+    try {
+        const { stdout } = await execFileAsync('alerter', [
+            '--title',
+            title,
+            '--message',
+            message,
+            '--app-icon',
+            APP_ICON_PATH,
+            '--sound',
+            'Basso',
+            '--timeout',
+            String(NOTIFICATION_TIMEOUT_SECONDS),
+            '--json',
+        ]);
+        const activation = JSON.parse(stdout) as { activationType?: string };
+        if (url && /clicked/iu.test(activation.activationType ?? '')) {
+            await execFileAsync('open', [url]);
+        }
+        return;
+    } catch (error) {
+        // Any failure other than "alerter is not installed" still counts as attempted delivery; the console line
+        // above already carries the signal.
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return;
+    }
     try {
         const script = `display notification ${JSON.stringify(message)} with title ${JSON.stringify(title)} sound name "Basso"`;
         await execFileAsync('osascript', ['-e', script]);
@@ -236,7 +278,11 @@ async function pollOnce(runId: string, previous: WatchState | undefined): Promis
     const failedJobs = newlyFailedJobs(state.notifiedFailedJobs, jobs);
     if (failedJobs.length > 0) {
         state.notifiedFailedJobs = [...state.notifiedFailedJobs, ...failedJobs];
-        await notify('Caxri CI failed', `${failedJobs.join(', ')} — ${state.url ?? runId}`);
+        await notify(
+            'Caxri CI failed',
+            `${failedJobs.join(', ')} — ${state.url ?? runId}`,
+            state.url,
+        );
     }
     await writeState(state);
     return state;
@@ -284,8 +330,8 @@ async function main(): Promise<void> {
                 const isOk = state.conclusion === 'success';
                 // eslint-disable-next-line no-await-in-loop -- terminal notification; the loop exits right after
                 await (isOk
-                    ? notify('Caxri CI passed', `run ${runId}`)
-                    : notify('Caxri CI failed', `run ${runId}: ${state.conclusion}`));
+                    ? notify('Caxri CI passed', `run ${runId}`, state.url)
+                    : notify('Caxri CI failed', `run ${runId}: ${state.conclusion}`, state.url));
                 process.exit(isOk ? 0 : 1);
             }
         }
