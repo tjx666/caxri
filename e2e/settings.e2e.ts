@@ -86,10 +86,16 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await running.page.keyboard.press('Escape');
         await expect(dialog.getByLabel('Claude Code executable')).toHaveValue('claude');
         await expect(dialog.getByLabel('Codex executable')).toHaveValue('codex');
-        await expect(dialog.getByLabel('Claude Code lifecycle hooks')).not.toBeChecked();
-        await expect(dialog.getByLabel('Codex lifecycle hooks')).not.toBeChecked();
-        await expect(dialog.getByLabel('Claude Code peer messaging')).toBeChecked();
-        await expect(dialog.getByLabel('Codex peer messaging')).toBeChecked();
+        await expect(
+            dialog.getByRole('switch', { name: 'Claude Code lifecycle hooks' }),
+        ).not.toBeChecked();
+        await expect(
+            dialog.getByRole('switch', { name: 'Codex lifecycle hooks' }),
+        ).not.toBeChecked();
+        await expect(
+            dialog.getByRole('switch', { name: 'Claude Code peer messaging' }),
+        ).toBeChecked();
+        await expect(dialog.getByRole('switch', { name: 'Codex peer messaging' })).toBeChecked();
         await expect(
             dialog.locator('[data-agent-provider="claude"]').getByRole('status'),
         ).toHaveText('Disabled');
@@ -117,7 +123,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         expect(workingDirectoryWidth).toBeGreaterThan(scalarWidth + 100);
 
         await dialog.getByLabel('Terminal font size').fill('14');
-        await dialog.getByLabel('Claude Code lifecycle hooks').check();
+        await dialog.getByRole('switch', { name: 'Claude Code lifecycle hooks' }).check();
         await expect(dialog.locator('[data-agent-provider="claude"]')).toContainText(
             'Restart Agent Terminals opened before lifecycle hooks were enabled.',
         );
@@ -171,9 +177,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         const backgroundInput = dialog
             .locator('.theme-editor fieldset')
             .nth(1)
-            .locator('label')
-            .filter({ hasText: /^background/ })
-            .locator('input[type="color"]');
+            .getByLabel('terminal background color');
         await backgroundInput.fill('#101820');
         await expect
             .poll(() =>

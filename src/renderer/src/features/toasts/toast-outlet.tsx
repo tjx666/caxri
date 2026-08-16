@@ -1,19 +1,11 @@
 import { useState } from 'react';
 
-import { CircleCheck, CircleX, Info, X } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 import * as m from 'motion/react-m';
 
+import { Toast, ToastDismiss, ToastIcon, ToastTitle } from '../../components/ui/toast';
 import { motionDurationMs, useShouldReduceMotion } from '../../lib/motion';
-import { cn } from '../../lib/utilities';
-import type { ToastKind } from '../../stores/toasts';
 import { dismissToast, useToastStore } from '../../stores/toasts';
-
-const TOAST_ICONS: Record<ToastKind, typeof Info> = {
-    error: CircleX,
-    info: Info,
-    success: CircleCheck,
-};
 
 /**
  * The notification stack. Errors — and any notice pushed with `persist: true` — have no auto-expiry (`stores/toasts.ts`
@@ -49,54 +41,29 @@ export function ToastOutlet() {
                 exit animation instead of having its whole tree torn down mid-transition. */}
             <LazyMotion strict features={domAnimation}>
                 <AnimatePresence initial={false}>
-                    {toasts.map((toast) => {
-                        const Icon = TOAST_ICONS[toast.kind];
-                        return (
-                            <m.div
-                                key={toast.id}
-                                className={cn(
-                                    'toast',
-                                    'flex max-w-[460px] items-start gap-2 rounded-md border border-l-[3px] border-border border-l-muted bg-elevated px-3 py-2 text-left shadow-[0_8px_24px_var(--shadow)]',
-                                    toast.kind === 'success' && 'border-l-success',
-                                    toast.kind === 'error' && 'border-l-danger',
-                                )}
-                                onClick={() => dismissToast(toast.id)}
-                                initial={{ opacity: 0, y: 8, scale: 0.97 }}
-                                animate={{
-                                    opacity: 1,
-                                    y: 0,
-                                    scale: 1,
-                                    transition: { duration: enterDuration, ease: 'easeOut' },
-                                }}
-                                exit={{
-                                    opacity: 0,
-                                    scale: 0.97,
-                                    transition: { duration: exitDuration, ease: 'easeIn' },
-                                }}
-                            >
-                                <Icon
-                                    className={cn(
-                                        'mt-px flex-none text-muted',
-                                        toast.kind === 'success' && 'text-success',
-                                        toast.kind === 'error' && 'text-danger',
-                                    )}
-                                    size={14}
-                                    aria-hidden="true"
-                                />
-                                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
-                                    {toast.message}
-                                </span>
-                                <button
-                                    type="button"
-                                    className="grid size-4 flex-none place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-[var(--selection)] hover:text-foreground"
-                                    aria-label="Dismiss notification"
-                                    onClick={() => dismissToast(toast.id)}
-                                >
-                                    <X size={12} aria-hidden="true" />
-                                </button>
-                            </m.div>
-                        );
-                    })}
+                    {toasts.map((toast) => (
+                        <m.div
+                            key={toast.id}
+                            initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                            animate={{
+                                opacity: 1,
+                                y: 0,
+                                scale: 1,
+                                transition: { duration: enterDuration, ease: 'easeOut' },
+                            }}
+                            exit={{
+                                opacity: 0,
+                                scale: 0.97,
+                                transition: { duration: exitDuration, ease: 'easeIn' },
+                            }}
+                        >
+                            <Toast kind={toast.kind} onClick={() => dismissToast(toast.id)}>
+                                <ToastIcon kind={toast.kind} />
+                                <ToastTitle>{toast.message}</ToastTitle>
+                                <ToastDismiss onClick={() => dismissToast(toast.id)} />
+                            </Toast>
+                        </m.div>
+                    ))}
                 </AnimatePresence>
             </LazyMotion>
         </div>

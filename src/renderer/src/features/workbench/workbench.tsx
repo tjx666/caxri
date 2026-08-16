@@ -1,6 +1,7 @@
 import { Code2, Plus, TerminalSquare } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { useSelectedSession, useSessionState } from '../../stores/selectors';
 import { useActiveWork } from '../../stores/session-view';
 import { EditorSurface } from '../editor/editor-surface';
@@ -36,9 +37,11 @@ function WorkSurface({ sessionId }: { sessionId: string }) {
             {hasLayout ? (
                 <TerminalLayoutView />
             ) : (
-                <div className="empty-work flex h-full flex-col items-center justify-center gap-3 text-muted">
-                    <TerminalSquare size={30} />
-                    <p>No Terminal in this Session.</p>
+                <Empty className="empty-work h-full flex-1">
+                    <EmptyMedia>
+                        <TerminalSquare size={30} />
+                    </EmptyMedia>
+                    <EmptyTitle>No Terminal in this Session.</EmptyTitle>
                     <Button
                         onClick={() => {
                             // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
@@ -47,7 +50,7 @@ function WorkSurface({ sessionId }: { sessionId: string }) {
                     >
                         New Terminal
                     </Button>
-                </div>
+                </Empty>
             )}
         </div>
     );

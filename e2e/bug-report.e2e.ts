@@ -58,7 +58,7 @@ test('Bug report preview sends one redacted multiline prompt to the selected liv
         await dialog
             .getByLabel('Reproduction steps')
             .fill('1. Open Caxri\n2. Run the action\n3. Observe the failure');
-        await dialog.getByLabel(SCREENSHOT_CHECKBOX_LABEL).check();
+        await dialog.getByRole('checkbox', { name: SCREENSHOT_CHECKBOX_LABEL }).check();
         // Opting in must immediately admit that the screenshot is the one part of the report that
         // is *not* redacted; the assertions below prove the text half still is.
         await expect(dialog).toContainText(
@@ -137,7 +137,7 @@ test('Bug report delivers an opted-in screenshot through Codex image paste', asy
         await dialog.getByLabel('Actual behavior').fill('The preview is stale.');
         await dialog.getByLabel('Expected behavior').fill('The preview should refresh.');
         await dialog.getByLabel('Reproduction steps').fill('1. Open preview\n2. Refresh');
-        await dialog.getByLabel(SCREENSHOT_CHECKBOX_LABEL).check();
+        await dialog.getByRole('checkbox', { name: SCREENSHOT_CHECKBOX_LABEL }).check();
         await expect(dialog).toContainText('Sending replaces the system clipboard');
         await dialog.getByRole('button', { name: 'Preview Report' }).click();
         await expect(dialog.getByAltText(SCREENSHOT_PREVIEW_ALT)).toBeVisible();

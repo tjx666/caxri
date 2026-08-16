@@ -1,5 +1,6 @@
 import { formatShortcut, formatShortcutParts } from '../lib/keybindings';
 import { cn } from '../lib/utilities';
+import { Kbd } from './ui/kbd';
 
 interface ShortcutBadgeProperties {
     className?: string;
@@ -9,7 +10,7 @@ interface ShortcutBadgeProperties {
 }
 
 /**
- * Shared macOS keycap presentation for live and draft shortcuts.
+ * Shared macOS keycap presentation for live and draft shortcuts, built on the shared `Kbd` chip.
  */
 export function ShortcutBadge({
     className,
@@ -24,17 +25,14 @@ export function ShortcutBadge({
             data-shortcut={shortcut}
         >
             {formatShortcutParts(shortcut).map((part, index) => (
-                <kbd
+                <Kbd
                     key={`${part}-${index}`}
                     aria-hidden="true"
-                    className={cn(
-                        'inline-flex items-center justify-center rounded border border-border bg-elevated font-sans leading-none text-foreground',
-                        compact ? 'h-4 min-w-4 px-0.5 text-[10px]' : 'h-6 min-w-6 px-1 text-[11px]',
-                        keyClassName,
-                    )}
+                    className={keyClassName}
+                    size={compact ? 'compact' : 'default'}
                 >
                     {part}
-                </kbd>
+                </Kbd>
             ))}
         </span>
     );

@@ -14,7 +14,6 @@ import {
     EyeOff,
     GitBranch,
     GitPullRequest,
-    LoaderCircle,
     Monitor,
     Package,
     RefreshCw,
@@ -23,6 +22,7 @@ import {
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
+import { Spinner } from '../../../../components/ui/spinner';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
@@ -42,8 +42,7 @@ function StateIcon({ state }: { state?: ProjectStatusState }) {
     if (state === 'success')
         return <CircleCheck className="state-success text-success" size={14} />;
     if (state === 'failure') return <CircleX className="state-failure text-danger" size={14} />;
-    if (state === 'pending')
-        return <LoaderCircle className="state-pending animate-spin text-warning" size={14} />;
+    if (state === 'pending') return <Spinner className="state-pending text-warning" size={14} />;
     if (state === 'neutral') return <Circle className="state-neutral text-muted" size={14} />;
     return <CircleDot className="state-unknown text-muted" size={14} />;
 }

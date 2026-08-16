@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import type { UpdateState } from '@shared/types';
 import { CheckCircle2, Download, FolderOpen, RefreshCw, XCircle } from 'lucide-react';
 
+import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
 import {
     Dialog,
@@ -11,6 +12,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
+import { Progress } from '../../components/ui/progress';
+import { Spinner } from '../../components/ui/spinner';
 import {
     cancelUpdateDownload,
     checkForUpdates,
@@ -72,7 +75,7 @@ function UpdateActions({ state }: { state: UpdateState | undefined }) {
     if (!state || state.status === 'checking')
         return (
             <Button disabled>
-                <RefreshCw aria-hidden="true" className="animate-spin" size={14} />
+                <Spinner aria-hidden="true" className="size-3.5" />
                 Checking…
             </Button>
         );
@@ -160,31 +163,20 @@ export function UpdateDialog() {
                         </div>
                     </div>
                     {state?.status === 'downloading' && (
-                        <div
+                        <Progress
                             aria-label="Update download progress"
-                            aria-valuemax={100}
-                            aria-valuemin={0}
-                            aria-valuenow={
-                                progress === undefined ? undefined : Math.round(progress)
-                            }
-                            className="h-1.5 overflow-hidden rounded bg-elevated"
-                            role="progressbar"
-                        >
-                            <div
-                                className="h-full bg-accent transition-[width] duration-100"
-                                style={{ width: progress === undefined ? '20%' : `${progress}%` }}
-                            />
-                        </div>
+                            value={progress === undefined ? null : Math.round(progress)}
+                        />
                     )}
                     {(state?.status === 'available' ||
                         state?.status === 'downloading' ||
                         state?.status === 'ready' ||
                         (state?.status === 'error' && state.version)) && (
-                        <div className="rounded border border-border bg-background p-3 text-[11px] leading-[1.5] text-muted">
+                        <Alert variant="info" className="bg-background p-3 leading-[1.5]">
                             Caxri is currently unsigned. After opening the verified DMG, drag Caxri
                             to Applications and approve replacing the existing app. Running
                             Terminals are not interrupted by the download.
-                        </div>
+                        </Alert>
                     )}
                     <div className="flex justify-end gap-2">
                         <Button

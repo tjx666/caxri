@@ -12,13 +12,6 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
- * Shared field-row shell for the Settings dialog's structured editors (`SettingsForm`, `ThemeForm`'s per-color labels):
- * label left, control right, DESIGN.md's 4px-grid gap.
- */
-export const settingsFieldRowClassName =
-    'flex items-center justify-between gap-2 mb-3 text-foreground';
-
-/**
  * Shell shared by the settings/keybindings/theme Monaco panes and their Suspense fallback shimmer (`SettingsForm`,
  * `KeybindingsForm`, `ThemeForm`, `ConfigEditor`).
  */
