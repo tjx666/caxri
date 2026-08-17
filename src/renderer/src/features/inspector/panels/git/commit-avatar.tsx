@@ -39,10 +39,16 @@ export function CommitAvatar({
         <img
             alt=""
             aria-hidden="true"
-            className={cn('commit-avatar shrink-0 rounded-full bg-elevated', className)}
+            className={cn(
+                'commit-avatar shrink-0 rounded-full bg-elevated object-cover',
+                className,
+            )}
             height={size}
             loading="lazy"
             src={url}
+            // Inline size wins over any global img sizing rules (e.g. max-width/height:auto resets),
+            // which otherwise let the bitmap render non-square and look stretched.
+            style={{ width: size, height: size }}
             width={size}
             onError={() => setFailed(true)}
         />
