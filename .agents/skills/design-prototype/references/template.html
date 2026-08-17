@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>PROTOTYPE_TITLE</title>
+        <style>
+            #boot {
+                font:
+                    13px/1.6 ui-monospace,
+                    monospace;
+                color: #888;
+                padding: 24px;
+            }
+        </style>
+
+        <!-- The prototype runtime: react + @/components/ui/* + lucide-react + motion + cmdk,
+         bundled once from this repo's Renderer source and node_modules (production versions).
+         Build all four sibling files next to this HTML:
+           bun run .agents/skills/design-prototype/scripts/build-runtime.ts <this-dir> -->
+        <script src="./caxri-prototype-runtime.js"></script>
+        <script src="./caxri-prototype-theme.js"></script>
+        <script>
+            // Real Renderer global CSS (theme.css tokens + styles.css + tw-animate-css),
+            // compiled at runtime by @tailwindcss/browser alongside the JSX's utilities.
+            const themeStyle = document.createElement('style');
+            themeStyle.type = 'text/tailwindcss';
+            themeStyle.textContent = window.__CAXRI_THEME_CSS__;
+            document.head.append(themeStyle);
+
+            // Map bare module specifiers onto the bundled namespaces, so the code below
+            // keeps production-style `import { Button } from '@/components/ui/button'`.
+            window.require = (name) => {
+                const m = __CAXRI_PROTO_NS__.default[name];
+                if (!m)
+                    throw new Error(
+                        'prototype runtime is missing module: ' +
+                            name +
+                            ' — add it to entry.mjs and rebuild',
+                    );
+                return m;
+            };
+        </script>
+        <script src="./tailwind-browser.js"></script>
+        <script src="./babel.min.js"></script>
+        <script>
+            // babel-standalone's stock typescript preset only activates on a .ts/.tsx
+            // filename, which inline scripts lack — register a TSX-enabled variant so the
+            // prototype can keep production-style TypeScript syntax.
+            Babel.registerPreset('tsx', {
+                presets: [
+                    [Babel.availablePresets['typescript'], { allExtensions: true, isTSX: true }],
+                ],
+            });
+            // Defined AFTER babel.min.js on purpose: its UMD wrapper exports to a
+            // pre-existing `window.module` instead of `window.Babel`.
+            window.exports = {};
+            window.module = { exports: window.exports };
+        </script>
+    </head>
+    <body>
+        <div id="boot">booting prototype runtime…</div>
+        <div id="root"></div>
+
+        <script
+            type="text/babel"
+            data-presets="react,tsx"
+            data-plugins="transform-modules-commonjs"
+        >
+            // Production-style React from here on. Real tokens, real primitives, real
+            // Tailwind semantic utilities (bg-surface, text-muted, …) — DESIGN.md applies.
+            // babel-standalone's react preset uses the classic JSX runtime — keep the
+            // default `React` import in scope even when no API is used directly.
+            import React, { useState } from 'react';
+            import { createRoot } from 'react-dom/client';
+
+            import { Button } from '@/components/ui/button';
+            import { Empty, EmptyTitle } from '@/components/ui/empty';
+            import { Spinner } from '@/components/ui/spinner';
+            import { TooltipProvider } from '@/components/ui/tooltip';
+
+            function App() {
+                // Prototypes must demo at least one non-happy-path state (DESIGN.md bar) —
+                // wire a state toggle like this instead of hardcoding the happy path.
+                type DemoState = 'data' | 'empty' | 'loading' | 'error';
+                const [state, setState] = useState<DemoState>('data');
+
+                return (
+                    <div className="flex h-full flex-col gap-6 bg-background p-8">
+                        <div className="flex gap-2">
+                            {['data', 'empty', 'loading', 'error'].map((s) => (
+                                <Button
+                                    key={s}
+                                    size="sm"
+                                    variant={state === s ? 'default' : 'secondary'}
+                                    onClick={() => setState(s)}
+                                >
+                                    {s}
+                                </Button>
+                            ))}
+                        </div>
+                        <div className="flex flex-1 items-center justify-center rounded-md border border-border bg-surface">
+                            {state === 'data' && (
+                                <span className="text-foreground">
+                                    Replace me with the real surface.
+                                </span>
+                            )}
+                            {state === 'empty' && (
+                                <Empty>
+                                    <EmptyTitle>Nothing here yet</EmptyTitle>
+                                    <p className="m-0 text-muted">Add something to get started.</p>
+                                </Empty>
+                            )}
+                            {state === 'loading' && <Spinner />}
+                            {state === 'error' && (
+                                <div className="flex items-center gap-3">
+                                    <span className="text-danger">Failed to load.</span>
+                                    <Button size="sm" variant="secondary">
+                                        Retry
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            document.querySelector('#boot').remove();
+            // Production wraps the tree in TooltipProvider (app.tsx) — keep it so Tooltip
+            // consumers get the same delay behavior in prototypes.
+            createRoot(document.querySelector('#root')).render(
+                <TooltipProvider>
+                    <App />
+                </TooltipProvider>,
+            );
+        </script>
+    </body>
+</html>
