@@ -77,14 +77,10 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Install dependencies: `ni`
 - Start the Electron app in the current worktree:
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`
-- Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` (`CAXRI_DEV_CDP_PORT` overrides)
-  for live DOM inspection and screenshots, e.g. `agent-browser connect --port 9223`. Packaged
-  (production) builds expose the same endpoint by default during internal testing, so a
-  production-build issue can usually be inspected by connecting CDP to the running installed app
-  directly; whether that suffices or a dev relaunch is still needed depends on the problem at
-  hand. The `remoteDebugging` field in the Main-owned boot
-  config `<userData>/config/argv.jsonc` (Settings → "Remote debugging") turns it off on the next
-  launch (`src/main/remote-debugging.ts`).
+- Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` (`CAXRI_DEV_CDP_PORT` overrides),
+  and packaged (production) builds expose the same endpoint by default during internal testing.
+  The `debug` skill owns the live-inspection workflow, including the mandatory proxy-variable
+  workaround for `agent-browser connect` and the raw-CDP fallback.
 - Manage isolated worktrees by explicitly invoking `$switch-worktree`.
 - Format the repository: `bun run format`; verify formatting: `bun run format:check`
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
