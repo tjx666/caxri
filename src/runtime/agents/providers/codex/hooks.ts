@@ -18,7 +18,20 @@ function codexHome(homeDirectory: string, configured: string | undefined): strin
 }
 
 function hasInlineHooks(source: string | undefined): boolean {
-    return source !== undefined && /^\s*\[\[?hooks(?:\.|\]\]?)/m.test(source);
+    if (source === undefined) return false;
+    for (const line of source.split(/\r?\n/)) {
+        const section = line.match(/^\s*\[\[?([^\]]+)\]\]?\s*(?:#.*)?$/)?.[1]?.trim();
+        if (!section) continue;
+        if (section !== 'hooks' && !section.startsWith('hooks.')) continue;
+        /**
+         * `[hooks.state]` (and its per-hook subtables) is Codex's own approval bookkeeping — the trusted hashes it
+         * records for hooks installed in `hooks.json`, including the managed ones. Treating it as a user-defined inline
+         * hook would permanently block the managed install that produced those very records.
+         */
+        if (section === 'hooks.state' || section.startsWith('hooks.state.')) continue;
+        return true;
+    }
+    return false;
 }
 
 function disabledHookPolicy(source: string | undefined): string | undefined {
