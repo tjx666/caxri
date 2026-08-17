@@ -6,14 +6,20 @@ legitimately needs more bytes.
 
 ## Baseline (2026-08, arm64 dir target)
 
-| Artifact            | Size      | Dominant contents                                     |
-| ------------------- | --------- | ----------------------------------------------------- |
-| `Caxri.app` (total) | ~271 MiB  | Electron 43 framework (~230 MiB, fixed cost)          |
-| `app.asar`          | ~33.5 MiB | `out/` bundles + native-module JS shims               |
-| `app.asar.unpacked` | ~5.5 MiB  | better-sqlite3 / node-pty / @parcel/watcher binaries  |
-| `out/renderer`      | ~30.4 MiB | Monaco (~6.8 MiB JS + 15 MiB language workers), fonts |
-| `out/main`          | ~2.4 MiB  | Main + Host + Runtime with all pure-JS deps bundled   |
-| `out/preload`       | ~8 KiB    | Sandboxed preload bundles                             |
+| Artifact            | Size      | Dominant contents                                                  |
+| ------------------- | --------- | ------------------------------------------------------------------ |
+| `Caxri.app` (total) | ~276 MiB  | Electron 43 framework (~230 MiB, fixed cost)                       |
+| `app.asar`          | ~38.6 MiB | `out/` bundles + native-module JS shims                            |
+| `app.asar.unpacked` | ~5.5 MiB  | better-sqlite3 / node-pty / @parcel/watcher binaries               |
+| `out/renderer`      | ~35.4 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), fonts, vscode-icons (below) |
+| `out/main`          | ~2.4 MiB  | Main + Host + Runtime with all pure-JS deps bundled                |
+| `out/preload`       | ~8 KiB    | Sandboxed preload bundles                                          |
+
+The renderer carries the full `@yutengjing/vscode-icons` SVG set (~4.5 MiB across 1553 files,
+emitted as individual assets). This is a conscious budget increase, not drift: the Files inspector
+can encounter any file or folder name in a user's project at runtime, so there is no meaningful
+subset to tree-shake, and shipping the complete set is what makes icons match VS Code's
+vscode-icons extension.
 
 Pre-optimization the app was ~367 MiB on disk: 220 Electron locales (47 MiB), whole-package
 `node_modules` copies in the asar (drizzle-orm 14 MiB, zod 5.7 MiB, xterm 5 MiB, archiver's
