@@ -23,6 +23,7 @@ import {
     createLocalAgentAdapters,
     defaultAgentEnvironment,
 } from './agents';
+import { createBackgroundTasks } from './background-tasks';
 import { createServiceHandlers } from './bootstrap-service-handlers';
 import type { Runtime, RuntimeDependencies } from './bootstrap-types';
 import { DiagnosticsService } from './diagnostics';
@@ -32,6 +33,7 @@ import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
+import { createTerminalMoveHandler } from './terminal-move';
 import { createWorkbenchRootHandlers } from './workbench-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
@@ -396,34 +398,8 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             });
     }
 
-    /**
-     * File watching is recoverable background work (`FileWatcherService#watchSession` already catches and logs its own
-     * setup failures) and must never delay a Runtime IPC response, so every call site fires this without awaiting it.
-     */
-    function watchSessionInBackground(sessionId: string | undefined): void {
-        // This helper is intentionally synchronous (`void` return) so sync IPC handlers such as
-        // `project.delete` can call it without becoming `async`; it cannot `await` its own promise.
-        // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget helper, see comment above
-        files.watchSession(sessionId).catch((error: unknown) =>
-            logger.write('error', 'files.watch_session_failed', {
-                fields: { sessionId: sessionId ?? 'none', error: errorMessage(error, 'unknown') },
-            }),
-        );
-    }
-
-    /**
-     * Restoring interrupted Terminals spawns PTYs and probes Agent CLIs; it must never delay the triggering IPC
-     * response, so every call site fires this without awaiting it.
-     */
-    function restoreInterruptedTerminalsInBackground(sessionId: string): void {
-        // Same fire-and-forget rationale as `watchSessionInBackground` above.
-        // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget helper, see comment above
-        restoreInterruptedTerminals(sessionId).catch((error: unknown) =>
-            logger.write('error', 'terminal.restore_interrupted_failed', {
-                fields: { sessionId, error: errorMessage(error, 'unknown') },
-            }),
-        );
-    }
+    const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
+        createBackgroundTasks(logger, files, restoreInterruptedTerminals);
 
     const dispatchService = new AgentDispatchService({
         database,
@@ -456,6 +432,13 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         await git.close();
         database.close();
     }
+    const terminalMoveDependencies = {
+        coordinator,
+        database,
+        send,
+        terminals,
+        watchSessionInBackground,
+    };
     const handlers: RuntimeHandlers = {
         'agent.context': () => mainOwned('agent.context'),
         'agent.list': () => mainOwned('agent.list'),
@@ -518,6 +501,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
+        ...createTerminalMoveHandler(terminalMoveDependencies),
         'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
         'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),

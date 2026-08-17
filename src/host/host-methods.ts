@@ -64,6 +64,7 @@ export const hostForwardedMethods = [
     'terminal.create',
     'terminal.detach',
     'terminal.input',
+    'terminal.moveToNewSession',
     'terminal.resize',
     'terminal.resources',
     'terminal.restart',
