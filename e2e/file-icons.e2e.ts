@@ -18,7 +18,8 @@ test('Files inspector renders local file, folder, open, and fallback icons', asy
     await Promise.all([
         writeFile(join(root, 'package.json'), '{}\n', 'utf8'),
         writeFile(join(root, 'Component.test.tsx'), 'export {};\n', 'utf8'),
-        writeFile(join(root, 'LICENSE'), 'unknown extensionless file\n', 'utf8'),
+        // vscode-icons has no mapping for this name, so it exercises the default_file fallback.
+        writeFile(join(root, 'mystery.unknownext'), 'unknown extension file\n', 'utf8'),
     ]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
@@ -47,15 +48,12 @@ test('Files inspector renders local file, folder, open, and fallback icons', asy
 });
 
 test('Renderer build and package manifest include file-icon assets and attribution', async () => {
-    const assets = await readdir(join(projectRoot, 'out', 'renderer', 'assets'));
-    expect(
-        assets.some(
-            (file) => file.startsWith('folder_type_github_opened-') && file.endsWith('.svg'),
-        ),
-    ).toBe(true);
-    expect(
-        assets.some((file) => file.startsWith('file_type_typescript-') && file.endsWith('.svg')),
-    ).toBe(true);
+    // The vscode-icons SVGs are shipped verbatim through the renderer publicDir copy (electron.vite.config.ts),
+    // not as hashed bundle assets, so they land at out/renderer/icons/<name>.svg.
+    const icons = await readdir(join(projectRoot, 'out', 'renderer', 'icons'));
+    expect(icons).toContain('folder_type_github_opened.svg');
+    expect(icons).toContain('file_type_typescript.svg');
+    expect(icons).toContain('default_file.svg');
 
     const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8')) as {
         build: { files: string[] };
