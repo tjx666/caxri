@@ -79,6 +79,8 @@
                     ".agents/skills/acceptance/scripts/report.ts",
                     ".agents/skills/acceptance/scripts/start-electron.ts",
                     ".agents/skills/acceptance/scripts/stop-electron.ts",
+                    ".agents/skills/design-prototype/scripts/build-runtime.ts",
+                    ".agents/skills/design-prototype/scripts/verify-prototype.ts",
                     ".agents/skills/go/scripts/start.ts",
                     ".agents/skills/go/scripts/state.ts",
                     ".agents/skills/go/scripts/xterm-beta-line.ts",
@@ -106,7 +108,8 @@
                     "scripts/run-e2e-pools.ts"
                 ],
                 "ignore": [
-                    ".agents/skills/deep-review/scripts/vitest.config.ts"
+                    ".agents/skills/deep-review/scripts/vitest.config.ts",
+                    ".agents/skills/design-prototype/assets/**"
                 ]
             },
             "packages/cli": {

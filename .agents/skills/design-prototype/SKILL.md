@@ -59,23 +59,15 @@ per prototype (no build): single HTML  =  <script runtime + theme> + @tailwindcs
 
 ## Verify before delivering
 
-Headless-check it renders with zero console errors (the repo's root Playwright works):
+Headless-check it renders with zero console errors and that the semantic Tailwind
+tokens actually compiled, then capture a screenshot:
 
-```js
-// node /tmp/check.mjs — adjust paths
-import { chromium } from '<repo>/node_modules/playwright/index.mjs';
-const b = await chromium.launch();
-const p = await b.newPage({ viewport: { width: 1100, height: 700 } });
-const errs = [];
-p.on('pageerror', (e) => errs.push(String(e)));
-p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
-await p.goto('file:///tmp/my-proto/xxx.html');
-await p.waitForSelector('#root *', { timeout: 30000 });
-await p.waitForTimeout(500); // let @tailwindcss/browser finish compiling
-await p.screenshot({ path: '/tmp/proto.png' });
-console.log('errors:', errs);
-await b.close();
+```bash
+bun run .agents/skills/design-prototype/scripts/verify-prototype.ts /tmp/my-proto/xxx.html
 ```
+
+The script exits 1 on any page/console error and waits for a `bg-surface` probe to
+resolve (Tailwind finished compiling) instead of sleeping.
 
 Then **Read the screenshot** — a prototype is a visual deliverable; don't ship it
 sight-unseen. Click through every interactive state (the toggle strip, dialogs, menus)

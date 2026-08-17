@@ -30,7 +30,11 @@
         "**/*.sh",
         "scripts/fixtures/eslint/**",
         "scripts/fixtures/markdown/**",
-        ".claude/**"
+        ".claude/**",
+        // The design-prototype runtime manifest resolves its `@/` imports through esbuild
+        // `--alias` flags in build-runtime.ts, not tsconfig paths, so tsgolint sees error types.
+        ".agents/skills/design-prototype/assets/entry.mjs",
+        ".agents/skills/design-prototype/assets/*.js"
     ],
     "rules": {
         // The type-aware subset the repository previously enabled through
