@@ -157,13 +157,14 @@ const rows: SettingRowDescriptor[] = [
         category: 'security',
         title: 'Remote debugging (CDP)',
         description:
-            'Expose Chrome DevTools Protocol on 127.0.0.1:9223 for agent tooling; takes effect ' +
-            'after restarting Caxri',
+            'Expose Chrome DevTools Protocol on 127.0.0.1:9224 (9223 in dev launches) for agent ' +
+            'tooling; takes effect after restarting Caxri',
         binding: { type: 'remote-debugging' },
         haystack: lower([
             'remote debugging',
             'cdp',
             'chrome devtools protocol',
+            'port 9224',
             'port 9223',
             'inspect',
         ]),

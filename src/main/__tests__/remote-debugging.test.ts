@@ -56,10 +56,10 @@ describe('enableRemoteDebugging', () => {
         },
     );
 
-    it('exposes CDP on packaged launches when no argv config exists', () => {
+    it('exposes CDP on the production port for packaged launches when no argv config exists', () => {
         const { app, appended } = createFakeApp({ isPackaged: true });
         enableRemoteDebugging(app, {});
-        expect(appended).toEqual([{ key: 'remote-debugging-port', value: '9223' }]);
+        expect(appended).toEqual([{ key: 'remote-debugging-port', value: '9224' }]);
     });
 
     it('skips CDP on packaged launches when the argv config disables it', () => {

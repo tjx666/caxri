@@ -14,7 +14,7 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
     readFile: readFileMock,
 }));
 
-import { discoverHostManifest, ensureHost } from '../client';
+import { discoverHostManifest, ensureHost, HostClient } from '../client';
 
 const temporaryDirectories: string[] = [];
 
@@ -24,6 +24,77 @@ afterEach(async () => {
     const pending = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(pending.map((path) => rm(path, { recursive: true, force: true })));
+});
+
+describe('HostClient close notification', () => {
+    /**
+     * The constructor is TypeScript-private (real attachments go through `HostClient.connect`), so this narrow
+     * lifecycle test instantiates it directly with a socket stand-in.
+     */
+    function createAttachedClient() {
+        const listeners = new Map<string, Array<(...arguments_: unknown[]) => void>>();
+        const socket = {
+            destroy: vi.fn(() => socket.emit('close')),
+            emit(name: string, ...arguments_: unknown[]): void {
+                const registered = listeners.get(name) ?? [];
+                for (const listener of registered) listener(...arguments_);
+            },
+            on(name: string, listener: (...arguments_: unknown[]) => void) {
+                listeners.set(name, [...(listeners.get(name) ?? []), listener]);
+                return socket;
+            },
+            write: vi.fn(),
+        };
+        const construct = HostClient as unknown as new (
+            socket: unknown,
+            welcome: unknown,
+            timeoutMs: number,
+        ) => HostClient;
+        return { client: new construct(socket, { protocolVersion: 1 }, 1000), socket };
+    }
+
+    it('notifies onClose listeners exactly once when the socket closes', () => {
+        const { client, socket } = createAttachedClient();
+        const listener = vi.fn();
+        client.onClose(listener);
+
+        socket.emit('close');
+        socket.emit('close');
+        socket.emit('error', new Error('late failure'));
+
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('fires a listener registered after closure synchronously', () => {
+        const { client, socket } = createAttachedClient();
+        socket.emit('close');
+        const listener = vi.fn();
+
+        client.onClose(listener);
+
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops notifying an unsubscribed listener', () => {
+        const { client, socket } = createAttachedClient();
+        const listener = vi.fn();
+        const unsubscribe = client.onClose(listener);
+        unsubscribe();
+
+        socket.emit('close');
+
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('notifies onClose on an explicit local close()', () => {
+        const { client } = createAttachedClient();
+        const listener = vi.fn();
+        client.onClose(listener);
+
+        client.close();
+
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('Host discovery', () => {

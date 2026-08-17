@@ -344,6 +344,7 @@ export class HostClient {
 
     private readonly decoder = new LocalJsonLineDecoder();
     private readonly eventListeners = new Set<(event: LocalServerEvent['event']) => void>();
+    private readonly closeListeners = new Set<() => void>();
     private readonly pending = new Map<string, PendingRequest>();
     private closed = false;
     private leaseRenewalTimer?: NodeJS.Timeout;
@@ -512,6 +513,9 @@ export class HostClient {
             pending.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection closed'));
         }
         this.pending.clear();
+        const listeners = [...this.closeListeners];
+        this.closeListeners.clear();
+        for (const listener of listeners) listener();
     }
 
     private sendRequest(id: string, method: CaxriMethod, parameters: unknown): Promise<unknown> {
@@ -606,6 +610,19 @@ export class HostClient {
     onEvent(listener: (event: LocalServerEvent['event']) => void): () => void {
         this.eventListeners.add(listener);
         return () => this.eventListeners.delete(listener);
+    }
+
+    /**
+     * Notifies once when this connection closes for any reason (socket loss, protocol failure, or an explicit
+     * `close()`). A listener registered after closure fires synchronously so callers cannot miss the transition.
+     */
+    onClose(listener: () => void): () => void {
+        if (this.closed) {
+            listener();
+            return () => {};
+        }
+        this.closeListeners.add(listener);
+        return () => this.closeListeners.delete(listener);
     }
 
     /**

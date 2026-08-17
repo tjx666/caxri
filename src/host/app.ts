@@ -440,6 +440,9 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     return {
                         profileId: lease.manifest.profileId,
                         version: options.version,
+                        ...(process.env.CAXRI_GIT_COMMIT && {
+                            commit: process.env.CAXRI_GIT_COMMIT,
+                        }),
                         pid: process.pid,
                         ...(supervisor.processId() && { runtimePid: supervisor.processId() }),
                         startedAt,
