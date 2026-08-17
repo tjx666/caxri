@@ -91,6 +91,116 @@ describe('AgentCoordinator provider switch', () => {
         }
     });
 
+    it('switches after an alias-launched different provider is confirmed by the process probe', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-switch-alias-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const detectForegroundAgent = vi.fn(() => Promise.resolve('claude' as const));
+        const coordinator = new AgentCoordinator(
+            database,
+            new AgentService(undefined, {
+                claude: {
+                    provider: 'claude',
+                    snapshot: () =>
+                        Promise.resolve({
+                            provider: 'claude',
+                            status: 'running',
+                            observedAt: Date.now(),
+                            available: true,
+                        }),
+                },
+                codex: {
+                    provider: 'codex',
+                    snapshot: () =>
+                        Promise.resolve({
+                            provider: 'codex',
+                            status: 'running',
+                            observedAt: Date.now(),
+                            available: true,
+                        }),
+                },
+            }),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            { detectForegroundAgent, refreshDelayMs: 5 },
+        );
+
+        try {
+            // The submitted command names neither provider, so only the process probe can identify the launch.
+            coordinator.observeInput(created.terminal!.id, 'ccy --continue\r');
+            coordinator.observeOutput(created.terminal!.id, 4242);
+
+            await expect
+                .poll(() => database.getTerminal(created.terminal!.id)?.provider)
+                .toBe('claude');
+            expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+                icon: 'claude',
+                kind: 'claude',
+            });
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('switches through provider metadata when process inspection cannot identify the agent', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-switch-metadata-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        // The process probe never recognizes the new agent (e.g. an unrecognized install shape).
+        const detectForegroundAgent = vi.fn(() => Promise.resolve(undefined));
+        const claudeSnapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'claude-metadata-session',
+                title: 'Claude confirmed by metadata',
+            }),
+        );
+        const codexSnapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            new AgentService(undefined, {
+                claude: { provider: 'claude', snapshot: claudeSnapshot },
+                codex: { provider: 'codex', snapshot: codexSnapshot },
+            }),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            { detectForegroundAgent, refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.observeInput(created.terminal!.id, 'claude\r');
+            coordinator.observeOutput(created.terminal!.id, 4242);
+
+            await expect
+                .poll(() => database.getTerminal(created.terminal!.id)?.provider)
+                .toBe('claude');
+            expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+                agentSessionId: 'claude-metadata-session',
+                icon: 'claude',
+                kind: 'claude',
+            });
+            await expect
+                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .toBe('Claude confirmed by metadata');
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('keeps the bound provider while the foreground process still matches it', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-switch-noop-'));
         temporaryDirectories.push(directory);

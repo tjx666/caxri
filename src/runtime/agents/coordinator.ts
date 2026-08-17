@@ -32,6 +32,12 @@ interface ShellPromotionCandidate {
     attempts: number;
     expiresAt: number;
     nextProcessProbeAt: number;
+    /**
+     * How the candidate was opened. Only an input-opened candidate (the user submitted a command at the prompt) may be
+     * confirmed by provider metadata: hook signals are inherited by nested agent tool-calls, which also create real
+     * provider sessions in the same cwd, so a hook-opened candidate must wait for the foreground-process probe.
+     */
+    origin: 'hook' | 'input';
     processProbes: number;
     provider?: AgentProvider;
     startedAt: number;
@@ -194,6 +200,7 @@ export class AgentCoordinator {
                 await this.probeShellPromotion(terminal, shouldRetryClaim);
                 return;
             }
+            if (await this.probeProviderSwitch(terminal)) return;
             const session = this.database.getSession(terminal.sessionId);
             if (!session) return;
             const excludedAgentSessionIds = [
@@ -242,6 +249,68 @@ export class AgentCoordinator {
                 },
             });
         }
+    }
+
+    /**
+     * Metadata fallback for an input-opened switch candidate on an already-bound Agent Terminal. The foreground-process
+     * probe cannot recognize every install shape (native binaries hide behind interpreters, sandboxes can block `ps`),
+     * so a direct different-provider command the user submitted at the prompt may instead be confirmed by the candidate
+     * provider reporting a session that started inside the candidate window. Hook-opened candidates stay excluded: a
+     * nested agent tool-call also creates a real provider session, which only the process probe can tell apart.
+     */
+    private async probeProviderSwitch(terminal: TerminalRecord): Promise<boolean> {
+        const candidate = this.shellPromotionCandidates.get(terminal.id);
+        if (
+            candidate?.origin !== 'input' ||
+            !candidate.provider ||
+            candidate.provider === terminal.provider
+        ) {
+            return false;
+        }
+        if (candidate.expiresAt < Date.now()) {
+            this.shellPromotionCandidates.delete(terminal.id);
+            return false;
+        }
+        const provider = candidate.provider;
+        candidate.attempts += 1;
+        const snapshot = await this.agents.snapshot(provider, {
+            correlationId: `${terminal.id}:provider-switch:${candidate.startedAt}`,
+            excludedAgentSessionIds: this.database.claimedAgentSessionIdsForProvider(
+                provider,
+                terminal.id,
+            ),
+            rootPath: terminal.cwd,
+            processState: terminal.lastProcessState,
+            startedAt: candidate.startedAt,
+        });
+        if (
+            this.shellPromotionCandidates.get(terminal.id) !== candidate ||
+            candidate.expiresAt < Date.now()
+        ) {
+            return false;
+        }
+        if (
+            !snapshot.sessionId ||
+            this.database.isAgentSessionClaimedByOtherTerminal(terminal.id, snapshot.sessionId)
+        ) {
+            if (candidate.attempts < MAX_SHELL_PROMOTION_PROBES)
+                this.refreshes.schedule(terminal.id);
+            return false;
+        }
+        if (!this.database.switchAgentProvider(terminal.id, provider)) return false;
+        /**
+         * Invalidate in-flight probes for the previous provider and drop its hook status authority so a late result
+         * cannot republish the old identity over the switched one.
+         */
+        this.probeGenerations.set(terminal.id, (this.probeGenerations.get(terminal.id) ?? 0) + 1);
+        this.hookAuthoritativeLaunchIds.delete(terminal.id);
+        this.database.rebindAgentSession(terminal.id, provider, snapshot.sessionId);
+        this.shellInputs.delete(terminal.id);
+        this.shellPromotionCandidates.delete(terminal.id);
+        this.startedAtByTerminal.set(terminal.id, candidate.startedAt);
+        this.emitAgentMetadataChange(terminal.id);
+        this.refreshes.schedule(terminal.id);
+        return true;
     }
 
     private async probeShellPromotion(
@@ -300,17 +369,28 @@ export class AgentCoordinator {
         if (!terminal) return;
         const startedAt = Date.now();
         if (terminal.provider) {
-            const provider = directAgentProvider(command);
-            if (provider && provider !== terminal.provider) {
-                this.shellPromotionCandidates.set(terminalId, {
-                    attempts: 0,
-                    expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
-                    nextProcessProbeAt: 0,
-                    processProbes: 0,
-                    provider,
-                    startedAt,
-                });
+            /**
+             * After the bound agent exits, the user can relaunch a different agent through an alias or a history
+             * recall, so any inspectable command opens a switch candidate. The foreground-process probe (or, for a
+             * direct different-provider command, its metadata fallback) must still confirm before identity moves; a
+             * same-provider or unconfirmed command changes nothing.
+             */
+            if (!canInspectShellLaunch(command)) {
+                this.shellPromotionCandidates.delete(terminalId);
+                return;
             }
+            const provider = directAgentProvider(command);
+            if (provider === terminal.provider) return;
+            this.shellPromotionCandidates.set(terminalId, {
+                attempts: 0,
+                expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
+                nextProcessProbeAt: 0,
+                origin: 'input',
+                processProbes: 0,
+                provider,
+                startedAt,
+            });
+            if (provider) this.refreshes.schedule(terminalId);
             return;
         }
         if (canInspectShellLaunch(command)) {
@@ -319,6 +399,7 @@ export class AgentCoordinator {
                 attempts: 0,
                 expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
                 nextProcessProbeAt: 0,
+                origin: 'input',
                 processProbes: 0,
                 provider,
                 startedAt,
@@ -435,6 +516,7 @@ export class AgentCoordinator {
                     attempts: 0,
                     expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
                     nextProcessProbeAt: 0,
+                    origin: 'hook',
                     processProbes: 0,
                     provider: signal.provider,
                     startedAt,
