@@ -39,7 +39,7 @@ interface SessionViewState {
      * Least-recently-used order per Session, most recent last. Drives {@link evictExcess}.
      */
     recentDocuments: Record<string, string[]>;
-    activateWork(item: WorkItem): void;
+    activateWork(item: WorkItem, options?: { editorGroupId?: string }): void;
     setActiveWork(sessionId: string, item?: WorkItem, workbenchProjectId?: string): void;
     cacheDocument(sessionId: string, document: EditorDocument, workbenchProjectId?: string): void;
     cacheDocuments(
@@ -185,13 +185,13 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
      * persisted `sessionState.activeTab` (and, for a Terminal, the layout's active group) in one update.
      * `resolveActiveWork` is the corresponding single read path.
      */
-    activateWork(item) {
+    activateWork(item, options) {
         const sessionId = getSelectedSession()?.id;
         if (!sessionId) return;
         get().setActiveWork(sessionId, item);
         const current = getSessionState();
         if (!current) return;
-        const next = activateWorkState(current, item);
+        const next = activateWorkState(current, item, options?.editorGroupId);
         if (next !== current) patchSessionState(next);
     },
 

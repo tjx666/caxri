@@ -1,4 +1,12 @@
 import { pathBasename } from '@caxri/utils';
+import {
+    activeLayoutPath,
+    addEditorPath,
+    remapEditorLayoutPaths,
+    removeEditorPath,
+    removeEditorPathsUnder,
+    sessionEditorLayout,
+} from '@shared/editor-layout';
 import type { EditorTabCloseMode } from '@shared/editor-state';
 import {
     editorTabPathsToClose,
@@ -129,7 +137,16 @@ function openEditorTabForSession(
         view.evictDocument(session.id, opened.replacedPath, workbenchProjectId);
     const item: WorkItem = { kind: 'editor', path };
     view.setActiveWork(session.id, item, workbenchProjectId);
-    const next = activateWorkState(opened.state, item);
+    // A replaced preview tab leaves the layout tree in the same update; the opened path always
+    // lands in the active group so the tree mirrors `openTabs` exactly.
+    let editorLayout = sessionEditorLayout(opened.state);
+    if (opened.replacedPath) editorLayout = removeEditorPath(editorLayout, opened.replacedPath);
+    editorLayout = addEditorPath(editorLayout, path);
+    const layoutState =
+        editorLayout === opened.state.editorLayout
+            ? opened.state
+            : { ...opened.state, editorLayout };
+    const next = activateWorkState(layoutState, item);
     /**
      * Session persistence rollback must also undo the Renderer-owned half of preview replacement.
      */
@@ -353,14 +370,22 @@ function applyEditorTabClose(
     const closing = new Set(paths);
     for (const path of paths) useSessionViewStore.getState().evictDocument(session.id, path);
     const openTabs = current.openTabs.filter((tab) => !closing.has(tab.path));
+    let editorLayout = sessionEditorLayout(current);
+    for (const path of paths) editorLayout = removeEditorPath(editorLayout, path);
     const wasActive = current.activeTab?.kind === 'editor' && closing.has(current.activeTab.path);
     if (!wasActive) {
-        patchSessionState({ ...current, openTabs });
+        patchSessionState({ ...current, openTabs, editorLayout });
         return;
     }
     const targetIndex = current.openTabs.findIndex((tab) => tab.path === targetPath);
+    // The layout tree already tracks which tab the surviving active group shows, so it decides the
+    // fallback before the historical index heuristic.
+    const layoutFallbackPath = activeLayoutPath(editorLayout);
     const fallbackPath =
         openTabs.find((tab) => tab.path === targetPath)?.path ??
+        (layoutFallbackPath && openTabs.some((tab) => tab.path === layoutFallbackPath)
+            ? layoutFallbackPath
+            : undefined) ??
         openTabs[clamp(targetIndex, 0, openTabs.length - 1)]?.path;
     const sessionTerminals = getSessionTerminals();
     const nextItem: WorkItem | undefined = fallbackPath
@@ -375,8 +400,8 @@ function applyEditorTabClose(
      */
     patchSessionState(
         nextItem
-            ? activateWorkState({ ...current, openTabs }, nextItem)
-            : { ...current, openTabs, activeTab: undefined },
+            ? activateWorkState({ ...current, openTabs, editorLayout }, nextItem)
+            : { ...current, openTabs, editorLayout, activeTab: undefined },
     );
 }
 
@@ -468,6 +493,7 @@ function remapOpenEditorsInSession(
         ...current,
         openTabs,
         activeTab,
+        editorLayout: remapEditorLayoutPaths(sessionEditorLayout(current), previousPath, nextPath),
         ...(operationId && { editorRemapOperationId: operationId }),
     };
     const failureLabel = 'Moved editor state could not be saved';
@@ -537,6 +563,7 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
     const closing = new Set(closingPaths);
     const firstClosingIndex = current.openTabs.findIndex((tab) => closing.has(tab.path));
     const openTabs = current.openTabs.filter((tab) => !closing.has(tab.path));
+    const editorLayout = removeEditorPathsUnder(sessionEditorLayout(current), path);
     const sessionTerminals =
         bootstrap?.terminals.filter((terminal) => terminal.sessionId === sessionId) ?? [];
     const resolvedActive = resolveActiveWork({
@@ -549,7 +576,7 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
         (current.activeTab?.kind === 'editor' && closing.has(current.activeTab.path));
     useSessionViewStore.getState().evictDocumentsUnderPath(sessionId, path);
     if (!isActiveWasClosed) {
-        patchSessionState({ ...current, openTabs });
+        patchSessionState({ ...current, openTabs, editorLayout });
         return;
     }
     const fallbackPath = openTabs[clamp(firstClosingIndex, openTabs.length - 1)]?.path;
@@ -564,8 +591,8 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
     useSessionViewStore.getState().setActiveWork(sessionId, nextItem);
     patchSessionState(
         nextItem
-            ? activateWorkState({ ...current, openTabs }, nextItem)
-            : { ...current, openTabs, activeTab: undefined },
+            ? activateWorkState({ ...current, openTabs, editorLayout }, nextItem)
+            : { ...current, openTabs, editorLayout, activeTab: undefined },
         'Trashed editor state could not be saved',
     );
 }

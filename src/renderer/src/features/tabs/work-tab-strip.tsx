@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import { pathBasename } from '@caxri/utils';
+import { findPathGroupId, sessionEditorLayout } from '@shared/editor-layout';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
 import type { TerminalRecord } from '@shared/types';
 import type { WorkItem } from '@shared/work-item';
@@ -41,6 +42,8 @@ import {
     pinEditorTab,
     selectEditorTab,
 } from '../editor/document-actions';
+import { encodeEditorDragPayload } from '../editor/editor-drop-zone';
+import { EDITOR_DRAG_TYPE, splitEditorTabTo } from '../editor/editor-layout-actions';
 import { moveTerminalToNewSession } from '../session/session-actions';
 import {
     activateTerminal,
@@ -171,8 +174,12 @@ function EditorWorkTab({
                   ?.dirty
             : false,
     );
-    const openTabs = useSessionState()?.openTabs ?? [];
+    const sessionState = useSessionState();
+    const openTabs = sessionState?.openTabs ?? [];
     const index = openTabs.findIndex((tab) => tab.path === path);
+    const groupId = sessionState
+        ? findPathGroupId(sessionEditorLayout(sessionState), path)
+        : undefined;
     return (
         <WorkTab
             active={active}
@@ -193,6 +200,14 @@ function EditorWorkTab({
             onClose={() => {
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, closeEditor() reports its own errors
                 void closeEditor(path);
+            }}
+            onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData(
+                    EDITOR_DRAG_TYPE,
+                    encodeEditorDragPayload({ path, sourceGroupId: groupId }),
+                );
+                event.dataTransfer.setData('text/plain', path);
             }}
             onKeyDown={(event) => {
                 if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -236,6 +251,31 @@ function EditorWorkTab({
                         }}
                     >
                         Close All
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                        disabled={!groupId}
+                        onClick={() => groupId && splitEditorTabTo(path, groupId, 'left')}
+                    >
+                        Split Left
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                        disabled={!groupId}
+                        onClick={() => groupId && splitEditorTabTo(path, groupId, 'right')}
+                    >
+                        Split Right
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                        disabled={!groupId}
+                        onClick={() => groupId && splitEditorTabTo(path, groupId, 'up')}
+                    >
+                        Split Up
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                        disabled={!groupId}
+                        onClick={() => groupId && splitEditorTabTo(path, groupId, 'down')}
+                    >
+                        Split Down
                     </ContextMenuItem>
                 </ContextMenuContent>
             }

@@ -4,6 +4,8 @@ import type { OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
 import type { ThemeTokens } from '@shared/types';
 
+import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
+
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { configEditorClassName } from '../../lib/utilities';
 
@@ -25,6 +27,7 @@ export function ConfigEditor({
     onChange,
 }: ConfigEditorProperties) {
     useEffect(() => applyEditorTheme(theme), [theme]);
+    const fontFamily = useEditorFontFamily();
 
     // Monaco renders its own textarea, so `onMount` wires the blur-commit trigger directly to
     // that editable surface instead of the wrapping `<div>`. A ref keeps the callback current
@@ -51,6 +54,7 @@ export function ConfigEditor({
                 options={{
                     ariaLabel,
                     automaticLayout: true,
+                    ...(fontFamily && { fontFamily }),
                     fontSize: 12,
                     lineNumbersMinChars: 3,
                     minimap: { enabled: false },

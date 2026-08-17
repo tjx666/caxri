@@ -47,6 +47,13 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'project', group: 0, order: 1 },
     },
     {
+        id: 'project.openInEditor',
+        title: 'Open Project in External Editor',
+        category: 'Project',
+        description: 'Open the selected Project root in the configured external editor',
+        nativeMenu: { menu: 'project', group: 1, order: 0 },
+    },
+    {
         id: 'session.create',
         title: 'New Session',
         category: 'Session',
@@ -163,6 +170,30 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Save File',
         category: 'Editor',
         description: 'Save the active file',
+    },
+    {
+        id: 'editor.splitLeft',
+        title: 'Split Editor Left',
+        category: 'Editor',
+        description: 'Split the active Editor tab into a new group to the left',
+    },
+    {
+        id: 'editor.splitRight',
+        title: 'Split Editor Right',
+        category: 'Editor',
+        description: 'Split the active Editor tab into a new group to the right',
+    },
+    {
+        id: 'editor.splitUp',
+        title: 'Split Editor Up',
+        category: 'Editor',
+        description: 'Split the active Editor tab into a new group above',
+    },
+    {
+        id: 'editor.splitDown',
+        title: 'Split Editor Down',
+        category: 'Editor',
+        description: 'Split the active Editor tab into a new group below',
     },
     ...inspectorModeRegistrations.map(({ commandDescription, commandId, commandTitle }) => ({
         id: inspectorCommandId(commandId),

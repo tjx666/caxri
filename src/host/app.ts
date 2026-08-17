@@ -480,6 +480,11 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                         throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
                     return desktopRouter.open('reveal', undefined, request.params);
                 }
+                case 'project.openInEditor': {
+                    if (!desktopRouter)
+                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                    return desktopRouter.open('openInEditor', 'directory', request.params);
+                }
                 case 'host.stop': {
                     if (isMutationAdmissionClosed)
                         throw new CaxriError('CONFLICT', 'Host stop is already in progress');

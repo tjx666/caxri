@@ -1,4 +1,5 @@
 import type { WorkItem } from '../../packages/protocol/src/domain/work-item';
+import { selectEditorPath, sessionEditorLayout } from './editor-layout';
 import { activeLayoutTerminalId, firstLayoutTerminalId, selectTerminal } from './terminal-layout';
 import type { SessionState } from './types';
 
@@ -66,14 +67,22 @@ export function resolveActiveWork(parameters: {
 }
 
 /**
- * The single write path for "activate this WorkItem": persists `activeTab` and, for a Terminal, syncs the Terminal
- * layout's active group/Terminal in the same update. Returns `state` unchanged when activation is a no-op, so callers
+ * The single write path for "activate this WorkItem": persists `activeTab` and, for a Terminal or editor tab, syncs the
+ * matching layout tree's active group in the same update. `editorGroupId` pins an editor activation to a specific pane
+ * when the same path is open in more than one group. Returns `state` unchanged when activation is a no-op, so callers
  * can skip persisting. app.tsx's `activateWork` wraps this with the local `activeWork` state setter.
  */
-export function activateWorkState(state: SessionState, item: WorkItem): SessionState {
+export function activateWorkState(
+    state: SessionState,
+    item: WorkItem,
+    editorGroupId?: string,
+): SessionState {
     if (item.kind !== 'terminal') {
-        if (areWorkItemsEqual(state.activeTab, item)) return state;
-        return { ...state, activeTab: item };
+        const editorLayout = sessionEditorLayout(state);
+        const nextLayout = selectEditorPath(editorLayout, item.path, editorGroupId);
+        if (areWorkItemsEqual(state.activeTab, item) && nextLayout === state.editorLayout)
+            return state;
+        return { ...state, activeTab: item, editorLayout: nextLayout };
     }
     const isAlreadyActive = activeLayoutTerminalId(state.layout) === item.terminalId;
     if (isAlreadyActive && areWorkItemsEqual(state.activeTab, item)) return state;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { addEditorPath, createEditorLayout, splitEditorPath } from '../editor-layout';
 import { createTerminalLayout, splitTerminal } from '../terminal-layout';
 import type { SessionState } from '../types';
 import { activateWorkState, areWorkItemsEqual, resolveActiveWork, workItemKey } from '../work-item';
@@ -152,5 +153,75 @@ describe('activateWorkState', () => {
         expect(activateWorkState(state, { kind: 'terminal', terminalId: 'terminal-1' })).toBe(
             state,
         );
+    });
+
+    it('activating an editor tab syncs the persisted tree active group and active path', () => {
+        let editorLayout = createEditorLayout('/a.ts', ids);
+        const firstGroupId = editorLayout.activeGroupId!;
+        editorLayout = splitEditorPath(editorLayout, '/b.ts', firstGroupId, 'right', ids);
+        const state = baseState({
+            openTabs: [
+                { path: '/a.ts', dirty: false },
+                { path: '/b.ts', dirty: false },
+            ],
+            activeTab: { kind: 'editor', path: '/b.ts' },
+            editorLayout,
+        });
+
+        const next = activateWorkState(state, { kind: 'editor', path: '/a.ts' });
+
+        expect(next.activeTab).toEqual({ kind: 'editor', path: '/a.ts' });
+        expect(next.editorLayout?.activeGroupId).toBe(firstGroupId);
+        expect(next.editorLayout).not.toBe(editorLayout);
+    });
+
+    it('activating a duplicated path can pin a non-active group', () => {
+        let editorLayout = createEditorLayout('/a.ts', ids);
+        const firstGroupId = editorLayout.activeGroupId!;
+        editorLayout = addEditorPath(editorLayout, '/b.ts', firstGroupId, ids);
+        editorLayout = splitEditorPath(editorLayout, '/a.ts', firstGroupId, 'right', ids);
+        const state = baseState({
+            openTabs: [
+                { path: '/a.ts', dirty: false },
+                { path: '/b.ts', dirty: false },
+            ],
+            activeTab: { kind: 'editor', path: '/a.ts' },
+            editorLayout,
+        });
+
+        const next = activateWorkState(state, { kind: 'editor', path: '/a.ts' }, firstGroupId);
+
+        expect(next.editorLayout?.activeGroupId).toBe(firstGroupId);
+        expect(next).not.toBe(state);
+    });
+
+    it('activating the already-active editor path is a referential no-op', () => {
+        const editorLayout = createEditorLayout('/a.ts', ids);
+        const state = baseState({
+            openTabs: [{ path: '/a.ts', dirty: false }],
+            activeTab: { kind: 'editor', path: '/a.ts' },
+            editorLayout,
+        });
+
+        expect(activateWorkState(state, { kind: 'editor', path: '/a.ts' })).toBe(state);
+    });
+
+    it('derives the tree from openTabs when the state has no persisted editorLayout', () => {
+        const state = baseState({
+            openTabs: [
+                { path: '/a.ts', dirty: false },
+                { path: '/b.ts', dirty: false },
+            ],
+        });
+        expect(state.editorLayout).toBeUndefined();
+
+        const next = activateWorkState(state, { kind: 'editor', path: '/b.ts' });
+
+        expect(next.activeTab).toEqual({ kind: 'editor', path: '/b.ts' });
+        expect(next.editorLayout?.root).toMatchObject({
+            type: 'group',
+            paths: ['/a.ts', '/b.ts'],
+            activePath: '/b.ts',
+        });
     });
 });

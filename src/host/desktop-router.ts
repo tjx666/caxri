@@ -18,7 +18,7 @@ interface StoredTarget {
     expiresAt: number;
     generation: number;
     id: string;
-    operation: 'open' | 'reveal';
+    operation: 'open' | 'openInEditor' | 'reveal';
     projectId: string;
     sessionId: string;
 }
@@ -88,7 +88,7 @@ export class HostDesktopRouter {
     }
 
     private issueTarget(
-        operation: 'open' | 'reveal',
+        operation: 'open' | 'openInEditor' | 'reveal',
         generation: number,
         resolved: { entry: AuthorizedEntry; projectId: string; sessionId: string },
     ): StoredTarget {
@@ -200,11 +200,11 @@ export class HostDesktopRouter {
     }
 
     async open(
-        operation: 'open' | 'reveal',
+        operation: 'open' | 'openInEditor' | 'reveal',
         requestedKind: 'directory' | 'file' | undefined,
         parameters: { launchIfNeeded: boolean; path: string; sessionId?: string },
     ): Promise<{
-        state: 'requested' | 'revealed';
+        state: 'opened' | 'requested' | 'revealed';
         generation: number;
         projectId: string;
         sessionId: string;
@@ -235,7 +235,12 @@ export class HostDesktopRouter {
             /**
              * Renderer work is intentionally one-shot and asynchronous after Main dispatches it.
              */
-            state: operation === 'reveal' ? 'revealed' : 'requested',
+            state:
+                operation === 'reveal'
+                    ? 'revealed'
+                    : operation === 'openInEditor'
+                      ? 'opened'
+                      : 'requested',
             generation: lease.generation,
             projectId: resolved.projectId,
             sessionId: resolved.sessionId,

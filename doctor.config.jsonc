@@ -50,8 +50,8 @@
                 "rules": ["react-doctor/no-array-index-as-key"],
             },
             {
-                // Socket scores @lobehub/assets-fileicon low on popularity, but it is the
-                // official LobeHub asset package and this project's owner maintains LobeHub.
+                // Socket scores @yutengjing/vscode-icons low on popularity because it is a
+                // freshly published package, but this project's owner maintains it.
                 "files": ["package.json"],
                 "rules": ["socket/low-supply-chain-score"],
             },

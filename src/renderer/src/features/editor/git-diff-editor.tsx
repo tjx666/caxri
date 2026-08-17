@@ -9,6 +9,8 @@ import { gitDiffModelPath } from '@shared/git-diff';
 import type { GitDiffDocument, GitFileStatus } from '@shared/types';
 import { ChevronDown, ChevronRight, FileSymlink } from 'lucide-react';
 
+import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
+
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
@@ -86,6 +88,7 @@ function DiffSurface({
 }) {
     const theme = useTheme();
     const editorReference = useRef<MonacoDiffEditor | null>(null);
+    const fontFamily = useEditorFontFamily();
     const contentSizeListeners = useRef<Array<{ dispose(): void }>>([]);
     useEffect(() => {
         if (theme) applyEditorTheme(theme);
@@ -156,6 +159,7 @@ function DiffSurface({
                 }}
                 options={{
                     automaticLayout: true,
+                    ...(fontFamily && { fontFamily }),
                     fontSize: 13,
                     minimap: { enabled: false },
                     readOnly: true,
@@ -201,6 +205,7 @@ function DiffSurface({
             }}
             options={{
                 automaticLayout: true,
+                ...(fontFamily && { fontFamily }),
                 fontSize: 13,
                 minimap: { enabled: false },
                 originalEditable: false,
