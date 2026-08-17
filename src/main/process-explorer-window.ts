@@ -11,6 +11,7 @@ import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
 import type { RendererErrorKind } from '../shared/renderer-error';
 import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '../shared/renderer-error';
 import type { ThemeTokens } from '../shared/types';
+import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import type { ProcessExplorerSampler } from './process-explorer';
 import { resolveRendererEntryUrl } from './renderer-entry';
@@ -147,7 +148,7 @@ export class ProcessExplorerWindowController {
         window.webContents.on('console-message', (details) => {
             if (details.level !== 'error') return;
             this.options.logger.write('error', 'process_explorer.console_error', {
-                fields: { code: 'CONSOLE_ERROR' },
+                fields: consoleErrorLogFields(details),
             });
         });
         window.webContents.on('preload-error', () => {
