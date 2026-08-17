@@ -156,6 +156,21 @@ export function deleteSelectedProject(): void {
     });
 }
 
+export function openSelectedProjectInExternalEditor(): void {
+    const bootstrap = getBootstrap();
+    const project = selectSelectedProject(bootstrap);
+    if (!bootstrap || !project) return;
+    const session = getSelectedSession();
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand('Opening the Project in the external editor failed', () =>
+        caxri.request('project.openInEditor', {
+            path: project.rootPath,
+            ...(session?.projectId === project.id && { sessionId: session.id }),
+        }),
+    );
+}
+
 export function deleteSession(sessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

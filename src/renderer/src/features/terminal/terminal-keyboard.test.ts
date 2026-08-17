@@ -19,7 +19,7 @@ function keyEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
 }
 
 describe('terminalKeyboardInput', () => {
-    it('maps Shift+Enter to Codex multiline input only for Codex Terminals', () => {
+    it('maps Shift+Enter to ESC+CR newline input only for Agent Terminals', () => {
         const event = keyEvent({ key: 'Enter', shiftKey: true });
         expect(terminalKeyboardInput(event, true)).toBe('\u{1B}\r');
         expect(terminalKeyboardInput(event, false)).toBeUndefined();

@@ -27,6 +27,7 @@ import {
     startNewAgentSession,
 } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
+import { terminalFontFamily } from './terminal-fonts';
 import type { TerminalSearchOptions } from './terminal-search';
 import {
     initialTerminalSearchState,
@@ -151,6 +152,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const theme = useTheme();
     const settings = useSettings();
     const attachEpoch = useWorkbenchStore((state) => state.attachEpoch);
+    const fontFamily = terminalFontFamily(settings?.['terminal.fontFamily']);
     const fontSize = settings?.['terminal.fontSize'] ?? 13;
     const scrollback = settings?.['terminal.scrollback'] ?? 1_000;
     const isCopyOnSelect = settings?.['terminal.copyOnSelect'] ?? true;
@@ -158,6 +160,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const isOsc52ClipboardWrite = settings?.['terminal.osc52ClipboardWrite'] ?? false;
     const processState = terminal?.lastProcessState ?? 'starting';
     const isCodex = terminal?.kind === 'codex' || terminal?.provider === 'codex';
+    const isAgent = Boolean(terminal && (terminal.kind !== 'shell' || terminal.provider));
     const terminalTheme = theme?.terminal;
 
     const [searchState, dispatchSearch] = useReducer(
@@ -176,8 +179,10 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         active,
         attachEpoch,
         copyOnSelect: isCopyOnSelect,
+        fontFamily,
         fontSize,
         gpuAcceleration,
+        isAgent,
         isCodex,
         osc52ClipboardWrite: isOsc52ClipboardWrite,
         processState,
