@@ -201,6 +201,18 @@ export class TerminalsModel {
         );
     }
 
+    /**
+     * Moves a Terminal row to a different Session, resetting `order_index` to `0` since the destination is always a
+     * brand-new Session in the only current caller (`CaxriDatabase.moveTerminalToNewSession`).
+     */
+    reassignSession(id: string, sessionId: string, now = Date.now()): void {
+        this.database
+            .update(terminals)
+            .set({ sessionId, orderIndex: 0, updatedAt: now })
+            .where(eq(terminals.id, id))
+            .run();
+    }
+
     promoteShellToAgent(
         id: string,
         provider: AgentProvider,

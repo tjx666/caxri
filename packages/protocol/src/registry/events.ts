@@ -35,6 +35,7 @@ const fullStateChangeReasonSchema = z.enum([
     'session.workbenchRoot',
     'terminal.create',
     'terminal.close',
+    'terminal.moveToNewSession',
     'unknown',
 ]);
 
