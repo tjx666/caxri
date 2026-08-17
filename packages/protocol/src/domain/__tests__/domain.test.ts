@@ -7,6 +7,8 @@ import {
     identifierSchema,
     pathSchema,
     terminalKindSchema,
+    themeImportFormatIds,
+    themeTokenSourceIds,
     themeTokensSchema,
     updateStateSchema,
 } from '../domain.js';
@@ -118,6 +120,19 @@ describe('themeTokensSchema hex color validation', () => {
                 colors: { ...validTheme.colors, accent: '000000' },
             }).success,
         ).toBe(false);
+    });
+
+    it('accepts every persisted source: builtin, custom, and each import format id', () => {
+        for (const source of themeTokenSourceIds) {
+            expect(themeTokensSchema.safeParse({ ...validTheme, source }).success).toBe(true);
+        }
+        expect(themeTokenSourceIds).toEqual(['builtin', 'custom', ...themeImportFormatIds]);
+    });
+
+    it('rejects a source that is not a persistence id or registered import format', () => {
+        expect(themeTokensSchema.safeParse({ ...validTheme, source: 'alacritty' }).success).toBe(
+            false,
+        );
     });
 });
 

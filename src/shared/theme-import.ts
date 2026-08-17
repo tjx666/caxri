@@ -1,35 +1,38 @@
+import type { ThemeImportFormatId } from './ipc/domain';
+import { themeImportFormatIds } from './ipc/domain';
+
+interface ThemeImportFormatDefinition {
+    extensions: readonly string[];
+    /**
+     * Terminal-only imports keep the current app and editor colors from the active theme.
+     */
+    terminalOnly: boolean;
+}
+
 /**
  * Declarative registry of theme import formats shared by the Runtime (which parses the file content) and Main (which
- * builds the file-picker dialog filters). Keeping a single source of truth here avoids the extension list drifting
- * between the two processes.
- *
- * Each `id` must stay within the `source` z.enum on `themeTokensSchema` (src/shared/ipc/domain.ts) — that enum is
- * `['builtin', 'custom', 'vscode', 'iterm2', 'warp']`, and every format id below (`iterm2`, `warp`, `vscode`) is one of
- * its values.
+ * builds the file-picker dialog filters). Ids are the import-format subset of `themeTokenSourceIds` — adding a format
+ * fails typecheck until protocol persistence and this record both name it.
  */
-export const themeImportFormats = [
-    {
-        id: 'iterm2',
+const themeImportFormatsById = {
+    iterm2: {
         extensions: ['itermcolors'],
-        /**
-         * ITerm2 is terminal-only; app and editor colors inherit from the active theme.
-         */
         terminalOnly: true,
     },
-    {
-        id: 'warp',
+    warp: {
         extensions: ['yaml', 'yml'],
-        /**
-         * Warp is terminal-only; app and editor colors inherit from the active theme.
-         */
         terminalOnly: true,
     },
-    {
-        id: 'vscode',
+    vscode: {
         extensions: ['json', 'jsonc'],
         terminalOnly: false,
     },
-] as const;
+} as const satisfies Record<ThemeImportFormatId, ThemeImportFormatDefinition>;
+
+export const themeImportFormats = themeImportFormatIds.map((id) => ({
+    id,
+    ...themeImportFormatsById[id],
+}));
 
 /**
  * Flat, de-duplicated list of every extension across `themeImportFormats`, for dialog filters.
