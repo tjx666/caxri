@@ -1,7 +1,7 @@
 import type { IDecoration, IDisposable, IMarker, Terminal } from '@xterm/xterm';
 import { describe, expect, it, vi } from 'vitest';
 
-import { TerminalCommandTracker } from './terminal-commands';
+import { terminalCommandDecorationDefaultColor, TerminalCommandTracker } from './terminal-commands';
 
 function createTerminalHost() {
     const handlers = new Map<number, (data: string) => boolean | Promise<boolean>>();
@@ -28,6 +28,7 @@ function createTerminalHost() {
                     },
                 },
                 dataset: {},
+                style: {},
             } as unknown as HTMLElement;
             decorations.push({ element, marker });
             return {
@@ -62,8 +63,7 @@ function createTerminalHost() {
 
 const colors = {
     failed: '#ff0000',
-    prompt: '#777777',
-    running: '#ffff00',
+    running: '#ffffff40',
     succeeded: '#00ff00',
 };
 
@@ -97,6 +97,34 @@ describe('TerminalCommandTracker', () => {
 
         tracker.dispose();
         expect(host.handlers.size).toBe(0);
+    });
+
+    it('renders VS Code-style gutter decorations: no prompt glyph, subtle running placeholder', async () => {
+        const host = createTerminalHost();
+        new TerminalCommandTracker(host.terminal, colors, vi.fn());
+
+        await host.handlers.get(133)?.('A');
+        // A prompt alone must not render any decoration (VS Code shows nothing before execution).
+        expect(host.decorations).toHaveLength(0);
+
+        await host.handlers.get(133)?.('C');
+        expect(host.decorations).toHaveLength(1);
+        const running = host.decorations[0].element;
+        expect(running.dataset.terminalCommandPhase).toBe('running');
+        expect(running.style.color).toBe(colors.running);
+        expect(running.style.marginLeft).toBe('-17px');
+        expect(running.style.width).toBe('16px');
+
+        await host.handlers.get(133)?.('D;0');
+        const succeeded = host.decorations.at(-1)!.element;
+        expect(succeeded.dataset.terminalCommandPhase).toBe('succeeded');
+        expect(succeeded.style.color).toBe(colors.succeeded);
+    });
+
+    it('derives the running placeholder color from the theme foreground at 25% alpha', () => {
+        expect(terminalCommandDecorationDefaultColor('#aabbcc')).toBe('#aabbcc40');
+        expect(terminalCommandDecorationDefaultColor(undefined)).toBe('#ffffff40');
+        expect(terminalCommandDecorationDefaultColor('red')).toBe('#ffffff40');
     });
 
     it('navigates content-free command start markers in both directions', async () => {

@@ -143,3 +143,43 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
+
+/*
+ * VS Code-style shell-integration command decorations. Every terminal reserves a 20px left gutter
+ * (VS Code puts the same padding on `.xterm`; the fit addon subtracts the element's own padding, so
+ * the grid still sizes correctly) and each decoration glyph is pulled into it with a negative
+ * margin set inline by `TerminalCommandTracker`. The glyphs mirror VS Code's codicons: hollow
+ * circle while running, filled circle on success, cross on failure; the phase color arrives via
+ * the element's inline `color`.
+ */
+.terminal-surface .xterm {
+    padding-left: 20px;
+}
+.terminal-command-decoration {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+}
+.terminal-command-decoration::before {
+    content: '';
+    box-sizing: border-box;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+.terminal-command-decoration[data-terminal-command-phase='running']::before {
+    border: 1.5px solid currentColor;
+}
+.terminal-command-decoration[data-terminal-command-phase='succeeded']::before {
+    background: currentColor;
+}
+.terminal-command-decoration[data-terminal-command-phase='failed']::before {
+    content: '✕';
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
