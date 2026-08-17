@@ -193,12 +193,25 @@ interface GhRunView {
 }
 
 async function fetchRun(runId: string): Promise<GhRunView> {
-    const { stdout } = await execFileAsync(
-        'gh',
-        ['run', 'view', runId, '--json', 'status,conclusion,jobs,url'],
-        { timeout: 60_000 },
-    );
-    return JSON.parse(stdout) as GhRunView;
+    try {
+        const { stdout } = await execFileAsync(
+            'gh',
+            ['run', 'view', runId, '--json', 'status,conclusion,jobs,url'],
+            { timeout: 60_000 },
+        );
+        return JSON.parse(stdout) as GhRunView;
+    } catch {
+        // GitHub's run-jobs list endpoint (`/actions/runs/<id>/jobs`) intermittently 404s for hours while the run
+        // itself stays queryable, which used to trap the watcher in an endless retry loop that never reported the
+        // run's conclusion. Degrade to status-only polling: per-job early failure notifications pause, but terminal
+        // success/failure detection — the watcher's core contract — keeps working.
+        const { stdout } = await execFileAsync(
+            'gh',
+            ['run', 'view', runId, '--json', 'status,conclusion,url'],
+            { timeout: 60_000 },
+        );
+        return JSON.parse(stdout) as GhRunView;
+    }
 }
 
 async function resolveRunId(branchOverride: string | undefined): Promise<string> {
@@ -260,11 +273,15 @@ function parseArguments(argv: string[]): CliOptions {
 
 async function pollOnce(runId: string, previous: WatchState | undefined): Promise<WatchState> {
     const view = await fetchRun(runId);
-    const jobs: WatchedJob[] = (view.jobs ?? []).map((job) => ({
-        conclusion: job.conclusion ?? '',
-        name: job.name ?? 'unknown job',
-        status: job.status ?? '',
-    }));
+    // A missing jobs array means fetchRun fell back to status-only polling; keep the last known job list instead of
+    // erasing it so the printed summary stays informative.
+    const jobs: WatchedJob[] = view.jobs
+        ? view.jobs.map((job) => ({
+              conclusion: job.conclusion ?? '',
+              name: job.name ?? 'unknown job',
+              status: job.status ?? '',
+          }))
+        : (previous?.jobs ?? []);
     const state: WatchState = {
         conclusion: view.conclusion ?? '',
         heartbeatAt: new Date().toISOString(),
