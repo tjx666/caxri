@@ -6,6 +6,7 @@ import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     createCaxriClient,
+    editorLayoutSchema,
     errorCodes,
     fromWireError,
     internalMethods,
@@ -660,5 +661,83 @@ describe('Terminal layout contract', () => {
             };
         }
         expect(terminalLayoutSchema.safeParse({ root: deep }).success).toBe(false);
+    });
+});
+
+describe('Editor layout contract', () => {
+    const group = {
+        type: 'group' as const,
+        id: 'group-1',
+        paths: ['/repo/a.ts'],
+        activePath: '/repo/a.ts',
+    };
+    const split = (overrides: Record<string, unknown> = {}) => ({
+        type: 'split',
+        id: 'split-1',
+        direction: 'horizontal',
+        ratio: 0.5,
+        first: group,
+        second: { ...group, id: 'group-2', paths: ['/repo/b.ts'], activePath: '/repo/b.ts' },
+        ...overrides,
+    });
+
+    it('accepts the same path attached to two different groups, unlike a Terminal', () => {
+        const isAccepted = (layout: unknown): boolean =>
+            editorLayoutSchema.safeParse(layout).success;
+
+        expect(
+            isAccepted({
+                activeGroupId: 'group-2',
+                root: split({ second: { ...group, id: 'group-2' } }),
+            }),
+        ).toBe(true);
+    });
+
+    it('keeps every invariant the imperative validator enforced', () => {
+        const isAccepted = (layout: unknown): boolean =>
+            editorLayoutSchema.safeParse(layout).success;
+
+        expect(isAccepted({})).toBe(true);
+        // An empty layout cannot point at an active group that does not exist.
+        expect(isAccepted({ activeGroupId: 'group-1' })).toBe(false);
+        expect(isAccepted({ activeGroupId: '', root: group })).toBe(false);
+        expect(isAccepted({ root: group, activeGroupId: 'group-1' })).toBe(true);
+        expect(isAccepted({ root: group, activeGroupId: 'missing-group' })).toBe(false);
+        expect(isAccepted({ root: { ...group, paths: [] } })).toBe(false);
+        expect(isAccepted({ root: { ...group, paths: ['/repo/a.ts', '/repo/a.ts'] } })).toBe(false);
+        expect(isAccepted({ root: { ...group, activePath: '/repo/missing.ts' } })).toBe(false);
+        expect(isAccepted({ root: split({ id: 'group-1' }) })).toBe(false);
+        expect(isAccepted({ root: split({ direction: 'diagonal' }) })).toBe(false);
+        expect(isAccepted({ root: split({ ratio: 0.05 }) })).toBe(false);
+        expect(isAccepted({ root: split({ ratio: 0.95 }) })).toBe(false);
+        expect(isAccepted({ root: split({ ratio: '0.5' }) })).toBe(false);
+        expect(isAccepted({ root: split({ second: undefined }) })).toBe(false);
+        expect(isAccepted({ root: { type: 'unknown', id: 'node-1' } })).toBe(false);
+        expect(isAccepted({ root: null })).toBe(false);
+    });
+
+    it('rejects layouts beyond the group and node ceilings, well below the Terminal layout caps', () => {
+        const wideGroup = (index: number) => ({
+            type: 'group',
+            id: `group-${index}`,
+            paths: [`/repo/file-${index}.ts`],
+        });
+        const chain = (groups: number) => {
+            let node: unknown = wideGroup(0);
+            for (let index = 1; index < groups; index += 1) {
+                node = {
+                    type: 'split',
+                    id: `split-${index}`,
+                    direction: 'vertical',
+                    ratio: 0.5,
+                    first: node,
+                    second: wideGroup(index),
+                };
+            }
+            return node;
+        };
+
+        expect(editorLayoutSchema.safeParse({ root: chain(8) }).success).toBe(true);
+        expect(editorLayoutSchema.safeParse({ root: chain(9) }).success).toBe(false);
     });
 });

@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 
+import { cssFontFamilyEntry } from '@caxri/utils';
+
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/use-command-shortcuts';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -41,7 +43,7 @@ import {
     usePanelLayoutStore,
     usePanelViewportClamp,
 } from './stores/panel-layout';
-import { useTheme } from './stores/selectors';
+import { useSettings, useTheme } from './stores/selectors';
 import {
     initializeWorkbench,
     subscribeWorkbenchEvents,
@@ -78,6 +80,7 @@ function useRuntimeAttachment(): void {
 export function App() {
     const isAttached = useWorkbenchStore((state) => state.bootstrap !== undefined);
     const theme = useTheme();
+    const workbenchFontFamily = useSettings()?.['workbench.fontFamily'];
     const sidebarWidth = usePanelLayoutStore((state) => state.sidebarWidth);
     const inspectorWidth = usePanelLayoutStore((state) => state.inspectorWidth);
     const isSidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
@@ -94,6 +97,17 @@ export function App() {
     useEffect(() => {
         if (theme) applyCssTheme(theme);
     }, [theme]);
+    useEffect(() => {
+        const entry = cssFontFamilyEntry(workbenchFontFamily);
+        // Keep the default stack behind the custom entry so a missing or misspelled font degrades to the system
+        // font instead of the browser serif default (the `var()` fallback in theme.css only applies when unset).
+        if (entry)
+            document.documentElement.style.setProperty(
+                '--workbench-font-family',
+                `${entry}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
+            );
+        else document.documentElement.style.removeProperty('--workbench-font-family');
+    }, [workbenchFontFamily]);
     useEffect(() => {
         if (!isAttached) return;
         return scheduleCodeEditorPreload();

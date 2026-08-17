@@ -18,7 +18,8 @@ test('Files inspector renders local file, folder, open, and fallback icons', asy
     await Promise.all([
         writeFile(join(root, 'package.json'), '{}\n', 'utf8'),
         writeFile(join(root, 'Component.test.tsx'), 'export {};\n', 'utf8'),
-        writeFile(join(root, 'LICENSE'), 'unknown extensionless file\n', 'utf8'),
+        // vscode-icons has no mapping for this name, so it exercises the default_file fallback.
+        writeFile(join(root, 'mystery.unknownext'), 'unknown extension file\n', 'utf8'),
     ]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
@@ -26,14 +27,16 @@ test('Files inspector renders local file, folder, open, and fallback icons', asy
         await openAddProjectDialog(running.page);
         await running.page.getByRole('dialog').getByRole('button', { name: 'Shell' }).click();
 
-        await expect(running.page.locator('[data-file-icon="folder-github"]')).toBeVisible();
-        await expect(running.page.locator('[data-file-icon="folder-src"]')).toBeVisible();
-        await expect(running.page.locator('[data-file-icon="nodejs"]')).toBeVisible();
-        await expect(running.page.locator('[data-file-icon="testTypeScript"]')).toBeVisible();
-        await expect(running.page.locator('[data-file-icon="file"]')).toBeVisible();
+        await expect(running.page.locator('[data-file-icon="folder_type_github"]')).toBeVisible();
+        await expect(running.page.locator('[data-file-icon="folder_type_src"]')).toBeVisible();
+        await expect(running.page.locator('[data-file-icon="file_type_npm"]')).toBeVisible();
+        await expect(running.page.locator('[data-file-icon="file_type_testts"]')).toBeVisible();
+        await expect(running.page.locator('[data-file-icon="default_file"]')).toBeVisible();
 
         await running.page.getByRole('treeitem', { name: '.github', exact: true }).click();
-        await expect(running.page.locator('[data-file-icon="folder-github-open"]')).toBeVisible();
+        await expect(
+            running.page.locator('[data-file-icon="folder_type_github_opened"]'),
+        ).toBeVisible();
     } finally {
         try {
             await running.app.close();
@@ -45,19 +48,18 @@ test('Files inspector renders local file, folder, open, and fallback icons', asy
 });
 
 test('Renderer build and package manifest include file-icon assets and attribution', async () => {
-    const assets = await readdir(join(projectRoot, 'out', 'renderer', 'assets'));
-    expect(
-        assets.some((file) => file.startsWith('folder-github-open-') && file.endsWith('.svg')),
-    ).toBe(true);
-    expect(assets.some((file) => file.startsWith('typescript-') && file.endsWith('.svg'))).toBe(
-        true,
-    );
+    // The vscode-icons SVGs are shipped verbatim through the renderer publicDir copy (electron.vite.config.ts),
+    // not as hashed bundle assets, so they land at out/renderer/icons/<name>.svg.
+    const icons = await readdir(join(projectRoot, 'out', 'renderer', 'icons'));
+    expect(icons).toContain('folder_type_github_opened.svg');
+    expect(icons).toContain('file_type_typescript.svg');
+    expect(icons).toContain('default_file.svg');
 
     const packageJson = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8')) as {
         build: { files: string[] };
     };
     expect(packageJson.build.files).toContain('licenses/**');
     await expect(
-        readFile(join(projectRoot, 'licenses', 'LOBEHUB_FILE_ICONS_LICENSE.txt'), 'utf8'),
-    ).resolves.toContain('Copyright (c) 2023 LobeHub');
+        readFile(join(projectRoot, 'licenses', 'VSCODE_ICONS_ASSETS_LICENSE.txt'), 'utf8'),
+    ).resolves.toContain('Attribution-ShareAlike 4.0 International');
 });

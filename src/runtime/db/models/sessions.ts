@@ -5,6 +5,7 @@ import { and, asc, eq, lt, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
+import { deriveDefaultEditorLayout, remapEditorLayoutPaths } from '../../../shared/editor-layout';
 import { withoutEditorTabDirtiness } from '../../../shared/editor-state';
 import { isGitDiffTabPath } from '../../../shared/git-diff';
 import { sessionStateSchema } from '../../../shared/ipc/domain';
@@ -116,6 +117,7 @@ const workbenchEditorStateSchema = z.object({
     openTabs: sessionStateSchema.shape.openTabs,
     activeTab: sessionStateSchema.shape.activeTab,
     editorRemapOperationId: sessionStateSchema.shape.editorRemapOperationId,
+    editorLayout: sessionStateSchema.shape.editorLayout,
 });
 const workbenchEditorStatesSchema = z
     .record(z.string().min(1).max(200), workbenchEditorStateSchema)
@@ -133,6 +135,12 @@ function parseWorkbenchEditorStates(source: string): WorkbenchEditorStates | und
     }
 }
 
+/**
+ * Remaps one stored editor path after a Project root move. Note the parallel implementation for the `editorLayout`
+ * tree: `remapEditorLayoutPaths` in `src/shared/editor-layout.ts` does a pure string-prefix rewrite (browser-safe, no
+ * `node:path`), while this one uses `relative`/`resolve`. Both agree for Caxri's canonical absolute POSIX-style paths;
+ * if either ever needs to handle non-canonical input, change both together.
+ */
 function remapStoredEditorPath(path: string, previousPath: string, nextPath: string): string {
     if (isGitDiffTabPath(path)) return path;
     const nested = relative(previousPath, path);
@@ -177,20 +185,33 @@ function parseSessionState(
     const rootState = workbenchStates[workbenchProjectId];
     const isLegacyOwnerState = workbenchProjectId === row.projectId && !rootState;
     const activeTab = activeTabResult.data;
+    const resolvedOpenTabs = rootState?.openTabs ?? (isLegacyOwnerState ? legacyOpenTabs : []);
+    const resolvedActiveTab =
+        rootState?.activeTab ??
+        ((isLegacyOwnerState && activeTab?.kind === 'editor') || activeTab?.kind === 'terminal'
+            ? activeTab
+            : undefined);
+    // `editorLayout` is additive state introduced after `openTabs`/`activeTab` already existed, so a row
+    // persisted before this feature (or a Workbench Root that never wrote one) has no stored tree yet. Derive a
+    // single-group default from the legacy tab list instead of bumping `CURRENT_SESSION_STATE_VERSION`, which
+    // would otherwise mark every pre-existing row `unsupported_version`.
+    const openTabsParsed = sessionStateSchema.shape.openTabs.safeParse(resolvedOpenTabs);
+    const editorLayout =
+        rootState?.editorLayout ??
+        (openTabsParsed.success
+            ? deriveDefaultEditorLayout(openTabsParsed.data, resolvedActiveTab)
+            : undefined);
     const candidate: unknown = {
         sessionId: row.sessionId,
         workbenchProjectId,
-        openTabs: rootState?.openTabs ?? (isLegacyOwnerState ? legacyOpenTabs : []),
-        activeTab:
-            rootState?.activeTab ??
-            ((isLegacyOwnerState && activeTab?.kind === 'editor') || activeTab?.kind === 'terminal'
-                ? activeTab
-                : undefined),
+        openTabs: resolvedOpenTabs,
+        activeTab: resolvedActiveTab,
         editorRemapOperationId:
             rootState?.editorRemapOperationId ??
             (isLegacyOwnerState ? (row.editorRemapOperationId ?? undefined) : undefined),
         inspectorMode: row.inspectorMode,
         layout,
+        editorLayout,
     };
     const parsed = sessionStateSchema.safeParse(candidate);
     return parsed.success ? { state: parsed.data } : { reason: 'invalid_shape' };
@@ -229,6 +250,7 @@ export class SessionsModel {
             openTabs: [],
             inspectorMode: 'files',
             layout: firstTerminal ? createTerminalLayout(firstTerminal.id) : {},
+            editorLayout: {},
         };
     }
 
@@ -575,6 +597,7 @@ export class SessionsModel {
         }
         const previousRootState = workbenchStates[state.workbenchProjectId];
         const rootActiveTab = durableState.activeTab ?? previousRootState?.activeTab;
+        const rootEditorLayout = durableState.editorLayout ?? previousRootState?.editorLayout;
         workbenchStates = {
             ...workbenchStates,
             [state.workbenchProjectId]: {
@@ -583,6 +606,7 @@ export class SessionsModel {
                 ...(durableState.editorRemapOperationId && {
                     editorRemapOperationId: durableState.editorRemapOperationId,
                 }),
+                ...(rootEditorLayout && { editorLayout: rootEditorLayout }),
             },
         };
         let existingTerminalActiveTab: SessionState['activeTab'];
@@ -701,6 +725,13 @@ export class SessionsModel {
                     rootState.activeTab?.kind === 'editor'
                         ? { kind: 'editor' as const, path: remapPath(rootState.activeTab.path) }
                         : rootState.activeTab,
+                ...(rootState.editorLayout && {
+                    editorLayout: remapEditorLayoutPaths(
+                        rootState.editorLayout,
+                        previousPath,
+                        nextPath,
+                    ),
+                }),
                 editorRemapOperationId: operationId,
             };
             const values: {

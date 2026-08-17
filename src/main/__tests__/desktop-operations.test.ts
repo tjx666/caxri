@@ -15,6 +15,7 @@ function handlers() {
     return {
         focus: vi.fn(() => Promise.resolve()),
         open: vi.fn(),
+        openInEditor: vi.fn(() => Promise.resolve()),
         reveal: vi.fn(),
         status: vi.fn(() => 'background' as const),
     };
@@ -71,6 +72,20 @@ describe('createDesktopOperationHandler', () => {
         expect(injected.focus.mock.invocationCallOrder[0]).toBeLessThan(
             injected.open.mock.invocationCallOrder[0],
         );
+    });
+
+    it('launches the external editor for a consumed openInEditor target without focusing', async () => {
+        const injected = handlers();
+        const consumeTarget = vi.fn(() => Promise.resolve(target));
+        const handle = createDesktopOperationHandler(injected);
+
+        await expect(
+            handle({ kind: 'openInEditor', targetId: target.targetId }, consumeTarget),
+        ).resolves.toBeNull();
+        expect(consumeTarget).toHaveBeenCalledOnce();
+        expect(injected.openInEditor).toHaveBeenCalledWith(target.path);
+        expect(injected.focus).not.toHaveBeenCalled();
+        expect(injected.open).not.toHaveBeenCalled();
     });
 
     it('propagates a target-consumption failure without invoking the reveal handler', async () => {

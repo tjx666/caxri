@@ -68,6 +68,12 @@ export {
     type WorkbenchRootOption,
 } from './ipc';
 export type {
+    EditorGroupNode,
+    EditorLayout,
+    EditorLayoutNode,
+    EditorSplitNode,
+} from './ipc/editor-layout';
+export type {
     TerminalGroupNode,
     TerminalLayout,
     TerminalLayoutNode,

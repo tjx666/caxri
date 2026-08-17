@@ -4,6 +4,8 @@ import type { OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
 import type { ThemeTokens } from '@shared/types';
 
+import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
+
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { monaco } from '../../lib/monaco';
 import { resolveEditorLanguage } from './editor-language';
@@ -42,6 +44,7 @@ export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEdit
     const cursorSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
     const statusKeyReference = useRef(statusKey);
     const language = resolveEditorLanguage(path);
+    const fontFamily = useEditorFontFamily();
     useEffect(() => applyEditorTheme(theme), [theme]);
     useEffect(() => {
         const editor = editorReference.current;
@@ -108,6 +111,7 @@ export function CodeEditor({ path, statusKey, value, theme, onChange }: CodeEdit
             options={{
                 automaticLayout: true,
                 minimap: { enabled: false },
+                ...(fontFamily && { fontFamily }),
                 fontSize: 13,
                 wordWrap: 'off',
                 scrollBeyondLastLine: false,

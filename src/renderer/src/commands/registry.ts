@@ -7,7 +7,7 @@ import type { SettingsView } from '../stores/dialogs';
  * feature actions, so a test can drive the registry with fakes.
  */
 export interface CommandContext {
-    project: { create(): void; removeSelected(): void };
+    project: { create(): void; openInExternalEditor(): void; removeSelected(): void };
     session: { create(): void; deleteSelected(): void; selectAdjacent(delta: 1 | -1): void };
     terminal: {
         create(): void;
@@ -25,7 +25,15 @@ export interface CommandContext {
         closeActive(): void;
     };
     workbench: { closeActiveTab(): void; cycleTab(delta: 1 | -1): void };
-    editor: { saveActive(): void };
+    editor: {
+        saveActive(): void;
+        /**
+         * True only when the active work item is an Editor tab whose owning split group can grow (not a single-tab
+         * group showing only that path). Matches the split commands' `when` gate.
+         */
+        canSplitActive(): boolean;
+        splitActive(direction: 'left' | 'right' | 'up' | 'down'): void;
+    };
     inspector: { searchFiles(): void; activateMode(mode: InspectorMode): void; toggle(): void };
     sidebar: { toggle(): void };
     dialogs: {

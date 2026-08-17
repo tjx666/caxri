@@ -39,6 +39,7 @@ export const commandDefinitions: CommandDefinition[] = [
          */
         { confirm: true },
     ),
+    fromCatalog('project.openInEditor', (context) => context.project.openInExternalEditor()),
     fromCatalog('session.create', (context) => context.session.create()),
     fromCatalog(
         'session.delete',
@@ -91,6 +92,18 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     fromCatalog('editor.save', (context) => context.editor.saveActive(), { allowInEditable: true }),
+    fromCatalog('editor.splitLeft', (context) => context.editor.splitActive('left'), {
+        when: (context) => context.editor.canSplitActive(),
+    }),
+    fromCatalog('editor.splitRight', (context) => context.editor.splitActive('right'), {
+        when: (context) => context.editor.canSplitActive(),
+    }),
+    fromCatalog('editor.splitUp', (context) => context.editor.splitActive('up'), {
+        when: (context) => context.editor.canSplitActive(),
+    }),
+    fromCatalog('editor.splitDown', (context) => context.editor.splitActive('down'), {
+        when: (context) => context.editor.canSplitActive(),
+    }),
     ...inspectorModeRegistrations.map(({ commandId, mode }) =>
         fromCatalog(commandId, (context) => context.inspector.activateMode(mode)),
     ),

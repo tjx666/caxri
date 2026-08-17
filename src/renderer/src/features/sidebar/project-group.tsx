@@ -37,12 +37,20 @@ function UnreadAttentionIndicator({ session }: { session: SessionRecord }) {
             role="img"
             aria-label={label}
             className={cn(
-                'session-unread flex size-3 flex-none items-center justify-center rounded-full border',
+                'session-unread relative flex size-3 flex-none items-center justify-center rounded-full border',
                 sessionToneBorderClassName(attention.tone),
             )}
             data-attention-kind={session.lastAttentionKind}
             title={label}
         >
+            {/* Expanding-ripple ring that makes an unread row noticeable at sidebar-glance distance. */}
+            <span
+                aria-hidden="true"
+                className={cn(
+                    'absolute inset-0 rounded-full border opacity-75 motion-safe:animate-ping motion-reduce:hidden',
+                    sessionToneBorderClassName(attention.tone),
+                )}
+            />
             <span
                 className={cn(
                     'size-1.5 rounded-full',

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { relativeTime } from '@caxri/utils';
 import type { GitCommit, GitRepositorySummary } from '@shared/types';
-import { ChevronDown, ChevronRight, GitCommitHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useNow } from '@/hooks/use-now';
@@ -227,16 +227,25 @@ export function CommitHistory({
     }, [expanded, loadPage, repository.head]);
 
     return (
-        <section className="commit-history border-t border-border">
+        <section
+            /**
+             * While collapsed, the section pins to the bottom of the panel's scroll viewport so a long Changes list can
+             * never push the Commits entry point out of sight; expanding returns it to normal flow so the commit list
+             * scrolls with the panel.
+             */
+            className={cn(
+                'commit-history border-t border-border bg-background',
+                !expanded && 'sticky bottom-0 z-10',
+            )}
+        >
             <button
                 type="button"
-                className="flex h-7 w-full cursor-pointer items-center gap-1.5 border-0 bg-surface px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:bg-elevated"
+                className="flex h-7 w-full cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                 aria-expanded={expanded}
                 onClick={() => setExpanded((value) => !value)}
             >
                 {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <GitCommitHorizontal size={12} />
-                <span>Commits</span>
+                <span className="truncate">Commits</span>
                 {expanded && <span className="ml-auto">{commits.length}</span>}
             </button>
             <DisclosureMotion animate expanded={expanded} kind="git-history">

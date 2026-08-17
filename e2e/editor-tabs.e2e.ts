@@ -163,7 +163,7 @@ test('editor previews pin and expose the standard close actions', async () => {
         expect(await stopEditorPresenceProbe(running.page)).toEqual([]);
         await expect(bTab).toHaveAttribute('data-motion-identity', previewIdentity!);
         await expect(bTab).toHaveAttribute('data-preview-slot-probe', 'stable');
-        await expect(bTab.locator('[data-file-icon="javascript"]')).toBeVisible();
+        await expect(bTab.locator('[data-file-icon="file_type_js"]')).toBeVisible();
         await expect(bTab).toHaveAttribute('data-preview', 'true');
         await bTab.getByRole('tab').dblclick();
         await expect(bTab).not.toHaveAttribute('data-preview');

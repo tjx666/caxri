@@ -134,6 +134,8 @@ const categoryTitles = Object.fromEntries(
 const rows: SettingRowDescriptor[] = [
     specRow('session.defaultAgent'),
     specRow('workbench.newWorktreeBehavior'),
+    specRow('workbench.fontFamily'),
+    specRow('workbench.externalEditor'),
     {
         id: 'sessions.archived',
         category: 'general',
@@ -142,12 +144,14 @@ const rows: SettingRowDescriptor[] = [
         binding: { type: 'archived-sessions' },
         haystack: lower(['archived sessions', 'restore', 'delete', 'manage', 'history']),
     },
+    specRow('terminal.fontFamily'),
     specRow('terminal.fontSize'),
     specRow('terminal.gpuAcceleration'),
     specRow('terminal.scrollback'),
     specRow('terminal.copyOnSelect'),
     specRow('terminal.osc52ClipboardWrite'),
     specRow('terminal.defaultWorkingDirectory'),
+    specRow('editor.fontFamily'),
     {
         ...specRow('security.trustedDomains'),
         binding: { type: 'trusted-domains' },

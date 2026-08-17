@@ -36,14 +36,17 @@ interface TimeBudget {
 
 /**
  * Byte ceilings for every packaged artifact this repository ships. Baseline (2026-08): out/main ≈ 2.5 MiB, out/preload
- * ≈ 12 KiB, out/renderer ≈ 31 MiB, app.asar ≈ 34 MiB, app.asar.unpacked ≈ 6 MiB, Caxri.app ≈ 272 MiB.
+ * ≈ 12 KiB, out/renderer ≈ 35.4 MiB, app.asar ≈ 38.6 MiB, app.asar.unpacked ≈ 6 MiB, Caxri.app ≈ 276 MiB. The renderer
+ * and asar ceilings were consciously raised for the full vscode-icons SVG set (~4.5 MiB, 1553 files): any file or
+ * folder name can appear in a user's project at runtime, so there is no meaningful subset to ship
+ * (docs/bundle-size.md).
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const SIZE_BUDGETS: SizeBudget[] = [
     { path: 'out/main', maxBytes: 4 * MiB },
     { path: 'out/preload', maxBytes: 256 * 1_024 },
-    { path: 'out/renderer', maxBytes: 34 * MiB },
-    { path: 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar', maxBytes: 38 * MiB },
+    { path: 'out/renderer', maxBytes: 37 * MiB },
+    { path: 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar', maxBytes: 41 * MiB },
     { path: 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar.unpacked', maxBytes: 8 * MiB },
     { path: 'release/mac-arm64/Caxri.app', maxBytes: 290 * MiB },
 ];

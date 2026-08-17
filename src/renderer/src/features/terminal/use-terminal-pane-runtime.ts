@@ -29,7 +29,7 @@ import {
     registerTerminalCommandNavigation,
     TerminalCommandTracker,
 } from './terminal-commands';
-import { loadTerminalFonts, TERMINAL_FONT_FAMILY } from './terminal-fonts';
+import { loadTerminalFonts } from './terminal-fonts';
 import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
 import {
     CODEX_IMAGE_PASTE_INPUT,
@@ -62,8 +62,10 @@ interface TerminalPaneRuntimeOptions {
     active: boolean;
     attachEpoch: number;
     copyOnSelect: boolean;
+    fontFamily: string;
     fontSize: number;
     gpuAcceleration: TerminalGpuAcceleration;
+    isAgent: boolean;
     isCodex: boolean;
     osc52ClipboardWrite: boolean;
     processState: ProcessState;
@@ -82,8 +84,10 @@ export function useTerminalPaneRuntime({
     active,
     attachEpoch,
     copyOnSelect,
+    fontFamily,
     fontSize,
     gpuAcceleration,
+    isAgent,
     isCodex,
     osc52ClipboardWrite,
     processState,
@@ -113,8 +117,10 @@ export function useTerminalPaneRuntime({
     const latestReference = useRef({
         active,
         copyOnSelect,
+        fontFamily,
         fontSize,
         gpuAcceleration,
+        isAgent,
         isCodex,
         osc52ClipboardWrite,
         processState,
@@ -129,8 +135,10 @@ export function useTerminalPaneRuntime({
         latestReference.current = {
             active,
             copyOnSelect,
+            fontFamily,
             fontSize,
             gpuAcceleration,
+            isAgent,
             isCodex,
             osc52ClipboardWrite,
             processState,
@@ -143,8 +151,10 @@ export function useTerminalPaneRuntime({
     }, [
         active,
         copyOnSelect,
+        fontFamily,
         fontSize,
         gpuAcceleration,
+        isAgent,
         isCodex,
         osc52ClipboardWrite,
         processState,
@@ -187,7 +197,7 @@ export function useTerminalPaneRuntime({
             convertEol: false,
             cursorBlink: true,
             disableStdin: latest.processState !== 'running',
-            fontFamily: TERMINAL_FONT_FAMILY,
+            fontFamily: latest.fontFamily,
             fontSize: latest.fontSize,
             scrollback: latest.scrollback,
             theme: latest.terminalTheme,
@@ -309,7 +319,7 @@ export function useTerminalPaneRuntime({
             },
         });
         xterm.attachCustomKeyEventHandler((event) => {
-            const input = terminalKeyboardInput(event, latestReference.current.isCodex);
+            const input = terminalKeyboardInput(event, latestReference.current.isAgent);
             if (!input) return true;
             event.preventDefault();
             event.stopPropagation();
@@ -684,10 +694,11 @@ export function useTerminalPaneRuntime({
 
     useEffect(() => {
         if (!xtermReference.current) return;
+        xtermReference.current.options.fontFamily = fontFamily;
         xtermReference.current.options.fontSize = fontSize;
         xtermReference.current.options.scrollback = scrollback;
         xtermReference.current.options.theme = terminalTheme;
-    }, [fontSize, scrollback, terminalTheme]);
+    }, [fontFamily, fontSize, scrollback, terminalTheme]);
 
     useEffect(
         () => registerTerminalClearHandler(terminalId, () => xtermReference.current?.clear()),
