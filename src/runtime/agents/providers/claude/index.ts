@@ -29,12 +29,14 @@ const MAX_CONCURRENT_CLAUDE_READS = 8;
 const MAX_TRANSCRIPT_SCAN_BYTES_PER_READ = 4 * 1024 * 1024;
 const TRANSCRIPT_READ_CHUNK_BYTES = 64 * 1024;
 const MAX_TRANSCRIPT_TITLE_CACHES = 64;
+const MAX_LAST_PROMPT_TITLE_LENGTH = 80;
 
 interface TranscriptTitleCache {
     /**
      * Byte offset of the first unconsumed transcript byte; scans resume here on the next poll.
      */
     offset: number;
+    lastPrompt?: string;
     title?: string;
 }
 
@@ -51,27 +53,61 @@ function claudeProjectDirectoryName(cwd: string): string {
     return cwd.replaceAll(/[^a-z0-9]/gi, '-');
 }
 
-function extractAiTitle(line: string): string | undefined {
-    if (!line.includes('"aiTitle"')) return undefined;
+/**
+ * Reduces a raw prompt to a Claude Code-style resume-list label: first non-empty line, bounded length.
+ */
+function promptTitle(prompt: string): string | undefined {
+    const firstLine = prompt
+        .split('\n')
+        .map((line) => line.trim())
+        .find(Boolean);
+    if (!firstLine) return undefined;
+    const characters = [...firstLine];
+    return characters.length > MAX_LAST_PROMPT_TITLE_LENGTH
+        ? `${characters.slice(0, MAX_LAST_PROMPT_TITLE_LENGTH).join('')}…`
+        : firstLine;
+}
+
+function scanTranscriptLine(line: string, cache: TranscriptTitleCache): void {
+    if (line.includes('"aiTitle"')) {
+        try {
+            const record = JSON.parse(line) as { aiTitle?: unknown; type?: unknown };
+            if (record.type === 'ai-title' && typeof record.aiTitle === 'string') {
+                const title = record.aiTitle.trim();
+                if (title) cache.title = title;
+            }
+        } catch {
+            /*
+            Partial or malformed lines are skipped; a later append re-delivers them complete.
+            */
+        }
+        return;
+    }
+    if (!line.includes('"lastPrompt"')) return;
     try {
-        const record = JSON.parse(line) as { aiTitle?: unknown; type?: unknown };
-        if (record.type !== 'ai-title' || typeof record.aiTitle !== 'string') return undefined;
-        return record.aiTitle.trim() || undefined;
+        const record = JSON.parse(line) as { lastPrompt?: unknown; type?: unknown };
+        if (record.type === 'last-prompt' && typeof record.lastPrompt === 'string') {
+            const prompt = promptTitle(record.lastPrompt);
+            if (prompt) cache.lastPrompt = prompt;
+        }
     } catch {
-        return undefined;
+        /*
+        Partial or malformed lines are skipped; a later append re-delivers them complete.
+        */
     }
 }
 
 /**
- * Reads the AI-generated title (`{"type":"ai-title"}` records) from the matched session's own transcript. Claude Code
- * keeps this title only in the project transcript — the live-session metadata `name` is merely derived from the working
- * directory — so this is the only source for the human-meaningful session title.
+ * Reads the human-meaningful titles from the matched session's own transcript: the AI-generated title
+ * (`{"type":"ai-title"}` records) and the resume-list fallback prompt (`{"type":"last-prompt"}` records). Claude Code
+ * keeps both only in the project transcript — the live-session metadata `name` is merely derived from the working
+ * directory — so this is the only source that mirrors Claude Code's own `/resume` list labels.
  */
-async function readTranscriptTitle(
+async function readTranscriptTitles(
     configDirectory: string,
     cwd: string,
     sessionId: string,
-): Promise<string | undefined> {
+): Promise<TranscriptTitleCache> {
     const path = join(
         configDirectory,
         'projects',
@@ -91,7 +127,8 @@ async function readTranscriptTitle(
         const handle = await open(path, 'r');
         try {
             const stats = await handle.stat();
-            if (stats.size < cache.offset) Object.assign(cache, { offset: 0, title: undefined });
+            if (stats.size < cache.offset)
+                Object.assign(cache, { lastPrompt: undefined, offset: 0, title: undefined });
             const chunk = Buffer.allocUnsafe(TRANSCRIPT_READ_CHUNK_BYTES);
             let scanned = 0;
             let remainder = Buffer.alloc(0);
@@ -114,10 +151,8 @@ async function readTranscriptTitle(
                     remainder = combined;
                     continue;
                 }
-                for (const line of combined.subarray(0, lastNewline).toString('utf8').split('\n')) {
-                    const title = extractAiTitle(line);
-                    if (title) cache.title = title;
-                }
+                for (const line of combined.subarray(0, lastNewline).toString('utf8').split('\n'))
+                    scanTranscriptLine(line, cache);
                 remainder = combined.subarray(lastNewline + 1);
                 cache.offset += lastNewline + 1;
             }
@@ -125,8 +160,7 @@ async function readTranscriptTitle(
              * The final line may lack a trailing newline; parse it without consuming so a later append re-reads it as a
              * complete line.
              */
-            const trailingTitle = extractAiTitle(remainder.toString('utf8'));
-            if (trailingTitle) cache.title = trailingTitle;
+            scanTranscriptLine(remainder.toString('utf8'), cache);
         } finally {
             await handle.close();
         }
@@ -135,7 +169,7 @@ async function readTranscriptTitle(
          * A missing or unreadable transcript is a normal capability miss; keep any cached title.
          */
     }
-    return cache.title;
+    return cache;
 }
 
 async function readMetadata(path: string): Promise<ClaudeSessionMetadata | undefined> {
@@ -170,8 +204,9 @@ function claudeStatus(value: unknown): AgentActivityState | undefined {
 }
 
 /**
- * Resolves the display title for a matched session. An explicitly set live-session name wins; otherwise the
- * transcript's AI-generated title is preferred over the directory-derived name.
+ * Resolves the display title for a matched session with Claude Code's own `/resume` list precedence: an explicitly set
+ * live-session name wins, then the transcript's AI-generated title, then the latest submitted prompt, and only then the
+ * directory-derived name.
  */
 async function resolveClaudeTitle(
     metadata: ClaudeSessionMetadata,
@@ -180,12 +215,13 @@ async function resolveClaudeTitle(
     const name = typeof metadata.name === 'string' ? metadata.name.trim() : '';
     if (name && metadata.nameSource !== 'derived') return name;
     if (typeof metadata.cwd === 'string' && typeof metadata.sessionId === 'string') {
-        const aiTitle = await readTranscriptTitle(
+        const transcript = await readTranscriptTitles(
             configDirectory,
             metadata.cwd,
             metadata.sessionId,
         );
-        if (aiTitle) return aiTitle;
+        if (transcript.title) return transcript.title;
+        if (transcript.lastPrompt) return transcript.lastPrompt;
     }
     return name || undefined;
 }

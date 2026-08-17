@@ -189,6 +189,94 @@ describe('Claude Code provider', () => {
         ).resolves.toMatchObject({ title: 'Migrate market search to ES with flags' });
     });
 
+    it('falls back to the transcript last prompt before the derived name, mirroring the /resume list', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-last-prompt-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const config = join(directory, 'claude');
+        const bin = join(directory, 'bin');
+        const projectDirectory = join(config, 'projects', root.replaceAll(/[^a-z0-9]/gi, '-'));
+        await Promise.all([
+            mkdir(root),
+            mkdir(join(config, 'sessions'), { recursive: true }),
+            mkdir(projectDirectory, { recursive: true }),
+            mkdir(bin),
+        ]);
+        const executable = join(bin, 'claude');
+        await writeFile(executable, '#!/bin/sh\nprintf "claude 1.0\\n"\n', 'utf8');
+        await chmod(executable, 0o700);
+        await writeFile(
+            join(config, 'sessions', 'session.json'),
+            JSON.stringify({
+                cwd: root,
+                name: 'project-derived-77',
+                nameSource: 'derived',
+                sessionId: 'claude-session-prompted',
+                status: 'busy',
+                updatedAt: new Date().toISOString(),
+            }),
+            'utf8',
+        );
+        const transcript = join(projectDirectory, 'claude-session-prompted.jsonl');
+        await writeFile(
+            transcript,
+            `${JSON.stringify({
+                message: { content: 'hello', role: 'user' },
+                sessionId: 'claude-session-prompted',
+                type: 'user',
+            })}\n${JSON.stringify({
+                lastPrompt: 'hello',
+                sessionId: 'claude-session-prompted',
+                type: 'last-prompt',
+            })}\n`,
+            'utf8',
+        );
+        vi.stubEnv('PATH', bin);
+        vi.stubEnv('SHELL', '/usr/bin/false');
+        const service = new AgentService(
+            undefined,
+            createLocalAgentAdapters({
+                homeDirectory: directory,
+                variables: {
+                    CLAUDE_CONFIG_DIR: config,
+                    CODEX_HOME: join(directory, 'missing-codex'),
+                },
+            }),
+        );
+
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'hello' });
+
+        // A newer prompt replaces the fallback label on the next incremental poll.
+        await appendFile(
+            transcript,
+            `${JSON.stringify({
+                lastPrompt: `  \n  next question about lifecycles  \nsecond line ignored`,
+                sessionId: 'claude-session-prompted',
+                type: 'last-prompt',
+            })}\n`,
+            'utf8',
+        );
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'next question about lifecycles' });
+
+        // An AI-generated title always outranks the prompt fallback.
+        await appendFile(
+            transcript,
+            `${JSON.stringify({
+                aiTitle: 'Repair terminal lifecycles',
+                sessionId: 'claude-session-prompted',
+                type: 'ai-title',
+            })}\n`,
+            'utf8',
+        );
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'Repair terminal lifecycles' });
+    });
+
     it('keeps an explicitly named session title and falls back to the derived name without a transcript', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-title-fallback-'));
         temporaryDirectories.push(directory);
