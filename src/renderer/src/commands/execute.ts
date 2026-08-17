@@ -1,8 +1,10 @@
 import './definitions';
 
 import type { CommandId } from '@shared/commands';
+import { canSplitEditorPath, findPathGroupId, sessionEditorLayout } from '@shared/editor-layout';
 
 import { closeEditor, saveActiveEditor } from '../features/editor/document-actions';
+import { splitEditorTabTo } from '../features/editor/editor-layout-actions';
 import {
     closeFileSearch,
     requestFileSearchFocus,
@@ -13,6 +15,7 @@ import {
     chooseProjectDirectory,
     deleteSelectedProject,
     deleteSelectedSession,
+    openSelectedProjectInExternalEditor,
     selectAdjacentSession,
 } from '../features/session/session-actions';
 import { cycleActiveWork } from '../features/tabs/tab-navigation';
@@ -32,7 +35,12 @@ import { caxri } from '../lib/caxri';
 import { isEditableEventTarget } from '../lib/keybindings';
 import { useDialogStore } from '../stores/dialogs';
 import { usePanelLayoutStore } from '../stores/panel-layout';
-import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';
+import {
+    getBootstrap,
+    getSelectedSession,
+    getSessionState,
+    selectSelectedProject,
+} from '../stores/selectors';
 import { getResolvedActiveWork, useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
 import type { CommandContext } from './registry';
@@ -43,6 +51,20 @@ export type { CommandContext } from './registry';
 function activeTerminalId(): string | undefined {
     const active = getResolvedActiveWork();
     return active?.kind === 'terminal' ? active.terminalId : undefined;
+}
+
+/**
+ * Resolves the active Editor tab's path together with the split-layout group that currently owns it. Both the
+ * `editor.split*` commands' `when` gate and their `run` handler need this pair, so it is computed once here rather than
+ * duplicating the `sessionEditorLayout`/`findPathGroupId` lookup in each.
+ */
+function activeEditorSplitTarget(): { groupId: string; path: string } | undefined {
+    const active = getResolvedActiveWork();
+    if (active?.kind !== 'editor') return undefined;
+    const session = getSessionState();
+    if (!session) return undefined;
+    const groupId = findPathGroupId(sessionEditorLayout(session), active.path);
+    return groupId ? { groupId, path: active.path } : undefined;
 }
 
 /**
@@ -80,6 +102,7 @@ const commandContext: CommandContext = {
     project: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void chooseProjectDirectory(),
+        openInExternalEditor: openSelectedProjectInExternalEditor,
         removeSelected: deleteSelectedProject,
     },
     session: {
@@ -140,8 +163,22 @@ const commandContext: CommandContext = {
         },
         cycleTab: cycleActiveWork,
     },
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    editor: { saveActive: () => void saveActiveEditor() },
+    editor: {
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        saveActive: () => void saveActiveEditor(),
+        canSplitActive: () => {
+            const target = activeEditorSplitTarget();
+            if (!target) return false;
+            const session = getSessionState();
+            return Boolean(
+                session && canSplitEditorPath(sessionEditorLayout(session), target.groupId),
+            );
+        },
+        splitActive: (direction) => {
+            const target = activeEditorSplitTarget();
+            if (target) splitEditorTabTo(target.path, target.groupId, direction);
+        },
+    },
     inspector: {
         searchFiles: () => {
             const session = getSelectedSession();

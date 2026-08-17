@@ -5,6 +5,7 @@ import { agentProviderIds } from '../agent/agents.js';
 import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
+import { editorLayoutSchema } from './editor-layout.js';
 import { gitCommitSchema } from './git.js';
 import { inspectorModeSchema } from './inspector.js';
 import { terminalLayoutSchema } from './layout.js';
@@ -168,6 +169,12 @@ export const sessionStateSchema = z.object({
     editorRemapOperationId: identifierSchema.optional(),
     inspectorMode: inspectorModeSchema,
     layout: terminalLayoutSchema,
+    /**
+     * Independent split-pane tree for the Editor center pane, keyed to the same Workbench Root as `openTabs`. Kept
+     * optional so legacy state rows without it stay valid; `deriveDefaultEditorLayout` backfills a default at read time
+     * (see `src/shared/editor-layout.ts`).
+     */
+    editorLayout: editorLayoutSchema.optional(),
 });
 
 const agentHookHealthKindSchema = z.enum([

@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { useSelectedSession, useSessionState } from '../../stores/selectors';
 import { useActiveWork } from '../../stores/session-view';
-import { EditorSurface } from '../editor/editor-surface';
+import { EditorLayoutView } from '../editor/editor-layout-view';
 import { chooseProjectDirectory } from '../session/session-actions';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 import { WorkTabStrip } from '../tabs/work-tab-strip';
@@ -29,7 +29,7 @@ function WorkSurface({ sessionId }: { sessionId: string }) {
     if (activeWork?.kind === 'editor')
         return (
             <div className="work-surface relative min-h-0 flex-1" {...tabPanelProperties}>
-                <EditorSurface path={activeWork.path} />
+                <EditorLayoutView />
             </div>
         );
     return (

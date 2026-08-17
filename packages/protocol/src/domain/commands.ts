@@ -10,6 +10,7 @@ import type { InspectorCommandId } from './inspector.js';
 export const commandIds = [
     'project.create',
     'project.delete',
+    'project.openInEditor',
     'session.create',
     'session.delete',
     'session.selectNext',
@@ -27,6 +28,10 @@ export const commandIds = [
     'workbench.nextTab',
     'workbench.previousTab',
     'editor.save',
+    'editor.splitLeft',
+    'editor.splitRight',
+    'editor.splitUp',
+    'editor.splitDown',
     'inspector.showFiles',
     'inspector.showGit',
     'inspector.showStatus',

@@ -1,3 +1,10 @@
+import {
+    activeLayoutPath,
+    addEditorPath,
+    createEditorLayout,
+    listLayoutPaths,
+    splitEditorPath,
+} from '@shared/editor-layout';
 import type { BootstrapState, SessionState } from '@shared/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -566,5 +573,160 @@ describe('closing a dirty editor tab', () => {
             '/project/a.ts': { dirty: true },
             '/project/b.ts': { dirty: true },
         });
+    });
+});
+
+describe('persisted Editor split tree wiring', () => {
+    it('opening a new tab adds it to the active group as the active path', () => {
+        installEmptySession();
+
+        openEditorTab('/project/new.ts');
+
+        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
+        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
+            '/project/new.ts',
+        ]);
+        expect(state?.editorLayout && activeLayoutPath(state.editorLayout)).toBe('/project/new.ts');
+    });
+
+    it('replacing a preview tab removes the replaced path from the tree', () => {
+        installEmptySession();
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessionStates: [
+                          {
+                              ...state.bootstrap.sessionStates[0],
+                              activeTab: { kind: 'editor', path: '/project/preview-a.ts' },
+                              openTabs: [
+                                  { path: '/project/preview-a.ts', dirty: false, preview: true },
+                              ],
+                          },
+                      ],
+                  }
+                : undefined,
+        }));
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/preview-a.ts',
+            content: 'a',
+            dirty: false,
+            mtimeMs: 1,
+            size: 1,
+        });
+
+        openEditorTab('/project/preview-b.ts', { preview: true });
+
+        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
+        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
+            '/project/preview-b.ts',
+        ]);
+    });
+
+    it('closing the active tab removes it from the tree and falls back to the tree active group', async () => {
+        installEmptySession();
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessionStates: [
+                          {
+                              ...state.bootstrap.sessionStates[0],
+                              activeTab: { kind: 'editor', path: '/project/a.ts' },
+                              openTabs: [
+                                  { path: '/project/a.ts', dirty: false },
+                                  { path: '/project/b.ts', dirty: false },
+                              ],
+                          },
+                      ],
+                  }
+                : undefined,
+        }));
+
+        await closeEditor('/project/a.ts');
+
+        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
+        expect(state?.openTabs).toEqual([{ path: '/project/b.ts', dirty: false }]);
+        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
+            '/project/b.ts',
+        ]);
+        expect(state?.activeTab).toEqual({ kind: 'editor', path: '/project/b.ts' });
+        expect(state?.editorLayout && activeLayoutPath(state.editorLayout)).toBe('/project/b.ts');
+    });
+
+    it('closing a path split open in two groups removes it from both', async () => {
+        installEmptySession();
+        let editorLayout = createEditorLayout('/project/dup.ts');
+        const firstGroupId = editorLayout.activeGroupId!;
+        editorLayout = addEditorPath(editorLayout, '/project/other.ts', firstGroupId);
+        editorLayout = splitEditorPath(editorLayout, '/project/dup.ts', firstGroupId, 'right');
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessionStates: [
+                          {
+                              ...state.bootstrap.sessionStates[0],
+                              activeTab: { kind: 'editor', path: '/project/dup.ts' },
+                              openTabs: [
+                                  { path: '/project/dup.ts', dirty: false },
+                                  { path: '/project/other.ts', dirty: false },
+                              ],
+                              editorLayout,
+                          },
+                      ],
+                  }
+                : undefined,
+        }));
+
+        await closeEditor('/project/dup.ts');
+
+        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
+        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
+            '/project/other.ts',
+        ]);
+    });
+
+    it('rename rewrites the path in the persisted tree', () => {
+        installSessions('/project/source.ts');
+
+        remapOpenEditors('session-1', '/project/source.ts', '/project/renamed.ts');
+
+        const state = useWorkbenchStore
+            .getState()
+            .bootstrap?.sessionStates.find((candidate) => candidate.sessionId === 'session-1');
+        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
+            '/project/renamed.ts',
+        ]);
+    });
+
+    it('trashing a directory removes every descendant path from the tree', () => {
+        installEmptySession();
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessionStates: [
+                          {
+                              ...state.bootstrap.sessionStates[0],
+                              activeTab: { kind: 'editor', path: '/project/dir/a.ts' },
+                              openTabs: [
+                                  { path: '/project/dir/a.ts', dirty: false },
+                                  { path: '/project/dir/b.ts', dirty: false },
+                                  { path: '/project/keep.ts', dirty: false },
+                              ],
+                          },
+                      ],
+                  }
+                : undefined,
+        }));
+
+        closeOpenEditorsUnderPath('session-1', '/project/dir');
+
+        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
+        expect(state?.openTabs).toEqual([{ path: '/project/keep.ts', dirty: false }]);
+        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
+            '/project/keep.ts',
+        ]);
     });
 });
