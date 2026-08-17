@@ -193,4 +193,22 @@ describe('applyEditorTheme', () => {
         expect(definition.colors['diffEditor.insertedTextBackground']).toBe('#00ff0020');
         expect(definition.colors['diffEditor.removedTextBackground']).toBe('#ff000050');
     });
+
+    it('passes 8-digit markup token foregrounds through; Monaco ColorMap keeps only the RGB group', () => {
+        const theme = themeFixture();
+        theme.colors.success = '#00ff00cc';
+        theme.colors.danger = '#ff0000cc';
+        applyEditorTheme(theme);
+
+        const [, definition] = mocks.defineTheme.mock.calls.at(-1) as [
+            string,
+            { rules: Array<{ token: string; foreground: string }> },
+        ];
+        const byToken = new Map(definition.rules.map((rule) => [rule.token, rule.foreground]));
+
+        // slice(1) keeps the alpha suffix. monaco-editor ColorMap
+        // (`/^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/`) accepts that string and stores only group 1.
+        expect(byToken.get('markup.inserted')).toBe('00ff00cc');
+        expect(byToken.get('markup.deleted')).toBe('ff0000cc');
+    });
 });

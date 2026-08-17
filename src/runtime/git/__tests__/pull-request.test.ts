@@ -80,6 +80,24 @@ describe('parsePullRequestView', () => {
 });
 
 describe('GitPullRequestService', () => {
+    it('misses cache when the resolved repository branch or head changes', async () => {
+        let current = repo('session-a', 'repository');
+        const ghPullRequestView = vi.fn(() => Promise.resolve(pullRequestView(1)));
+        const service = new GitPullRequestService({
+            git: vi.fn(() => Promise.resolve('')),
+            ghPullRequestView,
+            resolveRepository: () => Promise.resolve(current),
+        });
+
+        await changes(service, 'session-a');
+        current = { ...current, branch: 'feature/next', head: 'c'.repeat(40) };
+        ghPullRequestView.mockResolvedValueOnce(pullRequestView(2));
+        const next = await changes(service, 'session-a');
+
+        expect(next).toMatchObject({ number: 2 });
+        expect(ghPullRequestView).toHaveBeenCalledTimes(2);
+    });
+
     it('reuses the same current repository state for 30 seconds', async () => {
         let now = 0;
         const { ghPullRequestView, service } = createService({ now: () => now });

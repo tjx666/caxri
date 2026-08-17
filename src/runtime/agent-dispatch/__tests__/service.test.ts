@@ -1,0 +1,248 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import type { AgentDispatchReceipt } from '../../../shared/ipc/agent-dispatch-contract';
+import type { Principal } from '../../../shared/ipc/principal';
+import type { TerminalRecord } from '../../../shared/types';
+import type { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';
+import type { AgentCoordinator } from '../../agents';
+import { CaxriDatabase } from '../../db';
+import type { TerminalManager } from '../../terminal';
+import { AgentDispatchService } from '../service';
+
+const MAX_DISPATCH_WAITERS = 256;
+const MAX_WAITERS_PER_DISPATCH = 32;
+const PRINCIPAL: Principal = { kind: 'human-cli', id: 'human-cli:test' };
+
+const temporaryDirectories: string[] = [];
+const databases: CaxriDatabase[] = [];
+const services: AgentDispatchService[] = [];
+
+afterEach(async () => {
+    vi.useRealTimers();
+    for (const service of services) service.close();
+    services.length = 0;
+    for (const database of databases) database.close();
+    databases.length = 0;
+    const directories = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(directories.map((path) => rm(path, { recursive: true, force: true })));
+});
+
+async function openDatabase(): Promise<CaxriDatabase> {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-dispatch-service-'));
+    temporaryDirectories.push(directory);
+    const database = new CaxriDatabase(join(directory, 'state.db'));
+    databases.push(database);
+    return database;
+}
+
+function fakeTerminals() {
+    const processIds = new Map<string, number>();
+    return {
+        processId: (terminalId: string) => processIds.get(terminalId),
+        start: (terminal: TerminalRecord) => {
+            processIds.set(terminal.id, 4_242);
+            return Promise.resolve({ ...terminal, lastProcessState: 'running' as const });
+        },
+        restart: (terminalId: string) => {
+            processIds.set(terminalId, 4_243);
+            return Promise.resolve({
+                id: terminalId,
+                lastProcessState: 'running',
+            } as TerminalRecord);
+        },
+        signalExact: vi.fn(() => true),
+    } as unknown as TerminalManager;
+}
+
+function createService(database: CaxriDatabase) {
+    const service = new AgentDispatchService({
+        database,
+        coordinator: {
+            prepareTerminalStart: vi.fn(),
+            prepareTerminalResume: vi.fn(),
+            probeTerminal: vi.fn(),
+        } as unknown as AgentCoordinator,
+        terminals: fakeTerminals(),
+        endpoints: {
+            endpointForTerminal: (terminalId: string) => ({
+                launchId: `launch-${terminalId}`,
+                terminalId,
+                ref: {
+                    hostId: 'host-1',
+                    endpointId: `endpoint-${terminalId}`,
+                    generation: 1,
+                },
+            }),
+        } as RuntimeAgentEndpointLifecycle,
+        launchSettings: () => ({ executable: '/fixture/codex', args: [] }),
+        terminalDirectoryIdentity: (path) => Promise.resolve({ device: '1', inode: '1', path }),
+        terminalWorkingDirectory: (projectRoot) => Promise.resolve(projectRoot),
+        emit: vi.fn(),
+    });
+    services.push(service);
+    return service;
+}
+
+async function seededDispatch() {
+    const database = await openDatabase();
+    const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+    const { session } = database.createSession(project.id, 'shell');
+    const service = createService(database);
+    return { database, project, service, session };
+}
+
+describe('AgentDispatchService', () => {
+    it('rejects a reused dispatch id whose command fingerprint does not match', async () => {
+        const { project, service, session } = await seededDispatch();
+        const input = { projectId: project.id, sessionId: session.id, provider: 'codex' as const };
+        await service.start('dispatch-1', PRINCIPAL, input);
+
+        await expect(
+            service.start('dispatch-1', PRINCIPAL, { ...input, provider: 'claude' }),
+        ).rejects.toMatchObject({
+            code: 'VALIDATION',
+            message: expect.stringMatching(/cannot be reused/i) as string,
+        });
+    });
+
+    it('returns the original receipt when the same start is replayed', async () => {
+        const { project, service, session } = await seededDispatch();
+        const input = { projectId: project.id, sessionId: session.id, provider: 'codex' as const };
+        const first = await service.start('dispatch-1', PRINCIPAL, input);
+        const replayed = await service.start('dispatch-1', PRINCIPAL, input);
+        expect(replayed).toEqual(first);
+        expect(first.status).toBe('running');
+    });
+
+    it('rejects a thirty-third waiter on one dispatch', async () => {
+        const { project, service, session } = await seededDispatch();
+        const receipt = await service.start('dispatch-1', PRINCIPAL, {
+            projectId: project.id,
+            sessionId: session.id,
+            provider: 'codex',
+        });
+        const pending = Array.from({ length: MAX_WAITERS_PER_DISPATCH }, (_, index) =>
+            service.wait(receipt.dispatchId, null, receipt.revision, 60_000, `wait-${index}`),
+        );
+        expect(pending).toHaveLength(MAX_WAITERS_PER_DISPATCH);
+
+        expect(() =>
+            service.wait(receipt.dispatchId, null, receipt.revision, 60_000, 'wait-overflow'),
+        ).toThrow(expect.objectContaining({ code: 'CAPACITY' }) as Error);
+    });
+
+    it('rejects a waiter once the global pending-wait cap is reached', async () => {
+        const { project, service, session } = await seededDispatch();
+        const neededDispatches = Math.ceil((MAX_DISPATCH_WAITERS + 1) / MAX_WAITERS_PER_DISPATCH);
+        const receipts: AgentDispatchReceipt[] = await Promise.all(
+            Array.from({ length: neededDispatches }, (_, index) =>
+                service.start(`dispatch-${index}`, PRINCIPAL, {
+                    projectId: project.id,
+                    sessionId: session.id,
+                    provider: 'codex',
+                }),
+            ),
+        );
+
+        let remaining = MAX_DISPATCH_WAITERS;
+        const pending: Array<ReturnType<AgentDispatchService['wait']>> = [];
+        for (const receipt of receipts) {
+            const count = Math.min(MAX_WAITERS_PER_DISPATCH, remaining);
+            for (let index = 0; index < count; index += 1) {
+                pending.push(
+                    service.wait(
+                        receipt.dispatchId,
+                        null,
+                        receipt.revision,
+                        60_000,
+                        `${receipt.dispatchId}-wait-${index}`,
+                    ),
+                );
+            }
+            remaining -= count;
+        }
+        expect(pending).toHaveLength(MAX_DISPATCH_WAITERS);
+
+        const overflow = receipts.at(-1)!;
+        expect(() =>
+            service.wait(overflow.dispatchId, null, overflow.revision, 60_000, 'global-overflow'),
+        ).toThrow(expect.objectContaining({ code: 'CAPACITY' }) as Error);
+    });
+
+    it('times out a wait that never sees a later revision', async () => {
+        vi.useFakeTimers();
+        const { project, service, session } = await seededDispatch();
+        const receipt = await service.start('dispatch-1', PRINCIPAL, {
+            projectId: project.id,
+            sessionId: session.id,
+            provider: 'codex',
+        });
+        const waiting = service.wait(
+            receipt.dispatchId,
+            null,
+            receipt.revision,
+            25,
+            'wait-timeout',
+        );
+
+        await vi.advanceTimersByTimeAsync(25);
+        await expect(waiting).resolves.toMatchObject({
+            outcome: 'timed_out',
+            receipt: { dispatchId: receipt.dispatchId, revision: receipt.revision },
+        });
+    });
+
+    it('cancels a pending wait by wait id', async () => {
+        const { project, service, session } = await seededDispatch();
+        const receipt = await service.start('dispatch-1', PRINCIPAL, {
+            projectId: project.id,
+            sessionId: session.id,
+            provider: 'codex',
+        });
+        const waiting = service.wait(receipt.dispatchId, null, receipt.revision, 60_000, 'wait-1');
+
+        expect(service.cancelWait('wait-1')).toBe(true);
+        await expect(waiting).resolves.toMatchObject({
+            outcome: 'canceled',
+            receipt: { dispatchId: receipt.dispatchId },
+        });
+        expect(service.cancelWait('wait-1')).toBe(false);
+    });
+
+    it.each([
+        ['stopped', { status: 'stopped' }],
+        ['interrupted', { status: 'interrupted' }],
+        ['dead', { status: 'failed', failure: { code: 'UNAVAILABLE', reason: 'process_failed' } }],
+        [
+            'failed',
+            { status: 'failed', failure: { code: 'UNAVAILABLE', reason: 'process_failed' } },
+        ],
+    ] as const)('maps terminal state %s onto the dispatch receipt', async (state, expected) => {
+        const { project, service, session } = await seededDispatch();
+        const receipt = await service.start('dispatch-1', PRINCIPAL, {
+            projectId: project.id,
+            sessionId: session.id,
+            provider: 'codex',
+        });
+
+        service.observeTerminalState(receipt.terminalId!, state);
+        expect(service.status(receipt.dispatchId, null)).toMatchObject(expected);
+    });
+
+    it('marks a running dispatch interrupted when the terminal returns to starting', async () => {
+        const { project, service, session } = await seededDispatch();
+        const receipt = await service.start('dispatch-1', PRINCIPAL, {
+            projectId: project.id,
+            sessionId: session.id,
+            provider: 'codex',
+        });
+
+        service.observeTerminalState(receipt.terminalId!, 'starting');
+        expect(service.status(receipt.dispatchId, null)).toMatchObject({ status: 'interrupted' });
+    });
+});
