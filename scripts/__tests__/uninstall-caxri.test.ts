@@ -146,11 +146,12 @@ describe('Caxri uninstaller', () => {
 
         expect(targets).toContain('/Users/example/Library/Application Support/Caxri');
         expect(targets).toContain('/Users/example/Library/Application Support/caxri');
+        expect(targets).toContain('/Users/example/Library/Application Support/caxri-dev');
         expect(
             targets.filter((path) =>
                 path.toLowerCase().includes('/library/application support/caxri'),
             ),
-        ).toHaveLength(2);
+        ).toHaveLength(3);
     });
 
     it('refuses to treat a Git worktree as a Caxri profile', async () => {

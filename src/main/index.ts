@@ -34,6 +34,7 @@ import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
 import { createTestRootPathResolver } from './test-root';
 import { shouldStartAutomaticUpdateCheck, UpdateService } from './updates';
+import { resolveUserDataPath } from './user-data';
 import { createWindowCloseHandler } from './window-close';
 import { resolveE2EWindowMode } from './window-mode';
 import { installWorkbenchIpc } from './workbench-ipc';
@@ -56,7 +57,17 @@ process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_CO
  * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
  */
 if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
-if (process.env.CAXRI_USER_DATA_DIR) app.setPath('userData', process.env.CAXRI_USER_DATA_DIR);
+// Must run before anything reads `app.getPath('userData')` (once a path is read, `setPath` no
+// longer affects the consumers that captured it); see `resolveUserDataPath` for why dev launches
+// get their own profile.
+{
+    const userDataPath = resolveUserDataPath({
+        appDataPath: app.getPath('appData'),
+        environmentOverride: process.env.CAXRI_USER_DATA_DIR,
+        isPackaged: app.isPackaged,
+    });
+    if (userDataPath) app.setPath('userData', userDataPath);
+}
 // After the userData override so the packaged remote-debugging gate reads the active profile's settings.
 enableRemoteDebugging(app, process.env);
 

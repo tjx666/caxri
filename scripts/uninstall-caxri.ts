@@ -168,9 +168,9 @@ function isWithin(parent: string, child: string): boolean {
     return relationship !== '' && relationship !== '..' && !relationship.startsWith(`..${sep}`);
 }
 
-function standardProfilePaths(options: CaxriUninstallOptions): [string, string] {
+function standardProfilePaths(options: CaxriUninstallOptions): [string, string, string] {
     const appSupport = join(options.homeDirectory, 'Library', 'Application Support');
-    return [join(appSupport, 'Caxri'), join(appSupport, 'caxri')];
+    return [join(appSupport, 'Caxri'), join(appSupport, 'caxri'), join(appSupport, 'caxri-dev')];
 }
 
 function assertSafeTarget(path: string, options: CaxriUninstallOptions): void {

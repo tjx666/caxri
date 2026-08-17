@@ -7,7 +7,8 @@ import { connectDesktopToHost, ensureHost } from '@caxri/cli';
 import type { HostDesktopLaunch } from '../shared/ipc/desktop-launch';
 import { HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY } from '../shared/ipc/desktop-launch';
 import { isDesktopRuntimeMethod } from '../shared/ipc/desktop-runtime';
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError, errorMessage } from '../shared/ipc/errors';
+import type { RecoveringEventClient } from '../shared/ipc/event-client';
 import { createRecoveringEventClient } from '../shared/ipc/event-client';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { DesktopOperation, DesktopTargetPayload } from '../shared/ipc/local-transport';
@@ -65,9 +66,14 @@ export function resolveDesktopLaunch(options: {
  */
 export class DesktopHostConnection extends EventTarget {
     private client?: HostClient;
+    private events?: RecoveringEventClient;
+    private eventsHostIdentity?: string;
     private hostPid?: number;
     private runtimePid?: number;
     private starting?: Promise<void>;
+    private disposed = false;
+    private isDesktopReadyAnnounced = false;
+    private isReconnecting = false;
 
     constructor(private readonly options: DesktopHostConnectionOptions) {
         super();
@@ -98,10 +104,13 @@ export class DesktopHostConnection extends EventTarget {
                 CAXRI_CLI_PATH: this.options.cliPath,
             },
         });
+        let hostIdentity: string;
         try {
             const status = await operator.request('host.status');
             this.hostPid = status.pid;
             this.runtimePid = status.runtimePid;
+            hostIdentity = `${status.pid}:${status.startedAt}`;
+            this.warnOnVersionSkew(status);
         } finally {
             operator.close();
         }
@@ -111,20 +120,129 @@ export class DesktopHostConnection extends EventTarget {
             this.options.handleCommand,
         );
         this.client = client;
-        const events = createRecoveringEventClient({
-            emit: (event) => {
-                this.dispatchEvent(new CustomEvent<RuntimeEvent>('event', { detail: event }));
-            },
-            onError: (error) =>
-                this.options.logger.write('error', 'host.event_recovery_failed', {
-                    fields: {
-                        error: error instanceof Error ? error.message : 'Unknown recovery error',
-                    },
-                }),
-            recover: (afterCursor) => client.request('events.recover', { afterCursor }),
-        });
+        client.onClose(() => this.handleConnectionLoss(client));
+        // Reconnecting to the SAME Host process must keep the consumed event cursor: restarting at
+        // zero would replay the whole journal and stale events (for example old `settings.changed`
+        // payloads) would clobber newer Renderer state. A replaced Host starts a fresh journal, so
+        // only then does the recovery cursor reset.
+        if (!this.events || this.eventsHostIdentity !== hostIdentity) {
+            this.events = createRecoveringEventClient({
+                emit: (event) => {
+                    this.dispatchEvent(new CustomEvent<RuntimeEvent>('event', { detail: event }));
+                },
+                onError: (error) =>
+                    this.options.logger.write('error', 'host.event_recovery_failed', {
+                        fields: {
+                            error:
+                                error instanceof Error ? error.message : 'Unknown recovery error',
+                        },
+                    }),
+                // Resolved per call so recovery always targets the currently attached client
+                // instead of a connection that has since been lost.
+                recover: (afterCursor) => {
+                    const attached = this.client;
+                    if (!attached)
+                        return Promise.reject(
+                            new CaxriError(
+                                'UNAVAILABLE',
+                                'Desktop is not connected to the Caxri Host',
+                            ),
+                        );
+                    return attached.request('events.recover', { afterCursor });
+                },
+            });
+            this.eventsHostIdentity = hostIdentity;
+        }
+        const events = this.events;
         client.onEvent((event) => events.receive(event));
         await events.start();
+    }
+
+    /**
+     * A detached Host survives Desktop restarts, so after a rebuild the adopted Host can still be running an older
+     * build; surface the skew instead of serving it silently. The commit compare catches dev rebuilds where the package
+     * version never changes.
+     */
+    private warnOnVersionSkew(status: { commit?: string; pid: number; version: string }): void {
+        const desktopVersion = process.env.CAXRI_APP_VERSION;
+        const desktopCommit = process.env.CAXRI_GIT_COMMIT;
+        const isVersionSkewed = Boolean(
+            desktopVersion && desktopVersion !== 'unknown' && status.version !== desktopVersion,
+        );
+        const isCommitSkewed = Boolean(
+            desktopCommit &&
+            desktopCommit !== 'unknown' &&
+            status.commit &&
+            status.commit !== 'unknown' &&
+            status.commit !== desktopCommit,
+        );
+        if (!isVersionSkewed && !isCommitSkewed) return;
+        this.options.logger.write('warn', 'host.version_mismatch', {
+            fields: {
+                desktopCommit: desktopCommit ?? 'unknown',
+                desktopVersion: desktopVersion ?? 'unknown',
+                hostCommit: status.commit ?? 'unknown',
+                hostPid: status.pid,
+                hostVersion: status.version,
+            },
+        });
+    }
+
+    /**
+     * Drops a lost attachment and keeps retrying in the background: the detached Host may be crashing, restarting, or
+     * replaced, and requests fail fast with `UNAVAILABLE` until a fresh connection (and Host relaunch via `ensureHost`)
+     * succeeds.
+     */
+    private handleConnectionLoss(lost: HostClient): void {
+        if (this.disposed || this.client !== lost) return;
+        this.client = undefined;
+        this.starting = undefined;
+        this.options.logger.write('warn', 'host.connection_lost', {});
+        // The retry loop handles every failure internally (it never rejects), so the kickoff is
+        // intentionally fire-and-forget from this synchronous close listener.
+        // eslint-disable-next-line no-void
+        void this.reconnectUntilAttached();
+    }
+
+    private async reconnectUntilAttached(): Promise<void> {
+        if (this.isReconnecting) return;
+        this.isReconnecting = true;
+        try {
+            for (let attempt = 1; ; attempt += 1) {
+                const backoffMs = Math.min(500 * 2 ** (attempt - 1), 10_000);
+                // eslint-disable-next-line no-await-in-loop -- sequential backoff between retries.
+                await new Promise((resolve) => setTimeout(resolve, backoffMs));
+                if (this.disposed) return;
+                try {
+                    // eslint-disable-next-line no-await-in-loop -- see the backoff note above.
+                    await this.start();
+                } catch (error) {
+                    this.options.logger.write('warn', 'host.reconnect_failed', {
+                        fields: { attempt, error: errorMessage(error, 'unknown') },
+                    });
+                    continue;
+                }
+                this.options.logger.write('info', 'host.reconnected', { fields: { attempt } });
+                // Re-announce Renderer readiness so the replacement Host resumes delivering
+                // one-shot window commands without waiting for another boot.
+                if (this.isDesktopReadyAnnounced)
+                    try {
+                        // eslint-disable-next-line no-await-in-loop -- final await before returning.
+                        await this.markDesktopReady();
+                    } catch (error) {
+                        this.options.logger.write('error', 'host.desktop_ready_failed', {
+                            fields: { error: errorMessage(error, 'unknown') },
+                        });
+                    }
+                // The replacement connection can be lost again while this loop is still finishing
+                // (its close listener sees `isReconnecting` and cannot start another loop), so a
+                // cleared attachment here means "keep retrying", not success.
+                if (!this.client) continue;
+                return;
+            }
+        } finally {
+            this.isReconnecting = false;
+        }
     }
 
     processId(): number | undefined {
@@ -194,10 +312,12 @@ export class DesktopHostConnection extends EventTarget {
             return Promise.reject(
                 new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host'),
             );
+        this.isDesktopReadyAnnounced = true;
         return client.markDesktopReady();
     }
 
     close(): void {
+        this.disposed = true;
         this.client?.close();
         this.client = undefined;
     }

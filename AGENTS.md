@@ -77,10 +77,13 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Install dependencies: `ni`
 - Start the Electron app in the current worktree:
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev`
-- Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` (`CAXRI_DEV_CDP_PORT` overrides),
-  and packaged (production) builds expose the same endpoint by default during internal testing.
-  The `debug` skill owns the live-inspection workflow, including the mandatory proxy-variable
-  workaround for `agent-browser connect` and the raw-CDP fallback.
+- Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` and packaged (production) builds
+  expose `127.0.0.1:9224` by default during internal testing (`CAXRI_DEV_CDP_PORT` overrides
+  either). The `debug` skill owns the live-inspection workflow, including the mandatory
+  proxy-variable workaround for `agent-browser connect` and the raw-CDP fallback.
+- Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Host, SQLite,
+  and logs) so they never contend with the installed production app; `CAXRI_USER_DATA_DIR`
+  overrides it (`src/main/user-data.ts`).
 - Manage isolated worktrees by explicitly invoking `$switch-worktree`.
 - Format the repository: `bun run format`; verify formatting: `bun run format:check`
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`

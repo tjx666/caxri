@@ -159,6 +159,10 @@ export const methods = {
         result: z.object({
             profileId: identifierSchema,
             version: z.string().min(1).max(100),
+            /**
+             * Build commit for stale-Host detection; package version alone misses dev rebuilds.
+             */
+            commit: z.string().min(1).max(100).optional(),
             pid: z.number().int().positive(),
             runtimePid: z.number().int().positive().optional(),
             startedAt: z.number().int().positive(),
