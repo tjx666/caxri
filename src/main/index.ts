@@ -16,6 +16,7 @@ import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
+import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import { createDesktopOperationHandler } from './desktop-operations';
 import { createMainEventRelay } from './event-relay';
@@ -243,7 +244,7 @@ enableRemoteDebugging(app, process.env);
         window.webContents.on('console-message', (details) => {
             if (details.level !== 'error') return;
             mainLogger?.write('error', 'renderer.console_error', {
-                fields: { code: 'CONSOLE_ERROR' },
+                fields: consoleErrorLogFields(details),
             });
         });
         window.webContents.on('preload-error', () => {
