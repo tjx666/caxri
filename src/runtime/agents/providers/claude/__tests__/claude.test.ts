@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 describe('Claude Code provider', () => {
-    it('reads Claude Code live-session metadata without opening transcripts', async () => {
+    it('reads Claude Code live-session metadata', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-state-'));
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
@@ -115,5 +115,149 @@ describe('Claude Code provider', () => {
             status: 'running',
             title: 'Repair terminal lifecycle',
         });
+    });
+
+    it('prefers the transcript AI title over a directory-derived live-session name', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-title-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const config = join(directory, 'claude');
+        const bin = join(directory, 'bin');
+        const projectDirectory = join(config, 'projects', root.replaceAll(/[^a-z0-9]/gi, '-'));
+        await Promise.all([
+            mkdir(root),
+            mkdir(join(config, 'sessions'), { recursive: true }),
+            mkdir(projectDirectory, { recursive: true }),
+            mkdir(bin),
+        ]);
+        const executable = join(bin, 'claude');
+        await writeFile(executable, '#!/bin/sh\nprintf "claude 1.0\\n"\n', 'utf8');
+        await chmod(executable, 0o700);
+        await writeFile(
+            join(config, 'sessions', 'session.json'),
+            JSON.stringify({
+                cwd: root,
+                name: 'project-worktree-7d',
+                nameSource: 'derived',
+                sessionId: 'claude-session-derived',
+                status: 'busy',
+                updatedAt: new Date().toISOString(),
+            }),
+            'utf8',
+        );
+        const transcript = join(projectDirectory, 'claude-session-derived.jsonl');
+        await writeFile(
+            transcript,
+            `${JSON.stringify({ sessionId: 'claude-session-derived', type: 'user' })}\n${JSON.stringify(
+                {
+                    aiTitle: 'Migrate market search to Elasticsearch',
+                    sessionId: 'claude-session-derived',
+                    type: 'ai-title',
+                },
+            )}\n`,
+            'utf8',
+        );
+        vi.stubEnv('PATH', bin);
+        vi.stubEnv('SHELL', '/usr/bin/false');
+        const service = new AgentService(
+            undefined,
+            createLocalAgentAdapters({
+                homeDirectory: directory,
+                variables: {
+                    CLAUDE_CONFIG_DIR: config,
+                    CODEX_HOME: join(directory, 'missing-codex'),
+                },
+            }),
+        );
+
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'Migrate market search to Elasticsearch' });
+
+        // A later ai-title append must win on the next incremental poll.
+        await appendFile(
+            transcript,
+            `${JSON.stringify({
+                aiTitle: 'Migrate market search to ES with flags',
+                sessionId: 'claude-session-derived',
+                type: 'ai-title',
+            })}\n`,
+            'utf8',
+        );
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'Migrate market search to ES with flags' });
+    });
+
+    it('keeps an explicitly named session title and falls back to the derived name without a transcript', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-title-fallback-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const config = join(directory, 'claude');
+        const bin = join(directory, 'bin');
+        const projectDirectory = join(config, 'projects', root.replaceAll(/[^a-z0-9]/gi, '-'));
+        await Promise.all([
+            mkdir(root),
+            mkdir(join(config, 'sessions'), { recursive: true }),
+            mkdir(projectDirectory, { recursive: true }),
+            mkdir(bin),
+        ]);
+        const executable = join(bin, 'claude');
+        await writeFile(executable, '#!/bin/sh\nprintf "claude 1.0\\n"\n', 'utf8');
+        await chmod(executable, 0o700);
+        await writeFile(
+            join(config, 'sessions', 'named.json'),
+            JSON.stringify({
+                cwd: root,
+                name: 'My renamed session',
+                nameSource: 'user',
+                sessionId: 'claude-session-named',
+                status: 'busy',
+                updatedAt: new Date().toISOString(),
+            }),
+            'utf8',
+        );
+        await writeFile(
+            join(projectDirectory, 'claude-session-named.jsonl'),
+            `${JSON.stringify({
+                aiTitle: 'Should not override explicit names',
+                sessionId: 'claude-session-named',
+                type: 'ai-title',
+            })}\n`,
+            'utf8',
+        );
+        vi.stubEnv('PATH', bin);
+        vi.stubEnv('SHELL', '/usr/bin/false');
+        const service = new AgentService(
+            undefined,
+            createLocalAgentAdapters({
+                homeDirectory: directory,
+                variables: {
+                    CLAUDE_CONFIG_DIR: config,
+                    CODEX_HOME: join(directory, 'missing-codex'),
+                },
+            }),
+        );
+
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'My renamed session' });
+
+        // Derived name without any transcript still surfaces as the fallback title.
+        await writeFile(
+            join(config, 'sessions', 'named.json'),
+            JSON.stringify({
+                cwd: root,
+                name: 'project-derived-name',
+                nameSource: 'derived',
+                sessionId: 'claude-session-transcriptless',
+                status: 'busy',
+                updatedAt: new Date().toISOString(),
+            }),
+            'utf8',
+        );
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'project-derived-name' });
     });
 });
