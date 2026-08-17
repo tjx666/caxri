@@ -10,9 +10,17 @@ export interface TerminalCommandStatus {
 
 interface TerminalCommandColors {
     failed: string;
-    prompt: string;
     running: string;
     succeeded: string;
+}
+
+/**
+ * VS Code's `terminalCommandDecoration.defaultBackground`: the terminal foreground at 25% alpha, so the running/unknown
+ * placeholder stays subtle on any theme. Falls back to VS Code's dark-theme value when the theme has no usable hex
+ * foreground.
+ */
+export function terminalCommandDecorationDefaultColor(foreground: string | undefined): string {
+    return foreground && /^#[0-9a-f]{6}$/i.test(foreground) ? `${foreground}40` : '#ffffff40';
 }
 
 interface CommandBoundary {
@@ -24,9 +32,12 @@ interface CommandBoundary {
 
 const MAX_RETAINED_COMMANDS = 1_000;
 
-function opaqueColor(color: string): string {
-    return color.slice(0, 7);
-}
+/**
+ * VS Code's decoration glyph metrics (`DecorationStyles` in its decorationAddon): a 16px icon pulled left of column 0
+ * into the terminal's reserved gutter.
+ */
+const DECORATION_WIDTH_PX = 16;
+const DECORATION_MARGIN_LEFT_PX = -17;
 
 /**
  * Maps explicit OSC 133/633 lifecycle controls to content-free xterm markers. It never inspects or retains command
@@ -36,7 +47,6 @@ export class TerminalCommandTracker {
     private readonly commands: CommandBoundary[] = [];
     private readonly protocolDisposables: IDisposable[];
     private navigationIndex: number | undefined;
-    private promptDecoration: IDecoration | undefined;
     private promptMarker: IMarker | undefined;
     private running: CommandBoundary | undefined;
 
@@ -69,11 +79,13 @@ export class TerminalCommandTracker {
         return false;
     }
 
+    /**
+     * VS Code shows no decoration for a prompt that has not executed a command yet; the marker is still retained so the
+     * next `OSC 133;C` can anchor its decoration at the prompt line.
+     */
     private startPrompt(): void {
-        this.promptDecoration?.dispose();
         this.promptMarker?.dispose();
         this.promptMarker = this.terminal.registerMarker();
-        this.promptDecoration = this.decorate(this.promptMarker, 'prompt', this.colors.prompt);
     }
 
     private startCommand(): void {
@@ -81,8 +93,6 @@ export class TerminalCommandTracker {
         this.pruneDisposedCommands();
         this.pruneExcessCommands();
         const marker = this.promptMarker ?? this.terminal.registerMarker();
-        this.promptDecoration?.dispose();
-        this.promptDecoration = undefined;
         const command: CommandBoundary = {
             decoration: this.decorate(marker, 'running', this.colors.running),
             startMarker: marker,
@@ -144,20 +154,23 @@ export class TerminalCommandTracker {
         this.publishStatus();
     }
 
+    /**
+     * VS Code-style command decoration: a 16px glyph in the terminal's left gutter, drawn by CSS from the phase data
+     * attribute (hollow circle while running, filled circle on success, cross on failure).
+     */
     private decorate(
         marker: IMarker,
-        phase: 'failed' | 'prompt' | 'running' | 'succeeded',
+        phase: 'failed' | 'running' | 'succeeded',
         color: string,
         exitStatus?: number,
     ): IDecoration | undefined {
-        const decoration = this.terminal.registerDecoration({
-            backgroundColor: opaqueColor(color),
-            marker,
-            width: 1,
-        });
+        const decoration = this.terminal.registerDecoration({ marker, width: 1 });
         decoration?.onRender((element) => {
             element.classList.add('terminal-command-decoration');
             element.dataset.terminalCommandPhase = phase;
+            element.style.color = color;
+            element.style.marginLeft = `${DECORATION_MARGIN_LEFT_PX}px`;
+            element.style.width = `${DECORATION_WIDTH_PX}px`;
             if (exitStatus !== undefined)
                 element.dataset.terminalCommandExitStatus = String(exitStatus);
         });
@@ -177,7 +190,6 @@ export class TerminalCommandTracker {
 
     dispose(): void {
         for (const disposable of this.protocolDisposables) disposable.dispose();
-        this.promptDecoration?.dispose();
         this.promptMarker?.dispose();
         for (const command of this.commands) {
             command.decoration?.dispose();
@@ -185,7 +197,6 @@ export class TerminalCommandTracker {
             command.startMarker.dispose();
         }
         this.commands.length = 0;
-        this.promptDecoration = undefined;
         this.promptMarker = undefined;
         this.running = undefined;
     }
