@@ -15,7 +15,6 @@ import {
     readE2EAgentPolicy,
 } from '../../shared/node/e2e-agent-policy';
 import type { StructuredLogger } from '../../shared/node/logger';
-import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     TerminalFailureReason,
     TerminalKind,
@@ -43,6 +42,7 @@ import type {
 } from './manager-types';
 import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
+import { terminalEnvironment } from './terminal-environment';
 
 export type {
     TerminalManagerOptions,
@@ -51,6 +51,7 @@ export type {
 } from './manager-types';
 export { TerminalRestoreSupervisor } from './restore-supervisor';
 export { ShellIntegrationService } from './shell-integration';
+export { terminalEnvironment } from './terminal-environment';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;
@@ -61,15 +62,6 @@ const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;
 function clearScheduledTimer(timer: NodeJS.Timeout | undefined): undefined {
     if (timer) clearTimeout(timer);
     return;
-}
-
-export function terminalEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-    const environment: NodeJS.ProcessEnv = {
-        ...safeProcessEnvironment(source),
-        TERM: 'xterm-256color',
-        COLORTERM: 'truecolor',
-    };
-    return environment;
 }
 
 export class TerminalManager {
