@@ -232,10 +232,20 @@ export const keybindingConflictSchema = z.object({
 
 const hex = z.string().regex(/^#[0-9a-f]{6}([0-9a-f]{2})?$/i);
 
+/**
+ * Import-format ids only. `builtin` and `custom` are persistence sources, not import formats — they stay off this list
+ * so a new parser must extend both this tuple and `themeTokenSourceIds`.
+ */
+export const themeImportFormatIds = ['iterm2', 'warp', 'vscode'] as const;
+export type ThemeImportFormatId = (typeof themeImportFormatIds)[number];
+
+export const themeTokenSourceIds = ['builtin', 'custom', ...themeImportFormatIds] as const;
+export type ThemeTokenSource = (typeof themeTokenSourceIds)[number];
+
 export const themeTokensSchema = z.object({
     id: z.string().min(1),
     name: z.string().min(1),
-    source: z.enum(['builtin', 'custom', 'vscode', 'iterm2', 'warp']),
+    source: z.enum(themeTokenSourceIds),
     colors: z.object({
         background: hex,
         surface: hex,
