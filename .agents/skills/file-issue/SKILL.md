@@ -97,15 +97,40 @@ After creating the issue, always add it to the owner's Caxri project and set its
 
 ```bash
 gh project item-add 2 --owner tjx666 --url "$issue_url"
-gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Priority --value "P2 Normal"
+gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Priority --value "<assessed>"
+gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Size --value "<assessed>"
 gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Status --value "Next"
 ```
 
 - Use `In Progress` instead of `Next` only when implementation or verification is already underway.
-- Raise priority to `P1 High` or `P0 Critical` only when the issue body establishes concrete user impact; use `P3 Low` for explicitly deferrable work.
 - Do not assign the sole maintainer or invent a milestone merely to fill metadata.
 - If a Project mutation fails, retry it once. Keep the successfully created issue, report the tracking failure, and never delete or recreate the issue to recover.
-- Fetch the Project item once and verify its URL, Status, and Priority before reporting success.
+- Fetch the Project item once and verify its URL, Status, Priority, and Size before reporting success.
+
+### Priority (assess, never default)
+
+Assess every issue explicitly against user impact; filing with an unconsidered default is a
+process defect. State the chosen value and its one-line rationale in the filing report.
+
+- `P0 Critical` — data loss, crash, security exposure, or a core workflow is unusable.
+- `P1 High` — a primary workflow is materially degraded, or the owner has asked for it soon.
+- `P2 Normal` — real value, no urgency; the default only after actually weighing the impact.
+- `P3 Low` — polish, cosmetic, or explicitly deferrable work.
+
+### Size (agent-native complexity)
+
+Estimate in agent-native terms — ambiguity, architectural reach, ownership boundaries crossed,
+validation cost, desktop/CI constraints, expected agent iterations — never manual coding time.
+State the chosen value and its dominant cost driver in the filing report.
+
+- `XS` — one obvious local change, trivial validation.
+- `S` — a few files inside one owning surface; standard unit-test validation.
+- `M` — crosses one boundary (schema migration, IPC contract, new UI surface) or needs E2E/desktop
+  validation.
+- `L` — crosses several boundaries or process layers, needs new interaction/design work plus
+  multi-surface validation.
+- `XL` — architectural: new subsystem, protocol change with wide fan-out, or multi-session
+  delivery; consider splitting before filing.
 
 ## Filing behavior
 
