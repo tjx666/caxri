@@ -655,6 +655,84 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('moves a Terminal into a brand-new selected Session under the same Project', async () => {
+        const directory = await temporaryDirectory('caxri-db-move-terminal-');
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(root);
+        const created = database.createSession(project.id, 'codex');
+        const shell = database.createTerminal(created.session.id, 'shell');
+        const preMoveState = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...preMoveState,
+            layout: splitTerminal(
+                preMoveState.layout,
+                shell.id,
+                preMoveState.layout.activeGroupId!,
+                'vertical',
+            ),
+        });
+        expect(created.session.primaryAgentTerminalId).toBe(created.terminal!.id);
+
+        const moved = database.moveTerminalToNewSession(created.terminal!.id);
+
+        expect(moved.terminal).toMatchObject({
+            id: created.terminal!.id,
+            sessionId: moved.session.id,
+        });
+        expect(moved.session).toMatchObject({
+            projectId: project.id,
+            displayTitle: 'Untitled',
+            primaryAgentTerminalId: created.terminal!.id,
+        });
+        expect(database.getAppState('lastSelectedSessionId')).toBe(moved.session.id);
+        expect(database.getAppState('lastSelectedProjectId')).toBe(project.id);
+
+        expect(listLayoutTerminalIds(database.getSessionState(moved.session.id).layout)).toEqual([
+            created.terminal!.id,
+        ]);
+        expect(listLayoutTerminalIds(database.getSessionState(created.session.id).layout)).toEqual([
+            shell.id,
+        ]);
+
+        expect(database.getSession(created.session.id)).toMatchObject({
+            primaryAgentTerminalId: undefined,
+            lastActivityState: 'idle',
+        });
+        expect(database.getTerminal(shell.id)).toMatchObject({ sessionId: created.session.id });
+        database.close();
+    });
+
+    it('leaves the source Session with an empty layout and no primary Agent when its only Terminal moves', async () => {
+        const directory = await temporaryDirectory('caxri-db-move-only-terminal-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(directory);
+        const created = database.createSession(project.id, 'claude');
+
+        const moved = database.moveTerminalToNewSession(created.terminal!.id);
+
+        expect(moved.session).toMatchObject({
+            projectId: project.id,
+            primaryAgentTerminalId: created.terminal!.id,
+        });
+        expect(database.getSession(created.session.id)).toMatchObject({
+            primaryAgentTerminalId: undefined,
+        });
+        expect(database.getSessionState(created.session.id)).toMatchObject({ layout: {} });
+        expect(listLayoutTerminalIds(database.getSessionState(moved.session.id).layout)).toEqual([
+            created.terminal!.id,
+        ]);
+        database.close();
+    });
+
+    it('rejects moving an unknown Terminal', async () => {
+        const directory = await temporaryDirectory('caxri-db-move-unknown-terminal-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        expect(() => database.moveTerminalToNewSession('missing-terminal')).toThrow(/not found/i);
+        database.close();
+    });
+
     it('rejects databases created by a newer schema version', async () => {
         const directory = await temporaryDirectory('caxri-db-future-schema-');
         const databasePath = join(directory, 'state.db');

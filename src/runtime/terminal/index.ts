@@ -739,6 +739,19 @@ export class TerminalManager {
         this.database.closeTerminal(terminalId);
     }
 
+    /**
+     * Updates the cached `LiveTerminal.record.sessionId` after `CaxriDatabase.moveTerminalToNewSession` moves the
+     * durable row. Without this, `terminateSession`/`runningCount` (which filter this in-memory cache by
+     * `record.sessionId`, not by re-reading the DB) would keep attributing the moved PTY to its old Session — closing
+     * the old Session would then kill the still-live, already-moved Terminal's process. No-op when the Terminal has no
+     * live PTY (e.g. was interrupted/stopped): the DB is already the source of truth in that case.
+     */
+    reassignSession(terminalId: string, sessionId: string): void {
+        const live = this.terminals.get(terminalId);
+        if (!live) return;
+        live.record = { ...live.record, sessionId };
+    }
+
     terminateSession(sessionId: string): void {
         for (const terminal of this.database.listTerminals(sessionId)) {
             this.attached.delete(terminal.id);

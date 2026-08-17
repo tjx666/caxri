@@ -442,6 +442,59 @@ export class CaxriDatabase {
         });
     }
 
+    /**
+     * Moves a live Terminal (its PTY untouched) into a brand-new Session under the same Project, analogous to a browser
+     * "move tab to new window". Mirrors `createSession`'s new-Session bootstrap and `closeTerminal`'s source-Session
+     * cleanup, but in one transaction so the Terminal is never observably ownerless. The caller (`bootstrap.ts`) must
+     * additionally call `TerminalManager.reassignSession` afterward to keep the live PTY cache's `sessionId` in sync —
+     * this DB call alone does not touch the in-memory cache.
+     */
+    moveTerminalToNewSession(terminalId: string): {
+        session: SessionRecord;
+        terminal: TerminalRecord;
+    } {
+        return this.db.transaction(() => {
+            const terminal = this.db.terminals.get(terminalId);
+            if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+            const sourceSession = this.db.sessions.get(terminal.sessionId);
+            if (!sourceSession) throw new CaxriError('NOT_FOUND', 'Session not found');
+            const project = this.db.projects.get(sourceSession.projectId);
+            if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
+
+            const newSession = this.db.sessions.insert({
+                projectId: sourceSession.projectId,
+                displayTitle: DEFAULT_SESSION_TITLE,
+            });
+
+            this.db.terminals.reassignSession(terminalId, newSession.id);
+            const movedTerminal = this.db.terminals.get(terminalId)!;
+
+            // Source Session cleanup, mirroring `closeTerminal`.
+            if (sourceSession.primaryAgentTerminalId === terminalId) {
+                const remaining = this.db.terminals.list(sourceSession.id);
+                const succession = choosePrimaryAgentSuccessor(remaining, sourceSession);
+                this.db.sessions.setPrimaryAgent(sourceSession.id, succession);
+            }
+            const sourceState = this.db.sessions.getState(sourceSession.id);
+            this.db.sessions.updateState(withTerminalRemovedFromLayout(sourceState, terminalId));
+
+            // New Session bootstrap, mirroring `createSession`.
+            const assignment = choosePrimaryAgentForNewTerminal(newSession, movedTerminal);
+            if (assignment) this.db.sessions.setPrimaryAgent(newSession.id, assignment);
+            this.db.sessions.insertInitialState(newSession.id, movedTerminal.id);
+
+            this.db.appState.set('lastSelectedSessionId', newSession.id);
+            this.db.appState.set('lastSelectedProjectId', project.id);
+            this.db.projects.touchLastOpened(project.id);
+            this.db.sessions.touchLastOpened(newSession.id);
+
+            return {
+                session: this.db.sessions.get(newSession.id)!,
+                terminal: movedTerminal,
+            };
+        });
+    }
+
     selectSession(sessionId: string): void {
         this.db.transaction(() => {
             const session = this.db.sessions.get(sessionId);

@@ -41,6 +41,7 @@ import {
     pinEditorTab,
     selectEditorTab,
 } from '../editor/document-actions';
+import { moveTerminalToNewSession } from '../session/session-actions';
 import {
     activateTerminal,
     closeTerminal,
@@ -61,12 +62,14 @@ import { workTabId, workTabNavigationTarget } from './work-tab-accessibility';
 
 function TerminalWorkTab({
     active,
+    isOnlyWorkTab,
     onNavigate,
     onSelect,
     tabId,
     terminal,
 }: {
     active: boolean;
+    isOnlyWorkTab: boolean;
     onNavigate: (key: WorkTabNavigationKey) => void;
     onSelect: () => void;
     tabId: string;
@@ -123,6 +126,19 @@ function TerminalWorkTab({
                 onNavigate(event.key as WorkTabNavigationKey);
             }}
             onSelect={onSelect}
+            contextMenu={
+                <ContextMenuContent>
+                    <ContextMenuItem
+                        disabledReason={
+                            isOnlyWorkTab ? 'This is the only tab open in this session' : undefined
+                        }
+                        disabled={isOnlyWorkTab}
+                        onClick={() => moveTerminalToNewSession(terminal.id)}
+                    >
+                        Move to New Session
+                    </ContextMenuItem>
+                </ContextMenuContent>
+            }
         />
     );
 }
@@ -349,6 +365,7 @@ export function WorkTabStrip() {
                                     <TerminalWorkTab
                                         key={item.motionKey}
                                         active={isActive(activeWork, item.item)}
+                                        isOnlyWorkTab={items.length === 1}
                                         onNavigate={(key) => navigateWorkTabs(item.item, key)}
                                         onSelect={() => selectWorkItem(item.item)}
                                         tabId={

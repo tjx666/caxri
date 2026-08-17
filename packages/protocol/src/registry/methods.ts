@@ -387,6 +387,18 @@ export const methods = {
         params: z.object({ terminalId: identifierSchema }),
         result: z.null(),
     },
+    'terminal.moveToNewSession': {
+        ...hostWrite,
+        /**
+         * Creates a brand-new Session under the same Project and moves the live Terminal (its running PTY preserved)
+         * into it, analogous to a browser "move tab to new window".
+         */
+        params: z.object({ terminalId: identifierSchema }),
+        result: z.object({
+            session: sessionRecordSchema,
+            terminal: terminalRecordSchema,
+        }),
+    },
     'terminal.restart': {
         ...hostControl,
         params: z.object({
