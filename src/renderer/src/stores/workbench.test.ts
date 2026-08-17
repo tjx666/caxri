@@ -146,6 +146,21 @@ describe('workbench Runtime events', () => {
         unsubscribe();
     });
 
+    it('re-attaches Terminal panes and refreshes state after a Host reconnect', async () => {
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+        expect(useWorkbenchStore.getState().attachEpoch).toBe(0);
+
+        mocks.emit({
+            event: 'host.connectionChanged',
+            payload: { status: 'reconnected', downtimeMs: 512, attempt: 1, isHostReplaced: false },
+        });
+
+        expect(useWorkbenchStore.getState().attachEpoch).toBe(1);
+        await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
+        expect(mocks.request.mock.calls[0]?.[0]).toBe('app.bootstrap');
+        unsubscribe();
+    });
+
     it('routes a one-shot Desktop open request without persisting it as Runtime state', () => {
         const handlers = eventHandlers();
         const unsubscribe = subscribeWorkbenchEvents(handlers);

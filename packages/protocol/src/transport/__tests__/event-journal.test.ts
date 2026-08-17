@@ -17,6 +17,9 @@ describe('isTransientRuntimeEvent / transient and durable schemas', () => {
         expect(isTransientRuntimeEvent({ event: 'command.execute', payload: {} } as never)).toBe(
             true,
         );
+        expect(
+            isTransientRuntimeEvent({ event: 'host.connectionChanged', payload: {} } as never),
+        ).toBe(true);
     });
 
     it('classifies a durable state event as non-transient', () => {

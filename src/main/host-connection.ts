@@ -74,6 +74,12 @@ export class DesktopHostConnection extends EventTarget {
     private disposed = false;
     private isDesktopReadyAnnounced = false;
     private isReconnecting = false;
+    /**
+     * Wall-clock start of the current outage. Kept across failed reconnect rounds so `downtimeMs` reports the full
+     * user-visible gap (transient `terminal.output` events sent inside it were dropped), not just the last retry.
+     */
+    private connectionLostAtMs?: number;
+    private isHostReplacedOnLastConnect = false;
 
     constructor(private readonly options: DesktopHostConnectionOptions) {
         super();
@@ -121,6 +127,8 @@ export class DesktopHostConnection extends EventTarget {
         );
         this.client = client;
         client.onClose(() => this.handleConnectionLoss(client));
+        this.isHostReplacedOnLastConnect =
+            this.eventsHostIdentity !== undefined && this.eventsHostIdentity !== hostIdentity;
         // Reconnecting to the SAME Host process must keep the consumed event cursor: restarting at
         // zero would replay the whole journal and stale events (for example old `settings.changed`
         // payloads) would clobber newer Renderer state. A replaced Host starts a fresh journal, so
@@ -197,6 +205,7 @@ export class DesktopHostConnection extends EventTarget {
         if (this.disposed || this.client !== lost) return;
         this.client = undefined;
         this.starting = undefined;
+        this.connectionLostAtMs ??= Date.now();
         this.options.logger.write('warn', 'host.connection_lost', {});
         // The retry loop handles every failure internally (it never rejects), so the kickoff is
         // intentionally fire-and-forget from this synchronous close listener.
@@ -222,7 +231,14 @@ export class DesktopHostConnection extends EventTarget {
                     });
                     continue;
                 }
-                this.options.logger.write('info', 'host.reconnected', { fields: { attempt } });
+                const downtimeMs =
+                    this.connectionLostAtMs === undefined
+                        ? 0
+                        : Date.now() - this.connectionLostAtMs;
+                const isHostReplaced = this.isHostReplacedOnLastConnect;
+                this.options.logger.write('info', 'host.reconnected', {
+                    fields: { attempt, downtimeMs, isHostReplaced },
+                });
                 // Re-announce Renderer readiness so the replacement Host resumes delivering
                 // one-shot window commands without waiting for another boot.
                 if (this.isDesktopReadyAnnounced)
@@ -238,6 +254,24 @@ export class DesktopHostConnection extends EventTarget {
                 // (its close listener sees `isReconnecting` and cannot start another loop), so a
                 // cleared attachment here means "keep retrying", not success.
                 if (!this.client) continue;
+                this.connectionLostAtMs = undefined;
+                /**
+                 * Transient events (PTY bytes above all) sent during the outage were dropped without replay, so the
+                 * Renderer must re-attach mounted Terminal panes; durable-event recovery alone cannot restore them.
+                 */
+                this.dispatchEvent(
+                    new CustomEvent<RuntimeEvent>('event', {
+                        detail: {
+                            event: 'host.connectionChanged',
+                            payload: {
+                                status: 'reconnected',
+                                downtimeMs,
+                                attempt,
+                                isHostReplaced,
+                            },
+                        },
+                    }),
+                );
                 return;
             }
         } finally {

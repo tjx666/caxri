@@ -20,6 +20,7 @@ export type TransientRuntimeEvent = Extract<
             | 'agent.messaging.changed'
             | 'command.execute'
             | 'desktop.openRequested'
+            | 'host.connectionChanged'
             | 'terminal.output'
             | 'workbench.candidate'
             | 'workbench.changed';
@@ -34,6 +35,11 @@ const TRANSIENT_RUNTIME_EVENT_NAMES = new Set<RuntimeEvent['event']>([
     'agent.message.receipt',
     'command.execute',
     'desktop.openRequested',
+    /**
+     * A one-shot Main-side resync trigger: replaying it after the Renderer already re-attached would only force a
+     * redundant snapshot round-trip.
+     */
+    'host.connectionChanged',
     'workbench.candidate',
     'workbench.changed',
 ]);
