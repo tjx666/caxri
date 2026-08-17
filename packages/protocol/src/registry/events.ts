@@ -146,6 +146,19 @@ export const runtimeEventPayloads = {
     'keybindings.changed': configChangedSchema,
     'theme.changed': configChangedSchema,
     'updates.state': updateStateSchema,
+    /**
+     * Main-originated resync signal after the Desktop↔Host connection dropped and re-attached (observed in production
+     * on macOS sleep/wake). Transient events sent during the outage — PTY output above all — were never delivered and
+     * are not replayable, so the Renderer must re-attach mounted Terminal panes to Runtime's authoritative screen
+     * snapshot and refresh converged state. The fields mirror the `host.reconnected` structured log line so a stuck
+     * report can be correlated across the Renderer and Main.
+     */
+    'host.connectionChanged': z.object({
+        status: z.literal('reconnected'),
+        downtimeMs: z.number().nonnegative(),
+        attempt: z.number().int().positive(),
+        isHostReplaced: z.boolean(),
+    }),
     'window.fullScreen': z.object({ isFullScreen: z.boolean() }),
     'desktop.openRequested': z.object({
         sessionId: identifierSchema,

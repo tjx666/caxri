@@ -24,8 +24,9 @@ interface WorkbenchState {
      */
     bootstrap?: BootstrapState;
     /**
-     * Bumped every time the Runtime reports ready again. Mounted Terminal panes watch this to re-issue
-     * `terminal.attach`, because a Runtime restart drops attachment state the pane cannot observe on its own.
+     * Bumped every time the Runtime reports ready again and after a Desktop↔Host reconnect. Mounted Terminal panes
+     * watch this to re-issue `terminal.attach`, because a Runtime restart drops attachment state — and a Host
+     * connection outage drops live `terminal.output` bytes — that the pane cannot observe on its own.
      */
     attachEpoch: number;
     /**
@@ -392,6 +393,21 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                     void refreshWorkbench();
                 }
+                return;
+            }
+            case 'host.connectionChanged': {
+                /**
+                 * PTY output sent while the Desktop↔Host socket was down (observed on macOS sleep/wake) was dropped
+                 * without replay: without a forced re-attach every backgrounded Terminal pane would stay frozen at the
+                 * last byte received before the outage. Refresh converged state too — durable recovery may have been
+                 * reset when a replacement Host took over.
+                 */
+                useWorkbenchStore.setState((current) => ({
+                    attachEpoch: current.attachEpoch + 1,
+                }));
+                // Fire-and-forget: refreshWorkbench() catches its own Runtime request failures.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                void refreshWorkbench();
                 return;
             }
             case 'settings.changed':
