@@ -10,3 +10,4 @@ pnpm-lock.yaml
 coverage/
 licenses/
 src/runtime/store/migrations/
+.agents/skills/design-prototype/assets/*.js
