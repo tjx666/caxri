@@ -168,6 +168,39 @@ export class TerminalsModel {
             .run();
     }
 
+    /**
+     * Reclassifies an existing Agent Terminal onto a different provider after the user launched another agent in the
+     * same PTY. The provider-owned session binding is cleared so the coordinator's follow-up probe can adopt the new
+     * provider's session.
+     */
+    switchAgentProvider(
+        id: string,
+        provider: AgentProvider,
+        title: string,
+        now = Date.now(),
+    ): boolean {
+        return (
+            this.database
+                .update(terminals)
+                .set({
+                    kind: provider,
+                    provider,
+                    title,
+                    icon: provider,
+                    agentSessionId: null,
+                    updatedAt: now,
+                })
+                .where(
+                    and(
+                        eq(terminals.id, id),
+                        sql`${terminals.provider} IS NOT NULL`,
+                        sql`${terminals.provider} != ${provider}`,
+                    ),
+                )
+                .run().changes === 1
+        );
+    }
+
     promoteShellToAgent(
         id: string,
         provider: AgentProvider,

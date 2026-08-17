@@ -23,6 +23,12 @@ interface ShellInputState {
 }
 
 interface ShellPromotionCandidate {
+    /**
+     * Provider session reported by the cross-provider hook signal that opened this switch candidate. A hook-opened
+     * candidate starts too late for the `startedAt` metadata filter to see the already-running session, so this is the
+     * only identity a confirmed switch can adopt immediately.
+     */
+    agentSessionId?: string;
     attempts: number;
     expiresAt: number;
     nextProcessProbeAt: number;
@@ -135,7 +141,32 @@ export class AgentCoordinator {
             ) {
                 return;
             }
-            if (!this.database.promoteShellToAgent(terminalId, provider)) return;
+            const terminal = this.database.getTerminal(terminalId);
+            /**
+             * The foreground agent matching the bound provider means nothing changed; keep the bounded candidate
+             * running in case the actual switch lands within its window.
+             */
+            if (!terminal || terminal.provider === provider) return;
+            if (terminal.provider) {
+                if (!this.database.switchAgentProvider(terminalId, provider)) return;
+                /**
+                 * Invalidate in-flight probes for the previous provider and drop its hook status authority so a late
+                 * result cannot republish the old identity over the switched one.
+                 */
+                this.probeGenerations.set(
+                    terminalId,
+                    (this.probeGenerations.get(terminalId) ?? 0) + 1,
+                );
+                this.hookAuthoritativeLaunchIds.delete(terminalId);
+                if (candidate.agentSessionId)
+                    this.database.rebindAgentSession(
+                        terminalId,
+                        provider,
+                        candidate.agentSessionId,
+                    );
+            } else if (!this.database.promoteShellToAgent(terminalId, provider)) {
+                return;
+            }
             this.shellInputs.delete(terminalId);
             this.shellPromotionCandidates.delete(terminalId);
             this.startedAtByTerminal.set(terminalId, candidate.startedAt);
@@ -259,39 +290,63 @@ export class AgentCoordinator {
     }
 
     /**
-     * Tracks only the current unpublished Shell input line and never logs or persists it. Detection is intentionally
+     * Opens a bounded promotion (or provider-switch) candidate for one submitted command line. A Shell accepts any
+     * inspectable command; an already-bound Agent Terminal accepts only a direct different-provider command, and the
+     * independent foreground-process probe must still confirm the running agent actually changed before durable
+     * identity moves.
+     */
+    private openPromotionCandidate(terminalId: string, command: string): void {
+        const terminal = this.database.getTerminal(terminalId);
+        if (!terminal) return;
+        const startedAt = Date.now();
+        if (terminal.provider) {
+            const provider = directAgentProvider(command);
+            if (provider && provider !== terminal.provider) {
+                this.shellPromotionCandidates.set(terminalId, {
+                    attempts: 0,
+                    expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
+                    nextProcessProbeAt: 0,
+                    processProbes: 0,
+                    provider,
+                    startedAt,
+                });
+            }
+            return;
+        }
+        if (canInspectShellLaunch(command)) {
+            const provider = directAgentProvider(command);
+            this.shellPromotionCandidates.set(terminalId, {
+                attempts: 0,
+                expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
+                nextProcessProbeAt: 0,
+                processProbes: 0,
+                provider,
+                startedAt,
+            });
+            if (provider) this.refreshes.schedule(terminalId);
+        } else {
+            this.shellPromotionCandidates.delete(terminalId);
+        }
+    }
+
+    /**
+     * Tracks only the current unpublished input line and never logs or persists it. Detection is intentionally
      * conservative: a direct `claude` or `codex` command creates a short-lived candidate, while shell editing escape
      * sequences disable detection until the next submission. Provider metadata must still confirm the launch before
      * durable Terminal identity changes.
      */
     observeInput(terminalId: string, data: string): void {
-        if (this.startedAtByTerminal.has(terminalId)) return;
         let state = this.shellInputs.get(terminalId);
         if (!state) {
             const terminal = this.database.getTerminal(terminalId);
-            if (!terminal || terminal.provider || terminal.kind !== 'shell') return;
+            if (!terminal) return;
             state = { command: '', valid: true };
         }
         const normalized = data.replaceAll('\u{1B}[200~', '').replaceAll('\u{1B}[201~', '');
         for (const character of normalized) {
             if (character === '\r' || character === '\n') {
-                if (state.valid && state.command.trim()) {
-                    if (canInspectShellLaunch(state.command)) {
-                        const startedAt = Date.now();
-                        const provider = directAgentProvider(state.command);
-                        this.shellPromotionCandidates.set(terminalId, {
-                            attempts: 0,
-                            expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
-                            nextProcessProbeAt: 0,
-                            processProbes: 0,
-                            provider,
-                            startedAt,
-                        });
-                        if (provider) this.refreshes.schedule(terminalId);
-                    } else {
-                        this.shellPromotionCandidates.delete(terminalId);
-                    }
-                }
+                if (state.valid && state.command.trim())
+                    this.openPromotionCandidate(terminalId, state.command);
                 state = { command: '', valid: true };
                 continue;
             }
@@ -324,23 +379,18 @@ export class AgentCoordinator {
     observeOutput(terminalId: string, shellPid?: number): void {
         const terminal = this.database.getTerminal(terminalId);
         if (!terminal) return;
-        if (!terminal.provider) {
-            const candidate = this.shellPromotionCandidates.get(terminalId);
-            if (!candidate) return;
-            if (candidate.expiresAt < Date.now()) {
-                this.shellPromotionCandidates.delete(terminalId);
-                return;
-            }
-            if (shellPid !== undefined) {
-                /**
-                 * `detectShellPromotion` catches and logs its own errors internally, so this promise never rejects.
-                 * `observeOutput` is a synchronous PTY output hook and cannot await it.
-                 */
-                // eslint-disable-next-line no-void -- see comment above; awaiting is not possible here
-                void this.detectShellPromotion(terminalId, shellPid, candidate);
-            }
-            if (!candidate.provider) return;
+        const candidate = this.shellPromotionCandidates.get(terminalId);
+        const isCandidateLive = candidate !== undefined && candidate.expiresAt >= Date.now();
+        if (candidate && !isCandidateLive) this.shellPromotionCandidates.delete(terminalId);
+        if (isCandidateLive && shellPid !== undefined) {
+            /**
+             * `detectShellPromotion` catches and logs its own errors internally, so this promise never rejects.
+             * `observeOutput` is a synchronous PTY output hook and cannot await it.
+             */
+            // eslint-disable-next-line no-void -- see comment above; awaiting is not possible here
+            void this.detectShellPromotion(terminalId, shellPid, candidate);
         }
+        if (!terminal.provider && !(isCandidateLive && candidate.provider)) return;
         this.refreshes.schedule(terminalId);
     }
 
@@ -372,9 +422,32 @@ export class AgentCoordinator {
         /**
          * Hook environment is inherited by every child of a Shell PTY so an alias-launched Agent can use it later. It
          * is not provider identity: only the independent foreground-process and metadata promotion paths may establish
-         * that binding.
+         * that binding. For an already-bound Agent Terminal, a cross-provider signal is still strong evidence the user
+         * launched a different agent in the same PTY (or that an agent ran nested inside another's tool), so it opens a
+         * bounded switch candidate that only the foreground-process probe may confirm.
          */
-        if (terminal.provider !== signal.provider) return false;
+        if (terminal.provider !== signal.provider) {
+            const existing = this.shellPromotionCandidates.get(signal.terminalId);
+            if (terminal.provider && (!existing || existing.provider !== signal.provider)) {
+                const startedAt = Date.now();
+                this.shellPromotionCandidates.set(signal.terminalId, {
+                    agentSessionId: signal.agentSessionId,
+                    attempts: 0,
+                    expiresAt: startedAt + SHELL_PROMOTION_WINDOW_MS,
+                    nextProcessProbeAt: 0,
+                    processProbes: 0,
+                    provider: signal.provider,
+                    startedAt,
+                });
+            } else if (
+                terminal.provider &&
+                existing?.provider === signal.provider &&
+                signal.agentSessionId
+            ) {
+                existing.agentSessionId = signal.agentSessionId;
+            }
+            return false;
+        }
         if (signal.phase === 'turnStarted')
             this.hookAuthoritativeLaunchIds.delete(signal.terminalId);
         else this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
