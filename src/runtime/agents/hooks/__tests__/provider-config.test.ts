@@ -141,6 +141,39 @@ describe('Agent provider hook configuration adapters', () => {
         });
     });
 
+    it('does not mistake Codex hook-approval state for inline config.toml hooks', () => {
+        // Codex records trusted hashes for hooks.json entries (including the managed ones) under
+        // `[hooks.state]`; flagging that bookkeeping as a conflict would permanently block the
+        // managed install that produced it.
+        const state =
+            '[hooks.state]\n\n' +
+            '[hooks.state."/Users/example/.codex/hooks.json:stop:0:0"]\n' +
+            'trusted_hash = "sha256:aaaa"\n\n' +
+            '[hooks.state."/Users/example/.codex/hooks.json:pre_tool_use:1:0"]\n' +
+            'trusted_hash = "sha256:bbbb"\n';
+        expect(
+            codexHookAdapter.inspect(
+                new Map([
+                    ['hooks', undefined],
+                    ['config', state],
+                ]),
+                desired('codex'),
+            ).status,
+        ).toEqual({ kind: 'absent' });
+        expect(
+            codexHookAdapter.inspect(
+                new Map([
+                    ['hooks', undefined],
+                    ['config', `${state}\n[[hooks.Stop]]\ncommand = "foreign"\n`],
+                ]),
+                desired('codex'),
+            ).status,
+        ).toEqual({
+            kind: 'conflict',
+            message: 'Codex already defines inline hooks in config.toml',
+        });
+    });
+
     it('reports provider-level policies that disable Caxri lifecycle hooks', () => {
         expect(
             codexHookAdapter.inspect(
