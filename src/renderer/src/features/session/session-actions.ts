@@ -174,6 +174,22 @@ export function deleteSelectedSession(): void {
     deleteSession(session.id);
 }
 
+/**
+ * Moves a live Terminal (its PTY untouched) into a brand-new Session under the same Project, then switches to it —
+ * analogous to a browser "move tab to new window". The Runtime already selects the new Session as part of the same
+ * operation, so the `refresh: true` bootstrap re-fetch is all that is needed to reflect the switch, matching
+ * `session.create`'s flow.
+ */
+export function moveTerminalToNewSession(terminalId: string): void {
+    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand(
+        'Move to new session failed',
+        () => caxri.request('terminal.moveToNewSession', { terminalId }),
+        { refresh: true },
+    );
+}
+
 export function selectAdjacentSession(delta: 1 | -1): void {
     const bootstrap = getBootstrap();
     if (!bootstrap) return;
