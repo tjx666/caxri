@@ -181,6 +181,7 @@ export const desktopOperationSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('focus') }),
     z.object({ kind: z.literal('open'), targetId: identifierSchema }),
     z.object({ kind: z.literal('reveal'), targetId: identifierSchema }),
+    z.object({ kind: z.literal('openInEditor'), targetId: identifierSchema }),
 ]);
 
 export type DesktopOperation = z.infer<typeof desktopOperationSchema>;
@@ -210,7 +211,7 @@ export const localClientDesktopTargetConsumeSchema = z.object({
 
 export const desktopTargetPayloadSchema = z.object({
     targetId: identifierSchema,
-    operation: z.enum(['open', 'reveal']),
+    operation: z.enum(['open', 'reveal', 'openInEditor']),
     kind: z.enum(['file', 'directory']),
     sessionId: identifierSchema,
     path: pathSchema,

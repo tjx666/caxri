@@ -544,6 +544,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             return null;
         },
         'files.reveal': () => mainOwned('files.reveal'),
+        'project.openInEditor': () => mainOwned('project.openInEditor'),
         'files.trash': () => mainOwned('files.trash'),
         'updates.getState': () => mainOwned('updates.getState'),
         'updates.check': () => mainOwned('updates.check'),

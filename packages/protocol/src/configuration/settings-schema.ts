@@ -93,12 +93,16 @@ export const appSettingsSchema = z.object({
     'workbench.newWorktreeBehavior': z
         .enum(enumValues(spec['workbench.newWorktreeBehavior'].options))
         .default(spec['workbench.newWorktreeBehavior'].default),
+    'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
+    'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),
     'agents.providers': agentProvidersSchema,
     'security.trustedDomains': trustedDomainsSchema,
     'terminal.defaultWorkingDirectory': nullableStringField(
         spec['terminal.defaultWorkingDirectory'],
     ),
+    'terminal.fontFamily': nullableStringField(spec['terminal.fontFamily']),
     'terminal.fontSize': integerField(spec['terminal.fontSize']),
+    'editor.fontFamily': nullableStringField(spec['editor.fontFamily']),
     'terminal.scrollback': integerField(spec['terminal.scrollback']),
     'terminal.copyOnSelect': booleanField(spec['terminal.copyOnSelect']),
     'terminal.gpuAcceleration': z

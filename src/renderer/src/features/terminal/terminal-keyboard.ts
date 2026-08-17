@@ -20,16 +20,18 @@ export function isClipboardContainingImage(data: ClipboardDataLike): boolean {
 }
 
 /**
- * Maps macOS editing gestures onto the control bytes supported by shells and Codex. Codex binds Alt+Enter to newline by
- * default, so Shift+Enter uses ESC+CR without depending on a terminal's optional enhanced-keyboard protocol.
+ * Maps macOS editing gestures onto the control bytes supported by shells and Agent CLIs. Claude Code and Codex both
+ * accept Meta+Enter (ESC+CR) as "insert newline" by default, so Shift+Enter — the chord VS Code and most chat inputs
+ * train users on — is translated to ESC+CR without depending on a terminal's optional enhanced-keyboard protocol. Shell
+ * Terminals are excluded: line editors treat a stray ESC as a mode/meta prefix, not a newline.
  */
 export function terminalKeyboardInput(
     event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'key' | 'metaKey' | 'shiftKey' | 'type'>,
-    isCodex: boolean,
+    isAgent: boolean,
 ): string | undefined {
     if (event.type !== 'keydown') return undefined;
     if (
-        isCodex &&
+        isAgent &&
         event.key === 'Enter' &&
         event.shiftKey &&
         !event.altKey &&

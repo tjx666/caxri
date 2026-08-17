@@ -41,6 +41,7 @@ import * as Toggle from '@/components/ui/toggle';
 import * as ToggleGroup from '@/components/ui/toggle-group';
 import * as Tooltip from '@/components/ui/tooltip';
 import * as useDebouncedValue from '@/hooks/use-debounced-value';
+import * as useEditorFontFamily from '@/hooks/use-editor-font-family';
 import * as useFocusOnRevision from '@/hooks/use-focus-on-revision';
 import * as useNow from '@/hooks/use-now';
 import * as useOnVisible from '@/hooks/use-on-visible';
@@ -85,6 +86,7 @@ export default {
     '@/components/ui/toggle-group': ToggleGroup,
     '@/components/ui/tooltip': Tooltip,
     '@/hooks/use-debounced-value': useDebouncedValue,
+    '@/hooks/use-editor-font-family': useEditorFontFamily,
     '@/hooks/use-focus-on-revision': useFocusOnRevision,
     '@/hooks/use-now': useNow,
     '@/hooks/use-on-visible': useOnVisible,

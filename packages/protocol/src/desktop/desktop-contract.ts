@@ -75,4 +75,13 @@ export const desktopHostMethods = {
         params: desktopOpenParametersSchema.extend({ launchIfNeeded: z.boolean().default(false) }),
         result: desktopTargetResultSchema.extend({ state: z.literal('revealed') }),
     },
+    /**
+     * Opens an authorized Project root in the operator's configured external editor (`workbench.externalEditor`); the
+     * editor process is launched by Main, never by the Renderer.
+     */
+    'project.openInEditor': {
+        ...hostDesktopControl,
+        params: desktopOpenParametersSchema.extend({ launchIfNeeded: z.boolean().default(false) }),
+        result: desktopTargetResultSchema.extend({ state: z.literal('opened') }),
+    },
 } as const;

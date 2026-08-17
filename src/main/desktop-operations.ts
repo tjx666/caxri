@@ -4,6 +4,7 @@ import type { DesktopOperation, DesktopTargetPayload } from '../shared/ipc/local
 export interface DesktopOperationHandlers {
     focus(): Promise<void>;
     open(target: DesktopTargetPayload): void;
+    openInEditor(path: string): Promise<void>;
     reveal(path: string): void;
     status(): 'background' | 'window';
 }
@@ -31,6 +32,11 @@ async function handleDesktopOperation(
             const target = await consumeTarget();
             await handlers.focus();
             handlers.open(target);
+            return null;
+        }
+        case 'openInEditor': {
+            const target = await consumeTarget();
+            await handlers.openInEditor(target.path);
             return null;
         }
         default:
