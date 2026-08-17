@@ -28,6 +28,7 @@ import {
     openPullRequestChangesDiff,
     openPullRequestFileDiff,
 } from './git-diff-actions';
+import { GitFileStatusLetter } from './git-file-status-letter';
 import type { GitFileTreeNode } from './git-tree';
 import { buildGitFileTree } from './git-tree';
 
@@ -83,16 +84,7 @@ function GitTreeItems({
             >
                 <FileTypeIcon entry={{ kind: 'file', name: node.name }} />
                 <span className="min-w-0 flex-1 truncate">{node.name}</span>
-                <span
-                    className={cn(
-                        `status status-${file.kind}`,
-                        'min-w-4 flex-none text-center font-mono font-bold text-warning',
-                        (file.kind === 'added' || file.kind === 'untracked') && 'text-success',
-                        (file.kind === 'deleted' || file.kind === 'conflicted') && 'text-danger',
-                    )}
-                >
-                    {file.index === ' ' ? file.workingTree : file.index}
-                </span>
+                <GitFileStatusLetter file={file} />
             </button>
         );
     });
@@ -171,6 +163,8 @@ function GitRepoSection({
     sessionId: string;
     setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
 }) {
+    // Local like the Commits disclosure in `commit-history.tsx`; not persisted across session switches.
+    const [changesExpanded, setChangesExpanded] = useState(true);
     const pullRequestQuery = useCaxriQuery(
         'git.pullRequestChanges',
         {
@@ -258,10 +252,22 @@ function GitRepoSection({
             <DisclosureMotion animate expanded={expanded} kind="git-repository">
                 {() => (
                     <div className="git-files overflow-visible">
-                        <div className="git-changes-caption flex items-center justify-between px-2 py-1.5 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
-                            <span>
-                                {pullRequest ? `PR #${pullRequest.number} Changes` : 'Changes'}
-                            </span>
+                        <div className="git-changes-caption flex items-center justify-between pr-2 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
+                            <button
+                                type="button"
+                                className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
+                                aria-expanded={changesExpanded}
+                                onClick={() => setChangesExpanded((value) => !value)}
+                            >
+                                {changesExpanded ? (
+                                    <ChevronDown size={12} />
+                                ) : (
+                                    <ChevronRight size={12} />
+                                )}
+                                <span className="truncate">
+                                    {pullRequest ? `PR #${pullRequest.number} Changes` : 'Changes'}
+                                </span>
+                            </button>
                             <span className="git-changes-actions flex items-center gap-1">
                                 <Tooltip
                                     content={
@@ -288,31 +294,37 @@ function GitRepoSection({
                                 <span>{displayedCount}</span>
                             </span>
                         </div>
-                        {mode === 'working' && repository.truncated && (
-                            <div
-                                role="status"
-                                aria-live="polite"
-                                className="git-changes-truncated border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
-                            >
-                                Showing the first {repository.files.length} of{' '}
-                                {repository.changedFileCount} changes
-                            </div>
-                        )}
-                        {files.length === 0 && (
-                            <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
-                                {emptyMessage}
-                            </Empty>
-                        )}
-                        {files.length > 0 && (
-                            <GitTreeItems
-                                expandedDirectories={expandedDirectories}
-                                nodes={buildGitFileTree(files)}
-                                repositoryKey={`${mode}:${repository.id}`}
-                                selected={selectedPath}
-                                setDirectoryExpanded={setDirectoryExpanded}
-                                onSelect={(path) => openFile(repository.id, path)}
-                            />
-                        )}
+                        <DisclosureMotion animate expanded={changesExpanded} kind="git-changes">
+                            {() => (
+                                <div className="git-changes-body">
+                                    {mode === 'working' && repository.truncated && (
+                                        <div
+                                            role="status"
+                                            aria-live="polite"
+                                            className="git-changes-truncated border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
+                                        >
+                                            Showing the first {repository.files.length} of{' '}
+                                            {repository.changedFileCount} changes
+                                        </div>
+                                    )}
+                                    {files.length === 0 && (
+                                        <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
+                                            {emptyMessage}
+                                        </Empty>
+                                    )}
+                                    {files.length > 0 && (
+                                        <GitTreeItems
+                                            expandedDirectories={expandedDirectories}
+                                            nodes={buildGitFileTree(files)}
+                                            repositoryKey={`${mode}:${repository.id}`}
+                                            selected={selectedPath}
+                                            setDirectoryExpanded={setDirectoryExpanded}
+                                            onSelect={(path) => openFile(repository.id, path)}
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </DisclosureMotion>
                         {mode === 'working' && (
                             <CommitHistory repository={repository} sessionId={sessionId} />
                         )}
