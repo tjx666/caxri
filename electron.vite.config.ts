@@ -118,6 +118,13 @@ export default defineConfig(async ({ command }) => {
             plugins: bundleAnalysisPlugins('preload'),
         },
         renderer: {
+            /**
+             * Ships the full vscode-icons SVG set (`icons/*.svg` + `manifest.json`) by verbatim copy into the build
+             * output and via the dev server. `import.meta.glob` cannot reach into `node_modules` in production builds
+             * (Vite ignores it there), so the Renderer references these files by stable relative URL instead
+             * (`src/renderer/src/icons/files/file-icon-assets.ts`).
+             */
+            publicDir: resolve('node_modules/@yutengjing/vscode-icons/assets'),
             build: {
                 sourcemap: isBundleAnalysisEnabled,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;

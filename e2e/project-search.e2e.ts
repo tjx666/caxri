@@ -115,7 +115,7 @@ test('Project search opens name results and reveals grouped content matches', as
         await expect(
             running.page.locator('.search-tree-folder').filter({ hasText: 'src' }).first(),
         ).toBeVisible();
-        await expect(nameResult.locator('[data-file-icon="typescript"]')).toBeVisible();
+        await expect(nameResult.locator('[data-file-icon="file_type_typescript"]')).toBeVisible();
         await expect(nameResult).toBeVisible();
         await nameResult.click();
         await expect(
@@ -134,7 +134,7 @@ test('Project search opens name results and reveals grouped content matches', as
             '.search-result-group[title="src/target-name.ts"]',
         );
         await expect(sourceGroup).toBeVisible();
-        await expect(sourceGroup.locator('[data-file-icon="typescript"]')).toBeVisible();
+        await expect(sourceGroup.locator('[data-file-icon="file_type_typescript"]')).toBeVisible();
         await expect(running.page.locator('.search-results')).not.toContainText('docs/guide.md');
         await expect(running.page.locator('.search-results')).not.toContainText(
             'target-name.test.ts',
