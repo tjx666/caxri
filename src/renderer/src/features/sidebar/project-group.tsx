@@ -1,7 +1,7 @@
 import type { DragEvent } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
-import { Archive, Circle, FolderClosed, FolderOpen, Plus } from 'lucide-react';
+import { Archive, Circle, FolderClosed, FolderOpen, SquarePen } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
@@ -394,7 +394,7 @@ export function ProjectGroup({
                     }}
                     title={project.rootPath}
                 >
-                    <strong className="min-w-0 flex-1 overflow-hidden font-semibold text-ellipsis whitespace-nowrap">
+                    <strong className="min-w-0 flex-1 overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap">
                         {project.displayTitle}
                     </strong>
                 </button>
@@ -407,7 +407,7 @@ export function ProjectGroup({
                         tabIndex={-1}
                         onClick={onCreateSession}
                     >
-                        <Plus size={13} />
+                        <SquarePen size={13} />
                     </Button>
                 </CommandTooltip>
             </div>
@@ -416,7 +416,7 @@ export function ProjectGroup({
                 className="project-drag-preview pointer-events-none fixed -top-[1000px] left-0 flex h-7 items-center gap-2 rounded-md bg-elevated px-2 text-foreground shadow-[0_8px_24px_var(--shadow)]"
             >
                 <FolderClosed aria-hidden="true" size={15} strokeWidth={1.7} />
-                <span className="max-w-48 truncate text-[12px] font-medium">
+                <span className="max-w-48 truncate text-sm font-medium">
                     {project.displayTitle}
                 </span>
             </div>
@@ -461,7 +461,7 @@ export function ProjectGroup({
                                 tabIndex={-1}
                                 onClick={onCreateSession}
                             >
-                                <Plus size={13} /> New Session
+                                <SquarePen size={13} /> New Session
                             </button>
                         )}
                     </div>
