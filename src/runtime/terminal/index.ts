@@ -29,6 +29,7 @@ import { runtimeProcessEnvironment } from '../executables';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
+import { attachLogFields } from './attach-log';
 import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
 import { oscColorReply, TerminalColorQueryResponder } from './color-query';
 import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
@@ -654,7 +655,15 @@ export class TerminalManager {
         if (live && size) this.resize(terminalId, size.cols, size.rows);
         const wasAttached = this.attached.has(terminalId);
         this.attached.add(terminalId);
-        if (!live) return this.database.getSnapshot(terminalId) ?? null;
+        const logAttach = (source: 'live' | 'persisted', payloadBytes: number): void =>
+            this.logger.write('info', 'pty.attach', {
+                fields: attachLogFields({ payloadBytes, size, source, terminalId, wasAttached }),
+            });
+        if (!live) {
+            const persisted = this.database.getSnapshot(terminalId) ?? null;
+            logAttach('persisted', persisted?.payload.length ?? 0);
+            return persisted;
+        }
         if (wasAttached) {
             /**
              * A repeated attach replays the parsed screen, so pending live bytes already included in that screen must
@@ -664,12 +673,14 @@ export class TerminalManager {
             live.outputQueue.clear();
             live.droppedBytes = 0;
         }
-        return {
+        const snapshot = {
             terminalId,
             encodingVersion: 2,
             ...(await live.screen.snapshot()),
             updatedAt: Date.now(),
         };
+        logAttach('live', snapshot.payload.length);
+        return snapshot;
     }
 
     detachView(terminalId: string): void {

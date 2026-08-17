@@ -189,10 +189,36 @@ describe('Desktop Host connection facade', () => {
 
         await vi.advanceTimersByTimeAsync(500);
         expect(logger.write).toHaveBeenCalledWith('info', 'host.reconnected', {
-            fields: { attempt: 1 },
+            fields: { attempt: 1, downtimeMs: 500, isHostReplaced: false },
         });
         expect(replacement.markDesktopReady).toHaveBeenCalledTimes(1);
         await expect(connection.request('app.health')).resolves.toBeDefined();
+    });
+
+    it('announces a Renderer resync event once the reconnect succeeds', async () => {
+        vi.useFakeTimers();
+        const first = mockHostRound();
+        const { connection } = createConnection();
+        const received: unknown[] = [];
+        connection.onEvent((event) => received.push(event));
+        await connection.start();
+
+        mockHostRound({ pid: 77, startedAt: 2000 });
+        first.triggerClose();
+        expect(received).toEqual([]);
+
+        await vi.advanceTimersByTimeAsync(500);
+        expect(received).toEqual([
+            {
+                event: 'host.connectionChanged',
+                payload: {
+                    status: 'reconnected',
+                    downtimeMs: 500,
+                    attempt: 1,
+                    isHostReplaced: true,
+                },
+            },
+        ]);
     });
 
     it('keeps retrying with backoff while the Host stays down', async () => {
@@ -212,7 +238,7 @@ describe('Desktop Host connection facade', () => {
         const replacement = mockHostRound();
         await vi.advanceTimersByTimeAsync(1000);
         expect(logger.write).toHaveBeenCalledWith('info', 'host.reconnected', {
-            fields: { attempt: 2 },
+            fields: { attempt: 2, downtimeMs: 1500, isHostReplaced: false },
         });
         expect(replacement.onClose).toHaveBeenCalledTimes(1);
     });
@@ -236,7 +262,7 @@ describe('Desktop Host connection facade', () => {
         const stable = mockHostRound();
         await vi.advanceTimersByTimeAsync(1000);
         expect(logger.write).toHaveBeenCalledWith('info', 'host.reconnected', {
-            fields: { attempt: 2 },
+            fields: { attempt: 2, downtimeMs: 1500, isHostReplaced: false },
         });
         expect(stable.markDesktopReady).toHaveBeenCalledTimes(1);
         await expect(connection.request('app.health')).resolves.toBeDefined();

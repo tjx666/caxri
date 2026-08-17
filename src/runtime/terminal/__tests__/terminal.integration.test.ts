@@ -460,12 +460,14 @@ describe('TerminalManager', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         let output = '';
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const write = vi.spyOn(logger, 'write');
         const manager = new TerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
-            new StructuredLogger(join(directory, 'logs')),
+            logger,
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
@@ -479,6 +481,12 @@ describe('TerminalManager', () => {
 
         try {
             expect(output).toBe('');
+            const attachLogs = write.mock.calls.filter((call) => call[1] === 'pty.attach');
+            expect(attachLogs.map((call) => call[2])).toMatchObject([
+                { fields: { source: 'live', wasAttached: false } },
+                { fields: { source: 'live', wasAttached: true } },
+            ]);
+            expect(JSON.stringify(attachLogs)).not.toContain('queued exactly once');
         } finally {
             manager.close(created.terminal!.id);
             database.close();
