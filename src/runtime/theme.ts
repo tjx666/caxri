@@ -45,7 +45,13 @@ export const draculaTheme: ThemeTokens = {
          * below, where it is still correct.
          */
         muted: '#9aa5c4',
-        border: '#44475a',
+        /**
+         * Deliberately NOT Dracula's `#44475a` "current line" color: as the only hairline token it sits on every
+         * panel/tab/status-bar boundary, and at that brightness the workbench reads as a grid of visible frames. This
+         * value is barely above `background` (~3% foreground mix) so regions read as blocks of surface color, matching
+         * how VS Code's panel borders are nearly indistinguishable from the surfaces they separate.
+         */
+        border: '#2f313c',
         selection: '#44475a',
         accent: '#bd93f9',
         success: '#50fa7b',
