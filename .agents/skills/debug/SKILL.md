@@ -1,6 +1,6 @@
 ---
 name: debug
-description: Diagnose Caxri failures across the headless Host, Electron Main, secure Preload, React Renderer, the Runtime child process, PTY, SQLite, file watcher, Git, and packaging boundaries. Use for crashes, blank windows, IPC failures, stale state, terminal lifecycle bugs, or packaged-only failures in this repository.
+description: Diagnose Caxri failures across the headless Host, Electron Main, secure Preload, React Renderer, the Runtime child process, PTY, SQLite, file watcher, Git, and packaging boundaries. Use for crashes, blank windows, IPC failures, stale state, terminal lifecycle bugs, packaged-only failures, or live CDP inspection of a running dev or production app in this repository.
 ---
 
 # Debug Caxri
@@ -14,3 +14,33 @@ description: Diagnose Caxri failures across the headless Host, Electron Main, se
 7. Use the `quality-check` skill with the changed source and regression test before any broader suite.
 
 For native load failures, run `bun run spike:native` and `bun run spike:pty`, then verify the packaged app rather than assuming the development ABI matches.
+
+## Live CDP inspection
+
+Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` (`CAXRI_DEV_CDP_PORT` overrides).
+Packaged (production) builds expose the same endpoint by default during internal testing, so a
+production-build issue can usually be inspected by connecting to the running installed app
+directly; whether that suffices or a dev relaunch is still needed depends on the problem. The
+`remoteDebugging` field in the Main-owned boot config `<userData>/config/argv.jsonc`
+(Settings → "Remote debugging") turns the endpoint off on the next launch
+(`src/main/remote-debugging.ts`).
+
+Connect with `agent-browser`, always stripping proxy environment variables:
+
+```bash
+env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy -u ALL_PROXY -u all_proxy \
+  agent-browser connect 9223
+```
+
+The `env -u` prefix is mandatory on this machine: agent-browser honors `HTTP_PROXY`/`ALL_PROXY`
+but ignores `NO_PROXY`, so a loopback CDP request gets routed into the local proxy, fails, and
+the CLI silently prints `[agent-browser] relaunched browser` and attaches to its own
+HeadlessChrome instead of Caxri. Verify the attachment before trusting any result:
+`agent-browser eval "navigator.userAgent"` must report `caxri/... Electron/...`, not
+`HeadlessChrome`. See <https://github.com/tjx666/caxri/issues/204>.
+
+Known agent-browser 0.34.0 limitation: after connecting it only lists targets it created itself
+(`about:blank`), not the app's existing main-window page target, and `tab --url` is unsupported.
+When you need the real window, fall back to a raw CDP WebSocket: read the target list from
+`http://127.0.0.1:9223/json/list`, open the page target's `webSocketDebuggerUrl`, and drive it
+with `Runtime.evaluate` from a small Bun script.
