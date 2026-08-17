@@ -1,25 +1,40 @@
-import type { RefObject } from 'react';
+import type { ReactElement, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+import { pathBasename } from '@caxri/utils';
 import type { MonacoDiffEditor } from '@monaco-editor/react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import type { GitDiffTab } from '@shared/git-diff';
 import { gitDiffModelPath } from '@shared/git-diff';
 import type { GitDiffDocument, GitFileStatus } from '@shared/types';
+import { ChevronDown, ChevronRight, FileSymlink } from 'lucide-react';
 
+import { Button } from '../../components/ui/button';
+import { Tooltip } from '../../components/ui/tooltip';
+import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { monaco } from '../../lib/monaco';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
+import { GitFileStatusLetter } from '../inspector/panels/git/git-file-status-letter';
+import { openFile } from './document-actions';
 import { resolveRegisteredEditorLanguage } from './editor-language';
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
 const gitMultiDiffPlaceholderClassName =
-    'git-multi-diff-placeholder grid h-full place-items-center text-muted text-[11px]';
+    'git-multi-diff-placeholder grid h-[360px] place-items-center text-muted text-[11px]';
 const gitMultiDiffErrorClassName =
-    'git-multi-diff-error grid h-full place-items-center text-danger text-[11px]';
+    'git-multi-diff-error grid place-items-center py-8 text-danger text-[11px]';
+
+/**
+ * Stacked editors grow to their diff's content height so only the outer list scrolls, but a pathological diff (a
+ * rewritten lockfile, a generated bundle) is capped here: past the ceiling the editor keeps its own scrollbar, and
+ * `alwaysConsumeMouseWheel: false` still hands the wheel back to the outer list at the edges.
+ */
+const maxStackedEditorHeight = 4000;
+const initialStackedEditorHeight = 360;
 
 function useNearMultiDiffViewport(): {
     active: boolean;
@@ -44,23 +59,45 @@ function useNearMultiDiffViewport(): {
 }
 
 function DiffSurface({
+    contentHeight,
     document,
+    onContentHeightChange,
     repositoryId,
     sessionId,
     source,
+    stacked = false,
 }: {
+    /**
+     * Owned by the multi-diff item (not locally) so the remembered height survives the editor being virtualized out of
+     * the near-viewport window — a 360px reset there would yank the outer scroll position every time an item unmounts.
+     */
+    contentHeight?: number;
     document: GitDiffDocument;
+    onContentHeightChange?: (height: number) => void;
     repositoryId: string;
     sessionId: string;
     source: GitDiffTab['source'];
+    /**
+     * Multi-file changes mode: the editor sizes itself to its diff content (collapsing unchanged regions, VS Code
+     * multi-diff style) instead of filling the parent, so the outer list owns scrolling and the wheel is never captured
+     * by an inner editor that already fits.
+     */
+    stacked?: boolean;
 }) {
     const theme = useTheme();
     const editorReference = useRef<MonacoDiffEditor | null>(null);
+    const contentSizeListeners = useRef<Array<{ dispose(): void }>>([]);
     useEffect(() => {
         if (theme) applyEditorTheme(theme);
     }, [theme]);
     useLayoutEffect(
         () => () => {
+            /**
+             * Dispose the content-size listeners first so `setModel(null)` below cannot re-enter the height callback (a
+             * parent setState) while this component is unmounting.
+             */
+            for (const listener of contentSizeListeners.current) listener.dispose();
+            contentSizeListeners.current = [];
             /**
              * Detach both models before the wrapper disposes them. Monaco otherwise observes a disposed model from a
              * still-mounted diff widget when many editors unmount together.
@@ -78,8 +115,24 @@ function DiffSurface({
         registrations,
     );
     const modifiedLanguage = resolveRegisteredEditorLanguage(document.path, registrations);
+    const withStackedSurface = (editorElement: ReactElement): ReactElement =>
+        stacked ? (
+            <div
+                className="git-multi-diff-surface overflow-hidden"
+                style={{
+                    height: Math.min(
+                        contentHeight ?? initialStackedEditorHeight,
+                        maxStackedEditorHeight,
+                    ),
+                }}
+            >
+                {editorElement}
+            </div>
+        ) : (
+            editorElement
+        );
     if (document.format === 'patch')
-        return (
+        return withStackedSurface(
             <Editor
                 className="git-patch-editor h-full w-full"
                 language="diff"
@@ -87,6 +140,20 @@ function DiffSurface({
                 value={document.modified}
                 theme="caxri-active"
                 beforeMount={() => applyEditorTheme(theme)}
+                onMount={(editor) => {
+                    if (!stacked) return;
+                    /**
+                     * The overlay horizontal scrollbar eats into the viewport; without the allowance a long-line diff
+                     * overflows a few px vertically and re-captures the wheel.
+                     */
+                    const syncHeight = (): void =>
+                        onContentHeightChange?.(
+                            editor.getContentHeight() +
+                                editor.getLayoutInfo().horizontalScrollbarHeight,
+                        );
+                    contentSizeListeners.current.push(editor.onDidContentSizeChange(syncHeight));
+                    syncHeight();
+                }}
                 options={{
                     automaticLayout: true,
                     fontSize: 13,
@@ -94,10 +161,11 @@ function DiffSurface({
                     readOnly: true,
                     scrollBeyondLastLine: false,
                     wordWrap: 'off',
+                    ...(stacked && { scrollbar: { alwaysConsumeMouseWheel: false } }),
                 }}
-            />
+            />,
         );
-    return (
+    return withStackedSurface(
         <DiffEditor
             original={document.original}
             modified={document.modified}
@@ -114,6 +182,22 @@ function DiffSurface({
             beforeMount={() => applyEditorTheme(theme)}
             onMount={(editor) => {
                 editorReference.current = editor;
+                if (!stacked) return;
+                const original = editor.getOriginalEditor();
+                const modified = editor.getModifiedEditor();
+                /**
+                 * Horizontal-scrollbar allowance: see the patch-editor branch above.
+                 */
+                const syncHeight = (): void =>
+                    onContentHeightChange?.(
+                        Math.max(original.getContentHeight(), modified.getContentHeight()) +
+                            modified.getLayoutInfo().horizontalScrollbarHeight,
+                    );
+                contentSizeListeners.current.push(
+                    original.onDidContentSizeChange(syncHeight),
+                    modified.onDidContentSizeChange(syncHeight),
+                );
+                syncHeight();
             }}
             options={{
                 automaticLayout: true,
@@ -124,8 +208,12 @@ function DiffSurface({
                 renderSideBySide: true,
                 scrollBeyondLastLine: false,
                 wordWrap: 'off',
+                ...(stacked && {
+                    hideUnchangedRegions: { enabled: true },
+                    scrollbar: { alwaysConsumeMouseWheel: false },
+                }),
             }}
-        />
+        />,
     );
 }
 
@@ -236,16 +324,20 @@ function CommitFileDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'commi
 }
 
 function GitChangesDiffResult({
+    contentHeight,
     document,
     error,
     isError,
+    onContentHeightChange,
     repositoryId,
     sessionId,
     source,
 }: {
+    contentHeight?: number;
     document?: GitDiffDocument;
     error: Error | null;
     isError: boolean;
+    onContentHeightChange?: (height: number) => void;
     repositoryId: string;
     sessionId: string;
     source: GitDiffTab['source'];
@@ -260,21 +352,28 @@ function GitChangesDiffResult({
     if (!document) return <div className={gitMultiDiffPlaceholderClassName}>Loading diff…</div>;
     return (
         <DiffSurface
+            stacked
+            contentHeight={contentHeight}
             document={document}
             repositoryId={repositoryId}
             sessionId={sessionId}
             source={source}
+            onContentHeightChange={onContentHeightChange}
         />
     );
 }
 
 interface GitChangesDiffContentProperties {
+    contentHeight?: number;
+    onContentHeightChange?: (height: number) => void;
     path: string;
     repositoryId: string;
     sessionId: string;
 }
 
 function WorkingChangesDiffContent({
+    contentHeight,
+    onContentHeightChange,
     path,
     repositoryId,
     sessionId,
@@ -290,17 +389,21 @@ function WorkingChangesDiffContent({
     });
     return (
         <GitChangesDiffResult
+            contentHeight={contentHeight}
             document={document}
             error={error}
             isError={isError}
             repositoryId={repositoryId}
             sessionId={sessionId}
             source="working"
+            onContentHeightChange={onContentHeightChange}
         />
     );
 }
 
 function PullRequestChangesDiffContent({
+    contentHeight,
+    onContentHeightChange,
     path,
     repositoryId,
     sessionId,
@@ -316,12 +419,14 @@ function PullRequestChangesDiffContent({
     });
     return (
         <GitChangesDiffResult
+            contentHeight={contentHeight}
             document={document}
             error={error}
             isError={isError}
             repositoryId={repositoryId}
             sessionId={sessionId}
             source="pull-request"
+            onContentHeightChange={onContentHeightChange}
         />
     );
 }
@@ -329,32 +434,88 @@ function PullRequestChangesDiffContent({
 function GitChangesDiffItem({
     file,
     repositoryId,
+    repositoryRootPath,
     sessionId,
     source,
 }: {
     file: GitFileStatus;
     repositoryId: string;
+    repositoryRootPath?: string;
     sessionId: string;
     source: GitDiffTab['source'];
 }) {
     const { active, containerRef } = useNearMultiDiffViewport();
+    const [expanded, setExpanded] = useState(true);
+    /**
+     * Remembered across virtualization: when the item scrolls out of the near-viewport window the editor unmounts, and
+     * the placeholder must keep the measured height — collapsing back to the initial height would shift the outer
+     * scroll position under the user.
+     */
+    const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
     const label = file.originalPath ? `${file.originalPath} → ${file.path}` : file.path;
+    const fileName = pathBasename(file.path);
     const Content =
         source === 'pull-request' ? PullRequestChangesDiffContent : WorkingChangesDiffContent;
     return (
         <section ref={containerRef} className="git-multi-diff-item border-b border-border">
-            <div
-                className="git-multi-diff-heading h-9 overflow-hidden border-b border-border bg-surface px-3 text-[11px] leading-9 font-semibold text-ellipsis whitespace-nowrap text-foreground"
-                title={label}
-            >
-                {label}
-            </div>
-            <div className="git-multi-diff-editor h-[360px]">
-                {!active && <div className={gitMultiDiffPlaceholderClassName} aria-hidden="true" />}
-                {active && (
-                    <Content path={file.path} repositoryId={repositoryId} sessionId={sessionId} />
+            <div className="git-multi-diff-heading sticky top-0 z-10 flex h-9 items-center gap-1 border-b border-border bg-surface pr-2 pl-1.5">
+                <button
+                    type="button"
+                    className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[11px] font-semibold text-foreground"
+                    aria-expanded={expanded}
+                    title={label}
+                    onClick={() => setExpanded((value) => !value)}
+                >
+                    {expanded ? (
+                        <ChevronDown className="shrink-0" size={13} />
+                    ) : (
+                        <ChevronRight className="shrink-0" size={13} />
+                    )}
+                    <FileTypeIcon entry={{ kind: 'file', name: fileName }} />
+                    <span className="truncate">{label}</span>
+                </button>
+                {repositoryRootPath && file.kind !== 'deleted' && (
+                    <Tooltip content="Open File">
+                        <Button
+                            className="git-multi-diff-open-file size-6"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Open ${file.path}`}
+                            // openFile (not openEditorTab): it reads the file first and only creates
+                            // the tab on success, so a missing path toasts instead of leaving a tab
+                            // stuck on "Loading file…".
+                            onClick={() => {
+                                // eslint-disable-next-line no-void -- intentional floating-promise discard; openFile toasts internally
+                                void openFile(`${repositoryRootPath}/${file.path}`);
+                            }}
+                        >
+                            <FileSymlink size={13} />
+                        </Button>
+                    </Tooltip>
                 )}
+                <GitFileStatusLetter className="text-[11px]" file={file} />
             </div>
+            {expanded &&
+                (active ? (
+                    <Content
+                        contentHeight={contentHeight}
+                        path={file.path}
+                        repositoryId={repositoryId}
+                        sessionId={sessionId}
+                        onContentHeightChange={setContentHeight}
+                    />
+                ) : (
+                    <div
+                        className="git-multi-diff-placeholder"
+                        style={{
+                            height: Math.min(
+                                contentHeight ?? initialStackedEditorHeight,
+                                maxStackedEditorHeight,
+                            ),
+                        }}
+                        aria-hidden="true"
+                    />
+                ))}
         </section>
     );
 }
@@ -363,12 +524,14 @@ function ChangesDiffList({
     emptyLabel,
     files,
     repositoryId,
+    repositoryRootPath,
     sessionId,
     source,
 }: {
     emptyLabel: string;
     files: GitFileStatus[];
     repositoryId: string;
+    repositoryRootPath?: string;
     sessionId: string;
     source: GitDiffTab['source'];
 }) {
@@ -380,6 +543,7 @@ function ChangesDiffList({
                     key={file.path}
                     file={file}
                     repositoryId={repositoryId}
+                    repositoryRootPath={repositoryRootPath}
                     sessionId={sessionId}
                     source={source}
                 />
@@ -418,6 +582,7 @@ function WorkingChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind: 'c
             emptyLabel="Working tree clean."
             files={repo.files}
             repositoryId={repo.id}
+            repositoryRootPath={repo.rootPath}
             sessionId={sessionId}
             source="working"
         />
@@ -435,6 +600,15 @@ function PullRequestChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind
         { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, refresh: 0 },
         { enabled: Boolean(sessionId) },
     );
+    // Resolves the repository root for the per-file "Open File" action; PR changes carry paths only.
+    const { data: summary } = useCaxriQuery(
+        'git.summary',
+        { sessionId: sessionId ?? '' },
+        { enabled: Boolean(sessionId) },
+    );
+    const repoRootPath = summary?.isRepository
+        ? summary.repositories.find((candidate) => candidate.id === tab.repositoryId)?.rootPath
+        : undefined;
     useToastOnQueryError(isError, error, 'Unable to open pull request changes');
     if (!sessionId) return null;
     if (isError)
@@ -452,6 +626,7 @@ function PullRequestChangesDiffEditor({ tab }: { tab: Extract<GitDiffTab, { kind
             emptyLabel="Pull request has no file changes."
             files={pullRequest.files}
             repositoryId={pullRequest.repositoryId}
+            repositoryRootPath={repoRootPath}
             sessionId={sessionId}
             source="pull-request"
         />
