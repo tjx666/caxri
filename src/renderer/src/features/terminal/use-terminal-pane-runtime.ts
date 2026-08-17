@@ -27,6 +27,7 @@ import {
 import {
     formatTerminalCommandCompletionStatus,
     registerTerminalCommandNavigation,
+    terminalCommandDecorationDefaultColor,
     TerminalCommandTracker,
 } from './terminal-commands';
 import { loadTerminalFonts } from './terminal-fonts';
@@ -234,11 +235,11 @@ export function useTerminalPaneRuntime({
         let previousCompletedCommandCount = 0;
         const commandTracker = new TerminalCommandTracker(
             xterm,
+            // VS Code's fixed `terminalCommandDecoration.*` colors, not the terminal palette (see terminal-commands.ts)
             {
-                failed: latest.terminalTheme?.red ?? '#ff5555',
-                prompt: latest.terminalTheme?.brightBlack ?? '#6272a4',
-                running: latest.terminalTheme?.yellow ?? '#f1fa8c',
-                succeeded: latest.terminalTheme?.green ?? '#50fa7b',
+                failed: '#F14C4C',
+                running: terminalCommandDecorationDefaultColor(latest.terminalTheme?.foreground),
+                succeeded: '#1B81A8',
             },
             ({ commandCount, completedCount, lastExitStatus }) => {
                 container.dataset.terminalCommandCount = String(commandCount);

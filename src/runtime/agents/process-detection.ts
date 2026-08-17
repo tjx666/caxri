@@ -40,12 +40,33 @@ function parseProcessList(output: string): ProcessEntry[] {
     return processes;
 }
 
+/**
+ * Npm/pnpm-installed agent CLIs run via a shell shim that `exec`s the interpreter directly, so their process image is
+ * `node <path>/codex.js` instead of an executable named after the provider. Unwrapping one interpreter level keeps
+ * those installs detectable.
+ */
+const interpreterBasenames = new Set(['bun', 'deno', 'node', 'nodejs']);
+const scriptExtensionPattern = /\.(?:cjs|mjs|js|ts)$/i;
+
+function commandTokens(command: string): string[] {
+    const tokens: string[] = [];
+    for (const match of command.matchAll(/"([^"]+)"|'([^']+)'|(\S+)/g)) {
+        tokens.push(match.slice(1).find(Boolean)!);
+        if (tokens.length >= 8) break;
+    }
+    return tokens;
+}
+
 function commandProvider(command: string): AgentProvider | undefined {
-    const executable = command
-        .match(/^(?:"([^"]+)"|'([^']+)'|(\S+))/)
-        ?.slice(1)
-        .find(Boolean);
-    return executable ? providerByExecutableName.get(basename(executable)) : undefined;
+    const tokens = commandTokens(command);
+    if (tokens.length === 0) return undefined;
+    const executable = basename(tokens[0]);
+    const direct = providerByExecutableName.get(executable);
+    if (direct) return direct;
+    if (!interpreterBasenames.has(executable)) return undefined;
+    const script = tokens.slice(1).find((token) => !token.startsWith('-'));
+    if (!script) return undefined;
+    return providerByExecutableName.get(basename(script).replace(scriptExtensionPattern, ''));
 }
 
 /**
