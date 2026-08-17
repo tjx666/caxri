@@ -45,14 +45,19 @@ describe('Project ordering', () => {
         expect(areProjectDropTargetsEqual(undefined, undefined)).toBe(true);
     });
 
-    it('selects and auto-expands an inactive collapsed Project without collapsing an inactive expanded one', () => {
+    it('selects and expands an inactive collapsed Project in one click', () => {
         expect(resolveProjectHeadingClick(false, false, true)).toEqual({
             select: true,
             toggle: true,
         });
+    });
+
+    // Regression: collapsing previously required two clicks (the first only selected), and the
+    // collapse must not steal the active Session.
+    it('collapses an inactive expanded Project with a single click without selecting it', () => {
         expect(resolveProjectHeadingClick(false, true, true)).toEqual({
-            select: true,
-            toggle: false,
+            select: false,
+            toggle: true,
         });
     });
 
