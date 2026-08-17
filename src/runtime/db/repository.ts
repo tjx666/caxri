@@ -261,6 +261,24 @@ export class CaxriDatabase {
     }
 
     /**
+     * Atomically reclassifies a live Agent Terminal onto a different provider after its foreground process confirms the
+     * user launched another agent in the same PTY. Session-level state is intentionally untouched: the Terminal remains
+     * the Session's primary Agent when it already was, and the coordinator's follow-up probe republishes the new
+     * provider's session identity and title.
+     */
+    switchAgentProvider(terminalId: string, provider: AgentProvider): boolean {
+        return this.db.transaction(() => {
+            const terminal = this.db.terminals.get(terminalId);
+            if (!terminal?.provider || terminal.provider === provider) return false;
+            return this.db.terminals.switchAgentProvider(
+                terminalId,
+                provider,
+                defaultTerminalTitle(provider),
+            );
+        });
+    }
+
+    /**
      * Atomically reclassifies a live Shell after its foreground process confirms an Agent provider. Optional metadata
      * is committed in the same transaction when it already exists; otherwise the Agent coordinator can publish the
      * correct Terminal identity before the first provider session record is written.
