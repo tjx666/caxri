@@ -69,9 +69,6 @@ importers:
       '@electron/rebuild':
         specifier: 4.2.0
         version: 4.2.0(supports-color@7.2.0)
-      '@lobehub/assets-fileicon':
-        specifier: ^1.0.0
-        version: 1.0.0
       '@lobehub/icons-static-svg':
         specifier: ^1.94.0
         version: 1.94.0
@@ -153,6 +150,9 @@ importers:
       '@yutengjing/prettier-config':
         specifier: 'catalog:'
         version: 2.0.0(prettier@3.9.6)(supports-color@7.2.0)
+      '@yutengjing/vscode-icons':
+        specifier: ^0.1.1
+        version: 0.1.1
       archiver:
         specifier: 8.0.0
         version: 8.0.0
@@ -1061,9 +1061,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
-
-  '@lobehub/assets-fileicon@1.0.0':
-    resolution: {integrity: sha512-7U8Aj6WfC/Ve6ysYziFBVCC0veID7ES/B8pEtVAzxkq1zY9MXwSXZtplYgjbNx4l2dCsvB6wEK9TBabgo0knpA==}
 
   '@lobehub/icons-static-svg@1.94.0':
     resolution: {integrity: sha512-Inx1TYkjLH6YeHOIHeVW9+OM/xxRnk8TmcQVKquFUDBmE3X9sUuRGt7kALrrDBNNAbrWz7Qq6fAiFj9E9Mmw9Q==}
@@ -2759,6 +2756,10 @@ packages:
     resolution: {integrity: sha512-YJskkVzyzGeUU7Qza+zzUtJ/PVEj9r+TlwQH9bQOt/gZ/KhweMImOY3pTgtsHxKXDDEewp0QhZh63TwS9cpiyg==}
     peerDependencies:
       prettier: ^3.5.3
+
+  '@yutengjing/vscode-icons@0.1.1':
+    resolution: {integrity: sha512-SAg4IBCFF0oA9KzioowXnec9zwbOgpfDKaXuCKfdwYt+HF+qlLihTlelMRMiB2BoqbxtREXwTMnhsxb/fAmIMQ==}
+    engines: {node: '>=20.0.0'}
 
   abbrev@4.0.0:
     resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}
@@ -6582,8 +6583,6 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lobehub/assets-fileicon@1.0.0': {}
-
   '@lobehub/icons-static-svg@1.94.0': {}
 
   '@malept/cross-spawn-promise@2.0.0':
@@ -7872,6 +7871,8 @@ snapshots:
       prettier-plugin-jsdoc: 1.8.1(prettier@3.9.6)(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
+
+  '@yutengjing/vscode-icons@0.1.1': {}
 
   abbrev@4.0.0: {}
 

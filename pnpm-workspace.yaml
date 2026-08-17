@@ -26,6 +26,7 @@ minimumReleaseAgeExclude:
   - '@yutengjing/eslint-config-typescript@4.0.0'
   - '@yutengjing/eslint-plugin@4.0.0'
   - eslint-plugin-jsdoc@64.2.0
+  - '@yutengjing/vscode-icons'
 
 overrides:
   dompurify: 3.4.13
