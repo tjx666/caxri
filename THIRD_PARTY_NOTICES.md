@@ -18,11 +18,13 @@ Caxri bundles Symbols Nerd Font Mono as a terminal fallback for Powerline and pr
 
 Copyright (c) 2014 Ryan L McIntyre. Licensed under the MIT License. The vendored license text is in `licenses/NERD_FONTS_LICENSE.txt`; the upstream source is <https://github.com/ryanoasis/nerd-fonts>.
 
-## LobeHub File Icons
+## vscode-icons
 
-Caxri bundles a curated subset of `@lobehub/assets-fileicon` for the Files inspector. Only explicitly imported SVGs are emitted into the Renderer build; icons are loaded from local packaged assets.
+Caxri bundles the file and folder icon set from the `@yutengjing/vscode-icons` package (a maintained standalone port of the `vscode-icons` VS Code extension icon data) for the Files inspector, so file and folder icons match the look of VS Code's vscode-icons extension. The full icon set is emitted into the Renderer build as individual SVG assets (any file or folder name can appear in a user's project at runtime); icons are loaded from local packaged assets, never fetched remotely.
 
-Copyright (c) 2023 LobeHub. Licensed under the MIT License. The vendored license text is in `licenses/LOBEHUB_FILE_ICONS_LICENSE.txt`; the upstream source is <https://github.com/lobehub/lobe-assets/tree/master/packages/assets-fileicon>.
+The `@yutengjing/vscode-icons` source code is licensed under the MIT License; the upstream source is <https://github.com/tjx666/vscode-icons>.
+
+The bundled icon assets are (c) the vscode-icons project, licensed under the Creative Commons Attribution-ShareAlike 4.0 International License. The vendored license text is in `licenses/VSCODE_ICONS_ASSETS_LICENSE.txt`; the upstream source is <https://github.com/vscode-icons/vscode-icons>.
 
 ## Lobe Icons
 
