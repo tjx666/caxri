@@ -307,6 +307,12 @@ describe('GitService', () => {
             await execFileAsync('git', ['commit', '-m', 'next pull request changes'], {
                 cwd: repoRoot,
             });
+            /**
+             * Force a fresh repository snapshot before the next cache lookup. `pullRequestChanges({ refresh: 0 })` keys
+             * cache hits on `resolveRepository()`'s branch/head; those come from `summary({ refresh: 0 })`, which can
+             * still report the previous generation until the metadata watcher bumps it.
+             */
+            await git.summary(session.id, 1);
             const nextHeadOid = (
                 await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot })
             ).stdout.trim();

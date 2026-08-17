@@ -5,6 +5,11 @@ import { monaco } from './monaco';
 
 /**
  * Keeps every Monaco surface aligned with the active Caxri theme.
+ *
+ * Token `foreground` values omit `#` and may still carry an 8-digit alpha suffix. Monaco's ColorMap
+ * (`/^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/`) accepts that form and keeps only the RGB group, so markup tokens do not
+ * need the `.slice(0, 7)` strip that `diffEditor.*Background` uses when it concatenates a new CSS alpha onto a
+ * `#RRGGBB` color.
  */
 export function applyEditorTheme(theme: ThemeTokens): void {
     monaco.editor.defineTheme('caxri-active', {
