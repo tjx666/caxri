@@ -75,6 +75,17 @@ export default defineConfig(
          * just duplicate every finding under the canonical `.agents/skills` tree.
          */
         '.claude/**',
+        /**
+         * Gitignored design-prototype runtime artifacts: the bundled/vendored minified `.js` files that
+         * `build-runtime.ts` writes and caches beside the tracked `entry.mjs` source.
+         */
+        '.agents/skills/design-prototype/assets/*.js',
+        /**
+         * The design-prototype HTML template's inline scripts are deliberate browser-global shims plus a `text/babel`
+         * TSX block ESLint cannot parse; `scripts/verify-prototype.ts` validates the template end-to-end in a real
+         * browser instead.
+         */
+        '.agents/skills/design-prototype/references/template.html',
     ]),
     /**
      * `typescriptConfig` covers the shared basic + import-x + TypeScript recommended rules (syntactic only). Type-aware
