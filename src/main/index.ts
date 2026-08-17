@@ -20,6 +20,8 @@ import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import { createDesktopOperationHandler } from './desktop-operations';
 import { createMainEventRelay } from './event-relay';
+import { launchExternalEditor } from './external-editor';
+import { applyGpuStabilityWorkarounds } from './gpu-stability';
 import { DesktopHostConnection, resolveDesktopLaunch } from './host-connection';
 import { shouldContinueStartup } from './host-startup';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
@@ -71,6 +73,8 @@ if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev
 }
 // After the userData override so the packaged remote-debugging gate reads the active profile's settings.
 enableRemoteDebugging(app, process.env);
+// Chromium switches must be appended before `app.whenReady()`.
+applyGpuStabilityWorkarounds(app.commandLine, process.platform);
 
 // Scoped in a bare block (rather than left at module top level) so the mutable Desktop bootstrap
 // state below is a block-scoped variable, not a Program-scope one: the lifecycle callbacks that
@@ -264,6 +268,7 @@ enableRemoteDebugging(app, process.env);
                     fields: {
                         code: 'RENDER_PROCESS_GONE',
                         reason: details.reason,
+                        exitCode: details.exitCode,
                         crashCount: decision.crashCount,
                         delayMs: decision.delayMs ?? 0,
                     },
@@ -277,6 +282,7 @@ enableRemoteDebugging(app, process.env);
                 fields: {
                     code: 'RENDER_PROCESS_CRASH_LOOP',
                     reason: details.reason,
+                    exitCode: details.exitCode,
                     crashCount: decision.crashCount,
                 },
             });
@@ -418,6 +424,10 @@ enableRemoteDebugging(app, process.env);
                     ...(target.kind === 'file' && { path: target.path }),
                 },
             }),
+        openInEditor: async (path) => {
+            const settings = await supervisor.request('settings.get');
+            await launchExternalEditor(settings.value['workbench.externalEditor'], path);
+        },
         reveal: (path) => shell.showItemInFolder(path),
         status: () => (mainWindow && !mainWindow.isDestroyed() ? 'window' : 'background'),
     });
@@ -634,6 +644,21 @@ enableRemoteDebugging(app, process.env);
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .catch(() => {});
+    // GPU/utility-process exits never reach `render-process-gone`; log them so GPU-backend crashes
+    // (e.g. the Skia Graphite issue behind `applyGpuStabilityWorkarounds`) are diagnosable from logs.
+    app.on('child-process-gone', (_event, details) => {
+        if (details.reason === 'clean-exit') return;
+        mainLogger?.write('error', 'app.child_process_gone', {
+            fields: {
+                code: 'CHILD_PROCESS_GONE',
+                type: details.type,
+                reason: details.reason,
+                exitCode: details.exitCode,
+                ...(details.name && { name: details.name }),
+            },
+        });
+    });
+
     app.on('activate', () => {
         // `activate` is a synchronous listener; a failed reopen is not user-actionable here, so this
         // is deliberately fire-and-forget rather than awaited.
