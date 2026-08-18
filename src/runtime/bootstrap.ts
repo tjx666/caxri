@@ -56,8 +56,15 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     const startedAt = dependencies.startedAt ?? Date.now();
     const pid = dependencies.pid ?? process.pid;
 
-    const { acknowledgeFileMutation, configuration, database, files, git, workbenchRoots } =
-        await createRootServices(dependencies);
+    const {
+        acknowledgeFileMutation,
+        configuration,
+        database,
+        files,
+        git,
+        watchHub,
+        workbenchRoots,
+    } = await createRootServices(dependencies);
     workbenchRoots.setRootChangedHandler((sessionId) => {
         if (selectedSessionId() === sessionId)
             // `setRootChangedHandler` takes a synchronous callback, so this cannot become `await`.
@@ -96,6 +103,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         send,
         sharedPath: dependencies.agentHooksPath,
         userDataPath,
+        watchHub,
     });
     await agentHooks.initialize(configuration.getSettings().value['agents.providers']);
     let agentSettingsReconcile = Promise.resolve();
@@ -182,6 +190,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         () => configuration.getSettings().value,
         () => terminals.runningCount(),
         startedAt,
+        () => watchHub.snapshot(),
     );
     const introspection = createIntrospectionServices(database, logger);
 
@@ -430,6 +439,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         await files.close();
         await configuration.close();
         await git.close();
+        await watchHub.close();
         database.close();
     }
     const terminalMoveDependencies = {

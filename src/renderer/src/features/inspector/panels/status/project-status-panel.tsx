@@ -20,13 +20,15 @@ import {
     Rocket,
 } from 'lucide-react';
 
+import { usePolledQuery } from '@/hooks/use-polled-query';
+
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
 import { Spinner } from '../../../../components/ui/spinner';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { openExternalUrl } from '../../../../lib/external-link';
 import { cn } from '../../../../lib/utilities';
-import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
+import { useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
 import { pushToast } from '../../../../stores/toasts';
 import type { ProjectStatusTreeNode } from './project-status-tree';
@@ -221,12 +223,13 @@ export function ProjectStatusPanel() {
         error,
         isFetching,
         refetch,
-    } = useCaxriQuery(
+    } = usePolledQuery(
         'projectStatus.summary',
         { sessionId: sessionId ?? '' },
         {
+            label: 'projectStatus.summary',
+            intervalMs: PROJECT_STATUS_REFETCH_INTERVAL_MS,
             enabled: Boolean(sessionId),
-            refetchInterval: PROJECT_STATUS_REFETCH_INTERVAL_MS,
         },
     );
     useToastOnQueryError(isError, error, 'Project Status refresh failed');

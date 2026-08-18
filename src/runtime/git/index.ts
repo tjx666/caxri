@@ -143,6 +143,10 @@ interface GitServiceOptions {
      * Test seam forwarded to the Git metadata watcher.
      */
     subscribe?: GitMetadataWatcherOptions['subscribe'];
+    /**
+     * Shared Runtime watch registry forwarded to the Git metadata watcher.
+     */
+    watchHub?: GitMetadataWatcherOptions['watchHub'];
 }
 
 export class GitService {
@@ -179,6 +183,7 @@ export class GitService {
                 this.repositoryService.observeMetadataStatus(repoKey, roots),
             onTopologyChanged: (repoKey) => this.repositoryService.observeMetadataTopology(repoKey),
             subscribe: options.subscribe,
+            watchHub: options.watchHub,
         });
         this.repositoryService.attachMetadataWatcher(this.metadataWatcher);
         this.pullRequestService = new GitPullRequestService({
