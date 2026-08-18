@@ -7,7 +7,6 @@ import { z } from 'zod';
 
 import { deriveDefaultEditorLayout, remapEditorLayoutPaths } from '../../../shared/editor-layout';
 import { withoutEditorTabDirtiness } from '../../../shared/editor-state';
-import { isGitDiffTabPath } from '../../../shared/git-diff';
 import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { CaxriError } from '../../../shared/ipc/errors';
 import { createTerminalLayout } from '../../../shared/terminal-layout';
@@ -18,6 +17,7 @@ import type {
     SessionState,
     SessionTitleMode,
 } from '../../../shared/types';
+import { isVirtualEditorTabPath } from '../../../shared/virtual-tabs';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { DEFAULT_LAYOUT_VERSION } from '../connection';
 import {
@@ -142,7 +142,7 @@ function parseWorkbenchEditorStates(source: string): WorkbenchEditorStates | und
  * if either ever needs to handle non-canonical input, change both together.
  */
 function remapStoredEditorPath(path: string, previousPath: string, nextPath: string): string {
-    if (isGitDiffTabPath(path)) return path;
+    if (isVirtualEditorTabPath(path)) return path;
     const nested = relative(previousPath, path);
     if (nested === '') return nextPath;
     if (nested === '..' || nested.startsWith(`..${sep}`) || isAbsolute(nested)) return path;

@@ -59,6 +59,7 @@ export const hostForwardedMethods = [
     'settings.inspect',
     'settings.patch',
     'settings.update',
+    'terminal.agentTranscript',
     'terminal.attach',
     'terminal.close',
     'terminal.create',

@@ -1,5 +1,6 @@
 import { createElement, lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
 
+import { parseAgentTranscriptTab } from '@shared/agent-transcript';
 import { editorModelPath } from '@shared/editor-state';
 import { parseGitDiffTab } from '@shared/git-diff';
 
@@ -14,6 +15,11 @@ import { editorStatusKey } from './editor-status';
 const GitDiffEditor = lazy(async () => {
     const module = await import('./git-diff-editor');
     return { default: module.GitDiffEditor };
+});
+
+const AgentTranscriptEditor = lazy(async () => {
+    const module = await import('./agent-transcript-editor');
+    return { default: module.AgentTranscriptEditor };
 });
 
 const emptyWorkClassName =
@@ -89,6 +95,13 @@ export function EditorSurface({ path }: { path: string }) {
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading diff editor…</div>}>
                 <GitDiffEditor tab={gitDiffTab} />
+            </Suspense>
+        );
+    const transcriptTab = parseAgentTranscriptTab(path);
+    if (transcriptTab)
+        return (
+            <Suspense fallback={<div className={emptyWorkClassName}>Loading transcript…</div>}>
+                <AgentTranscriptEditor tab={transcriptTab} />
             </Suspense>
         );
     return <FileEditorSurface path={path} />;

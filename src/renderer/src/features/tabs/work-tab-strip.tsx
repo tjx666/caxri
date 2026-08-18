@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import { pathBasename } from '@caxri/utils';
+import { agentTranscriptTabLabel, parseAgentTranscriptTab } from '@shared/agent-transcript';
 import { findPathGroupId, sessionEditorLayout } from '@shared/editor-layout';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
 import type { TerminalRecord } from '@shared/types';
@@ -32,6 +33,7 @@ import {
     useSessionIds,
     useSessionState,
     useSessionTerminals,
+    useTerminal,
 } from '../../stores/selectors';
 import { sessionViewScope, useActiveWork, useSessionViewStore } from '../../stores/session-view';
 import {
@@ -168,6 +170,9 @@ function EditorWorkTab({
 }) {
     const session = useSelectedSession();
     const gitDiffTab = parseGitDiffTab(path);
+    const transcriptTab = parseAgentTranscriptTab(path);
+    // Tab identity is the terminal ID alone; the label follows the terminal's live title.
+    const transcriptTerminal = useTerminal(transcriptTab?.terminalId ?? '');
     const isDirty = useSessionViewStore((state) =>
         session
             ? state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
@@ -190,10 +195,18 @@ function EditorWorkTab({
                     ? pathBasename(gitDiffTab.path)
                     : gitDiffTab?.kind === 'changes'
                       ? 'changes.diff'
-                      : pathBasename(path)
+                      : transcriptTab
+                        ? 'transcript.jsonl'
+                        : pathBasename(path)
             }
             icon="file"
-            label={gitDiffTab ? gitDiffTabLabel(gitDiffTab) : pathBasename(path)}
+            label={
+                gitDiffTab
+                    ? gitDiffTabLabel(gitDiffTab)
+                    : transcriptTab
+                      ? agentTranscriptTabLabel(transcriptTerminal?.title)
+                      : pathBasename(path)
+            }
             motionIdentity={motionIdentity}
             tabId={tabId}
             onDoubleClick={() => pinEditorTab(path)}

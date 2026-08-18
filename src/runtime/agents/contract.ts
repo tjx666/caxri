@@ -65,6 +65,14 @@ export interface AgentProviderDescriptor {
         context: AgentSnapshotContext,
         environment: AgentEnvironment,
     ): Promise<LocalAgentState | undefined>;
+    /**
+     * Derives the absolute path of the provider's on-disk transcript for a bound Agent session. Pure path derivation —
+     * no filesystem access; absent when the provider keeps no per-session transcript file.
+     */
+    transcriptPath?(
+        context: { agentSessionId: string; cwd: string },
+        environment: AgentEnvironment,
+    ): string;
 }
 
 export function processStateToAgentActivity(state?: ProcessState): AgentActivityState {

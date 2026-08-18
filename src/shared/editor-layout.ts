@@ -1,8 +1,8 @@
 import { MAX_EDITOR_LAYOUT_GROUPS } from '../../packages/protocol/src/domain/editor-layout';
 import type { WorkItem } from '../../packages/protocol/src/domain/work-item';
-import { isGitDiffTabPath } from './git-diff';
 import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from './ipc/layout';
 import type { EditorGroupNode, EditorLayout, EditorLayoutNode, EditorSplitNode } from './types';
+import { isVirtualEditorTabPath } from './virtual-tabs';
 
 export type LayoutIdFactory = () => string;
 
@@ -146,7 +146,7 @@ function remapPathsInNode(
     nextPath: string,
 ): EditorLayoutNode {
     const remap = (path: string): string =>
-        isGitDiffTabPath(path) ? path : remapPath(path, previousPath, nextPath);
+        isVirtualEditorTabPath(path) ? path : remapPath(path, previousPath, nextPath);
     if (node.type === 'group') {
         const paths = [...new Set(node.paths.map(remap))];
         const activePath = node.activePath ? remap(node.activePath) : node.activePath;

@@ -1,5 +1,6 @@
 import { agentSkillHealthReader } from './agent-skills';
 import type { AgentEnvironment, AgentHookManager } from './agents';
+import { readAgentTranscript } from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DiagnosticsService } from './diagnostics';
@@ -25,6 +26,7 @@ type ServiceHandlerMethods =
     | 'files.read'
     | 'files.write'
     | 'files.search'
+    | 'terminal.agentTranscript'
     | 'git.summary'
     | 'git.overview'
     | 'git.branches'
@@ -108,6 +110,8 @@ export function createServiceHandlers(services: {
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'files.search': (parameters) => files.search(parameters),
+        'terminal.agentTranscript': ({ terminalId, withContent }) =>
+            readAgentTranscript(database, terminalId, withContent, agentEnvironment),
         'git.summary': ({ sessionId, refresh }) => git.summary(sessionId, refresh),
         'git.overview': ({ sessionId }) => git.overview(sessionId),
         'git.branches': (parameters) => git.branches(parameters),
