@@ -2,11 +2,13 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
+import { WatchHub } from '../../watch-hub';
 import type { GitIgnoreDecorator } from '../listing';
 import { FileService } from '../service';
 import { WatcherService } from '../watcher';
@@ -36,6 +38,88 @@ describe('Git ignored file decorations', () => {
             {
                 pollIntervalMs: 20,
                 subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve(undefined) }),
+            },
+        );
+        await watcher.watchSession({ sessionId: 'session', workbenchProjectId: 'project' });
+        await watcher.noteGitIgnoreRulePaths('session', [rulePath]);
+        await writeFile(rulePath, 'after\n', 'utf8');
+
+        await expect
+            .poll(() =>
+                events.some(
+                    (event) =>
+                        event.event === 'files.changed' &&
+                        'gitIgnoreRulesChanged' in event.payload &&
+                        event.payload.gitIgnoreRulesChanged === true,
+                ),
+            )
+            .toBe(true);
+        await watcher.close();
+    });
+
+    it('detects in-root rule file changes from the event stream without a rule poller', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-git-rule-events-'));
+        temporaryDirectories.push(root);
+        const rulePath = join(root, '.gitignore');
+        await writeFile(rulePath, 'before\n', 'utf8');
+        type SubscribeCallback = Parameters<typeof parcelWatcher.subscribe>[1];
+        const callbacks: SubscribeCallback[] = [];
+        const subscribe = ((_root: string, callback: SubscribeCallback) => {
+            callbacks.push(callback);
+            return Promise.resolve({ unsubscribe: () => Promise.resolve(undefined) });
+        }) as unknown as typeof parcelWatcher.subscribe;
+        const watchHub = new WatchHub({ subscribe });
+        const events: RuntimeEvent[] = [];
+        const watcher = new WatcherService(
+            () => Promise.resolve({ path: root, root }),
+            (event) => {
+                events.push(event);
+            },
+            new StructuredLogger(join(root, 'logs')),
+            { watchHub },
+        );
+        await watcher.watchSession({ sessionId: 'session', workbenchProjectId: 'project' });
+        await watcher.noteGitIgnoreRulePaths('session', [rulePath]);
+
+        // In-root rule files ride the normal watch event stream; no dedicated rule poller may be registered for them.
+        expect(watchHub.snapshot().entries.some((entry) => entry.label === 'files-git-rules')).toBe(
+            false,
+        );
+
+        await writeFile(rulePath, 'after\n', 'utf8');
+        callbacks[0]?.(null, [{ type: 'update', path: rulePath }]);
+
+        await expect
+            .poll(() =>
+                events.some(
+                    (event) =>
+                        event.event === 'files.changed' &&
+                        'gitIgnoreRulesChanged' in event.payload &&
+                        event.payload.gitIgnoreRulesChanged === true,
+                ),
+            )
+            .toBe(true);
+        await watcher.close();
+        await watchHub.close();
+    });
+
+    it('detects in-root rule files in unlisted directories while degraded to polling', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-git-rule-poll-fallback-'));
+        temporaryDirectories.push(root);
+        // A rule file inside a subdirectory the user never expanded: absent from the polled directory signatures.
+        const rulePath = join(root, 'packages', 'foo', '.gitignore');
+        await mkdir(join(root, 'packages', 'foo'), { recursive: true });
+        await writeFile(rulePath, 'before\n', 'utf8');
+        const events: RuntimeEvent[] = [];
+        const watcher = new WatcherService(
+            () => Promise.resolve({ path: root, root }),
+            (event) => {
+                events.push(event);
+            },
+            new StructuredLogger(join(root, 'logs')),
+            {
+                pollIntervalMs: 20,
+                subscribe: () => Promise.reject(new Error('native backend unavailable')),
             },
         );
         await watcher.watchSession({ sessionId: 'session', workbenchProjectId: 'project' });

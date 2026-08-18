@@ -192,6 +192,23 @@ const performanceSummarySchema = z.object({
     minimumMs: z.number().nonnegative(),
     maximumMs: z.number().nonnegative(),
 });
+const watchHubSnapshotEntrySchema = z.object({
+    label: z.string().min(1).max(100),
+    native: z.number().int().nonnegative(),
+    polling: z.number().int().nonnegative(),
+    eventBatches: z.number().int().nonnegative(),
+    lastEventAt: z.number().optional(),
+});
+/**
+ * Content-free census of Runtime filesystem watchers and intentional pollers: labels and counters only, never paths.
+ */
+const watchHubSnapshotSchema = z.object({
+    registrations: z.number().int().nonnegative(),
+    native: z.number().int().nonnegative(),
+    polling: z.number().int().nonnegative(),
+    gateTrips: z.number().int().nonnegative(),
+    entries: z.array(watchHubSnapshotEntrySchema).max(64),
+});
 export const diagnosticsSnapshotSchema = z.object({
     appVersion: z.string().min(1).max(100),
     protocolVersion: protocolVersionSchema,
@@ -203,6 +220,7 @@ export const diagnosticsSnapshotSchema = z.object({
     terminalCount: z.number().int().nonnegative(),
     recentErrorIds: z.array(z.string().min(1).max(200)).max(5),
     performance: z.array(performanceSummarySchema).max(256),
+    watchers: watchHubSnapshotSchema.optional(),
 });
 
 export const businessMethods = {

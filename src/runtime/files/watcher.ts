@@ -1,7 +1,7 @@
 import { lstat, readdir } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
-import parcelWatcher from '@parcel/watcher';
+import type parcelWatcher from '@parcel/watcher';
 
 import { errorMessage } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
@@ -10,6 +10,8 @@ import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileChange } from '../../shared/types';
 import { NATIVE_WATCHER_BACKEND } from '../native-watcher';
 import { isOutsideRoot } from '../path-security';
+import type { WatchHandle } from '../watch-hub';
+import { WatchHub } from '../watch-hub';
 import type { ResolveSessionPath } from './documents';
 import {
     isTraversalExcludedName,
@@ -89,7 +91,15 @@ export interface WatcherServiceOptions {
     maxPolledDirectories?: number;
     onRootUnavailable?: (sessionId: string) => void;
     pollIntervalMs?: number;
+    /**
+     * Test seam forwarded into the private watch hub when no shared hub is provided.
+     */
     subscribe?: typeof parcelWatcher.subscribe;
+    /**
+     * Shared Runtime watch registry. Production passes the Runtime-wide hub; tests may omit it, in which case the
+     * service owns a private hub with equivalent behavior.
+     */
+    watchHub?: WatchHub;
 }
 
 /**
@@ -106,7 +116,7 @@ export interface WatchScope {
  * `ListingService` primes via `noteDirectoryListed`.
  */
 export class WatcherService {
-    private watcher?: parcelWatcher.AsyncSubscription;
+    private watchHandle?: WatchHandle;
     private watchedScope?: WatchScope;
     private watchGeneration = 0;
     private watchSetup?: Promise<void>;
@@ -114,19 +124,20 @@ export class WatcherService {
     private pendingEvents = new Map<string, FileChange['kind']>();
     private droppedEvents = 0;
     private eventTimer?: NodeJS.Timeout;
-    private gitIgnoreRulePollTimer?: NodeJS.Timeout;
+    private ruleWatchHandle?: WatchHandle;
     private gitIgnoreRulePollInFlight = false;
     private gitIgnoreRulesChanged = false;
-    private pollTimer?: NodeJS.Timeout;
     private pollInFlight = false;
     private pollingActive = false;
     private readonly listedDirectories = new Map<string, true>();
     private readonly gitIgnoreRuleFingerprints = new Map<string, string>();
+    private readonly externalRulePaths = new Set<string>();
     private readonly polledDirectories = new Map<string, Map<string, string>>();
     private readonly recentChangeFingerprints = new Map<string, string>();
     private readonly maxPolledDirectories: number;
     private readonly pollIntervalMs: number;
-    private readonly subscribe: typeof parcelWatcher.subscribe;
+    private readonly watchHub: WatchHub;
+    private readonly ownsWatchHub: boolean;
     private readonly onRootUnavailable?: (sessionId: string) => void;
     private watchedRoot?: string;
 
@@ -138,7 +149,8 @@ export class WatcherService {
     ) {
         this.maxPolledDirectories = options.maxPolledDirectories ?? MAX_POLLED_DIRECTORIES;
         this.pollIntervalMs = options.pollIntervalMs ?? WATCH_POLL_INTERVAL_MS;
-        this.subscribe = options.subscribe ?? parcelWatcher.subscribe;
+        this.ownsWatchHub = !options.watchHub;
+        this.watchHub = options.watchHub ?? new WatchHub({ logger, subscribe: options.subscribe });
         this.onRootUnavailable = options.onRootUnavailable;
     }
 
@@ -170,9 +182,9 @@ export class WatcherService {
 
     private async replaceWatcher(scope: WatchScope | undefined, generation: number): Promise<void> {
         const startedAt = performance.now();
-        const previousWatcher = this.watcher;
-        this.watcher = undefined;
-        await previousWatcher?.unsubscribe();
+        const previousHandle = this.watchHandle;
+        this.watchHandle = undefined;
+        await previousHandle?.dispose();
         if (generation !== this.watchGeneration) return;
         if (!scope) return;
         const { root } = await this.resolveSessionPath(scope.sessionId);
@@ -185,125 +197,86 @@ export class WatcherService {
             root,
             this.maxPolledDirectories,
         );
-        try {
-            const watcher = await this.subscribe(
-                root,
-                (error, events) => {
-                    if (generation !== this.watchGeneration) return;
-                    const eventScope = this.watchedScope;
-                    if (!eventScope) return;
-                    if (error) {
-                        this.onRootUnavailable?.(eventScope.sessionId);
-                        this.activatePollingFallbackInBackground(eventScope, generation, error);
-                        return;
-                    }
-                    for (const event of events) {
-                        const relativePath = relative(root, event.path);
-                        if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath))
-                            continue;
-                        this.queueNativeEventInBackground(
-                            eventScope,
-                            event.type,
-                            event.path,
-                            generation,
-                        );
-                    }
-                },
-                { backend: NATIVE_WATCHER_BACKEND, ignore: WATCHER_EXCLUDE_PATTERNS },
-            );
-            if (generation !== this.watchGeneration) {
-                await watcher.unsubscribe();
-                return;
-            }
-            if (this.pollingActive) {
-                await watcher.unsubscribe();
-                return;
-            }
-            this.watcher = watcher;
-            this.logger.write('info', 'watcher.ready', {
-                durationMs: performance.now() - startedAt,
-                fields: { sessionId: scope.sessionId, backend: NATIVE_WATCHER_BACKEND },
-            });
-        } catch (error) {
-            if (generation !== this.watchGeneration) return;
-            await this.activatePollingFallback(scope, generation, error);
-            this.logger.write('info', 'watcher.ready', {
-                durationMs: performance.now() - startedAt,
-                fields: { sessionId: scope.sessionId, backend: 'poll' },
-            });
-        }
-    }
-
-    private async activatePollingFallback(
-        scope: WatchScope,
-        generation: number,
-        error: unknown,
-    ): Promise<void> {
-        if (generation !== this.watchGeneration) return;
-        const watcher = this.watcher;
-        this.watcher = undefined;
-        try {
-            await watcher?.unsubscribe();
-        } catch {
+        const handle = await this.watchHub.register({
+            label: 'files-root',
+            root,
+            ignore: WATCHER_EXCLUDE_PATTERNS,
+            onEvents: (events) => {
+                if (generation !== this.watchGeneration) return;
+                const eventScope = this.watchedScope;
+                if (!eventScope) return;
+                for (const event of events) {
+                    const relativePath = relative(root, event.path);
+                    if (isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath))
+                        continue;
+                    this.queueNativeEventInBackground(
+                        eventScope,
+                        event.type,
+                        event.path,
+                        generation,
+                    );
+                }
+            },
+            onError: (error, erroredHandle) => {
+                if (generation !== this.watchGeneration) return;
+                const eventScope = this.watchedScope;
+                if (!eventScope) return;
+                this.onRootUnavailable?.(eventScope.sessionId);
+                this.logger.write('warn', 'watcher.fallback', {
+                    fields: {
+                        sessionId: eventScope.sessionId,
+                        error: errorMessage(error, 'unknown watcher error'),
+                    },
+                });
+                erroredHandle.startFallback(error);
+            },
             /**
-             * The native watcher already errored before this fallback runs; a failing unsubscribe must never prevent
-             * the polling fallback below from starting, or the directory would silently stop being watched entirely.
+             * Signature-polling fallback over the root and user-expanded directories when the native backend cannot be
+             * installed; the hub owns the timer, this service owns the directory signatures.
              */
+            fallback: {
+                intervalMs: this.pollIntervalMs,
+                activate: () => this.activatePollingState(generation),
+                pollOnce: async () => {
+                    const currentScope = this.watchedScope;
+                    if (!currentScope) return;
+                    await this.pollDirectories(currentScope, generation);
+                    // In-root rule files may live in directories the user never expanded (and thus are absent from
+                    // `polledDirectories`), so the fallback must fingerprint them by exact path or their edits would
+                    // go unnoticed until the native backend recovers.
+                    await this.pollGitIgnoreRuleFiles(
+                        currentScope,
+                        generation,
+                        this.inRootRulePaths(),
+                    );
+                },
+            },
+        });
+        if (generation !== this.watchGeneration) {
+            await handle.dispose();
+            return;
         }
-        if (!this.pollingActive) {
-            this.pollingActive = true;
-            await mapWithConcurrency(
-                this.listedDirectories.keys().toArray(),
-                MAX_CONCURRENT_POLL_DIRECTORIES,
-                (directory) => this.initializePolledDirectory(directory, generation),
-            );
-            if (generation !== this.watchGeneration) return;
-            this.pollTimer = setInterval(() => {
-                const currentScope = this.watchedScope;
-                if (currentScope) this.pollDirectoriesInBackground(currentScope, generation);
-            }, this.pollIntervalMs);
-            this.pollTimer.unref();
-        }
-        this.logger.write('warn', 'watcher.fallback', {
+        this.watchHandle = handle;
+        this.logger.write('info', 'watcher.ready', {
+            durationMs: performance.now() - startedAt,
             fields: {
                 sessionId: scope.sessionId,
-                error: errorMessage(error, 'unknown watcher error'),
+                backend: handle.mode === 'native' ? NATIVE_WATCHER_BACKEND : 'poll',
             },
         });
     }
 
     /**
-     * `setInterval`'s callback is synchronous, so each poll tick cannot await the async `pollDirectories`; ticks are
-     * deliberately fire-and-forget, and any failure is logged rather than left as an unhandled rejection. Kept as its
-     * own method (rather than a promise chain inline in the `setInterval` callback above) to isolate the
-     * fire-and-forget promise handling.
+     * Primes the fallback directory signatures for the current generation before the hub starts the poll loop.
      */
-    private pollDirectoriesInBackground(scope: WatchScope, generation: number): void {
-        // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
-        this.pollDirectories(scope, generation).catch((error: unknown) => {
-            this.logger.write('warn', 'watcher.poll_failed', {
-                fields: { error: errorMessage(error, 'unknown') },
-            });
-        });
-    }
-
-    /**
-     * The native watcher's event callback is synchronous, so a fallback activation triggered from it cannot be awaited;
-     * it is deliberately fire-and-forget, and any failure is logged rather than left as an unhandled rejection. Kept as
-     * its own method (rather than a promise chain inline in the watcher's event callback) to isolate the
-     * fire-and-forget promise handling.
-     */
-    private activatePollingFallbackInBackground(
-        scope: WatchScope,
-        generation: number,
-        error: unknown,
-    ): void {
-        // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
-        this.activatePollingFallback(scope, generation, error).catch((fallbackError: unknown) => {
-            this.logger.write('warn', 'watcher.fallback_activation_failed', {
-                fields: { error: errorMessage(fallbackError, 'unknown') },
-            });
-        });
+    private async activatePollingState(generation: number): Promise<void> {
+        if (generation !== this.watchGeneration || this.pollingActive) return;
+        this.pollingActive = true;
+        await mapWithConcurrency(
+            this.listedDirectories.keys().toArray(),
+            MAX_CONCURRENT_POLL_DIRECTORIES,
+            (directory) => this.initializePolledDirectory(directory, generation),
+        );
     }
 
     /**
@@ -362,6 +335,15 @@ export class WatcherService {
         )
             return;
         this.preparePendingBatch(scope);
+        /**
+         * In-root Git rule files (`.gitignore` and friends) are detected here, from the same native/polled event stream
+         * as every other change, instead of a dedicated rule-file poll loop; only rule files the Project watcher can
+         * never observe (outside the root or inside `.git`) keep a poller (`noteGitIgnoreRulePaths`).
+         */
+        if (fingerprint !== undefined && this.gitIgnoreRuleFingerprints.has(path)) {
+            this.gitIgnoreRuleFingerprints.set(path, fingerprint);
+            this.gitIgnoreRulesChanged = true;
+        }
         if (this.pendingEvents.has(path) || this.pendingEvents.size < MAX_PENDING_WATCH_EVENTS) {
             this.pendingEvents.set(path, kind);
         } else {
@@ -438,17 +420,36 @@ export class WatcherService {
         }
     }
 
-    private async pollGitIgnoreRuleFiles(scope: WatchScope, generation: number): Promise<void> {
-        if (this.gitIgnoreRulePollInFlight || generation !== this.watchGeneration) return;
+    /**
+     * Rule files inside the watched root, i.e. every noted rule path that does not require the external poller.
+     */
+    private inRootRulePaths(): string[] {
+        return this.gitIgnoreRuleFingerprints
+            .keys()
+            .filter((path) => !this.externalRulePaths.has(path))
+            .toArray();
+    }
+
+    private async pollGitIgnoreRuleFiles(
+        scope: WatchScope,
+        generation: number,
+        paths: readonly string[],
+    ): Promise<void> {
+        if (
+            paths.length === 0 ||
+            this.gitIgnoreRulePollInFlight ||
+            generation !== this.watchGeneration
+        )
+            return;
         this.gitIgnoreRulePollInFlight = true;
         try {
             const fingerprints = await mapWithConcurrency(
-                [...this.gitIgnoreRuleFingerprints],
+                paths,
                 MAX_CONCURRENT_POLL_DIRECTORIES,
-                async ([path, previous]) => ({
+                async (path) => ({
                     current: await this.readPathFingerprint(path),
                     path,
-                    previous,
+                    previous: this.gitIgnoreRuleFingerprints.get(path),
                 }),
             );
             if (generation !== this.watchGeneration) return;
@@ -561,6 +562,16 @@ export class WatcherService {
         );
     }
 
+    /**
+     * Rule files the Project watcher can never observe: outside the watched root (e.g. the global Git ignore file) or
+     * inside `.git` (e.g. `info/exclude`), which stays excluded from the root subscription by design.
+     */
+    private isExternalRulePath(path: string): boolean {
+        if (!this.watchedRoot) return true;
+        const relativePath = relative(this.watchedRoot, path);
+        return isOutsideRoot(relativePath) || isTraversalExcludedPath(relativePath);
+    }
+
     private resetWatchState(): void {
         if (this.eventTimer) clearTimeout(this.eventTimer);
         this.eventTimer = undefined;
@@ -568,14 +579,16 @@ export class WatcherService {
         this.pendingScope = undefined;
         this.droppedEvents = 0;
         this.gitIgnoreRulesChanged = false;
-        if (this.gitIgnoreRulePollTimer) clearInterval(this.gitIgnoreRulePollTimer);
-        this.gitIgnoreRulePollTimer = undefined;
+        const ruleHandle = this.ruleWatchHandle;
+        this.ruleWatchHandle = undefined;
+        // Disposal never rejects and this synchronous reset path must not await it.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see comment above
+        void ruleHandle?.dispose();
         this.gitIgnoreRulePollInFlight = false;
-        if (this.pollTimer) clearInterval(this.pollTimer);
-        this.pollTimer = undefined;
         this.pollingActive = false;
         this.listedDirectories.clear();
         this.gitIgnoreRuleFingerprints.clear();
+        this.externalRulePaths.clear();
         this.polledDirectories.clear();
         this.recentChangeFingerprints.clear();
         this.watchedRoot = undefined;
@@ -610,7 +623,10 @@ export class WatcherService {
     }
 
     /**
-     * Polls only the explicit Git rule files resolved by Git, never the surrounding `.git` tree.
+     * Tracks the explicit Git rule files resolved by Git. In-root rule files are detected from the regular watcher
+     * event stream (`queueFingerprintedEvent`); only external rule files (see {@link isExternalRulePath}) get a bounded
+     * poller, registered through the watch hub, because no watched event stream can cover them — polling them directly
+     * keeps the `.git` tree unwatched by the files domain.
      */
     async noteGitIgnoreRulePaths(sessionId: string, paths: readonly string[]): Promise<void> {
         if (sessionId !== this.watchedScope?.sessionId) return;
@@ -635,25 +651,24 @@ export class WatcherService {
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- watchedScope can change during the preceding await
         if (generation !== this.watchGeneration || sessionId !== this.watchedScope?.sessionId)
             return;
-        for (const [path, fingerprint] of fingerprints)
+        for (const [path, fingerprint] of fingerprints) {
             this.gitIgnoreRuleFingerprints.set(path, fingerprint);
-        if (this.gitIgnoreRuleFingerprints.size === 0 || this.gitIgnoreRulePollTimer) return;
-        this.gitIgnoreRulePollTimer = setInterval(() => {
-            const scope = this.watchedScope;
-            /**
-             * `setInterval`'s callback is synchronous, so each poll tick cannot await the async
-             * `pollGitIgnoreRuleFiles`; ticks are deliberately fire-and-forget, and any failure is logged rather than
-             * left as an unhandled rejection.
-             */
-            if (scope)
-                // eslint-disable-next-line unicorn/prefer-await -- see comment above
-                this.pollGitIgnoreRuleFiles(scope, generation).catch((error: unknown) => {
-                    this.logger.write('warn', 'watcher.git_ignore_poll_failed', {
-                        fields: { error: errorMessage(error, 'unknown') },
-                    });
-                });
-        }, this.pollIntervalMs);
-        this.gitIgnoreRulePollTimer.unref();
+            if (this.isExternalRulePath(path)) this.externalRulePaths.add(path);
+        }
+        if (this.externalRulePaths.size === 0 || this.ruleWatchHandle) return;
+        this.ruleWatchHandle = this.watchHub.registerPoller({
+            label: 'files-git-rules',
+            intervalMs: this.pollIntervalMs,
+            pollOnce: async () => {
+                const currentScope = this.watchedScope;
+                if (currentScope)
+                    await this.pollGitIgnoreRuleFiles(
+                        currentScope,
+                        generation,
+                        this.externalRulePaths.values().toArray(),
+                    );
+            },
+        });
     }
 
     watchSession(scope?: WatchScope, shouldForce = false): Promise<void> {
@@ -677,16 +692,18 @@ export class WatcherService {
         this.flushPendingBatch();
         this.watchGeneration += 1;
         this.pollingActive = false;
-        if (this.gitIgnoreRulePollTimer) clearInterval(this.gitIgnoreRulePollTimer);
-        if (this.pollTimer) clearInterval(this.pollTimer);
-        const watcher = this.watcher;
+        const ruleHandle = this.ruleWatchHandle;
+        this.ruleWatchHandle = undefined;
+        const handle = this.watchHandle;
         const setup = this.watchSetup;
-        this.watcher = undefined;
+        this.watchHandle = undefined;
         this.pendingScope = undefined;
         this.listedDirectories.clear();
         this.gitIgnoreRuleFingerprints.clear();
+        this.externalRulePaths.clear();
         this.polledDirectories.clear();
         this.recentChangeFingerprints.clear();
-        await Promise.allSettled([watcher?.unsubscribe(), setup]);
+        await Promise.allSettled([handle?.dispose(), ruleHandle?.dispose(), setup]);
+        if (this.ownsWatchHub) await this.watchHub.close();
     }
 }

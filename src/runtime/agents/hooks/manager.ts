@@ -4,8 +4,6 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import process from 'node:process';
 
-import parcelWatcher from '@parcel/watcher';
-
 import type { AgentProvider, AgentProviderSettings } from '../../../shared/agents';
 import { agentProviderIds } from '../../../shared/agents';
 import { errorMessage } from '../../../shared/ipc/errors';
@@ -14,7 +12,8 @@ import { mapWithConcurrency } from '../../../shared/node/concurrency';
 import type { StructuredLogger } from '../../../shared/node/logger';
 import type { AgentHookHealth, AgentHookHealthMap } from '../../../shared/types';
 import { readBoundedRegularFileText } from '../../bounded-file-reader';
-import { NATIVE_WATCHER_BACKEND } from '../../native-watcher';
+import type { WatchHandle } from '../../watch-hub';
+import { WatchHub } from '../../watch-hub';
 import type { AgentEnvironment } from '../contract';
 import { agentProviders } from '../providers';
 import { stageAgentHookBridge } from './bridge';
@@ -47,7 +46,7 @@ interface TerminalHookLaunch {
 }
 
 interface HookConfigWatcher {
-    subscription: { unsubscribe(): Promise<void> };
+    handle: WatchHandle;
     targets: Set<string>;
 }
 
@@ -67,6 +66,11 @@ interface AgentHookManagerOptions {
     send: (event: RuntimeEvent) => void;
     sharedPath?: string;
     userDataPath: string;
+    /**
+     * Shared Runtime watch registry. Production passes the Runtime-wide hub; tests may omit it, in which case the
+     * manager owns a private hub with equivalent behavior.
+     */
+    watchHub?: WatchHub;
 }
 
 function defaultHealth(message?: string): AgentHookHealthMap {
@@ -223,9 +227,10 @@ export class AgentHookManager {
     private readonly activeProviders = new Set<AgentProvider>();
     private bridgePath?: string;
     private closed = false;
-    private configFallbackTimer?: NodeJS.Timeout;
     private configReconcileTimer?: NodeJS.Timeout;
     private readonly configWatchers = new Map<string, HookConfigWatcher>();
+    private readonly watchHub: WatchHub;
+    private readonly ownsWatchHub: boolean;
     private health = defaultHealth();
     private reconcileQueue = Promise.resolve();
     private server?: AgentHookServer;
@@ -234,6 +239,8 @@ export class AgentHookManager {
     private readonly profileId: string;
 
     constructor(private readonly options: AgentHookManagerOptions) {
+        this.ownsWatchHub = !options.watchHub;
+        this.watchHub = options.watchHub ?? new WatchHub({ logger: options.logger });
         this.profileId = createHash('sha256')
             .update(options.userDataPath)
             .digest('hex')
@@ -458,67 +465,57 @@ export class AgentHookManager {
         settings: Record<AgentProvider, AgentProviderSettings>,
     ): Promise<void> {
         const desired = this.desiredWatchTargets(settings);
-        const obsoleteSubscriptions: Array<HookConfigWatcher['subscription']> = [];
+        const obsoleteHandles: WatchHandle[] = [];
         for (const [directory, watcher] of this.configWatchers) {
             const nextTargets = desired.get(directory);
             if (
                 nextTargets &&
+                // A degraded (polling) registration is replaced so every reconcile retries the native backend.
+                watcher.handle.mode === 'native' &&
                 [...nextTargets].every((target) => watcher.targets.has(target)) &&
                 nextTargets.size === watcher.targets.size
             ) {
                 continue;
             }
             this.configWatchers.delete(directory);
-            obsoleteSubscriptions.push(watcher.subscription);
+            obsoleteHandles.push(watcher.handle);
         }
-        await Promise.all(obsoleteSubscriptions.map((subscription) => subscription.unsubscribe()));
+        await Promise.all(obsoleteHandles.map((handle) => handle.dispose()));
         const pendingWatchers: Array<[string, Set<string>]> = [];
         for (const [directory, targets] of desired)
             if (!this.configWatchers.has(directory)) pendingWatchers.push([directory, targets]);
-        /**
-         * Native subscriptions for separate directories are independent; apply their results only after every attempt
-         * settles so shared fallback state remains ordered.
-         */
-        const additions = await Promise.all(
+        await Promise.all(
             pendingWatchers.map(async ([directory, targets]) => {
                 const targetNames = new Set([...targets].map((target) => basename(target)));
-                try {
-                    const subscription = await parcelWatcher.subscribe(
-                        directory,
-                        (error, events) => {
-                            if (this.closed) return;
-                            if (error) {
-                                this.startConfigFallback(error);
-                                return;
-                            }
-                            /**
-                             * Native macOS paths may canonicalize `/var` to `/private/var`.
-                             */
-                            if (events.some((event) => targetNames.has(basename(event.path))))
-                                this.scheduleConfigReconcile();
+                const handle = await this.watchHub.register({
+                    label: 'agent-hooks-config',
+                    root: directory,
+                    onEvents: (events) => {
+                        if (this.closed) return;
+                        /**
+                         * Native macOS paths may canonicalize `/var` to `/private/var`.
+                         */
+                        if (events.some((event) => targetNames.has(basename(event.path))))
+                            this.scheduleConfigReconcile();
+                    },
+                    onError: (error, erroredHandle) => erroredHandle.startFallback(error),
+                    /**
+                     * All config directories share one degraded reconcile loop: a single `reconcile` pass re-checks
+                     * every provider config, so the hub group runs it once per interval no matter how many directory
+                     * watchers failed.
+                     */
+                    fallback: {
+                        groupKey: 'agent-hooks-reconcile',
+                        intervalMs: CONFIG_FALLBACK_POLL_INTERVAL_MS,
+                        pollOnce: async () => {
+                            if (this.settings && this.anyEnabled())
+                                await this.reconcile(this.settings);
                         },
-                        { backend: NATIVE_WATCHER_BACKEND },
-                    );
-                    return { directory, subscription, targets };
-                } catch (error) {
-                    return { directory, error };
-                }
+                    },
+                });
+                this.configWatchers.set(directory, { handle, targets });
             }),
         );
-        let isWatcherFailed = false;
-        for (const addition of additions) {
-            if ('error' in addition) {
-                isWatcherFailed = true;
-                this.startConfigFallback(addition.error);
-            } else {
-                this.configWatchers.set(addition.directory, {
-                    subscription: addition.subscription,
-                    targets: addition.targets,
-                });
-            }
-        }
-        if (!isWatcherFailed && this.configWatchers.size === desired.size)
-            this.stopConfigFallback();
     }
 
     private scheduleConfigReconcile(): void {
@@ -530,23 +527,6 @@ export class AgentHookManager {
             if (this.settings) void this.reconcile(this.settings);
         }, CONFIG_WATCH_SETTLE_MS);
         this.configReconcileTimer.unref();
-    }
-
-    private startConfigFallback(error: unknown): void {
-        if (this.configFallbackTimer) return;
-        this.options.logger.write('warn', 'agent_hooks.watcher_fallback', {
-            fields: { error: errorMessage(error, 'Hook config watcher failed') },
-        });
-        this.configFallbackTimer = setInterval(() => {
-            // eslint-disable-next-line no-void -- synchronous timer callback cannot await; reconcile() never rejects (errors are caught and logged internally)
-            if (this.settings && this.anyEnabled()) void this.reconcile(this.settings);
-        }, CONFIG_FALLBACK_POLL_INTERVAL_MS);
-        this.configFallbackTimer.unref();
-    }
-
-    private stopConfigFallback(): void {
-        if (this.configFallbackTimer) clearInterval(this.configFallbackTimer);
-        this.configFallbackTimer = undefined;
     }
 
     private async withInstallLock<T>(operation: () => Promise<T>): Promise<T> {
@@ -681,12 +661,10 @@ export class AgentHookManager {
         this.closed = true;
         if (this.configReconcileTimer) clearTimeout(this.configReconcileTimer);
         this.configReconcileTimer = undefined;
-        this.stopConfigFallback();
         await this.reconcileQueue;
-        await Promise.all(
-            this.configWatchers.values().map((watcher) => watcher.subscription.unsubscribe()),
-        );
+        await Promise.all(this.configWatchers.values().map((watcher) => watcher.handle.dispose()));
         this.configWatchers.clear();
+        if (this.ownsWatchHub) await this.watchHub.close();
         for (const terminalId of this.terminalLaunches.keys()) this.endTerminalLaunch(terminalId);
         await this.server?.close();
         this.server = undefined;

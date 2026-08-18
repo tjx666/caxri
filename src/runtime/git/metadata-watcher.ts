@@ -1,11 +1,11 @@
 import { readFile, stat } from 'node:fs/promises';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 
-import parcelWatcher from '@parcel/watcher';
+import type parcelWatcher from '@parcel/watcher';
 
-import { errorMessage } from '../../shared/ipc/errors';
 import type { StructuredLogger } from '../../shared/node/logger';
-import { NATIVE_WATCHER_BACKEND } from '../native-watcher';
+import type { WatchHandle } from '../watch-hub';
+import { WatchHub } from '../watch-hub';
 
 /**
  * Watched repository groups are bounded to keep the Runtime file-descriptor gate intact; the least recently used group
@@ -66,10 +66,9 @@ interface WatchedRepo {
      * `worktrees/<name>` → canonical worktree root resolved from the `gitdir` readback file.
      */
     gitDirRoots: Map<string, string | undefined>;
-    pollTimer?: NodeJS.Timeout;
     polledSignatures?: Map<string, string>;
     primaryRoot: string;
-    watcher?: parcelWatcher.AsyncSubscription;
+    handle?: WatchHandle;
 }
 
 export interface GitMetadataWatcherOptions {
@@ -84,9 +83,14 @@ export interface GitMetadataWatcherOptions {
      */
     onStatusChanged: (repoKey: string, roots: readonly string[]) => void;
     /**
-     * Test seam mirroring `WatcherService`.
+     * Test seam forwarded into the private watch hub when no shared hub is provided.
      */
     subscribe?: typeof parcelWatcher.subscribe;
+    /**
+     * Shared Runtime watch registry. Production passes the Runtime-wide hub; tests may omit it, in which case the
+     * watcher owns a private hub with equivalent behavior.
+     */
+    watchHub?: WatchHub;
 }
 
 /**
@@ -98,10 +102,14 @@ export interface GitMetadataWatcherOptions {
 export class GitMetadataWatcher {
     private closed = false;
     private readonly repositories = new Map<string, WatchedRepo>();
-    private readonly subscribe: typeof parcelWatcher.subscribe;
+    private readonly watchHub: WatchHub;
+    private readonly ownsWatchHub: boolean;
 
     constructor(private readonly options: GitMetadataWatcherOptions) {
-        this.subscribe = options.subscribe ?? parcelWatcher.subscribe;
+        this.ownsWatchHub = !options.watchHub;
+        this.watchHub =
+            options.watchHub ??
+            new WatchHub({ logger: options.logger, subscribe: options.subscribe });
     }
 
     private handleEvents(repoKey: string, events: readonly parcelWatcher.Event[]): void {
@@ -168,21 +176,6 @@ export class GitMetadataWatcher {
         return roots.filter((root): root is string => Boolean(root));
     }
 
-    /**
-     * Native-backend fallback: poll signature files of the commonDir and every registered worktree gitDir so external
-     * branch/index changes still surface, degraded but bounded.
-     */
-    private activatePollingFallback(repoKey: string, entry: WatchedRepo): void {
-        entry.polledSignatures = new Map();
-        entry.pollTimer = setInterval(() => {
-            // Fire-and-forget: the interval callback must not become async itself, and a slow or
-            // failed poll must not block the next tick.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void this.pollOnce(repoKey, entry);
-        }, POLL_FALLBACK_INTERVAL_MS);
-        entry.pollTimer.unref();
-    }
-
     private async pollOnce(repoKey: string, entry: WatchedRepo): Promise<void> {
         if (this.closed || !entry.polledSignatures) return;
         const targets = [
@@ -233,59 +226,44 @@ export class GitMetadataWatcher {
             const oldestKeys = this.repositories.keys().toArray().slice(0, overflow);
             await Promise.allSettled(oldestKeys.map((key) => this.unwatch(key)));
         }
-        try {
-            const watcher = await this.subscribe(
-                repoKey,
-                (error, events) => {
-                    if (error) {
-                        this.options.logger.write('warn', 'git.metadata_watcher_error', {
-                            fields: { error: errorMessage(error, 'unknown') },
-                        });
-                        return;
-                    }
-                    this.handleEvents(repoKey, events);
+        const handle = await this.watchHub.register({
+            label: 'git-metadata',
+            root: repoKey,
+            ignore: ['objects', 'lfs', 'sockets', 'hooks', 'logs'],
+            onEvents: (events) => this.handleEvents(repoKey, events),
+            /**
+             * Native-backend fallback: poll signature files of the commonDir and every registered worktree gitDir so
+             * external branch/index changes still surface, degraded but bounded.
+             */
+            fallback: {
+                intervalMs: POLL_FALLBACK_INTERVAL_MS,
+                activate: () => {
+                    entry.polledSignatures = new Map();
                 },
-                {
-                    backend: NATIVE_WATCHER_BACKEND,
-                    ignore: ['objects', 'lfs', 'sockets', 'hooks', 'logs'],
-                },
-            );
-            // close()/unwatch() may have run while the native subscription was in flight (both
-            // remove the group from `repositories`); release the fresh subscription quietly so no
-            // leaked watcher or post-shutdown ready-logging races state-directory cleanup
-            // (observed as ENOENT/ENOTEMPTY in integration teardown).
-            if (!this.repositories.has(repoKey)) {
-                try {
-                    await watcher.unsubscribe();
-                } catch {
-                    // Releasing a dead native subscription must not mask shutdown.
-                }
-                return;
-            }
-            entry.watcher = watcher;
+                pollOnce: () => this.pollOnce(repoKey, entry),
+            },
+        });
+        // close()/unwatch() may have run while the native subscription was in flight (both remove
+        // the group from `repositories`); release the fresh registration quietly so no leaked
+        // watcher or post-shutdown ready-logging races state-directory cleanup (observed as
+        // ENOENT/ENOTEMPTY in integration teardown).
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- `closed` can flip while the registration is awaited (concurrent close()); tsgolint keeps the stale pre-await narrowing
+        if (this.closed || !this.repositories.has(repoKey)) {
+            await handle.dispose();
+            return;
+        }
+        entry.handle = handle;
+        if (handle.mode === 'native')
             this.options.logger.write('debug', 'git.metadata_watcher_ready', {
                 fields: { repositories: this.repositories.size, worktreeRoots: roots.length },
             });
-        } catch (error) {
-            // oxlint-disable-next-line typescript/no-unnecessary-condition -- `closed` can flip while `subscribe` is awaited (concurrent close()); tsgolint keeps the stale pre-await narrowing
-            if (this.closed || !this.repositories.has(repoKey)) return;
-            this.options.logger.write('warn', 'git.metadata_watcher_fallback', {
-                fields: { error: errorMessage(error, 'unknown') },
-            });
-            this.activatePollingFallback(repoKey, entry);
-        }
     }
 
     async unwatch(repoKey: string): Promise<void> {
         const entry = this.repositories.get(repoKey);
         if (!entry) return;
         this.repositories.delete(repoKey);
-        if (entry.pollTimer) clearInterval(entry.pollTimer);
-        try {
-            await entry.watcher?.unsubscribe();
-        } catch {
-            // Releasing a dead native subscription must not fail group eviction.
-        }
+        await entry.handle?.dispose();
     }
 
     /**
@@ -303,5 +281,6 @@ export class GitMetadataWatcher {
         this.closed = true;
         const keys = this.repositories.keys().toArray();
         await Promise.allSettled(keys.map((key) => this.unwatch(key)));
+        if (this.ownsWatchHub) await this.watchHub.close();
     }
 }
