@@ -2,6 +2,8 @@ import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type * as ExecutablesModule from '../../executables';
+
 const mocks = vi.hoisted(() => ({
     resolveRuntimeExecutable: vi.fn<(name: string) => Promise<string | undefined>>(),
     clearRuntimeExecutableCache: vi.fn(),
@@ -10,11 +12,30 @@ const mocks = vi.hoisted(() => ({
     ),
 }));
 
-vi.mock('../../executables', () => ({
-    resolveRuntimeExecutable: mocks.resolveRuntimeExecutable,
-    clearRuntimeExecutableCache: mocks.clearRuntimeExecutableCache,
-    runtimeProcessEnvironment: mocks.runtimeProcessEnvironment,
-}));
+vi.mock('../../executables', async (importOriginal) => {
+    const actual = await importOriginal<typeof ExecutablesModule>();
+    /**
+     * Keep the real `runExternalCommand` (it must actually spawn the version scripts below) but route its environment
+     * through the mock so no test ever launches a real login shell.
+     */
+    const runExternalCommand: typeof actual.runExternalCommand = (
+        name,
+        arguments_,
+        options,
+        dependencies = {},
+    ) =>
+        actual.runExternalCommand(name, arguments_, options, {
+            environment: mocks.runtimeProcessEnvironment,
+            ...dependencies,
+        });
+    return {
+        ...actual,
+        resolveRuntimeExecutable: mocks.resolveRuntimeExecutable,
+        clearRuntimeExecutableCache: mocks.clearRuntimeExecutableCache,
+        runtimeProcessEnvironment: mocks.runtimeProcessEnvironment,
+        runExternalCommand,
+    };
+});
 
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

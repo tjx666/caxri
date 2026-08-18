@@ -1,20 +1,16 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
 import type { AgentProvider } from '../../shared/agents';
 import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
 import { readE2EAgentPolicy, selectE2EAgentExecutable } from '../../shared/node/e2e-agent-policy';
 import {
     clearRuntimeExecutableCache,
     resolveRuntimeExecutable,
-    runtimeProcessEnvironment,
+    runExternalCommand,
 } from '../executables';
 
 const executableNames: Record<AgentProvider, string> = Object.fromEntries(
     agentProviderIds.map((provider) => [provider, agentProviderCatalog[provider].executableName]),
 ) as Record<AgentProvider, string>;
 
-const execFileAsync = promisify(execFile);
 const executableRequests = new Map<string, Promise<string | undefined>>();
 const versionCache = new Map<AgentProvider, { executable: string; version: string }>();
 
@@ -53,9 +49,7 @@ export async function readVersion(
     const cached = versionCache.get(provider);
     if (cached?.executable === executable) return cached.version;
     try {
-        const environment = await runtimeProcessEnvironment();
-        const { stdout, stderr } = await execFileAsync(executable, ['--version'], {
-            env: environment,
+        const { stdout, stderr } = await runExternalCommand(executable, ['--version'], {
             timeout: 5_000,
             maxBuffer: 64 * 1024,
         });

@@ -1,10 +1,9 @@
-import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
-import { promisify } from 'node:util';
 
 import { z } from 'zod';
 
 import { CaxriError } from '../shared/ipc/errors';
+import { execFileAsync } from '../shared/node/exec';
 import type { StructuredLogger } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type {
@@ -18,11 +17,11 @@ import type {
     ProjectStatusState,
     ProjectStatusSummary,
 } from '../shared/types';
-import { resolveRuntimeExecutable, runtimeProcessEnvironment } from './executables';
+import type { ExternalCommandDependencies } from './executables';
+import { runExternalCommand } from './executables';
 import type { GitService } from './git';
 import { SingleFlight } from './single-flight';
 
-const execFileAsync = promisify(execFile);
 const CLI_TIMEOUT_MS = 8_000;
 const CLI_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 /**
@@ -40,27 +39,7 @@ export type ProjectStatusRunner = (
     cwd: string,
 ) => Promise<string>;
 
-type RunProjectStatusFile = (
-    executable: string,
-    arguments_: string[],
-    options: {
-        cwd: string;
-        timeout: number;
-        maxBuffer: number;
-        env: NodeJS.ProcessEnv;
-    },
-) => Promise<{ stdout: string }>;
-
-export interface ProjectStatusCommandDependencies {
-    environment?: () => Promise<NodeJS.ProcessEnv>;
-    resolveExecutable?: (name: string) => Promise<string | undefined>;
-    run?: RunProjectStatusFile;
-}
-
-const runProjectStatusFile: RunProjectStatusFile = async (executable, arguments_, options) => {
-    const { stdout } = await execFileAsync(executable, arguments_, options);
-    return { stdout };
-};
+export type ProjectStatusCommandDependencies = ExternalCommandDependencies;
 
 class ProjectStatusCliError extends Error {
     constructor(
@@ -765,22 +744,29 @@ export async function runProjectStatusCommand(
     dependencies: ProjectStatusCommandDependencies = {},
 ): Promise<string> {
     try {
-        const resolveExecutable = dependencies.resolveExecutable ?? resolveRuntimeExecutable;
-        const readEnvironment = dependencies.environment ?? runtimeProcessEnvironment;
-        const run = dependencies.run ?? runProjectStatusFile;
-        const executable = command === 'git' ? command : await resolveExecutable(command);
-        if (!executable) {
-            const missing = new Error(`${command} was not found`) as NodeJS.ErrnoException;
-            missing.code = 'ENOENT';
-            throw missing;
+        if (command === 'git') {
+            // `git` ships with macOS, so it skips login-shell resolution and stays on the sanitized
+            // base environment.
+            const run = dependencies.run ?? execFileAsync;
+            const { stdout } = await run('git', [...arguments_], {
+                cwd,
+                timeout: CLI_TIMEOUT_MS,
+                maxBuffer: CLI_MAX_BUFFER_BYTES,
+                env: { ...safeProcessEnvironment(), CI: '1', LC_ALL: 'C' },
+            });
+            return stdout;
         }
-        const environment = command === 'git' ? safeProcessEnvironment() : await readEnvironment();
-        const { stdout } = await run(executable, [...arguments_], {
-            cwd,
-            timeout: CLI_TIMEOUT_MS,
-            maxBuffer: CLI_MAX_BUFFER_BYTES,
-            env: { ...environment, CI: '1', LC_ALL: 'C' },
-        });
+        const { stdout } = await runExternalCommand(
+            command,
+            arguments_,
+            {
+                cwd,
+                timeout: CLI_TIMEOUT_MS,
+                maxBuffer: CLI_MAX_BUFFER_BYTES,
+                env: { CI: '1', LC_ALL: 'C' },
+            },
+            dependencies,
+        );
         return stdout;
     } catch (error) {
         const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string };

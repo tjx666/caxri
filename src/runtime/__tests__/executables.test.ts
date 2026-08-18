@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ExecutableResolver } from '../executables';
+import { ExecutableResolver, runExternalCommand } from '../executables';
 
 const temporaryDirectories: string[] = [];
 
@@ -117,5 +117,48 @@ describe('ExecutableResolver', () => {
         sourcePath = directBin;
 
         await expect(resolver.resolve(names[0])).resolves.toBe(directExecutable);
+    });
+});
+
+describe('runExternalCommand', () => {
+    /**
+     * Regression for the packaged-app "GitHub CLI is not available on PATH" failure: a GUI launch inherits the
+     * constrained launchd PATH, so external CLIs must resolve through the login-shell boundary instead of being spawned
+     * as bare names.
+     */
+    it('spawns the resolved executable with the login-shell environment plus overrides', async () => {
+        const run = vi.fn(() => Promise.resolve({ stdout: 'pr-json', stderr: '' }));
+        await expect(
+            runExternalCommand(
+                'gh',
+                ['pr', 'view'],
+                { cwd: '/repo', timeout: 1_000, maxBuffer: 1_024, env: { LC_ALL: 'C' } },
+                {
+                    resolveExecutable: (name) => Promise.resolve(`/login/bin/${name}`),
+                    environment: () =>
+                        Promise.resolve({ HOME: '/home/user', PATH: '/login/bin:/usr/bin' }),
+                    run,
+                },
+            ),
+        ).resolves.toEqual({ stdout: 'pr-json', stderr: '' });
+        expect(run).toHaveBeenCalledExactlyOnceWith('/login/bin/gh', ['pr', 'view'], {
+            cwd: '/repo',
+            env: { HOME: '/home/user', PATH: '/login/bin:/usr/bin', LC_ALL: 'C' },
+            maxBuffer: 1_024,
+            timeout: 1_000,
+        });
+    });
+
+    it('throws an ENOENT-coded error when the executable cannot be resolved', async () => {
+        const run = vi.fn(() => Promise.resolve({ stdout: '', stderr: '' }));
+        await expect(
+            runExternalCommand(
+                'gh',
+                [],
+                { timeout: 1_000, maxBuffer: 1_024 },
+                { resolveExecutable: () => Promise.resolve(undefined), run },
+            ),
+        ).rejects.toMatchObject({ code: 'ENOENT', message: 'gh was not found' });
+        expect(run).not.toHaveBeenCalled();
     });
 });
