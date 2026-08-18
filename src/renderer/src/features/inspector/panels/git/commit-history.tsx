@@ -233,10 +233,7 @@ export function CommitHistory({
              * never push the Commits entry point out of sight; expanding returns it to normal flow so the commit list
              * scrolls with the panel.
              */
-            className={cn(
-                'commit-history border-t border-border bg-background',
-                !expanded && 'sticky bottom-0 z-10',
-            )}
+            className={cn('commit-history bg-surface', !expanded && 'sticky bottom-0 z-10')}
         >
             <button
                 type="button"
@@ -297,19 +294,24 @@ export function CommitHistory({
                             ))
                         )}
                         {nextOffset !== undefined && (
-                            <div className="p-1.5">
-                                <Button
-                                    className="w-full"
-                                    variant="ghost"
-                                    disabled={loading || path !== debouncedPath}
-                                    onClick={() => {
-                                        // eslint-disable-next-line no-void -- intentional floating-promise discard: loadPage owns its own loading/error state
-                                        void loadPage(nextOffset, false, repository.head);
-                                    }}
-                                >
-                                    {loading ? 'Loading…' : 'Load more'}
-                                </Button>
-                            </div>
+                            <Button
+                                className="load-more-commits h-7 w-full gap-1.5 rounded-none text-[11px] text-muted hover:text-foreground"
+                                size="sm"
+                                variant="ghost"
+                                disabled={loading || path !== debouncedPath}
+                                onClick={() => {
+                                    // eslint-disable-next-line no-void -- intentional floating-promise discard: loadPage owns its own loading/error state
+                                    void loadPage(nextOffset, false, repository.head);
+                                }}
+                            >
+                                {loading ? (
+                                    <>
+                                        <Spinner size={11} /> Loading…
+                                    </>
+                                ) : (
+                                    'Load more commits'
+                                )}
+                            </Button>
                         )}
                     </div>
                 )}
