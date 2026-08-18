@@ -1,6 +1,7 @@
 import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -253,6 +254,37 @@ describe('CaxriDatabase', () => {
             ),
         ).toBe(0);
         expect(database.getSessionState(created.session.id)).toEqual(remapped);
+        database.close();
+    });
+
+    it('leaves virtual editor tabs untouched when the remap source covers the process cwd', async () => {
+        const directory = await temporaryDirectory('caxri-db-virtual-tab-remap-');
+        const ownerRoot = join(directory, 'owner');
+        await mkdir(ownerRoot);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const transcriptPath = 'caxri-agent-transcript://terminal-1/Claude%20Code';
+        database.updateSessionState({
+            ...database.getSessionState(created.session.id),
+            openTabs: [{ path: transcriptPath, dirty: false }],
+        });
+
+        // A virtual tab path is not absolute, so without the scheme exemption `relative()` would
+        // resolve it against the process cwd; a remap whose source covers the cwd would then
+        // rewrite the tab into a bogus filesystem path. The count still reports 1: it counts
+        // Sessions stamped with the operation, not changed paths.
+        expect(
+            database.remapWorkbenchEditorState(
+                owner.id,
+                'operation-1',
+                process.cwd(),
+                join(directory, 'moved'),
+            ),
+        ).toBe(1);
+        expect(database.getSessionState(created.session.id)).toMatchObject({
+            openTabs: [{ path: transcriptPath, dirty: false }],
+        });
         database.close();
     });
 

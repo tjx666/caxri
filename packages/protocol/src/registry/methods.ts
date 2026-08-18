@@ -20,6 +20,7 @@ import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contrac
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
     agentHookHealthMapSchema,
+    agentTranscriptSchema,
     bootstrapStateSchema,
     fileDocumentSchema,
     fileEntrySchema,
@@ -427,6 +428,19 @@ export const methods = {
         ...hostRead,
         params: z.object({ terminalId: identifierSchema }),
         result: terminalResourceUsageSchema.nullable(),
+    },
+    /**
+     * Null when the Terminal has no bound Agent session or its provider keeps no on-disk transcript. The Runtime
+     * derives the path itself from the Terminal's durable identity, so the Renderer never submits a filesystem path for
+     * this out-of-Project read.
+     */
+    'terminal.agentTranscript': {
+        ...hostRead,
+        params: z.object({
+            terminalId: identifierSchema,
+            withContent: z.boolean().default(false),
+        }),
+        result: agentTranscriptSchema.nullable(),
     },
     'files.list': {
         ...hostRead,

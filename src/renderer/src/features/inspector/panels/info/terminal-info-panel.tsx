@@ -1,3 +1,4 @@
+import { agentTranscriptTabPath } from '@shared/agent-transcript';
 import type { TerminalRecord } from '@shared/types';
 import { capitalize } from 'es-toolkit';
 import { CircleDot } from 'lucide-react';
@@ -5,7 +6,9 @@ import { CircleDot } from 'lucide-react';
 import { resolveAgentIcon } from '../../../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../../../icons/agents/agent-identity-icon';
 import { cn } from '../../../../lib/utilities';
+import { useCaxriQuery } from '../../../../queries/client';
 import { useSelectedSession, useSessionTerminals } from '../../../../stores/selectors';
+import { openEditorTab } from '../../../editor/document-actions';
 
 function processStateLabel(state: TerminalRecord['lastProcessState']): string {
     return capitalize(state);
@@ -22,6 +25,38 @@ const terminalStateColor: Record<TerminalRecord['lastProcessState'], string> = {
      */
     interrupted: 'text-danger',
 };
+
+/**
+ * The transcript row queries the Runtime for the provider transcript's derived path (no content), and clicking it opens
+ * the read-only transcript viewer tab.
+ */
+function TerminalTranscriptRow({ terminal }: { terminal: TerminalRecord }) {
+    const transcript = useCaxriQuery(
+        'terminal.agentTranscript',
+        { terminalId: terminal.id, withContent: false },
+        { enabled: Boolean(terminal.provider && terminal.agentSessionId) },
+    );
+    if (!transcript.data) return null;
+    return (
+        <>
+            <dt className="text-muted">Transcript</dt>
+            <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
+                <button
+                    type="button"
+                    className="cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline"
+                    title={
+                        transcript.data.exists
+                            ? 'Open transcript in the editor'
+                            : 'Transcript file not found yet'
+                    }
+                    onClick={() => openEditorTab(agentTranscriptTabPath(terminal.id))}
+                >
+                    {transcript.data.path}
+                </button>
+            </dd>
+        </>
+    );
+}
 
 /**
  * Scoped to the selected Session's Terminals so another Session's Agents never leak in here.
@@ -79,6 +114,22 @@ export function TerminalInfoPanel() {
                                 <CircleDot size={12} />
                                 {processStateLabel(terminal.lastProcessState)}
                             </dd>
+                            {terminal.provider && (
+                                <>
+                                    <dt className="text-muted">Provider</dt>
+                                    <dd className="m-0 min-w-0 [overflow-wrap:anywhere]">
+                                        {capitalize(terminal.provider)}
+                                    </dd>
+                                </>
+                            )}
+                            {terminal.failureReason && (
+                                <>
+                                    <dt className="text-muted">Failure</dt>
+                                    <dd className="m-0 min-w-0 [overflow-wrap:anywhere] text-danger">
+                                        {terminal.failureReason}
+                                    </dd>
+                                </>
+                            )}
                             {terminal.processId && (
                                 <>
                                     <dt className="text-muted">PID</dt>
@@ -102,6 +153,21 @@ export function TerminalInfoPanel() {
                                     </dd>
                                 </>
                             )}
+                            <TerminalTranscriptRow terminal={terminal} />
+                            <dt className="text-muted">Created</dt>
+                            <dd
+                                className="m-0 min-w-0 [overflow-wrap:anywhere]"
+                                title={new Date(terminal.createdAt).toISOString()}
+                            >
+                                {new Date(terminal.createdAt).toLocaleString()}
+                            </dd>
+                            <dt className="text-muted">Updated</dt>
+                            <dd
+                                className="m-0 min-w-0 [overflow-wrap:anywhere]"
+                                title={new Date(terminal.updatedAt).toISOString()}
+                            >
+                                {new Date(terminal.updatedAt).toLocaleString()}
+                            </dd>
                         </dl>
                     </section>
                 );

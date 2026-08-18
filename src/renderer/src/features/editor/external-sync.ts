@@ -2,8 +2,8 @@ import { useEffect } from 'react';
 
 import { pathBasename } from '@caxri/utils';
 import { markTabsClean, replaceWithExternalDocument } from '@shared/editor-state';
-import { isGitDiffTabPath } from '@shared/git-diff';
 import type { FileDocument } from '@shared/types';
+import { isVirtualEditorTabPath } from '@shared/virtual-tabs';
 import { uniq } from 'es-toolkit';
 
 import { caxri } from '../../lib/caxri';
@@ -131,7 +131,11 @@ function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false
     const paths: string[] = [];
     for (const tab of openTabs) {
         const cachedTab = readCachedDocument(cached, tab.path);
-        if (cachedTab && !isGitDiffTabPath(tab.path) && (!shouldPreserveDirty || !cachedTab.dirty))
+        if (
+            cachedTab &&
+            !isVirtualEditorTabPath(tab.path) &&
+            (!shouldPreserveDirty || !cachedTab.dirty)
+        )
             paths.push(tab.path);
     }
     if (paths.length === 0) return;
@@ -167,7 +171,7 @@ export function subscribeExternalDocumentSync(): () => void {
         if (event.payload.overflow) {
             const openTabs = getSessionState()?.openTabs ?? [];
             for (const tab of openTabs)
-                if (!isGitDiffTabPath(tab.path)) changedPaths.push(tab.path);
+                if (!isVirtualEditorTabPath(tab.path)) changedPaths.push(tab.path);
         } else {
             const changes = event.payload.changes;
             for (const change of changes)

@@ -143,6 +143,18 @@ export const terminalSnapshotSchema = z.object({
     updatedAt: z.number(),
 });
 
+/**
+ * A bounded read of an Agent Terminal's provider transcript file. `content` is present only when requested; `truncated`
+ * marks a transcript whose head was dropped to fit the transport cap (the newest turns matter most when inspecting a
+ * live agent).
+ */
+export const agentTranscriptSchema = z.object({
+    path: pathSchema,
+    exists: z.boolean(),
+    content: z.string().optional(),
+    truncated: z.boolean(),
+});
+
 const editorTabStateSchema = z.object({
     path: pathSchema,
     dirty: z.boolean(),
@@ -628,6 +640,7 @@ export type ProjectRecord = z.infer<typeof projectRecordSchema>;
 export type SessionRecord = z.infer<typeof sessionRecordSchema>;
 export type TerminalRecord = z.infer<typeof terminalRecordSchema>;
 export type TerminalSnapshot = z.infer<typeof terminalSnapshotSchema>;
+export type AgentTranscript = z.infer<typeof agentTranscriptSchema>;
 export type SessionState = z.infer<typeof sessionStateSchema>;
 export type NewWorktreeBehavior = z.infer<typeof newWorktreeBehaviorSchema>;
 export type WorkbenchRootOption = z.infer<typeof workbenchRootOptionSchema>;

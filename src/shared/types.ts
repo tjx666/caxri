@@ -13,6 +13,7 @@ export {
     type AgentHookHealthMap,
     type AgentProvider,
     type AgentSnapshot,
+    type AgentTranscript,
     type AppSettings,
     type ArgvConfig,
     type ArgvConfigChanges,

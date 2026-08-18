@@ -15,8 +15,8 @@ import {
     reconcileEditorTabDirtiness,
     updateEditorTabState,
 } from '@shared/editor-state';
-import { isGitDiffTabPath } from '@shared/git-diff';
 import type { SessionState } from '@shared/types';
+import { isVirtualEditorTabPath } from '@shared/virtual-tabs';
 import type { WorkItem } from '@shared/work-item';
 import { activateWorkState, resolveActiveWork } from '@shared/work-item';
 import { clamp } from 'es-toolkit';
@@ -254,7 +254,7 @@ export function selectEditorTab(path: string): void {
     const session = getSelectedSession();
     if (!session) return;
     const documents = getSessionDocuments(session.id);
-    if (isGitDiffTabPath(path) || (documents && Object.hasOwn(documents, path)))
+    if (isVirtualEditorTabPath(path) || (documents && Object.hasOwn(documents, path)))
         useSessionViewStore.getState().activateWork({ kind: 'editor', path });
     else {
         // Fire-and-forget: `openFile` funnels its own failures into a toast via `tryCommand`, so
@@ -330,7 +330,7 @@ export async function saveActiveEditor(): Promise<void> {
     const active = getResolvedActiveWork();
     if (!session || active?.kind !== 'editor') return;
     const path = active.path;
-    if (isGitDiffTabPath(path)) return;
+    if (isVirtualEditorTabPath(path)) return;
     await didSaveDocumentAt(session.id, path);
 }
 
@@ -467,7 +467,7 @@ function remapOpenEditorsInSession(
     remapPendingDocumentOperations(sessionId, workbenchProjectId, previousPath, nextPath);
     if (previousPath === nextPath) return isDurable ? Promise.resolve(true) : undefined;
     const remapEditorPath = (path: string): string =>
-        isGitDiffTabPath(path) ? path : remapPath(path, previousPath, nextPath);
+        isVirtualEditorTabPath(path) ? path : remapPath(path, previousPath, nextPath);
     const activeWork = getSessionActiveWork(sessionId, workbenchProjectId);
     useSessionViewStore
         .getState()
@@ -557,7 +557,7 @@ function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): vo
     const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
     if (!current) return;
     const closingPaths = current.openTabs.flatMap((tab) =>
-        !isGitDiffTabPath(tab.path) && isPathAtOrBelow(tab.path, path) ? [tab.path] : [],
+        !isVirtualEditorTabPath(tab.path) && isPathAtOrBelow(tab.path, path) ? [tab.path] : [],
     );
     if (closingPaths.length === 0) return;
     const closing = new Set(closingPaths);
@@ -614,7 +614,8 @@ export function hasUnsavedChangesUnderPath(sessionId: string, path: string): boo
     return getProjectSessionIds(sessionId).some((projectSessionId) => {
         const state = bootstrap?.sessionStates.find((item) => item.sessionId === projectSessionId);
         return state?.openTabs.some(
-            (tab) => !isGitDiffTabPath(tab.path) && tab.dirty && isPathAtOrBelow(tab.path, path),
+            (tab) =>
+                !isVirtualEditorTabPath(tab.path) && tab.dirty && isPathAtOrBelow(tab.path, path),
         );
     });
 }

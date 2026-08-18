@@ -54,6 +54,14 @@ function claudeProjectDirectoryName(cwd: string): string {
 }
 
 /**
+ * The single source for a session transcript's on-disk location; the title scanner and the transcript-viewer capability
+ * must never derive it independently.
+ */
+function claudeTranscriptPath(configDirectory: string, cwd: string, sessionId: string): string {
+    return join(configDirectory, 'projects', claudeProjectDirectoryName(cwd), `${sessionId}.jsonl`);
+}
+
+/**
  * Reduces a raw prompt to a Claude Code-style resume-list label: first non-empty line, bounded length.
  */
 function promptTitle(prompt: string): string | undefined {
@@ -108,12 +116,7 @@ async function readTranscriptTitles(
     cwd: string,
     sessionId: string,
 ): Promise<TranscriptTitleCache> {
-    const path = join(
-        configDirectory,
-        'projects',
-        claudeProjectDirectoryName(cwd),
-        `${sessionId}.jsonl`,
-    );
+    const path = claudeTranscriptPath(configDirectory, cwd, sessionId);
     let cache = transcriptTitleCaches.get(path);
     if (!cache) {
         cache = { offset: 0 };
@@ -312,4 +315,6 @@ export const claudeProvider: AgentProviderDescriptor = {
     id: 'claude',
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),
+    transcriptPath: ({ agentSessionId, cwd }, environment) =>
+        claudeTranscriptPath(resolveClaudeConfigDirectory(environment), cwd, agentSessionId),
 };
