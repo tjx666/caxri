@@ -282,6 +282,53 @@ describe('workbench Session state', () => {
         updateRequest.resolve(statusState);
     });
 
+    it('keeps a persisted change when a bootstrap read that predates the write resolves after it', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            openTabs: [],
+            inspectorMode: 'files',
+            layout: {},
+        };
+        const staleBootstrap = {
+            configurationErrors: [],
+            sessions: [],
+            terminals: [],
+            sessionStates: [filesState],
+        } as unknown as BootstrapState;
+        const bootstrapRequest = Promise.withResolvers<BootstrapState>();
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'app.bootstrap') return bootstrapRequest.promise;
+            if (method === 'session.updateState') return Promise.resolve(undefined);
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+        useWorkbenchStore.setState({ bootstrap: staleBootstrap });
+
+        // The snapshot read is issued first, then the patch persists fully before the read resolves
+        // with a snapshot that predates the write.
+        const refresh = refreshWorkbench();
+        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        await useWorkbenchStore.getState().patchSessionState(statusState);
+        bootstrapRequest.resolve(staleBootstrap);
+        await refresh;
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
+
+        // A read issued after the write sees the Runtime's converged state and is authoritative.
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'app.bootstrap')
+                return Promise.resolve({
+                    configurationErrors: [],
+                    sessions: [],
+                    terminals: [],
+                    sessionStates: [filesState],
+                });
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+        await refreshWorkbench();
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([filesState]);
+    });
+
     it('keeps the optimistic state when session.updateState resolves', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',

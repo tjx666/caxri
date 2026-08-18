@@ -53,6 +53,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
+        await expect(running.page.locator('.terminal-pane')).toHaveCount(2);
         await typeInTerminal(running.page, secondTerminalId, String.raw`printf 'SECOND_MARKER\n'`);
         await running.page
             .locator(`.work-tab[data-terminal-id="${firstTerminalId}"] [role="tab"]`)
