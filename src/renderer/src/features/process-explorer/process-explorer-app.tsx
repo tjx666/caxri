@@ -4,6 +4,7 @@ import { errorMessage } from '@shared/ipc';
 import type { ProcessExplorerSnapshot } from '@shared/process-explorer';
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 
+import { createVisibilityAwarePoll } from '../../lib/poll-scheduler';
 import { applyCssTheme } from '../../lib/theme-css';
 import { cn } from '../../lib/utilities';
 import type { ProcessTreeNode } from './process-tree';
@@ -111,7 +112,15 @@ export function ProcessExplorerApp() {
     }, []);
     useEffect(() => {
         const initialRefresh = setTimeout(refresh, 0);
-        const interval = setInterval(refresh, SAMPLE_INTERVAL_MS);
+        // Registered in the shared poll registry (`lib/poll-scheduler.ts`) alongside the react-query polls so
+        // `getActivePolls()` covers every periodic Renderer poll, not just the ones behind `useCaxriQuery`. Pauses
+        // sampling while this standalone window is hidden/backgrounded and resumes with an immediate refresh, the
+        // same contract `usePolledQuery` gives the Main-window polls.
+        const poll = createVisibilityAwarePoll(
+            'processExplorer.snapshot',
+            SAMPLE_INTERVAL_MS,
+            refresh,
+        );
         async function loadTheme(): Promise<void> {
             try {
                 applyCssTheme(await globalThis.processExplorer.theme());
@@ -123,7 +132,7 @@ export function ProcessExplorerApp() {
         void loadTheme();
         return () => {
             clearTimeout(initialRefresh);
-            clearInterval(interval);
+            poll.dispose();
         };
     }, [refresh]);
     const roots = useMemo(() => buildProcessTree(snapshot?.processes ?? []), [snapshot?.processes]);

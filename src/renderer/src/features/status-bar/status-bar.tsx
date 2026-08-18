@@ -27,6 +27,7 @@ import {
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useNow } from '@/hooks/use-now';
+import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
 import {
@@ -177,10 +178,10 @@ const openProcessExplorer = (): void => executeCommand('processExplorer.open');
 
 function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
     const progress = useTerminalProgress(terminalId);
-    const usage = useCaxriQuery(
+    const usage = usePolledQuery(
         'terminal.resources',
         { terminalId },
-        { refetchInterval: 2_000, staleTime: 1_000, retry: false },
+        { label: 'terminal.resources', intervalMs: 2_000, staleTime: 1_000, retry: false },
     ).data;
     if (!usage && !progress) return null;
     const childLabel = usage
@@ -372,10 +373,14 @@ function ScreencastModeChip() {
  * working-tree `files[]` payload across IPC or calling the delivery CLI any more often than the interval already does.
  */
 function useProjectOverview(sessionId: string | undefined) {
-    const overviewQuery = useCaxriQuery(
+    const overviewQuery = usePolledQuery(
         'projectStatus.overview',
         { sessionId: sessionId ?? '' },
-        { enabled: Boolean(sessionId), refetchInterval: PROJECT_OVERVIEW_REFETCH_INTERVAL_MS },
+        {
+            label: 'projectStatus.overview',
+            intervalMs: PROJECT_OVERVIEW_REFETCH_INTERVAL_MS,
+            enabled: Boolean(sessionId),
+        },
     );
     const gitOverviewQuery = useCaxriQuery(
         'git.overview',
