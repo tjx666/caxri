@@ -6,6 +6,7 @@ import {
     HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
     hostDesktopLaunchSchema,
 } from '../shared/ipc/desktop-launch';
+import { computeBuildFingerprint } from '../shared/node/build-fingerprint';
 import { e2eAgentPolicyEnvironment, readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
@@ -17,13 +18,17 @@ if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
 
 const version = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
 const commit = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
-const buildId = typeof __CAXRI_BUILD_ID__ === 'string' ? __CAXRI_BUILD_ID__ : 'unknown';
 process.env.CAXRI_APP_VERSION = version;
 process.env.CAXRI_GIT_COMMIT = commit;
 const logger = new StructuredLogger(join(userDataPath, 'logs'), 'host', 'info');
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'host' });
 processErrorMonitor.attach(logger);
 const hostOutputDirectory = dirname(fileURLToPath(import.meta.url));
+/**
+ * Captured once at startup: this is the fingerprint of the code this Host process is actually running. A later watch
+ * rebuild changes the on-disk bundles but not this value, which is exactly what lets the Desktop detect staleness.
+ */
+const buildId = await computeBuildFingerprint(hostOutputDirectory);
 const desktopLaunchSource = process.env[HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
 const desktopLaunch = desktopLaunchSource
     ? hostDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)

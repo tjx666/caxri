@@ -43,10 +43,13 @@ function createFakeHostClient(): FakeHostClient {
     };
 }
 
-function createConnection(buildIdentity: HostBuildIdentity = {}) {
+function createConnection(identity: HostBuildIdentity = {}) {
     const logger = { write: vi.fn() };
+    // Production computes `buildId` by fingerprinting the on-disk bundles; the test seam returns it directly.
+    const { buildId, ...buildIdentity } = identity;
     const connection = new DesktopHostConnection({
         buildIdentity,
+        computeBuildId: () => Promise.resolve(buildId),
         currentDirectory: '/app/out/main',
         cliPath: '/app/cli/caxri.cjs',
         desktopId: 'desktop-1',
@@ -202,6 +205,39 @@ describe('Desktop Host connection facade', () => {
             expect.anything(),
         );
         expect(connection.hostProcessId()).toBe(999_999);
+    });
+
+    /**
+     * Regression for the replacement storm: the one-shot downgrade used to live inside a single `connect()` call, so
+     * every background reconnect restarted the replacement and a persistent mismatch (e.g. two Desktops of different
+     * builds sharing one Host) became an endless kill/spawn loop of error toasts.
+     */
+    it('replaces a persistently stale Host at most once per connection across reconnects', async () => {
+        vi.useFakeTimers();
+        const operator = createFakeOperator({ hostBuildId: 'build-old', hostVersion: '0.0.9' });
+        vi.mocked(ensureHost).mockResolvedValue(operator as never);
+        const first = createFakeHostClient();
+        vi.mocked(connectDesktopToHost).mockResolvedValue(first as never);
+        const { connection, logger } = createConnection({
+            buildId: 'build-new',
+            version: '0.0.9',
+        });
+        const stopCallCount = () =>
+            operator.request.mock.calls.filter(([method]) => method === 'host.stop').length;
+
+        await connection.start();
+        expect(stopCallCount()).toBe(1);
+        expect(logger.write).toHaveBeenCalledWith(
+            'warn',
+            'host.version_mismatch',
+            expect.anything(),
+        );
+
+        vi.mocked(connectDesktopToHost).mockResolvedValue(createFakeHostClient() as never);
+        first.triggerClose();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(logger.write).toHaveBeenCalledWith('info', 'host.reconnected', expect.anything());
+        expect(stopCallCount()).toBe(1);
     });
 
     it('stays silent when the adopted Host matches this build', async () => {
