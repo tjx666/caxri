@@ -382,7 +382,7 @@ export function WorkTabStrip() {
         <div
             ref={stripReference}
             className={cn(
-                'work-tabs flex h-11 items-end overflow-x-auto border-b border-border bg-surface [-webkit-app-region:drag]',
+                'work-tabs flex h-11 items-end overflow-x-auto bg-surface [-webkit-app-region:drag]',
                 !isSidebarVisible && 'pl-[78px]',
             )}
         >

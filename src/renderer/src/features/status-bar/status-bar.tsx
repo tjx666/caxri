@@ -37,6 +37,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import { Separator } from '../../components/ui/separator';
 import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
@@ -598,10 +599,8 @@ function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId
                         {root.displayTitle} · {root.branch}
                     </SelectItem>
                 ))}
-                <SelectItem
-                    value={AUTHORIZE_WORKBENCH_ROOT_VALUE}
-                    className="max-w-96 border-t border-border"
-                >
+                <Separator className="my-1" />
+                <SelectItem value={AUTHORIZE_WORKBENCH_ROOT_VALUE} className="max-w-96">
                     Authorize another worktree…
                 </SelectItem>
                 {rootsQuery.isLoading && (
@@ -633,7 +632,7 @@ export function StatusBar() {
          * healthy one that renders no chip at all.
          */
         <footer
-            className="statusbar col-span-full flex items-center gap-2 border-t border-border bg-surface px-2 text-[11px] text-muted"
+            className="statusbar col-span-full flex items-center gap-2 bg-surface px-2 text-[11px] text-muted"
             data-runtime-status={runtimeStatus ?? 'starting'}
         >
             <div className="statusbar-context flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">

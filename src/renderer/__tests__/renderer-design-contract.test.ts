@@ -74,7 +74,105 @@ function sourceLocation(path: string, sourceFile: ts.SourceFile, position: numbe
     return `${relative(rendererRoot, path).split(sep).join('/')}:${line + 1}`;
 }
 
+/**
+ * Global stylesheets whose rules cascade against Tailwind's layers.
+ */
+const globalStylesheets = ['theme.css', 'styles.css', 'process-explorer.css'];
+/**
+ * Bare form-control element selectors Tailwind preflight owns inside `@layer base`.
+ */
+const formControlSelectorPattern = /(?<![\w.#[-])(?:button|input|textarea|select)(?![\w-])/;
+
+/**
+ * Collects selectors of style rules that sit outside every at-rule block except `@media` (top-level `@media` contents
+ * are still unlayered and cascade identically). `@layer`, `@theme`, `@keyframes`, and other at-rule blocks are skipped
+ * opaquely.
+ */
+function collectUnlayeredSelectors(css: string): string[] {
+    const source = css.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/@[\w-][^{};]*;/g, '');
+    const selectors: string[] = [];
+    const findMatchingBrace = (text: string, openIndex: number): number => {
+        let depth = 0;
+        for (let index = openIndex; index < text.length; index++) {
+            if (text[index] === '{') depth++;
+            if (text[index] === '}' && --depth === 0) return index;
+        }
+        return text.length;
+    };
+    const walk = (block: string): void => {
+        let index = 0;
+        while (index < block.length) {
+            const open = block.indexOf('{', index);
+            if (open === -1) break;
+            const prelude = block.slice(index, open).trim();
+            const close = findMatchingBrace(block, open);
+            if (prelude.startsWith('@media')) {
+                walk(block.slice(open + 1, close));
+            } else if (!prelude.startsWith('@')) {
+                selectors.push(prelude);
+            }
+            index = close + 1;
+        }
+    };
+    walk(source);
+    return selectors;
+}
+
+/**
+ * Chrome regions separate by `bg-surface`/`bg-background` steps, VS Code style — never by border hairlines. These files
+ * own those seams; a `border-border` here reintroduces the removed lines. Standalone divider lines inside a single
+ * surface use `components/ui/separator.tsx` instead.
+ */
+const borderlessChromeFiles = [
+    'features/workbench/panel-divider.tsx',
+    'features/tabs/work-tab-strip.tsx',
+    'features/status-bar/status-bar.tsx',
+    'features/inspector/inspector.tsx',
+    'features/settings/settings-dialog.tsx',
+    // features/sidebar/project-sidebar.tsx and features/process-explorer/process-explorer-app.tsx
+    // also had their chrome seams removed, but keep legitimate in-surface borders (dashed CTA,
+    // table column rules) this blanket guard cannot distinguish.
+];
+
 describe('Renderer design contract', () => {
+    it('keeps chrome seams borderless (background steps, not border lines)', async () => {
+        const offenders = (
+            await Promise.all(
+                borderlessChromeFiles.map(async (file) => {
+                    const source = await readFile(join(rendererRoot, file), 'utf8');
+                    return source.includes('border-border') ? [file] : [];
+                }),
+            )
+        ).flat();
+        expect(
+            offenders,
+            'chrome seams must separate via bg-surface/bg-background steps; use components/ui/separator.tsx for standalone lines inside a surface',
+        ).toEqual([]);
+    });
+
+    it('keeps form-control element resets inside @layer in global stylesheets', async () => {
+        // Unlayered CSS beats every `@layer` rule, so a bare `button { font: inherit }` outside
+        // `@layer` silently kills font utilities (`text-[10px]`, `font-bold`, …) app-wide — the
+        // regression behind the Git panel's mismatched CHANGES/COMMITS headers. Tailwind's
+        // preflight already resets form controls inside `@layer base`.
+        const offendersByFile = await Promise.all(
+            globalStylesheets.map(async (name): Promise<string[]> => {
+                const css = await readFile(join(rendererRoot, 'styles', name), 'utf8');
+                return collectUnlayeredSelectors(css)
+                    .filter((selector) =>
+                        selector
+                            .split(',')
+                            .some((part) => formControlSelectorPattern.test(part.trim())),
+                    )
+                    .map((selector) => `${name}: ${selector}`);
+            }),
+        );
+        expect(
+            offendersByFile.flat(),
+            'unlayered rules matching button/input/textarea/select override Tailwind utilities; move them into @layer base',
+        ).toEqual([]);
+    });
+
     it('recognizes guarded arbitrary class shapes before applying the allowlist', () => {
         expect(
             'text-[9px] h-[26px] min-w-[73px] -mt-[7px] hover:-mx-[3px] rounded-[5px]'.match(
