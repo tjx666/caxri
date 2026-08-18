@@ -28,6 +28,7 @@ import {
 } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { terminalFontFamily } from './terminal-fonts';
+import { TERMINAL_DEFAULT_WORD_SEPARATORS } from './terminal-links';
 import type { TerminalSearchOptions } from './terminal-search';
 import {
     initialTerminalSearchState,
@@ -158,6 +159,8 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const isCopyOnSelect = settings?.['terminal.copyOnSelect'] ?? true;
     const gpuAcceleration = settings?.['terminal.gpuAcceleration'] ?? 'off';
     const isOsc52ClipboardWrite = settings?.['terminal.osc52ClipboardWrite'] ?? false;
+    const wordSeparators =
+        settings?.['terminal.wordSeparators'] ?? TERMINAL_DEFAULT_WORD_SEPARATORS;
     const processState = terminal?.lastProcessState ?? 'starting';
     const isCodex = terminal?.kind === 'codex' || terminal?.provider === 'codex';
     const isAgent = Boolean(terminal && (terminal.kind !== 'shell' || terminal.provider));
@@ -192,6 +195,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         terminalId,
         terminalSessionId: terminal?.sessionId ?? '',
         terminalTheme,
+        wordSeparators,
     });
 
     useEffect(

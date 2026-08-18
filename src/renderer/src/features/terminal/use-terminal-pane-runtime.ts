@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { editorModelPath } from '@shared/editor-state';
 import { errorMessage } from '@shared/ipc';
 import type { ProcessState, ThemeTokens } from '@shared/types';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
@@ -14,12 +13,8 @@ import { Terminal } from '@xterm/xterm';
 import { useOnVisible } from '@/hooks/use-on-visible';
 
 import { caxri } from '../../lib/caxri';
-import { openExternalUrl } from '../../lib/external-link';
 import { useDialogStore } from '../../stores/dialogs';
-import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
-import { openFile } from '../editor/document-actions';
-import { revealEditorLocation } from '../editor/editor-reveal';
 import {
     registerTerminalClearHandler,
     registerTerminalSelectionHandlers,
@@ -37,7 +32,6 @@ import {
     isClipboardContainingImage,
     terminalKeyboardInput,
 } from './terminal-keyboard';
-import { registerTerminalLinks } from './terminal-links';
 import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
 import {
     detachTerminalQuietly,
@@ -45,6 +39,7 @@ import {
     onError,
     opaqueSearchColor,
     OSC52_BLOCK_MESSAGES,
+    registerTerminalPaneLinks,
     RENDERER_FALLBACK_MESSAGES,
 } from './terminal-pane-support';
 import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from './terminal-process-focus';
@@ -76,6 +71,7 @@ interface TerminalPaneRuntimeOptions {
     terminalId: string;
     terminalSessionId: string;
     terminalTheme: ThemeTokens['terminal'] | undefined;
+    wordSeparators: string;
 }
 
 /**
@@ -98,6 +94,7 @@ export function useTerminalPaneRuntime({
     terminalId,
     terminalSessionId,
     terminalTheme,
+    wordSeparators,
 }: TerminalPaneRuntimeOptions) {
     const containerReference = useRef<HTMLDivElement>(null);
     const xtermReference = useRef<Terminal | undefined>(undefined);
@@ -130,6 +127,7 @@ export function useTerminalPaneRuntime({
         terminalCwd,
         terminalSessionId,
         terminalTheme,
+        wordSeparators,
     });
 
     useEffect(() => {
@@ -148,6 +146,7 @@ export function useTerminalPaneRuntime({
             terminalCwd,
             terminalSessionId,
             terminalTheme,
+            wordSeparators,
         };
     }, [
         active,
@@ -164,6 +163,7 @@ export function useTerminalPaneRuntime({
         terminalCwd,
         terminalSessionId,
         terminalTheme,
+        wordSeparators,
     ]);
 
     useEffect(() => {
@@ -202,6 +202,7 @@ export function useTerminalPaneRuntime({
             fontSize: latest.fontSize,
             scrollback: latest.scrollback,
             theme: latest.terminalTheme,
+            wordSeparator: latest.wordSeparators,
         });
         const fit = new FitAddon();
         /**
@@ -297,28 +298,7 @@ export function useTerminalPaneRuntime({
             }
             updateTerminalProgress(terminalId, update);
         });
-        const unregisterLinks = registerTerminalLinks(xterm, {
-            get cwd() {
-                return latestReference.current.terminalCwd;
-            },
-            get projectRoot() {
-                return latestReference.current.projectRoot;
-            },
-            async openFile(path, location) {
-                const resolvedPath = await openFile(path);
-                if (!resolvedPath || !location) return;
-                revealEditorLocation(
-                    editorModelPath(
-                        sessionViewScope(latestReference.current.terminalSessionId),
-                        resolvedPath,
-                    ),
-                    location,
-                );
-            },
-            async openUrl(url) {
-                await openExternalUrl(url, onError);
-            },
-        });
+        const unregisterLinks = registerTerminalPaneLinks(xterm, () => latestReference.current);
         xterm.attachCustomKeyEventHandler((event) => {
             const input = terminalKeyboardInput(event, latestReference.current.isAgent);
             if (!input) return true;
@@ -699,7 +679,8 @@ export function useTerminalPaneRuntime({
         xtermReference.current.options.fontSize = fontSize;
         xtermReference.current.options.scrollback = scrollback;
         xtermReference.current.options.theme = terminalTheme;
-    }, [fontFamily, fontSize, scrollback, terminalTheme]);
+        xtermReference.current.options.wordSeparator = wordSeparators;
+    }, [fontFamily, fontSize, scrollback, terminalTheme, wordSeparators]);
 
     useEffect(
         () => registerTerminalClearHandler(terminalId, () => xtermReference.current?.clear()),

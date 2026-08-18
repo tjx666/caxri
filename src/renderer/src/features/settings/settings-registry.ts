@@ -150,6 +150,7 @@ const rows: SettingRowDescriptor[] = [
     specRow('terminal.scrollback'),
     specRow('terminal.copyOnSelect'),
     specRow('terminal.osc52ClipboardWrite'),
+    specRow('terminal.wordSeparators'),
     specRow('terminal.defaultWorkingDirectory'),
     specRow('editor.fontFamily'),
     {

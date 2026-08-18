@@ -1,5 +1,13 @@
+import { editorModelPath } from '@shared/editor-state';
+import type { Terminal } from '@xterm/xterm';
+
 import { caxri } from '../../lib/caxri';
+import { openExternalUrl } from '../../lib/external-link';
+import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
+import { openFile } from '../editor/document-actions';
+import { revealEditorLocation } from '../editor/editor-reveal';
+import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
 import type { TerminalRendererReason } from './terminal-renderer';
 import type { TerminalSearchResults } from './terminal-search';
@@ -56,4 +64,41 @@ export async function detachTerminalQuietly(terminalId: string): Promise<void> {
     } catch {
         // Intentionally swallowed, see the function comment above.
     }
+}
+
+interface TerminalLinkSnapshot {
+    projectRoot: string;
+    terminalCwd: string;
+    terminalSessionId: string;
+    wordSeparators: string;
+}
+
+/**
+ * Wires `registerTerminalLinks` to the pane's live state snapshot: link providers are registered once per attach, so
+ * every field reads through `latest()` instead of capturing values that would go stale on session or settings changes.
+ */
+export function registerTerminalPaneLinks(
+    terminal: Terminal,
+    latest: () => TerminalLinkSnapshot,
+): () => void {
+    return registerTerminalLinks(terminal, {
+        get cwd() {
+            return latest().terminalCwd;
+        },
+        get projectRoot() {
+            return latest().projectRoot;
+        },
+        get wordSeparators() {
+            return latest().wordSeparators;
+        },
+        async openFile(path, location) {
+            const resolvedPath = await openFile(path);
+            if (!resolvedPath || !location) return;
+            const scope = sessionViewScope(latest().terminalSessionId);
+            revealEditorLocation(editorModelPath(scope, resolvedPath), location);
+        },
+        async openUrl(url) {
+            await openExternalUrl(url, onError);
+        },
+    });
 }
