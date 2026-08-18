@@ -1,7 +1,9 @@
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { execFileAsync } from './exec';
+// The explicit `.ts` extension is required: this module is re-executed under Electron's built-in
+// Node (type-stripping ESM), which rejects extensionless specifiers that Bun resolves fine.
+import { execFileAsync } from './exec.ts';
 
 /**
  * Relaunch a TypeScript probe under Electron while keeping Bun as the public script entry point.
