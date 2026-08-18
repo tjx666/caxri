@@ -36,3 +36,6 @@ Do not include logs, diagnostics, user roots, terminal output, or credentials in
   capability and has no automatic GitHub-hosted macOS fallback.
 - Follow `RELEASING.md` when preparing the release commit. Creating or pushing that commit still
   requires explicit user authorization because the push triggers the remote release.
+- After the GitHub Release publishes successfully, install it locally by default with
+  `bun run install:caxri` (standing owner preference) and report the installed version. Skip only
+  when the user asked not to install or the release itself failed.
