@@ -104,6 +104,20 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
             'Command failed with exit status 1.',
         );
         await expect(firstSurface.locator('[data-terminal-command-phase="failed"]')).toHaveCount(1);
+        /**
+         * The decoration gutter must not surface xterm.css's hardcoded black viewport background as a visible strip;
+         * the terminal container owns the background color.
+         */
+        expect(
+            await firstSurface.evaluate((element) => {
+                const xterm = element.querySelector('.xterm')!;
+                const viewport = xterm.querySelector('.xterm-viewport')!;
+                return {
+                    paddingLeft: getComputedStyle(xterm).paddingLeft,
+                    viewportBackground: getComputedStyle(viewport).backgroundColor,
+                };
+            }),
+        ).toEqual({ paddingLeft: '20px', viewportBackground: 'rgba(0, 0, 0, 0)' });
 
         const visibleRows = firstSurface.locator('.xterm-rows');
         await running.page.keyboard.press('Meta+Shift+ArrowUp');
