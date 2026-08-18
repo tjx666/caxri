@@ -5,6 +5,8 @@ import { parseGitDiffTab } from '@shared/git-diff';
 import type { GitRepositorySummary } from '@shared/types';
 import { ChevronDown, ChevronRight, GitBranch, GitPullRequest, RefreshCw } from 'lucide-react';
 
+import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
+
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
 import { Empty } from '../../../../components/ui/empty';
@@ -80,7 +82,7 @@ function GitTreeItems({
                     key={file.path}
                     className={cn(gitRowClassName, 'git-submodule-row hover:bg-elevated')}
                     style={{ paddingLeft: 10 + depth * 14 }}
-                    title={`Show the ${submodule.name} submodule repository`}
+                    title={`Toggle the ${submodule.name} submodule repository`}
                     onClick={() => onFocusRepository(submodule.id)}
                 >
                     <FileSubmoduleIcon size={14} className="shrink-0" />
@@ -199,6 +201,7 @@ function GitRepoSection({
 }) {
     // Local like the Commits disclosure in `commit-history.tsx`; not persisted across session switches.
     const [changesExpanded, setChangesExpanded] = useState(true);
+    const reduceMotion = useShouldReduceMotion();
     const pullRequestQuery = useCaxriQuery(
         'git.pullRequestChanges',
         {
@@ -242,18 +245,19 @@ function GitRepoSection({
     return (
         <section
             className={cn(
-                'git-repository-section border-b border-border transition-[outline-color] duration-500',
-                // The jump-target flash outlines the whole section: a header-only background tint
-                // is too subtle to notice when the section is already expanded and nothing scrolls.
-                flashed && 'outline-1 -outline-offset-1 outline-accent',
+                // The jump-target flash tints the whole section with a translucent accent overlay
+                // (an always-mounted pseudo-element whose opacity fades) so the eye lands on the
+                // right section even when it was already expanded and nothing scrolled. The
+                // overlay sits above the rows' own `bg-surface` fills, which would hide a plain
+                // section background.
+                "git-repository-section relative border-b border-border after:pointer-events-none after:absolute after:inset-0 after:z-10 after:bg-accent/10 after:opacity-0 after:content-['']",
+                !reduceMotion && 'after:transition-opacity after:duration-500',
+                flashed && 'after:opacity-100',
             )}
             data-git-repository-id={repository.id}
         >
             <button
-                className={cn(
-                    'git-repository-row flex w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-surface p-2 text-left text-foreground transition-colors duration-500 hover:bg-elevated',
-                    flashed && 'bg-elevated',
-                )}
+                className="git-repository-row flex w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-surface p-2 text-left text-foreground hover:bg-elevated"
                 aria-expanded={expanded}
                 title={repository.rootPath}
                 onClick={() => onExpandedChange(!expanded)}
@@ -403,6 +407,7 @@ export function GitPanel() {
     const [pullRequestRefresh, setPullRequestRefresh] = useState(0);
     const [workingRefresh, setWorkingRefresh] = useState(0);
     const [flashedRepoId, setFlashedRepoId] = useState<string>();
+    const reduceMotion = useShouldReduceMotion();
     const repositoriesReference = useRef<HTMLDivElement>(null);
     const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     useEffect(() => () => clearTimeout(flashTimer.current), []);
@@ -467,14 +472,15 @@ export function GitPanel() {
             </Empty>
         );
     /**
-     * Jump target for submodule rows: make sure the submodule's own section is expanded, scroll its header into view,
-     * and flash it briefly so the eye lands on the right section.
+     * Jump target for submodule rows: toggle the submodule's own section like its header does, scroll it into view, and
+     * flash it briefly so the eye lands on the right section.
      */
     const focusRepo = (repoId: string): void => {
+        const isExpanded = navigation.expandedRepositories[repoId] ?? true;
         updateNavigation({
             expandedRepositories: {
                 ...navigation.expandedRepositories,
-                [repoId]: true,
+                [repoId]: !isExpanded,
             },
         });
         setFlashedRepoId(repoId);
@@ -483,7 +489,7 @@ export function GitPanel() {
         requestAnimationFrame(() => {
             repositoriesReference.current
                 ?.querySelector(`[data-git-repository-id="${CSS.escape(repoId)}"]`)
-                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                ?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
         });
     };
     const refresh = (): void => {
