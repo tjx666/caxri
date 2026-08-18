@@ -21,7 +21,12 @@ const gitRepoSummarySchema = z.object({
     name: z.string(),
     rootPath: z.string(),
     branch: z.string(),
-    head: z.string().optional(),
+    // Full 40-hex HEAD oid: the Git panel's commit mode feeds it straight into
+    // `git.commitDetails`, whose sha param enforces the same shape.
+    head: z
+        .string()
+        .regex(/^[0-9a-f]{40}$/)
+        .optional(),
     ahead: z.number(),
     behind: z.number(),
     additions: z.number().int().nonnegative(),

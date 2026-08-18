@@ -1,7 +1,7 @@
 import type { GitFileStatus, GitRepositorySummary } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
-import { buildGitFileTree, submoduleRepositoriesByPath } from './git-tree';
+import { buildGitFileTree, commitFilesToStatuses, submoduleRepositoriesByPath } from './git-tree';
 
 function modified(path: string): GitFileStatus {
     return { index: ' ', kind: 'modified', path, workingTree: 'M' };
@@ -45,6 +45,42 @@ describe('submoduleRepositoriesByPath', () => {
     it('never maps a submodule repository onto itself', () => {
         const submodule = repo('sub', 'submodule', '/work/app/lobehub');
         expect(submoduleRepositoriesByPath(submodule, [submodule]).size).toBe(0);
+    });
+});
+
+describe('commitFilesToStatuses', () => {
+    it('projects commit file statuses into the working-tree status shape', () => {
+        expect(
+            commitFilesToStatuses([
+                { path: 'src/app.ts', status: 'modified' },
+                { path: 'docs/new.md', status: 'added' },
+                { path: 'old.txt', status: 'deleted' },
+                { path: 'renamed.ts', previousPath: 'original.ts', status: 'renamed' },
+                { path: 'copy.ts', previousPath: 'source.ts', status: 'copied' },
+                { path: 'mode-change', status: 'type-changed' },
+                { path: 'mystery', status: 'unknown' },
+            ]),
+        ).toEqual([
+            { path: 'src/app.ts', index: 'M', workingTree: ' ', kind: 'modified' },
+            { path: 'docs/new.md', index: 'A', workingTree: ' ', kind: 'added' },
+            { path: 'old.txt', index: 'D', workingTree: ' ', kind: 'deleted' },
+            {
+                path: 'renamed.ts',
+                originalPath: 'original.ts',
+                index: 'R',
+                workingTree: ' ',
+                kind: 'renamed',
+            },
+            {
+                path: 'copy.ts',
+                originalPath: 'source.ts',
+                index: 'C',
+                workingTree: ' ',
+                kind: 'added',
+            },
+            { path: 'mode-change', index: 'T', workingTree: ' ', kind: 'modified' },
+            { path: 'mystery', index: '?', workingTree: ' ', kind: 'modified' },
+        ]);
     });
 });
 

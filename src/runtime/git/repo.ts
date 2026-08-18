@@ -131,7 +131,9 @@ function parseStatus(
         }
         if (record.startsWith('# branch.oid ')) {
             const oid = record.slice('# branch.oid '.length);
-            head = oid === '(initial)' ? undefined : oid.slice(0, 7);
+            // Keep the full 40-hex oid: `git.commitDetails` params validate against it, so a
+            // shortened head would be rejected when the panel loads the last commit's changes.
+            head = oid === '(initial)' ? undefined : oid;
             continue;
         }
         if (record.startsWith('# branch.ab ')) {
