@@ -19,6 +19,7 @@ import type {
     RuntimeParamsArg as RuntimeParametersArgument,
 } from '../shared/ipc/methods';
 import { isCaxriMethod } from '../shared/ipc/methods';
+import { computeBuildFingerprint } from '../shared/node/build-fingerprint';
 import type { E2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { e2eAgentPolicyEnvironment } from '../shared/node/e2e-agent-policy';
 import type { StructuredLogger } from '../shared/node/logger';
@@ -43,10 +44,16 @@ interface UntypedHostClient {
 export interface DesktopHostConnectionOptions {
     agentHooksPath?: string;
     /**
-     * This Desktop build's identity, compared against `host.status` to replace a detached Host still running an older
-     * build.
+     * This Desktop build's commit/version identity, compared against `host.status` to replace a detached Host still
+     * running an older build. The `buildId` half is never passed in: it is a content fingerprint of the on-disk
+     * `host.js`/`runtime.js` bundles computed per connection attempt (see `computeBuildFingerprint`), because a
+     * build-time identifier baked into the window bundle diverges from the Host bundle under electron-vite dev.
      */
     buildIdentity: HostBuildIdentity;
+    /**
+     * Test seam for the on-disk bundle fingerprint; production uses `computeBuildFingerprint`.
+     */
+    computeBuildId?: (outputDirectory: string) => Promise<string | undefined>;
     cliPath: string;
     currentDirectory: string;
     desktopId: string;
@@ -107,6 +114,12 @@ export class DesktopHostConnection extends EventTarget {
      */
     private connectionLostAtMs?: number;
     private isHostReplacedOnLastConnect = false;
+    /**
+     * Once this connection has replaced one stale Host, further mismatches only warn. Without this instance-level
+     * guard, every background reconnect (`reconnectUntilAttached` → `connect`) restarts the replacement from scratch,
+     * and a persistent mismatch — e.g. two Desktops of different builds sharing one Host — becomes a kill/spawn storm.
+     */
+    private hasReplacedStaleHost = false;
 
     constructor(private readonly options: DesktopHostConnectionOptions) {
         super();
@@ -165,11 +178,21 @@ export class DesktopHostConnection extends EventTarget {
 
     /**
      * Ensures a Host is running and vets its build before serving it. A stale Host (older build than this Desktop) is
-     * stopped and `undefined` is returned so the caller can ensure a fresh one; `isFinalAttempt` downgrades a repeat
-     * mismatch to a logged warning so two ping-ponging Desktops of different builds cannot stop each other's Hosts
-     * forever.
+     * stopped and `undefined` is returned so the caller can ensure a fresh one. Replacement happens at most once per
+     * connection instance (`hasReplacedStaleHost`) and never on the final attempt of a connect, so a persistent
+     * mismatch — including two ping-ponging Desktops of different builds — degrades to a logged warning instead of an
+     * endless kill/spawn loop.
      */
     private async attachToCurrentHost(isFinalAttempt = false): Promise<string | undefined> {
+        // Recomputed per attempt: a watch rebuild may have replaced the bundles since the last connect, and the
+        // freshly spawned replacement Host reads the same bytes, so both sides agree by construction.
+        const desktopBuildId = await (this.options.computeBuildId ?? computeBuildFingerprint)(
+            this.options.currentDirectory,
+        );
+        const buildIdentity: HostBuildIdentity = {
+            ...this.options.buildIdentity,
+            buildId: desktopBuildId,
+        };
         const operator = await ensureHost(this.options.userDataPath, {
             executable: process.execPath,
             entryPath: join(this.options.currentDirectory, 'host.js'),
@@ -197,16 +220,16 @@ export class DesktopHostConnection extends EventTarget {
         try {
             const status = await operator.request('host.status');
             const skewFields = {
-                desktopBuildId: this.options.buildIdentity.buildId ?? 'unknown',
-                desktopCommit: this.options.buildIdentity.commit ?? 'unknown',
-                desktopVersion: this.options.buildIdentity.version ?? 'unknown',
+                desktopBuildId: buildIdentity.buildId ?? 'unknown',
+                desktopCommit: buildIdentity.commit ?? 'unknown',
+                desktopVersion: buildIdentity.version ?? 'unknown',
                 hostBuildId: status.buildId ?? 'unknown',
                 hostCommit: status.commit ?? 'unknown',
                 hostPid: status.pid,
                 hostVersion: status.version,
             };
-            if (isHostBuildStale(this.options.buildIdentity, status)) {
-                if (isFinalAttempt) {
+            if (isHostBuildStale(buildIdentity, status)) {
+                if (isFinalAttempt || this.hasReplacedStaleHost) {
                     this.options.logger.write('warn', 'host.version_mismatch', {
                         fields: skewFields,
                     });
@@ -218,6 +241,7 @@ export class DesktopHostConnection extends EventTarget {
                     this.options.logger.write('warn', 'host.stale_build_replaced', {
                         fields: skewFields,
                     });
+                    this.hasReplacedStaleHost = true;
                     await operator.request('host.stop', { confirmLivePtys: true });
                     await waitForProcessExit(status.pid, HOST_REPLACEMENT_EXIT_TIMEOUT_MS);
                     return undefined;
