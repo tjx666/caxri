@@ -162,6 +162,20 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Diagnostics must exclude source contents, Terminal output and snapshots, Agent transcripts,
   credentials, environment values, and secret-like settings.
 
+## Verification before reporting done
+
+- A user-visible Renderer/UI change is not done until it has been verified visually in the running
+  dev app: drive the real application over CDP (the `debug` skill owns the workflow), capture a
+  screenshot of the affected surface, and check it before reporting completion. Passing unit or
+  e2e gates alone does not count for visual changes.
+- The dev Host and Runtime are long-lived background processes that survive window restarts, so a
+  running dev instance can silently execute stale code. Before using a live instance to verify or
+  disprove a Main/Runtime change, confirm the `out/main/host.js` / `out/main/runtime.js` process
+  start times postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
+- Reproduce a reported bug before changing code: demonstrate the failure against the current build
+  (a failing test, or the live app plus its on-disk state) so the fix targets the verified cause
+  rather than the first plausible suspect.
+
 ## Testing requirements
 
 - New features ship with behavior-level tests for the functionality they add, at the narrowest
