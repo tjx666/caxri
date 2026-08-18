@@ -395,12 +395,12 @@ export function WorkTabStrip() {
         <div
             ref={stripReference}
             className={cn(
-                'work-tabs flex h-11 items-end overflow-x-auto bg-surface [-webkit-app-region:drag]',
+                'work-tabs flex h-11 overflow-x-auto bg-surface [-webkit-app-region:drag]',
                 !isSidebarVisible && 'pl-[78px]',
             )}
         >
             <div
-                className="work-tab-list flex h-9 flex-none items-stretch"
+                className="work-tab-list flex h-11 flex-none items-stretch"
                 role="tablist"
                 aria-label="Open work"
                 aria-orientation="horizontal"
@@ -449,7 +449,7 @@ export function WorkTabStrip() {
                     </Fragment>
                 </LazyMotion>
             </div>
-            <div className="tab-actions flex h-9 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
+            <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
                 <CommandTooltip commandId="terminal.new">
                     <Button
                         size="icon"
