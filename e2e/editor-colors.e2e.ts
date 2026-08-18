@@ -81,11 +81,23 @@ test('JSON and gitlink patches use VS Code-style Dracula colors', async () => {
         const primary = running.page.locator('.git-repository-section').filter({
             has: running.page.locator('.git-repository-row', { hasText: 'project' }),
         });
-        await primary.locator('.git-row', { hasText: 'sub' }).click();
-        const patchEditor = running.page.locator('.git-file-diff .git-patch-editor');
+        // A submodule row is a jump target that toggles the submodule's own repository
+        // section instead of opening a diff, so the gitlink patch renders through the
+        // aggregated Open Changes surface below.
+        const submoduleHeader = running.page
+            .locator('.git-repository-section')
+            .filter({ has: running.page.locator('.git-repository-kind', { hasText: 'submodule' }) })
+            .locator('.git-repository-row');
+        await expect(submoduleHeader).toHaveAttribute('aria-expanded', 'true');
+        await primary.locator('.git-submodule-row', { hasText: 'sub' }).click();
+        await expect(submoduleHeader).toHaveAttribute('aria-expanded', 'false');
+        await expect(running.page.locator('.git-file-diff')).toHaveCount(0);
+
+        await primary.locator('.git-open-changes').click();
+        const patchEditor = running.page.locator('.git-multi-diff .git-patch-editor');
         await expect(patchEditor).toBeVisible();
         await expect(patchEditor).toContainText('Subproject commit');
-        await expect(running.page.locator('.git-file-diff .monaco-diff-editor')).toHaveCount(0);
+        await expect(running.page.locator('.git-multi-diff .monaco-diff-editor')).toHaveCount(0);
 
         const removedLine = patchEditor.locator('.view-line').filter({ hasText: '-Subproject' });
         const addedLine = patchEditor.locator('.view-line').filter({ hasText: '+Subproject' });
