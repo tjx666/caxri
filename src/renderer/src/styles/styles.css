@@ -155,6 +155,15 @@
 .terminal-surface .xterm {
     padding-left: 20px;
 }
+/*
+ * xterm.css hardcodes `background-color: #000` on the viewport (for macOS scrollbar opacity), and
+ * the renderer canvas only paints the theme background over the character grid — so the reserved
+ * gutter would show as a black strip. VS Code clears the viewport background the same way and lets
+ * the terminal container own the background color.
+ */
+.terminal-surface .xterm .xterm-viewport {
+    background-color: transparent;
+}
 .terminal-command-decoration {
     display: flex;
     justify-content: center;
