@@ -1,14 +1,13 @@
 import type { Buffer } from 'node:buffer';
-import { execFile } from 'node:child_process';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { extname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
 import ts from 'typescript';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../../../src/shared/node/exec';
+
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const CODE_EXTENSIONS = new Set(['.cjs', '.js', '.jsx', '.mjs', '.ts', '.tsx']);
 /**

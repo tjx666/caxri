@@ -1,13 +1,12 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
 import { z } from 'zod';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../../../src/shared/node/exec';
+
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
 const acceptanceCaseModeSchema = z.enum(['isolated', 'restart']);
 const acceptanceCaseSchema = z.object({

@@ -1,16 +1,14 @@
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
 import { resolveRuntimeExecutable } from '../src/runtime/executables.ts';
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { realCodexSmokeArguments } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
-const execFileAsync = promisify(execFile);
 const isRealAgentEnabled = process.env.CAXRI_REAL_AGENT_E2E === '1';
 const expectedReply = 'CAXRI_REAL_AGENT_OK';
 const prompt = `Read README.md and reply exactly ${expectedReply}. Do not modify any files.`;

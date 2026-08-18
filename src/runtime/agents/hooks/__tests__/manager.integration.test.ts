@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
@@ -6,18 +5,17 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultAgentProviderSettings } from '../../../../shared/agents';
 import type { RuntimeEvent } from '../../../../shared/ipc';
+import { execFileAsync } from '../../../../shared/node/exec';
 import { StructuredLogger } from '../../../../shared/node/logger';
 import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal } from '../contract';
 import { AgentHookManager, MAX_AGENT_HOOK_CONFIG_BYTES } from '../manager';
 
-const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
 
 function parseHooks(source: string): Record<string, unknown[]> {

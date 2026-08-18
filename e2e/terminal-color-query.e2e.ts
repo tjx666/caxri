@@ -1,13 +1,10 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, typeTerminal } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Agent CLIs (Codex) probe the terminal's default colors with OSC 10/11 right after spawn and give up within ~100ms.

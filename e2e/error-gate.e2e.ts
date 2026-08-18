@@ -1,15 +1,12 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { runWithE2EErrorGate } from './support/error-gate.ts';
 import type { TestInfo } from './support/fixtures.ts';
 import { allowE2EErrors, errorGateSelfTest, expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageReply } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 async function observeIpcFailure(
     testInfo: TestInfo,

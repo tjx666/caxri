@@ -1,15 +1,13 @@
-import { execFile as execFileCallback } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readlink, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
-const execFile = promisify(execFileCallback);
+import { execFileAsync } from '../exec';
 
 const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const setupAction = await readFile(
@@ -127,7 +125,7 @@ describe('CI workflow contract', () => {
             await writeFile(githubEnvironment, '');
             await writeFile(githubSummary, '');
 
-            const { stdout } = await execFile(
+            const { stdout } = await execFileAsync(
                 'bash',
                 ['-e', '-o', 'pipefail', '-c', cacheStep?.run ?? 'exit 1'],
                 {
@@ -154,7 +152,7 @@ describe('CI workflow contract', () => {
                 `PNPM_CONFIG_STORE_DIR=${pnpmStore}`,
             );
             await writeFile(join(workspace, 'fixture.js'), 'const value = 1;\n');
-            await execFile(
+            await execFileAsync(
                 fileURLToPath(new URL('../../node_modules/.bin/prettier', import.meta.url)),
                 [
                     '--check',

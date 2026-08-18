@@ -1,12 +1,11 @@
-import { execFile } from 'node:child_process';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../exec';
+
 const root = resolve(import.meta.dirname, '../..');
 
 /**

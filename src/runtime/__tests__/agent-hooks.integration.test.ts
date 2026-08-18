@@ -1,18 +1,16 @@
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { execFileAsync } from '../../shared/node/exec';
 import { StructuredLogger } from '../../shared/node/logger';
 import type { AgentAdapter } from '../agents/service';
 import { createRuntime } from '../bootstrap';
 
-const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
 
 function createFakePty(): IPty {

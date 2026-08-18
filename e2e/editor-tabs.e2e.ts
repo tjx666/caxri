@@ -1,15 +1,12 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
 import type { Locator, Page } from '@playwright/test';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 interface EditorPresenceEvent {
     ariaHidden?: string;

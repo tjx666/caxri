@@ -1,17 +1,14 @@
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import type { AppSettings, BootstrapState, GitSummary } from '../src/shared/types.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 async function initializeRepo(root: string): Promise<void> {
     await mkdir(root, { recursive: true });

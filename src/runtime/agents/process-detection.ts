@@ -1,11 +1,9 @@
-import { execFile } from 'node:child_process';
 import { basename } from 'node:path';
-import { promisify } from 'node:util';
 
 import type { AgentProvider } from '../../shared/agents';
 import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
+import { execFileAsync } from '../../shared/node/exec';
 
-const execFileAsync = promisify(execFile);
 const PROCESS_QUERY_TIMEOUT_MS = 2_000;
 const PROCESS_QUERY_MAX_BUFFER_BYTES = 2 * 1024 * 1024;
 

@@ -20,16 +20,14 @@
  * current git branch. Exits 0 on success, 1 otherwise.
  */
 
-import { execFile } from 'node:child_process';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from './exec';
 
 const POLL_INTERVAL_MS = 20_000;
 /**

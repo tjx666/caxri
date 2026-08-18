@@ -1,10 +1,9 @@
-import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../../../../src/shared/node/exec';
 import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
 
 interface ProcessRow {
@@ -23,7 +22,6 @@ interface DialogMatch {
     pid: number | null;
 }
 
-const execFileAsync = promisify(execFile);
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const RUNTIME_PATH = join(PROJECT_ROOT, '.records', 'acceptance', 'runtime.json');

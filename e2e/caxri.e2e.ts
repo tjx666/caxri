@@ -1,11 +1,10 @@
 import { Buffer } from 'node:buffer';
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
@@ -19,8 +18,6 @@ import {
     typeTerminal,
     waitForRuntimeReady,
 } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 test('bundles the default terminal typeface and Nerd Font symbols', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-font-e2e-'));

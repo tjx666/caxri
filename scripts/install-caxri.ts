@@ -11,15 +11,13 @@
  * Usage: `bun run install:caxri [-- --tag v0.0.7]`
  */
 
-import { execFile } from 'node:child_process';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from './exec';
 
 const REPOSITORY = 'tjx666/caxri';
 const INSTALL_PATH = '/Applications/Caxri.app';

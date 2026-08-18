@@ -1,12 +1,11 @@
-import { execFile as execFileCallback } from 'node:child_process';
 import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
 import { describe, expect, it } from 'vitest';
 
+import { execFileAsync } from '../exec';
 import {
     cleanup,
     didRemoveCreatedRunRoot,
@@ -16,8 +15,6 @@ import {
     shortTemporaryLinkPath,
     validateRunnerOwner,
 } from '../self-hosted-runner';
-
-const execFile = promisify(execFileCallback);
 
 /**
  * Overrides every runner path that the real setup action exports into hosted test processes.
@@ -88,13 +85,15 @@ describe('self-hosted E2E runner ownership', () => {
             await mkdir(runnerTemporary, { recursive: true });
             await writeFile(githubEnvironment, '');
             await writeFile(githubSummary, '');
-            await execFile('git', ['init', '--quiet'], { cwd: workspace });
-            await execFile('git', ['config', 'user.email', 'test@example.com'], { cwd: workspace });
-            await execFile('git', ['config', 'user.name', 'Test'], { cwd: workspace });
+            await execFileAsync('git', ['init', '--quiet'], { cwd: workspace });
+            await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+                cwd: workspace,
+            });
+            await execFileAsync('git', ['config', 'user.name', 'Test'], { cwd: workspace });
             await writeFile(join(workspace, 'fixture.txt'), 'fixture\n');
-            await execFile('git', ['add', 'fixture.txt'], { cwd: workspace });
-            await execFile('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: workspace });
-            const { stdout: head } = await execFile('git', ['rev-parse', 'HEAD'], {
+            await execFileAsync('git', ['add', 'fixture.txt'], { cwd: workspace });
+            await execFileAsync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: workspace });
+            const { stdout: head } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
                 cwd: workspace,
             });
             /**
@@ -103,7 +102,7 @@ describe('self-hosted E2E runner ownership', () => {
             await mkdir(temporaryLink, { recursive: false });
 
             await expect(
-                execFile(
+                execFileAsync(
                     'bun',
                     [
                         'run',
@@ -174,12 +173,14 @@ describe('self-hosted E2E runner ownership', () => {
             await mkdir(workspace, { recursive: true });
             await mkdir(join(runRoot, 'tmp'), { recursive: true });
             await writeFile(join(runRoot, 'owner.json'), `${JSON.stringify({ owner })}\n`);
-            await execFile('git', ['init', '--quiet'], { cwd: workspace });
-            await execFile('git', ['config', 'user.email', 'test@example.com'], { cwd: workspace });
-            await execFile('git', ['config', 'user.name', 'Test'], { cwd: workspace });
+            await execFileAsync('git', ['init', '--quiet'], { cwd: workspace });
+            await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+                cwd: workspace,
+            });
+            await execFileAsync('git', ['config', 'user.name', 'Test'], { cwd: workspace });
             await writeFile(join(workspace, 'tracked.txt'), 'tracked\n');
-            await execFile('git', ['add', 'tracked.txt'], { cwd: workspace });
-            await execFile('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: workspace });
+            await execFileAsync('git', ['add', 'tracked.txt'], { cwd: workspace });
+            await execFileAsync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: workspace });
             await writeFile(githubSummary, '');
             await symlink(join(runRoot, 'tmp'), temporaryLink);
 
@@ -228,7 +229,7 @@ describe('self-hosted E2E runner ownership', () => {
             await mkdir(join(runRoot, 'tmp'), { recursive: true });
             await mkdir(foreignTarget, { recursive: true });
             await writeFile(join(runRoot, 'owner.json'), `${JSON.stringify({ owner })}\n`);
-            await execFile('git', ['init', '--quiet'], { cwd: workspace });
+            await execFileAsync('git', ['init', '--quiet'], { cwd: workspace });
             await writeFile(githubSummary, '');
             await symlink(foreignTarget, temporaryLink);
 
@@ -269,7 +270,7 @@ describe('self-hosted E2E runner ownership', () => {
             await mkdir(join(runRoot, 'tmp'), { recursive: true });
             await mkdir(summaryDirectory, { recursive: true });
             await writeFile(join(runRoot, 'owner.json'), `${JSON.stringify({ owner })}\n`);
-            await execFile('git', ['init', '--quiet'], { cwd: workspace });
+            await execFileAsync('git', ['init', '--quiet'], { cwd: workspace });
             await symlink(join(runRoot, 'tmp'), temporaryLink);
 
             await expect(

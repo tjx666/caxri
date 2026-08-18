@@ -1,13 +1,10 @@
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, openAddProjectDialog } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 test('Files keeps ignored entries browsable while muting and refreshing them', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-ignore-e2e-'));

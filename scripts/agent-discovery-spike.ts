@@ -1,10 +1,8 @@
-import { execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { delimiter } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from './exec';
 
 async function findExecutable(name: string): Promise<string | undefined> {
     const pathDirectories = (process.env.PATH ?? '').split(delimiter);

@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
 
 import { Buffer } from 'node:buffer';
-import { execFile } from 'node:child_process';
 import {
     appendFile,
     lstat,
@@ -14,14 +13,13 @@ import {
 } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
 import {
     assertDesktopLeasesReleased,
     reclaimDesktopLeasesByOwner,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
+import { execFileAsync } from './exec';
 
-const execFileAsync = promisify(execFile);
 const ownerPattern = /^caxri-\d+-\d+-[a-z0-9-]+$/u;
 const generatedWorkspacePaths = [
     '.cache',

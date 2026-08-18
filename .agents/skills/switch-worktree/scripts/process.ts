@@ -1,11 +1,11 @@
 import type { Buffer } from 'node:buffer';
 import type { SpawnOptions } from 'node:child_process';
-import { execFile, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../../../src/shared/node/exec';
+
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 
 interface ProcessFailure extends Error {

@@ -1,14 +1,12 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, typeTerminal } from './support/helpers.ts';
 
-const execFileAsync = promisify(execFile);
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 
 /**

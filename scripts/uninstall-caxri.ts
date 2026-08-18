@@ -1,12 +1,11 @@
-import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, realpath, rename, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from './exec';
+
 const HOST_SHUTDOWN_TIMEOUT_MS = 10_000;
 const HOST_ENTRY_PATTERN = /(?:^|\/)out\/main\/host\.js(?:\s|$)/u;
 const WORKTREE_PROFILE_ID =

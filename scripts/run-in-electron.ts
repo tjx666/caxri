@@ -1,9 +1,7 @@
-import { execFile } from 'node:child_process';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from './exec';
 
 /**
  * Relaunch a TypeScript probe under Electron while keeping Bun as the public script entry point.

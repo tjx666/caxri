@@ -1,10 +1,9 @@
 import { Buffer } from 'node:buffer';
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -16,8 +15,6 @@ import {
     splitTerminalToRight,
     waitForNewTerminalId,
 } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 async function typeInTerminal(page: Page, terminalId: string, command: string): Promise<void> {
     const input = page.locator(

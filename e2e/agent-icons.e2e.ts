@@ -1,9 +1,8 @@
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -14,7 +13,6 @@ import {
 } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const execFileAsync = promisify(execFile);
 
 test('production Dock assets are opaque so macOS does not add a white compatibility plate', async () => {
     const results = await Promise.all(

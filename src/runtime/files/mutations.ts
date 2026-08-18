@@ -8,6 +8,7 @@ import type {
     RuntimeMethodResult,
 } from '../../shared/ipc/methods';
 import { mapWithConcurrency } from '../../shared/node/concurrency';
+import { isExistingPath } from '../../shared/node/fs';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { ResolveSessionPath } from './documents';
 import { isStagedCreatePersistenceError } from './mutation-journal';
@@ -202,7 +203,7 @@ export class FileMutationService {
                 }
                 try {
                     // eslint-disable-next-line no-await-in-loop -- see comment above the loop
-                    if (!isReplaceOnConflict && (await this.pathExists(targetPath))) {
+                    if (!isReplaceOnConflict && (await isExistingPath(targetPath))) {
                         if (isRenameOnConflict) continue;
                         throw new CaxriError(
                             'CONFLICT',
@@ -229,7 +230,7 @@ export class FileMutationService {
                         // eslint-disable-next-line no-await-in-loop -- see comment above the loop
                         isReplacedTarget = await this.assertReplaceableMove(source, targetPath);
                         // eslint-disable-next-line no-await-in-loop -- see comment above the loop
-                    } else if (await this.pathExists(targetPath))
+                    } else if (await isExistingPath(targetPath))
                         throw new CaxriError(
                             'CONFLICT',
                             'A file or folder with that name already exists',
@@ -324,16 +325,6 @@ export class FileMutationService {
             (!stats.isFile() && !stats.isDirectory())
         )
             throw new CaxriError('CONFLICT', 'File or folder changed before the operation started');
-    }
-
-    private async pathExists(path: string): Promise<boolean> {
-        try {
-            await lstat(path);
-            return true;
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
-            throw error;
-        }
     }
 
     private async resolveExisting(
@@ -483,7 +474,7 @@ export class FileMutationService {
                     const createdTargets: FileIdentity[] = [];
                     try {
                         // eslint-disable-next-line no-await-in-loop -- see comment above the loop
-                        if (await this.pathExists(path)) continue;
+                        if (await isExistingPath(path)) continue;
                         // eslint-disable-next-line no-await-in-loop -- see comment above the loop
                         await Promise.all([
                             this.assertIdentity(source),
