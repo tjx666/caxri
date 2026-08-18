@@ -163,6 +163,12 @@ export const methods = {
              * Build commit for stale-Host detection; package version alone misses dev rebuilds.
              */
             commit: z.string().min(1).max(100).optional(),
+            /**
+             * Unique per build invocation. Commit alone cannot distinguish two dev builds of the same (possibly dirty)
+             * checkout, so this is what the Desktop compares to decide a detached Host runs stale code and must be
+             * replaced.
+             */
+            buildId: z.string().min(1).max(100).optional(),
             pid: z.number().int().positive(),
             runtimePid: z.number().int().positive().optional(),
             startedAt: z.number().int().positive(),

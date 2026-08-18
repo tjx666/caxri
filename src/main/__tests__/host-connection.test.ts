@@ -1,9 +1,8 @@
-import process from 'node:process';
-
 import { connectDesktopToHost, ensureHost } from '@caxri/cli';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DesktopHostConnection } from '../host-connection';
+import type { HostBuildIdentity } from '../host-staleness';
 
 vi.mock('@caxri/cli', () => ({
     connectDesktopToHost: vi.fn(),
@@ -44,9 +43,10 @@ function createFakeHostClient(): FakeHostClient {
     };
 }
 
-function createConnection() {
+function createConnection(buildIdentity: HostBuildIdentity = {}) {
     const logger = { write: vi.fn() };
     const connection = new DesktopHostConnection({
+        buildIdentity,
         currentDirectory: '/app/out/main',
         cliPath: '/app/cli/caxri.cjs',
         desktopId: 'desktop-1',
@@ -58,38 +58,47 @@ function createConnection() {
     return { connection, logger };
 }
 
-function mockHostRound(
-    options: { hostCommit?: string; hostVersion?: string; pid?: number; startedAt?: number } = {},
-): FakeHostClient {
-    const client = createFakeHostClient();
-    vi.mocked(ensureHost).mockResolvedValue({
-        close: vi.fn(),
-        request: vi.fn().mockResolvedValue({
-            pid: options.pid ?? 42,
-            runtimePid: 43,
-            startedAt: options.startedAt ?? 1000,
-            version: options.hostVersion ?? process.env.CAXRI_APP_VERSION ?? '0.0.9',
-            ...(options.hostCommit && { commit: options.hostCommit }),
-        }),
-    } as never);
-    vi.mocked(connectDesktopToHost).mockResolvedValue(client as never);
-    return client;
+interface HostRoundOptions {
+    hostBuildId?: string;
+    hostCommit?: string;
+    hostVersion?: string;
+    pid?: number;
+    startedAt?: number;
 }
 
-const originalAppVersion = process.env.CAXRI_APP_VERSION;
-const originalGitCommit = process.env.CAXRI_GIT_COMMIT;
+function createFakeOperator(options: HostRoundOptions = {}) {
+    return {
+        close: vi.fn(),
+        request: vi.fn((method: string) =>
+            method === 'host.stop'
+                ? Promise.resolve({ stopping: true, activePtyCount: 0 })
+                : Promise.resolve({
+                      /**
+                       * An impossible pid so the replacement path's liveness poll returns immediately instead of
+                       * probing a real process.
+                       */
+                      pid: options.pid ?? 999_999,
+                      runtimePid: 43,
+                      startedAt: options.startedAt ?? 1000,
+                      version: options.hostVersion ?? '0.0.9',
+                      ...(options.hostCommit && { commit: options.hostCommit }),
+                      ...(options.hostBuildId && { buildId: options.hostBuildId }),
+                  }),
+        ),
+    };
+}
 
-function restoreEnvironment(key: string, original: string | undefined): void {
-    if (original === undefined) delete process.env[key];
-    else process.env[key] = original;
+function mockHostRound(options: HostRoundOptions = {}): FakeHostClient {
+    const client = createFakeHostClient();
+    vi.mocked(ensureHost).mockResolvedValue(createFakeOperator(options) as never);
+    vi.mocked(connectDesktopToHost).mockResolvedValue(client as never);
+    return client;
 }
 
 describe('Desktop Host connection facade', () => {
     afterEach(() => {
         vi.useRealTimers();
         vi.restoreAllMocks();
-        restoreEnvironment('CAXRI_APP_VERSION', originalAppVersion);
-        restoreEnvironment('CAXRI_GIT_COMMIT', originalGitCommit);
     });
 
     it('returns a classified rejected Promise before Host attachment instead of throwing', async () => {
@@ -119,55 +128,96 @@ describe('Desktop Host connection facade', () => {
         expect(connect).toHaveBeenCalledTimes(2);
     });
 
-    it('warns when the adopted Host runs a different build than this Desktop', async () => {
-        process.env.CAXRI_APP_VERSION = '0.0.9';
-        delete process.env.CAXRI_GIT_COMMIT;
-        mockHostRound({ hostVersion: '0.0.6' });
-        const { connection, logger } = createConnection();
+    /**
+     * The stale-Host incident this guards against: a detached dev Host kept running an older build after a rebuild with
+     * identical version and commit (dirty checkout), so only the per-build id can prove the mismatch — and the
+     * connection must replace the Host, not merely warn.
+     */
+    it('replaces an adopted Host whose buildId differs despite matching version and commit', async () => {
+        const staleOperator = createFakeOperator({
+            hostBuildId: 'build-old',
+            hostCommit: 'aaaaaaa',
+            hostVersion: '0.0.9',
+        });
+        const freshOperator = createFakeOperator({
+            hostBuildId: 'build-new',
+            hostCommit: 'aaaaaaa',
+            hostVersion: '0.0.9',
+            pid: 100,
+            startedAt: 2000,
+        });
+        vi.mocked(ensureHost)
+            .mockResolvedValueOnce(staleOperator as never)
+            .mockResolvedValueOnce(freshOperator as never);
+        vi.mocked(connectDesktopToHost).mockResolvedValue(createFakeHostClient() as never);
+        const { connection, logger } = createConnection({
+            buildId: 'build-new',
+            commit: 'aaaaaaa',
+            version: '0.0.9',
+        });
 
         await connection.start();
 
-        expect(logger.write).toHaveBeenCalledWith('warn', 'host.version_mismatch', {
-            fields: {
-                desktopCommit: 'unknown',
-                desktopVersion: '0.0.9',
-                hostCommit: 'unknown',
-                hostPid: 42,
-                hostVersion: '0.0.6',
-            },
+        expect(staleOperator.request).toHaveBeenCalledWith('host.stop', {
+            confirmLivePtys: true,
         });
+        expect(logger.write).toHaveBeenCalledWith(
+            'warn',
+            'host.stale_build_replaced',
+            expect.anything(),
+        );
+        expect(freshOperator.request).not.toHaveBeenCalledWith('host.stop', expect.anything());
+        expect(connection.hostProcessId()).toBe(100);
     });
 
-    it('warns on a commit skew even when the package version matches', async () => {
-        process.env.CAXRI_APP_VERSION = '0.0.9';
-        process.env.CAXRI_GIT_COMMIT = 'bbbbbbb';
-        mockHostRound({ hostCommit: 'aaaaaaa', hostVersion: '0.0.9' });
-        const { connection, logger } = createConnection();
+    it('replaces an adopted Host on version skew when it predates the buildId stamp', async () => {
+        const staleOperator = createFakeOperator({ hostVersion: '0.0.6' });
+        const freshOperator = createFakeOperator({ hostVersion: '0.0.9', pid: 100 });
+        vi.mocked(ensureHost)
+            .mockResolvedValueOnce(staleOperator as never)
+            .mockResolvedValueOnce(freshOperator as never);
+        vi.mocked(connectDesktopToHost).mockResolvedValue(createFakeHostClient() as never);
+        const { connection } = createConnection({ buildId: 'build-new', version: '0.0.9' });
 
         await connection.start();
 
-        expect(logger.write).toHaveBeenCalledWith('warn', 'host.version_mismatch', {
-            fields: {
-                desktopCommit: 'bbbbbbb',
-                desktopVersion: '0.0.9',
-                hostCommit: 'aaaaaaa',
-                hostPid: 42,
-                hostVersion: '0.0.9',
-            },
+        expect(staleOperator.request).toHaveBeenCalledWith('host.stop', {
+            confirmLivePtys: true,
         });
+        expect(connection.hostProcessId()).toBe(100);
+    });
+
+    it('downgrades a still-stale replacement to a warning instead of stopping Hosts forever', async () => {
+        mockHostRound({ hostBuildId: 'build-old', hostVersion: '0.0.9' });
+        const { connection, logger } = createConnection({
+            buildId: 'build-new',
+            version: '0.0.9',
+        });
+
+        await connection.start();
+
+        expect(logger.write).toHaveBeenCalledWith(
+            'warn',
+            'host.version_mismatch',
+            expect.anything(),
+        );
+        expect(connection.hostProcessId()).toBe(999_999);
     });
 
     it('stays silent when the adopted Host matches this build', async () => {
-        process.env.CAXRI_APP_VERSION = '0.0.9';
-        delete process.env.CAXRI_GIT_COMMIT;
-        mockHostRound({ hostVersion: '0.0.9' });
-        const { connection, logger } = createConnection();
+        mockHostRound({ hostBuildId: 'build-a', hostVersion: '0.0.9' });
+        const { connection, logger } = createConnection({ buildId: 'build-a', version: '0.0.9' });
 
         await connection.start();
 
         expect(logger.write).not.toHaveBeenCalledWith(
             'warn',
             'host.version_mismatch',
+            expect.anything(),
+        );
+        expect(logger.write).not.toHaveBeenCalledWith(
+            'warn',
+            'host.stale_build_replaced',
             expect.anything(),
         );
     });

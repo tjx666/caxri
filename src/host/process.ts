@@ -17,6 +17,7 @@ if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
 
 const version = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
 const commit = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
+const buildId = typeof __CAXRI_BUILD_ID__ === 'string' ? __CAXRI_BUILD_ID__ : 'unknown';
 process.env.CAXRI_APP_VERSION = version;
 process.env.CAXRI_GIT_COMMIT = commit;
 const logger = new StructuredLogger(join(userDataPath, 'logs'), 'host', 'info');
@@ -41,6 +42,7 @@ const cliPath =
 
 const app = await startHostApp({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
+    buildId,
     commit,
     cliPath,
     executable: process.execPath,
