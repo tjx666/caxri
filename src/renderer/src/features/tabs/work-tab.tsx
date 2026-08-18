@@ -91,7 +91,7 @@ export function WorkTab({
                 'work-tab group relative flex items-center border-r border-border bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
-                    "active bg-background text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
+                    "active bg-background text-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
             )}
             data-terminal-id={terminalId}
             data-motion-identity={motionIdentity}

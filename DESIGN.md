@@ -7,8 +7,10 @@ reference this file; deviations require updating this spec first.
 
 1. **The terminal is the hero.** Chrome (sidebar, tabs, inspector, status bar) stays
    low-contrast and quiet; saturated color is reserved for content and live status.
-2. **One durable accent focus per screen.** `--accent` marks exactly one resting element
-   at a time: the focused pane/tab. Primary buttons and transient, action-scoped feedback
+2. **One durable accent focus per screen.** `--accent` marks exactly one resting focus
+   at a time: the focused pane together with its active workbench tab's 2px top border —
+   the tab border and the pane ring express the same focus and count as one, VS Code
+   style. Primary buttons and transient, action-scoped feedback
    (the drag insertion line, drop-target tint) may also use `--accent` because they exist
    only for the duration of an interaction. Persistent chrome state expresses itself
    through foreground shades and background elevation, never through additional accent
@@ -104,7 +106,9 @@ new arbitrary value requires updating this spec first with a stated reason.
 ## Component redlines
 
 **Window chrome** — `titleBarStyle: 'hiddenInset'`; the 44px Sidebar, workbench, and Inspector
-top rails share one bottom edge while their interactive tabs remain 36px high. The logo-free Sidebar
+top rails share one bottom edge. Workbench tabs fill the full 44px rail, VS Code style, so the
+active tab's `--background` fill reaches the rail's top edge; Sidebar and Inspector rail tabs
+remain 36px, vertically centered. The logo-free Sidebar
 header is the drag region (`-webkit-app-region: drag`, interactive children `no-drag`); Add Project
 is hidden at rest and revealed by hovering anywhere in the expanded Sidebar or by keyboard focus.
 The collapsed Sidebar preserves the same 44px-tall drag region beneath the traffic lights.
@@ -138,9 +142,10 @@ Project-grouped results, restore, and delete live in a full-width management dia
 disclosures contain active Sessions only, so low-frequency history never fragments navigation.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
-`--foreground` text, no accent underline (the pane's focus ring is the accent). Inactive:
+`--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive:
 `--surface` + `--muted`. Dirty dot replaces the close button until hover/focus (already
-the pattern — keep). Tab height 36px. A clean preview Editor owns one transient, Session-scoped
+the pattern — keep). Tabs fill the full 44px rail height. A clean preview Editor owns one
+transient, Session-scoped
 motion identity: replacing its path updates the same DOM tab instantly, pinning preserves that
 identity, and only the next real tab receives the existing enter animation. Session bootstrap and
 switching still mount without structural motion; actual close keeps the exit animation.
