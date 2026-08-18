@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
-import { access, constants } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import process from 'node:process';
 
 import { CaxriError } from '../shared/ipc/errors';
+import { isAccessible } from '../shared/node/fs';
 
 /**
  * Common CLI-shim locations missing from the constrained PATH a macOS GUI launch inherits (`/usr/bin:/bin:...`), where
@@ -29,15 +30,10 @@ export function editorExecutableCandidates(
 
 async function resolveEditorExecutable(command: string): Promise<string> {
     const probed = await Promise.all(
-        editorExecutableCandidates(command, process.env.PATH).map(async (candidate) => {
-            try {
-                await access(candidate, constants.X_OK);
-                return candidate;
-            } catch {
-                // Not present or not executable here; the ordered `find` below skips it.
-                return;
-            }
-        }),
+        editorExecutableCandidates(command, process.env.PATH).map(async (candidate) =>
+            // Inaccessible candidates drop out; the ordered `find` below picks the first survivor.
+            (await isAccessible(candidate, constants.X_OK)) ? candidate : undefined,
+        ),
     );
     const executable = probed.find((candidate) => candidate !== undefined);
     if (executable) return executable;

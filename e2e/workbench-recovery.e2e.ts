@@ -1,10 +1,9 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
@@ -17,8 +16,6 @@ import {
     typeTerminal,
     waitForRuntimeReady,
 } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 test('complete local workbench workflow, recovery, privacy, and persistence', async () => {
     allowE2EErrors([

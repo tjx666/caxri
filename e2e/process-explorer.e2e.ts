@@ -1,13 +1,10 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, runtimeStatus } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 test('Process Explorer opens one live Caxri process tree and closes independently', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-e2e-'));

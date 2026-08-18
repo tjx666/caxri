@@ -1,15 +1,12 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
 import type { Locator, Page } from '@playwright/test';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Mirrors the `EditorLayout` shape from `src/shared/editor-layout.ts` closely enough for structural assertions over

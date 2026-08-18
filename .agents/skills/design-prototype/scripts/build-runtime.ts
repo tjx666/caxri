@@ -12,15 +12,12 @@
  * `assets/` by exact version, so only the first build per machine needs network access.
  */
 import { Buffer } from 'node:buffer';
-import { execFile } from 'node:child_process';
 import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../../../../src/shared/node/exec';
 import { inlineThemeCss } from './inline-theme-css';
-
-const execFileAsync = promisify(execFile);
 
 const skillDirectory = path.resolve(import.meta.dirname, '..');
 const repoRoot = path.resolve(skillDirectory, '../../..');

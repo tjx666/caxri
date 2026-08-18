@@ -7,16 +7,15 @@
  * headroom must either be optimized away or consciously re-budgeted in the same PR that introduces them.
  */
 
-import { execFile, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from './exec';
 
 const MiB = 1_024 * 1_024;
 

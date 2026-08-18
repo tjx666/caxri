@@ -1,8 +1,9 @@
-import { access, constants } from 'node:fs/promises';
+import { constants } from 'node:fs';
 
 import type { AgentLaunchSettings, AgentProvider } from '../../shared/agents';
 import type { AgentMessagingCapability } from '../../shared/ipc/agent-endpoint-contract';
 import { readE2EAgentPolicy } from '../../shared/node/e2e-agent-policy';
+import { isAccessible } from '../../shared/node/fs';
 /**
  * Runtime domains expose public root barrels by architecture contract; deep imports are rejected by
  * `src/runtime/__tests__/structure.test.ts`.
@@ -67,12 +68,7 @@ function isAtLeast(
 }
 
 async function isCliAvailableDefault(path: string): Promise<boolean> {
-    try {
-        await access(path, constants.R_OK);
-        return true;
-    } catch {
-        return false;
-    }
+    return isAccessible(path, constants.R_OK);
 }
 
 async function defaultProbe(

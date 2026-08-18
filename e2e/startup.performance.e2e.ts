@@ -1,17 +1,15 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
 import { connectToHost } from '@caxri/cli';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import type { ElectronApplication as ElectronApp } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxriApp, openAddProjectDialog, waitForRuntimeReady } from './support/helpers.ts';
 
-const execFileAsync = promisify(execFile);
 const executablePath = process.env.CAXRI_BENCHMARK_EXECUTABLE;
 const thresholdMs = 3_000;
 

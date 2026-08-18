@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
+import { execFileAsync } from '../shared/node/exec';
 import type { ProcessExplorerEntry, ProcessExplorerSnapshot } from '../shared/process-explorer';
 
-const execFileAsync = promisify(execFile);
 const PROCESS_QUERY_TIMEOUT_MS = 2_000;
 const PROCESS_QUERY_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const MAX_PROCESS_NAME_LENGTH = 4_096;

@@ -1,11 +1,10 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
 import type { ElectronApplication } from 'playwright';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
@@ -17,7 +16,6 @@ import {
     waitForRuntimeReady,
 } from './support/helpers.ts';
 
-const execFileAsync = promisify(execFile);
 const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
 
 /**

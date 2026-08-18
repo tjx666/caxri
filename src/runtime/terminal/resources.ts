@@ -1,10 +1,7 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
+import { execFileAsync } from '../../shared/node/exec';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type { TerminalResourceUsage } from '../../shared/types';
 
-const execFileAsync = promisify(execFile);
 const MAX_PROCESS_SNAPSHOT_BYTES = 4 * 1024 * 1024;
 
 interface ProcessResourceEntry {

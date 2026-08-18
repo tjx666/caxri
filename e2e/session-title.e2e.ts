@@ -1,10 +1,9 @@
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -14,8 +13,6 @@ import {
     pageRequest,
     typeTerminal,
 } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 test('Agent output refreshes the Session title without opening Info', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-title-e2e-'));

@@ -1,17 +1,15 @@
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { execFileAsync } from '../../../shared/node/exec';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
 import { ProjectRootResolver } from '../../project-roots';
 import { GitService } from '..';
 
-const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
 

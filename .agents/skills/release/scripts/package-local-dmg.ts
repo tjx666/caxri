@@ -1,13 +1,13 @@
 import type { Buffer } from 'node:buffer';
-import { execFile, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../../../src/shared/node/exec';
+
 const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
 const VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Z.-]+)?$/i;
 

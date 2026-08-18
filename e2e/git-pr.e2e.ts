@@ -1,14 +1,11 @@
-import { execFile } from 'node:child_process';
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import { promisify } from 'node:util';
 
+import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
-
-const execFileAsync = promisify(execFile);
 
 test('Git Pull Request mode shows committed PR changes instead of the working tree', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-pr-e2e-'));

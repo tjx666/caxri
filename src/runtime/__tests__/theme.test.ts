@@ -1,17 +1,15 @@
-import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { appendFile, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { CaxriError } from '../../shared/ipc/errors';
+import { execFileAsync } from '../../shared/node/exec';
 import { draculaTheme, importTheme, MAX_THEME_IMPORT_FILE_BYTES } from '../theme';
 
 const temporaryDirectories: string[] = [];
-const executeFile = promisify(execFile);
 
 afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();
@@ -165,7 +163,7 @@ describe('theme import mapping', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-fifo-'));
         temporaryDirectories.push(directory);
         const path = join(directory, 'theme.fifo');
-        await executeFile('mkfifo', [path]);
+        await execFileAsync('mkfifo', [path]);
 
         const attempt = importTheme(path, draculaTheme);
         try {
