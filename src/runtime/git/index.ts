@@ -1,14 +1,13 @@
-import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { promisify } from 'node:util';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc';
 import { CaxriError, errorMessage, isCaxriError } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
 import { AsyncSemaphore } from '../../shared/node/concurrency';
+import { execFileAsync } from '../../shared/node/exec';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
@@ -22,6 +21,7 @@ import type {
     GitRepositorySummary as GitRepoSummary,
     GitSummary,
 } from '../../shared/types';
+import { runExternalCommand } from '../executables';
 import { assertInsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
@@ -35,7 +35,6 @@ import { GitPullRequestService } from './pull-request';
 import { computeRepoId, GitRepoService } from './repo';
 import { RepoTopologyRegistry } from './topology';
 
-const execFileAsync = promisify(execFile);
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
 const MAX_GIT_METADATA_BYTES = 4 * 1024 * 1024;
 const MAX_COMMIT_FILES = 500;
@@ -252,7 +251,10 @@ export class GitService {
         const startedAt = performance.now();
         return this.commands.run(async () => {
             try {
-                const { stdout } = await execFileAsync(
+                // `runExternalCommand` (not a bare `gh` spawn): the packaged GUI app inherits the
+                // constrained launchd PATH without Homebrew directories, so `gh` must be resolved
+                // through the login-shell PATH boundary like every other external CLI.
+                const { stdout } = await runExternalCommand(
                     'gh',
                     [
                         'pr',
@@ -264,7 +266,7 @@ export class GitService {
                         cwd,
                         timeout: 10_000,
                         maxBuffer: MAX_GIT_METADATA_BYTES,
-                        env: { ...safeProcessEnvironment(), LC_ALL: 'C' },
+                        env: { LC_ALL: 'C' },
                     },
                 );
                 this.logger.write('info', 'git.github_command', {

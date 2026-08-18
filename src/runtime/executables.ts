@@ -1,14 +1,13 @@
 import { Buffer } from 'node:buffer';
-import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
-import { access } from 'node:fs/promises';
 import { delimiter, isAbsolute, join } from 'node:path';
 import process from 'node:process';
-import { promisify, stripVTControlCharacters } from 'node:util';
+import { stripVTControlCharacters } from 'node:util';
 
+import { execFileAsync } from '../shared/node/exec';
+import { isAccessible } from '../shared/node/fs';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 
-const execFileAsync = promisify(execFile);
 const LOGIN_PATH_MARKER = '__CAXRI_LOGIN_PATH__';
 const MAX_LOGIN_PATH_BYTES = 32 * 1024;
 const LOGIN_SHELL_TIMEOUT_MS = 5_000;
@@ -18,6 +17,7 @@ type RunFile = (
     executable: string,
     arguments_: string[],
     options: {
+        cwd?: string;
         env: NodeJS.ProcessEnv;
         maxBuffer: number;
         timeout: number;
@@ -33,12 +33,7 @@ async function runFile(
 }
 
 async function isExecutable(path: string): Promise<boolean> {
-    try {
-        await access(path, constants.X_OK);
-        return true;
-    } catch {
-        return false;
-    }
+    return isAccessible(path, constants.X_OK);
 }
 
 function pathDirectories(path: string | undefined): string[] {
@@ -164,4 +159,49 @@ export function resolveRuntimeExecutable(name: string): Promise<string | undefin
 
 export function runtimeProcessEnvironment(): Promise<NodeJS.ProcessEnv> {
     return runtimeExecutableResolver.environment();
+}
+
+export interface ExternalCommandOptions {
+    cwd?: string;
+    /**
+     * Extra variables merged over the resolved login-shell environment.
+     */
+    env?: NodeJS.ProcessEnv;
+    maxBuffer: number;
+    timeout: number;
+}
+
+export interface ExternalCommandDependencies {
+    environment?: () => Promise<NodeJS.ProcessEnv>;
+    resolveExecutable?: (name: string) => Promise<string | undefined>;
+    run?: RunFile;
+}
+
+/**
+ * Runs an external CLI (`gh`, `linear`, `vc`, Agent binaries, …) through the login-shell PATH boundary. A GUI-launched
+ * packaged app inherits the constrained macOS launchd PATH without Homebrew-style directories, so Runtime code must
+ * never spawn a bare command name directly — this wrapper owns resolution, the sanitized environment, and the ENOENT
+ * contract (`<name> was not found`) that callers map into their own error domains.
+ */
+export async function runExternalCommand(
+    name: string,
+    arguments_: readonly string[],
+    options: ExternalCommandOptions,
+    dependencies: ExternalCommandDependencies = {},
+): Promise<{ stderr: string; stdout: string }> {
+    const resolveExecutable = dependencies.resolveExecutable ?? resolveRuntimeExecutable;
+    const readEnvironment = dependencies.environment ?? runtimeProcessEnvironment;
+    const run = dependencies.run ?? runFile;
+    const executable = await resolveExecutable(name);
+    if (!executable) {
+        const missing = new Error(`${name} was not found`) as NodeJS.ErrnoException;
+        missing.code = 'ENOENT';
+        throw missing;
+    }
+    return run(executable, [...arguments_], {
+        ...(options.cwd !== undefined && { cwd: options.cwd }),
+        env: { ...(await readEnvironment()), ...options.env },
+        maxBuffer: options.maxBuffer,
+        timeout: options.timeout,
+    });
 }

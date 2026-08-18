@@ -11,7 +11,7 @@ describe('runProjectStatusCommand', () => {
                 Promise.resolve(`/login/bin/${name}`),
             );
             const run = vi.fn<NonNullable<ProjectStatusCommandDependencies['run']>>(() =>
-                Promise.resolve({ stdout: 'ok' }),
+                Promise.resolve({ stdout: 'ok', stderr: '' }),
             );
 
             await expect(
