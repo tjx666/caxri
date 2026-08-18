@@ -34,15 +34,19 @@ env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy -u ALL_PROXY -u al
 ```
 
 The `env -u` prefix is mandatory on this machine: agent-browser honors `HTTP_PROXY`/`ALL_PROXY`
-but ignores `NO_PROXY`, so a loopback CDP request gets routed into the local proxy, fails, and
-the CLI silently prints `[agent-browser] relaunched browser` and attaches to its own
-HeadlessChrome instead of Caxri. Verify the attachment before trusting any result:
-`agent-browser eval "navigator.userAgent"` must report `caxri/... Electron/...`, not
-`HeadlessChrome`. See <https://github.com/tjx666/caxri/issues/204>.
+but ignores `NO_PROXY`, silently prints `[agent-browser] relaunched browser`, and attaches to
+its own HeadlessChrome instead of Caxri. Fixing proxy rules does not help — the local proxy
+already forwards loopback traffic (verified: `curl -x http://127.0.0.1:7890` and
+`-x socks5://...` both reach `/json/version`), and agent-browser still fails with only
+`HTTP_PROXY` set, so the breakage is inside agent-browser's own proxy handling (most likely the
+CDP WebSocket leg). Stripping the variables is the only reliable workaround. Verify the
+attachment before trusting any result: `agent-browser eval "navigator.userAgent"` must report
+`caxri/... Electron/...`, not `HeadlessChrome`. See
+<https://github.com/tjx666/caxri/issues/204>.
 
-Known agent-browser 0.34.0 limitation: after connecting it only lists targets it created itself
-(`about:blank`), not the app's existing main-window page target, and `tab --url` is unsupported.
-When you need the real window, fall back to a raw CDP WebSocket: read the target list from
-`http://127.0.0.1:9223/json/list` (9224 for production), open the page target's
-`webSocketDebuggerUrl`, and drive it
-with `Runtime.evaluate` from a small Bun script.
+With proxy variables stripped, agent-browser 0.34.0 attaches fully to the app's existing main
+window: `tab` lists the real Caxri page target and `eval`/`screenshot` run against it directly
+(verified against a packaged 0.0.13 app), so prefer agent-browser over hand-rolled CDP. Only if
+attachment misbehaves (e.g. the UA check above fails), fall back to a raw CDP WebSocket: read
+the target list from `http://127.0.0.1:9223/json/list` (9224 for production), open the page
+target's `webSocketDebuggerUrl`, and drive it with `Runtime.evaluate` from a small Bun script.
