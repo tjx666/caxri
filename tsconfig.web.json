@@ -1,7 +1,9 @@
 {
     "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
     "exclude": [
-        "src/**/__tests__/**",
+        // Renderer feature `__tests__/` directories stay in this project (they test Renderer
+        // modules through `@/` aliases); only the node-side shared tests are carved out.
+        "src/shared/**/__tests__/**",
         "src/shared/node/**",
         "packages/**/__tests__/**",
         "packages/**/*.test.ts"
