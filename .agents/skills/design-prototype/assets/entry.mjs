@@ -33,6 +33,7 @@ import * as Kbd from '@/components/ui/kbd';
 import * as Label from '@/components/ui/label';
 import * as Progress from '@/components/ui/progress';
 import * as Select from '@/components/ui/select';
+import * as Separator from '@/components/ui/separator';
 import * as Spinner from '@/components/ui/spinner';
 import * as Switch from '@/components/ui/switch';
 import * as Textarea from '@/components/ui/textarea';
@@ -79,6 +80,7 @@ export default {
     '@/components/ui/label': Label,
     '@/components/ui/progress': Progress,
     '@/components/ui/select': Select,
+    '@/components/ui/separator': Separator,
     '@/components/ui/spinner': Spinner,
     '@/components/ui/switch': Switch,
     '@/components/ui/textarea': Textarea,
