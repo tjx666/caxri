@@ -1,5 +1,5 @@
 import { compareTreeNodesDirectoriesFirst } from '@caxri/utils';
-import type { GitFileStatus } from '@shared/types';
+import type { GitFileStatus, GitRepositorySummary } from '@shared/types';
 
 interface GitFileTreeDirectory {
     children: GitFileTreeNode[];
@@ -45,6 +45,27 @@ function placeFile(root: GitFileTreeDirectory, file: GitFileStatus): void {
         }
         directory = child;
     }
+}
+
+/**
+ * Maps a repository's changed-file paths to the sibling submodule repositories they point at. A submodule bump shows up
+ * in the parent's status as a modified entry at the submodule's mount path; that entry has no meaningful file diff, so
+ * the panel renders it as a jump target to the submodule's own repository section instead.
+ */
+export function submoduleRepositoriesByPath(
+    repo: Pick<GitRepositorySummary, 'id' | 'rootPath'>,
+    repositories: readonly GitRepositorySummary[],
+): Map<string, GitRepositorySummary> {
+    const normalize = (path: string): string => path.replaceAll('\\', '/').replace(/\/+$/, '');
+    const parentRoot = normalize(repo.rootPath);
+    const byPath = new Map<string, GitRepositorySummary>();
+    for (const candidate of repositories) {
+        if (candidate.kind !== 'submodule' || candidate.id === repo.id) continue;
+        const candidateRoot = normalize(candidate.rootPath);
+        if (!candidateRoot.startsWith(`${parentRoot}/`)) continue;
+        byPath.set(candidateRoot.slice(parentRoot.length + 1), candidate);
+    }
+    return byPath;
 }
 
 /**

@@ -1,11 +1,52 @@
-import type { GitFileStatus } from '@shared/types';
+import type { GitFileStatus, GitRepositorySummary } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
-import { buildGitFileTree } from './git-tree';
+import { buildGitFileTree, submoduleRepositoriesByPath } from './git-tree';
 
 function modified(path: string): GitFileStatus {
     return { index: ' ', kind: 'modified', path, workingTree: 'M' };
 }
+
+function repo(
+    id: string,
+    kind: GitRepositorySummary['kind'],
+    rootPath: string,
+): GitRepositorySummary {
+    return {
+        id,
+        kind,
+        name: id,
+        rootPath,
+        branch: 'main',
+        ahead: 0,
+        behind: 0,
+        additions: 0,
+        deletions: 0,
+        generation: 0,
+        changedFileCount: 0,
+        truncated: false,
+        files: [],
+    };
+}
+
+describe('submoduleRepositoriesByPath', () => {
+    it('maps a parent-relative mount path to its submodule repository summary', () => {
+        const parent = repo('parent', 'primary', '/work/app');
+        const submodule = repo('sub', 'submodule', '/work/app/vendor/lobehub');
+        const map = submoduleRepositoriesByPath(parent, [
+            parent,
+            submodule,
+            repo('nested', 'nested', '/work/app/nested'),
+            repo('outside', 'submodule', '/elsewhere/lobehub'),
+        ]);
+        expect(map.entries().toArray()).toEqual([['vendor/lobehub', submodule]]);
+    });
+
+    it('never maps a submodule repository onto itself', () => {
+        const submodule = repo('sub', 'submodule', '/work/app/lobehub');
+        expect(submoduleRepositoriesByPath(submodule, [submodule]).size).toBe(0);
+    });
+});
 
 describe('buildGitFileTree', () => {
     it('groups changed files by directory while preserving their full Git paths', () => {
