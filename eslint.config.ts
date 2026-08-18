@@ -384,4 +384,20 @@ export default defineConfig(
             'caxri/filename-export-mapping': 'error',
         },
     },
+    /**
+     * Feature-directory scale contract (`.agents/skills/source-layout/SKILL.md` section 3): tests, feature-local hooks,
+     * and utils stay flat below three files of the kind and earn `__tests__/` / `hooks/` / `utils/` at three.
+     */
+    {
+        files: [
+            'src/renderer/src/features/**/*.{ts,tsx}',
+            'scripts/fixtures/eslint/feature-structure/**/*.{ts,tsx}',
+        ],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/feature-directory-structure': 'error',
+        },
+    },
 );

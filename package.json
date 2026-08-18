@@ -104,6 +104,7 @@
                     "scripts/fixtures/eslint/re-export-component-fixture.tsx",
                     "scripts/fixtures/eslint/use-wrong-casing-hook-fixture.ts",
                     "scripts/fixtures/eslint/wrong-casing-component-fixture.tsx",
+                    "scripts/fixtures/eslint/feature-structure/**/*.ts",
                     "scripts/run-e2e-failure-isolation.ts",
                     "scripts/run-e2e-pools.ts"
                 ],

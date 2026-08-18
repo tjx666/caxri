@@ -47,11 +47,36 @@ filename (`file-tree-panel.tsx` exports `FileTreePanel`). No default export. Ext
 commands into a sibling `.ts` module or hook; do not grow a `.tsx` into a logic dump. Styling
 follows `DESIGN.md` token utilities only.
 
-## 3. Scale before creating a folder
+## 3. Shape a Renderer feature directory
+
+A feature directory under `src/renderer/src/features/<feature>/` starts flat and earns a kind
+folder only when files of that kind accumulate. The `caxri/feature-directory-structure` ESLint
+rule enforces the thresholds and the no-coexistence contract.
+
+| Kind                  | Flat form (fewer than three) | At three or more                    |
+| --------------------- | ---------------------------- | ----------------------------------- |
+| Tests                 | Colocated `foo.test.ts`      | This directory's `__tests__/`       |
+| Feature-local hooks   | `use-*.ts` beside consumers  | `hooks/`                            |
+| Feature-local helpers | `utils.ts`                   | `utils/` with semantic module names |
+
+- The flat form and the folder never coexist. Once `__tests__/` exists, no colocated `*.test.ts`
+  stays behind; once `hooks/` exists, every feature-local hook moves in; `utils.ts` and `utils/`
+  are mutually exclusive. An existing directory below a threshold is not folded back.
+- `types.ts` / `constants.ts` exist only for contracts shared by several modules of the feature.
+  A type or constant owned by one module stays in that module.
+- A helper enters `utils` only when its semantics are feature-specific. Generic helpers still
+  follow the shared ladder: `es-toolkit` first, then `@caxri/utils`; a hook used by a second
+  feature moves to `@/hooks`.
+- When a feature grows a cohesive sub-domain, split by sub-domain (`inspector/panels/git/`) before
+  piling onto kind folders: kind folders solve "too many files of one kind", sub-domains solve
+  "the feature itself is too big". Each sub-domain directory applies the same scale rules.
+
+## 4. Scale before creating a folder
 
 A new cluster may stay flat while it has at most two production modules. At three or more cohesive
 modules it owns a directory, exposes a thin `index.ts` barrel, and keeps tests in that directory's
-`__tests__/` (Renderer excepted). Do not invent a folder for a one- or two-file cluster.
+`__tests__/` (Renderer feature directories follow the section 3 thresholds instead). Do not invent
+a folder for a one- or two-file cluster.
 
 Locked protocol and CLI domains in `AGENTS.md` stay even when they have only two production
 modules. Do not add or remove one of those domains without updating `AGENTS.md` and
@@ -59,7 +84,7 @@ modules. Do not add or remove one of those domains without updating `AGENTS.md` 
 needs a barrel; `src/runtime/__tests__/structure.test.ts` rejects a missing one and rejects
 production imports that reach past another domain's root.
 
-## 4. Name files for the job
+## 5. Name files for the job
 
 - After a file enters a domain folder, drop the parent-name prefix: `command-catalog.ts` becomes
   `catalog.ts`, `host-client.ts` becomes `client.ts`.
@@ -89,22 +114,22 @@ the package root; `packages/cli/src` composition-root files (`application`, `env
 
 When moving, `git mv`, then fix relative imports and `import.meta.url` paths in the same change.
 
-## 5. Place tests
+## 6. Place tests
 
-| Surface                          | Tests                                       |
-| -------------------------------- | ------------------------------------------- |
-| Renderer feature logic           | Colocated `foo.test.ts` beside `foo.ts`     |
-| React components                 | Do not unit-test the `.tsx`; extract logic  |
-| Renderer-wide contracts          | `src/renderer/__tests__/`                   |
-| Main, Host, Runtime, shared, CLI | Domain-local `__tests__/`                   |
-| Skill scripts                    | `scripts/*.test.ts` or `scripts/__tests__/` |
-| Repo scripts                     | `scripts/__tests__/`                        |
-| Electron workflows               | `e2e/*.e2e.ts`                              |
+| Surface                          | Tests                                          |
+| -------------------------------- | ---------------------------------------------- |
+| Renderer feature logic           | Colocated below three files, else `__tests__/` |
+| React components                 | Do not unit-test the `.tsx`; extract logic     |
+| Renderer-wide contracts          | `src/renderer/__tests__/`                      |
+| Main, Host, Runtime, shared, CLI | Domain-local `__tests__/`                      |
+| Skill scripts                    | `scripts/*.test.ts` or `scripts/__tests__/`    |
+| Repo scripts                     | `scripts/__tests__/`                           |
+| Electron workflows               | `e2e/*.e2e.ts`                                 |
 
 Do not leave `*.test.ts` beside production files outside the Renderer. How to write or run tests
 is `unit-testing` or `e2e-testing`. Rendering and interaction belong to `e2e-testing`.
 
-## 6. Finish
+## 7. Finish
 
 If a file is approaching 800 physical lines, split a cohesive module before the `max-lines` gate.
 Run `quality-check` on the moved set. If the change adds or removes a locked domain name, update
