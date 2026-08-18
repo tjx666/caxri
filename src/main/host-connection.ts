@@ -22,6 +22,8 @@ import { isCaxriMethod } from '../shared/ipc/methods';
 import type { E2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { e2eAgentPolicyEnvironment } from '../shared/node/e2e-agent-policy';
 import type { StructuredLogger } from '../shared/node/logger';
+import type { HostBuildIdentity } from './host-staleness';
+import { isHostBuildStale } from './host-staleness';
 
 type DesktopCommandHandler = (
     operation: DesktopOperation,
@@ -40,6 +42,11 @@ interface UntypedHostClient {
 
 export interface DesktopHostConnectionOptions {
     agentHooksPath?: string;
+    /**
+     * This Desktop build's identity, compared against `host.status` to replace a detached Host still running an older
+     * build.
+     */
+    buildIdentity: HostBuildIdentity;
     cliPath: string;
     currentDirectory: string;
     desktopId: string;
@@ -48,6 +55,26 @@ export interface DesktopHostConnectionOptions {
     handleCommand: DesktopCommandHandler;
     logger: StructuredLogger;
     userDataPath: string;
+}
+
+const HOST_REPLACEMENT_EXIT_TIMEOUT_MS = 10_000;
+
+/**
+ * Waits for a stopped Host process to disappear so `ensureHost` re-discovery cannot race the old manifest. Signal 0
+ * only probes liveness; an `ESRCH` throw means the process is gone. On timeout the caller simply proceeds — the final
+ * attempt downgrades a still-stale Host to a warning.
+ */
+async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        try {
+            process.kill(pid, 0);
+        } catch {
+            return;
+        }
+        // eslint-disable-next-line no-await-in-loop -- sequential liveness polling by design
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    }
 }
 
 export function resolveDesktopLaunch(options: {
@@ -86,40 +113,10 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     private async connect(): Promise<void> {
-        const operator = await ensureHost(this.options.userDataPath, {
-            executable: process.execPath,
-            entryPath: join(this.options.currentDirectory, 'host.js'),
-            environment: {
-                [HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY]: JSON.stringify(this.options.desktopLaunch),
-                ...e2eAgentPolicyEnvironment(this.options.e2eAgentPolicy),
-                ...(process.env.CAXRI_E2E_WINDOW_MODE && {
-                    CAXRI_E2E_WINDOW_MODE: process.env.CAXRI_E2E_WINDOW_MODE,
-                }),
-                ...(process.env.CAXRI_E2E_WORKER_NAMESPACE && {
-                    CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE,
-                }),
-                ...(process.env.CAXRI_TEST_ROOT_PATH && {
-                    CAXRI_TEST_ROOT_PATH: process.env.CAXRI_TEST_ROOT_PATH,
-                }),
-                ...(process.env.CAXRI_TEST_ROOT_PATHS && {
-                    CAXRI_TEST_ROOT_PATHS: process.env.CAXRI_TEST_ROOT_PATHS,
-                }),
-                ...(this.options.agentHooksPath && {
-                    CAXRI_AGENT_HOOKS_PATH: this.options.agentHooksPath,
-                }),
-                CAXRI_CLI_PATH: this.options.cliPath,
-            },
-        });
-        let hostIdentity: string;
-        try {
-            const status = await operator.request('host.status');
-            this.hostPid = status.pid;
-            this.runtimePid = status.runtimePid;
-            hostIdentity = `${status.pid}:${status.startedAt}`;
-            this.warnOnVersionSkew(status);
-        } finally {
-            operator.close();
-        }
+        let hostIdentity = await this.attachToCurrentHost();
+        hostIdentity ??= await this.attachToCurrentHost(true);
+        if (hostIdentity === undefined)
+            throw new CaxriError('UNAVAILABLE', 'Replacement Caxri Host still reports stale code');
         const client = await connectDesktopToHost(
             this.options.userDataPath,
             this.options.desktopId,
@@ -167,33 +164,71 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     /**
-     * A detached Host survives Desktop restarts, so after a rebuild the adopted Host can still be running an older
-     * build; surface the skew instead of serving it silently. The commit compare catches dev rebuilds where the package
-     * version never changes.
+     * Ensures a Host is running and vets its build before serving it. A stale Host (older build than this Desktop) is
+     * stopped and `undefined` is returned so the caller can ensure a fresh one; `isFinalAttempt` downgrades a repeat
+     * mismatch to a logged warning so two ping-ponging Desktops of different builds cannot stop each other's Hosts
+     * forever.
      */
-    private warnOnVersionSkew(status: { commit?: string; pid: number; version: string }): void {
-        const desktopVersion = process.env.CAXRI_APP_VERSION;
-        const desktopCommit = process.env.CAXRI_GIT_COMMIT;
-        const isVersionSkewed = Boolean(
-            desktopVersion && desktopVersion !== 'unknown' && status.version !== desktopVersion,
-        );
-        const isCommitSkewed = Boolean(
-            desktopCommit &&
-            desktopCommit !== 'unknown' &&
-            status.commit &&
-            status.commit !== 'unknown' &&
-            status.commit !== desktopCommit,
-        );
-        if (!isVersionSkewed && !isCommitSkewed) return;
-        this.options.logger.write('warn', 'host.version_mismatch', {
-            fields: {
-                desktopCommit: desktopCommit ?? 'unknown',
-                desktopVersion: desktopVersion ?? 'unknown',
+    private async attachToCurrentHost(isFinalAttempt = false): Promise<string | undefined> {
+        const operator = await ensureHost(this.options.userDataPath, {
+            executable: process.execPath,
+            entryPath: join(this.options.currentDirectory, 'host.js'),
+            environment: {
+                [HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY]: JSON.stringify(this.options.desktopLaunch),
+                ...e2eAgentPolicyEnvironment(this.options.e2eAgentPolicy),
+                ...(process.env.CAXRI_E2E_WINDOW_MODE && {
+                    CAXRI_E2E_WINDOW_MODE: process.env.CAXRI_E2E_WINDOW_MODE,
+                }),
+                ...(process.env.CAXRI_E2E_WORKER_NAMESPACE && {
+                    CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE,
+                }),
+                ...(process.env.CAXRI_TEST_ROOT_PATH && {
+                    CAXRI_TEST_ROOT_PATH: process.env.CAXRI_TEST_ROOT_PATH,
+                }),
+                ...(process.env.CAXRI_TEST_ROOT_PATHS && {
+                    CAXRI_TEST_ROOT_PATHS: process.env.CAXRI_TEST_ROOT_PATHS,
+                }),
+                ...(this.options.agentHooksPath && {
+                    CAXRI_AGENT_HOOKS_PATH: this.options.agentHooksPath,
+                }),
+                CAXRI_CLI_PATH: this.options.cliPath,
+            },
+        });
+        try {
+            const status = await operator.request('host.status');
+            const skewFields = {
+                desktopBuildId: this.options.buildIdentity.buildId ?? 'unknown',
+                desktopCommit: this.options.buildIdentity.commit ?? 'unknown',
+                desktopVersion: this.options.buildIdentity.version ?? 'unknown',
+                hostBuildId: status.buildId ?? 'unknown',
                 hostCommit: status.commit ?? 'unknown',
                 hostPid: status.pid,
                 hostVersion: status.version,
-            },
-        });
+            };
+            if (isHostBuildStale(this.options.buildIdentity, status)) {
+                if (isFinalAttempt) {
+                    this.options.logger.write('warn', 'host.version_mismatch', {
+                        fields: skewFields,
+                    });
+                } else {
+                    /**
+                     * Live PTYs die with the stale Host, which is the intended trade: silently serving Terminals from
+                     * an older build is the failure mode this replaces.
+                     */
+                    this.options.logger.write('warn', 'host.stale_build_replaced', {
+                        fields: skewFields,
+                    });
+                    await operator.request('host.stop', { confirmLivePtys: true });
+                    await waitForProcessExit(status.pid, HOST_REPLACEMENT_EXIT_TIMEOUT_MS);
+                    return undefined;
+                }
+            }
+            this.hostPid = status.pid;
+            this.runtimePid = status.runtimePid;
+            return `${status.pid}:${status.startedAt}`;
+        } finally {
+            operator.close();
+        }
     }
 
     /**

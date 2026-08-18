@@ -6,3 +6,4 @@
  */
 declare const __CAXRI_VERSION__: string;
 declare const __CAXRI_COMMIT__: string;
+declare const __CAXRI_BUILD_ID__: string;

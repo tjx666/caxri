@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
@@ -71,6 +72,12 @@ export default defineConfig(async ({ command }) => {
             define: {
                 __CAXRI_VERSION__: JSON.stringify(packageJson.version),
                 __CAXRI_COMMIT__: JSON.stringify(gitCommit),
+                /**
+                 * Unique per build invocation. Version and commit cannot distinguish two dev builds of the same
+                 * (possibly dirty) checkout, so this is the identity Main compares to detect a detached Host still
+                 * running an older build (`src/main/host-staleness.ts`).
+                 */
+                __CAXRI_BUILD_ID__: JSON.stringify(randomUUID()),
             },
             build: {
                 sourcemap: isBundleAnalysisEnabled,

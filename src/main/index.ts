@@ -566,6 +566,12 @@ applyGpuStabilityWorkarounds(app.commandLine, process.platform);
                 },
             });
             supervisor = new DesktopHostConnection({
+                buildIdentity: {
+                    buildId:
+                        typeof __CAXRI_BUILD_ID__ === 'string' ? __CAXRI_BUILD_ID__ : 'unknown',
+                    commit: process.env.CAXRI_GIT_COMMIT,
+                    version: caxriVersion,
+                },
                 agentHooksPath:
                     process.env.CAXRI_E2E === '1'
                         ? process.env.CAXRI_E2E_AGENT_HOOKS === '1'

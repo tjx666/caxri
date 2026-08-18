@@ -30,6 +30,11 @@ import { HostRuntimeSupervisor } from './runtime-supervisor';
 
 export interface HostAppOptions {
     agentHooksPath?: string;
+    /**
+     * Unique identifier of the build this Host process was loaded from; version/commit cannot distinguish two dev
+     * builds of the same checkout.
+     */
+    buildId?: string;
     cliPath?: string;
     commit: string;
     executable?: string;
@@ -440,6 +445,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     return {
                         profileId: lease.manifest.profileId,
                         version: options.version,
+                        ...(options.buildId && { buildId: options.buildId }),
                         ...(process.env.CAXRI_GIT_COMMIT && {
                             commit: process.env.CAXRI_GIT_COMMIT,
                         }),
