@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { GitDiffTab } from '@shared/git-diff';
 import { parseGitDiffTab } from '@shared/git-diff';
@@ -10,6 +10,7 @@ import { Button } from '../../../../components/ui/button';
 import { Empty } from '../../../../components/ui/empty';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { DiffMultipleIcon } from '../../../../icons/codicons/diff-multiple-icon';
+import { FileSubmoduleIcon } from '../../../../icons/codicons/file-submodule-icon';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
@@ -24,7 +25,7 @@ import {
 } from './git-diff-actions';
 import { GitFileStatusLetter } from './git-file-status-letter';
 import type { GitFileTreeNode } from './git-tree';
-import { buildGitFileTree } from './git-tree';
+import { buildGitFileTree, submoduleRepositoriesByPath } from './git-tree';
 
 const gitRowClassName =
     'git-row flex w-full items-center gap-2 h-7 px-2 border-0 bg-surface text-left cursor-pointer';
@@ -35,18 +36,22 @@ function GitTreeItems({
     depth = 0,
     expandedDirectories,
     nodes,
+    onFocusRepository,
     onSelect,
     repositoryKey,
     selected,
     setDirectoryExpanded,
+    submodulesByPath,
 }: {
     depth?: number;
     expandedDirectories: Readonly<Record<string, boolean | undefined>>;
     nodes: GitFileTreeNode[];
+    onFocusRepository: (repoId: string) => void;
     onSelect: (path: string) => void;
     repositoryKey: string;
     selected?: string;
     setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
+    submodulesByPath: ReadonlyMap<string, GitRepositorySummary>;
 }) {
     return nodes.map((node) => {
         if (node.kind === 'directory') {
@@ -56,14 +61,37 @@ function GitTreeItems({
                     depth={depth}
                     expandedDirectories={expandedDirectories}
                     node={node}
+                    onFocusRepository={onFocusRepository}
                     onSelect={onSelect}
                     repositoryKey={repositoryKey}
                     selected={selected}
                     setDirectoryExpanded={setDirectoryExpanded}
+                    submodulesByPath={submodulesByPath}
                 />
             );
         }
         const file = node.file;
+        const submodule = submodulesByPath.get(file.path);
+        if (submodule) {
+            // A submodule bump has no meaningful file diff; the row jumps to the submodule's own
+            // repository section below instead of opening one.
+            return (
+                <button
+                    key={file.path}
+                    className={cn(gitRowClassName, 'git-submodule-row hover:bg-elevated')}
+                    style={{ paddingLeft: 10 + depth * 14 }}
+                    title={`Show the ${submodule.name} submodule repository`}
+                    onClick={() => onFocusRepository(submodule.id)}
+                >
+                    <FileSubmoduleIcon size={14} className="shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{node.name}</span>
+                    <small className="shrink-0 text-[11px] whitespace-nowrap text-muted">
+                        submodule
+                    </small>
+                    <GitFileStatusLetter file={file} />
+                </button>
+            );
+        }
         return (
             <button
                 key={file.path}
@@ -88,18 +116,22 @@ function GitTreeDirectory({
     depth,
     expandedDirectories,
     node,
+    onFocusRepository,
     onSelect,
     repositoryKey,
     selected,
     setDirectoryExpanded,
+    submodulesByPath,
 }: {
     depth: number;
     expandedDirectories: Readonly<Record<string, boolean | undefined>>;
     node: Extract<GitFileTreeNode, { kind: 'directory' }>;
+    onFocusRepository: (repoId: string) => void;
     onSelect: (path: string) => void;
     repositoryKey: string;
     selected?: string;
     setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
+    submodulesByPath: ReadonlyMap<string, GitRepositorySummary>;
 }) {
     const expansionKey = `${repositoryKey}:${node.path}`;
     const isExpanded = expandedDirectories[expansionKey] ?? true;
@@ -125,10 +157,12 @@ function GitTreeDirectory({
                         depth={depth + 1}
                         expandedDirectories={expandedDirectories}
                         nodes={node.children}
+                        onFocusRepository={onFocusRepository}
                         onSelect={onSelect}
                         repositoryKey={repositoryKey}
                         selected={selected}
                         setDirectoryExpanded={setDirectoryExpanded}
+                        submodulesByPath={submodulesByPath}
                     />
                 )}
             </DisclosureMotion>
@@ -140,22 +174,28 @@ function GitRepoSection({
     activeDiff,
     expanded,
     expandedDirectories,
+    flashed,
     mode,
     onExpandedChange,
+    onFocusRepository,
     pullRequestRefresh,
     repository,
     sessionId,
     setDirectoryExpanded,
+    submodulesByPath,
 }: {
     activeDiff?: GitDiffTab;
     expanded: boolean;
     expandedDirectories: Readonly<Record<string, boolean | undefined>>;
+    flashed: boolean;
     mode: GitPanelMode;
     onExpandedChange: (isExpanded: boolean) => void;
+    onFocusRepository: (repoId: string) => void;
     pullRequestRefresh: number;
     repository: GitRepositorySummary;
     sessionId: string;
     setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
+    submodulesByPath: ReadonlyMap<string, GitRepositorySummary>;
 }) {
     // Local like the Commits disclosure in `commit-history.tsx`; not persisted across session switches.
     const [changesExpanded, setChangesExpanded] = useState(true);
@@ -200,9 +240,20 @@ function GitRepoSection({
                   ? 'No pull request for this branch.'
                   : 'Pull request has no file changes.';
     return (
-        <section className="git-repository-section border-b border-border">
+        <section
+            className={cn(
+                'git-repository-section border-b border-border transition-[outline-color] duration-500',
+                // The jump-target flash outlines the whole section: a header-only background tint
+                // is too subtle to notice when the section is already expanded and nothing scrolls.
+                flashed && 'outline-1 -outline-offset-1 outline-accent',
+            )}
+            data-git-repository-id={repository.id}
+        >
             <button
-                className="git-repository-row flex w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-surface p-2 text-left text-foreground hover:bg-elevated"
+                className={cn(
+                    'git-repository-row flex w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-surface p-2 text-left text-foreground transition-colors duration-500 hover:bg-elevated',
+                    flashed && 'bg-elevated',
+                )}
                 aria-expanded={expanded}
                 title={repository.rootPath}
                 onClick={() => onExpandedChange(!expanded)}
@@ -313,6 +364,8 @@ function GitRepoSection({
                                             repositoryKey={`${mode}:${repository.id}`}
                                             selected={selectedPath}
                                             setDirectoryExpanded={setDirectoryExpanded}
+                                            submodulesByPath={submodulesByPath}
+                                            onFocusRepository={onFocusRepository}
                                             onSelect={(path) => openFile(repository.id, path)}
                                         />
                                     )}
@@ -349,6 +402,10 @@ export function GitPanel() {
     >({});
     const [pullRequestRefresh, setPullRequestRefresh] = useState(0);
     const [workingRefresh, setWorkingRefresh] = useState(0);
+    const [flashedRepoId, setFlashedRepoId] = useState<string>();
+    const repositoriesReference = useRef<HTMLDivElement>(null);
+    const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    useEffect(() => () => clearTimeout(flashTimer.current), []);
     const navigation = scope
         ? (navigationByScope[scope] ?? {
               expandedDirectories: {},
@@ -409,6 +466,26 @@ export function GitPanel() {
                 No approved Git repositories found.
             </Empty>
         );
+    /**
+     * Jump target for submodule rows: make sure the submodule's own section is expanded, scroll its header into view,
+     * and flash it briefly so the eye lands on the right section.
+     */
+    const focusRepo = (repoId: string): void => {
+        updateNavigation({
+            expandedRepositories: {
+                ...navigation.expandedRepositories,
+                [repoId]: true,
+            },
+        });
+        setFlashedRepoId(repoId);
+        clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setFlashedRepoId(undefined), 1600);
+        requestAnimationFrame(() => {
+            repositoriesReference.current
+                ?.querySelector(`[data-git-repository-id="${CSS.escape(repoId)}"]`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    };
     const refresh = (): void => {
         if (mode === 'working') {
             setWorkingRefresh((value) => value + 1);
@@ -468,6 +545,7 @@ export function GitPanel() {
                 </Tooltip>
             </div>
             <div
+                ref={repositoriesReference}
                 className="git-repositories min-h-0 flex-1 overflow-auto border-b border-border"
                 aria-label="Git repositories"
             >
@@ -478,7 +556,10 @@ export function GitPanel() {
                         activeDiff={activeDiff}
                         expanded={navigation.expandedRepositories[repo.id] ?? true}
                         expandedDirectories={navigation.expandedDirectories}
+                        flashed={flashedRepoId === repo.id}
                         mode={mode}
+                        submodulesByPath={submoduleRepositoriesByPath(repo, summary.repositories)}
+                        onFocusRepository={focusRepo}
                         onExpandedChange={(isExpanded) =>
                             updateNavigation({
                                 expandedRepositories: {
