@@ -1,5 +1,5 @@
 import { compareTreeNodesDirectoriesFirst } from '@caxri/utils';
-import type { GitFileStatus, GitRepositorySummary } from '@shared/types';
+import type { GitCommitDetails, GitFileStatus, GitRepositorySummary } from '@shared/types';
 
 interface GitFileTreeDirectory {
     children: GitFileTreeNode[];
@@ -66,6 +66,36 @@ export function submoduleRepositoriesByPath(
         byPath.set(candidateRoot.slice(parentRoot.length + 1), candidate);
     }
     return byPath;
+}
+
+const commitStatusToTreeStatus: Record<
+    GitCommitDetails['files'][number]['status'],
+    { kind: GitFileStatus['kind']; letter: string }
+> = {
+    'modified': { kind: 'modified', letter: 'M' },
+    'added': { kind: 'added', letter: 'A' },
+    'deleted': { kind: 'deleted', letter: 'D' },
+    'renamed': { kind: 'renamed', letter: 'R' },
+    'copied': { kind: 'added', letter: 'C' },
+    'type-changed': { kind: 'modified', letter: 'T' },
+    'unknown': { kind: 'modified', letter: '?' },
+};
+
+/**
+ * Projects a commit's file list into the working-tree status shape so the panel's file tree and status letters render
+ * commit-mode changes through the same components.
+ */
+export function commitFilesToStatuses(files: GitCommitDetails['files']): GitFileStatus[] {
+    return files.map((file) => {
+        const status = commitStatusToTreeStatus[file.status];
+        return {
+            path: file.path,
+            ...(file.previousPath && { originalPath: file.previousPath }),
+            index: status.letter,
+            workingTree: ' ',
+            kind: status.kind,
+        };
+    });
 }
 
 /**

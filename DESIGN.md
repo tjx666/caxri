@@ -202,12 +202,16 @@ focus, selection, command, query, or lifecycle behavior.
 
 **Git inspector** — every discovered repository is an independent disclosure node, with
 its changed files grouped by directory. Selecting a file opens a read-only Monaco diff in
-the center pane; the Inspector never embeds a patch preview. Each `Changes` heading exposes
+the center pane; the Inspector never embeds a patch preview. The panel's mode switch
+offers Working Tree, Last Commit, and Pull Request views; Last Commit renders the HEAD
+commit's file list and hides `Open Changes` (no aggregated commit diff document exists).
+In the other modes each `Changes` heading exposes
 `Open Changes`, which opens one scrollable multi-file diff tab for that repository.
 The multi-file surface mounts Monaco only near the visible viewport and keeps an unreadable
 or binary change isolated to its own row.
 
-**Terminal panes** — focused pane keeps the accent inset ring (this IS the one accent). The xterm
+**Terminal panes** — focused pane keeps the accent inset ring (with the active tab's top
+border it forms the screen's one accent focus). The xterm
 viewport and scrollbar are full-bleed at the right edge; top/left text padding belongs to xterm's
 content box so it never creates an outer scrollbar gutter.
 Exit banner: keep current design; `--danger` text only for failures, `--muted` for clean

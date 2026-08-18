@@ -3,7 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { GitDiffTab } from '@shared/git-diff';
 import { parseGitDiffTab } from '@shared/git-diff';
 import type { GitRepositorySummary } from '@shared/types';
-import { ChevronDown, ChevronRight, GitBranch, GitPullRequest, RefreshCw } from 'lucide-react';
+import {
+    ChevronDown,
+    ChevronRight,
+    GitBranch,
+    GitCommitHorizontal,
+    GitPullRequest,
+    RefreshCw,
+} from 'lucide-react';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
@@ -15,24 +22,25 @@ import { DiffMultipleIcon } from '../../../../icons/codicons/diff-multiple-icon'
 import { FileSubmoduleIcon } from '../../../../icons/codicons/file-submodule-icon';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
 import { cn } from '../../../../lib/utilities';
-import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
+import { queryClient, useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
 import { useActiveWork } from '../../../../stores/session-view';
 import { CommitHistory } from './commit-history';
 import {
     openGitChangesDiff,
+    openGitCommitFileDiff,
     openGitFileDiff,
     openPullRequestChangesDiff,
     openPullRequestFileDiff,
 } from './git-diff-actions';
 import { GitFileStatusLetter } from './git-file-status-letter';
 import type { GitFileTreeNode } from './git-tree';
-import { buildGitFileTree, submoduleRepositoriesByPath } from './git-tree';
+import { buildGitFileTree, commitFilesToStatuses, submoduleRepositoriesByPath } from './git-tree';
 
 const gitRowClassName =
     'git-row flex w-full items-center gap-2 h-7 px-2 border-0 bg-surface text-left cursor-pointer';
 
-type GitPanelMode = 'pull-request' | 'working';
+type GitPanelMode = 'commit' | 'pull-request' | 'working';
 
 function GitTreeItems({
     depth = 0,
@@ -217,7 +225,29 @@ function GitRepoSection({
         'Pull request refresh failed',
     );
     const pullRequest = mode === 'pull-request' ? pullRequestQuery.data : undefined;
-    const files = mode === 'working' ? repository.files : (pullRequest?.files ?? []);
+    const headSha = repository.head;
+    const latestCommitQuery = useCaxriQuery(
+        'git.commitDetails',
+        {
+            sessionId,
+            repositoryId: repository.id,
+            // Placeholder satisfies the params schema while the query is disabled without a HEAD.
+            sha: headSha ?? '0000000000000000000000000000000000000000',
+        },
+        { enabled: mode === 'commit' && Boolean(headSha) },
+    );
+    useToastOnQueryError(
+        latestCommitQuery.isError,
+        latestCommitQuery.error,
+        'Last commit load failed',
+    );
+    const latestCommit = mode === 'commit' ? latestCommitQuery.data : undefined;
+    const files =
+        mode === 'working'
+            ? repository.files
+            : mode === 'commit'
+              ? commitFilesToStatuses(latestCommit?.files ?? [])
+              : (pullRequest?.files ?? []);
     /**
      * The working-tree count comes from `changedFileCount`, not `files.length`: the Runtime caps the transported
      * `files[]` payload at `MAX_GIT_STATUS_FILES`, so a very large change set can be truncated while `changedFileCount`
@@ -225,23 +255,44 @@ function GitRepoSection({
      */
     const displayedCount = mode === 'working' ? repository.changedFileCount : files.length;
     const selectedPath =
-        activeDiff?.kind === 'file' &&
-        activeDiff.repositoryId === repository.id &&
-        activeDiff.source === mode
-            ? activeDiff.path
-            : undefined;
-    const openFile = mode === 'pull-request' ? openPullRequestFileDiff : openGitFileDiff;
+        mode === 'commit'
+            ? activeDiff?.kind === 'commit-file' &&
+              activeDiff.repositoryId === repository.id &&
+              activeDiff.sha === headSha
+                ? activeDiff.path
+                : undefined
+            : activeDiff?.kind === 'file' &&
+                activeDiff.repositoryId === repository.id &&
+                activeDiff.source === mode
+              ? activeDiff.path
+              : undefined;
+    const openFile =
+        mode === 'pull-request'
+            ? openPullRequestFileDiff
+            : mode === 'commit'
+              ? (repoId: string, path: string): void => {
+                    if (headSha) openGitCommitFileDiff(repoId, headSha, path);
+                }
+              : openGitFileDiff;
     const openChanges = mode === 'pull-request' ? openPullRequestChangesDiff : openGitChangesDiff;
     const emptyMessage =
         mode === 'working'
             ? 'Working tree clean.'
-            : pullRequestQuery.isError
-              ? 'Unable to load pull request changes.'
-              : pullRequest === undefined
-                ? 'Loading pull request changes…'
-                : pullRequest === null
-                  ? 'No pull request for this branch.'
-                  : 'Pull request has no file changes.';
+            : mode === 'commit'
+              ? !headSha
+                  ? 'No commits yet.'
+                  : latestCommitQuery.isError
+                    ? 'Unable to load the last commit.'
+                    : latestCommit === undefined
+                      ? 'Loading last commit…'
+                      : 'Last commit has no file changes.'
+              : pullRequestQuery.isError
+                ? 'Unable to load pull request changes.'
+                : pullRequest === undefined
+                  ? 'Loading pull request changes…'
+                  : pullRequest === null
+                    ? 'No pull request for this branch.'
+                    : 'Pull request has no file changes.';
     return (
         <section
             className={cn(
@@ -266,6 +317,8 @@ function GitRepoSection({
                     {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     {mode === 'pull-request' ? (
                         <GitPullRequest size={12} />
+                    ) : mode === 'commit' ? (
+                        <GitCommitHorizontal size={12} />
                     ) : (
                         <GitBranch size={12} />
                     )}
@@ -289,7 +342,9 @@ function GitRepoSection({
                     <span className="git-repository-branch min-w-0 truncate">
                         {pullRequest
                             ? `#${pullRequest.number} ${pullRequest.title}`
-                            : repository.branch}
+                            : latestCommit
+                              ? `${latestCommit.commit.shortSha} ${latestCommit.commit.subject}`
+                              : repository.branch}
                     </span>
                     <span className="git-repository-counts shrink-0 whitespace-nowrap">
                         {mode === 'working' && ` · ↑${repository.ahead} ↓${repository.behind}`}
@@ -314,32 +369,44 @@ function GitRepoSection({
                                     <ChevronRight size={12} />
                                 )}
                                 <span className="truncate">
-                                    {pullRequest ? `PR #${pullRequest.number} Changes` : 'Changes'}
+                                    {pullRequest
+                                        ? `PR #${pullRequest.number} Changes`
+                                        : mode === 'commit'
+                                          ? latestCommit
+                                              ? `Commit ${latestCommit.commit.shortSha}`
+                                              : 'Last Commit'
+                                          : 'Changes'}
                                 </span>
                             </button>
                             <span className="git-changes-actions flex items-center gap-1">
-                                <Tooltip
-                                    content={
-                                        mode === 'pull-request'
-                                            ? 'Open Pull Request Changes'
-                                            : 'Open Working Tree Changes'
-                                    }
-                                >
-                                    <Button
-                                        className="git-open-changes size-6"
-                                        size="icon"
-                                        variant="ghost"
-                                        aria-label={
+                                {/* No aggregated commit-changes diff document exists yet, so the
+                                    Open Changes action stays hidden in commit mode. */}
+                                {mode !== 'commit' && (
+                                    <Tooltip
+                                        content={
                                             mode === 'pull-request'
                                                 ? 'Open Pull Request Changes'
-                                                : 'Open Changes'
+                                                : 'Open Working Tree Changes'
                                         }
-                                        disabled={files.length === 0}
-                                        onClick={() => openChanges(repository.id, repository.name)}
                                     >
-                                        <DiffMultipleIcon size={13} />
-                                    </Button>
-                                </Tooltip>
+                                        <Button
+                                            className="git-open-changes size-6"
+                                            size="icon"
+                                            variant="ghost"
+                                            aria-label={
+                                                mode === 'pull-request'
+                                                    ? 'Open Pull Request Changes'
+                                                    : 'Open Changes'
+                                            }
+                                            disabled={files.length === 0}
+                                            onClick={() =>
+                                                openChanges(repository.id, repository.name)
+                                            }
+                                        >
+                                            <DiffMultipleIcon size={13} />
+                                        </Button>
+                                    </Tooltip>
+                                )}
                                 <span>{displayedCount}</span>
                             </span>
                         </div>
@@ -354,6 +421,16 @@ function GitRepoSection({
                                         >
                                             Showing the first {repository.files.length} of{' '}
                                             {repository.changedFileCount} changes
+                                        </div>
+                                    )}
+                                    {mode === 'commit' && latestCommit?.filesTruncated && (
+                                        <div
+                                            role="status"
+                                            aria-live="polite"
+                                            className="git-changes-truncated border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
+                                        >
+                                            Showing the first {latestCommit.files.length} files of
+                                            this commit
                                         </div>
                                     )}
                                     {files.length === 0 && (
@@ -493,11 +570,17 @@ export function GitPanel() {
         });
     };
     const refresh = (): void => {
-        if (mode === 'working') {
-            setWorkingRefresh((value) => value + 1);
-        } else {
+        if (mode === 'pull-request') {
             setPullRequestRefresh((value) => value + 1);
+            return;
         }
+        // Commit mode reads HEAD from `git.summary` (the working nonce) but must also retry a
+        // cached `git.commitDetails` failure, whose key (same sha) would otherwise never change.
+        if (mode === 'commit') {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard
+            void queryClient.invalidateQueries({ queryKey: ['git.commitDetails'] });
+        }
+        setWorkingRefresh((value) => value + 1);
     };
     return (
         <div className="inspector-content git-panel flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -524,6 +607,20 @@ export function GitPanel() {
                             <GitBranch size={13} />
                         </button>
                     </Tooltip>
+                    <Tooltip content="Last Commit Changes">
+                        <button
+                            type="button"
+                            className={cn(
+                                'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
+                                mode === 'commit' && 'bg-surface text-foreground',
+                            )}
+                            aria-label="Last Commit Changes"
+                            aria-pressed={mode === 'commit'}
+                            onClick={() => setMode('commit')}
+                        >
+                            <GitCommitHorizontal size={13} />
+                        </button>
+                    </Tooltip>
                     <Tooltip content="Pull Request Changes">
                         <button
                             type="button"
@@ -539,11 +636,13 @@ export function GitPanel() {
                         </button>
                     </Tooltip>
                 </div>
-                <Tooltip content={mode === 'working' ? 'Refresh Git' : 'Refresh Pull Request'}>
+                <Tooltip content={mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git'}>
                     <Button
                         size="icon"
                         variant="ghost"
-                        aria-label={mode === 'working' ? 'Refresh Git' : 'Refresh Pull Request'}
+                        aria-label={
+                            mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git'
+                        }
                         onClick={refresh}
                     >
                         <RefreshCw size={13} />

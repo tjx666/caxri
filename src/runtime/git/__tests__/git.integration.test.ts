@@ -99,6 +99,9 @@ describe('GitService', () => {
         expect(summary.isRepository).toBe(true);
         expect(concurrentSummary).toEqual(summary);
         expect(summary.repositories[0].branch).toBe('main');
+        // Full 40-hex oid, not a shortened one: `git.commitDetails` params validate against it
+        // when the Git panel's commit mode loads the last commit's changes from this head.
+        expect(summary.repositories[0].head).toMatch(/^[0-9a-f]{40}$/);
         expect(summary.repositories[0]).toMatchObject({ additions: 1, deletions: 1 });
         expect(summary.repositories[0].files.map((file) => file.path)).toEqual(
             expect.arrayContaining(['tracked.txt', 'new.txt']),
