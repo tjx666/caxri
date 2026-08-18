@@ -6,6 +6,7 @@ import {
     findTerminalLinks,
     registerTerminalLinks,
     resolveTerminalFilePath,
+    TERMINAL_DEFAULT_WORD_SEPARATORS,
     terminalLinkHintPosition,
 } from '../terminal-links';
 
@@ -32,6 +33,41 @@ describe('findTerminalLinks', () => {
             { kind: 'file', target: 'src/b.test.ts', line: 9, column: 1 },
             { kind: 'file', target: 'file:///repo/c.ts' },
         ]);
+    });
+
+    it('splits a path from glued CJK prose at a word-separator parenthesis', () => {
+        // Regression: `realpath '/…/串联 (src/api/workflows/es-reindex.ts)'` ENOENT — the CJK
+        // prefix and wrapping parentheses were folded into the clicked path.
+        expect(findTerminalLinks('串联 (src/api/workflows/es-reindex.ts) 已完成')).toEqual([
+            {
+                endIndex: 35,
+                kind: 'file',
+                startIndex: 4,
+                target: 'src/api/workflows/es-reindex.ts',
+                text: 'src/api/workflows/es-reindex.ts',
+            },
+        ]);
+        expect(findTerminalLinks('串联(src/api/workflows/es-reindex.ts)')).toEqual([
+            {
+                endIndex: 34,
+                kind: 'file',
+                startIndex: 3,
+                target: 'src/api/workflows/es-reindex.ts',
+                text: 'src/api/workflows/es-reindex.ts',
+            },
+        ]);
+    });
+
+    it('honors custom word separators from the terminal.wordSeparators setting', () => {
+        // With `(` removed from the separators the glued token stays one word (the pre-setting
+        // behavior), and with `:` added the line suffix stops being parsed — mirroring VS Code's
+        // documented caveat about putting `:` in `terminal.integrated.wordSeparators`.
+        expect(findTerminalLinks('串联(src/api/x.ts)', ' ')).toMatchObject([
+            { kind: 'file', target: '串联(src/api/x.ts)' },
+        ]);
+        const withColonSeparator = findTerminalLinks('src/a.ts:12', ' :');
+        expect(withColonSeparator).toMatchObject([{ kind: 'file', target: 'src/a.ts' }]);
+        expect(withColonSeparator[0]).not.toHaveProperty('line');
     });
 
     it('does not turn custom protocols, flags, or ordinary dotted prose into file links', () => {
@@ -129,6 +165,7 @@ describe('registerTerminalLinks', () => {
         const context: TerminalLinkContext = {
             cwd: '/repo',
             projectRoot: '/repo',
+            wordSeparators: TERMINAL_DEFAULT_WORD_SEPARATORS,
             openFile,
             openUrl,
         };

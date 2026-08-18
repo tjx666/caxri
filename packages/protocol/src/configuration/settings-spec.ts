@@ -213,6 +213,19 @@ export const settingsSpec = [
     },
     {
         kind: 'string',
+        key: 'terminal.wordSeparators',
+        title: 'Word separators',
+        description:
+            'Characters that separate words for double-click selection and file-link detection; adding : or / breaks line:column and path links',
+        category: 'terminal',
+        keywords: ['link', 'path', 'word', 'separator', 'double click', 'selection'],
+        nullable: false,
+        maxLength: 128,
+        // Matches the VS Code `terminal.integrated.wordSeparators` default, including the leading space.
+        default: ' ()[]{}\',"`─‘’“”|',
+    },
+    {
+        kind: 'string',
         key: 'terminal.defaultWorkingDirectory',
         title: 'New Terminal working directory',
         description: 'Leave empty to use the Project root',

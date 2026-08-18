@@ -6,6 +6,12 @@ const MAX_LOGICAL_LINE_LENGTH = 16_384;
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
 
+/**
+ * Matches the VS Code `terminal.integrated.wordSeparators` default (leading space included). The
+ * `terminal.wordSeparators` setting overrides it; this constant is only the not-yet-loaded fallback.
+ */
+export const TERMINAL_DEFAULT_WORD_SEPARATORS = ' ()[]{}\',"`─‘’“”|';
+
 export interface TerminalLinkMatch {
     endIndex: number;
     kind: 'file' | 'url';
@@ -19,6 +25,7 @@ export interface TerminalLinkMatch {
 export interface TerminalLinkContext {
     cwd: string;
     projectRoot: string;
+    wordSeparators: string;
     openFile(path: string, location?: { column: number; line: number }): void;
     openUrl(url: string): void;
 }
@@ -96,10 +103,40 @@ function isLikelyFilePath(path: string): boolean {
     return /^[^/:]+\.[a-z\d][\w-]{0,15}$/i.test(path);
 }
 
+interface RawToken {
+    index: number;
+    text: string;
+}
+
+/**
+ * Splits rendered text into file-path candidates at whitespace and every configured separator, the way VS Code's
+ * word-link detection consumes `terminal.integrated.wordSeparators`. Splitting (not trimming) is what detaches a path
+ * from glued prose such as `串联 (src/api/x.ts)` — the CJK prefix is not a wrapper character, so wrapper trimming alone
+ * can never remove it.
+ */
+function tokenizeByWordSeparators(text: string, wordSeparators: string): RawToken[] {
+    const tokens: RawToken[] = [];
+    let start = -1;
+    for (let index = 0; index <= text.length; index += 1) {
+        const character = index < text.length ? text[index] : ' ';
+        const isSeparator = wordSeparators.includes(character) || /\s/.test(character);
+        if (!isSeparator) {
+            if (start === -1) start = index;
+            continue;
+        }
+        if (start !== -1) tokens.push({ index: start, text: text.slice(start, index) });
+        start = -1;
+    }
+    return tokens;
+}
+
 /**
  * Extracts bounded URL and file candidates from rendered text without surrounding prose.
  */
-export function findTerminalLinks(text: string): TerminalLinkMatch[] {
+export function findTerminalLinks(
+    text: string,
+    wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
+): TerminalLinkMatch[] {
     const links: TerminalLinkMatch[] = [];
     for (const url of text.matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
         const raw = url[0];
@@ -114,8 +151,8 @@ export function findTerminalLinks(text: string): TerminalLinkMatch[] {
             text: trimmed.text,
         });
     }
-    for (const token of text.matchAll(/\S+/gu)) {
-        const raw = token[0];
+    for (const token of tokenizeByWordSeparators(text, wordSeparators)) {
+        const raw = token.text;
         const rawStart = token.index;
         const trimmed = trimToken(raw);
         if (!trimmed.text) continue;
@@ -320,7 +357,7 @@ function linksForLogicalLine(
     context: TerminalLinkContext,
     hint: ReturnType<typeof createLinkHintController>,
 ): ILink[] {
-    return findTerminalLinks(logicalLine.text).flatMap((match) => {
+    return findTerminalLinks(logicalLine.text, context.wordSeparators).flatMap((match) => {
         // `.at()` (rather than `[index]`) keeps an out-of-range index's `undefined` case in the type, since this
         // project does not enable `noUncheckedIndexedAccess`.
         const start = logicalLine.positions.at(match.startIndex);
@@ -364,7 +401,7 @@ export function registerTerminalLinks(
     });
     terminal.options.linkHandler = {
         activate(event, text) {
-            const match = findTerminalLinks(text).find(
+            const match = findTerminalLinks(text, context.wordSeparators).find(
                 (candidate) => candidate.startIndex === 0 && candidate.endIndex === text.length,
             );
             if (match) activateLink(event, match, context);

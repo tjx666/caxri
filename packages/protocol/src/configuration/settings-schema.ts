@@ -100,6 +100,14 @@ export const appSettingsSchema = z.object({
     'terminal.defaultWorkingDirectory': nullableStringField(
         spec['terminal.defaultWorkingDirectory'],
     ),
+    /**
+     * Deliberately not `nullableStringField`: its `.trim()` would strip the leading space, which is itself a meaningful
+     * separator. An empty string is valid and means "whitespace only".
+     */
+    'terminal.wordSeparators': z
+        .string()
+        .max(spec['terminal.wordSeparators'].maxLength)
+        .default(spec['terminal.wordSeparators'].default),
     'terminal.fontFamily': nullableStringField(spec['terminal.fontFamily']),
     'terminal.fontSize': integerField(spec['terminal.fontSize']),
     'editor.fontFamily': nullableStringField(spec['editor.fontFamily']),
