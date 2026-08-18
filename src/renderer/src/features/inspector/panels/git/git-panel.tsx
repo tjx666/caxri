@@ -3,19 +3,13 @@ import { useState } from 'react';
 import type { GitDiffTab } from '@shared/git-diff';
 import { parseGitDiffTab } from '@shared/git-diff';
 import type { GitRepositorySummary } from '@shared/types';
-import {
-    ChevronDown,
-    ChevronRight,
-    Files,
-    GitBranch,
-    GitPullRequest,
-    RefreshCw,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, GitBranch, GitPullRequest, RefreshCw } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
 import { Empty } from '../../../../components/ui/empty';
 import { Tooltip } from '../../../../components/ui/tooltip';
+import { DiffMultipleIcon } from '../../../../icons/codicons/diff-multiple-icon';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
@@ -288,7 +282,7 @@ function GitRepoSection({
                                         disabled={files.length === 0}
                                         onClick={() => openChanges(repository.id, repository.name)}
                                     >
-                                        <Files size={13} />
+                                        <DiffMultipleIcon size={13} />
                                     </Button>
                                 </Tooltip>
                                 <span>{displayedCount}</span>
