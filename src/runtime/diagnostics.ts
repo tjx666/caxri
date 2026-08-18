@@ -11,6 +11,7 @@ import type { StructuredLogger } from '../shared/node/logger';
 import { redactLogValue, redactSecrets } from '../shared/node/redaction';
 import type { AppSettings } from '../shared/types';
 import type { CaxriDatabase } from './db';
+import type { WatchHubSnapshot } from './watch-hub';
 
 const DIAGNOSTIC_LOG_NAME = /^(?:host|main|runtime)\.jsonl(?:\.1)?$/u;
 
@@ -146,6 +147,10 @@ export class DiagnosticsService {
         private readonly getSettings: () => AppSettings,
         private readonly activePtyCount: () => number,
         private readonly startedAt: number,
+        /**
+         * Content-free watcher/poller census from the Runtime watch hub (labels and counters only, never paths).
+         */
+        private readonly watchSnapshot?: () => WatchHubSnapshot,
     ) {}
 
     private async readLogs(): Promise<string[]> {
@@ -186,6 +191,7 @@ export class DiagnosticsService {
             terminalCount: this.database.listTerminals().length,
             recentErrorIds: summarizeRecentErrorIds(logs.join('\n')),
             performance: summarizePerformanceLogs(logs).slice(0, 256),
+            ...(this.watchSnapshot && { watchers: this.watchSnapshot() }),
         };
     }
 

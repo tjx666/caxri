@@ -3,7 +3,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
-import parcelWatcher from '@parcel/watcher';
 import { applyEdits, modify } from 'jsonc-parser';
 
 import { defaultKeybindings } from '../shared/commands';
@@ -26,14 +25,11 @@ import type { StructuredLogger } from '../shared/node/logger';
 import { redactLogValue } from '../shared/node/redaction';
 import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '../shared/trusted-domains';
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '../shared/types';
-import { NATIVE_WATCHER_BACKEND } from './native-watcher';
 import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './theme';
+import type { WatchHandle } from './watch-hub';
+import { WatchHub } from './watch-hub';
 
 type ConfigKind = 'settings' | 'keybindings' | 'theme';
-
-interface WatcherSubscription {
-    unsubscribe(): Promise<void>;
-}
 
 interface PreparedConfig {
     apply(): void;
@@ -129,6 +125,11 @@ interface ConfigServiceOptions {
      * Overrides the fallback watcher cadence for deterministic integration tests.
      */
     fallbackPollIntervalMs?: number;
+    /**
+     * Shared Runtime watch registry. Production passes the Runtime-wide hub; tests may omit it, in which case the
+     * service owns a private hub with equivalent behavior.
+     */
+    watchHub?: WatchHub;
 }
 
 /**
@@ -219,7 +220,9 @@ export class ConfigService {
     private keybindingsSource = `${JSON.stringify(defaultKeybindings, null, 2)}\n`;
     private theme: ThemeTokens = draculaTheme;
     private themeSource = serializeTheme(draculaTheme);
-    private watcher?: WatcherSubscription;
+    private watchHandle?: WatchHandle;
+    private readonly watchHub: WatchHub;
+    private readonly ownsWatchHub: boolean;
     private readonly watchTimers = new Map<string, NodeJS.Timeout>();
     private readonly observedSources = new Map<string, string>();
     private readonly rejectedSourceRevisions = new Map<string, string>();
@@ -239,6 +242,8 @@ export class ConfigService {
         options: ConfigServiceOptions = {},
     ) {
         this.fallbackPollIntervalMs = options.fallbackPollIntervalMs ?? FALLBACK_POLL_INTERVAL_MS;
+        this.ownsWatchHub = !options.watchHub;
+        this.watchHub = options.watchHub ?? new WatchHub({ logger });
         this.configDirectory = join(userDataPath, 'config');
         this.settingsPath = join(this.configDirectory, 'settings.jsonc');
         this.keybindingsPath = join(this.configDirectory, 'keybindings.jsonc');
@@ -475,62 +480,56 @@ export class ConfigService {
         return result;
     }
 
+    private async pollConfigSourcesOnce(): Promise<void> {
+        await Promise.all(
+            [this.settingsPath, this.keybindingsPath, this.themePath].map(async (path) => {
+                try {
+                    await this.onExternalChange(path);
+                } catch (error) {
+                    this.logger?.write('error', 'configuration.poll_change_failed', {
+                        fields: { path, error: errorMessage(error, 'unknown') },
+                    });
+                }
+            }),
+        );
+    }
+
     async initialize(): Promise<void> {
         await mkdir(dirname(this.settingsPath), { recursive: true });
         await this.loadOrCreate('settings');
         await this.loadOrCreate('keybindings');
         await this.loadOrCreate('theme');
         const watchedDirectory = await realpath(this.configDirectory);
-        const onEvents: parcelWatcher.SubscribeCallback = (error, events) => {
-            if (this.closed) return;
-            if (error) {
-                this.emitWatcherError(error);
-                return;
-            }
-            for (const event of events) {
-                const path = this.pathForWatcherEvent(watchedDirectory, event.path);
-                if (path) this.scheduleExternalChange(path);
-            }
-        };
         const startedAt = performance.now();
-        const backend = NATIVE_WATCHER_BACKEND;
-        let selectedBackend: string = backend;
-        try {
-            this.watcher = await parcelWatcher.subscribe(watchedDirectory, onEvents, { backend });
-        } catch (error) {
+        this.watchHandle = await this.watchHub.register({
+            label: 'config',
+            root: watchedDirectory,
+            onEvents: (events) => {
+                if (this.closed) return;
+                for (const event of events) {
+                    const path = this.pathForWatcherEvent(watchedDirectory, event.path);
+                    if (path) this.scheduleExternalChange(path);
+                }
+            },
+            onError: (error) => {
+                if (this.closed) return;
+                this.emitWatcherError(
+                    error instanceof Error
+                        ? error
+                        : new Error(errorMessage(error, 'unknown watcher error')),
+                );
+            },
             /**
              * Polling three known files avoids consuming another OS watcher when global FSEvents capacity is exhausted.
              */
-            const timer = setInterval(() => {
-                for (const path of [this.settingsPath, this.keybindingsPath, this.themePath]) {
-                    // `setInterval`'s callback is synchronous, so this cannot become `await`;
-                    // `onExternalChange` already logs its own failures via `recordConfigurationError`.
-                    // eslint-disable-next-line unicorn/prefer-await -- sync timer callback, see comment above
-                    this.onExternalChange(path).catch((error: unknown) =>
-                        this.logger?.write('error', 'configuration.poll_change_failed', {
-                            fields: { path, error: errorMessage(error, 'unknown') },
-                        }),
-                    );
-                }
-            }, this.fallbackPollIntervalMs);
-            timer.unref();
-            this.watcher = {
-                unsubscribe: () => {
-                    clearInterval(timer);
-                    return Promise.resolve();
-                },
-            };
-            selectedBackend = 'poll';
-            this.logger?.write('warn', 'configuration.watcher.fallback', {
-                fields: {
-                    backend,
-                    error: errorMessage(error, 'unknown watcher error'),
-                },
-            });
-        }
+            fallback: {
+                intervalMs: this.fallbackPollIntervalMs,
+                pollOnce: () => this.pollConfigSourcesOnce(),
+            },
+        });
         this.logger?.write('info', 'configuration.watcher.ready', {
             durationMs: performance.now() - startedAt,
-            fields: { backend: selectedBackend },
+            fields: { backend: this.watchHandle.mode },
         });
     }
 
@@ -638,8 +637,9 @@ export class ConfigService {
         for (const timer of this.watchTimers.values()) clearTimeout(timer);
         this.watchTimers.clear();
         this.settingsListeners.clear();
-        const watcher = this.watcher;
-        this.watcher = undefined;
-        await watcher?.unsubscribe();
+        const handle = this.watchHandle;
+        this.watchHandle = undefined;
+        await handle?.dispose();
+        if (this.ownsWatchHub) await this.watchHub.close();
     }
 }

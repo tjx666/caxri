@@ -7,6 +7,7 @@ import { CaxriDatabase } from './db';
 import { FileService } from './files';
 import { GitService } from './git';
 import { ProjectRootResolver } from './project-roots';
+import { WatchHub } from './watch-hub';
 import { WorkbenchRootService } from './workbench-roots';
 
 /**
@@ -42,11 +43,19 @@ export async function createRootServices({ logger, send, userDataPath }: Runtime
                 fields: { reason, sessionId, stateVersion },
             }),
     });
-    const config = new ConfigService(userDataPath, send, logger);
+    /**
+     * One Runtime-wide watch registry: every filesystem watcher and intentional poller registers here so listener
+     * count, polling degradations, and event rates stay centrally gated and observable (`DiagnosticsService`).
+     */
+    const watchHub = new WatchHub({ logger });
+    const config = new ConfigService(userDataPath, send, logger, { watchHub });
     await config.initialize();
     database.setAppState('activeThemeId', config.getTheme().value.id);
 
-    const git = new GitService(new ProjectRootResolver(database), logger, { emit: send });
+    const git = new GitService(new ProjectRootResolver(database), logger, {
+        emit: send,
+        watchHub,
+    });
     const workbenchRoots = new WorkbenchRootService({
         behavior: () => config.getSettings().value['workbench.newWorktreeBehavior'],
         database,
@@ -71,6 +80,7 @@ export async function createRootServices({ logger, send, userDataPath }: Runtime
                 git.ignoredEntries(sessionId, directory, names),
             fileTreeExcludes: () => config.getSettings().value['files.exclude'],
             mutationJournalPath: join(userDataPath, 'file-operations.json'),
+            watchHub,
             // onRootUnavailable is a synchronous callback, so this cannot become await.
             onRootUnavailable: (sessionId) =>
                 // eslint-disable-next-line unicorn/prefer-await -- sync callback signature
@@ -89,6 +99,7 @@ export async function createRootServices({ logger, send, userDataPath }: Runtime
         database,
         files,
         git,
+        watchHub,
         workbenchRoots,
     };
 }
