@@ -54,7 +54,7 @@ function SettingsDialogView(controller: SettingsDialogController) {
                         Changes apply immediately and are stored as editable files.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="flex border-b border-border">
+                <div className="flex">
                     <ChromeTabs
                         ariaLabel="Settings sections"
                         className="flex flex-1"

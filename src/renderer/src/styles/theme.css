@@ -83,16 +83,3 @@ body,
 body {
     font-size: 13px;
 }
-
-button,
-input,
-textarea,
-select {
-    font: inherit;
-}
-
-@layer base {
-    button {
-        color: inherit;
-    }
-}

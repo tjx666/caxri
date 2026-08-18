@@ -180,7 +180,7 @@ export function ProjectSidebar() {
     return (
         <aside className="session-sidebar flex min-w-0 flex-col bg-surface">
             <div
-                className={`sidebar-title flex h-11 items-center border-b border-border py-0 pr-2 font-semibold ${isFullScreen ? 'pl-3' : 'pl-[84px]'}`}
+                className={`sidebar-title flex h-11 items-center py-0 pr-2 font-semibold ${isFullScreen ? 'pl-3' : 'pl-[84px]'}`}
                 style={{ WebkitAppRegion: 'drag' } as CSSProperties}
             >
                 {isFullScreen && (

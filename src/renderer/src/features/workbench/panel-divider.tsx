@@ -9,14 +9,17 @@ import { PANEL_RESIZE_STEP } from '../../stores/panel-layout';
 const DRAG_CLASS = 'panel-resize-active';
 
 /**
- * A hairline sits centered in a wider invisible hit area so a 6px column stays comfortable to grab without widening the
- * visible seam. Hover/focus/drag states use a foreground tint, never `--accent` — the divider is chrome, not the one
- * focus indicator (DESIGN.md "One accent focus per screen").
+ * The seam is invisible at rest — like VS Code's unset `sideBar.border`, the adjacent `bg-surface`/`bg-background` step
+ * alone marks the boundary — while a 6px hit column stays comfortable to grab. The column paints `bg-surface` (not
+ * transparent): the grid behind it is `bg-background`, which would otherwise show through as a light stripe where both
+ * neighbors are surface-colored chrome (Sidebar title beside the tab strip). Hover/focus/drag reveal a centered
+ * hairline using a foreground tint, never `--accent` — the divider is chrome, not the one focus indicator (DESIGN.md
+ * "One accent focus per screen").
  */
 const dividerClassName =
-    'panel-divider relative w-1.5 min-w-1.5 bg-transparent cursor-col-resize touch-none ' +
+    'panel-divider relative w-1.5 min-w-1.5 bg-surface cursor-col-resize touch-none ' +
     "after:content-[''] after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 " +
-    'after:bg-border after:pointer-events-none ' +
+    'after:bg-transparent after:pointer-events-none ' +
     'hover:after:w-[3px] hover:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
     'data-[dragging=true]:after:w-[3px] data-[dragging=true]:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
     'focus-visible:outline-none focus-visible:after:w-[3px] ' +
