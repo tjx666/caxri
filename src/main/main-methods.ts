@@ -9,6 +9,7 @@ import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
     deleteProjectPrompt,
     deleteSessionPrompt,
+    discardGitChangesPrompt,
     externalLinkChoice,
     externalLinkPrompt,
     trashPrompt,
@@ -176,6 +177,14 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return !path || result.canceled
                     ? null
                     : supervisor.request('theme.importPath', { path });
+            }
+            case 'git.discard': {
+                const result = await dialog.showMessageBox(
+                    mainWindow!,
+                    discardGitChangesPrompt(request.params),
+                );
+                if (result.response !== 0) return { canceled: true };
+                return supervisor.request('git.discard', request.params);
             }
             case 'editor.confirmDiscard': {
                 const result = await dialog.showMessageBox(

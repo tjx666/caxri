@@ -72,8 +72,19 @@
                 // Runtime domains deliberately expose index.ts boundaries. Cross-domain consumers
                 // must import those roots instead of reaching into implementation modules; the
                 // structure contract enforces this architecture rule.
-                "files": ["src/runtime/bootstrap.ts", "src/runtime/terminal/index.ts"],
+                "files": [
+                    "src/runtime/bootstrap-service-handlers.ts",
+                    "src/runtime/bootstrap.ts",
+                    "src/runtime/terminal/index.ts",
+                ],
                 "rules": ["react-doctor/no-barrel-import"],
+            },
+            {
+                // Vendored VS Code codicon paths keep the upstream repository's exact coordinates
+                // (CC BY 4.0, licenses/VSCODE_CODICONS_LICENSE.txt) so the assets stay auditable
+                // against their source instead of being re-rounded per icon.
+                "files": ["src/renderer/src/icons/codicons/**"],
+                "rules": ["react-doctor/rendering-svg-precision"],
             },
         ],
     },

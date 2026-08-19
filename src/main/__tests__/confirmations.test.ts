@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     deleteProjectPrompt,
     deleteSessionPrompt,
+    discardGitChangesPrompt,
     externalLinkChoice,
     externalLinkPrompt,
     trashPrompt,
@@ -98,6 +99,50 @@ describe('delete prompts', () => {
     ])('warns about %i running Terminals with matching plural', (count, message) => {
         expect(deleteProjectPrompt('caxri', count).message).toBe(message);
         expect(deleteSessionPrompt('caxri', count).message).toBe(message);
+    });
+});
+
+describe('discard Git changes prompt', () => {
+    it.each([
+        [1, "Discard all changes in 1 file in 'caxri'?"],
+        [3, "Discard all changes in 3 files in 'caxri'?"],
+    ])(
+        'names the file count and repository with matching plural for %i files',
+        (fileCount, message) => {
+            const options = discardGitChangesPrompt({
+                repositoryName: 'caxri',
+                scope: { kind: 'all', fileCount },
+            });
+            expect(options.message).toBe(message);
+            expect(options.buttons).toEqual(['Discard All Changes', 'Cancel']);
+            expect(options.defaultId).toBe(1);
+            expect(options.cancelId).toBe(1);
+        },
+    );
+
+    it('names the tracked file and offers to discard its changes', () => {
+        const options = discardGitChangesPrompt({
+            repositoryName: 'caxri',
+            scope: { kind: 'file', path: 'src/index.ts', untracked: false },
+        });
+        expect(options.message).toBe("Discard changes in 'src/index.ts'?");
+        expect(options.buttons).toEqual(['Discard Changes', 'Cancel']);
+        expect(options.buttons![options.defaultId!]).toBe('Cancel');
+        expect(options.buttons![options.cancelId!]).toBe('Cancel');
+    });
+
+    /**
+     * An untracked file has no committed state to restore to, so discarding it is a permanent delete and the copy must
+     * say so instead of reusing the "restored" wording used for tracked files.
+     */
+    it('warns about permanent deletion for an untracked file', () => {
+        const options = discardGitChangesPrompt({
+            repositoryName: 'caxri',
+            scope: { kind: 'file', path: 'new-file.ts', untracked: true },
+        });
+        expect(options.message).toBe("Delete 'new-file.ts'?");
+        expect(options.buttons).toEqual(['Delete File', 'Cancel']);
+        expect(options.detail).toContain('permanently deleted');
     });
 });
 
