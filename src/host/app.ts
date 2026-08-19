@@ -578,6 +578,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             },
             desktopCredential: lease.desktopCredential,
             invokeDesktopRuntime: (request) => forwardRuntime(request),
+            logger,
             manifest: lease.manifest,
             onClientCountChanged: (clientCount) =>
                 logger.write('info', 'host.client_count', { fields: { clientCount } }),
