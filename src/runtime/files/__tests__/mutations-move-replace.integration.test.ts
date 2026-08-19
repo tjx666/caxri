@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
@@ -79,12 +79,16 @@ describe('FileMutationService move replace mode', () => {
         });
         await expect(readFile(target, 'utf8')).resolves.toBe('replacement');
         await expect(access(source)).rejects.toThrow();
-        const moveLogs = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
-            .trim()
-            .split('\n')
-            .map((line) => JSON.parse(line) as unknown as Record<string, unknown>)
-            .filter((record) => record.event === 'file.moved');
-        expect(moveLogs.at(-1)?.fields).toMatchObject({ replaced: true });
+        // The logger now drains writes asynchronously, so poll the log file instead of reading
+        // it once: the `file.moved` record may not be flushed to disk yet.
+        await vi.waitFor(async () => {
+            const moveLogs = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as unknown as Record<string, unknown>)
+                .filter((record) => record.event === 'file.moved');
+            expect(moveLogs.at(-1)?.fields).toMatchObject({ replaced: true });
+        });
     });
 
     it('moves into an empty slot without claiming a replacement happened', async () => {
@@ -103,12 +107,16 @@ describe('FileMutationService move replace mode', () => {
         });
 
         expect(moved.path).toBe(join(destination, 'source.txt'));
-        const moveLogs = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
-            .trim()
-            .split('\n')
-            .map((line) => JSON.parse(line) as unknown as Record<string, unknown>)
-            .filter((record) => record.event === 'file.moved');
-        expect(moveLogs.at(-1)?.fields).not.toHaveProperty('replaced');
+        // The logger now drains writes asynchronously, so poll the log file instead of reading
+        // it once: the `file.moved` record may not be flushed to disk yet.
+        await vi.waitFor(async () => {
+            const moveLogs = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as unknown as Record<string, unknown>)
+                .filter((record) => record.event === 'file.moved');
+            expect(moveLogs.at(-1)?.fields).not.toHaveProperty('replaced');
+        });
     });
 
     it('refuses a directory target and leaves both sides untouched', async () => {

@@ -128,14 +128,34 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         if (!runtimePid) throw new Error('Caxri Runtime process was not found');
         const { stdout: openFiles } = await execFileAsync('lsof', ['-p', String(runtimePid)]);
         const runtimeOpenDescriptors = openFiles.split('\n').filter(Boolean).length - 1;
-        const records = (await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8'))
-            .split('\n')
-            .filter(Boolean)
-            .map((line) => JSON.parse(line) as PerformanceLog);
-        const mainRecords = (await readFile(join(userData, 'logs', 'main.jsonl'), 'utf8'))
-            .split('\n')
-            .filter(Boolean)
-            .map((line) => JSON.parse(line) as PerformanceLog);
+        // The logger now drains writes asynchronously, so poll the log files instead of reading
+        // them once: the final `git.summary`/`window.ready_to_show` records may not be flushed
+        // to disk yet. Keep polling until both are present, then read the settled records below.
+        let records: PerformanceLog[] = [];
+        let mainRecords: PerformanceLog[] = [];
+        await expect
+            .poll(
+                async () => {
+                    records = (await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8'))
+                        .split('\n')
+                        .filter(Boolean)
+                        .map((line) => JSON.parse(line) as PerformanceLog);
+                    mainRecords = (await readFile(join(userData, 'logs', 'main.jsonl'), 'utf8'))
+                        .split('\n')
+                        .filter(Boolean)
+                        .map((line) => JSON.parse(line) as PerformanceLog);
+                    return (
+                        mainRecords.some((record) => record.event === 'window.ready_to_show') &&
+                        records.some(
+                            (record) =>
+                                record.event === 'git.summary' &&
+                                record.fields?.outcome === 'fresh',
+                        )
+                    );
+                },
+                { timeout: 10_000 },
+            )
+            .toBe(true);
         const watcherReady = records.findLast((record) => record.event === 'watcher.ready');
         const watcherFallbacks = records.filter(
             (record) => record.event === 'watcher.fallback',

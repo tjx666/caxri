@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../../shared/ipc';
 import { StructuredLogger } from '../../../shared/node/logger';
@@ -52,24 +52,28 @@ describe('TerminalManager process integration', () => {
         expect(database.getSnapshot(created.terminal!.id)?.payload).toContain(
             'CAXRI_INTEGRATION_OK',
         );
-        const records = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
-            .trim()
-            .split('\n')
-            .map(
-                (line) =>
-                    JSON.parse(line) as {
-                        event: string;
-                        durationMs?: number;
-                        fields?: { inputBytes?: number };
-                    },
+        // The logger now drains writes asynchronously, so poll the log file instead of reading
+        // it once: the `pty.spawned`/`pty.throughput` records may not be flushed to disk yet.
+        await vi.waitFor(async () => {
+            const records = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
+                .trim()
+                .split('\n')
+                .map(
+                    (line) =>
+                        JSON.parse(line) as {
+                            event: string;
+                            durationMs?: number;
+                            fields?: { inputBytes?: number };
+                        },
+                );
+            expect(records.filter((record) => record.event === 'pty.spawned')).toHaveLength(1);
+            expect(records.find((record) => record.event === 'pty.spawned')?.durationMs).toBeTypeOf(
+                'number',
             );
-        expect(records.filter((record) => record.event === 'pty.spawned')).toHaveLength(1);
-        expect(records.find((record) => record.event === 'pty.spawned')?.durationMs).toBeTypeOf(
-            'number',
-        );
-        expect(
-            records.find((record) => record.event === 'pty.throughput')?.fields?.inputBytes,
-        ).toBeGreaterThan(0);
+            expect(
+                records.find((record) => record.event === 'pty.throughput')?.fields?.inputBytes,
+            ).toBeGreaterThan(0);
+        });
         database.close();
     });
 
