@@ -676,6 +676,15 @@ test('switching Sessions discards expanded file-tree state from the previous roo
             running.page.getByRole('treeitem', { name: 'second.txt', exact: true }),
         ).toBeVisible();
 
+        // The logger now drains writes asynchronously, so first poll for a `file.list` record
+        // (emitted while listing the second root above) to prove the log has been flushed to
+        // disk, then assert the symlink-rejection message is absent.
+        await expect
+            .poll(async () => {
+                const contents = await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8');
+                return contents.includes('"event":"file.list"');
+            })
+            .toBe(true);
         expect(await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8')).not.toContain(
             'Symlink target is outside the Project root',
         );

@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { appendFileSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
-import { appendFile, mkdir, rename, rm } from 'node:fs/promises';
+import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -178,7 +178,13 @@ export class StructuredLogger {
             this.pendingBytes -= batch.byteCount;
         };
         try {
-            await this.rotateIfNeeded(batch.byteCount);
+            /**
+             * Rotation is deliberately synchronous even on the async path: it is a rare (per-5MiB) pair of rename/rm
+             * calls, and an `await` window between the rotate decision and its execution would let a concurrent
+             * `flushSync` append to the not-yet-rotated file and permanently drift `bytesWritten`.
+             */
+            // oxlint-disable-next-line node/no-sync -- deliberate: rotation must be atomic with its decision, see above.
+            this.rotateIfNeededSync(batch.byteCount);
             await appendFile(this.path, batch.text, { encoding: 'utf8', mode: 0o600 });
         } catch (error) {
             /**
@@ -239,18 +245,6 @@ export class StructuredLogger {
      * Rotation must complete before the append that would overflow. Rotation failures other than a missing source
      * propagate — silently appending past the cap would grow without bound.
      */
-    private async rotateIfNeeded(incomingBytes: number): Promise<void> {
-        if (this.bytesWritten + incomingBytes <= MAX_LOG_BYTES) return;
-        this.bytesWritten = 0;
-        const rotatedPath = `${this.path}.1`;
-        await rm(rotatedPath, { force: true });
-        try {
-            await rename(this.path, rotatedPath);
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        }
-    }
-
     private rotateIfNeededSync(incomingBytes: number): void {
         if (this.bytesWritten + incomingBytes <= MAX_LOG_BYTES) return;
         this.bytesWritten = 0;
@@ -296,11 +290,14 @@ export class StructuredLogger {
      * Resolves once every record enqueued before the call is on disk. For tests and graceful shutdown.
      */
     async flush(): Promise<void> {
-        while (this.drainPromise || this.hasWork()) {
-            this.scheduleDrain();
-            // eslint-disable-next-line no-await-in-loop -- intentionally sequential: each pass awaits the current drain.
-            await this.drainPromise;
-        }
+        if (!this.drainPromise && !this.hasWork()) return;
+        this.scheduleDrain();
+        await this.drainPromise;
+        /**
+         * Records enqueued while that drain ran (or a drain a concurrent caller started) still need a pass; recursion
+         * depth is bounded by the number of interleaving writers, not queue size.
+         */
+        return this.flush();
     }
 
     /**
@@ -313,9 +310,16 @@ export class StructuredLogger {
     flushSync(): void {
         const batch = this.composeBatch();
         if (!batch) return;
-        this.generation += 1;
-        this.pendingLines = [];
-        this.pendingBytes = 0;
+        /**
+         * Settle only after the append lands (mirroring `drainOnce`): a non-ENOENT failure below propagates with the
+         * batch still queued, so the async drain gets its own shot at it instead of the records silently vanishing. The
+         * ENOENT retry failing adopts the drain path's drop semantics.
+         */
+        const settleBatch = (): void => {
+            this.generation += 1;
+            this.pendingLines = [];
+            this.pendingBytes = 0;
+        };
         // oxlint-disable-next-line node/no-sync -- deliberate: crash/exit path must not await.
         this.rotateIfNeededSync(batch.byteCount);
         try {
@@ -329,9 +333,11 @@ export class StructuredLogger {
                 // oxlint-disable-next-line node/no-sync -- deliberate: crash/exit path must not await.
                 appendFileSync(this.path, batch.text, { encoding: 'utf8', mode: 0o600 });
             } catch {
+                settleBatch();
                 return;
             }
         }
         this.bytesWritten += batch.byteCount;
+        settleBatch();
     }
 }
