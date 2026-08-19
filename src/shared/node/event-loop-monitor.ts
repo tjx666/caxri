@@ -16,8 +16,8 @@ export const EVENT_LOOP_STALL_EVENT = 'process.event_loop_stall';
  * Default probe cadence and reporting threshold: a stall is only interesting once it is long enough to make IPC feel
  * unresponsive, and the 500ms probe keeps the monitor itself invisible in profiles.
  */
-export const EVENT_LOOP_MONITOR_INTERVAL_MS = 500;
-export const EVENT_LOOP_STALL_WARN_MS = 250;
+const EVENT_LOOP_MONITOR_INTERVAL_MS = 500;
+const EVENT_LOOP_STALL_WARN_MS = 250;
 /**
  * A stall this many times the warn threshold escalates to `error` — at that point requests are visibly timing out.
  */

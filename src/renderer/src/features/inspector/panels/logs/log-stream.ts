@@ -11,7 +11,7 @@ export interface LogStreamState {
     gap: boolean;
 }
 
-export const MAX_STREAM_RECORDS = 2_000;
+const MAX_STREAM_RECORDS = 2_000;
 
 export const emptyLogStream: LogStreamState = { records: [], gap: false };
 
