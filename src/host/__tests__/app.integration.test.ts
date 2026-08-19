@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { connectToHost, HostClient } from '../../../packages/cli/src/host';
 import type { HostManifest } from '../../../packages/protocol/src';
@@ -505,6 +505,13 @@ describe('Headless Host application', () => {
             reply: { id: 'close-agent', ok: true },
         });
         await expect(agent.request('agent.context')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        // The logger now drains writes asynchronously, so first poll for the sentinel
+        // `terminal.human_steer` record (emitted by the `operator.request('terminal.send', ...)`
+        // above) to prove the log has been flushed to disk, then assert the token is absent.
+        await vi.waitFor(async () => {
+            const contents = await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8');
+            expect(contents).toContain('terminal.human_steer');
+        });
         expect(await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8')).not.toContain(
             endpoint.token,
         );
@@ -602,6 +609,13 @@ describe('Headless Host application', () => {
         const confirmed = await second.request('host.stop', { confirmLivePtys: true });
         expect(confirmed).toMatchObject({ stopping: true, activePtyCount: 1 });
         await waitForRemoval(app.lease.paths.manifest);
+        // The logger now drains writes asynchronously, so first poll for the sentinel
+        // `host.stopped` record (emitted at the end of the `stop()` flow above) to prove the
+        // log has been flushed to disk, then assert the token is absent.
+        await vi.waitFor(async () => {
+            const contents = await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8');
+            expect(contents).toContain('host.stopped');
+        });
         expect(await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8')).not.toContain(
             app.lease.manifest.operatorToken,
         );

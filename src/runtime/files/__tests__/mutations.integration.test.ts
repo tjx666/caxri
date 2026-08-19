@@ -214,13 +214,17 @@ describe('FileMutationService', () => {
         await Promise.all([chmod(folder, 0o755), chmod(copiedFolder.path, 0o755)]);
         expect(copiedFolderMode).toBe(0o555);
         expect(copiedFileMode).toBe(0o744);
-        const copyLogs = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
-            .trim()
-            .split('\n')
-            .map((line) => JSON.parse(line) as unknown as Record<string, unknown>)
-            .filter((record) => record.event === 'file.copied');
-        expect(typeof copyLogs.at(-1)?.durationMs).toBe('number');
-        expect(copyLogs.at(-1)?.fields).toMatchObject({ entryCount: 2, totalBytes: 6 });
+        // The logger now drains writes asynchronously, so poll the log file instead of reading
+        // it once: the `file.copied` record may not be flushed to disk yet.
+        await vi.waitFor(async () => {
+            const copyLogs = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as unknown as Record<string, unknown>)
+                .filter((record) => record.event === 'file.copied');
+            expect(typeof copyLogs.at(-1)?.durationMs).toBe('number');
+            expect(copyLogs.at(-1)?.fields).toMatchObject({ entryCount: 2, totalBytes: 6 });
+        });
 
         await writeFile(join(destination, 'note.txt'), 'existing', 'utf8');
         const moved = await service.move({
