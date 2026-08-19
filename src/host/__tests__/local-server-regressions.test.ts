@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { HostClient } from '../../../packages/cli/src/host';
 import type { CommandAdapter } from '../../shared/ipc/dispatcher';
+import { CaxriError } from '../../shared/ipc/errors';
 import { localServerWelcomeSchema } from '../../shared/ipc/local-transport';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import { LocalHostServer } from '../local-server';
@@ -249,5 +250,80 @@ describe('local Host transport regressions', () => {
             type: 'reply',
             reply: { id: 'health-after-renewal' },
         });
+    });
+
+    it('logs per-request outcomes and escalates ordered-queue head-of-line blocking to warn', async () => {
+        const lease = await profile();
+        let healthCalls = 0;
+        const host: CommandAdapter = {
+            invoke: async (request) => {
+                if (request.method !== 'app.health') return null;
+                healthCalls += 1;
+                if (healthCalls === 1) await new Promise((resolve) => setTimeout(resolve, 60));
+                else if (healthCalls === 3)
+                    throw new CaxriError('UNAVAILABLE', 'health probe is down');
+                return { ready: true, pid: 88, startedAt: 1, activePtyCount: 0 };
+            },
+        };
+        const written: Array<{
+            level: string;
+            event: string;
+            options?: {
+                correlationId?: string;
+                durationMs?: number;
+                fields?: Record<string, string | number | boolean | null>;
+            };
+        }> = [];
+        const server = new LocalHostServer({
+            adapters: { host },
+            desktopCredential: lease.desktopCredential,
+            logger: { write: (level, event, options) => written.push({ level, event, options }) },
+            manifest: lease.manifest,
+            requestQueueWarnMs: 20,
+            requestTotalWarnMs: 10_000,
+        });
+        await server.start();
+        await lease.publish();
+        cleanups.push(() => server.close());
+
+        const socket = await connect(lease.paths.endpoint);
+        const read = lineReader(socket);
+        socket.write(
+            `${JSON.stringify({
+                type: 'hello',
+                supportedVersions: [2],
+                profileId: lease.manifest.profileId,
+                credential: { kind: 'operator', token: lease.manifest.operatorToken },
+            })}\n`,
+        );
+        localServerWelcomeSchema.parse(await read());
+        // One write with three back-to-back commands: the first stalls the ordered queue, so the
+        // second observes queue wait and the third fails behind it.
+        socket.write(
+            command('health-slow', 'app.health', {}) +
+                command('health-queued', 'app.health', {}) +
+                command('health-failed', 'app.health', {}),
+        );
+        await read();
+        await read();
+        await read();
+
+        const slow = written.find((entry) => entry.options?.correlationId === 'health-slow');
+        expect(slow).toMatchObject({ level: 'debug', event: 'ipc.request' });
+        expect(slow?.options?.fields).toMatchObject({
+            method: 'app.health',
+            principal: 'human-cli',
+            queueDepth: 1,
+        });
+        expect(slow?.options?.durationMs).toBeGreaterThanOrEqual(50);
+
+        const queued = written.find((entry) => entry.options?.correlationId === 'health-queued');
+        expect(queued).toMatchObject({ level: 'warn', event: 'ipc.request' });
+        expect(queued?.options?.fields?.queueMs).toBeGreaterThan(20);
+        expect(queued?.options?.fields?.queueDepth).toBe(2);
+
+        const failed = written.find((entry) => entry.options?.correlationId === 'health-failed');
+        expect(failed).toMatchObject({ level: 'warn', event: 'ipc.request_failed' });
+        expect(failed?.options?.fields).toMatchObject({ code: 'UNAVAILABLE' });
     });
 });

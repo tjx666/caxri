@@ -169,6 +169,8 @@ export const logQueryParametersSchema = z
         since: z.iso.datetime().optional(),
     })
     .default({ limit: 50 });
+const logFieldKeySchema = z.string().max(200);
+const logFieldValueSchema = z.union([z.string().max(4_096), z.number(), z.boolean(), z.null()]);
 export const logQueryRecordSchema = z.object({
     id: identifierSchema,
     timestamp: z.iso.datetime(),
@@ -177,6 +179,11 @@ export const logQueryRecordSchema = z.object({
     event: z.string().min(1).max(200),
     correlationId: z.string().min(1).max(200).optional(),
     durationMs: z.number().nonnegative().optional(),
+    /**
+     * Structured detail fields as written by the logger (already secret-redacted at write time by `safeFields`).
+     * Bounded so a pathological line cannot inflate a query reply.
+     */
+    fields: z.record(logFieldKeySchema, logFieldValueSchema).optional(),
 });
 export const logQueryResultSchema = z.object({
     records: z.array(logQueryRecordSchema).max(100),
@@ -302,3 +309,5 @@ export type SettingsPatchResult = z.infer<typeof settingsPatchResultSchema>;
 export type LogQueryParams = z.infer<typeof logQueryParametersSchema>;
 export type LogQueryRecord = z.infer<typeof logQueryRecordSchema>;
 export type LogQueryResult = z.infer<typeof logQueryResultSchema>;
+export type LogLevel = z.infer<typeof logLevelSchema>;
+export type LogProcess = z.infer<typeof logProcessSchema>;

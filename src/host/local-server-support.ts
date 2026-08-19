@@ -16,6 +16,7 @@ import type { RuntimeRequest } from '../shared/ipc/methods';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
 import type { CommandReplyEnvelope } from '../shared/ipc/transport';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+import type { LogRecord } from '../shared/node/logger';
 
 export const MAX_IN_FLIGHT_REQUESTS = 64;
 /**
@@ -25,6 +26,28 @@ export const MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS = 48;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
 export const DESKTOP_LEASE_MS = 60_000;
 export const DESKTOP_COMMAND_TIMEOUT_MS = 15_000;
+
+/**
+ * Ordered-queue wait above this threshold escalates the per-request log to `warn`: it is the direct signature of
+ * head-of-line blocking on the per-connection command queue, which the default `info` log level must surface.
+ */
+export const REQUEST_QUEUE_WARN_MS = 1_000;
+/**
+ * Queue wait plus handler time above this threshold also escalates to `warn`; the Desktop client gives up at 15s, so a
+ * request this slow is about to become a user-visible timeout.
+ */
+export const REQUEST_TOTAL_WARN_MS = 5_000;
+
+/**
+ * Structural subset of `StructuredLogger` so tests can observe per-request log writes without touching the filesystem.
+ */
+interface HostRequestLogSink {
+    write(
+        level: LogRecord['level'],
+        event: string,
+        options?: Pick<LogRecord, 'correlationId' | 'durationMs' | 'fields'>,
+    ): void;
+}
 
 export function fileSystemCode(error: unknown): string | undefined {
     return typeof error === 'object' && error !== null && 'code' in error
@@ -124,7 +147,17 @@ export interface LocalHostServerOptions {
      * Test seam for exercising lease expiry without a minute-long integration test.
      */
     desktopLeaseDurationMs?: number;
+    /**
+     * Test seams for exercising slow-request log escalation without second-long integration tests.
+     */
+    requestQueueWarnMs?: number;
+    requestTotalWarnMs?: number;
     invokeDesktopRuntime?(request: RuntimeRequest): Promise<unknown>;
+    /**
+     * Per-request outcome log: success at `debug`, failures and slow/queued requests at `warn`. PTY hot-path methods
+     * stay unlogged, matching the Runtime dispatcher.
+     */
+    logger?: HostRequestLogSink;
     manifest: HostManifest;
     onClientCountChanged?(count: number): void;
     onDesktopUnavailable?(): void;

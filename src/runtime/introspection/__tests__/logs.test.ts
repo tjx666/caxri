@@ -44,11 +44,19 @@ describe('bounded structured log queries', () => {
                 level: 'error',
                 event: 'ipc.request_failed',
                 correlationId: 'request-1',
+                fields: { prompt: 'private prompt' },
             }),
         ]);
-        expect(JSON.stringify(result)).not.toContain('fields');
-        expect(JSON.stringify(result)).not.toContain('secret-sentinel');
         expect(result.nextCursor).toBeTruthy();
+
+        // Structured fields surface for the log viewer, but a line written outside `StructuredLogger` still gets the
+        // same secret redaction applied at read time.
+        const infoResult = await new LogQueryService(directory).query({ level: 'info', limit: 10 });
+        expect(infoResult.records[0]?.fields).toEqual({
+            source: 'private.ts',
+            token: '[REDACTED]',
+        });
+        expect(JSON.stringify(infoResult)).not.toContain('secret-sentinel');
     });
 
     it('reports a gap for a cursor older than the bounded readable suffix', async () => {
