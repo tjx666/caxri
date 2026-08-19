@@ -43,9 +43,22 @@ function formatLogTime(timestamp: string): string {
     return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
 }
 
-function LogRow({ record, expanded }: { record: LogQueryRecord; expanded: boolean }) {
+function LogRow({
+    record,
+    expanded,
+    onToggle,
+}: {
+    record: LogQueryRecord;
+    expanded: boolean;
+    onToggle(): void;
+}) {
     return (
-        <div className="border-b border-border/50 px-2 py-0.5 font-mono text-[11px] leading-4 hover:bg-elevated">
+        <button
+            type="button"
+            aria-expanded={expanded}
+            className="block w-full cursor-pointer border-0 border-b border-b-border/50 bg-transparent px-2 py-0.5 text-left font-mono text-[11px] leading-4 text-inherit hover:bg-elevated"
+            onClick={onToggle}
+        >
             <div className={cn('flex gap-1.5', !expanded && 'overflow-hidden')}>
                 <span className="flex-none text-muted">{formatLogTime(record.timestamp)}</span>
                 <span className="flex-none text-muted">{record.process}</span>
@@ -66,7 +79,7 @@ function LogRow({ record, expanded }: { record: LogQueryRecord; expanded: boolea
                         : 'No detail fields.'}
                 </div>
             )}
-        </div>
+        </button>
     );
 }
 
@@ -87,15 +100,13 @@ export function LogViewerPanel() {
     const stream = useLogStream(process);
 
     const filter = useMemo(() => parseLogFilter(filterText), [filterText]);
-    const visible = useMemo(
-        () =>
-            stream.records.filter(
-                (record) =>
-                    activeLevels.includes(record.level) &&
-                    isLogFilterMatch(logRecordHaystack(record), filter),
-            ),
-        [stream.records, activeLevels, filter],
-    );
+    const visible = useMemo(() => {
+        const levels = new Set(activeLevels);
+        return stream.records.filter(
+            (record) =>
+                levels.has(record.level) && isLogFilterMatch(logRecordHaystack(record), filter),
+        );
+    }, [stream.records, activeLevels, filter]);
 
     // TanStack Virtual is knowingly incompatible with React Compiler memoization; the compiler
     // skips this component, which is the library's documented, expected behavior.
@@ -199,15 +210,18 @@ export function LogViewerPanel() {
                                     key={item.key}
                                     ref={virtualizer.measureElement}
                                     data-index={item.index}
-                                    className="absolute top-0 left-0 w-full cursor-pointer"
+                                    className="absolute top-0 left-0 w-full"
                                     style={{ transform: `translateY(${item.start}px)` }}
-                                    onClick={() =>
-                                        setExpandedId((current) =>
-                                            current === record.id ? undefined : record.id,
-                                        )
-                                    }
                                 >
-                                    <LogRow record={record} expanded={expandedId === record.id} />
+                                    <LogRow
+                                        record={record}
+                                        expanded={expandedId === record.id}
+                                        onToggle={() =>
+                                            setExpandedId((current) =>
+                                                current === record.id ? undefined : record.id,
+                                            )
+                                        }
+                                    />
                                 </div>
                             );
                         })}
