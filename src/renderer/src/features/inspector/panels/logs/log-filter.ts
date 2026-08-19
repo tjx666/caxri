@@ -32,10 +32,12 @@ export function parseLogFilter(text: string): ParsedLogFilter {
     for (const rawPart of splitOutsideQuotes(text)) {
         const part = rawPart.trim().toLowerCase();
         if (!part) continue;
-        // The `!` operator is only recognized outside quotes; quotes are stripped after the operator check so
-        // `"!literal"` searches for a literal exclamation mark.
+        // The `!` operator is only recognized outside quotes; only one wrapping quote pair is stripped, after the
+        // operator check, so `"!literal"` searches a literal exclamation mark and interior quotes stay searchable
+        // (e.g. a `"key":"value"` pattern copied from an expanded row).
         const isExclude = part.startsWith('!');
-        const pattern = (isExclude ? part.slice(1) : part).trim().replaceAll('"', '');
+        const body = (isExclude ? part.slice(1) : part).trim();
+        const pattern = /^"(?<inner>.*)"$/su.exec(body)?.groups?.inner ?? body;
         if (!pattern) continue;
         if (isExclude) excludes.push(pattern);
         else includes.push(pattern);
@@ -45,7 +47,8 @@ export function parseLogFilter(text: string): ParsedLogFilter {
 
 /**
  * The lowercased searchable projection of a record: timestamp, process, level, event, correlation ID, and the
- * stringified structured fields.
+ * structured fields. Fields use the same pretty-printed JSON the expanded row displays, so a pattern copy-pasted from
+ * the screen (e.g. `"key": "value"`) matches.
  */
 export function logRecordHaystack(record: LogQueryRecord): string {
     const parts = [
@@ -54,7 +57,7 @@ export function logRecordHaystack(record: LogQueryRecord): string {
         record.level,
         record.event,
         record.correlationId ?? '',
-        record.fields ? JSON.stringify(record.fields) : '',
+        record.fields ? JSON.stringify(record.fields, undefined, 2) : '',
     ];
     return parts.join(' ').toLowerCase();
 }

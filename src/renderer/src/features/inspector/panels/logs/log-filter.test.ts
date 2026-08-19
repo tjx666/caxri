@@ -39,6 +39,14 @@ describe('VS Code-style log text filter', () => {
         expect(isLogFilterMatch(logRecordHaystack(record), parseLogFilter('!missing'))).toBe(true);
     });
 
+    it('matches a quoted pattern copy-pasted from the expanded fields JSON', () => {
+        // Only the wrapping quote pair is stripped; interior quotes stay searchable, and the haystack uses the same
+        // pretty-printed JSON the expanded row renders.
+        const filter = parseLogFilter('"method": "terminal.attach"');
+        expect(filter).toEqual({ includes: ['method": "terminal.attach'], excludes: [] });
+        expect(isLogFilterMatch(logRecordHaystack(record), filter)).toBe(true);
+    });
+
     it('searches structured fields and the correlation id', () => {
         expect(isLogFilterMatch(logRecordHaystack(record), parseLogFilter('queuems'))).toBe(true);
         expect(isLogFilterMatch(logRecordHaystack(record), parseLogFilter('request-7'))).toBe(true);
