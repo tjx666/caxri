@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -48,7 +49,9 @@ describe('StructuredLogger', () => {
             logger.write('info', 'buffered');
             // Regression for issue #237: the sync logger's appendFileSync per record froze the
             // event loop whenever the disk stalled; write() must now enqueue without touching fs.
-            await expect(readFile(logger.path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+            // Checked synchronously — awaiting a read would race the async drain, which may land
+            // the record before the read resolves.
+            expect(existsSync(logger.path)).toBe(false);
             await logger.flush();
             expect(await readFile(logger.path, 'utf8')).toContain('buffered');
         } finally {
