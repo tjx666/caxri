@@ -305,3 +305,32 @@ describe('Workbench Root Authority delegation', () => {
         });
     });
 });
+
+describe('git.discard', () => {
+    const parameters = {
+        sessionId: 'session-1',
+        repositoryId: 'repo-1',
+        repositoryName: 'project',
+        scope: { kind: 'file', path: 'tracked.txt', untracked: false },
+    } as const;
+
+    it('returns canceled without forwarding when the confirmation is dismissed', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+        const request = requestMock({});
+        const handle = createMainMethodHandler(options({ request }));
+
+        await expect(handle({ method: 'git.discard', params: parameters })).resolves.toEqual({
+            canceled: true,
+        });
+        expect(request).not.toHaveBeenCalled();
+    });
+
+    it('forwards the discard to the Host once the destructive choice is confirmed', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const request = requestMock({ 'git.discard': () => Promise.resolve(null) });
+        const handle = createMainMethodHandler(options({ request }));
+
+        await expect(handle({ method: 'git.discard', params: parameters })).resolves.toBeNull();
+        expect(request).toHaveBeenCalledWith('git.discard', parameters);
+    });
+});

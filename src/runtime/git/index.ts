@@ -34,6 +34,7 @@ import { GitMetadataWatcher } from './metadata-watcher';
 import { GitPullRequestService } from './pull-request';
 import { computeRepoId, GitRepoService } from './repo';
 import { RepoTopologyRegistry } from './topology';
+import { GitWorkingTreeService } from './working-tree';
 
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
 const MAX_GIT_METADATA_BYTES = 4 * 1024 * 1024;
@@ -44,6 +45,11 @@ interface GitCommandOptions {
     allowFailure?: boolean;
     input?: string;
     maxBufferBytes?: number;
+    /**
+     * Override for network-bound operations (fetch/pull/push), which can legitimately outlast the 10s default that
+     * bounds local metadata commands.
+     */
+    timeoutMs?: number;
 }
 
 interface DiffTarget {
@@ -153,6 +159,7 @@ export class GitService {
     private readonly histories = new SingleFlight<string, GitCommitPage>();
     private readonly repositoryService: GitRepoService;
     private readonly blameService: GitBlameService;
+    private readonly workingTreeService: GitWorkingTreeService;
     private readonly pullRequestService: GitPullRequestService;
     private readonly topologyRegistry: RepoTopologyRegistry;
     private readonly changeTracker: GitChangeTracker;
@@ -194,6 +201,10 @@ export class GitService {
             git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
             summary: (sessionId) => this.summary(sessionId),
         });
+        this.workingTreeService = new GitWorkingTreeService({
+            git: (cwd, arguments_, options_) => this.git(cwd, arguments_, options_),
+            resolveRepository: (sessionId, repoId) => this.resolveRepository(sessionId, repoId),
+        });
     }
 
     private async git(
@@ -212,9 +223,16 @@ export class GitService {
             try {
                 const execution = execFileAsync('git', arguments_, {
                     cwd,
-                    timeout: 10_000,
+                    timeout: options.timeoutMs ?? 10_000,
                     maxBuffer: options.maxBufferBytes ?? MAX_GIT_METADATA_BYTES,
-                    env: { ...safeProcessEnvironment(), GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
+                    // GIT_TERMINAL_PROMPT=0 makes a credential-less fetch/pull/push fail fast
+                    // instead of hanging on a hidden terminal prompt until the timeout.
+                    env: {
+                        ...safeProcessEnvironment(),
+                        GIT_OPTIONAL_LOCKS: '0',
+                        GIT_TERMINAL_PROMPT: '0',
+                        LC_ALL: 'C',
+                    },
                 });
                 if (options.input !== undefined) {
                     /**
@@ -513,6 +531,14 @@ export class GitService {
         if (repo.branch !== parameters.branch)
             await this.git(repo.rootPath, ['switch', '--', parameters.branch]);
         return null;
+    }
+
+    sync(parameters: RuntimeMethodParameters<'git.sync'>): Promise<null> {
+        return this.workingTreeService.sync(parameters);
+    }
+
+    discard(parameters: RuntimeMethodParameters<'git.discard'>): Promise<null> {
+        return this.workingTreeService.discard(parameters);
     }
 
     pullRequestChanges(parameters: RuntimeMethodParameters<'git.pullRequestChanges'>) {

@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
     openEditorTab: vi.fn(),
 }));
 
-vi.mock('../../../editor/document-actions', () => ({ openEditorTab: mocks.openEditorTab }));
+vi.mock('../../../../editor/document-actions', () => ({ openEditorTab: mocks.openEditorTab }));
 
 // Real (unmocked) tab-path builders so each assertion below fails if an action ever wires the
 // wrong builder to the wrong tab-path prefix (`file` vs `changes` vs `pr-file` vs `pr-changes`),
@@ -23,7 +23,7 @@ import {
     openGitFileDiff,
     openPullRequestChangesDiff,
     openPullRequestFileDiff,
-} from './git-diff-actions';
+} from '../git-diff-actions';
 
 const COMMIT_SHA = 'a'.repeat(40);
 

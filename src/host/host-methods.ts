@@ -38,6 +38,7 @@ export const hostForwardedMethods = [
     'git.pullRequestDiffDocument',
     'git.summary',
     'git.switchBranch',
+    'git.sync',
     'keybindings.get',
     'keybindings.update',
     'logs.query',

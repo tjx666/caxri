@@ -16,6 +16,11 @@ export * from './git.js';
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
 
+/**
+ * Main returns this instead of a Runtime result when the user dismisses a confirmation dialog.
+ */
+export const canceledResultSchema = z.object({ canceled: z.literal(true) });
+
 export const agentProviderSchema = z.enum(agentProviderIds);
 const agentActivityStateSchema = z.enum([
     'running',

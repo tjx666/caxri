@@ -31,6 +31,8 @@ type ServiceHandlerMethods =
     | 'git.overview'
     | 'git.branches'
     | 'git.switchBranch'
+    | 'git.sync'
+    | 'git.discard'
     | 'git.diffDocument'
     | 'git.pullRequestChanges'
     | 'git.pullRequestDiffDocument'
@@ -116,6 +118,8 @@ export function createServiceHandlers(services: {
         'git.overview': ({ sessionId }) => git.overview(sessionId),
         'git.branches': (parameters) => git.branches(parameters),
         'git.switchBranch': (parameters) => git.switchBranch(parameters),
+        'git.sync': (parameters) => git.sync(parameters),
+        'git.discard': (parameters) => git.discard(parameters),
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),
         'git.pullRequestChanges': (parameters) => git.pullRequestChanges(parameters),
