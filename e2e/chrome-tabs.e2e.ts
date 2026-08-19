@@ -88,12 +88,14 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         const gitTab = inspectorTabs.getByRole('tab', { name: 'Git', exact: true });
         const statusTab = inspectorTabs.getByRole('tab', { name: 'Status', exact: true });
         const infoTab = inspectorTabs.getByRole('tab', { name: 'Info', exact: true });
+        const logsTab = inspectorTabs.getByRole('tab', { name: 'Logs', exact: true });
         await expect(filesTab).toHaveAttribute('aria-selected', 'true');
         await expect(filesTab).toHaveAttribute('tabindex', '0');
         await expectPanelAssociation(running.page, filesTab, true);
         await expectPanelAssociation(running.page, gitTab, false);
         await expectPanelAssociation(running.page, statusTab, false);
         await expectPanelAssociation(running.page, infoTab, false);
+        await expectPanelAssociation(running.page, logsTab, false);
         await expectIndicatorAligned(inspectorTabs, filesTab);
 
         await inspectorTabs.locator('[data-slot="chrome-tab-indicator"]').evaluate((indicator) => {
@@ -126,11 +128,11 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         await expect(statusTab).toBeFocused();
         await expect(statusTab).toHaveAttribute('aria-selected', 'true');
         await statusTab.press('End');
-        await expect(infoTab).toBeFocused();
-        await infoTab.press('Home');
+        await expect(logsTab).toBeFocused();
+        await logsTab.press('Home');
         await expect(filesTab).toBeFocused();
         await filesTab.press('ArrowLeft');
-        await expect(infoTab).toBeFocused();
+        await expect(logsTab).toBeFocused();
 
         await running.page.keyboard.press('Meta+2');
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
