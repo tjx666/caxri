@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { RuntimeEvent } from '../shared/ipc/events';
+import { startEventLoopMonitor } from '../shared/node/event-loop-monitor';
 import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 /**
@@ -60,6 +61,7 @@ await mkdir(userDataPath, { recursive: true });
 const logger = getRuntimeLogger() ?? createBootstrapLogger();
 if (!logger) throw new Error('CAXRI_LOG_DIRECTORY is required');
 processErrorMonitor.attach(logger);
+startEventLoopMonitor(logger);
 const runtime = await createRuntime({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     userDataPath,

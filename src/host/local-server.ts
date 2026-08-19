@@ -51,9 +51,20 @@ import {
     MAX_IN_FLIGHT_REQUESTS,
     MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS,
     operatorContext,
+    REQUEST_QUEUE_WARN_MS,
+    REQUEST_TOTAL_WARN_MS,
 } from './local-server-support';
 
 export type { LocalHostServerOptions } from './local-server-support';
+
+/**
+ * Enqueue metadata captured when a message enters the per-connection ordered queue. `queueDepth` counts the entries
+ * (including this one) waiting at enqueue time, so a logged depth > 1 means the request sat behind other work.
+ */
+interface OrderedQueueTiming {
+    enqueuedAt: number;
+    queueDepth: number;
+}
 
 /**
  * Authenticated, profile-scoped UDS adapter for Desktop and human CLI clients.
@@ -170,6 +181,51 @@ export class LocalHostServer {
         };
     }
 
+    /**
+     * Per-request outcome log mirroring the Runtime dispatcher (`src/runtime/dispatch.ts`), extended with the ordered
+     * queue wait: `queueMs` is the head-of-line blocking signature this log exists to surface. Success stays at `debug`
+     * so the default `info` level records only failures and slow/queued requests.
+     */
+    private logRequestOutcome(
+        request: { id: string; method: string },
+        reply: CommandReplyEnvelope,
+        context: CommandExecutionContext,
+        startedAt: number,
+        timing: OrderedQueueTiming | undefined,
+    ): void {
+        const logger = this.options.logger;
+        if (!logger) return;
+        if (request.method === 'terminal.input' || request.method === 'terminal.resize') return;
+        const durationMs = performance.now() - startedAt;
+        const queueMs = timing ? startedAt - timing.enqueuedAt : 0;
+        const isSlow =
+            queueMs > (this.options.requestQueueWarnMs ?? REQUEST_QUEUE_WARN_MS) ||
+            queueMs + durationMs > (this.options.requestTotalWarnMs ?? REQUEST_TOTAL_WARN_MS);
+        const fields: Record<string, string | number | boolean | null> = {
+            method: request.method,
+            principal: context.principal.kind,
+            queueMs,
+            ...(timing && { queueDepth: timing.queueDepth }),
+        };
+        if (reply.ok) {
+            logger.write(isSlow ? 'warn' : 'debug', 'ipc.request', {
+                correlationId: request.id,
+                durationMs,
+                fields,
+            });
+            return;
+        }
+        /**
+         * `warn`, not `error`: forwarded failures are already error-logged where they fault (Runtime/Desktop); this
+         * entry adds the Host-side relay view (queue wait, principal) without duplicating the error beacon.
+         */
+        logger.write('warn', 'ipc.request_failed', {
+            correlationId: request.id,
+            durationMs,
+            fields: { ...fields, code: reply.error.code, error: reply.error.message },
+        });
+    }
+
     private writeCommandReply(
         socket: Socket,
         state: ClientState,
@@ -189,18 +245,16 @@ export class LocalHostServer {
         socket: Socket,
         state: ClientState,
         request: LocalClientCommand['request'],
+        timing?: OrderedQueueTiming,
     ): Promise<void> {
+        const startedAt = performance.now();
         const isTerminalHotPath =
             request.method === 'terminal.input' || request.method === 'terminal.resize';
         const release = this.reserveRequest(state, isTerminalHotPath);
         if (!release) {
-            this.write(
-                socket,
-                localServerReplySchema.parse({
-                    type: 'reply',
-                    reply: this.capacityReply(request.id),
-                }),
-            );
+            const reply = this.capacityReply(request.id);
+            this.logRequestOutcome(request, reply, state.context, startedAt, timing);
+            this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }));
             return;
         }
         this.trackRequest(state, request.id);
@@ -208,19 +262,14 @@ export class LocalHostServer {
         try {
             context = this.options.refreshContext?.(state.context) ?? state.context;
         } catch (error) {
-            this.writeCommandReply(
-                socket,
-                state,
-                request,
-                {
-                    protocolVersion: CAXRI_PROTOCOL_VERSION,
-                    id: request.id,
-                    ok: false,
-                    error: toWireError(error),
-                },
-                state.context,
-                release,
-            );
+            const reply: CommandReplyEnvelope = {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: request.id,
+                ok: false,
+                error: toWireError(error),
+            };
+            this.logRequestOutcome(request, reply, state.context, startedAt, timing);
+            this.writeCommandReply(socket, state, request, reply, state.context, release);
             return;
         }
         try {
@@ -235,6 +284,7 @@ export class LocalHostServer {
                           ),
                       }
                     : await this.dispatch(request, context);
+            this.logRequestOutcome(request, reply, context, startedAt, timing);
             this.writeCommandReply(socket, state, request, reply, context, release);
         } catch {
             socket.destroy();
@@ -245,7 +295,9 @@ export class LocalHostServer {
         socket: Socket,
         state: ClientState,
         request: { id: string; method: string; params: unknown },
+        timing?: OrderedQueueTiming,
     ): Promise<void> {
+        const startedAt = performance.now();
         const release = this.reserveRequest(state);
         const reply = release
             ? await executeReply(request.id, async () => {
@@ -258,6 +310,7 @@ export class LocalHostServer {
                   );
               })
             : this.capacityReply(request.id);
+        this.logRequestOutcome(request, reply, state.context, startedAt, timing);
         this.write(
             socket,
             localServerDesktopRuntimeReplySchema.parse({
@@ -305,6 +358,7 @@ export class LocalHostServer {
         let state: ClientState | undefined;
         const decoder = new LocalJsonLineDecoder();
         let queue = Promise.resolve();
+        let orderedBacklog = 0;
 
         const remove = (): void => {
             clearTimeout(handshakeTimer);
@@ -409,6 +463,9 @@ export class LocalHostServer {
                 // this synchronous 'data' handler: each call appends onto the prior promise so
                 // handshake/command processing for one socket never interleaves out of order. That
                 // requires promise chaining across calls, which `await` cannot express here.
+                const enqueuedAt = performance.now();
+                orderedBacklog += 1;
+                const timing: OrderedQueueTiming = { enqueuedAt, queueDepth: orderedBacklog };
                 queue = queue
                     // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
                     .then(async () => {
@@ -539,6 +596,7 @@ export class LocalHostServer {
                                 socket,
                                 clientState,
                                 runtimeCommand.data.request,
+                                timing,
                             );
                             return;
                         }
@@ -552,11 +610,17 @@ export class LocalHostServer {
                             return;
                         }
                         const command = localClientCommandSchema.parse(raw);
-                        await this.dispatchCommand(socket, clientState, command.request);
+                        await this.dispatchCommand(socket, clientState, command.request, timing);
                     })
                     // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
                     .catch(() => {
                         socket.destroy();
+                    })
+                    // eslint-disable-next-line unicorn/prefer-await -- see queue-chaining note above
+                    .finally(() => {
+                        // After (not before) the entry settles, so an executing queue head still
+                        // counts toward the backlog reported by `queueDepth`.
+                        orderedBacklog -= 1;
                     });
             }
         });

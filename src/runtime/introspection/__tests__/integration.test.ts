@@ -110,14 +110,25 @@ describe('Runtime business introspection', () => {
 
             logger.write('error', 'runtime.private_failure', {
                 correlationId: 'safe-error-id',
-                fields: { error: 'prompt secret-sentinel', source: homeDirectory },
+                fields: {
+                    error: 'operation failed',
+                    token: 'secret-sentinel',
+                    source: homeDirectory,
+                },
             });
             const logs = await runtime.handlers['logs.query']({ limit: 100 });
             const snapshot = await runtime.handlers['diagnostics.snapshot']({});
+            // Structured fields surface for the log viewer, but secret-keyed values stay redacted and home paths stay
+            // substituted end to end.
             expect(logs.records).toContainEqual(
                 expect.objectContaining({
                     event: 'runtime.private_failure',
                     correlationId: 'safe-error-id',
+                    fields: {
+                        error: 'operation failed',
+                        token: '[REDACTED]',
+                        source: `$HOME/${basename(homeDirectory)}`,
+                    },
                 }),
             );
             expect(snapshot).toMatchObject({
