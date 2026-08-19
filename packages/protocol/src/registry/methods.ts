@@ -22,20 +22,12 @@ import {
     agentHookHealthMapSchema,
     agentTranscriptSchema,
     bootstrapStateSchema,
+    canceledResultSchema,
     fileDocumentSchema,
     fileEntrySchema,
     fileMutationOperationSchema,
     fileSearchModeSchema,
     fileSearchResultSchema,
-    gitBlameSchema,
-    gitBranchSchema,
-    gitCommitDetailsSchema,
-    gitCommitPageSchema,
-    gitCommitSchema,
-    gitDiffDocumentSchema,
-    gitOverviewSchema,
-    gitPullRequestChangesSchema,
-    gitSummarySchema,
     identifierSchema,
     keybindingConflictSchema,
     keybindingSchema,
@@ -55,6 +47,7 @@ import {
     themeTokensSchema,
     updateStateSchema,
 } from '../domain/domain.js';
+import { gitMethods } from '../domain/git-contract.js';
 import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-contract.js';
 import { eventRecoverySchema } from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
@@ -108,10 +101,7 @@ const fileName = z
             !name.includes('\0'),
         'File name must not contain path separators',
     );
-/**
- * Main returns this instead of a Runtime result when the user dismisses a confirmation dialog.
- */
-const canceled = z.object({ canceled: z.literal(true) });
+const canceled = canceledResultSchema;
 const externalOpenResult = z.discriminatedUnion('status', [
     z.object({ status: z.literal('opened') }),
     z.object({ status: z.literal('canceled') }),
@@ -561,115 +551,7 @@ export const methods = {
         }),
         result: fileSearchResultSchema,
     },
-    'git.summary': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            /**
-             * Monotonic user-refresh nonce. A changed value forces the producer to request the newest repository
-             * generation instead of joining a cached snapshot.
-             */
-            refresh: z.number().int().nonnegative().default(0),
-        }),
-        result: gitSummarySchema,
-    },
-    'git.overview': {
-        ...hostRead,
-        params: z.object({ sessionId: identifierSchema }),
-        result: gitOverviewSchema,
-    },
-    'git.branches': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            repositoryId: identifierSchema,
-        }),
-        result: z.array(gitBranchSchema).max(1_000),
-    },
-    'git.switchBranch': {
-        ...hostWrite,
-        params: z.object({
-            sessionId: identifierSchema,
-            repositoryId: identifierSchema,
-            branch: z.string().min(1).max(1_024),
-        }),
-        result: z.null(),
-    },
-    'git.diffDocument': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            repositoryId: identifierSchema,
-            path: pathSchema,
-        }),
-        result: gitDiffDocumentSchema,
-    },
-    'git.pullRequestChanges': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            repositoryId: identifierSchema,
-            refresh: z.number().int().nonnegative().default(0),
-        }),
-        result: gitPullRequestChangesSchema.nullable(),
-    },
-    'git.pullRequestDiffDocument': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            repositoryId: identifierSchema,
-            path: pathSchema,
-        }),
-        result: gitDiffDocumentSchema,
-    },
-    'git.commits': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            repositoryId: identifierSchema,
-            offset: z.number().int().nonnegative().max(10_000).default(0),
-            pageSize: z.number().int().min(1).max(50).default(25),
-            path: pathSchema.optional(),
-        }),
-        result: gitCommitPageSchema,
-    },
-    'git.commitDetails': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            repositoryId: identifierSchema,
-            sha: z.string().regex(/^[0-9a-f]{40}$/),
-            path: pathSchema.optional(),
-        }),
-        result: gitCommitDetailsSchema,
-    },
-    'git.commitDiffDocument': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            repositoryId: identifierSchema,
-            sha: z.string().regex(/^[0-9a-f]{40}$/),
-            path: pathSchema,
-        }),
-        result: gitDiffDocumentSchema,
-    },
-    'git.blame': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            path: pathSchema,
-            line: z.number().int().positive().max(10_000_000),
-        }),
-        result: gitBlameSchema.nullable(),
-    },
-    'git.fileHead': {
-        ...hostRead,
-        params: z.object({
-            sessionId: identifierSchema,
-            path: pathSchema,
-        }),
-        result: gitCommitSchema.nullable(),
-    },
+    ...gitMethods,
     'projectStatus.summary': {
         ...hostRead,
         params: z.object({ sessionId: identifierSchema }),

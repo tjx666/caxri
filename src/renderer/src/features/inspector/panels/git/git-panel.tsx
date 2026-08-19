@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { GitDiffTab } from '@shared/git-diff';
 import { parseGitDiffTab } from '@shared/git-diff';
-import type { GitRepositorySummary } from '@shared/types';
+import type { GitFileStatus, GitRepositorySummary } from '@shared/types';
 import {
     ChevronDown,
     ChevronRight,
@@ -19,7 +19,9 @@ import { Button } from '../../../../components/ui/button';
 import { Empty } from '../../../../components/ui/empty';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { DiffMultipleIcon } from '../../../../icons/codicons/diff-multiple-icon';
+import { DiscardIcon } from '../../../../icons/codicons/discard-icon';
 import { FileSubmoduleIcon } from '../../../../icons/codicons/file-submodule-icon';
+import { SyncIcon } from '../../../../icons/codicons/sync-icon';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
 import { cn } from '../../../../lib/utilities';
 import { queryClient, useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
@@ -36,6 +38,7 @@ import {
 import { GitFileStatusLetter } from './git-file-status-letter';
 import type { GitFileTreeNode } from './git-tree';
 import { buildGitFileTree, commitFilesToStatuses, submoduleRepositoriesByPath } from './git-tree';
+import { discardAllChanges, discardFileChanges, syncRepo } from './git-working-tree-actions';
 
 const gitRowClassName =
     'git-row flex w-full items-center gap-2 h-7 px-2 border-0 bg-surface text-left cursor-pointer';
@@ -46,6 +49,7 @@ function GitTreeItems({
     depth = 0,
     expandedDirectories,
     nodes,
+    onDiscardFile,
     onFocusRepository,
     onSelect,
     repositoryKey,
@@ -56,6 +60,10 @@ function GitTreeItems({
     depth?: number;
     expandedDirectories: Readonly<Record<string, boolean | undefined>>;
     nodes: GitFileTreeNode[];
+    /**
+     * Present only for working-tree rows; commit and pull-request files are history, not discardable state.
+     */
+    onDiscardFile?: (file: GitFileStatus) => void;
     onFocusRepository: (repoId: string) => void;
     onSelect: (path: string) => void;
     repositoryKey: string;
@@ -71,6 +79,7 @@ function GitTreeItems({
                     depth={depth}
                     expandedDirectories={expandedDirectories}
                     node={node}
+                    onDiscardFile={onDiscardFile}
                     onFocusRepository={onFocusRepository}
                     onSelect={onSelect}
                     repositoryKey={repositoryKey}
@@ -103,21 +112,50 @@ function GitTreeItems({
             );
         }
         return (
-            <button
-                key={file.path}
-                className={cn(
-                    gitRowClassName,
-                    'hover:bg-elevated',
-                    selected === file.path && 'active bg-elevated',
+            <div key={file.path} className="git-row-container group relative">
+                <button
+                    className={cn(
+                        gitRowClassName,
+                        'hover:bg-elevated',
+                        selected === file.path && 'active bg-elevated',
+                    )}
+                    style={{ paddingLeft: 10 + depth * 14 }}
+                    title={file.path}
+                    onClick={() => onSelect(file.path)}
+                >
+                    <FileTypeIcon entry={{ kind: 'file', name: node.name }} />
+                    <span className="min-w-0 flex-1 truncate">{node.name}</span>
+                    {/* VS Code-style hover swap: the status letter yields its slot to the Discard
+                        action, which is overlaid as a sibling so the row button never nests one. */}
+                    <GitFileStatusLetter
+                        file={file}
+                        className={
+                            onDiscardFile
+                                ? 'group-focus-within:invisible group-hover:invisible'
+                                : undefined
+                        }
+                    />
+                </button>
+                {onDiscardFile && (
+                    <Tooltip
+                        content={file.kind === 'untracked' ? 'Delete File' : 'Discard Changes'}
+                    >
+                        <Button
+                            className="git-discard-file absolute top-1/2 right-1 hidden size-5 -translate-y-1/2 group-focus-within:flex group-hover:flex"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={
+                                file.kind === 'untracked'
+                                    ? `Delete ${node.name}`
+                                    : `Discard changes in ${node.name}`
+                            }
+                            onClick={() => onDiscardFile(file)}
+                        >
+                            <DiscardIcon size={13} />
+                        </Button>
+                    </Tooltip>
                 )}
-                style={{ paddingLeft: 10 + depth * 14 }}
-                title={file.path}
-                onClick={() => onSelect(file.path)}
-            >
-                <FileTypeIcon entry={{ kind: 'file', name: node.name }} />
-                <span className="min-w-0 flex-1 truncate">{node.name}</span>
-                <GitFileStatusLetter file={file} />
-            </button>
+            </div>
         );
     });
 }
@@ -126,6 +164,7 @@ function GitTreeDirectory({
     depth,
     expandedDirectories,
     node,
+    onDiscardFile,
     onFocusRepository,
     onSelect,
     repositoryKey,
@@ -136,6 +175,7 @@ function GitTreeDirectory({
     depth: number;
     expandedDirectories: Readonly<Record<string, boolean | undefined>>;
     node: Extract<GitFileTreeNode, { kind: 'directory' }>;
+    onDiscardFile?: (file: GitFileStatus) => void;
     onFocusRepository: (repoId: string) => void;
     onSelect: (path: string) => void;
     repositoryKey: string;
@@ -167,6 +207,7 @@ function GitTreeDirectory({
                         depth={depth + 1}
                         expandedDirectories={expandedDirectories}
                         nodes={node.children}
+                        onDiscardFile={onDiscardFile}
                         onFocusRepository={onFocusRepository}
                         onSelect={onSelect}
                         repositoryKey={repositoryKey}
@@ -209,7 +250,17 @@ function GitRepoSection({
 }) {
     // Local like the Commits disclosure in `commit-history.tsx`; not persisted across session switches.
     const [changesExpanded, setChangesExpanded] = useState(true);
+    const [syncing, setSyncing] = useState(false);
     const reduceMotion = useShouldReduceMotion();
+    const runSync = async (): Promise<void> => {
+        if (syncing) return;
+        setSyncing(true);
+        try {
+            await syncRepo(sessionId, repository.id);
+        } finally {
+            setSyncing(false);
+        }
+    };
     const pullRequestQuery = useCaxriQuery(
         'git.pullRequestChanges',
         {
@@ -307,52 +358,78 @@ function GitRepoSection({
             )}
             data-git-repository-id={repository.id}
         >
-            <button
-                className="git-repository-row flex w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-surface p-2 text-left text-foreground hover:bg-elevated"
-                aria-expanded={expanded}
-                title={repository.rootPath}
-                onClick={() => onExpandedChange(!expanded)}
-            >
-                <span className="git-repository-identity flex shrink-0 items-center gap-1">
-                    {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                    {mode === 'pull-request' ? (
-                        <GitPullRequest size={12} />
-                    ) : mode === 'commit' ? (
-                        <GitCommitHorizontal size={12} />
-                    ) : (
-                        <GitBranch size={12} />
-                    )}
-                    <strong className="git-repository-name shrink-0 font-semibold whitespace-nowrap">
-                        {repository.name}
-                    </strong>
-                    {repository.kind !== 'primary' && (
-                        <small className="git-repository-kind shrink-0 text-[11px] whitespace-nowrap text-muted">
-                            {repository.kind}
-                        </small>
-                    )}
-                </span>
-                <span
-                    className="git-repository-meta flex min-w-0 flex-1 items-center justify-end gap-1 text-[11px] text-muted"
-                    title={
-                        pullRequest
-                            ? `Pull request #${pullRequest.number}: ${pullRequest.baseRefName} ← ${pullRequest.headRefName}`
-                            : `${repository.ahead} ahead, ${repository.behind} behind`
-                    }
+            {/* The toggle stays a plain full-width button (its class and title anchor the E2E
+                selectors); the Sync action lives in an overlaid sibling so no button ever nests. */}
+            <div className="git-repository-header group relative">
+                <button
+                    className="git-repository-row flex w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-surface p-2 text-left text-foreground hover:bg-elevated"
+                    aria-expanded={expanded}
+                    title={repository.rootPath}
+                    onClick={() => onExpandedChange(!expanded)}
                 >
-                    <span className="git-repository-branch min-w-0 truncate">
-                        {pullRequest
-                            ? `#${pullRequest.number} ${pullRequest.title}`
-                            : latestCommit
-                              ? `${latestCommit.commit.shortSha} ${latestCommit.commit.subject}`
-                              : repository.branch}
+                    <span className="git-repository-identity flex shrink-0 items-center gap-1">
+                        {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                        {mode === 'pull-request' ? (
+                            <GitPullRequest size={12} />
+                        ) : mode === 'commit' ? (
+                            <GitCommitHorizontal size={12} />
+                        ) : (
+                            <GitBranch size={12} />
+                        )}
+                        <strong className="git-repository-name shrink-0 font-semibold whitespace-nowrap">
+                            {repository.name}
+                        </strong>
+                        {repository.kind !== 'primary' && (
+                            <small className="git-repository-kind shrink-0 text-[11px] whitespace-nowrap text-muted">
+                                {repository.kind}
+                            </small>
+                        )}
                     </span>
-                    <span className="git-repository-counts shrink-0 whitespace-nowrap">
-                        {mode === 'working' && ` · ↑${repository.ahead} ↓${repository.behind}`}
-                        {' · '}
-                        {displayedCount}
+                    <span
+                        className="git-repository-meta flex min-w-0 flex-1 items-center justify-end gap-1 text-[11px] text-muted"
+                        title={
+                            pullRequest
+                                ? `Pull request #${pullRequest.number}: ${pullRequest.baseRefName} ← ${pullRequest.headRefName}`
+                                : `${repository.ahead} ahead, ${repository.behind} behind`
+                        }
+                    >
+                        <span className="git-repository-branch min-w-0 truncate">
+                            {pullRequest
+                                ? `#${pullRequest.number} ${pullRequest.title}`
+                                : latestCommit
+                                  ? `${latestCommit.commit.shortSha} ${latestCommit.commit.subject}`
+                                  : repository.branch}
+                        </span>
+                        <span className="git-repository-counts shrink-0 whitespace-nowrap">
+                            {mode === 'working' && ` · ↑${repository.ahead} ↓${repository.behind}`}
+                            {' · '}
+                            {displayedCount}
+                        </span>
                     </span>
-                </span>
-            </button>
+                </button>
+                {mode === 'working' && (
+                    <Tooltip content="Sync Changes (Pull, then Push)">
+                        <Button
+                            className={cn(
+                                'git-sync absolute top-1/2 right-1 size-6 -translate-y-1/2 bg-elevated',
+                                syncing
+                                    ? 'flex'
+                                    : 'hidden group-focus-within:flex group-hover:flex',
+                            )}
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Sync Changes in ${repository.name}`}
+                            disabled={syncing}
+                            onClick={() => {
+                                // eslint-disable-next-line no-void -- intentional floating-promise discard, syncRepo reports its own errors via tryCommand
+                                void runSync();
+                            }}
+                        >
+                            <SyncIcon size={13} className={syncing ? 'animate-spin' : undefined} />
+                        </Button>
+                    </Tooltip>
+                )}
+            </div>
             <DisclosureMotion animate expanded={expanded} kind="git-repository">
                 {() => (
                     <div className="git-files overflow-visible">
@@ -379,6 +456,23 @@ function GitRepoSection({
                                 </span>
                             </button>
                             <span className="git-changes-actions flex items-center gap-1">
+                                {mode === 'working' && (
+                                    <Tooltip content="Discard All Changes">
+                                        <Button
+                                            className="git-discard-all size-6"
+                                            size="icon"
+                                            variant="ghost"
+                                            aria-label="Discard All Changes"
+                                            disabled={repository.changedFileCount === 0}
+                                            onClick={() => {
+                                                // eslint-disable-next-line no-void -- intentional floating-promise discard, discardAllChanges reports its own errors via tryCommand
+                                                void discardAllChanges(sessionId, repository);
+                                            }}
+                                        >
+                                            <DiscardIcon size={13} />
+                                        </Button>
+                                    </Tooltip>
+                                )}
                                 {/* No aggregated commit-changes diff document exists yet, so the
                                     Open Changes action stays hidden in commit mode. */}
                                 {mode !== 'commit' && (
@@ -446,6 +540,18 @@ function GitRepoSection({
                                             selected={selectedPath}
                                             setDirectoryExpanded={setDirectoryExpanded}
                                             submodulesByPath={submodulesByPath}
+                                            onDiscardFile={
+                                                mode === 'working'
+                                                    ? (file) => {
+                                                          // eslint-disable-next-line no-void -- intentional floating-promise discard, discardFileChanges reports its own errors via tryCommand
+                                                          void discardFileChanges(
+                                                              sessionId,
+                                                              repository,
+                                                              file,
+                                                          );
+                                                      }
+                                                    : undefined
+                                            }
                                             onFocusRepository={onFocusRepository}
                                             onSelect={(path) => openFile(repository.id, path)}
                                         />

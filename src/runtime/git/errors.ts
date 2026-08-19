@@ -19,8 +19,23 @@ export function describeGitFailure(error: unknown): string {
     ) {
         return 'Git output exceeded the safety limit.';
     }
-    if (failure.stderr?.toLowerCase().includes('not a git repository'))
-        return 'The Project root is not a Git repository.';
+    const stderr = failure.stderr?.toLowerCase() ?? '';
+    if (stderr.includes('not a git repository')) return 'The Project root is not a Git repository.';
+    // Sync (pull/push) failures the user can act on directly; anything else falls through to the
+    // generic wording so raw remote stderr never leaks into the UI.
+    if (stderr.includes('no tracking information') || stderr.includes('has no upstream branch'))
+        return 'The current branch has no upstream branch to sync with.';
+    if (
+        stderr.includes('would be overwritten by merge') ||
+        stderr.includes('cannot pull with rebase')
+    )
+        return 'Local changes block the pull. Commit, stash, or discard them first.';
+    if (stderr.includes('non-fast-forward') || stderr.includes('fetch first'))
+        return 'The push was rejected. Pull the remote changes first.';
+    if (stderr.includes('divergent branches'))
+        return 'Local and remote history diverged. Set a pull strategy (merge or rebase) and try again.';
+    if (stderr.includes('could not read from remote') || stderr.includes('authentication failed'))
+        return 'Unable to reach the remote repository. Check the remote URL and your credentials.';
     return 'The Git operation failed. See Runtime logs for details.';
 }
 

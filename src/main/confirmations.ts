@@ -96,6 +96,42 @@ export function deleteSessionPrompt(title: string, runningTerminals: number): Me
     return deletePrompt('Session', title, runningTerminals, 'The selected directory');
 }
 
+/**
+ * Discarding working-tree changes is the one Git action that destroys work with no reflog or Trash to recover from, so
+ * the detail always states what is lost and whether recovery exists.
+ */
+export function discardGitChangesPrompt(target: {
+    repositoryName: string;
+    scope: { kind: 'all'; fileCount: number } | { kind: 'file'; path: string; untracked: boolean };
+}): MessageBoxOptions {
+    if (target.scope.kind === 'file') {
+        const untracked = target.scope.untracked;
+        return {
+            type: 'warning',
+            title: 'Discard Changes',
+            message: untracked
+                ? `Delete '${target.scope.path}'?`
+                : `Discard changes in '${target.scope.path}'?`,
+            detail: untracked
+                ? 'This file is untracked. It will be permanently deleted and cannot be restored.'
+                : 'The file is restored to its last committed state. Uncommitted changes cannot be restored.',
+            buttons: [untracked ? 'Delete File' : 'Discard Changes', 'Cancel'],
+            defaultId: 1,
+            cancelId: 1,
+        };
+    }
+    const plural = target.scope.fileCount === 1 ? '' : 's';
+    return {
+        type: 'warning',
+        title: 'Discard All Changes',
+        message: `Discard all changes in ${target.scope.fileCount} file${plural} in '${target.repositoryName}'?`,
+        detail: 'Tracked files are restored to their last committed state and untracked files are permanently deleted. Uncommitted changes cannot be restored.',
+        buttons: ['Discard All Changes', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+    };
+}
+
 export type DiscardChoice = 'save' | 'discard' | 'cancel';
 
 export function unsavedChangesPrompt(name: string): MessageBoxOptions {

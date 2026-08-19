@@ -1,7 +1,7 @@
 import type { GitFileStatus, GitRepositorySummary } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
-import { buildGitFileTree, commitFilesToStatuses, submoduleRepositoriesByPath } from './git-tree';
+import { buildGitFileTree, commitFilesToStatuses, submoduleRepositoriesByPath } from '../git-tree';
 
 function modified(path: string): GitFileStatus {
     return { index: ' ', kind: 'modified', path, workingTree: 'M' };
