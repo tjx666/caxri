@@ -17,6 +17,7 @@ import { getMethodSpec, isHostRequest } from '../shared/ipc/methods';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
 import { hasRequiredCapabilities } from '../shared/ipc/principal';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+import { startEventLoopMonitor } from '../shared/node/event-loop-monitor';
 import { StructuredLogger } from '../shared/node/logger';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
@@ -58,6 +59,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     const startedAt = Date.now();
     const logDirectory = join(options.userDataPath, 'logs');
     const logger = new StructuredLogger(logDirectory, 'host', 'info');
+    const stopEventLoopMonitor = startEventLoopMonitor(logger);
     const lease = await acquireHostProfile({
         socketDirectory: options.socketDirectory,
         startedAt,
@@ -225,6 +227,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         isMutationAdmissionClosed = true;
         stopPromise ??= (async () => {
             logger.write('info', 'host.stopping', { fields: { reason } });
+            stopEventLoopMonitor();
             await server?.close();
             agentInbox.close();
             await providerMessaging.close();
