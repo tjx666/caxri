@@ -41,7 +41,7 @@ export const REQUEST_TOTAL_WARN_MS = 5_000;
 /**
  * Structural subset of `StructuredLogger` so tests can observe per-request log writes without touching the filesystem.
  */
-export interface HostRequestLogSink {
+interface HostRequestLogSink {
     write(
         level: LogRecord['level'],
         event: string,
