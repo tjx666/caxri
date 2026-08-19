@@ -6,7 +6,12 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { compareStableVersions, shouldStartAutomaticUpdateCheck, UpdateService } from '../updates';
+import {
+    compareStableVersions,
+    shouldStartAutomaticUpdateCheck,
+    UpdateService,
+    updateStateLogFields,
+} from '../updates';
 
 const temporaryDirectories: string[] = [];
 
@@ -100,6 +105,41 @@ describe('automatic update policy', () => {
     });
 });
 
+describe('update state log fields', () => {
+    it('carries the diagnostic context for error and unavailable states', () => {
+        expect(
+            updateStateLogFields({
+                status: 'error',
+                currentVersion: '0.0.3',
+                action: 'check',
+                message: 'The GitHub release check failed with status 404.',
+            }),
+        ).toEqual({
+            status: 'error',
+            action: 'check',
+            message: 'The GitHub release check failed with status 404.',
+        });
+        expect(
+            updateStateLogFields({
+                status: 'unavailable',
+                currentVersion: '0.0.3',
+                reason: 'The Caxri release feed is not publicly available yet.',
+            }),
+        ).toEqual({
+            status: 'unavailable',
+            reason: 'The Caxri release feed is not publicly available yet.',
+        });
+        expect(
+            updateStateLogFields({
+                status: 'available',
+                currentVersion: '0.0.3',
+                version: '0.0.4',
+                fileName: 'Caxri-0.0.4-arm64.dmg',
+            }),
+        ).toEqual({ status: 'available', version: '0.0.4' });
+    });
+});
+
 describe('UpdateService', () => {
     it('downloads the exact arm64 asset, verifies SHA-256, and opens the internal path', async () => {
         const directory = await temporaryDirectory();
@@ -182,6 +222,41 @@ describe('UpdateService', () => {
         if (result.status !== 'error') throw new Error('Expected a release check error');
         expect(result.action).toBe('check');
         expect(result.message).toContain('missing its arm64 DMG');
+    });
+
+    it('degrades a 404 release feed to unavailable instead of a permanent error', async () => {
+        const directory = await temporaryDirectory();
+        const fetch = vi.fn(() => Promise.resolve(new Response(null, { status: 404 })));
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch,
+            openPath: () => Promise.resolve(''),
+        });
+
+        const result = await service.check();
+        expect(result.status).toBe('unavailable');
+        if (result.status !== 'unavailable') throw new Error('Expected an unavailable state');
+        expect(result.reason).toContain('not publicly available');
+    });
+
+    it('keeps non-404 release check failures as diagnosable errors', async () => {
+        const directory = await temporaryDirectory();
+        const fetch = vi.fn(() => Promise.resolve(new Response(null, { status: 500 })));
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch,
+            openPath: () => Promise.resolve(''),
+        });
+
+        const result = await service.check();
+        expect(result.status).toBe('error');
+        if (result.status !== 'error') throw new Error('Expected a release check error');
+        expect(result.action).toBe('check');
+        expect(result.message).toContain('status 500');
     });
 
     it('coalesces concurrent checks into one GitHub request', async () => {

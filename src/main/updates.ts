@@ -166,6 +166,19 @@ async function writeAll(file: FileHandle, bytes: Uint8Array): Promise<void> {
     }
 }
 
+/**
+ * Structured-log fields for an `updates.state` transition. Error and unavailable states carry their diagnostic context
+ * (`action`/`message`/`reason`); without them the log record degrades to an undiagnosable `{"status":"error"}` (#244).
+ */
+export function updateStateLogFields(state: UpdateState): Record<string, string | null> {
+    return {
+        status: state.status,
+        ...('version' in state && { version: state.version ?? null }),
+        ...(state.status === 'error' && { action: state.action, message: state.message }),
+        ...(state.status === 'unavailable' && { reason: state.reason }),
+    };
+}
+
 export class UpdateService {
     private readonly fetch: FetchLike;
     private readonly now: () => number;
@@ -198,6 +211,18 @@ export class UpdateService {
                     'X-GitHub-Api-Version': '2022-11-28',
                 },
             });
+            // While the repository is private, the anonymous releases API returns 404 for every
+            // check. That is an expected pre-release condition, not a fault, so it degrades to
+            // `unavailable` instead of surfacing a permanent error on every launch (#244).
+            if (response.status === 404) {
+                this.release = undefined;
+                this.readyPath = undefined;
+                return this.publish({
+                    status: 'unavailable',
+                    currentVersion: this.options.currentVersion,
+                    reason: 'The Caxri release feed is not publicly available yet.',
+                });
+            }
             assertSuccessfulResponse(response, 'The GitHub release check');
             const source = new TextDecoder().decode(
                 await readBoundedResponse(response, MAX_RELEASE_RESPONSE_BYTES),

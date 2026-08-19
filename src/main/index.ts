@@ -36,7 +36,7 @@ import { loadRendererEntry } from './renderer-entry';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
 import { createTestRootPathResolver } from './test-root';
-import { shouldStartAutomaticUpdateCheck, UpdateService } from './updates';
+import { shouldStartAutomaticUpdateCheck, UpdateService, updateStateLogFields } from './updates';
 import { resolveUserDataPath } from './user-data';
 import { createWindowCloseHandler } from './window-close';
 import { resolveE2EWindowMode } from './window-mode';
@@ -555,12 +555,7 @@ applyGpuStabilityWorkarounds(app.commandLine, process.platform);
                         mainLogger?.write(
                             state.status === 'error' ? 'error' : 'info',
                             'updates.state',
-                            {
-                                fields: {
-                                    status: state.status,
-                                    ...('version' in state && { version: state.version ?? null }),
-                                },
-                            },
+                            { fields: updateStateLogFields(state) },
                         );
                     sendEvent({ event: 'updates.state', payload: state });
                 },
