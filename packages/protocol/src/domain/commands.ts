@@ -36,6 +36,7 @@ export const commandIds = [
     'inspector.showGit',
     'inspector.showStatus',
     'inspector.showInfo',
+    'inspector.showLogs',
     'inspector.searchFiles',
     'inspector.toggle',
     'sidebar.toggle',

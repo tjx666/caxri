@@ -4,6 +4,7 @@ import { inspectorModeRegistrations } from '@shared/inspector';
 import { filesPanel } from './files';
 import { gitPanel } from './git';
 import { infoPanel } from './info';
+import { logsPanel } from './logs';
 import { statusPanel } from './status';
 import type { AnyInspectorPanelDefinition, InspectorPanelDefinition } from './types';
 
@@ -16,6 +17,7 @@ const inspectorPanelsByMode = {
     git: gitPanel,
     status: statusPanel,
     info: infoPanel,
+    logs: logsPanel,
 } satisfies { [Mode in InspectorMode]: InspectorPanelDefinition<Mode> };
 
 /**

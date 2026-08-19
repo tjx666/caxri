@@ -33,6 +33,13 @@ export const inspectorModeRegistrations = [
         commandDescription: 'Show Terminal information in the Inspector',
         defaultKeybinding: 'cmd+4',
     },
+    {
+        mode: 'logs',
+        commandId: 'inspector.showLogs',
+        commandTitle: 'Show Logs',
+        commandDescription: 'Show structured process logs in the Inspector',
+        defaultKeybinding: 'cmd+5',
+    },
 ] as const;
 
 type InspectorModeRegistration = (typeof inspectorModeRegistrations)[number];

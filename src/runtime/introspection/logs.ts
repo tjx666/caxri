@@ -11,6 +11,7 @@ import type {
 } from '../../shared/ipc/business-contract';
 import { logQueryRecordSchema } from '../../shared/ipc/business-contract';
 import { CaxriError } from '../../shared/ipc/errors';
+import { isSecretKey, redactLogValue } from '../../shared/node/redaction';
 
 const LOG_NAME = /^(?:host|main|runtime)\.jsonl(?:\.1)?$/u;
 const DEFAULT_MAXIMUM_RECORDS = 4_096;
@@ -64,6 +65,24 @@ async function readSuffix(path: string, maximumBytes: number): Promise<string> {
     }
 }
 
+/**
+ * Read-time defense in depth mirroring the logger's write-time `safeFields`: a line written to the log directory
+ * outside `StructuredLogger` must not surface secret-like values through `logs.query`.
+ */
+function safeQueryFields(value: unknown): Record<string, unknown> | undefined {
+    if (typeof value !== 'object' || value === null) return undefined;
+    return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [
+            key,
+            isSecretKey(key)
+                ? '[REDACTED]'
+                : typeof entry === 'string'
+                  ? redactLogValue(entry)
+                  : entry,
+        ]),
+    );
+}
+
 function safeRecord(line: string): LogQueryRecord | undefined {
     try {
         const value = JSON.parse(line) as Record<string, unknown>;
@@ -79,6 +98,7 @@ function safeRecord(line: string): LogQueryRecord | undefined {
             event: value.event,
             correlationId: value.correlationId,
             durationMs: value.durationMs,
+            fields: safeQueryFields(value.fields),
         });
     } catch {
         return undefined;
@@ -96,7 +116,7 @@ function isRecordMatching(record: LogQueryRecord, query: LogQueryParameters): bo
 }
 
 /**
- * Reads only bounded log suffixes and projects a content-free record model.
+ * Reads only bounded log suffixes and projects the structured record model, re-applying secret redaction to fields.
  */
 export class LogQueryService {
     private readonly maximumBytesPerFile: number;
