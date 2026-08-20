@@ -3,34 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { IPty, spawn as spawnPty } from 'node-pty';
+import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { execFileAsync } from '../../shared/node/exec';
 import { StructuredLogger } from '../../shared/node/logger';
-import type { AgentAdapter } from '../agents/service';
 import { createRuntime } from '../bootstrap';
+import { createFakePty, createPendingAgentAdapters } from './create-test-runtime';
 
 const temporaryDirectories: string[] = [];
-
-function createFakePty(): IPty {
-    return {
-        pid: 4242,
-        kill: vi.fn(),
-        onData: vi.fn(() => ({ dispose: vi.fn() })),
-        onExit: vi.fn(() => ({ dispose: vi.fn() })),
-        resize: vi.fn(),
-        write: vi.fn(),
-    } as unknown as IPty;
-}
-
-function pendingAgentAdapters(): Record<'claude' | 'codex', AgentAdapter> {
-    const pending = new Promise<never>(() => {});
-    return {
-        claude: { provider: 'claude', snapshot: () => pending },
-        codex: { provider: 'codex', snapshot: () => pending },
-    };
-}
 
 afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();
@@ -47,7 +28,7 @@ describe('Runtime Agent hook integration', () => {
         await mkdir(projectRoot);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
         const runtime = await createRuntime({
-            agentAdapters: pendingAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
             agentEnvironment: {
                 homeDirectory: directory,
                 variables: { CODEX_HOME: codexHome },

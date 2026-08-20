@@ -2,25 +2,15 @@ import { mkdir, mkdtemp, rename, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { IPty, spawn as spawnPty } from 'node-pty';
+import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/ipc';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
+import { createFakePty } from './create-test-runtime';
 
 const temporaryDirectories: string[] = [];
-
-function createFakePty(): IPty {
-    return {
-        pid: 4242,
-        kill: vi.fn(),
-        onData: vi.fn(() => ({ dispose: vi.fn() })),
-        onExit: vi.fn(() => ({ dispose: vi.fn() })),
-        resize: vi.fn(),
-        write: vi.fn(),
-    } as unknown as IPty;
-}
 
 afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();

@@ -2,33 +2,15 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { IPty, spawn as spawnPty } from 'node-pty';
+import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
 import { CaxriDatabase } from '../db/repository';
+import { createFakePty, createPendingAgentAdapters } from './create-test-runtime';
 
 const temporaryDirectories: string[] = [];
-
-function createFakePty(): IPty {
-    return {
-        pid: 4242,
-        kill: vi.fn(),
-        onData: vi.fn(() => ({ dispose: vi.fn() })),
-        onExit: vi.fn(() => ({ dispose: vi.fn() })),
-        resize: vi.fn(),
-        write: vi.fn(),
-    } as unknown as IPty;
-}
-
-function fakeAgentAdapters() {
-    const pending = new Promise<never>(() => {});
-    return {
-        claude: { provider: 'claude' as const, snapshot: () => pending },
-        codex: { provider: 'codex' as const, snapshot: () => pending },
-    };
-}
 
 afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();
@@ -65,7 +47,7 @@ describe('Agent Terminal restart', () => {
                     resolveExecutable: () => Promise.resolve(`/usr/local/bin/${provider}`),
                     spawn,
                 },
-                agentAdapters: fakeAgentAdapters(),
+                agentAdapters: createPendingAgentAdapters(),
             });
 
             try {
@@ -114,7 +96,7 @@ describe('Agent Terminal restart', () => {
                 resolveExecutable: () => Promise.resolve('/usr/local/bin/codex'),
                 spawn,
             },
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
         });
 
         try {

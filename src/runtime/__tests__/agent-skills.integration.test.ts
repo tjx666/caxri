@@ -2,13 +2,13 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { executeSkillCommand } from '../../../packages/cli/src/skills';
 import { agentSkillHealthSchema } from '../../../packages/protocol/src';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
+import { createFakePty } from './create-test-runtime';
 
 const temporaryDirectories: string[] = [];
 
@@ -40,17 +40,7 @@ describe('Runtime Agent skill health', () => {
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
             terminal: {
-                spawn: vi.fn(
-                    () =>
-                        ({
-                            pid: 42,
-                            kill: vi.fn(),
-                            onData: vi.fn(() => ({ dispose: vi.fn() })),
-                            onExit: vi.fn(() => ({ dispose: vi.fn() })),
-                            resize: vi.fn(),
-                            write: vi.fn(),
-                        }) as unknown as IPty,
-                ),
+                spawn: vi.fn(() => createFakePty()),
             },
             userDataPath,
         });
