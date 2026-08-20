@@ -12,6 +12,7 @@ import type {
     LocalClientCommand,
     LocalServerReply,
 } from '../shared/ipc/local-transport';
+import { localServerDesktopLeaseRevokedSchema } from '../shared/ipc/local-transport';
 import type { RuntimeRequest } from '../shared/ipc/methods';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
 import type { CommandReplyEnvelope } from '../shared/ipc/transport';
@@ -118,6 +119,27 @@ export interface ClientState {
     inFlightTerminalRequests: number;
     leaseTimer?: NodeJS.Timeout;
     socket: Socket;
+}
+
+/**
+ * Ends a replaced Desktop only after its typed revocation is queued. An abrupt close would look like a recoverable
+ * outage to Main and let two same-profile instances repeatedly evict each other.
+ */
+export function closeReplacedDesktop(state: ClientState): void {
+    const generation = state.desktopLease?.generation;
+    if (!generation) {
+        state.socket.destroy();
+        return;
+    }
+    state.socket.end(
+        `${JSON.stringify(
+            localServerDesktopLeaseRevokedSchema.parse({
+                type: 'desktop-lease.revoked',
+                generation,
+                reason: 'replaced',
+            }),
+        )}\n`,
+    );
 }
 
 export interface PendingDesktopCommand {

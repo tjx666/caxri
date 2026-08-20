@@ -3,6 +3,36 @@ import { describe, expect, it, vi } from 'vitest';
 import { createMainEventRelay } from '../event-relay';
 
 describe('Main event relay', () => {
+    it('retains a Desktop lease replacement until each Renderer generation is ready', () => {
+        const delivered: unknown[] = [];
+        const relay = createMainEventRelay({
+            deliver: (message) => {
+                delivered.push(message);
+            },
+            loadState: () =>
+                Promise.resolve({ projects: [], sessions: [], terminals: [] } as never),
+            logger: () => {},
+            onKeybindingsChanged: vi.fn(),
+        });
+        const replacement = {
+            event: 'host.connectionChanged',
+            payload: { status: 'replaced' },
+        } as const;
+
+        relay.rendererPending();
+        relay.send(replacement);
+        expect(delivered).toEqual([]);
+
+        relay.rendererReady();
+        expect(delivered).toEqual([replacement]);
+        relay.rendererReady();
+        expect(delivered).toEqual([replacement]);
+
+        relay.rendererPending();
+        relay.rendererReady();
+        expect(delivered).toEqual([replacement, replacement]);
+    });
+
     it('publishes durable cursors without replaying PTY output or one-shot commands', async () => {
         const delivered: unknown[] = [];
         const relay = createMainEventRelay({

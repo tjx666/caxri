@@ -47,6 +47,13 @@ exponential backoff and persisted terminals are exposed as `dead`, never as sile
 processes. A Runtime must remain ready for 30 seconds before its restart budget resets, so
 ready/crash flapping still fails closed after three restarts.
 
+One profile owns exactly one Desktop lease. When another Desktop takes it over, Host sends an
+orderly typed `replaced` revocation before closing the old socket; that Main stops reconnecting and keeps a
+persistent notice visible instead of letting two same-profile instances evict each other forever.
+Ordinary socket loss remains recoverable. After reconnect, Main re-announces `desktop.ready` and
+places one more event recovery command behind it on the same ordered Host queue, closing the window
+where a durable event could otherwise be journaled after recovery but before live delivery resumed.
+
 The pre-release reset tool treats Host ownership as an operating-system fact, not a discovery-file
 claim: dry-run and apply both use `lsof` to bind a live PID to the selected profile's open lock or
 Unix endpoint, verify the fixed Host entrypoint, and recheck ownership immediately before signaling.

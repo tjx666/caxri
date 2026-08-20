@@ -164,7 +164,11 @@ applyGpuStabilityWorkarounds(app.commandLine, process.platform);
                 sandbox: true,
             },
         });
+        eventRelay.rendererPending();
         rendererReadiness.track(window.webContents);
+        window.webContents.on('did-start-navigation', (_event, _url, _isInPlace, isMainFrame) => {
+            if (isMainFrame) eventRelay.rendererPending();
+        });
         let persistTimer: NodeJS.Timeout | undefined;
         let rendererCrashTimestampsMs: number[] = [];
         const persistWindowState = (): void => {
@@ -465,6 +469,7 @@ applyGpuStabilityWorkarounds(app.commandLine, process.platform);
             isQuitting: () => isQuitStarted,
             logger: () => mainLogger,
             onEventsReady: () => {
+                eventRelay.rendererReady();
                 if (mainRenderer) rendererReadiness.ready(mainRenderer);
                 // `onEventsReady` is a synchronous listener; a failed readiness handshake is only
                 // logged, so this is deliberately fire-and-forget rather than awaited.

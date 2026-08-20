@@ -26,6 +26,7 @@ vi.mock('../lib/caxri', () => ({
 }));
 
 import { useSessionViewStore } from './session-view';
+import { useToastStore } from './toasts';
 import {
     patchSessionState,
     refreshWorkbench,
@@ -43,6 +44,7 @@ afterEach(() => {
     mocks.reset();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0, isFullScreen: false });
     useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
+    useToastStore.setState({ toasts: [] });
 });
 
 describe('workbench Runtime events', () => {
@@ -158,6 +160,26 @@ describe('workbench Runtime events', () => {
         expect(useWorkbenchStore.getState().attachEpoch).toBe(1);
         await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
         expect(mocks.request.mock.calls[0]?.[0]).toBe('app.bootstrap');
+        unsubscribe();
+    });
+
+    it('keeps a visible error when another Desktop replaces this window', () => {
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+
+        mocks.emit({
+            event: 'host.connectionChanged',
+            payload: { status: 'replaced' },
+        });
+
+        expect(mocks.request).not.toHaveBeenCalled();
+        expect(useToastStore.getState().toasts).toEqual([
+            expect.objectContaining({
+                kind: 'error',
+                message:
+                    'Another Caxri window took over this profile. Continue in the other window.',
+                persist: true,
+            }),
+        ]);
         unsubscribe();
     });
 
