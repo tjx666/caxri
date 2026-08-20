@@ -81,6 +81,20 @@ function invalidateGitChangedQueries(
     });
 }
 
+function invalidateProjectStatusQuery(queryClient: QueryClient, sessionId: string): void {
+    // Fire-and-forget: the refreshed query surfaces any error through React Query state.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void queryClient.invalidateQueries({
+        predicate: (query) => {
+            const [method, parameters] = query.queryKey as [
+                CaxriMethod,
+                { sessionId?: string } | undefined,
+            ];
+            return method === 'projectStatus.summary' && parameters?.sessionId === sessionId;
+        },
+    });
+}
+
 /**
  * Drops every cached query keyed to one of `sessionIds` from the React Query cache. Called once a Session (or, with
  * every Session of a Project, a Project) is deleted — otherwise the cached reads (Git status, diffs, blame, file
@@ -146,6 +160,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (event.event === 'git.changed') {
             invalidateGitChangedQueries(queryClient, event.payload.sessionIds);
+            return;
+        }
+        if (event.event === 'projectStatus.changed') {
+            invalidateProjectStatusQuery(queryClient, event.payload.sessionId);
             return;
         }
         if (event.event !== 'files.changed') return;

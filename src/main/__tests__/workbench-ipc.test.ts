@@ -76,4 +76,37 @@ describe('workbench IPC sender boundary', () => {
         ready({ sender: renderer });
         expect(onEventsReady).toHaveBeenCalledOnce();
     });
+
+    it('does not report an in-flight request failure after application shutdown begins', async () => {
+        const completion = Promise.withResolvers<{
+            protocolVersion: 2;
+            id: string;
+            ok: false;
+            error: { code: 'UNAVAILABLE'; message: string };
+        }>();
+        const write = vi.fn();
+        let isQuitting = false;
+        installWorkbenchIpc({
+            isQuitting: () => isQuitting,
+            logger: () => ({ write }) as never,
+            renderer: () => renderer as never,
+            transport: { dispatch: () => completion.promise, negotiate },
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+        const pending = request(
+            { sender: renderer },
+            { protocolVersion: 2, id: 'closing-read', method: 'app.health', params: {} },
+        );
+
+        isQuitting = true;
+        completion.resolve({
+            protocolVersion: 2,
+            id: 'closing-read',
+            ok: false,
+            error: { code: 'UNAVAILABLE', message: 'Caxri Host connection closed' },
+        });
+
+        await expect(pending).resolves.toMatchObject({ id: 'closing-read', ok: false });
+        expect(write).not.toHaveBeenCalled();
+    });
 });

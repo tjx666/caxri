@@ -80,6 +80,39 @@ describe('createCommandDispatcher receipt capacity', () => {
     });
 });
 
+describe('createCommandDispatcher admission', () => {
+    it('returns after adapter admission while the authoritative reply is pending', async () => {
+        const completion = Promise.withResolvers<unknown>();
+        let isInvoked = false;
+        const dispatch = createCommandDispatcher({
+            host: {
+                invoke: () => {
+                    isInvoked = true;
+                    return completion.promise;
+                },
+            },
+        });
+
+        const admission = await dispatch.admit(
+            request('write-1', 'files.write', {
+                sessionId: 'session-1',
+                path: '/project/a.txt',
+                content: 'saved',
+            }),
+            desktop,
+        );
+        expect(isInvoked).toBe(true);
+
+        completion.resolve({
+            path: '/project/a.txt',
+            content: 'saved',
+            mtimeMs: 1,
+            size: 5,
+        });
+        await expect(admission.reply).resolves.toMatchObject({ ok: true });
+    });
+});
+
 describe('createCommandDispatcher adapter availability', () => {
     it('reports UNAVAILABLE when the owning adapter is present but reports itself unavailable', async () => {
         const host: CommandAdapter = {
