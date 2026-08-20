@@ -111,6 +111,10 @@ export const runtimeEventPayloads = {
         scope: z.enum(['status', 'topology']),
     }),
     /**
+     * One-shot invalidation after a background Project Status refresh replaces its Runtime cache.
+     */
+    'projectStatus.changed': z.object({ sessionId: identifierSchema }),
+    /**
      * One-shot, content-free prompt trigger; Git topology remains Runtime-owned.
      */
     'workbench.candidate': z.object({

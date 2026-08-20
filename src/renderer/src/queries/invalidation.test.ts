@@ -156,4 +156,36 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         ).toBe(false);
         unsubscribe();
     });
+
+    it('invalidates only the refreshed Session Project Status query', () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(['projectStatus.summary', { sessionId: 'session-a' }], {});
+        queryClient.setQueryData(
+            ['projectStatus.summary', { sessionId: 'session-a', refreshToken: 'refresh-1' }],
+            {},
+        );
+        queryClient.setQueryData(['projectStatus.summary', { sessionId: 'session-b' }], {});
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'projectStatus.changed',
+            payload: { sessionId: 'session-a' },
+        });
+
+        expect(
+            queryClient.getQueryState(['projectStatus.summary', { sessionId: 'session-a' }])
+                ?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState([
+                'projectStatus.summary',
+                { sessionId: 'session-a', refreshToken: 'refresh-1' },
+            ])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(['projectStatus.summary', { sessionId: 'session-b' }])
+                ?.isInvalidated,
+        ).toBe(false);
+        unsubscribe();
+    });
 });

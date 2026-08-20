@@ -21,6 +21,7 @@ export type TransientRuntimeEvent = Extract<
             | 'command.execute'
             | 'desktop.openRequested'
             | 'host.connectionChanged'
+            | 'projectStatus.changed'
             | 'terminal.output'
             | 'workbench.candidate'
             | 'workbench.changed';
@@ -40,6 +41,7 @@ const TRANSIENT_RUNTIME_EVENT_NAMES = new Set<RuntimeEvent['event']>([
      * redundant snapshot round-trip.
      */
     'host.connectionChanged',
+    'projectStatus.changed',
     'workbench.candidate',
     'workbench.changed',
 ]);

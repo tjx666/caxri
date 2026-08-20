@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ProjectStatusCommandDependencies } from '../project-status';
-import { runProjectStatusCommand } from '../project-status';
+import type { ProjectStatusCommandDependencies } from '../project-status-external';
+import { runProjectStatusCommand } from '../project-status-external';
 
 describe('runProjectStatusCommand', () => {
     it.each(['gh', 'vc', 'linear'] as const)(

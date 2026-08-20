@@ -74,6 +74,51 @@ describe('WatchHub', () => {
         expect(pollOnce).toHaveBeenCalledTimes(2);
     });
 
+    it('waits for initial fallback activation before registration resolves', async () => {
+        const activation = Promise.withResolvers<void>();
+        const activate = vi.fn(() => activation.promise);
+        const hub = new WatchHub({ subscribe: failingSubscribe });
+        let isRegistrationSettled = false;
+        const registration = hub.register({
+            label: 'delayed-fallback',
+            root: '/watched',
+            onEvents: () => {},
+            fallback: { intervalMs: 100, activate, pollOnce: () => Promise.resolve() },
+        });
+        const observeRegistration = async (): Promise<void> => {
+            await registration;
+            isRegistrationSettled = true;
+        };
+        const observation = observeRegistration();
+
+        await vi.waitFor(() => expect(activate).toHaveBeenCalledOnce());
+        expect(isRegistrationSettled).toBe(false);
+        activation.resolve();
+        await observation;
+        expect(isRegistrationSettled).toBe(true);
+        await hub.close();
+    });
+
+    it('starts polling when initial fallback activation fails', async () => {
+        const hub = new WatchHub({ subscribe: failingSubscribe });
+        const pollOnce = vi.fn(() => Promise.resolve());
+        const handle = await hub.register({
+            label: 'failed-activation',
+            root: '/watched',
+            onEvents: () => {},
+            fallback: {
+                intervalMs: 100,
+                activate: () => Promise.reject(new Error('baseline unavailable')),
+                pollOnce,
+            },
+        });
+
+        expect(handle.mode).toBe('polling');
+        await vi.advanceTimersByTimeAsync(100);
+        expect(pollOnce).toHaveBeenCalledOnce();
+        await hub.close();
+    });
+
     it('rethrows a native failure when no fallback exists and drops the registration', async () => {
         const hub = new WatchHub({ subscribe: failingSubscribe });
         await expect(

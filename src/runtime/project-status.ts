@@ -3,9 +3,8 @@ import { homedir } from 'node:os';
 import { z } from 'zod';
 
 import { CaxriError } from '../shared/ipc/errors';
-import { execFileAsync } from '../shared/node/exec';
+import type { RuntimeEvent } from '../shared/ipc/events';
 import type { StructuredLogger } from '../shared/node/logger';
-import { safeProcessEnvironment } from '../shared/node/process-environment';
 import type {
     GitRepositorySummary as GitRepoSummary,
     ProjectStatusCheck,
@@ -17,39 +16,34 @@ import type {
     ProjectStatusState,
     ProjectStatusSummary,
 } from '../shared/types';
-import type { ExternalCommandDependencies } from './executables';
-import { runExternalCommand } from './executables';
 import type { GitService } from './git';
+import type {
+    ProjectStatusCommand,
+    ProjectStatusRunner,
+    VercelLink,
+} from './project-status-external';
+import {
+    extractLinearReferences,
+    isNoPullRequest,
+    parseGitHubRemote,
+    ProjectStatusCliError,
+    projectStatusCliError,
+    projectStatusCommandOperation,
+    rememberVercelLink,
+    runProjectStatusCommand,
+    vcListArguments,
+} from './project-status-external';
 import { SingleFlight } from './single-flight';
 
-const CLI_TIMEOUT_MS = 8_000;
-const CLI_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
+export { extractLinearReferences, parseGitHubRemote } from './project-status-external';
+
 /**
  * Caps the process-lifetime `vercelLinks` cache so long-running sessions can't grow it unbounded.
  */
 const VERCEL_LINK_CACHE_LIMIT = 256;
-
-type ProjectStatusCommand = 'gh' | 'git' | 'linear' | 'vc';
-type CliFailureKind =
-    'not-found' | 'not-logged-in' | 'not-linked' | 'rate-limited' | 'timeout' | 'other';
-
-export type ProjectStatusRunner = (
-    command: ProjectStatusCommand,
-    arguments_: readonly string[],
-    cwd: string,
-) => Promise<string>;
-
-export type ProjectStatusCommandDependencies = ExternalCommandDependencies;
-
-class ProjectStatusCliError extends Error {
-    constructor(
-        readonly command: ProjectStatusCommand,
-        readonly kind: CliFailureKind,
-        message: string,
-    ) {
-        super(message);
-    }
-}
+const SUMMARY_CACHE_LIMIT = 128;
+const SUMMARY_CACHE_TTL_MS = 60_000;
+const SUMMARY_FAILURE_CACHE_TTL_MS = 30_000;
 
 const githubCheckSchema = z.object({
     __typename: z.string().optional(),
@@ -118,22 +112,38 @@ const linearIssueResponseSchema = z.object({
     data: linearIssueDataSchema.optional(),
 });
 
-export interface VercelLink {
-    project: string;
-    team: string;
-}
-
-interface LinearReference {
-    identifier: string;
-    workspace?: string;
-}
-
 interface RepoContext {
     branch: string;
     defaultBranch?: string;
     head?: string;
     owner?: string;
     repo?: string;
+}
+
+interface PreparedRepo {
+    context: RepoContext;
+    repository: ProjectStatusRepo;
+}
+
+interface PreparedSummary {
+    fingerprint?: string;
+    repositories: PreparedRepo[];
+    summary: ProjectStatusSummary;
+}
+
+interface SummaryCacheEntry {
+    expiresAt: number;
+    fingerprint: string;
+    refreshToken?: string;
+    value?: ProjectStatusSummary;
+}
+
+export interface ProjectStatusServiceOptions {
+    cacheLimit?: number;
+    cacheTtlMs?: number;
+    emit?: (event: RuntimeEvent) => void;
+    failureCacheTtlMs?: number;
+    now?: () => number;
 }
 
 const LINEAR_STATE_TYPES = new Set<ProjectStatusLinearIssue['stateType']>([
@@ -163,18 +173,6 @@ const FAILURE_RESULTS = new Set([
     'ERROR',
 ]);
 const PENDING_RESULTS = new Set(['IN_PROGRESS', 'QUEUED', 'PENDING', 'EXPECTED']);
-const REFERENCE_MARKERS = [
-    'Fix',
-    'Fixes',
-    'Fixed',
-    'Close',
-    'Closes',
-    'Closed',
-    'Resolve',
-    'Resolves',
-    'Resolved',
-    'Related to',
-] as const;
 const LINEAR_ISSUE_QUERY = `query IssueStatus($id:String!){
   issue(id:$id){identifier title url state{name type}}
 }`;
@@ -189,119 +187,6 @@ function parseExternalJson<T>(value: string, schema: z.ZodType<T>, label: string
     const result = schema.safeParse(parsed);
     if (!result.success) throw new CaxriError('VALIDATION', `Invalid ${label} payload`);
     return result.data;
-}
-
-function classifyCliFailure(
-    // Deliberately not `NodeJS.ErrnoException` here: that type inherits `Error`'s required
-    // `message: string`, but callers pass a plain `error as {...}` cast over an `unknown` catch
-    // value, which is not guaranteed to be an `Error` instance with a `message` at runtime.
-    error: { code?: string; killed?: boolean; message?: string; stderr?: string },
-): CliFailureKind {
-    if (error.code === 'ENOENT') return 'not-found';
-    const stderr = error.stderr ?? error.message ?? '';
-    if (error.killed || /timed out/i.test(stderr)) return 'timeout';
-    if (/rate limit|abuse detection/i.test(stderr)) return 'rate-limited';
-    if (
-        /auth(?:entication)? required|auth login|not logged in|login required|no api key/i.test(
-            stderr,
-        )
-    ) {
-        return 'not-logged-in';
-    }
-    if (/not linked|no project|run.*link|link this directory|not configured/i.test(stderr)) {
-        return 'not-linked';
-    }
-    return 'other';
-}
-
-function cliError(command: ProjectStatusCommand, kind: CliFailureKind): ProjectStatusError {
-    const source = command === 'gh' ? 'github' : command === 'vc' ? 'vercel' : 'linear';
-    const cli = command;
-    if (kind === 'not-found') {
-        return {
-            source,
-            message: `${cli} not installed`,
-            hint:
-                command === 'gh'
-                    ? 'Install GitHub CLI to load pull requests.'
-                    : command === 'vc'
-                      ? 'Install Vercel CLI to load deployments.'
-                      : 'Install linear-cli to load linked issues.',
-        };
-    }
-    if (kind === 'not-logged-in') {
-        return {
-            source,
-            message: `${cli}: not logged in`,
-            hint: `Run \`${cli} ${command === 'vc' ? 'login' : 'auth login'}\` in a Terminal.`,
-        };
-    }
-    if (kind === 'not-linked') {
-        return {
-            source,
-            message: `${cli}: not linked`,
-            hint:
-                command === 'vc'
-                    ? 'Run `vc link` in the repository.'
-                    : 'Run `linear config` in the repository.',
-        };
-    }
-    if (kind === 'rate-limited') {
-        return {
-            source,
-            message: `${cli}: rate limited`,
-            hint: 'Refresh after the API limit resets.',
-        };
-    }
-    if (kind === 'timeout') {
-        return {
-            source,
-            message: `${cli} timed out`,
-            hint: 'Check the network or proxy, then refresh.',
-        };
-    }
-    return { source, message: `${cli}: error`, hint: 'See Runtime logs for details.' };
-}
-
-function isNoPullRequest(error: unknown): boolean {
-    return (
-        error instanceof Error &&
-        /no pull requests found|could not find pull request/i.test(error.message)
-    );
-}
-
-export function parseGitHubRemote(value: string): { owner: string; repo: string } | undefined {
-    const match = value
-        .trim()
-        .replace(/\/$/, '')
-        .replace(/\.git$/, '')
-        .match(/github\.com[:/]([^/\s]+)\/([^/\s]+)$/i);
-    return match ? { owner: match[1], repo: match[2] } : undefined;
-}
-
-export function extractLinearReferences(body: string): LinearReference[] {
-    const references: LinearReference[] = [];
-    const add = (identifier: string, workspace?: string): void => {
-        const normalized = identifier.toUpperCase();
-        if (references.some((candidate) => candidate.identifier === normalized)) return;
-        references.push({ identifier: normalized, workspace: workspace?.toLowerCase() });
-    };
-    for (const match of body.matchAll(
-        /https?:\/\/linear\.app\/([a-z0-9-]+)\/issue\/([a-z][a-z0-9]*-[1-9]\d*)/giu,
-    )) {
-        add(match[2], match[1]);
-    }
-    const markerPattern = REFERENCE_MARKERS.map((marker) =>
-        marker.replaceAll(' ', String.raw`\s+`),
-    ).join('|');
-    const referenceLine = new RegExp(String.raw`(?:^|\b)(?:${markerPattern})\b([^\n]*)`, 'giu');
-    for (const marker of body.matchAll(referenceLine)) {
-        const identifiers = marker[1].matchAll(/\b([a-z][a-z0-9]*-[1-9]\d*)\b/giu);
-        for (const identifier of identifiers) {
-            add(identifier[1]);
-        }
-    }
-    return references;
 }
 
 function checkState(check: GitHubCheck): ProjectStatusState {
@@ -382,26 +267,6 @@ function mapDeployment(
     };
 }
 
-/**
- * Inserts into the LRU-bounded `vercelLinks` cache, evicting the oldest entry once over capacity. Mirrors the eviction
- * pattern used by `files/watcher.ts`'s `rememberPolledDirectory`/ `rememberChangeFingerprint`: re-inserting a key
- * refreshes its recency, and eviction removes the least-recently-used entry (the `Map` iteration order's first key).
- */
-export function rememberVercelLink(
-    links: Map<string, VercelLink>,
-    key: string,
-    value: VercelLink,
-    maximum: number,
-): void {
-    links.delete(key);
-    links.set(key, value);
-    while (links.size > Math.max(1, maximum)) {
-        const oldest = links.keys().next().value;
-        if (!oldest) break;
-        links.delete(oldest);
-    }
-}
-
 function parseVercelList(value: string): VercelDeployment[] {
     const parsed = parseExternalJson(value, vercelDeploymentListSchema, 'Vercel deployment list');
     const deployments = Array.isArray(parsed) ? parsed : (parsed.deployments ?? []);
@@ -411,6 +276,8 @@ function parseVercelList(value: string): VercelDeployment[] {
 export class ProjectStatusService {
     private readonly requests = new SingleFlight<string, ProjectStatusSummary>();
     private readonly overviewRequests = new SingleFlight<string, ProjectStatusOverview>();
+    private readonly refreshes = new SingleFlight<string, void>();
+    private readonly summaries = new Map<string, SummaryCacheEntry>();
     /**
      * LRU-bounded (see `VERCEL_LINK_CACHE_LIMIT`) so this process-lifetime cache can't grow unbounded.
      */
@@ -420,22 +287,52 @@ export class ProjectStatusService {
         private readonly git: Pick<GitService, 'summary'>,
         private readonly logger: StructuredLogger,
         private readonly runner: ProjectStatusRunner = runProjectStatusCommand,
+        private readonly options: ProjectStatusServiceOptions = {},
     ) {}
+
+    private now(): number {
+        return this.options.now?.() ?? Date.now();
+    }
+
+    private async runCommand(
+        command: ProjectStatusCommand,
+        arguments_: readonly string[],
+        cwd: string,
+    ): Promise<string> {
+        const startedAt = performance.now();
+        const operation = projectStatusCommandOperation(command, arguments_);
+        try {
+            const result = await this.runner(command, arguments_, cwd);
+            this.logger.write('debug', 'project_status.cli', {
+                durationMs: performance.now() - startedAt,
+                fields: { command, operation, result: 'success' },
+            });
+            return result;
+        } catch (error) {
+            const failureKind =
+                error instanceof ProjectStatusCliError ? error.kind : ('other' as const);
+            this.logger.write(isNoPullRequest(error) ? 'debug' : 'warn', 'project_status.cli', {
+                durationMs: performance.now() - startedAt,
+                fields: { command, operation, result: 'failure', failureKind },
+            });
+            throw error;
+        }
+    }
 
     private async loadOverview(sessionId: string): Promise<ProjectStatusOverview> {
         const gitSummary = await this.git.summary(sessionId);
         if (!gitSummary.isRepository) {
-            return { refreshedAt: Date.now(), error: gitSummary.error };
+            return { refreshedAt: this.now(), error: gitSummary.error };
         }
         const repo = gitSummary.repositories.find((candidate) => candidate.kind === 'primary');
-        if (!repo) return { refreshedAt: Date.now(), error: 'No primary repository found.' };
+        if (!repo) return { refreshedAt: this.now(), error: 'No primary repository found.' };
         const remote = await this.optionalGit(repo.rootPath, ['remote', 'get-url', 'origin']);
         const github = parseGitHubRemote(remote);
         const githubUrl = github ? `https://github.com/${github.owner}/${github.repo}` : undefined;
         let pullRequest: NonNullable<ProjectStatusOverview['repository']>['pullRequest'];
         if (github) {
             try {
-                const output = await this.runner(
+                const output = await this.runCommand(
                     'gh',
                     [
                         'pr',
@@ -478,38 +375,55 @@ export class ProjectStatusService {
                 deletions: repo.deletions,
                 pullRequest,
             },
-            refreshedAt: Date.now(),
+            refreshedAt: this.now(),
         };
     }
 
-    private async load(sessionId: string): Promise<ProjectStatusSummary> {
+    private async prepareSummary(sessionId: string): Promise<PreparedSummary> {
         const startedAt = performance.now();
         const gitSummary = await this.git.summary(sessionId);
         if (!gitSummary.isRepository) {
-            return { repositories: [], refreshedAt: Date.now(), error: gitSummary.error };
+            return {
+                repositories: [],
+                summary: { repositories: [], refreshedAt: this.now(), error: gitSummary.error },
+            };
         }
         const visibleRepositories: GitRepoSummary[] = [];
         for (const repo of gitSummary.repositories)
             if (repo.kind !== 'worktree') visibleRepositories.push(repo);
         const repositories = await Promise.all(
-            visibleRepositories.map((repo) => this.loadRepository(repo)),
+            visibleRepositories.map((repo) => this.prepareRepository(repo)),
         );
-        this.logger.write('info', 'project_status.summary', {
+        const summary = {
+            repositories: repositories.map(({ repository }) => repository),
+            refreshedAt: this.now(),
+        };
+        const fingerprint = JSON.stringify(
+            repositories.map(({ context, repository }) => [
+                repository.id,
+                context.branch,
+                context.defaultBranch,
+                context.head,
+                context.owner,
+                context.repo,
+            ]),
+        );
+        this.logger.write('debug', 'project_status.local', {
             durationMs: performance.now() - startedAt,
             fields: { repositories: repositories.length },
         });
-        return { repositories, refreshedAt: Date.now() };
+        return { fingerprint, repositories, summary };
     }
 
     private async optionalGit(cwd: string, arguments_: readonly string[]): Promise<string> {
         try {
-            return (await this.runner('git', arguments_, cwd)).trim();
+            return (await this.runCommand('git', arguments_, cwd)).trim();
         } catch {
             return '';
         }
     }
 
-    private async loadRepository(repo: GitRepoSummary): Promise<ProjectStatusRepo> {
+    private async prepareRepository(repo: GitRepoSummary): Promise<PreparedRepo> {
         const [remote, defaultBranch, head] = await Promise.all([
             this.optionalGit(repo.rootPath, ['remote', 'get-url', 'origin']),
             this.optionalGit(repo.rootPath, [
@@ -527,26 +441,37 @@ export class ProjectStatusService {
             owner: github?.owner,
             repo: github?.repo,
         };
-        const [githubState, vercelState] = await Promise.all([
-            this.loadGitHub(repo.rootPath, context),
-            this.loadVercel(context),
-        ]);
         const name = context.repo ?? repo.name;
         const githubUrl =
             context.owner && context.repo
                 ? `https://github.com/${context.owner}/${context.repo}`
                 : undefined;
         return {
-            id: repo.id,
-            kind: repo.kind,
-            name,
-            rootPath: repo.rootPath,
-            branch: repo.branch,
-            defaultBranch: context.defaultBranch,
-            githubUrl,
-            branchUrl: githubUrl
-                ? `${githubUrl}/tree/${encodeURIComponent(repo.branch)}`
-                : undefined,
+            context,
+            repository: {
+                id: repo.id,
+                kind: repo.kind,
+                name,
+                rootPath: repo.rootPath,
+                branch: repo.branch,
+                defaultBranch: context.defaultBranch,
+                githubUrl,
+                branchUrl: githubUrl
+                    ? `${githubUrl}/tree/${encodeURIComponent(repo.branch)}`
+                    : undefined,
+                linearIssues: [],
+                errors: [],
+            },
+        };
+    }
+
+    private async refreshRepository(prepared: PreparedRepo): Promise<ProjectStatusRepo> {
+        const [githubState, vercelState] = await Promise.all([
+            this.loadGitHub(prepared.repository.rootPath, prepared.context),
+            this.loadVercel(prepared.context),
+        ]);
+        return {
+            ...prepared.repository,
             pullRequest: githubState.pullRequest,
             linearIssues: githubState.linearIssues,
             deployments: vercelState.deployments,
@@ -566,7 +491,7 @@ export class ProjectStatusService {
             return { linearIssues: [], errors: [] };
         }
         try {
-            const output = await this.runner(
+            const output = await this.runCommand(
                 'gh',
                 [
                     'pr',
@@ -592,7 +517,7 @@ export class ProjectStatusService {
                 error instanceof ProjectStatusCliError
                     ? error
                     : new ProjectStatusCliError('gh', 'other', String(error));
-            return { linearIssues: [], errors: [cliError('gh', failure.kind)] };
+            return { linearIssues: [], errors: [projectStatusCliError('gh', failure.kind)] };
         }
     }
 
@@ -614,7 +539,7 @@ export class ProjectStatusService {
                     ];
                     if (reference.workspace) arguments_.push('--workspace', reference.workspace);
                     const raw = parseExternalJson(
-                        await this.runner('linear', arguments_, cwd),
+                        await this.runCommand('linear', arguments_, cwd),
                         linearIssueResponseSchema,
                         'Linear issue',
                     );
@@ -631,7 +556,7 @@ export class ProjectStatusService {
                         error instanceof ProjectStatusCliError
                             ? error
                             : new ProjectStatusCliError('linear', 'other', String(error));
-                    firstError ??= cliError('linear', failure.kind);
+                    firstError ??= projectStatusCliError('linear', failure.kind);
                     return { identifier: reference.identifier };
                 }
             }),
@@ -646,14 +571,18 @@ export class ProjectStatusService {
             rememberVercelLink(this.vercelLinks, key, cached, VERCEL_LINK_CACHE_LIMIT);
             return cached;
         }
-        const teamsJson = await this.runner('vc', ['teams', 'ls', '--format', 'json'], homedir());
+        const teamsJson = await this.runCommand(
+            'vc',
+            ['teams', 'ls', '--format', 'json'],
+            homedir(),
+        );
         const parsed = parseExternalJson(teamsJson, vercelTeamListSchema, 'Vercel team list');
         const teams = (Array.isArray(parsed) ? parsed : (parsed.teams ?? [])).flatMap((team) =>
             team.slug ? [team.slug] : [],
         );
         const links = await Promise.all(
             teams.map(async (team): Promise<VercelLink | undefined> => {
-                const output = await this.runner(
+                const output = await this.runCommand(
                     'vc',
                     vcListArguments(team, { githubOrg: owner, githubRepo: repo }),
                     homedir(),
@@ -676,14 +605,18 @@ export class ProjectStatusService {
             if (!link) return { errors: [] };
             const baseMeta = { githubOrg: context.owner, githubRepo: context.repo };
             const results = await Promise.all([
-                this.runner(
+                this.runCommand(
                     'vc',
                     vcListArguments(link.team, { ...baseMeta, githubCommitRef: context.branch }),
                     homedir(),
                 ),
-                this.runner('vc', vcListArguments(link.team, baseMeta, 'production'), homedir()),
+                this.runCommand(
+                    'vc',
+                    vcListArguments(link.team, baseMeta, 'production'),
+                    homedir(),
+                ),
                 context.head
-                    ? this.runner(
+                    ? this.runCommand(
                           'vc',
                           vcListArguments(link.team, { githubCommitSha: context.head }, 'preview'),
                           homedir(),
@@ -712,71 +645,112 @@ export class ProjectStatusService {
                 error instanceof ProjectStatusCliError
                     ? error
                     : new ProjectStatusCliError('vc', 'other', String(error));
-            return { errors: [cliError('vc', failure.kind)] };
+            return { errors: [projectStatusCliError('vc', failure.kind)] };
         }
     }
 
-    summary(sessionId: string): Promise<ProjectStatusSummary> {
-        return this.requests.run(sessionId, () => this.load(sessionId));
+    private rememberSummary(sessionId: string, entry: SummaryCacheEntry): void {
+        this.summaries.delete(sessionId);
+        this.summaries.set(sessionId, entry);
+        const maximum = this.options.cacheLimit ?? SUMMARY_CACHE_LIMIT;
+        while (this.summaries.size > Math.max(1, maximum)) {
+            const oldest = this.summaries.keys().next().value;
+            if (!oldest) break;
+            this.summaries.delete(oldest);
+        }
+    }
+
+    /**
+     * Refreshes delivery metadata outside the request path. The fingerprint check prevents a slow result for an old
+     * branch or workbench root from replacing a newer Session context.
+     */
+    private async refreshSummary(sessionId: string, prepared: PreparedSummary): Promise<void> {
+        const fingerprint = prepared.fingerprint;
+        if (!fingerprint) return;
+        const refreshKey = `${sessionId}\0${fingerprint}`;
+        try {
+            await this.refreshes.run(refreshKey, async () => {
+                const startedAt = performance.now();
+                const repositories = await Promise.all(
+                    prepared.repositories.map((repo) => this.refreshRepository(repo)),
+                );
+                if (this.summaries.get(sessionId)?.fingerprint !== fingerprint) return;
+                const value = { repositories, refreshedAt: this.now() };
+                const hasFailures = repositories.some((repo) => repo.errors.length > 0);
+                const ttl = hasFailures
+                    ? (this.options.failureCacheTtlMs ?? SUMMARY_FAILURE_CACHE_TTL_MS)
+                    : (this.options.cacheTtlMs ?? SUMMARY_CACHE_TTL_MS);
+                this.rememberSummary(sessionId, {
+                    expiresAt: this.now() + ttl,
+                    fingerprint,
+                    refreshToken: this.summaries.get(sessionId)?.refreshToken,
+                    value,
+                });
+                this.logger.write(hasFailures ? 'warn' : 'info', 'project_status.refresh', {
+                    durationMs: performance.now() - startedAt,
+                    fields: {
+                        repositories: repositories.length,
+                        result: hasFailures ? 'failure' : 'success',
+                    },
+                });
+                this.options.emit?.({ event: 'projectStatus.changed', payload: { sessionId } });
+            });
+        } catch (error) {
+            this.logger.write('error', 'project_status.refresh_failed', {
+                fields: { code: error instanceof CaxriError ? error.code : 'INTERNAL' },
+            });
+        }
+    }
+
+    private async loadSummary(
+        sessionId: string,
+        refreshToken?: string,
+    ): Promise<ProjectStatusSummary> {
+        const startedAt = performance.now();
+        const prepared = await this.prepareSummary(sessionId);
+        if (!prepared.fingerprint) {
+            this.summaries.delete(sessionId);
+            return prepared.summary;
+        }
+        let cached = this.summaries.get(sessionId);
+        if (cached?.fingerprint !== prepared.fingerprint) {
+            cached = { expiresAt: 0, fingerprint: prepared.fingerprint, refreshToken };
+            this.rememberSummary(sessionId, cached);
+        }
+        const isForceRefresh = refreshToken !== undefined && cached.refreshToken !== refreshToken;
+        if (isForceRefresh) cached = { ...cached, refreshToken };
+        this.rememberSummary(sessionId, cached);
+        const source = cached.value ? (cached.expiresAt > this.now() ? 'fresh' : 'stale') : 'local';
+        if (isForceRefresh) await this.refreshSummary(sessionId, prepared);
+        else if (source !== 'fresh') {
+            // The cache event owns UI convergence for automatic stale-while-revalidate loads.
+            // eslint-disable-next-line no-void -- background refresh logs its own failure
+            void this.refreshSummary(sessionId, prepared);
+        }
+        this.logger.write('info', 'project_status.summary', {
+            durationMs: performance.now() - startedAt,
+            fields: { repositories: prepared.repositories.length, source },
+        });
+        const current = this.summaries.get(sessionId);
+        return current?.fingerprint === prepared.fingerprint
+            ? (current.value ?? prepared.summary)
+            : prepared.summary;
+    }
+
+    /**
+     * Prevents a late external refresh from recreating status for a Session that has already been deleted.
+     */
+    evictSessions(sessionIds: readonly string[]): void {
+        for (const sessionId of sessionIds) this.summaries.delete(sessionId);
+    }
+
+    summary(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary> {
+        return this.requests.run(`${sessionId}\0${refreshToken ?? ''}`, () =>
+            this.loadSummary(sessionId, refreshToken),
+        );
     }
 
     overview(sessionId: string): Promise<ProjectStatusOverview> {
         return this.overviewRequests.run(sessionId, () => this.loadOverview(sessionId));
-    }
-}
-
-function vcListArguments(
-    team: string,
-    meta: Record<string, string>,
-    environment?: ProjectStatusDeployment['environment'],
-): string[] {
-    const arguments_ = ['ls', '--format', 'json', '--scope', team];
-    for (const [key, value] of Object.entries(meta)) arguments_.push('--meta', `${key}=${value}`);
-    if (environment) arguments_.push('--environment', environment);
-    arguments_.push('--yes');
-    return arguments_;
-}
-
-export async function runProjectStatusCommand(
-    command: ProjectStatusCommand,
-    arguments_: readonly string[],
-    cwd: string,
-    dependencies: ProjectStatusCommandDependencies = {},
-): Promise<string> {
-    try {
-        if (command === 'git') {
-            // `git` ships with macOS, so it skips login-shell resolution and stays on the sanitized
-            // base environment.
-            const run = dependencies.run ?? execFileAsync;
-            const { stdout } = await run('git', [...arguments_], {
-                cwd,
-                timeout: CLI_TIMEOUT_MS,
-                maxBuffer: CLI_MAX_BUFFER_BYTES,
-                env: { ...safeProcessEnvironment(), CI: '1', LC_ALL: 'C' },
-            });
-            return stdout;
-        }
-        const { stdout } = await runExternalCommand(
-            command,
-            arguments_,
-            {
-                cwd,
-                timeout: CLI_TIMEOUT_MS,
-                maxBuffer: CLI_MAX_BUFFER_BYTES,
-                env: { CI: '1', LC_ALL: 'C' },
-            },
-            dependencies,
-        );
-        return stdout;
-    } catch (error) {
-        const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string };
-        // `||` (not `??`) is deliberate: an empty `stderr` string carries no useful detail either and
-        // should also fall back to `message`.
-        throw new ProjectStatusCliError(
-            command,
-            classifyCliFailure(failure),
-            // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty stderr string is also not useful detail
-            failure.stderr || failure.message,
-        );
     }
 }
