@@ -423,6 +423,13 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             }
             case 'host.connectionChanged': {
+                if (event.payload.status === 'replaced') {
+                    pushToast(
+                        'error',
+                        'Another Caxri window took over this profile. Continue in the other window.',
+                    );
+                    return;
+                }
                 /**
                  * PTY output sent while the Desktop↔Host socket was down (observed on macOS sleep/wake) was dropped
                  * without replay: without a forced re-attach every backgrounded Terminal pane would stay frozen at the

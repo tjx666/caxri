@@ -22,6 +22,8 @@ export interface MainEventRelayOptions {
  * Owns only Renderer-reload recovery; the profile-wide durable cursor lives in Headless Host.
  */
 export function createMainEventRelay(options: MainEventRelayOptions) {
+    let isRendererReady = false;
+    let retainedDesktopLeaseReplacement: RuntimeEvent | undefined;
     const journal = createEventJournal({
         snapshot: async (cursor) => {
             const state = await options.loadState();
@@ -44,7 +46,23 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
         recover(afterCursor: number): Promise<EventRecovery> {
             return journal.recover(afterCursor);
         },
+        rendererPending(): void {
+            isRendererReady = false;
+        },
+        rendererReady(): void {
+            if (isRendererReady) return;
+            isRendererReady = true;
+            if (retainedDesktopLeaseReplacement) options.deliver(retainedDesktopLeaseReplacement);
+        },
         send(event: RuntimeEvent): void {
+            if (event.event === 'host.connectionChanged' && event.payload.status === 'replaced') {
+                /**
+                 * Replacement permanently stops this Main instance from reconnecting. Retain the notice across the
+                 * startup and navigation gap so a later Renderer generation cannot miss the only recovery guidance.
+                 */
+                retainedDesktopLeaseReplacement = event;
+                if (!isRendererReady) return;
+            }
             if (event.event === 'runtime.status')
                 options
                     .logger()

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToHost } from '@caxri/cli';
+import { connectDesktopToHost, connectToHost } from '@caxri/cli';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
@@ -248,6 +248,49 @@ test('queues concurrent Host open requests by their exact Session targets', asyn
         ).toBeVisible();
     } finally {
         client.close();
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('stops reconnecting when another Desktop takes over the same profile', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-desktop-replaced-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    let replacement: Awaited<ReturnType<typeof connectDesktopToHost>> | undefined;
+    try {
+        replacement = await connectDesktopToHost(
+            userData,
+            'desktop-replacement-e2e',
+            () => Promise.resolve(null),
+            2_000,
+        );
+        await replacement.markDesktopReady();
+
+        await expect(
+            running.page.getByText(
+                'Another Caxri window took over this profile. Continue in the other window.',
+                { exact: true },
+            ),
+        ).toBeVisible();
+        const replacementStartedAt = Date.now();
+        await expect
+            .poll(
+                async () => {
+                    const health = await replacement?.request('app.health');
+                    return health?.ready && Date.now() - replacementStartedAt >= 1_100;
+                },
+                { intervals: [100, 200, 300, 500], timeout: 2_000 },
+            )
+            .toBe(true);
+    } finally {
+        replacement?.close();
         try {
             await running.app.close();
         } catch {

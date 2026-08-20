@@ -42,6 +42,7 @@ import type {
     PendingDesktopCommand,
 } from './local-server-support';
 import {
+    closeReplacedDesktop,
     DESKTOP_COMMAND_TIMEOUT_MS,
     DESKTOP_LEASE_MS,
     executeReply,
@@ -524,13 +525,7 @@ export class LocalHostServer {
                                 if (this.currentDesktop) {
                                     const replaced = this.currentDesktop;
                                     this.revokeDesktop(replaced, false);
-                                    /**
-                                     * The replaced Desktop lost all command/event authority above; destroying its
-                                     * socket closes the connection-resource lifecycle too (descriptor, decoder,
-                                     * listeners) instead of waiting for the stale peer to hang up. `revokeDesktop`
-                                     * already removed it from `clients`, so its 'close' handler cannot double-notify.
-                                     */
-                                    replaced.socket.destroy();
+                                    closeReplacedDesktop(replaced);
                                 }
                             }
                             state = {

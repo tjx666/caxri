@@ -154,12 +154,15 @@ export const runtimeEventPayloads = {
      * snapshot and refresh converged state. The fields mirror the `host.reconnected` structured log line so a stuck
      * report can be correlated across the Renderer and Main.
      */
-    'host.connectionChanged': z.object({
-        status: z.literal('reconnected'),
-        downtimeMs: z.number().nonnegative(),
-        attempt: z.number().int().positive(),
-        isHostReplaced: z.boolean(),
-    }),
+    'host.connectionChanged': z.discriminatedUnion('status', [
+        z.object({
+            status: z.literal('reconnected'),
+            downtimeMs: z.number().nonnegative(),
+            attempt: z.number().int().positive(),
+            isHostReplaced: z.boolean(),
+        }),
+        z.object({ status: z.literal('replaced') }),
+    ]),
     'window.fullScreen': z.object({ isFullScreen: z.boolean() }),
     'desktop.openRequested': z.object({
         sessionId: identifierSchema,

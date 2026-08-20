@@ -98,6 +98,7 @@ export function useTerminalPaneRuntime({
 }: TerminalPaneRuntimeOptions) {
     const containerReference = useRef<HTMLDivElement>(null);
     const xtermReference = useRef<Terminal | undefined>(undefined);
+    const fitAndResizeReference = useRef<(() => void) | undefined>(undefined);
     /**
      * Set by the mount effect below; the context menu's Paste action reads through this instead of capturing the
      * imperative xterm instance directly, since the effect (re)runs per attach epoch.
@@ -371,6 +372,7 @@ export function useTerminalPaneRuntime({
                 // The pane may be between layout and disposal during a Session switch.
             }
         };
+        fitAndResizeReference.current = fitAndResize;
 
         let isRendererFallbackNotified = false;
         const publishRendererStatus = (status: TerminalRendererStatus): void => {
@@ -569,6 +571,8 @@ export function useTerminalPaneRuntime({
              */
             xterm.dispose();
             xtermReference.current = undefined;
+            if (fitAndResizeReference.current === fitAndResize)
+                fitAndResizeReference.current = undefined;
             if (rendererReference.current === renderer) rendererReference.current = undefined;
             if (searchReference.current === search) searchReference.current = undefined;
             searchActiveReference.current = false;
@@ -674,13 +678,23 @@ export function useTerminalPaneRuntime({
     }, [active, processState, terminalId]);
 
     useEffect(() => {
-        if (!xtermReference.current) return;
-        xtermReference.current.options.fontFamily = fontFamily;
-        xtermReference.current.options.fontSize = fontSize;
-        xtermReference.current.options.scrollback = scrollback;
-        xtermReference.current.options.theme = terminalTheme;
-        xtermReference.current.options.wordSeparator = wordSeparators;
+        const xterm = xtermReference.current;
+        if (!xterm) return;
+        xterm.options.fontFamily = fontFamily;
+        xterm.options.fontSize = fontSize;
+        xterm.options.scrollback = scrollback;
+        xterm.options.theme = terminalTheme;
+        xterm.options.wordSeparator = wordSeparators;
     }, [fontFamily, fontSize, scrollback, terminalTheme, wordSeparators]);
+
+    useEffect(() => {
+        /**
+         * Xterm applies a font option to the DOM before its cell metrics settle. Refit on the next paint so a split
+         * Terminal cannot keep the previous font's narrow PTY grid after Settings changes.
+         */
+        const frame = requestAnimationFrame(() => fitAndResizeReference.current?.());
+        return () => cancelAnimationFrame(frame);
+    }, [fontFamily, fontSize]);
 
     useEffect(
         () => registerTerminalClearHandler(terminalId, () => xtermReference.current?.clear()),
