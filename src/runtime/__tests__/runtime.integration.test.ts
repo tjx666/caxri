@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
-import type { IPty, spawn as spawnPty } from 'node-pty';
+import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/ipc';
@@ -12,22 +12,9 @@ import { createRuntime } from '../bootstrap';
 import { CaxriDatabase } from '../db/repository';
 import { GitService } from '../git';
 import { ProjectStatusService } from '../project-status';
+import { createFakePty, createPendingAgentAdapters } from './create-test-runtime';
 
 const temporaryDirectories: string[] = [];
-
-/**
- * A PTY stub keeps the in-process Runtime hermetic: no login shell is launched by these tests.
- */
-function createFakePty(): IPty {
-    return {
-        pid: 4242,
-        kill: vi.fn(),
-        onData: vi.fn(() => ({ dispose: vi.fn() })),
-        onExit: vi.fn(() => ({ dispose: vi.fn() })),
-        resize: vi.fn(),
-        write: vi.fn(),
-    } as unknown as IPty;
-}
 
 afterEach(async () => {
     const pendingDirectories = temporaryDirectories.slice();
@@ -51,7 +38,7 @@ describe('Runtime composition root', () => {
                     Promise.resolve({ HOME: directory, PATH: '/login/bin:/usr/bin' }),
                 spawn,
             },
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
         });
 
         try {
@@ -456,21 +443,6 @@ describe('Runtime composition root', () => {
     });
 });
 
-/**
- * No-op stub: the resume-restore workflow only needs `updateAgentMetadata` to stay a no-op so the directly-written
- * `agent_session_id` (see below) is never overwritten by a real probe result.
- */
-function fakeAgentAdapters(): Record<
-    'claude' | 'codex',
-    { provider: 'claude' | 'codex'; snapshot: () => Promise<never> }
-> {
-    const pending = new Promise<never>(() => {});
-    return {
-        claude: { provider: 'claude', snapshot: () => pending },
-        codex: { provider: 'codex', snapshot: () => pending },
-    };
-}
-
 describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
     it('resumes a claude Terminal interrupted by an orderly shutdown with its bound Agent session id', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restore-'));
@@ -485,7 +457,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
             terminal: { resolveExecutable, spawn: () => createFakePty() },
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
         });
         const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
         const created = await runtimeA.handlers['session.create']({
@@ -518,7 +490,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: () => {},
             terminal: { resolveExecutable, spawn: spawnSpy },
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
         });
         try {
             await vi.waitFor(() => expect(spawnSpy).toHaveBeenCalled());
@@ -618,7 +590,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
             terminal: { resolveExecutable, spawn: () => createFakePty() },
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
         });
         const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
         const created = await runtimeA.handlers['session.create']({
@@ -638,7 +610,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: () => {},
             terminal: { resolveExecutable, spawn: freshSpawnSpy },
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
         });
         try {
             await vi.waitFor(() => expect(freshSpawnSpy).toHaveBeenCalled());
@@ -661,7 +633,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             logger: new StructuredLogger(join(directory, 'logs-c')),
             send: () => {},
             terminal: { resolveExecutable, spawn: noRestartSpawnSpy },
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
         });
         try {
             /**
@@ -691,7 +663,7 @@ describe('selected Session Agent probes', () => {
                 resolveExecutable: () => Promise.resolve('/usr/local/bin/claude'),
                 spawn: () => createFakePty(),
             },
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
         });
         const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
         const first = await runtimeA.handlers['session.create']({
