@@ -33,6 +33,28 @@ interface Fixture {
 
 const fixtures: Fixture[] = [];
 const temporaryDirectories: string[] = [];
+
+/**
+ * Publishes transfer readiness only after the abort listener is armed. Keeping that ordering in one helper prevents a
+ * saturated test worker from advancing the fake deadline while the injected transfer is not yet abortable.
+ */
+function waitForTransferAbort(
+    signal: AbortSignal,
+    onReady: () => void,
+    createError: () => Error,
+): Promise<never> {
+    return new Promise((_resolve, reject) => {
+        const rejectAbort = () => reject(createError());
+        if (signal.aborted) {
+            onReady();
+            rejectAbort();
+            return;
+        }
+        signal.addEventListener('abort', rejectAbort, { once: true });
+        onReady();
+    });
+}
+
 async function createFixture(prefix: string, options: FileServiceOptions = {}): Promise<Fixture> {
     const directory = await mkdtemp(join(tmpdir(), prefix));
     const rootInput = join(directory, 'project');
@@ -555,16 +577,11 @@ describe('FileMutationService', () => {
                 copyFile: async (_source, target, options) => {
                     await target.writeFile('partial', 'utf8');
                     expect(options.signal).toBeDefined();
-                    markTransferStarted();
-                    await new Promise<void>((_resolve, reject) => {
-                        options.signal.addEventListener('abort', () => {
-                            reject(
-                                new Error('Transfer aborted', {
-                                    cause: options.signal.reason,
-                                }),
-                            );
-                        });
-                    });
+                    await waitForTransferAbort(
+                        options.signal,
+                        markTransferStarted,
+                        () => new Error('Transfer aborted', { cause: options.signal.reason }),
+                    );
                 },
                 copyLimits: { maximumDurationMs: 10 },
             },
@@ -597,12 +614,11 @@ describe('FileMutationService', () => {
                 copyFile: async (_source, target, options) => {
                     await target.writeFile('partial', 'utf8');
                     await writeFile(foreignPath, 'foreign', 'utf8');
-                    markTransferStarted();
-                    await new Promise<void>((_resolve, reject) => {
-                        options.signal.addEventListener('abort', () => {
-                            reject(new Error('Transfer aborted'));
-                        });
-                    });
+                    await waitForTransferAbort(
+                        options.signal,
+                        markTransferStarted,
+                        () => new Error('Transfer aborted'),
+                    );
                 },
                 copyLimits: { maximumDurationMs: 10 },
             },

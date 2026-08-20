@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { lstat, mkdir, open, rename } from 'node:fs/promises';
-import { basename, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
 
 import { CaxriError, isCaxriError } from '../../shared/ipc/errors';
 import type {
@@ -10,6 +10,7 @@ import type {
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import { isExistingPath } from '../../shared/node/fs';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { isSameOrInside } from '../path-security';
 import type { ResolveSessionPath } from './documents';
 import { isStagedCreatePersistenceError } from './mutation-journal';
 import type { CopyFile, CopyLimits, FileIdentity } from './mutations-copy';
@@ -83,13 +84,6 @@ function fileName(name: string): string {
     )
         throw new CaxriError('VALIDATION', 'Enter a valid file name without path separators');
     return normalized;
-}
-
-function isSameOrInside(parent: string, candidate: string): boolean {
-    const nested = relative(parent, candidate);
-    return (
-        nested === '' || (nested !== '..' && !nested.startsWith(`..${sep}`) && !isAbsolute(nested))
-    );
 }
 
 function suffixedName(source: ResolvedMutableEntry, sequence: number): string {

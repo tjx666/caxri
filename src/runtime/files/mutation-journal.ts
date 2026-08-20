@@ -1,7 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
-import { lstat, mkdir, open, readFile, rename, rm } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { lstat, readFile } from 'node:fs/promises';
 
 import { z } from 'zod';
 
@@ -10,6 +7,7 @@ import { CaxriError, errorMessage, isCaxriError } from '../../shared/ipc/errors'
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileMutationOperation, MovedFileEntry, MutableFileEntry } from '../../shared/types';
+import { atomicWrite } from '../atomic-file';
 
 type FileMutationResult = MutableFileEntry | MovedFileEntry;
 type FileMutationExpectedResult = NonNullable<FileMutationOperation['expectedResult']>;
@@ -72,30 +70,6 @@ function operationFailure(error: unknown): { code: string; message: string } {
             'IO',
         message: errorMessage(error, 'File operation failed'),
     };
-}
-
-async function atomicWrite(path: string, source: string): Promise<void> {
-    const directory = dirname(path);
-    await mkdir(directory, { recursive: true });
-    const temporary = `${path}.${randomUUID()}.tmp`;
-    try {
-        const file = await open(temporary, 'wx', 0o600);
-        try {
-            await file.writeFile(source, 'utf8');
-            await file.sync();
-        } finally {
-            await file.close();
-        }
-        await rename(temporary, path);
-        const directoryHandle = await open(directory, constants.O_RDONLY);
-        try {
-            await directoryHandle.sync();
-        } finally {
-            await directoryHandle.close();
-        }
-    } finally {
-        await rm(temporary, { force: true });
-    }
 }
 
 async function pathKind(path: string): Promise<'file' | 'directory' | undefined> {

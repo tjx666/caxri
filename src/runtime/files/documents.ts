@@ -3,11 +3,12 @@ import { randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 
 import { CaxriError } from '../../shared/ipc/errors';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { FileDocument } from '../../shared/types';
+import { isOutsideRoot } from '../path-security';
 import type { ResolvedSessionPath } from '../project-roots';
 
 export type ResolveSessionPath = (
@@ -25,13 +26,6 @@ export interface DocumentServiceOptions {
     beforeReplaceValidation?: () => Promise<void>;
     openFile?: OpenFile;
     replaceFile?: ReplaceFile;
-}
-
-function isPathInsideRoot(root: string, path: string): boolean {
-    const relativePath = relative(root, path);
-    return (
-        !isAbsolute(relativePath) && relativePath !== '..' && !relativePath.startsWith(`..${sep}`)
-    );
 }
 
 async function removeTrustedTemporaryFile(
@@ -166,7 +160,7 @@ export class DocumentService {
                     currentReplacementStats.dev !== openedReplacementStats.dev ||
                     currentReplacementStats.ino !== openedReplacementStats.ino ||
                     currentReplacementStats.nlink > 1 ||
-                    !isPathInsideRoot(resolved.root, resolvedTemporaryPath)
+                    isOutsideRoot(relative(resolved.root, resolvedTemporaryPath))
                 )
                     throw new CaxriError('IO', 'Temporary file changed during save');
                 await replacement.writeFile(content, 'utf8');

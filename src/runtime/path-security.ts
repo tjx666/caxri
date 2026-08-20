@@ -1,4 +1,4 @@
-import { isAbsolute, sep } from 'node:path';
+import { isAbsolute, relative, sep } from 'node:path';
 
 import { CaxriError } from '../shared/ipc/errors';
 
@@ -7,6 +7,13 @@ import { CaxriError } from '../shared/ipc/errors';
  */
 export function isOutsideRoot(relativePath: string): boolean {
     return relativePath === '..' || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
+}
+
+/**
+ * Tests whether a candidate is the same path as, or a descendant of, a parent without granting path authority.
+ */
+export function isSameOrInside(parent: string, candidate: string): boolean {
+    return !isOutsideRoot(relative(parent, candidate));
 }
 
 /**

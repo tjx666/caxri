@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
+import { lstat, mkdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import process from 'node:process';
@@ -11,6 +11,7 @@ import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { mapWithConcurrency } from '../../../shared/node/concurrency';
 import type { StructuredLogger } from '../../../shared/node/logger';
 import type { AgentHookHealth, AgentHookHealthMap } from '../../../shared/types';
+import { atomicWrite } from '../../atomic-file';
 import { readBoundedRegularFileText } from '../../bounded-file-reader';
 import type { WatchHandle } from '../../watch-hub';
 import { WatchHub } from '../../watch-hub';
@@ -80,29 +81,6 @@ function defaultHealth(message?: string): AgentHookHealthMap {
             { kind: 'notInstalled', ...(message && { message }) },
         ]),
     ) as AgentHookHealthMap;
-}
-
-async function atomicWrite(path: string, source: string): Promise<void> {
-    await mkdir(dirname(path), { recursive: true });
-    const temporary = `${path}.${randomUUID()}.tmp`;
-    try {
-        const file = await open(temporary, 'wx', 0o600);
-        try {
-            await file.writeFile(source, 'utf8');
-            await file.sync();
-        } finally {
-            await file.close();
-        }
-        await rename(temporary, path);
-        const directoryHandle = await open(dirname(path), 'r');
-        try {
-            await directoryHandle.sync();
-        } finally {
-            await directoryHandle.close();
-        }
-    } finally {
-        await rm(temporary, { force: true });
-    }
 }
 
 function isFileSystemError(error: unknown, code: string): boolean {
