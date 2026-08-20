@@ -429,7 +429,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         isClosed = true;
         terminalRestores.close();
         coordinator.close();
-        terminals.shutdown('orderly');
+        await terminals.shutdown('orderly');
         dispatchService.close();
         await workbenchRoots.close();
         unsubscribeHookSettings();
@@ -742,16 +742,16 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             });
             return terminal;
         },
-        'terminal.snapshot': ({ terminalId }) => database.getSnapshot(terminalId) ?? null,
+        'terminal.snapshot': ({ terminalId }) => terminals.snapshot(terminalId),
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
         'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
         'terminal.query': () => mainOwned('terminal.query'),
         'terminal.queryForPrincipal': ({ principal, query }) =>
             introspection.records.terminal(query, principal),
-        'terminal.terminateAll': () => {
+        'terminal.terminateAll': async () => {
             terminalRestores.close();
             coordinator.close();
-            terminals.shutdown('terminate');
+            await terminals.shutdown('terminate');
             return null;
         },
         ...createServiceHandlers({

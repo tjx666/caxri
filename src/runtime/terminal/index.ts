@@ -29,7 +29,7 @@ import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { attachLogFields } from './attach-log';
-import { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
+import { TerminalOutputQueue } from './buffer';
 import { oscColorReply, TerminalColorQueryResponder } from './color-query';
 import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
 import type {
@@ -42,6 +42,10 @@ import type {
 } from './manager-types';
 import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
+import {
+    CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
+    TerminalSnapshotPersistence,
+} from './snapshot-persistence';
 import { terminalEnvironment } from './terminal-environment';
 
 export type {
@@ -54,7 +58,6 @@ export { ShellIntegrationService } from './shell-integration';
 export { terminalEnvironment } from './terminal-environment';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
-const SNAPSHOT_PERSIST_INTERVAL_MS = 5_000;
 
 /**
  * Clears a possibly-unset timer and returns the `undefined` it should be replaced with.
@@ -69,6 +72,7 @@ export class TerminalManager {
     private readonly attached = new Set<string>();
     private readonly attachedSizes = new Map<string, TerminalGridSize>();
     private readonly attachedSizeWaiters = new Map<string, Set<AttachedSizeWaiter>>();
+    private readonly snapshots: TerminalSnapshotPersistence;
     private readonly starts = new SingleFlight<string, TerminalRecord>();
     private readonly resolveExecutableOverride?: TerminalManagerOptions['resolveExecutable'];
     private readonly agentLaunchSettings?: TerminalManagerOptions['agentLaunchSettings'];
@@ -78,8 +82,6 @@ export class TerminalManager {
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
-    private readonly snapshotMaximumBytes?: number;
-    private readonly snapshotIntervalMs: number;
     private readonly spawnProcess: typeof pty.spawn;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
     private readonly shellIntegration?: TerminalManagerOptions['shellIntegration'];
@@ -99,8 +101,7 @@ export class TerminalManager {
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onOutputActivity = options.onOutputActivity;
         this.onStateChanged = options.onStateChanged;
-        this.snapshotMaximumBytes = options.snapshotMaximumBytes;
-        this.snapshotIntervalMs = options.snapshotIntervalMs ?? SNAPSHOT_PERSIST_INTERVAL_MS;
+        this.snapshots = new TerminalSnapshotPersistence(database, logger);
         this.spawnProcess = options.spawn ?? pty.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
         this.shellIntegration = options.shellIntegration;
@@ -121,6 +122,10 @@ export class TerminalManager {
         let spawned: pty.IPty | undefined;
         let live: LiveTerminal | undefined;
         try {
+            const pendingSnapshot = this.snapshots.pending(record.id);
+            if (pendingSnapshot) await pendingSnapshot;
+            if (!this.database.getTerminal(record.id))
+                throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
             const e2eAgentPolicy = readE2EAgentPolicy();
             const launch =
                 record.kind === 'shell'
@@ -192,29 +197,7 @@ export class TerminalManager {
                     });
                 }
             }
-            const storedSnapshot = this.database.getSnapshot(record.id);
-            /**
-             * A persisted snapshot can still hold color-query bytes captured by an older build; replaying them would
-             * make the Renderer's xterm.js emit a stale, unsolicited reply into the new process, so they are stripped
-             * without answering.
-             */
-            const initialColorQuery = new TerminalColorQueryResponder(() => {});
-            const strippedSnapshot = `${initialColorQuery.push(
-                storedSnapshot?.payload ?? '',
-            )}${initialColorQuery.finish()}`;
-            const initialImageRecovery = new TerminalImageRecoveryFilter();
-            const initialSnapshot = `${initialImageRecovery.push(
-                strippedSnapshot,
-            )}${initialImageRecovery.finish()}`;
-            const snapshot = new TerminalSnapshotBuffer(initialSnapshot, this.snapshotMaximumBytes);
-            if (storedSnapshot && initialSnapshot !== storedSnapshot.payload) {
-                this.database.saveSnapshot({
-                    terminalId: record.id,
-                    encodingVersion: 1,
-                    ...snapshot.read(),
-                    updatedAt: Date.now(),
-                });
-            }
+            const initialSnapshot = this.snapshots.read(record.id)?.payload ?? '';
             const initialSize = this.attachedSizes.get(record.id) ?? { cols: 100, rows: 30 };
             const child = this.spawnProcess(executable, arguments_, {
                 name: 'xterm-256color',
@@ -264,7 +247,6 @@ export class TerminalManager {
                             }),
                     },
                 ),
-                snapshot,
                 outputQueue: new TerminalOutputQueue(MAX_OUTPUT_BATCH_BYTES),
                 droppedBytes: 0,
                 metricOutputBytes: 0,
@@ -275,7 +257,9 @@ export class TerminalManager {
             this.terminals.set(record.id, startedLive);
             this.database.updateTerminalState(record.id, 'running');
             child.onData((data) => this.onData(startedLive, data));
-            child.onExit(({ exitCode, signal }) => this.onExit(startedLive, exitCode, signal));
+            child.onExit(async ({ exitCode, signal }) => {
+                await this.onExit(startedLive, exitCode, signal);
+            });
             await this.onLifecycleStarted?.(record);
             this.logger.write('info', 'pty.spawned', {
                 durationMs: performance.now() - startedAt,
@@ -374,17 +358,12 @@ export class TerminalManager {
         const filtered = live.colorQuery ? live.colorQuery.push(data) : data;
         const recoveryData = live.imageRecovery.push(filtered);
         live.screen.write(recoveryData);
-        live.snapshot.append(recoveryData);
         if (this.attached.has(live.record.id)) {
             const droppedBytes = live.imageOutput.push(filtered, live.outputQueue);
             live.droppedBytes += droppedBytes;
             live.metricDroppedBytes += droppedBytes;
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), 16);
         }
-        live.snapshotTimer ??= setTimeout(
-            () => this.persistSnapshot(live),
-            this.snapshotIntervalMs,
-        );
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
     }
 
@@ -400,33 +379,6 @@ export class TerminalManager {
             },
         });
         live.droppedBytes = 0;
-    }
-
-    private persistSnapshot(live: LiveTerminal): void {
-        live.snapshotTimer = undefined;
-        if (!this.database.getTerminal(live.record.id)) return;
-        if (!live.snapshot.hasUnpersistedChanges()) return;
-        const bounded = live.snapshot.read();
-        const snapshot: TerminalSnapshot = {
-            terminalId: live.record.id,
-            encodingVersion: 1,
-            ...bounded,
-            updatedAt: Date.now(),
-        };
-        try {
-            this.database.saveSnapshot(snapshot);
-            live.snapshot.markPersisted();
-        } catch (error) {
-            /**
-             * Snapshot persistence is recoverable and must never terminate the shared Runtime.
-             */
-            this.logger.write('warn', 'pty.snapshot_failed', {
-                fields: {
-                    terminalId: live.record.id,
-                    error: errorMessage(error, 'unknown'),
-                },
-            });
-        }
     }
 
     private flushMetrics(live: LiveTerminal): void {
@@ -450,29 +402,42 @@ export class TerminalManager {
         live.metricDroppedBytes = 0;
     }
 
-    private onExit(live: LiveTerminal, exitCode: number, signal?: number): void {
-        /**
-         * OnExit always persists the final snapshot; detach persists only when asked to preserve it.
-         */
-        if (!this.retireLiveTerminal(live, { shouldPersist: true })) return;
-        /**
-         * Node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected
-         * death.
-         */
-        const isExitedNormally = exitCode === 0 && !signal;
-        this.database.updateTerminalState(live.record.id, isExitedNormally ? 'stopped' : 'dead');
-        this.onStateChanged?.(live.record.id, isExitedNormally ? 'stopped' : 'dead');
-        this.emit({
-            event: 'terminal.exit',
-            payload: { terminalId: live.record.id, exitCode, signal },
-        });
-        this.emit({
-            event: 'state.changed',
-            payload: { kind: 'records', sessionIds: [], terminalIds: [live.record.id] },
-        });
-        this.logger.write('info', 'pty.exited', {
-            fields: { terminalId: live.record.id, exitCode, signal: signal ?? null },
-        });
+    private async onExit(live: LiveTerminal, exitCode: number, signal?: number): Promise<void> {
+        try {
+            /**
+             * Report the stopped state only after the parsed screen has become durable. An attach triggered by that
+             * report can therefore never observe the older raw encoding or race the final parser barrier.
+             */
+            const finalization = this.retireLiveTerminal(live, { shouldPersist: true });
+            if (!finalization) return;
+            await finalization;
+            if (!this.database.getTerminal(live.record.id)) return;
+            /**
+             * Node-pty can report exit code zero alongside a terminating signal; the signal still means an unexpected
+             * death.
+             */
+            const isExitedNormally = exitCode === 0 && !signal;
+            this.database.updateTerminalState(
+                live.record.id,
+                isExitedNormally ? 'stopped' : 'dead',
+            );
+            this.onStateChanged?.(live.record.id, isExitedNormally ? 'stopped' : 'dead');
+            this.emit({
+                event: 'terminal.exit',
+                payload: { terminalId: live.record.id, exitCode, signal },
+            });
+            this.emit({
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds: [], terminalIds: [live.record.id] },
+            });
+            this.logger.write('info', 'pty.exited', {
+                fields: { terminalId: live.record.id, exitCode, signal: signal ?? null },
+            });
+        } catch (error) {
+            this.logger.write('warn', 'pty.exit_finalize_failed', {
+                fields: { terminalId: live.record.id, error: errorMessage(error, 'unknown') },
+            });
+        }
     }
 
     private waitForAttachedSize(
@@ -514,18 +479,21 @@ export class TerminalManager {
         for (const complete of waiters) complete();
     }
 
-    private detach(live: LiveTerminal, shouldPersist: boolean): void {
-        this.retireLiveTerminal(live, { shouldPersist });
-    }
-
     /**
      * Stops tracking a live PTY: clears its timers, flushes queued output and metrics, and optionally persists a final
-     * snapshot. Shared by `onExit` (always persists, then reports the exit) and `detach` (persists only when the caller
-     * wants the snapshot preserved, e.g. restart). Returns false when the terminal was already retired, which both
-     * callers treat as a no-op.
+     * parsed screen snapshot. Exit, restart, and Runtime shutdown preserve it; close and Session deletion discard it.
+     * Returns no finalization when the Terminal was already retired or history is deliberately discarded.
      */
-    private retireLiveTerminal(live: LiveTerminal, options: { shouldPersist: boolean }): boolean {
-        if (this.terminals.get(live.record.id) !== live) return false;
+    private retireLiveTerminal(live: LiveTerminal, options: { shouldPersist: false }): undefined;
+    private retireLiveTerminal(
+        live: LiveTerminal,
+        options: { shouldPersist: true },
+    ): Promise<void> | undefined;
+    private retireLiveTerminal(
+        live: LiveTerminal,
+        options: { shouldPersist: boolean },
+    ): Promise<void> | undefined {
+        if (this.terminals.get(live.record.id) !== live) return;
         this.clearTerminalTimers(live);
         /**
          * A view may still be attached at close/exit/restart, so pass the queue: an image still mid-capture becomes one
@@ -540,29 +508,27 @@ export class TerminalManager {
                 colorTail ? live.imageRecovery.push(colorTail) : ''
             }${live.imageRecovery.finish()}`;
             live.screen.write(recoveryTail);
-            live.snapshot.append(recoveryTail);
-            this.persistSnapshot(live);
         }
         this.terminals.delete(live.record.id);
         this.attached.delete(live.record.id);
         this.attachedSizes.delete(live.record.id);
         this.retireLifecycleSoon(live.record.id);
-        live.screen.dispose();
-        return true;
+        if (!options.shouldPersist) {
+            live.screen.dispose();
+            return;
+        }
+        return this.snapshots.finalize(live);
     }
 
     private clearTerminalTimers(live: LiveTerminal): void {
         live.activityTimer = clearScheduledTimer(live.activityTimer);
         live.outputTimer = clearScheduledTimer(live.outputTimer);
-        live.snapshotTimer = clearScheduledTimer(live.snapshotTimer);
         live.metricTimer = clearScheduledTimer(live.metricTimer);
     }
 
     /**
-     * Normal exit cannot await Host control; failures stay observable without retaining local state. The caller
-     * (`retireLiveTerminal`, itself invoked from the synchronous node-pty `onExit` handler and other sync methods)
-     * cannot become `async` without changing the PTY event-listener contract, so the rejection is handled via
-     * `.catch()` instead of `await`.
+     * Ownership removal is also shared by synchronous close and Session-deletion paths, so lifecycle revocation stays
+     * fire-and-forget and handles its own rejection instead of delaying screen finalization.
      */
     private retireLifecycleSoon(terminalId: string): void {
         // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget from a synchronous caller, see comment above
@@ -630,7 +596,12 @@ export class TerminalManager {
         terminalId: string,
         size?: { cols: number; rows: number },
     ): Promise<TerminalSnapshot | null> {
-        const live = this.terminals.get(terminalId);
+        let live = this.terminals.get(terminalId);
+        if (!live) {
+            const pendingSnapshot = this.snapshots.pending(terminalId);
+            if (pendingSnapshot) await pendingSnapshot;
+            live = this.terminals.get(terminalId);
+        }
         if (!live && !this.database.getTerminal(terminalId)) return null;
         /**
          * An interrupted Terminal may attach before its restore spawn. Retain the measured grid so the resumed TUI
@@ -652,7 +623,7 @@ export class TerminalManager {
                 fields: attachLogFields({ payloadBytes, size, source, terminalId, wasAttached }),
             });
         if (!live) {
-            const persisted = this.database.getSnapshot(terminalId) ?? null;
+            const persisted = this.snapshots.read(terminalId);
             logAttach('persisted', persisted?.payload.length ?? 0);
             return persisted;
         }
@@ -667,12 +638,30 @@ export class TerminalManager {
         }
         const snapshot = {
             terminalId,
-            encodingVersion: 2,
+            encodingVersion: CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
             ...(await live.screen.snapshot()),
             updatedAt: Date.now(),
         };
         logAttach('live', snapshot.payload.length);
         return snapshot;
+    }
+
+    async snapshot(terminalId: string): Promise<TerminalSnapshot | null> {
+        let live = this.terminals.get(terminalId);
+        if (!live) {
+            const pendingSnapshot = this.snapshots.pending(terminalId);
+            if (pendingSnapshot) await pendingSnapshot;
+            live = this.terminals.get(terminalId);
+        }
+        if (live)
+            return {
+                terminalId,
+                encodingVersion: CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
+                ...(await live.screen.snapshot()),
+                updatedAt: Date.now(),
+            };
+        if (!this.database.getTerminal(terminalId)) return null;
+        return this.snapshots.read(terminalId);
     }
 
     detachView(terminalId: string): void {
@@ -703,8 +692,9 @@ export class TerminalManager {
             /**
              * Detach first so the old PTY's asynchronous exit cannot remove the replacement with the same durable ID.
              */
-            this.detach(live, true);
+            const retiring = this.retireLiveTerminal(live, { shouldPersist: true });
             live.process.kill();
+            await retiring;
         }
         if (isPreserveAttachment) this.attached.add(terminalId);
         if (preservedSize) this.attachedSizes.set(terminalId, preservedSize);
@@ -721,7 +711,7 @@ export class TerminalManager {
             /**
              * Remove ownership before metadata so late node-pty exit events cannot write through deleted foreign keys.
              */
-            this.detach(live, false);
+            this.retireLiveTerminal(live, { shouldPersist: false });
             live.process.kill();
         }
         this.attached.delete(terminalId);
@@ -753,7 +743,7 @@ export class TerminalManager {
         }
         for (const live of this.terminals.values()) {
             if (live.record.sessionId !== sessionId) continue;
-            this.detach(live, false);
+            this.retireLiveTerminal(live, { shouldPersist: false });
             live.process.kill();
         }
     }
@@ -780,7 +770,7 @@ export class TerminalManager {
      * that recovery path only ever runs from `openDatabase` on the next Runtime start, never from a live Runtime
      * shutting itself down.
      */
-    shutdown(reason: Exclude<ShutdownReason, 'unclean'>): void {
+    async shutdown(reason: Exclude<ShutdownReason, 'unclean'>): Promise<void> {
         /**
          * Wake restore starts before their generation guard turns false so shutdown does not leave the Runtime alive
          * solely for the visible-Terminal grid grace period.
@@ -788,11 +778,17 @@ export class TerminalManager {
         for (const terminalId of this.attachedSizeWaiters.keys())
             this.resolveAttachedSizeWaiters(terminalId);
         const terminalProcessState = shutdownOutcome(reason).terminalProcessState;
+        const finalizations: Array<Promise<void>> = [];
+        const terminalIds: string[] = [];
         for (const live of this.terminals.values()) {
-            this.detach(live, true);
+            const finalization = this.retireLiveTerminal(live, { shouldPersist: true });
+            if (finalization) finalizations.push(finalization);
+            terminalIds.push(live.record.id);
             live.process.kill();
-            this.onStateChanged?.(live.record.id, terminalProcessState);
         }
+        await Promise.all(finalizations);
         this.database.markShutdown(reason);
+        for (const terminalId of terminalIds)
+            this.onStateChanged?.(terminalId, terminalProcessState);
     }
 }

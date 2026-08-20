@@ -63,7 +63,6 @@ describe('TerminalManager color-query replies', () => {
             new StructuredLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/codex'),
-                snapshotIntervalMs: 50,
                 spawn: () => fake.process,
                 terminalColors: () => ({ background: '#282a36', foreground: '#f8f8f2' }),
             },
@@ -81,41 +80,11 @@ describe('TerminalManager color-query replies', () => {
             expect(fake.write).toHaveBeenCalledWith('\u{1B}]10;rgb:f8f8/f8f8/f2f2\u{1B}\\');
             expect(fake.write).toHaveBeenCalledWith('\u{1B}]11;rgb:2828/2a2a/3636\u{1B}\\');
             expect(output).toBe('bootready');
-            expect(database.getSnapshot(created.terminal!.id)?.payload).toBe('bootready');
+            expect((await manager.snapshot(created.terminal!.id))?.payload).toBe('bootready');
         } finally {
             manager.close(created.terminal!.id);
             database.close();
             vi.useRealTimers();
-        }
-    });
-
-    it('strips stale query bytes from a persisted snapshot instead of replaying them', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-color-query-snapshot-'));
-        temporaryDirectories.push(directory);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(database.createProject(directory).id, 'shell');
-        database.saveSnapshot({
-            byteCount: 22,
-            encodingVersion: 1,
-            lineCount: 1,
-            payload: 'before\u{1B}]11;?\u{1B}\\after',
-            terminalId: created.terminal!.id,
-            updatedAt: Date.now(),
-        });
-        const fake = createFakePty();
-        const manager = new TerminalManager(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
-        );
-
-        try {
-            await manager.start(created.terminal!);
-            expect(database.getSnapshot(created.terminal!.id)?.payload).toBe('beforeafter');
-        } finally {
-            manager.close(created.terminal!.id);
-            database.close();
         }
     });
 });

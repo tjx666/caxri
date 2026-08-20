@@ -38,6 +38,10 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
     try {
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
+        const firstTerminalId = await running.page
+            .locator('.work-tab.active[data-terminal-id]')
+            .getAttribute('data-terminal-id');
+        if (!firstTerminalId) throw new Error('First Terminal identity was not rendered');
         await running.app.evaluate(({ clipboard }) => clipboard.writeText('OSC52_SENTINEL'));
         await running.page.evaluate(() => {
             const clipboard = navigator.clipboard;
@@ -156,6 +160,39 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         const firstSession = sessionCard(running.page, firstSessionId);
         await firstSession.click();
         await expect(firstSession).toHaveClass(/active/);
+        await running.page.waitForTimeout(1_050);
+
+        await typeTerminal(running.page, 'stty -echo');
+        const historicalClipboardPayload = encoded('HISTORICAL_REPLAY_WRITE');
+        await typeTerminal(
+            running.page,
+            String.raw`printf 'SNAPSHOT_REPLAY_VISIBLE\n'; ${osc52(historicalClipboardPayload)}; exit`,
+        );
+        await expect(running.page.locator('[data-terminal-exit-state="stopped"]')).toBeVisible();
+        await expect
+            .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
+            .toBe('HISTORICAL_REPLAY_WRITE');
+        await running.app.evaluate(({ clipboard }) => clipboard.writeText('RESTORE_SENTINEL'));
+
+        await createAdditionalShellSession(running.page);
+        const liveSessionId = await selectedSessionId(running.page);
+        const persisted = await pageRequest<{
+            encodingVersion: number;
+            payload: string;
+        } | null>(running.page, 'terminal.snapshot', { terminalId: firstTerminalId });
+        expect(persisted).toMatchObject({ encodingVersion: 2 });
+        expect(persisted?.payload).toContain('SNAPSHOT_REPLAY_VISIBLE');
+        expect(persisted?.payload).not.toContain(historicalClipboardPayload);
+
+        await firstSession.click();
+        await expect(running.page.locator('.xterm-rows')).toContainText('SNAPSHOT_REPLAY_VISIBLE');
+        await running.page.waitForTimeout(250);
+        expect(await running.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(
+            'RESTORE_SENTINEL',
+        );
+
+        await sessionCard(running.page, liveSessionId).click();
+        await expect(running.page.locator('.xterm-helper-textarea')).toBeFocused();
         await running.page.waitForTimeout(1_050);
         await running.page.evaluate(() => {
             Object.defineProperty(navigator.clipboard, 'writeText', {

@@ -290,8 +290,7 @@ export function useTerminalPaneRuntime({
         );
         const progressDisposable = progress.onChange((update) => {
             /**
-             * A stopped Terminal can replay historical OSC bytes during recovery; those bytes must not resurrect
-             * progress after the process lifecycle already cleared it.
+             * A stopped Terminal has no process that can own progress, including while its visual history is restored.
              */
             if (latestReference.current.processState !== 'running') {
                 clearTerminalProgress(terminalId);
