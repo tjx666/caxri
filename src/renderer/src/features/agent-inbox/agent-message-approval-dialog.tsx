@@ -83,7 +83,12 @@ export function AgentMessageApprovalDialog() {
                 const value = await caxri.request('agent.message.held.get', {
                     messageId: id,
                 });
-                if (isActive) setDetail(value);
+                if (!isActive) return;
+                if (!value) {
+                    setMessages((existing) => existing.filter(({ messageId }) => messageId !== id));
+                    return;
+                }
+                setDetail(value);
             } catch (error: unknown) {
                 if (!isActive) return;
                 setDetailFailed(true);

@@ -65,3 +65,11 @@ describe('agent-inbox-contract send/reply params', () => {
         expect(parsed.timeoutMs).toBe(15_000);
     });
 });
+
+describe('agent-inbox-contract held detail result', () => {
+    it('represents a known message that already left held state as null', () => {
+        expect(agentInboxMethods['agent.message.held.get'].result.safeParse(null).success).toBe(
+            true,
+        );
+    });
+});

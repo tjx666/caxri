@@ -160,7 +160,11 @@ export const agentInboxMethods = {
     'agent.message.held.get': {
         ...commandPolicy('host', 'read', ['desktop']),
         params: desktopMessageTargetSchema,
-        result: agentHeldMessageDetailSchema,
+        /**
+         * `null` means the Host still recognizes the receipt but it already left the held state. This lets a Desktop
+         * detail read converge with a simultaneous receipt event without turning the expected race into an error.
+         */
+        result: agentHeldMessageDetailSchema.nullable(),
     },
     'agent.message.approve': {
         ...commandPolicy('host', 'write', ['desktop']),
