@@ -206,6 +206,38 @@ describe('AgentInboxRegistry', () => {
         inbox.close();
     });
 
+    it('converges repeated Desktop decisions for a message that already left held state', () => {
+        const { advance, begin, inbox } = setup();
+        const sender = begin();
+        const receiver = begin({ permissionClass: 'elevated' });
+        const held = inbox.send(
+            sender.context,
+            sendInput(receiver.result.ref, 'stale approval race'),
+            'request-stale-approval',
+        );
+
+        const approved = inbox.approve(held.messageId);
+
+        expect(inbox.heldDetail(held.messageId)).toBeNull();
+        expect(inbox.approve(held.messageId)).toEqual(approved);
+        expect(inbox.deny(held.messageId)).toEqual(approved);
+        expect(() => inbox.heldDetail('never-existed')).toThrow(
+            expect.objectContaining({ code: 'NOT_FOUND' }) as Error,
+        );
+
+        const expiring = inbox.send(
+            sender.context,
+            sendInput(receiver.result.ref, 'stale expiry race'),
+            'request-stale-expiry',
+        );
+        advance(300_000);
+
+        expect(inbox.heldDetail(expiring.messageId)).toBeNull();
+        expect(inbox.approve(expiring.messageId)).toMatchObject({ status: 'expired' });
+        expect(inbox.deny(expiring.messageId)).toMatchObject({ status: 'expired' });
+        inbox.close();
+    });
+
     it('enforces receiver policy, Project scope, and unavailable adapters without leaking a body', () => {
         const { begin, inbox, receiptEvents } = setup();
         const sender = begin();

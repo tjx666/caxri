@@ -198,6 +198,25 @@ process.stdin.resume();
             )
             .toBe('refused');
 
+        const racedBody = 'peer-message-stale-approval sentinel';
+        const raced = await sender.request('agent.message.send', {
+            to: receiverCapture.context.endpoint.ref,
+            body: racedBody,
+        });
+        await expect(approval).toBeVisible();
+        await expect(
+            pageRequest(running.page, 'agent.message.approve', { messageId: raced.messageId }),
+        ).resolves.toMatchObject({ status: 'waiting' });
+        await expect(
+            pageRequest(running.page, 'agent.message.held.get', { messageId: raced.messageId }),
+        ).resolves.toBeNull();
+        await expect(
+            pageRequest(running.page, 'agent.message.deny', { messageId: raced.messageId }),
+        ).resolves.toMatchObject({ status: 'waiting' });
+        await expect(
+            receiver.request('agent.message.wait', { timeoutMs: 1_000 }),
+        ).resolves.toMatchObject({ message: { body: racedBody, origin: 'peer' } });
+
         const staleBody = 'peer-message-stale privacy-sentinel';
         const stale = await sender.request('agent.message.send', {
             to: receiverCapture.context.endpoint.ref,
@@ -219,6 +238,15 @@ process.stdin.resume();
             )
             .toBe('expired');
         await expect(approval).toHaveCount(0);
+        await expect(
+            pageRequest(running.page, 'agent.message.held.get', { messageId: stale.messageId }),
+        ).resolves.toBeNull();
+        await expect(
+            pageRequest(running.page, 'agent.message.approve', { messageId: stale.messageId }),
+        ).resolves.toMatchObject({ status: 'expired' });
+        await expect(
+            pageRequest(running.page, 'agent.message.deny', { messageId: stale.messageId }),
+        ).resolves.toMatchObject({ status: 'expired' });
         await expect.poll(async () => (await captures(capturePath)).length).toBe(3);
         const restarted = (await captures(capturePath)).at(2);
         if (!restarted) throw new Error('Restarted Agent Endpoint capture missing');
