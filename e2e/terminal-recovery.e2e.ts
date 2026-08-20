@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -6,7 +6,21 @@ import process from 'node:process';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    createAdditionalShellSession,
+    createProjectSession,
+    launchCaxri,
+    pageRequest,
+    selectedSessionId,
+    sessionCard,
+} from './support/helpers.ts';
+
+interface PersistedTerminalGridSnapshot {
+    cols: number;
+    encodingVersion: number;
+    payload: string;
+    rows: number;
+}
 
 async function typeTerminal(page: Page, command: string): Promise<void> {
     const input = page.locator('.xterm-helper-textarea').last();
@@ -94,6 +108,24 @@ async function waitForStableAgentGrid(
     return stableGrid!;
 }
 
+async function hasPersistedGridFrame(page: Page, terminalId: string): Promise<boolean> {
+    const rows = await page
+        .locator(`.terminal-pane[data-terminal-id="${terminalId}"] .xterm-rows > div`)
+        .allTextContents();
+    return (
+        rows[0]?.startsWith('+------') === true &&
+        rows[1]?.startsWith('|SNAPSHOT_GRID_') === true &&
+        rows[2]?.startsWith('|ASCII_CJK_你好_界') === true &&
+        rows[3]?.startsWith('    CURSOR_MARK_界') === true
+    );
+}
+
+async function renderedTerminalGrid(page: Page, terminalId: string): Promise<string | null> {
+    return page
+        .locator(`.terminal-pane[data-terminal-id="${terminalId}"] .terminal-surface`)
+        .evaluate((surface) => (surface as HTMLElement).dataset.terminalGrid ?? null);
+}
+
 test('normal exit stays neutral and restart preserves one durable Terminal', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-recovery-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -139,6 +171,89 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
         await expect(dead).toHaveCount(0);
         await expect(running.page.locator('.process-running')).toBeVisible();
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('stopped Terminal snapshots restore at their source grid before fitting a changed pane width', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-stopped-grid-restore-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    await writeFile(
+        join(root, 'stopped-grid-fixture.zsh'),
+        String.raw`cols=$(tput cols)
+rows=$(tput lines)
+horizontal=$(printf '%*s' "$((cols - 2))" '' | tr ' ' '-')
+printf '\033[?1049h\033[2J\033[H'
+printf '\033[1;1H+%s+' "$horizontal"
+printf '\033[2;1H|SNAPSHOT_GRID_%sx%s_中' "$cols" "$rows"
+printf '\033[2;%sH|' "$cols"
+printf '\033[3;1H|ASCII_CJK_你好_界'
+printf '\033[3;%sH|' "$cols"
+printf '\033[%s;1H+%s+' "$rows" "$horizontal"
+printf '\033[4;5HCURSOR_MARK_界'
+`,
+        'utf8',
+    );
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await running.page.setViewportSize({ height: 800, width: 1_200 });
+        await createProjectSession(running.page, 'shell');
+        const firstSessionId = await selectedSessionId(running.page);
+        const terminalId = await running.page
+            .locator('.terminal-pane[data-terminal-id]')
+            .getAttribute('data-terminal-id');
+        if (!terminalId) throw new Error('Terminal identity was not rendered');
+        await expect
+            .poll(() => renderedTerminalGrid(running.page, terminalId))
+            .toMatch(/^\d+x\d+$/);
+        const sourceGrid = await renderedTerminalGrid(running.page, terminalId);
+        if (!sourceGrid) throw new Error('Source Terminal grid was not published');
+        const [sourceCols] = sourceGrid.split('x').map(Number);
+
+        await typeTerminal(running.page, 'exec zsh stopped-grid-fixture.zsh');
+        await expect(running.page.locator('[data-terminal-exit-state="stopped"]')).toBeVisible();
+        const snapshot = await pageRequest<PersistedTerminalGridSnapshot | null>(
+            running.page,
+            'terminal.snapshot',
+            { terminalId },
+        );
+        expect(snapshot).toMatchObject({ cols: sourceCols, encodingVersion: 3 });
+
+        await createAdditionalShellSession(running.page);
+        const secondSessionId = await selectedSessionId(running.page);
+        const firstSession = sessionCard(running.page, firstSessionId);
+        const secondSession = sessionCard(running.page, secondSessionId);
+
+        for (const width of [1_200, 720, 1_600]) {
+            // eslint-disable-next-line no-await-in-loop -- each width must mount and finish its persisted replay before the next one starts
+            await running.page.setViewportSize({ height: 800, width });
+            // eslint-disable-next-line no-await-in-loop -- Session switches are the user action that remounts the stopped xterm
+            await firstSession.click();
+            // eslint-disable-next-line no-await-in-loop -- the replay transaction publishes its final fitted grid only after xterm.write completes
+            await expect
+                .poll(() => renderedTerminalGrid(running.page, terminalId))
+                .toMatch(/^\d+x\d+$/);
+            // eslint-disable-next-line no-await-in-loop -- read back the grid that the replay transaction just published
+            const finalGrid = await renderedTerminalGrid(running.page, terminalId);
+            if (!finalGrid) throw new Error('Final Terminal grid was not published');
+            const [finalCols] = finalGrid.split('x').map(Number);
+            if (width === 1_200) expect(finalCols).toBe(sourceCols);
+            else if (width < 1_200) expect(finalCols).toBeLessThan(sourceCols);
+            else expect(finalCols).toBeGreaterThan(sourceCols);
+            // eslint-disable-next-line no-await-in-loop -- frame parsing must settle after the source-grid replay and final fit
+            await expect.poll(() => hasPersistedGridFrame(running.page, terminalId)).toBe(true);
+            // eslint-disable-next-line no-await-in-loop -- switch away so the next width forces a fresh persisted attachment
+            await secondSession.click();
+        }
     } finally {
         try {
             await running.app.close();

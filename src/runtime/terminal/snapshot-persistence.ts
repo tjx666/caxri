@@ -1,10 +1,11 @@
+import { terminalSnapshotSchema } from '../../shared/ipc/domain';
 import { errorMessage } from '../../shared/ipc/errors';
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { TerminalSnapshot } from '../../shared/types';
 import type { CaxriDatabase } from '../db';
 import type { LiveTerminal } from './manager-types';
 
-export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 2;
+export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 3;
 
 /**
  * Owns the asynchronous parser barrier and version gate for durable Terminal screen snapshots.
@@ -45,9 +46,10 @@ export class TerminalSnapshotPersistence {
     }
 
     read(terminalId: string): TerminalSnapshot | null {
-        const snapshot = this.database.getSnapshot(terminalId);
-        return snapshot?.encodingVersion === CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION
-            ? snapshot
+        const result = terminalSnapshotSchema.safeParse(this.database.getSnapshot(terminalId));
+        return result.success &&
+            result.data.encodingVersion === CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION
+            ? result.data
             : null;
     }
 

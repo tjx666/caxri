@@ -118,7 +118,7 @@ describe('TerminalReplayBuffer', () => {
 describe('TerminalReplayCoordinator', () => {
     it('replaces a stale mounted screen and replays output received during reattachment', async () => {
         const events: string[] = [];
-        const snapshot = Promise.withResolvers<string>();
+        const snapshot = Promise.withResolvers<{ cols: number; payload: string; rows: number }>();
         const coordinator = new TerminalReplayCoordinator(
             (value) => {
                 events.push(`write:${value}`);
@@ -127,27 +127,35 @@ describe('TerminalReplayCoordinator', () => {
             () => {
                 events.push('reset');
             },
+            {
+                finishSnapshot: () => events.push('finish'),
+                prepareSnapshot: ({ cols, rows }) => events.push(`prepare:${cols}x${rows}`),
+            },
         );
-        await coordinator.restoreInitial('old-screen');
+        await coordinator.restoreInitial({ cols: 80, payload: 'old-screen', rows: 24 });
 
         const reattachment = coordinator.reattach(() => snapshot.promise);
         await Promise.resolve();
         coordinator.push('live-output');
-        expect(events).toEqual(['write:old-screen']);
+        expect(events).toEqual(['prepare:80x24', 'write:old-screen', 'finish']);
 
-        snapshot.resolve('restored-screen');
+        snapshot.resolve({ cols: 40, payload: 'restored-screen', rows: 12 });
         await reattachment;
         expect(events).toEqual([
+            'prepare:80x24',
             'write:old-screen',
+            'finish',
+            'prepare:40x12',
             'reset',
             'write:restored-screen',
             'write:live-output',
+            'finish',
         ]);
     });
 
     it('bounds output while a reattachment snapshot is slow', async () => {
         const writes: string[] = [];
-        const snapshot = Promise.withResolvers<string>();
+        const snapshot = Promise.withResolvers<{ cols: number; payload: string; rows: number }>();
         const coordinator = new TerminalReplayCoordinator(
             (value) => {
                 writes.push(`write:${value}`);
@@ -158,7 +166,7 @@ describe('TerminalReplayCoordinator', () => {
             },
             { maximumPendingBytes: 5, maximumPendingItems: 2 },
         );
-        await coordinator.restoreInitial('old-screen');
+        await coordinator.restoreInitial({ cols: 80, payload: 'old-screen', rows: 24 });
 
         const reattachment = coordinator.reattach(() => snapshot.promise);
         await Promise.resolve();
@@ -166,7 +174,7 @@ describe('TerminalReplayCoordinator', () => {
         coordinator.push('cd');
         coordinator.push('ef');
         coordinator.push('gh');
-        snapshot.resolve('restored-screen');
+        snapshot.resolve({ cols: 80, payload: 'restored-screen', rows: 24 });
         await reattachment;
 
         expect(writes).toEqual([

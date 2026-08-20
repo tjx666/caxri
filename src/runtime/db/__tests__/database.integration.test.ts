@@ -357,9 +357,19 @@ describe('CaxriDatabaseConnection', () => {
             id: 'terminal-preserved',
             failureReason: undefined,
         });
-        expect(upgraded.snapshots.get('terminal-preserved')).toMatchObject({
-            terminalId: 'terminal-preserved',
+        expect(upgraded.snapshots.get('terminal-preserved')).toBeUndefined();
+        expect(
+            upgraded.database
+                .prepare(
+                    `SELECT terminal_id AS terminalId, payload, cols, rows
+                     FROM terminal_snapshots WHERE terminal_id = ?`,
+                )
+                .get('terminal-preserved'),
+        ).toEqual({
+            cols: null,
             payload: 'restored',
+            rows: null,
+            terminalId: 'terminal-preserved',
         });
         const restoredState = upgraded.sessions.getState('session-preserved');
         expect(restoredState.workbenchProjectId).toBe(project.id);

@@ -309,7 +309,7 @@ describe('TerminalManager', () => {
             fake.emitData(`before${image}after`);
             fake.emitExit({ exitCode: 0 });
             await vi.waitFor(() =>
-                expect(database.getSnapshot(created.terminal!.id)?.encodingVersion).toBe(2),
+                expect(database.getSnapshot(created.terminal!.id)?.encodingVersion).toBe(3),
             );
 
             expect(output).toContain(image);

@@ -78,7 +78,7 @@ describe('TerminalManager snapshot persistence', () => {
             fake.emitExit({ exitCode: 0 });
 
             await vi.waitFor(() => expect(snapshotAtExit).toBeDefined());
-            expect(snapshotAtExit).toMatchObject({ encodingVersion: 2 });
+            expect(snapshotAtExit).toMatchObject({ cols: 100, encodingVersion: 3, rows: 30 });
             expect(snapshotAtExit?.payload).toContain('beforeafter');
             expect(snapshotAtExit?.payload).not.toContain(']52;');
             expect(snapshotAtExit?.payload).not.toContain(clipboardPayload);
@@ -88,16 +88,18 @@ describe('TerminalManager snapshot persistence', () => {
         }
     });
 
-    it.each([1, 99])('fails closed for snapshot encoding %i', async (encodingVersion) => {
+    it.each([1, 2, 99])('fails closed for snapshot encoding %i', async (encodingVersion) => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-legacy-snapshot-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         database.saveSnapshot({
             byteCount: 14,
+            cols: 100,
             encodingVersion,
             lineCount: 1,
             payload: 'LEGACY_HISTORY',
+            rows: 30,
             terminalId: created.terminal!.id,
             updatedAt: Date.now(),
         });
@@ -115,6 +117,39 @@ describe('TerminalManager snapshot persistence', () => {
             expect((await manager.attach(created.terminal!.id))?.payload).not.toContain(
                 'LEGACY_HISTORY',
             );
+        } finally {
+            manager.close(created.terminal!.id);
+            database.close();
+        }
+    });
+
+    it('fails closed for a current snapshot with invalid persisted grid metadata', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-invalid-grid-snapshot-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        database.saveSnapshot({
+            byteCount: 7,
+            cols: 100,
+            encodingVersion: 3,
+            lineCount: 1,
+            payload: 'HISTORY',
+            rows: 30,
+            terminalId: created.terminal!.id,
+            updatedAt: Date.now(),
+        });
+        database.database
+            .prepare('UPDATE terminal_snapshots SET cols = 0 WHERE terminal_id = ?')
+            .run(created.terminal!.id);
+        const manager = new TerminalManager(
+            database,
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            { resolveExecutable: () => Promise.resolve('/bin/zsh') },
+        );
+
+        try {
+            await expect(manager.attach(created.terminal!.id)).resolves.toBeNull();
         } finally {
             manager.close(created.terminal!.id);
             database.close();
@@ -144,7 +179,9 @@ describe('TerminalManager snapshot persistence', () => {
             await manager.restart(created.terminal!.id);
 
             expect(database.getSnapshot(created.terminal!.id)).toMatchObject({
-                encodingVersion: 2,
+                cols: 100,
+                encodingVersion: 3,
+                rows: 30,
             });
             expect((await manager.snapshot(created.terminal!.id))?.payload).toContain(
                 'BEFORE_RESTART',
@@ -181,9 +218,13 @@ describe('TerminalManager snapshot persistence', () => {
         await manager.shutdown('orderly');
 
         const snapshot = database.getSnapshot(created.terminal!.id);
-        expect(snapshot?.encodingVersion).toBe(2);
+        expect(snapshot).toMatchObject({ cols: 100, encodingVersion: 3, rows: 30 });
         expect(snapshot?.payload).toContain('BEFORE_SHUTDOWN');
-        expect(snapshotAtStateChange?.encodingVersion).toBe(2);
+        expect(snapshotAtStateChange).toMatchObject({
+            cols: 100,
+            encodingVersion: 3,
+            rows: 30,
+        });
         database.close();
     });
 });

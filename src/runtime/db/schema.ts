@@ -96,6 +96,11 @@ export const terminalSnapshots = sqliteTable('terminal_snapshots', {
         .primaryKey()
         .references(() => terminals.id, { onDelete: 'cascade' }),
     encodingVersion: integer('encoding_version').notNull(),
+    /**
+     * Pre-grid snapshot encodings remain stored with null geometry and fail closed at the model boundary.
+     */
+    cols: integer('cols'),
+    rows: integer('rows'),
     lineCount: integer('line_count').notNull(),
     byteCount: integer('byte_count').notNull(),
     payload: text('payload').notNull(),

@@ -10,6 +10,23 @@ export interface TerminalReplayBufferOptions {
     maximumPendingItems?: number;
 }
 
+export interface TerminalReplaySnapshot {
+    cols: number;
+    payload: string;
+    rows: number;
+}
+
+export interface TerminalReplayCoordinatorOptions extends TerminalReplayBufferOptions {
+    /**
+     * Locks xterm to the source grid immediately before a serialized framebuffer is parsed.
+     */
+    prepareSnapshot?: (snapshot: TerminalReplaySnapshot) => void;
+    /**
+     * Restores normal pane fitting only after the snapshot and queued output have finished parsing.
+     */
+    finishSnapshot?: () => void;
+}
+
 function utf8ByteLength(value: string): number {
     return textEncoder.encode(value).byteLength;
 }
@@ -144,7 +161,7 @@ export class TerminalReplayCoordinator {
     constructor(
         private readonly write: (value: string) => Promise<void>,
         private readonly reset: () => void,
-        private readonly replayOptions: TerminalReplayBufferOptions = {},
+        private readonly replayOptions: TerminalReplayCoordinatorOptions = {},
     ) {
         this.replay = new TerminalReplayBuffer(write, replayOptions);
         this.tail = this.initial.promise;
@@ -154,23 +171,30 @@ export class TerminalReplayCoordinator {
         this.replay.push(value);
     }
 
-    async restoreInitial(snapshot: string): Promise<void> {
+    async restoreInitial(snapshot: TerminalReplaySnapshot | null): Promise<void> {
         try {
-            await this.replay.restore(snapshot);
+            if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
+            await this.replay.restore(snapshot?.payload ?? '');
         } finally {
+            this.replayOptions.finishSnapshot?.();
             this.initial.resolve();
         }
     }
 
-    reattach(loadSnapshot: () => Promise<string>): Promise<void> {
+    reattach(loadSnapshot: () => Promise<TerminalReplaySnapshot | null>): Promise<void> {
         const task = (async (): Promise<void> => {
             await this.tail;
             const replay = new TerminalReplayBuffer(this.write, this.replayOptions);
             this.replay = replay;
             try {
                 const snapshot = await loadSnapshot();
-                this.reset();
-                await replay.restore(snapshot);
+                try {
+                    if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
+                    this.reset();
+                    await replay.restore(snapshot?.payload ?? '');
+                } finally {
+                    this.replayOptions.finishSnapshot?.();
+                }
             } catch (error) {
                 /**
                  * Keep the existing screen on an attach failure, but release output buffered while the Runtime request

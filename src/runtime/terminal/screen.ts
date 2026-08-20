@@ -14,9 +14,14 @@ type ScreenOperation =
     | {
           options: TerminalScreenSnapshotOptions;
           reject: (error: unknown) => void;
-          resolve: (snapshot: ReturnType<typeof boundSnapshot>) => void;
+          resolve: (snapshot: TerminalScreenSnapshot) => void;
           type: 'snapshot';
       };
+
+export type TerminalScreenSnapshot = ReturnType<typeof boundSnapshot> & {
+    cols: number;
+    rows: number;
+};
 
 export interface TerminalScreenSnapshotOptions {
     /**
@@ -142,16 +147,18 @@ export class TerminalScreenState {
         }
     }
 
-    private serializeBounded(
-        options: TerminalScreenSnapshotOptions,
-    ): ReturnType<typeof boundSnapshot> {
+    private serializeBounded(options: TerminalScreenSnapshotOptions): TerminalScreenSnapshot {
         let scrollback = MAX_SNAPSHOT_LINES;
         let payload = this.serialize.serialize({ excludeModes: options.excludeModes, scrollback });
         while (Buffer.byteLength(payload, 'utf8') > MAX_SNAPSHOT_BYTES && scrollback > 0) {
             scrollback = Math.floor(scrollback / 2);
             payload = this.serialize.serialize({ excludeModes: options.excludeModes, scrollback });
         }
-        return boundSnapshot(payload);
+        return {
+            ...boundSnapshot(payload),
+            cols: this.terminal.cols,
+            rows: this.terminal.rows,
+        };
     }
 
     write(data: string): void {
@@ -184,10 +191,13 @@ export class TerminalScreenState {
     /**
      * Inserts an exact ordering barrier so later live output can stream to the attached Renderer.
      */
-    snapshot(
-        options: TerminalScreenSnapshotOptions = {},
-    ): Promise<ReturnType<typeof boundSnapshot>> {
-        if (this.disposed) return Promise.resolve(boundSnapshot(''));
+    snapshot(options: TerminalScreenSnapshotOptions = {}): Promise<TerminalScreenSnapshot> {
+        if (this.disposed)
+            return Promise.resolve({
+                ...boundSnapshot(''),
+                cols: this.terminal.cols,
+                rows: this.terminal.rows,
+            });
         return new Promise((resolve, reject) => {
             this.operations.push({ options, reject, resolve, type: 'snapshot' });
             this.startDrain();

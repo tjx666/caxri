@@ -52,6 +52,8 @@ function makeSnapshot(
     return {
         terminalId,
         encodingVersion: 1,
+        cols: 80,
+        rows: 24,
         lineCount: 3,
         byteCount: 24,
         payload: 'restored-buffer',

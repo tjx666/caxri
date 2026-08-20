@@ -23,6 +23,7 @@ describe('TerminalScreenState', () => {
 
         expect(snapshot.payload).toContain('first');
         expect(snapshot.payload).toContain('latest');
+        expect(snapshot).toMatchObject({ cols: 200, rows: 4 });
         screen.dispose();
     });
 
