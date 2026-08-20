@@ -200,31 +200,79 @@ async function waitForStableTerminalGrid(page: Page, terminalId: string): Promis
     let stableGrid: string | undefined;
     await expect
         .poll(async () => {
-            const [rendererGrid, terminalText] = await Promise.all([
-                pane
-                    .locator('.terminal-surface')
-                    .evaluate((surface) => (surface as HTMLElement).dataset.terminalGrid ?? null),
+            const [rendererState, terminalText] = await Promise.all([
+                pane.locator('.terminal-surface').evaluate((surface) => {
+                    const terminalSurface = surface as HTMLElement;
+                    const screen = terminalSurface.querySelector<HTMLElement>('.xterm-screen');
+                    const terminal = terminalSurface.querySelector<HTMLElement>('.xterm');
+                    const viewport = terminalSurface.querySelector<HTMLElement>('.xterm-viewport');
+                    const scrollbar = terminalSurface.querySelector<HTMLElement>(
+                        '.xterm-scrollbar.xterm-vertical',
+                    );
+                    const rendererGrid = terminalSurface.dataset.terminalGrid ?? null;
+                    const columns = Number(rendererGrid?.split('x', 1)[0]);
+                    if (
+                        !screen ||
+                        !terminal ||
+                        !viewport ||
+                        !rendererGrid ||
+                        !Number.isFinite(columns)
+                    )
+                        return {
+                            cellWidth: 0,
+                            fillsPane: false,
+                            horizontalPadding: 0,
+                            rendererGrid,
+                            scrollbarWidth: 0,
+                            screenWidth: 0,
+                            viewportWidth: 0,
+                        };
+                    const screenWidth = screen.getBoundingClientRect().width;
+                    const viewportWidth = viewport.getBoundingClientRect().width;
+                    const terminalStyle = getComputedStyle(terminal);
+                    const horizontalPadding =
+                        Number(terminalStyle.paddingLeft.slice(0, -2)) +
+                        Number(terminalStyle.paddingRight.slice(0, -2));
+                    const scrollbarWidth = scrollbar?.getBoundingClientRect().width ?? 0;
+                    const cellWidth = screenWidth / columns;
+                    return {
+                        cellWidth,
+                        fillsPane:
+                            viewportWidth - screenWidth <=
+                            horizontalPadding + scrollbarWidth + cellWidth * 2 + 2,
+                        horizontalPadding,
+                        rendererGrid,
+                        scrollbarWidth,
+                        screenWidth,
+                        viewportWidth,
+                    };
+                }),
                 rows.textContent(),
             ]);
             const ptyGrid = (terminalText ?? '')
                 .match(/CAXRI_PTY_GRID_\d+x\d+/g)
                 ?.at(-1)
                 ?.slice('CAXRI_PTY_GRID_'.length);
-            if (!rendererGrid || rendererGrid !== ptyGrid) {
+            if (
+                !rendererState.rendererGrid ||
+                !rendererState.fillsPane ||
+                rendererState.rendererGrid !== ptyGrid
+            ) {
                 candidate = undefined;
                 matchingSamples = 0;
-                return;
+                return { ...rendererState, ptyGrid, stable: false };
             }
+            const rendererGrid = rendererState.rendererGrid;
             if (rendererGrid === candidate) matchingSamples += 1;
             else {
                 candidate = rendererGrid;
                 matchingSamples = 1;
             }
-            if (matchingSamples < 3) return;
+            if (matchingSamples < 3) return { ...rendererState, ptyGrid, stable: false };
             stableGrid = rendererGrid;
-            return rendererGrid;
+            return { ...rendererState, ptyGrid, stable: true };
         })
-        .toMatch(/^\d+x\d+$/);
+        .toMatchObject({ fillsPane: true, stable: true });
     return stableGrid!;
 }
 
@@ -594,7 +642,6 @@ sleep 30
             running.page,
             secondTerminalId,
             output,
-            { ascii: 3, cjk: 2 },
         );
         for (const split of [splitLeft, splitRight]) {
             const splitEvidence = JSON.stringify(split);

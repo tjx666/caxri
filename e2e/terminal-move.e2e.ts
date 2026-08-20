@@ -57,6 +57,16 @@ test('Move to New Session keeps the live Terminal and disables the only-tab acti
             'aria-describedby',
             /context-menu-item-reason-/,
         );
+        await onlyTabAction.click({ force: true });
+        const afterDisabledActivation = await pageRequest<BootstrapState>(
+            running.page,
+            'app.bootstrap',
+        );
+        expect(afterDisabledActivation.selectedSessionId).toBe(sourceSessionId);
+        expect(afterDisabledActivation.sessions.map(({ id }) => id)).toEqual(
+            initial.sessions.map(({ id }) => id),
+        );
+        expect(afterDisabledActivation.terminals).toEqual(initial.terminals);
         await running.page.keyboard.press('Escape');
 
         await running.page.getByRole('button', { name: 'New Terminal' }).click();

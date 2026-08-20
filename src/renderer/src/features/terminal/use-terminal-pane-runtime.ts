@@ -452,13 +452,13 @@ export function useTerminalPaneRuntime({
                 if (!isDisposed) xterm.reset();
             },
             {
+                beginSnapshot: () => resizeSettler.pause(),
                 finishSnapshot: () => {
                     if (isDisposed) return;
                     observer.observe(container);
-                    scheduleResize();
+                    resizeSettler.resume();
                 },
                 prepareSnapshot: ({ cols, rows }) => {
-                    observer.disconnect();
                     if (
                         didTerminalSizeChange(
                             { cols: xterm.cols, rows: xterm.rows },
@@ -505,6 +505,7 @@ export function useTerminalPaneRuntime({
         document.addEventListener('pointerdown', trackExplicitInteraction, { capture: true });
         const initialSize = fitToPane();
         const initialize = async (): Promise<void> => {
+            resizeSettler.pause();
             let attachment: TerminalSnapshot | null = null;
             try {
                 attachment = await caxri.request(
@@ -550,7 +551,6 @@ export function useTerminalPaneRuntime({
         // Effects cannot be async themselves; initialize already reports its own failure via onError.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void initialize();
-
         return () => {
             isDisposed = true;
             delete container.dataset.terminalAttached;

@@ -51,4 +51,30 @@ describe('Terminal resize deduplication', () => {
         expect(requestFrame).toHaveBeenCalledTimes(4);
         expect(cancelFrame).not.toHaveBeenCalled();
     });
+
+    it('keeps the recorded grid fixed while snapshot replay is active', () => {
+        const frames: Array<() => void> = [];
+        const requestFrame = vi.fn((callback: () => void) => {
+            frames.push(callback);
+            return frames.length;
+        });
+        const cancelFrame = vi.fn();
+        const onFrame = vi.fn();
+        const settler = new TerminalResizeSettler(onFrame, requestFrame, cancelFrame, 2);
+
+        settler.schedule();
+        settler.pause();
+        settler.schedule();
+        frames.shift()!();
+
+        expect(cancelFrame).toHaveBeenCalledWith(1);
+        expect(onFrame).not.toHaveBeenCalled();
+        expect(requestFrame).toHaveBeenCalledTimes(1);
+
+        settler.resume();
+        frames.shift()!();
+
+        expect(onFrame).toHaveBeenCalledTimes(1);
+        expect(requestFrame).toHaveBeenCalledTimes(3);
+    });
 });
