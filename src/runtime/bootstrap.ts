@@ -1,7 +1,7 @@
 import { constants } from 'node:fs';
 import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join, relative, sep } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import process from 'node:process';
 
 import { agentProviderCatalog } from '../shared/agents';
@@ -29,6 +29,7 @@ import type { Runtime, RuntimeDependencies } from './bootstrap-types';
 import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
 import { createIntrospectionServices } from './introspection';
+import { assertInsideRoot } from './path-security';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
@@ -260,11 +261,10 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                 throw new CaxriError('IO', 'Terminal working directory is unavailable');
             }
             const nested = relative(canonicalRoot, canonical);
-            if (nested === '..' || nested.startsWith(`..${sep}`) || isAbsolute(nested))
-                throw new CaxriError(
-                    'PATH_DENIED',
-                    'Terminal working directory must stay inside the Project root',
-                );
+            assertInsideRoot(
+                nested,
+                'Terminal working directory must stay inside the Project root',
+            );
             return canonical;
         }
         const configured = configuration.getSettings().value['terminal.defaultWorkingDirectory'];

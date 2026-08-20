@@ -2,27 +2,16 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
-import type { IPty } from 'node-pty';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import type { RuntimeEvent } from '../../../shared/ipc';
 import type { CommandAdapter } from '../../../shared/ipc/dispatcher';
 import { createCommandDispatcher } from '../../../shared/ipc/dispatcher';
 import { StructuredLogger } from '../../../shared/node/logger';
+import { createFakePty } from '../../__tests__/create-test-runtime';
 import { createRuntime } from '../../bootstrap';
 
 const temporaryDirectories: string[] = [];
-
-function createFakePty(): IPty {
-    return {
-        pid: 4242,
-        kill: vi.fn(),
-        onData: vi.fn(() => ({ dispose: vi.fn() })),
-        onExit: vi.fn(() => ({ dispose: vi.fn() })),
-        resize: vi.fn(),
-        write: vi.fn(),
-    } as unknown as IPty;
-}
 
 afterEach(async () => {
     const paths = temporaryDirectories.slice();

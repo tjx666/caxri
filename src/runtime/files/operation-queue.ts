@@ -1,6 +1,7 @@
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 
 import { CaxriError } from '../../shared/ipc/errors';
+import { isSameOrInside } from '../path-security';
 
 const DEFAULT_MAXIMUM_PENDING_OPERATIONS = 64;
 
@@ -27,13 +28,6 @@ interface ScheduledOperation {
     reject: (error: unknown) => void;
     resolve: (value: unknown) => void;
     timer?: ReturnType<typeof setTimeout>;
-}
-
-function isSameOrInside(parent: string, candidate: string): boolean {
-    const nested = relative(parent, candidate);
-    return (
-        nested === '' || (nested !== '..' && !nested.startsWith(`..${sep}`) && !isAbsolute(nested))
-    );
 }
 
 function arePathsOverlapping(first: readonly string[], second: readonly string[]): boolean {

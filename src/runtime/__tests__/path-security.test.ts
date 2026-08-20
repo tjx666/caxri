@@ -2,7 +2,7 @@ import { join, relative, sep } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { assertInsideRoot, isOutsideRoot } from '../path-security';
+import { assertInsideRoot, isOutsideRoot, isSameOrInside } from '../path-security';
 
 describe('isOutsideRoot', () => {
     it('treats the root itself as inside', () => {
@@ -69,5 +69,20 @@ describe('assertInsideRoot', () => {
         expect(() => assertInsideRoot('/etc/passwd', 'Path escapes the Project root')).toThrow(
             expect.objectContaining({ code: 'PATH_DENIED' }) as Error,
         );
+    });
+});
+
+describe('isSameOrInside', () => {
+    const root = '/workspace/project';
+
+    it('accepts the same path and real descendants', () => {
+        expect(isSameOrInside(root, root)).toBe(true);
+        expect(isSameOrInside(root, join(root, 'src', 'index.ts'))).toBe(true);
+        expect(isSameOrInside(root, join(root, '..odd.txt'))).toBe(true);
+    });
+
+    it('rejects parents and siblings that only share a name prefix', () => {
+        expect(isSameOrInside(root, '/workspace')).toBe(false);
+        expect(isSameOrInside(root, '/workspace/project-evil')).toBe(false);
     });
 });
