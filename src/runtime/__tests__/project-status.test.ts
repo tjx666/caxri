@@ -16,8 +16,12 @@ import type { ProjectStatusRunner, VercelLink } from '../project-status-external
 import { rememberVercelLink } from '../project-status-external';
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
 
 afterEach(async () => {
+    const pendingLoggers = loggers.slice();
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((instance) => instance.flush()));
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
@@ -26,7 +30,9 @@ afterEach(async () => {
 async function logger(): Promise<StructuredLogger> {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-project-status-'));
     temporaryDirectories.push(directory);
-    return new StructuredLogger(directory);
+    const instance = new StructuredLogger(directory);
+    loggers.push(instance);
+    return instance;
 }
 
 const gitSummary: GitSummary = {
