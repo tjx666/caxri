@@ -55,12 +55,12 @@ export function shouldSettleOutsideOrderedLane(method: string): boolean {
  * Ordered-queue wait above this threshold escalates the per-request log to `warn`: it is the direct signature of
  * head-of-line blocking on the per-connection command queue, which the default `info` log level must surface.
  */
-export const REQUEST_QUEUE_WARN_MS = 1_000;
+const REQUEST_QUEUE_WARN_MS = 1_000;
 /**
  * Queue wait plus handler time above this threshold also escalates to `warn`; the Desktop client gives up at 15s, so a
  * request this slow is about to become a user-visible timeout.
  */
-export const REQUEST_TOTAL_WARN_MS = 5_000;
+const REQUEST_TOTAL_WARN_MS = 5_000;
 
 /**
  * Structural subset of `StructuredLogger` so tests can observe per-request log writes without touching the filesystem.
