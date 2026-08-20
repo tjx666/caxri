@@ -184,6 +184,50 @@ async function terminalEdgeGlyphEvidence(
     };
 }
 
+async function waitForStableTerminalGrid(page: Page, terminalId: string): Promise<string> {
+    const pane = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
+    const input = pane.locator('.xterm-helper-textarea');
+    const rows = pane.locator('.xterm-rows');
+    await input.focus();
+    await input.press('Control+L');
+    await input.pressSequentially(
+        String.raw`printf 'CAXRI_PTY_GRID_%sx%s\n' "$(tput cols)" "$(tput lines)"`,
+    );
+    await input.press('Enter');
+
+    let candidate: string | undefined;
+    let matchingSamples = 0;
+    let stableGrid: string | undefined;
+    await expect
+        .poll(async () => {
+            const [rendererGrid, terminalText] = await Promise.all([
+                pane
+                    .locator('.terminal-surface')
+                    .evaluate((surface) => (surface as HTMLElement).dataset.terminalGrid ?? null),
+                rows.textContent(),
+            ]);
+            const ptyGrid = (terminalText ?? '')
+                .match(/CAXRI_PTY_GRID_\d+x\d+/g)
+                ?.at(-1)
+                ?.slice('CAXRI_PTY_GRID_'.length);
+            if (!rendererGrid || rendererGrid !== ptyGrid) {
+                candidate = undefined;
+                matchingSamples = 0;
+                return;
+            }
+            if (rendererGrid === candidate) matchingSamples += 1;
+            else {
+                candidate = rendererGrid;
+                matchingSamples = 1;
+            }
+            if (matchingSamples < 3) return;
+            stableGrid = rendererGrid;
+            return rendererGrid;
+        })
+        .toMatch(/^\d+x\d+$/);
+    return stableGrid!;
+}
+
 test('Terminal split layout drags, resizes, restores, and preserves the live PTY', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -534,12 +578,11 @@ sleep 30
                 }),
             )
             .toBe(13);
-        await running.page.evaluate(
-            () =>
-                new Promise<void>((resolve) =>
-                    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-                ),
-        );
+        const splitGrids = [
+            await waitForStableTerminalGrid(running.page, terminalId),
+            await waitForStableTerminalGrid(running.page, secondTerminalId),
+        ];
+        expect(splitGrids.every((grid) => /^\d+x\d+$/.test(grid))).toBe(true);
         const splitLeft = await terminalEdgeGlyphEvidence(
             running.app,
             running.page,
