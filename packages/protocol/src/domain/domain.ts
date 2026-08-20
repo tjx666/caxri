@@ -142,6 +142,8 @@ export const terminalRecordSchema = z.object({
 export const terminalSnapshotSchema = z.object({
     terminalId: z.string(),
     encodingVersion: z.number(),
+    cols: z.number().int().min(2).max(1_000),
+    rows: z.number().int().min(1).max(1_000),
     lineCount: z.number(),
     byteCount: z.number(),
     payload: z.string(),

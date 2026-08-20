@@ -7,16 +7,21 @@ import { terminalSnapshots } from '../schema';
 interface SnapshotRow {
     terminalId: string;
     encodingVersion: number;
+    cols: number | null;
+    rows: number | null;
     lineCount: number;
     byteCount: number;
     payload: string;
     updatedAt: number;
 }
 
-function mapSnapshot(row: SnapshotRow): TerminalSnapshot {
+function mapSnapshot(row: SnapshotRow): TerminalSnapshot | undefined {
+    if (row.cols === null || row.rows === null) return undefined;
     return {
         terminalId: row.terminalId,
         encodingVersion: row.encodingVersion,
+        cols: row.cols,
+        rows: row.rows,
         lineCount: row.lineCount,
         byteCount: row.byteCount,
         payload: row.payload,
@@ -43,6 +48,8 @@ export class SnapshotsModel {
         const values = {
             terminalId: snapshot.terminalId,
             encodingVersion: snapshot.encodingVersion,
+            cols: snapshot.cols,
+            rows: snapshot.rows,
             lineCount: snapshot.lineCount,
             byteCount: snapshot.byteCount,
             payload: snapshot.payload,
@@ -55,6 +62,8 @@ export class SnapshotsModel {
                 target: terminalSnapshots.terminalId,
                 set: {
                     encodingVersion: values.encodingVersion,
+                    cols: values.cols,
+                    rows: values.rows,
                     lineCount: values.lineCount,
                     byteCount: values.byteCount,
                     payload: values.payload,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { errorMessage } from '@shared/ipc';
-import type { ProcessState, ThemeTokens } from '@shared/types';
+import type { ProcessState, TerminalSnapshot, ThemeTokens } from '@shared/types';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
 import { FitAddon } from '@xterm/addon-fit';
 import { ProgressAddon } from '@xterm/addon-progress';
@@ -73,7 +73,6 @@ interface TerminalPaneRuntimeOptions {
     terminalTheme: ThemeTokens['terminal'] | undefined;
     wordSeparators: string;
 }
-
 /**
  * Owns the imperative xterm lifecycle so TerminalPane stays a small presentation component.
  */
@@ -324,17 +323,6 @@ export function useTerminalPaneRuntime({
         container.addEventListener('paste', handlePaste, { capture: true });
         xtermReference.current = xterm;
         let isDisposed = false;
-        const replay = new TerminalReplayCoordinator(
-            (value) =>
-                new Promise<void>((resolve) => {
-                    if (isDisposed) resolve();
-                    else xterm.write(value, resolve);
-                }),
-            () => {
-                if (!isDisposed) xterm.reset();
-            },
-        );
-        replayReference.current = replay;
         let lastSentSize: TerminalSize | undefined;
 
         const fitToPane = (): TerminalSize | undefined => {
@@ -342,6 +330,7 @@ export function useTerminalPaneRuntime({
             if (!size) return undefined;
             if (didTerminalSizeChange({ cols: xterm.cols, rows: xterm.rows }, size))
                 xterm.resize(size.cols, size.rows);
+            container.dataset.terminalGrid = `${size.cols}x${size.rows}`;
             return size;
         };
 
@@ -452,6 +441,35 @@ export function useTerminalPaneRuntime({
             }
         };
         pasteReference.current = pasteFromClipboard;
+        const observer = new ResizeObserver(fitAndResize);
+        const replay = new TerminalReplayCoordinator(
+            (value) =>
+                new Promise<void>((resolve) => {
+                    if (isDisposed) resolve();
+                    else xterm.write(value, resolve);
+                }),
+            () => {
+                if (!isDisposed) xterm.reset();
+            },
+            {
+                finishSnapshot: () => {
+                    if (isDisposed) return;
+                    fitAndResize();
+                    observer.observe(container);
+                },
+                prepareSnapshot: ({ cols, rows }) => {
+                    observer.disconnect();
+                    if (
+                        didTerminalSizeChange(
+                            { cols: xterm.cols, rows: xterm.rows },
+                            { cols, rows },
+                        )
+                    )
+                        xterm.resize(cols, rows);
+                },
+            },
+        );
+        replayReference.current = replay;
         const unsubscribe = caxri.onEvent((event) => {
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminalId)
                 return;
@@ -466,7 +484,6 @@ export function useTerminalPaneRuntime({
                     `\r\n[${event.payload.droppedBytes} bytes dropped by output backpressure]`,
                 );
         });
-        const observer = new ResizeObserver(fitAndResize);
         let isAttachFocusSuperseded = false;
         let isTerminalReceivedFocus = false;
         const trackNewerFocus = (event: FocusEvent): void => {
@@ -486,34 +503,25 @@ export function useTerminalPaneRuntime({
         document.addEventListener('focusin', trackNewerFocus);
         document.addEventListener('keydown', trackExplicitInteraction, { capture: true });
         document.addEventListener('pointerdown', trackExplicitInteraction, { capture: true });
-        /**
-         * Restore into the final visible grid instead of xterm's default 80x24 viewport.
-         */
         const initialSize = fitToPane();
         const initialize = async (): Promise<void> => {
-            let payload = '';
+            let attachment: TerminalSnapshot | null = null;
             try {
-                const attachment = await caxri.request(
+                attachment = await caxri.request(
                     'terminal.attach',
                     initialSize ? { terminalId, ...initialSize } : { terminalId },
                 );
                 if (initialSize && latestReference.current.processState === 'running')
                     lastSentSize = initialSize;
-                payload = attachment?.payload ?? '';
             } catch (error) {
                 if (!isDisposed) onError(errorMessage(error, 'Terminal attachment failed'));
             }
             if (isDisposed) return;
-            await replay.restoreInitial(payload);
+            await replay.restoreInitial(attachment);
             // TS narrows `isDisposed` to `false` here because it cannot see the `dispose()` closure reassigning it
             // during the `await` above; the pane can genuinely be torn down while `restoreInitial` is in flight.
             // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
             if (isDisposed) return;
-            /**
-             * Resize only after xterm has parsed the snapshot and every output event buffered behind it.
-             */
-            fitAndResize();
-            observer.observe(container);
             container.dataset.terminalAttached = 'true';
             requestAnimationFrame(() => {
                 document.removeEventListener('focusin', trackNewerFocus);
@@ -622,7 +630,7 @@ export function useTerminalPaneRuntime({
                             ? { terminalId, cols: xterm.cols, rows: xterm.rows }
                             : { terminalId },
                     );
-                    return attachment?.payload ?? '';
+                    return attachment;
                 });
             } catch (error) {
                 onError(errorMessage(error, 'Terminal reattachment failed'));
@@ -665,7 +673,7 @@ export function useTerminalPaneRuntime({
                         cols: xterm.cols,
                         rows: xterm.rows,
                     });
-                    return attachment?.payload ?? '';
+                    return attachment;
                 });
             } catch (error) {
                 onError(errorMessage(error, 'Terminal recovery reconciliation failed'));
@@ -699,7 +707,6 @@ export function useTerminalPaneRuntime({
         () => registerTerminalClearHandler(terminalId, () => xtermReference.current?.clear()),
         [terminalId],
     );
-
     const beginSearch = useCallback((): void => {
         searchActiveReference.current = true;
     }, []);

@@ -180,7 +180,7 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
             encodingVersion: number;
             payload: string;
         } | null>(running.page, 'terminal.snapshot', { terminalId: firstTerminalId });
-        expect(persisted).toMatchObject({ encodingVersion: 2 });
+        expect(persisted).toMatchObject({ encodingVersion: 3 });
         expect(persisted?.payload).toContain('SNAPSHOT_REPLAY_VISIBLE');
         expect(persisted?.payload).not.toContain(historicalClipboardPayload);
 
