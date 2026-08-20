@@ -35,10 +35,18 @@ export interface CommandDispatcherOptions {
     maximumReceipts?: number;
 }
 
-export type CommandDispatcher = (
-    envelope: unknown,
-    context: CommandExecutionContext,
-) => Promise<CommandReplyEnvelope>;
+export interface CommandDispatchAdmission {
+    reply: Promise<CommandReplyEnvelope>;
+}
+
+export interface CommandDispatcher {
+    (envelope: unknown, context: CommandExecutionContext): Promise<CommandReplyEnvelope>;
+    /**
+     * Resolves once validation, idempotency admission, and adapter invocation have happened, while the authoritative
+     * reply remains independently awaitable.
+     */
+    admit(envelope: unknown, context: CommandExecutionContext): Promise<CommandDispatchAdmission>;
+}
 
 interface Receipt {
     fingerprint: string;
@@ -168,7 +176,19 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
         return reply(id, parseCaxriResult(request.method, projected));
     }
 
-    return async (rawEnvelope, rawContext) => {
+    async function executeSafely(
+        id: string,
+        request: CaxriRequest,
+        context: CommandExecutionContext,
+    ): Promise<CommandReplyEnvelope> {
+        try {
+            return await execute(id, request, context);
+        } catch (error) {
+            return errorReply(id, error);
+        }
+    }
+
+    const admit: CommandDispatcher['admit'] = async (rawEnvelope, rawContext) => {
         const requestId = requestIdFromEnvelope(rawEnvelope);
         try {
             const envelope = requestEnvelopeSchema.parse(rawEnvelope);
@@ -179,7 +199,9 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
                 params: methods[envelope.method].params.parse(envelope.params),
             } as CaxriRequest;
             const spec = methods[request.method];
-            if (spec.idempotency === 'none') return await execute(envelope.id, request, context);
+            if (spec.idempotency === 'none') {
+                return { reply: executeSafely(envelope.id, request, context) };
+            }
 
             const key = principalReceiptKey(context, envelope.id);
             const fingerprint = await requestFingerprint(request.method, request.params);
@@ -190,15 +212,13 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
                         'VALIDATION',
                         'A request ID cannot be reused for different command input',
                     );
-                return await existing.reply;
+                return { reply: existing.reply };
             }
 
             admitReceipt();
             const settleReply = async (): Promise<CommandReplyEnvelope> => {
                 try {
-                    return await execute(envelope.id, request, context);
-                } catch (error) {
-                    return errorReply(envelope.id, error);
+                    return await executeSafely(envelope.id, request, context);
                 } finally {
                     const current = receipts.get(key);
                     if (current) current.settled = true;
@@ -211,9 +231,18 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
                 reply: settleReply(),
             };
             receipts.set(key, receipt);
-            return await receipt.reply;
+            return { reply: receipt.reply };
         } catch (error) {
-            return errorReply(requestId, error);
+            return { reply: Promise.resolve(errorReply(requestId, error)) };
         }
     };
+    const dispatch = async (
+        rawEnvelope: unknown,
+        rawContext: CommandExecutionContext,
+    ): Promise<CommandReplyEnvelope> => {
+        const admission = await admit(rawEnvelope, rawContext);
+        return admission.reply;
+    };
+    dispatch.admit = admit;
+    return dispatch;
 }

@@ -14,6 +14,7 @@ import type {
 } from '../shared/ipc/local-transport';
 import { localServerDesktopLeaseRevokedSchema } from '../shared/ipc/local-transport';
 import type { RuntimeRequest } from '../shared/ipc/methods';
+import { getMethodSpec } from '../shared/ipc/methods';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
 import type { CommandReplyEnvelope } from '../shared/ipc/transport';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
@@ -27,6 +28,28 @@ export const MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS = 48;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
 export const DESKTOP_LEASE_MS = 60_000;
 export const DESKTOP_COMMAND_TIMEOUT_MS = 15_000;
+
+/**
+ * Queue metadata captured before an authenticated frame enters the ordered admission lane.
+ */
+export interface OrderedQueueTiming {
+    enqueuedAt: number;
+    queueDepth: number;
+}
+
+export function isConcurrentRead(method: string): boolean {
+    return getMethodSpec(method)?.effect === 'read';
+}
+
+const RUNTIME_SCHEDULED_FILE_MUTATIONS = new Set(['files.copy', 'files.write']);
+
+/**
+ * Reads do not carry mutation ordering, while non-expiring file mutations already serialize overlapping paths inside
+ * the Runtime. Both may settle outside the connection-wide ordered lane once their adapter admission is complete.
+ */
+export function shouldSettleOutsideOrderedLane(method: string): boolean {
+    return isConcurrentRead(method) || RUNTIME_SCHEDULED_FILE_MUTATIONS.has(method);
+}
 
 /**
  * Ordered-queue wait above this threshold escalates the per-request log to `warn`: it is the direct signature of
@@ -48,6 +71,51 @@ interface HostRequestLogSink {
         event: string,
         options?: Pick<LogRecord, 'correlationId' | 'durationMs' | 'fields'>,
     ): void;
+}
+
+/**
+ * Records Host transport latency without retaining request parameters or other user content. The ordered-queue wait is
+ * the head-of-line blocking signature this log exists to surface; successful requests stay at `debug` unless slow.
+ */
+export function logHostRequestOutcome(
+    options: Pick<LocalHostServerOptions, 'logger' | 'requestQueueWarnMs' | 'requestTotalWarnMs'>,
+    request: { id: string; method: string },
+    reply: CommandReplyEnvelope,
+    context: CommandExecutionContext,
+    startedAt: number,
+    timing: OrderedQueueTiming | undefined,
+): void {
+    const logger = options.logger;
+    if (!logger) return;
+    if (request.method === 'terminal.input' || request.method === 'terminal.resize') return;
+    const durationMs = performance.now() - startedAt;
+    const queueMs = timing ? startedAt - timing.enqueuedAt : 0;
+    const isSlow =
+        queueMs > (options.requestQueueWarnMs ?? REQUEST_QUEUE_WARN_MS) ||
+        queueMs + durationMs > (options.requestTotalWarnMs ?? REQUEST_TOTAL_WARN_MS);
+    const fields: Record<string, string | number | boolean | null> = {
+        method: request.method,
+        principal: context.principal.kind,
+        queueMs,
+        ...(timing && { queueDepth: timing.queueDepth }),
+    };
+    if (reply.ok) {
+        logger.write(isSlow ? 'warn' : 'debug', 'ipc.request', {
+            correlationId: request.id,
+            durationMs,
+            fields,
+        });
+        return;
+    }
+    /**
+     * `warn`, not `error`: forwarded failures are already error-logged where they fault (Runtime/Desktop); this entry
+     * adds the Host-side relay view (queue wait, principal) without duplicating the error beacon.
+     */
+    logger.write('warn', 'ipc.request_failed', {
+        correlationId: request.id,
+        durationMs,
+        fields: { ...fields, code: reply.error.code, error: reply.error.message },
+    });
 }
 
 export function fileSystemCode(error: unknown): string | undefined {

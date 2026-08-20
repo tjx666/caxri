@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HostClient } from '../../../packages/cli/src/host';
 import type { CommandAdapter } from '../../shared/ipc/dispatcher';
 import { CaxriError } from '../../shared/ipc/errors';
-import { localServerWelcomeSchema } from '../../shared/ipc/local-transport';
+import { localServerReplySchema, localServerWelcomeSchema } from '../../shared/ipc/local-transport';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import { LocalHostServer } from '../local-server';
 import { acquireHostProfile } from '../profile';
@@ -18,6 +18,7 @@ import { acquireHostProfile } from '../profile';
 const cleanups: Array<() => Promise<void>> = [];
 
 afterEach(async () => {
+    vi.restoreAllMocks();
     const cleanupsToRun = cleanups.slice();
     cleanups.length = 0;
     await Promise.all(cleanupsToRun.map((cleanup) => cleanup()));
@@ -85,6 +86,189 @@ function command(id: string, method: string, parameters: unknown) {
 }
 
 describe('local Host transport regressions', () => {
+    it('dispatches a later business request before an earlier reply settles', async () => {
+        const lease = await profile();
+        const slowRequest = Promise.withResolvers<void>();
+        const slowStarted = Promise.withResolvers<void>();
+        const independentStarted = Promise.withResolvers<void>();
+        let healthRequests = 0;
+        const host: CommandAdapter = {
+            invoke: async (request) => {
+                if (request.method !== 'app.health') return null;
+                healthRequests += 1;
+                if (healthRequests === 1) {
+                    slowStarted.resolve();
+                    await slowRequest.promise;
+                } else independentStarted.resolve();
+                return { ready: true, pid: 88, startedAt: 1, activePtyCount: 0 };
+            },
+        };
+        const server = new LocalHostServer({
+            adapters: { host },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+
+        const socket = await connect(lease.paths.endpoint);
+        const read = lineReader(socket);
+        socket.write(
+            `${JSON.stringify({
+                type: 'hello',
+                supportedVersions: [CAXRI_PROTOCOL_VERSION],
+                profileId: lease.manifest.profileId,
+                credential: { kind: 'operator', token: lease.manifest.operatorToken },
+            })}\n`,
+        );
+        localServerWelcomeSchema.parse(await read());
+        socket.write(
+            command('health-slow', 'app.health', {}) +
+                command('health-independent', 'app.health', {}),
+        );
+        await slowStarted.promise;
+        await independentStarted.promise;
+
+        const independentReply = await read();
+        slowRequest.resolve();
+        const slowReply = await read();
+
+        expect(independentReply).toMatchObject({ reply: { id: 'health-independent', ok: true } });
+        expect(slowReply).toMatchObject({ reply: { id: 'health-slow', ok: true } });
+    });
+
+    it('admits later requests while an authoritative file write remains pending', async () => {
+        const lease = await profile();
+        const writeRelease = Promise.withResolvers<void>();
+        const writeStarted = Promise.withResolvers<void>();
+        const secondWriteStarted = Promise.withResolvers<void>();
+        const healthStarted = Promise.withResolvers<void>();
+        const writeOrder: string[] = [];
+        const host: CommandAdapter = {
+            invoke: async (request) => {
+                if (request.method === 'files.write') {
+                    writeOrder.push(request.params.path);
+                    if (request.params.path === '/project/a.txt') {
+                        writeStarted.resolve();
+                        await writeRelease.promise;
+                    } else secondWriteStarted.resolve();
+                    return {
+                        path: request.params.path,
+                        content: request.params.content,
+                        mtimeMs: 1,
+                        size: request.params.content.length,
+                    };
+                }
+                if (request.method === 'app.health') {
+                    healthStarted.resolve();
+                    return { ready: true, pid: 88, startedAt: 1, activePtyCount: 0 };
+                }
+                return null;
+            },
+        };
+        const server = new LocalHostServer({
+            adapters: { host },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+        const client = await HostClient.connect(lease.manifest, 5_000, {
+            kind: 'desktop',
+            desktopId: 'desktop-file-write',
+            credential: lease.desktopCredential,
+            handleCommand: () => Promise.resolve(null),
+        });
+        cleanups.push(() => {
+            client.close();
+            return Promise.resolve();
+        });
+
+        const write = client.request('files.write', {
+            sessionId: 'session-1',
+            path: '/project/a.txt',
+            content: 'saved',
+        });
+        await writeStarted.promise;
+        const secondWrite = client.request('files.write', {
+            sessionId: 'session-1',
+            path: '/project/b.txt',
+            content: 'independent',
+        });
+        await secondWriteStarted.promise;
+        const health = client.request('app.health', {});
+        await healthStarted.promise;
+
+        expect(writeOrder).toEqual(['/project/a.txt', '/project/b.txt']);
+        await expect(secondWrite).resolves.toMatchObject({ content: 'independent' });
+        await expect(health).resolves.toMatchObject({ ready: true });
+        writeRelease.resolve();
+        await expect(write).resolves.toMatchObject({ content: 'saved' });
+    });
+
+    it('preserves mutation order while reads settle concurrently', async () => {
+        const lease = await profile();
+        const firstMutation = Promise.withResolvers<void>();
+        const firstStarted = Promise.withResolvers<void>();
+        const invocationOrder: number[] = [];
+        vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
+        const host: CommandAdapter = {
+            invoke: async (request) => {
+                if (request.method !== 'settings.patch') return null;
+                const fontSize = request.params.changes[0]?.value as number;
+                invocationOrder.push(fontSize);
+                if (invocationOrder.length === 1) {
+                    firstStarted.resolve();
+                    await firstMutation.promise;
+                }
+                return {
+                    value: {
+                        'session.defaultAgent': null,
+                        'workbench.newWorktreeBehavior': 'ask',
+                        'terminal.fontSize': fontSize,
+                        'terminal.scrollback': 2_000,
+                        'terminal.copyOnSelect': true,
+                        'terminal.gpuAcceleration': 'off',
+                        'terminal.osc52ClipboardWrite': false,
+                        'files.maxFileBytes': 2_097_152,
+                    },
+                    revision: 'a'.repeat(64),
+                    errors: [],
+                    dryRun: false,
+                    changedKeys: ['terminal.fontSize'],
+                };
+            },
+        };
+        const server = new LocalHostServer({
+            adapters: { host },
+            desktopCredential: lease.desktopCredential,
+            manifest: lease.manifest,
+        });
+        await server.start();
+        cleanups.push(() => server.close());
+        const client = await HostClient.connect(lease.manifest);
+        cleanups.push(() => {
+            client.close();
+            return Promise.resolve();
+        });
+
+        const first = client.requestWithId('settings-first', 'settings.patch', {
+            changes: [{ key: 'terminal.fontSize', value: 17 }],
+            dryRun: false,
+        });
+        await firstStarted.promise;
+        const second = client.requestWithId('settings-second', 'settings.patch', {
+            changes: [{ key: 'terminal.fontSize', value: 18 }],
+            dryRun: false,
+        });
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(invocationOrder).toEqual([17]);
+
+        firstMutation.resolve();
+        await Promise.all([first, second]);
+        expect(invocationOrder).toEqual([17, 18]);
+    });
+
     it('round-trips configured file payloads larger than the former transport limit', async () => {
         const lease = await profile();
         const largeWrite = 'w'.repeat(1_100_000);
@@ -252,15 +436,19 @@ describe('local Host transport regressions', () => {
         });
     });
 
-    it('logs per-request outcomes and escalates ordered-queue head-of-line blocking to warn', async () => {
+    it('logs independent request outcomes without inherited queue wait', async () => {
         const lease = await profile();
+        const slowRelease = Promise.withResolvers<void>();
+        const slowStarted = Promise.withResolvers<void>();
         let healthCalls = 0;
         const host: CommandAdapter = {
             invoke: async (request) => {
                 if (request.method !== 'app.health') return null;
                 healthCalls += 1;
-                if (healthCalls === 1) await new Promise((resolve) => setTimeout(resolve, 60));
-                else if (healthCalls === 3)
+                if (healthCalls === 1) {
+                    slowStarted.resolve();
+                    await slowRelease.promise;
+                } else if (healthCalls === 3)
                     throw new CaxriError('UNAVAILABLE', 'health probe is down');
                 return { ready: true, pid: 88, startedAt: 1, activePtyCount: 0 };
             },
@@ -279,7 +467,7 @@ describe('local Host transport regressions', () => {
             desktopCredential: lease.desktopCredential,
             logger: { write: (level, event, options) => written.push({ level, event, options }) },
             manifest: lease.manifest,
-            requestQueueWarnMs: 20,
+            requestQueueWarnMs: 10_000,
             requestTotalWarnMs: 10_000,
         });
         await server.start();
@@ -297,16 +485,27 @@ describe('local Host transport regressions', () => {
             })}\n`,
         );
         localServerWelcomeSchema.parse(await read());
-        // One write with three back-to-back commands: the first stalls the ordered queue, so the
-        // second observes queue wait and the third fails behind it.
+        // One write with three back-to-back commands: the slow first request must not make either
+        // later request inherit its execution time as queue wait.
         socket.write(
             command('health-slow', 'app.health', {}) +
                 command('health-queued', 'app.health', {}) +
                 command('health-failed', 'app.health', {}),
         );
-        await read();
-        await read();
-        await read();
+        await slowStarted.promise;
+        const independentReplies = [
+            localServerReplySchema.parse(await read()),
+            localServerReplySchema.parse(await read()),
+        ];
+        expect(
+            independentReplies
+                .map((message) => message.reply.id)
+                .filter((id): id is string => id !== null)
+                .toSorted((a, b) => a.localeCompare(b)),
+        ).toEqual(['health-failed', 'health-queued']);
+        expect(written.some((entry) => entry.options?.correlationId === 'health-slow')).toBe(false);
+        slowRelease.resolve();
+        await expect(read()).resolves.toMatchObject({ reply: { id: 'health-slow' } });
 
         const slow = written.find((entry) => entry.options?.correlationId === 'health-slow');
         expect(slow).toMatchObject({ level: 'debug', event: 'ipc.request' });
@@ -315,12 +514,13 @@ describe('local Host transport regressions', () => {
             principal: 'human-cli',
             queueDepth: 1,
         });
-        expect(slow?.options?.durationMs).toBeGreaterThanOrEqual(50);
 
         const queued = written.find((entry) => entry.options?.correlationId === 'health-queued');
-        expect(queued).toMatchObject({ level: 'warn', event: 'ipc.request' });
-        expect(queued?.options?.fields?.queueMs).toBeGreaterThan(20);
+        expect(queued).toMatchObject({ level: 'debug', event: 'ipc.request' });
         expect(queued?.options?.fields?.queueDepth).toBe(2);
+        expect(slow?.options?.durationMs).toBeGreaterThan(
+            queued?.options?.fields?.queueMs as number,
+        );
 
         const failed = written.find((entry) => entry.options?.correlationId === 'health-failed');
         expect(failed).toMatchObject({ level: 'warn', event: 'ipc.request_failed' });
