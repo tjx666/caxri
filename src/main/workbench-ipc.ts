@@ -48,8 +48,10 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         options.onEventsReady?.();
     });
     ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
+        let isTrustedRenderer = false;
         try {
             assertSender(event.sender);
+            isTrustedRenderer = true;
             /**
              * Refuse queued Renderer work; explicit quit owns final Runtime I/O and shutdown.
              */
@@ -61,7 +63,10 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     error: toWireError(new CaxriError('UNAVAILABLE', 'Application is quitting')),
                 };
             const reply = await options.transport.dispatch(raw);
-            if (!reply.ok)
+            /**
+             * In-flight reads can outlive the window once quit closes the Host; the consumer is already gone.
+             */
+            if (!reply.ok && !options.isQuitting())
                 options.logger()?.write('error', 'ipc.request_failed', {
                     fields: { code: reply.error.code, error: reply.error.message },
                 });
@@ -71,9 +76,10 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
              * Replying with a classified envelope keeps the code intact across the preload.
              */
             const wire = toWireError(error);
-            options.logger()?.write('error', 'ipc.request_failed', {
-                fields: { code: wire.code, error: wire.message },
-            });
+            if (!isTrustedRenderer || !options.isQuitting())
+                options.logger()?.write('error', 'ipc.request_failed', {
+                    fields: { code: wire.code, error: wire.message },
+                });
             return {
                 protocolVersion: CAXRI_PROTOCOL_VERSION,
                 id: requestIdFromEnvelope(raw),
