@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { relative, resolve } from 'node:path';
 
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
@@ -18,6 +18,7 @@ import type {
     SessionTitleMode,
 } from '../../../shared/types';
 import { isVirtualEditorTabPath } from '../../../shared/virtual-tabs';
+import { isOutsideRoot } from '../../path-security';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { DEFAULT_LAYOUT_VERSION } from '../connection';
 import {
@@ -145,7 +146,7 @@ function remapStoredEditorPath(path: string, previousPath: string, nextPath: str
     if (isVirtualEditorTabPath(path)) return path;
     const nested = relative(previousPath, path);
     if (nested === '') return nextPath;
-    if (nested === '..' || nested.startsWith(`..${sep}`) || isAbsolute(nested)) return path;
+    if (isOutsideRoot(nested)) return path;
     return resolve(nextPath, nested);
 }
 

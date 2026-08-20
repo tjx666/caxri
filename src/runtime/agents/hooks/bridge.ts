@@ -1,6 +1,7 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { atomicWrite } from '../../atomic-file';
 
 const BRIDGE_SCRIPT = `'use strict';
 const net = require('node:net');
@@ -69,29 +70,6 @@ case " $* " in
 esac
 exit 0
 `;
-
-async function atomicWrite(path: string, source: string, mode: number): Promise<void> {
-    await mkdir(dirname(path), { recursive: true });
-    const temporary = `${path}.${randomUUID()}.tmp`;
-    try {
-        const file = await open(temporary, 'wx', mode);
-        try {
-            await file.writeFile(source, 'utf8');
-            await file.sync();
-        } finally {
-            await file.close();
-        }
-        await rename(temporary, path);
-        const directoryHandle = await open(dirname(path), 'r');
-        try {
-            await directoryHandle.sync();
-        } finally {
-            await directoryHandle.close();
-        }
-    } finally {
-        await rm(temporary, { force: true });
-    }
-}
 
 async function writeIfChanged(path: string, source: string, mode: number): Promise<void> {
     try {
