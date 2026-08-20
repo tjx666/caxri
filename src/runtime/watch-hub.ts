@@ -123,11 +123,20 @@ class Registration implements WatchHandle {
     ) {}
 
     startFallback(error: unknown): void {
-        this.hub.activateFallback(this, error);
+        // Runtime watcher callbacks are synchronous; activation continues independently after mode changes to polling.
+        // eslint-disable-next-line no-void -- runtime fallback cannot block the native callback
+        void this.hub.activateFallback(this, error);
     }
 
     dispose(): Promise<void> {
         return this.hub.disposeRegistration(this);
+    }
+
+    /**
+     * Async fallback activation can yield while another caller disposes this registration.
+     */
+    isDisposed(): boolean {
+        return this.mode === 'disposed';
     }
 }
 
@@ -252,7 +261,7 @@ export class WatchHub {
                 entry.mode = 'disposed';
                 throw new CaxriError('CAPACITY', 'Native watcher capacity exhausted');
             }
-            this.activateFallback(entry, new CaxriError('CAPACITY', 'Native watcher gate'));
+            await this.activateFallback(entry, new CaxriError('CAPACITY', 'Native watcher gate'));
             return entry;
         }
         try {
@@ -298,7 +307,7 @@ export class WatchHub {
                 entry.mode = 'disposed';
                 throw error;
             }
-            this.activateFallback(entry, error);
+            await this.activateFallback(entry, error);
         }
         return entry;
     }
@@ -323,14 +332,16 @@ export class WatchHub {
             return entry;
         }
         this.registrations.add(entry);
-        this.activateFallback(entry, undefined);
+        // Intentional pollers expose a synchronous registration contract; activation owns its own failure handling.
+        // eslint-disable-next-line no-void -- registerPoller cannot await by contract
+        void this.activateFallback(entry, undefined);
         return entry;
     }
 
     /**
      * @internal
      */
-    activateFallback(entry: Registration, error: unknown): void {
+    async activateFallback(entry: Registration, error: unknown): Promise<void> {
         if (entry.mode === 'disposed' || entry.fallbackActive || !entry.fallback) return;
         entry.fallbackActive = true;
         entry.mode = 'polling';
@@ -344,23 +355,19 @@ export class WatchHub {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see comment above
         if (subscription) void this.releaseSubscription(subscription);
         const { groupKey } = entry.fallback;
-        // Activation (baseline priming) runs before the first tick; its failure is logged, not fatal, and this
-        // synchronous activation path must not await it.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see comment above
-        void Promise.resolve(entry.fallback.activate?.())
-            .catch((activationError: unknown) => {
-                this.logger?.write('warn', 'watch_hub.fallback_activation_failed', {
-                    fields: {
-                        label: entry.label,
-                        error: errorMessage(activationError, 'unknown'),
-                    },
-                });
-            })
-            .then(() => {
-                if (entry.mode === 'disposed' || this.closed) return;
-                if (groupKey === undefined) this.startSoloTimer(entry);
-                else this.joinFallbackGroup(groupKey, entry);
+        try {
+            await entry.fallback.activate?.();
+        } catch (activationError) {
+            this.logger?.write('warn', 'watch_hub.fallback_activation_failed', {
+                fields: {
+                    label: entry.label,
+                    error: errorMessage(activationError, 'unknown'),
+                },
             });
+        }
+        if (entry.isDisposed() || this.closed) return;
+        if (groupKey === undefined) this.startSoloTimer(entry);
+        else this.joinFallbackGroup(groupKey, entry);
     }
 
     /**
