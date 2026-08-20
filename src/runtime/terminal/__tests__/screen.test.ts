@@ -26,6 +26,19 @@ describe('TerminalScreenState', () => {
         screen.dispose();
     });
 
+    it('can omit interaction modes from a durable visual snapshot', async () => {
+        const screen = new TerminalScreenState('', 20, 4);
+
+        screen.write('\u{1B}[?2004hvisible');
+        const liveSnapshot = await screen.snapshot();
+        const snapshot = await screen.snapshot({ excludeModes: true });
+
+        expect(liveSnapshot.payload).toContain('\u{1B}[?2004h');
+        expect(snapshot.payload).toContain('visible');
+        expect(snapshot.payload).not.toContain('\u{1B}[?2004h');
+        screen.dispose();
+    });
+
     it('bounds parser backlog and makes an overflowed recovery explicit', async () => {
         const overflows: number[] = [];
         const screen = new TerminalScreenState('', 40, 6, {

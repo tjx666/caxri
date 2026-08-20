@@ -7,7 +7,7 @@ import type {
     TerminalRecord,
     TerminalResourceUsage,
 } from '../../shared/types';
-import type { TerminalOutputQueue, TerminalSnapshotBuffer } from './buffer';
+import type { TerminalOutputQueue } from './buffer';
 import type { TerminalColorQueryResponder } from './color-query';
 import type { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
 import type { TerminalScreenState } from './screen';
@@ -19,7 +19,6 @@ export interface LiveTerminal {
     process: pty.IPty;
     record: TerminalRecord;
     screen: TerminalScreenState;
-    snapshot: TerminalSnapshotBuffer;
     outputQueue: TerminalOutputQueue;
     droppedBytes: number;
     metricOutputBytes: number;
@@ -27,7 +26,6 @@ export interface LiveTerminal {
     metricDroppedBytes: number;
     activityTimer?: NodeJS.Timeout;
     outputTimer?: NodeJS.Timeout;
-    snapshotTimer?: NodeJS.Timeout;
     metricTimer?: NodeJS.Timeout;
 }
 
@@ -61,11 +59,6 @@ export interface TerminalManagerOptions {
      * Signals raw PTY activity even while no Renderer view is attached; consumers receive no content.
      */
     onOutputActivity?: (terminalId: string, processId: number) => void;
-    /**
-     * Test seam for exercising retention behavior without parsing the production 2 MiB ceiling.
-     */
-    snapshotMaximumBytes?: number;
-    snapshotIntervalMs?: number;
     spawn?: typeof pty.spawn;
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
     shellIntegration?: (

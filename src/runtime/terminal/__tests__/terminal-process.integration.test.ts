@@ -121,7 +121,7 @@ describe('TerminalManager process integration', () => {
         await manager.start(created.terminal!);
         expect(manager.write(created.terminal!.id, "printf 'CAXRI_LIVE_INPUT_OK\\n'\r")).toBe(true);
         expect(manager.resize(created.terminal!.id, 120, 40)).toBe(true);
-        manager.shutdown('orderly');
+        await manager.shutdown('orderly');
         expect(manager.write(created.terminal!.id, 'ignored')).toBe(false);
         database.close();
     });

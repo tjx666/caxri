@@ -12,10 +12,18 @@ type ScreenOperation =
     | { cols: number; rows: number; type: 'resize' }
     | { droppedBytes: number; type: 'reset' }
     | {
+          options: TerminalScreenSnapshotOptions;
           reject: (error: unknown) => void;
           resolve: (snapshot: ReturnType<typeof boundSnapshot>) => void;
           type: 'snapshot';
       };
+
+export interface TerminalScreenSnapshotOptions {
+    /**
+     * Omits terminal interaction modes from a durable visual snapshot so restoring history cannot reactivate them.
+     */
+    excludeModes?: boolean;
+}
 
 export interface TerminalScreenStateOptions {
     /**
@@ -31,9 +39,8 @@ export interface TerminalScreenStateOptions {
 const DEFAULT_MAXIMUM_QUEUED_BYTES = 4 * MAX_SNAPSHOT_BYTES;
 
 /**
- * Maintains the bounded, parsed Terminal screen owned by a live PTY. Raw ANSI retention can start in the middle of a
- * control sequence after trimming, so reattachment uses this serialized xterm state while durable crash recovery keeps
- * the existing raw snapshot fallback.
+ * Maintains the bounded, parsed Terminal screen owned by a live PTY. Both live reattachment and durable recovery are
+ * serialized from this state so arbitrary PTY input is never replayed as history.
  */
 export class TerminalScreenState {
     private disposed = false;
@@ -128,19 +135,21 @@ export class TerminalScreenState {
                 return this.drain();
             }
             try {
-                operation.resolve(this.serializeBounded());
+                operation.resolve(this.serializeBounded(operation.options));
             } catch (error) {
                 operation.reject(error);
             }
         }
     }
 
-    private serializeBounded(): ReturnType<typeof boundSnapshot> {
+    private serializeBounded(
+        options: TerminalScreenSnapshotOptions,
+    ): ReturnType<typeof boundSnapshot> {
         let scrollback = MAX_SNAPSHOT_LINES;
-        let payload = this.serialize.serialize({ scrollback });
+        let payload = this.serialize.serialize({ excludeModes: options.excludeModes, scrollback });
         while (Buffer.byteLength(payload, 'utf8') > MAX_SNAPSHOT_BYTES && scrollback > 0) {
             scrollback = Math.floor(scrollback / 2);
-            payload = this.serialize.serialize({ scrollback });
+            payload = this.serialize.serialize({ excludeModes: options.excludeModes, scrollback });
         }
         return boundSnapshot(payload);
     }
@@ -175,10 +184,12 @@ export class TerminalScreenState {
     /**
      * Inserts an exact ordering barrier so later live output can stream to the attached Renderer.
      */
-    snapshot(): Promise<ReturnType<typeof boundSnapshot>> {
+    snapshot(
+        options: TerminalScreenSnapshotOptions = {},
+    ): Promise<ReturnType<typeof boundSnapshot>> {
         if (this.disposed) return Promise.resolve(boundSnapshot(''));
         return new Promise((resolve, reject) => {
-            this.operations.push({ reject, resolve, type: 'snapshot' });
+            this.operations.push({ options, reject, resolve, type: 'snapshot' });
             this.startDrain();
         });
     }

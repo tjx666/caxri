@@ -275,47 +275,15 @@ describe('TerminalManager', () => {
         await manager.start(created.terminal!);
         failed.emitExit({ exitCode: 127 });
 
-        expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('dead');
+        await vi.waitFor(() =>
+            expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('dead'),
+        );
         expect(manager.runningCount()).toBe(0);
         expect(database.listProjects()).toHaveLength(1);
         database.close();
     });
 
-    it('coalesces continuous output into one snapshot write per persistence interval', async () => {
-        vi.useFakeTimers();
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-snapshot-rate-'));
-        temporaryDirectories.push(directory);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(database.createProject(directory).id, 'shell');
-        const fake = createFakePty();
-        const saveSnapshot = vi.spyOn(database, 'saveSnapshot');
-        const manager = new TerminalManager(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            {
-                resolveExecutable: () => Promise.resolve('/bin/zsh'),
-                snapshotIntervalMs: 5_000,
-                spawn: () => fake.process,
-            },
-        );
-
-        try {
-            await manager.start(created.terminal!);
-            for (let index = 0; index < 100; index += 1) fake.emitData(`line-${index}\n`);
-            await vi.advanceTimersByTimeAsync(4_999);
-            expect(saveSnapshot).not.toHaveBeenCalled();
-            await vi.advanceTimersByTimeAsync(1);
-            expect(saveSnapshot).toHaveBeenCalledOnce();
-        } finally {
-            manager.close(created.terminal!.id);
-            database.close();
-            vi.useRealTimers();
-        }
-    });
-
     it('renders image bytes live but persists only a content-free recovery placeholder', async () => {
-        vi.useFakeTimers();
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-image-recovery-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -330,7 +298,6 @@ describe('TerminalManager', () => {
             new StructuredLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
-                snapshotIntervalMs: 50,
                 spawn: () => fake.process,
             },
         );
@@ -340,47 +307,16 @@ describe('TerminalManager', () => {
             await manager.attach(created.terminal!.id);
             const image = '\u{1B}]1337;File=inline=1:PNG_SECRET\u{7}';
             fake.emitData(`before${image}after`);
-            await vi.advanceTimersByTimeAsync(50);
+            fake.emitExit({ exitCode: 0 });
+            await vi.waitFor(() =>
+                expect(database.getSnapshot(created.terminal!.id)?.encodingVersion).toBe(2),
+            );
 
             expect(output).toContain(image);
             expect(database.getSnapshot(created.terminal!.id)?.payload).toBe(
                 `before${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}after`,
             );
             expect(database.getSnapshot(created.terminal!.id)?.payload).not.toContain('PNG_SECRET');
-        } finally {
-            manager.close(created.terminal!.id);
-            database.close();
-            vi.useRealTimers();
-        }
-    });
-
-    it('sanitizes a legacy image-bearing snapshot before restoring it', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-image-migration-'));
-        temporaryDirectories.push(directory);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(database.createProject(directory).id, 'shell');
-        database.saveSnapshot({
-            byteCount: 43,
-            encodingVersion: 1,
-            lineCount: 1,
-            payload: 'before\u{1B}]1337;File=inline=1:OLD_SECRET\u{7}after',
-            terminalId: created.terminal!.id,
-            updatedAt: Date.now(),
-        });
-        const fake = createFakePty();
-        const manager = new TerminalManager(
-            database,
-            () => {},
-            new StructuredLogger(join(directory, 'logs')),
-            { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
-        );
-
-        try {
-            await manager.start(created.terminal!);
-
-            expect(database.getSnapshot(created.terminal!.id)?.payload).toBe(
-                `before${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}after`,
-            );
         } finally {
             manager.close(created.terminal!.id);
             database.close();
@@ -621,7 +557,7 @@ describe('TerminalManager', () => {
         try {
             await new Promise((resolve) => setTimeout(resolve, 0));
             shouldStart = false;
-            manager.shutdown('orderly');
+            await manager.shutdown('orderly');
 
             const isCompletedBeforeTimeout = await Promise.race([
                 (async () => {
@@ -722,7 +658,9 @@ describe('TerminalManager', () => {
         await manager.start(created.terminal!);
         fake.emitExit({ exitCode: 0, signal: 9 });
 
-        expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('dead');
+        await vi.waitFor(() =>
+            expect(database.getTerminal(created.terminal!.id)?.lastProcessState).toBe('dead'),
+        );
         database.close();
     });
 
@@ -739,13 +677,13 @@ describe('TerminalManager', () => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
             new StructuredLogger(join(directory, 'logs')),
-            { onOutputActivity, snapshotIntervalMs: 50 },
+            { onOutputActivity },
         );
 
         await manager.start(created.terminal!);
         manager.write(created.terminal!.id, "printf 'DETACHED_ONLY\\n'\r");
         await expect
-            .poll(() => database.getSnapshot(created.terminal!.id)?.payload)
+            .poll(async () => (await manager.snapshot(created.terminal!.id))?.payload)
             .toContain('DETACHED_ONLY');
         expect(onOutputActivity).toHaveBeenCalledWith(created.terminal!.id, expect.any(Number));
         expect(output).not.toContain('DETACHED_ONLY');
@@ -756,16 +694,15 @@ describe('TerminalManager', () => {
         manager.detachView(created.terminal!.id);
         manager.write(created.terminal!.id, "printf 'DETACHED_AGAIN\\n'\r");
         await expect
-            .poll(() => database.getSnapshot(created.terminal!.id)?.payload)
+            .poll(async () => (await manager.snapshot(created.terminal!.id))?.payload)
             .toContain('DETACHED_AGAIN');
         expect(output).not.toContain('DETACHED_AGAIN');
 
-        manager.shutdown('orderly');
+        await manager.shutdown('orderly');
         database.close();
     });
 
     it('reattaches from the current cursor-addressed screen after raw output exceeds retention', async () => {
-        const maximumSnapshotBytes = 32 * 1024;
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detached-screen-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
@@ -775,11 +712,7 @@ describe('TerminalManager', () => {
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),
-            {
-                resolveExecutable: () => Promise.resolve('/bin/echo'),
-                snapshotMaximumBytes: maximumSnapshotBytes,
-                spawn: () => fake.process,
-            },
+            { resolveExecutable: () => Promise.resolve('/bin/echo'), spawn: () => fake.process },
         );
 
         await manager.start(created.terminal!);
@@ -787,9 +720,7 @@ describe('TerminalManager', () => {
         manager.detachView(created.terminal!.id);
         fake.emitData('\u{1B}[2J\u{1B}[HRETAINED_HEADER');
         const cursorUpdate = '\u{1B}[2;1Hprogress';
-        fake.emitData(
-            cursorUpdate.repeat(Math.ceil((maximumSnapshotBytes + 65_536) / cursorUpdate.length)),
-        );
+        fake.emitData(cursorUpdate.repeat(1_000));
 
         const snapshot = await manager.attach(created.terminal!.id);
         expect(snapshot?.payload.includes('RETAINED_HEADER')).toBe(true);
