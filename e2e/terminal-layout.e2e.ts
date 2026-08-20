@@ -516,6 +516,7 @@ sleep 30
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
         const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
+        await expect(running.page.locator('.terminal-group')).toHaveCount(2);
         await pageRequest(running.page, 'settings.update', {
             source: JSON.stringify({ ...settings.value, 'terminal.fontSize': 13 }),
         });
