@@ -2,6 +2,7 @@ import type { MouseEvent } from 'react';
 import { useState } from 'react';
 
 import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
+import { keepPreviousData } from '@tanstack/react-query';
 import {
     Activity,
     AlertTriangle,
@@ -35,7 +36,7 @@ import type { ProjectStatusTreeNode } from './project-status-tree';
 import { buildProjectStatusNodes } from './project-status-tree';
 
 /**
- * No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
+ * Delivery metadata uses a fixed polling interval; the Runtime also pushes cache-refresh invalidations.
  */
 const PROJECT_STATUS_REFETCH_INTERVAL_MS = 60_000;
 
@@ -217,19 +218,20 @@ function RepoSection({ repository }: { repository: ProjectStatusRepository }) {
 export function ProjectStatusPanel() {
     const session = useSelectedSession();
     const sessionId = session?.id;
+    const [refreshToken, setRefreshToken] = useState<string>();
     const {
         data: summary,
         isError,
         error,
         isFetching,
-        refetch,
     } = usePolledQuery(
         'projectStatus.summary',
-        { sessionId: sessionId ?? '' },
+        { sessionId: sessionId ?? '', refreshToken },
         {
             label: 'projectStatus.summary',
             intervalMs: PROJECT_STATUS_REFETCH_INTERVAL_MS,
             enabled: Boolean(sessionId),
+            placeholderData: keepPreviousData,
         },
     );
     useToastOnQueryError(isError, error, 'Project Status refresh failed');
@@ -242,10 +244,7 @@ export function ProjectStatusPanel() {
         );
     const isRefreshing = isFetching;
     const refresh = (): void => {
-        // Fire-and-forget: `useCaxriQuery`/`useToastOnQueryError` already own reporting a failed
-        // refetch, so this manual refresh trigger has nothing further to await.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void refetch();
+        setRefreshToken(crypto.randomUUID());
     };
     return (
         <div className="inspector-content project-status-panel flex min-h-0 flex-1 flex-col overflow-auto">

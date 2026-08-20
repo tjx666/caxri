@@ -129,7 +129,8 @@ export function createServiceHandlers(services: {
         'git.commitDiffDocument': (parameters) => git.commitDiffDocument(parameters),
         'git.blame': (parameters) => git.blame(parameters),
         'git.fileHead': (parameters) => git.fileHead(parameters),
-        'projectStatus.summary': ({ sessionId }) => projectStatus.summary(sessionId),
+        'projectStatus.summary': ({ sessionId, refreshToken }) =>
+            projectStatus.summary(sessionId, refreshToken),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'settings.get': () => configuration.getSettings(),
         'settings.inspect': () => configuration.inspectSettings(),
