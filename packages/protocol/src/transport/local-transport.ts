@@ -156,6 +156,19 @@ export const localServerLeaseRenewedSchema = z.object({
     lease: desktopLeaseSchema,
 });
 
+export const desktopLeaseRevocationReasonSchema = z.literal('replaced');
+export type DesktopLeaseRevocationReason = z.infer<typeof desktopLeaseRevocationReasonSchema>;
+
+/**
+ * An orderly Host-side lease revocation lets a replaced Desktop distinguish intentional takeover from a recoverable
+ * socket outage. The generation prevents a delayed control frame from revoking a newer attachment.
+ */
+export const localServerDesktopLeaseRevokedSchema = z.object({
+    type: z.literal('desktop-lease.revoked'),
+    generation: z.number().int().positive(),
+    reason: desktopLeaseRevocationReasonSchema,
+});
+
 export const localServerReplySchema = z.object({
     type: z.literal('reply'),
     reply: commandReplyEnvelopeSchema,
@@ -242,4 +255,5 @@ export type LocalClientLeaseRenew = z.infer<typeof localClientLeaseRenewSchema>;
 export type LocalServerReply = z.infer<typeof localServerReplySchema>;
 export type LocalServerEvent = z.infer<typeof localServerEventSchema>;
 export type LocalServerDesktopCommand = z.infer<typeof localServerDesktopCommandSchema>;
+export type LocalServerDesktopLeaseRevoked = z.infer<typeof localServerDesktopLeaseRevokedSchema>;
 export type LocalServerLeaseRenewed = z.infer<typeof localServerLeaseRenewedSchema>;

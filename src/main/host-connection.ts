@@ -11,7 +11,11 @@ import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RecoveringEventClient } from '../shared/ipc/event-client';
 import { createRecoveringEventClient } from '../shared/ipc/event-client';
 import type { RuntimeEvent } from '../shared/ipc/events';
-import type { DesktopOperation, DesktopTargetPayload } from '../shared/ipc/local-transport';
+import type {
+    DesktopLeaseRevocationReason,
+    DesktopOperation,
+    DesktopTargetPayload,
+} from '../shared/ipc/local-transport';
 import type {
     CaxriMethod,
     RuntimeMethod,
@@ -114,6 +118,7 @@ export class DesktopHostConnection extends EventTarget {
      */
     private connectionLostAtMs?: number;
     private isHostReplacedOnLastConnect = false;
+    private isLeaseReplaced = false;
     /**
      * Once this connection has replaced one stale Host, further mismatches only warn. Without this instance-level
      * guard, every background reconnect (`reconnectUntilAttached` → `connect`) restarts the replacement from scratch,
@@ -136,7 +141,7 @@ export class DesktopHostConnection extends EventTarget {
             this.options.handleCommand,
         );
         this.client = client;
-        client.onClose(() => this.handleConnectionLoss(client));
+        client.onClose((reason) => this.handleConnectionLoss(client, reason));
         this.isHostReplacedOnLastConnect =
             this.eventsHostIdentity !== undefined && this.eventsHostIdentity !== hostIdentity;
         // Reconnecting to the SAME Host process must keep the consumed event cursor: restarting at
@@ -256,20 +261,37 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     /**
-     * Drops a lost attachment and keeps retrying in the background: the detached Host may be crashing, restarting, or
-     * replaced, and requests fail fast with `UNAVAILABLE` until a fresh connection (and Host relaunch via `ensureHost`)
-     * succeeds.
+     * Drops a lost attachment and keeps retrying recoverable outages in the background. An orderly same-profile Desktop
+     * takeover is terminal for this Main instance so it cannot evict the replacement in return.
      */
-    private handleConnectionLoss(lost: HostClient): void {
+    private handleConnectionLoss(lost: HostClient, reason?: DesktopLeaseRevocationReason): void {
         if (this.disposed || this.client !== lost) return;
         this.client = undefined;
         this.starting = undefined;
+        if (reason === 'replaced') {
+            this.isLeaseReplaced = true;
+            this.connectionLostAtMs = undefined;
+            this.options.logger.write('warn', 'host.desktop_lease_replaced', {});
+            this.dispatchEvent(
+                new CustomEvent<RuntimeEvent>('event', {
+                    detail: {
+                        event: 'host.connectionChanged',
+                        payload: { status: 'replaced' },
+                    },
+                }),
+            );
+            return;
+        }
         this.connectionLostAtMs ??= Date.now();
         this.options.logger.write('warn', 'host.connection_lost', {});
         // The retry loop handles every failure internally (it never rejects), so the kickoff is
         // intentionally fire-and-forget from this synchronous close listener.
         // eslint-disable-next-line no-void
         void this.reconnectUntilAttached();
+    }
+
+    private isReconnectStopped(): boolean {
+        return this.disposed || this.isLeaseReplaced;
     }
 
     private async reconnectUntilAttached(): Promise<void> {
@@ -280,7 +302,7 @@ export class DesktopHostConnection extends EventTarget {
                 const backoffMs = Math.min(500 * 2 ** (attempt - 1), 10_000);
                 // eslint-disable-next-line no-await-in-loop -- sequential backoff between retries.
                 await new Promise((resolve) => setTimeout(resolve, backoffMs));
-                if (this.disposed) return;
+                if (this.isReconnectStopped()) return;
                 try {
                     // eslint-disable-next-line no-await-in-loop -- see the backoff note above.
                     await this.start();
@@ -304,6 +326,14 @@ export class DesktopHostConnection extends EventTarget {
                     try {
                         // eslint-disable-next-line no-await-in-loop -- final await before returning.
                         await this.markDesktopReady();
+                        /**
+                         * `desktop.ready` and this recovery command share Host's ordered control queue. The recovery
+                         * reply is therefore a readiness barrier: it includes every durable event journaled after the
+                         * first reconnect recovery and before ready became active, without adding an initial-startup
+                         * round trip.
+                         */
+                        // eslint-disable-next-line no-await-in-loop -- ordered readiness barrier for this attempt.
+                        await this.events?.start();
                     } catch (error) {
                         this.options.logger.write('error', 'host.desktop_ready_failed', {
                             fields: { error: errorMessage(error, 'unknown') },
@@ -312,7 +342,10 @@ export class DesktopHostConnection extends EventTarget {
                 // The replacement connection can be lost again while this loop is still finishing
                 // (its close listener sees `isReconnecting` and cannot start another loop), so a
                 // cleared attachment here means "keep retrying", not success.
-                if (!this.client) continue;
+                if (!this.client) {
+                    if (this.isReconnectStopped()) return;
+                    continue;
+                }
                 this.connectionLostAtMs = undefined;
                 /**
                  * Transient events (PTY bytes above all) sent during the outage were dropped without replay, so the
@@ -347,6 +380,13 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     start(): Promise<void> {
+        if (this.isLeaseReplaced)
+            return Promise.reject(
+                new CaxriError(
+                    'CONFLICT',
+                    'Another Caxri window replaced this Desktop profile lease',
+                ),
+            );
         const starting = this.starting ?? this.connect();
         this.starting = starting;
         // `start()` returns the in-flight connection promise synchronously; resetting

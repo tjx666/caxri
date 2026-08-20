@@ -518,7 +518,9 @@ describe('local Host transport', () => {
             handleCommand: firstHandler,
         });
         const firstEvents = vi.fn();
+        const firstClosed = vi.fn();
         first.onEvent(firstEvents);
+        first.onClose(firstClosed);
         cleanups.push(() => {
             first.close();
             return Promise.resolve();
@@ -549,6 +551,7 @@ describe('local Host transport', () => {
         // Lease replacement severs the replaced Desktop's connection instead of leaving it to
         // poll CONFLICT replies against a socket it no longer owns (GitHub issue #173).
         await expect(first.request('app.health')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        await vi.waitFor(() => expect(firstClosed).toHaveBeenCalledWith('replaced'));
         expect(server.clientCount()).toBe(1);
         server.broadcast({
             event: 'terminal.output',

@@ -15,17 +15,17 @@ interface FakeHostClient {
     onClose: ReturnType<typeof vi.fn>;
     onEvent: ReturnType<typeof vi.fn>;
     request: ReturnType<typeof vi.fn>;
-    triggerClose: () => void;
+    triggerClose: (reason?: 'replaced') => void;
     triggerEvent: (envelope: unknown) => void;
 }
 
 function createFakeHostClient(): FakeHostClient {
-    const closeListeners: Array<() => void> = [];
+    const closeListeners: Array<(reason?: 'replaced') => void> = [];
     const eventListeners: Array<(envelope: unknown) => void> = [];
     return {
         close: vi.fn(),
         markDesktopReady: vi.fn().mockResolvedValue(undefined),
-        onClose: vi.fn((listener: () => void) => {
+        onClose: vi.fn((listener: (reason?: 'replaced') => void) => {
             closeListeners.push(listener);
             return () => {};
         }),
@@ -34,8 +34,8 @@ function createFakeHostClient(): FakeHostClient {
             return () => {};
         }),
         request: vi.fn().mockResolvedValue({ cursor: 0, events: [], kind: 'events' }),
-        triggerClose: () => {
-            for (const listener of closeListeners) listener();
+        triggerClose: (reason) => {
+            for (const listener of closeListeners) listener(reason);
         },
         triggerEvent: (envelope) => {
             for (const listener of eventListeners) listener(envelope);
@@ -281,6 +281,31 @@ describe('Desktop Host connection facade', () => {
         await expect(connection.request('app.health')).resolves.toBeDefined();
     });
 
+    it('stops reconnecting and reports when another Desktop replaces its lease', async () => {
+        vi.useFakeTimers();
+        const first = mockHostRound();
+        const { connection, logger } = createConnection();
+        const received: unknown[] = [];
+        connection.onEvent((event) => received.push(event));
+        await connection.start();
+        const attachmentCount = vi.mocked(ensureHost).mock.calls.length;
+
+        first.triggerClose('replaced');
+        await vi.advanceTimersByTimeAsync(30_000);
+
+        expect(ensureHost).toHaveBeenCalledTimes(attachmentCount);
+        expect(logger.write).toHaveBeenCalledWith('warn', 'host.desktop_lease_replaced', {});
+        expect(received).toEqual([
+            {
+                event: 'host.connectionChanged',
+                payload: { status: 'replaced' },
+            },
+        ]);
+        await expect(connection.request('app.health')).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+        });
+    });
+
     it('announces a Renderer resync event once the reconnect succeeds', async () => {
         vi.useFakeTimers();
         const first = mockHostRound();
@@ -370,6 +395,58 @@ describe('Desktop Host connection facade', () => {
         await vi.advanceTimersByTimeAsync(500);
 
         expect(replacement.request).toHaveBeenCalledWith('events.recover', { afterCursor: 1 });
+    });
+
+    it('recovers an event created after reconnect recovery but before Desktop readiness', async () => {
+        vi.useFakeTimers();
+        const first = mockHostRound();
+        const { connection } = createConnection();
+        const received: unknown[] = [];
+        connection.onEvent((event) => received.push(event));
+        await connection.start();
+        await connection.markDesktopReady();
+
+        const replacement = mockHostRound();
+        replacement.request
+            .mockResolvedValueOnce({ cursor: 0, events: [], kind: 'events' })
+            .mockResolvedValueOnce({
+                cursor: 1,
+                kind: 'events',
+                events: [
+                    {
+                        cursor: 1,
+                        event: {
+                            event: 'state.changed',
+                            payload: { kind: 'full', reason: 'unknown' },
+                        },
+                    },
+                ],
+            });
+        first.triggerClose();
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(replacement.markDesktopReady).toHaveBeenCalledTimes(1);
+        expect(replacement.request).toHaveBeenNthCalledWith(1, 'events.recover', {
+            afterCursor: 0,
+        });
+        expect(replacement.request).toHaveBeenNthCalledWith(2, 'events.recover', {
+            afterCursor: 0,
+        });
+        expect(received).toEqual([
+            {
+                event: 'state.changed',
+                payload: { kind: 'full', reason: 'unknown' },
+            },
+            {
+                event: 'host.connectionChanged',
+                payload: {
+                    status: 'reconnected',
+                    downtimeMs: 500,
+                    attempt: 1,
+                    isHostReplaced: false,
+                },
+            },
+        ]);
     });
 
     it('resets the event cursor when a different Host process takes over', async () => {

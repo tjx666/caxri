@@ -1,8 +1,7 @@
 import { Buffer } from 'node:buffer';
-import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
-import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
+import { lstat, readFile, realpath } from 'node:fs/promises';
 import type { Socket } from 'node:net';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
@@ -11,6 +10,7 @@ import process from 'node:process';
 import type {
     CaxriMethod,
     DesktopLease,
+    DesktopLeaseRevocationReason,
     DesktopOperation,
     DesktopRuntimeMethod,
     DesktopRuntimeMethodResult,
@@ -36,6 +36,7 @@ import {
     localClientDesktopReplySchema,
     LocalJsonLineDecoder,
     localServerDesktopCommandSchema,
+    localServerDesktopLeaseRevokedSchema,
     localServerDesktopRuntimeReplySchema,
     localServerDesktopTargetReplySchema,
     localServerEventSchema,
@@ -49,27 +50,11 @@ import {
     toWireError,
 } from '@caxri/protocol';
 
+import type { HostLaunchOptions } from './launch.js';
+import { launchHost } from './launch.js';
+
 const MAX_MANIFEST_BYTES = 16 * 1024;
 const DEFAULT_TIMEOUT_MS = 15_000;
-const LAUNCH_ENVIRONMENT_KEYS = [
-    'HOME',
-    'USER',
-    'LOGNAME',
-    'PATH',
-    'SHELL',
-    'LANG',
-    'LC_ALL',
-    'LC_CTYPE',
-    'TMPDIR',
-    'SSH_AUTH_SOCK',
-    'XDG_CONFIG_HOME',
-    'XDG_CACHE_HOME',
-    'XDG_DATA_HOME',
-    'CODEX_HOME',
-    'CODEX_SQLITE_HOME',
-    'CLAUDE_CONFIG_DIR',
-] as const;
-
 interface PendingRequest {
     parse(value: unknown): unknown;
     reject(error: Error): void;
@@ -344,9 +329,10 @@ export class HostClient {
 
     private readonly decoder = new LocalJsonLineDecoder();
     private readonly eventListeners = new Set<(event: LocalServerEvent['event']) => void>();
-    private readonly closeListeners = new Set<() => void>();
+    private readonly closeListeners = new Set<(reason?: DesktopLeaseRevocationReason) => void>();
     private readonly pending = new Map<string, PendingRequest>();
     private closed = false;
+    private closeReason?: DesktopLeaseRevocationReason;
     private leaseRenewalTimer?: NodeJS.Timeout;
     desktopLease?: DesktopLease;
 
@@ -388,6 +374,7 @@ export class HostClient {
             try {
                 const raw = JSON.parse(line) as unknown;
                 const renewed = localServerLeaseRenewedSchema.safeParse(raw);
+                const revoked = localServerDesktopLeaseRevokedSchema.safeParse(raw);
                 const event = localServerEventSchema.safeParse(raw);
                 if (renewed.success) {
                     if (
@@ -397,6 +384,16 @@ export class HostClient {
                     )
                         throw new Error('Desktop lease renewal does not match this connection');
                     this.desktopLease = renewed.data.lease;
+                } else if (revoked.success) {
+                    if (
+                        !this.desktopLease ||
+                        revoked.data.generation !== this.desktopLease.generation
+                    )
+                        throw new Error('Desktop lease revocation does not match this connection');
+                    this.closeReason = revoked.data.reason;
+                    this.socket.destroy();
+                    this.failPending();
+                    return;
                 } else if (event.success) {
                     for (const listener of this.eventListeners) listener(event.data.event);
                 } else {
@@ -515,7 +512,7 @@ export class HostClient {
         this.pending.clear();
         const listeners = [...this.closeListeners];
         this.closeListeners.clear();
-        for (const listener of listeners) listener();
+        for (const listener of listeners) listener(this.closeReason);
     }
 
     private sendRequest(id: string, method: CaxriMethod, parameters: unknown): Promise<unknown> {
@@ -614,11 +611,12 @@ export class HostClient {
 
     /**
      * Notifies once when this connection closes for any reason (socket loss, protocol failure, or an explicit
-     * `close()`). A listener registered after closure fires synchronously so callers cannot miss the transition.
+     * `close()`). An orderly Host lease takeover supplies `replaced`; other closures have no reason. A listener
+     * registered after closure fires synchronously so callers cannot miss the transition.
      */
-    onClose(listener: () => void): () => void {
+    onClose(listener: (reason?: DesktopLeaseRevocationReason) => void): () => void {
         if (this.closed) {
-            listener();
+            listener(this.closeReason);
             return () => {};
         }
         this.closeListeners.add(listener);
@@ -686,25 +684,6 @@ export async function connectDesktopToHost(
     });
 }
 
-export interface HostLaunchOptions {
-    /**
-     * Electron binary, or the packaged Caxri executable with the RunAsNode fuse enabled.
-     */
-    executable: string;
-    /**
-     * Built `host.js`, including an app.asar path for the packaged Desktop shim.
-     */
-    entryPath: string;
-    environment?: NodeJS.ProcessEnv;
-}
-
-function safeLaunchEnvironment(overrides: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
-    const environment: NodeJS.ProcessEnv = {};
-    for (const key of LAUNCH_ENVIRONMENT_KEYS)
-        if (process.env[key] !== undefined) environment[key] = process.env[key];
-    return { ...environment, ...overrides };
-}
-
 function isProcessAlive(pid: number): boolean {
     try {
         process.kill(pid, 0);
@@ -712,28 +691,6 @@ function isProcessAlive(pid: number): boolean {
     } catch (error) {
         return fileSystemCode(error) !== 'ESRCH';
     }
-}
-
-async function launchHost(userDataPath: string, options: HostLaunchOptions): Promise<void> {
-    await mkdir(userDataPath, { recursive: true });
-    await new Promise<void>((resolve, reject) => {
-        const child = spawn(options.executable, [options.entryPath], {
-            detached: true,
-            env: {
-                ...safeLaunchEnvironment(options.environment),
-                CAXRI_USER_DATA_PATH: userDataPath,
-                ELECTRON_RUN_AS_NODE: '1',
-            },
-            stdio: 'ignore',
-        });
-        child.once('error', () =>
-            reject(new CaxriError('UNAVAILABLE', 'Caxri Host process failed to launch')),
-        );
-        child.once('spawn', () => {
-            child.unref();
-            resolve();
-        });
-    });
 }
 
 /**
