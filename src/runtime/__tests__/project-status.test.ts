@@ -6,14 +6,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../shared/node/logger';
 import type { GitSummary } from '../../shared/types';
-import type { ProjectStatusRunner, VercelLink } from '../project-status';
 import {
     extractLinearReferences,
     parseGitHubPullRequest,
     parseGitHubRemote,
     ProjectStatusService,
-    rememberVercelLink,
 } from '../project-status';
+import type { ProjectStatusRunner, VercelLink } from '../project-status-external';
+import { rememberVercelLink } from '../project-status-external';
 
 const temporaryDirectories: string[] = [];
 
@@ -52,6 +52,146 @@ const gitSummary: GitSummary = {
 };
 
 describe('ProjectStatusService', () => {
+    it('returns local status before a slow external CLI refresh completes', async () => {
+        const external = Promise.withResolvers<string>();
+        const refreshed = Promise.withResolvers<void>();
+        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+            if (command === 'git' && arguments_[0] === 'remote') {
+                return Promise.resolve('git@github.com:lobehub/project.git\n');
+            }
+            if (command === 'git') return Promise.resolve('');
+            return external.promise;
+        });
+        const service = new ProjectStatusService(
+            { summary: () => Promise.resolve(gitSummary) },
+            await logger(),
+            runner,
+            {
+                emit: (event) => {
+                    if (event.event === 'projectStatus.changed') refreshed.resolve();
+                },
+            },
+        );
+
+        const summary = await service.summary('session-1');
+        expect(summary.repositories[0]?.branch).toBe('feature/status');
+        expect(summary.repositories[0]?.pullRequest).toBeUndefined();
+
+        external.resolve(
+            JSON.stringify({
+                number: 7,
+                title: 'Ship status panel',
+                url: 'https://github.com/lobehub/project/pull/7',
+            }),
+        );
+        await refreshed.promise;
+        const cached = await service.summary('session-1');
+
+        expect(cached.repositories[0]).toMatchObject({ pullRequest: { number: 7 } });
+    });
+
+    it('uses a refresh token to bypass a fresh cache exactly once', async () => {
+        let pullRequestNumber = 7;
+        const forcedGithub = Promise.withResolvers<string>();
+        const emitted = vi.fn();
+        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+            if (command === 'git' && arguments_[0] === 'remote') {
+                return Promise.resolve('git@github.com:lobehub/project.git\n');
+            }
+            if (command === 'git') return Promise.resolve('');
+            if (command === 'gh') {
+                if (pullRequestNumber === 8) return forcedGithub.promise;
+                return Promise.resolve(
+                    JSON.stringify({
+                        number: pullRequestNumber,
+                        title: `Pull request ${pullRequestNumber}`,
+                        url: `https://github.com/lobehub/project/pull/${pullRequestNumber}`,
+                    }),
+                );
+            }
+            return Promise.resolve(JSON.stringify({ teams: [] }));
+        });
+        const service = new ProjectStatusService(
+            { summary: () => Promise.resolve(gitSummary) },
+            await logger(),
+            runner,
+            { emit: emitted },
+        );
+
+        await service.summary('session-1');
+        await vi.waitFor(() => expect(emitted).toHaveBeenCalledTimes(1));
+        expect((await service.summary('session-1')).repositories[0]?.pullRequest?.number).toBe(7);
+
+        pullRequestNumber = 8;
+        let isForcedSettled = false;
+        const forced = service.summary('session-1', 'refresh-1');
+        const observeForcedSettlement = async (): Promise<void> => {
+            await forced;
+            isForcedSettled = true;
+        };
+        const forcedSettlement = observeForcedSettlement();
+        await vi.waitFor(() =>
+            expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(2),
+        );
+        expect(isForcedSettled).toBe(false);
+        forcedGithub.resolve(
+            JSON.stringify({
+                number: 8,
+                title: 'Pull request 8',
+                url: 'https://github.com/lobehub/project/pull/8',
+            }),
+        );
+        await forcedSettlement;
+        expect((await forced).repositories[0]?.pullRequest?.number).toBe(8);
+        await vi.waitFor(() => expect(emitted).toHaveBeenCalledTimes(2));
+        expect(
+            (await service.summary('session-1', 'refresh-1')).repositories[0]?.pullRequest?.number,
+        ).toBe(8);
+        const externalCalls = runner.mock.calls.filter(([command]) => command !== 'git').length;
+
+        await service.summary('session-1', 'refresh-1');
+        expect(runner.mock.calls.filter(([command]) => command !== 'git')).toHaveLength(
+            externalCalls,
+        );
+    });
+
+    it('discards a background refresh after its Session is evicted', async () => {
+        const externalStarted = Promise.withResolvers<void>();
+        const external = Promise.withResolvers<string>();
+        const emitted = vi.fn();
+        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
+            if (command === 'git' && arguments_[0] === 'remote') {
+                return Promise.resolve('git@github.com:lobehub/project.git\n');
+            }
+            if (command === 'git') return Promise.resolve('');
+            if (command === 'gh') {
+                externalStarted.resolve();
+                return external.promise;
+            }
+            return Promise.resolve(JSON.stringify({ teams: [] }));
+        });
+        const service = new ProjectStatusService(
+            { summary: () => Promise.resolve(gitSummary) },
+            await logger(),
+            runner,
+            { emit: emitted },
+        );
+
+        const refresh = service.summary('session-1', 'refresh-before-delete');
+        await externalStarted.promise;
+        service.evictSessions(['session-1']);
+        external.resolve(
+            JSON.stringify({
+                number: 9,
+                title: 'Late pull request',
+                url: 'https://github.com/lobehub/project/pull/9',
+            }),
+        );
+
+        expect((await refresh).repositories[0]?.pullRequest).toBeUndefined();
+        expect(emitted).not.toHaveBeenCalled();
+    });
+
     it('loads a lightweight primary repository overview without Linear or Vercel', async () => {
         const summaryWithChanges: GitSummary = {
             ...gitSummary,
@@ -127,6 +267,7 @@ describe('ProjectStatusService', () => {
     });
 
     it('assembles GitHub, Linear, and Vercel status with structured CLI arguments', async () => {
+        const refreshed = Promise.withResolvers<void>();
         const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
                 return Promise.resolve('git@github.com:lobehub/project.git\n');
@@ -213,14 +354,22 @@ describe('ProjectStatusService', () => {
             { summary: () => Promise.resolve(gitSummary) },
             await logger(),
             runner,
+            {
+                emit: (event) => {
+                    if (event.event === 'projectStatus.changed') refreshed.resolve();
+                },
+            },
         );
 
-        const [summary, concurrent] = await Promise.all([
+        const [local, concurrent] = await Promise.all([
             service.summary('session-1'),
             service.summary('session-1'),
         ]);
+        expect(concurrent).toEqual(local);
+        expect(local.repositories[0]?.pullRequest).toBeUndefined();
+        await refreshed.promise;
+        const summary = await service.summary('session-1');
 
-        expect(concurrent).toEqual(summary);
         const repo = summary.repositories[0];
         expect(repo).toMatchObject({
             name: 'project',
@@ -251,18 +400,31 @@ describe('ProjectStatusService', () => {
     });
 
     it('keeps repositories visible when integrations fail', async () => {
-        const runner: ProjectStatusRunner = (command, arguments_) => {
+        const refreshed = Promise.withResolvers<void>();
+        const runner = vi.fn<ProjectStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
                 return Promise.resolve('https://github.com/lobehub/project.git');
             }
             if (command === 'git') return Promise.resolve('');
             return Promise.reject(new Error(`${command} unavailable`));
-        };
-        const summary = await new ProjectStatusService(
+        });
+        const service = new ProjectStatusService(
             { summary: () => Promise.resolve(gitSummary) },
             await logger(),
             runner,
-        ).summary('session-1');
+            {
+                emit: (event) => {
+                    if (event.event === 'projectStatus.changed') refreshed.resolve();
+                },
+            },
+        );
+
+        const local = await service.summary('session-1');
+        expect(local.repositories[0]?.errors).toEqual([]);
+        await refreshed.promise;
+        const externalCalls = runner.mock.calls.filter(([command]) => command !== 'git').length;
+        const summary = await service.summary('session-1');
+        const cached = await service.summary('session-1');
 
         expect(summary.repositories[0]).toMatchObject({
             branch: 'feature/status',
@@ -271,6 +433,10 @@ describe('ProjectStatusService', () => {
                 expect.objectContaining({ source: 'vercel' }),
             ],
         });
+        expect(cached).toEqual(summary);
+        expect(runner.mock.calls.filter(([command]) => command !== 'git')).toHaveLength(
+            externalCalls,
+        );
     });
 });
 

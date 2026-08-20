@@ -554,7 +554,13 @@ export const methods = {
     ...gitMethods,
     'projectStatus.summary': {
         ...hostRead,
-        params: z.object({ sessionId: identifierSchema }),
+        params: z.object({
+            sessionId: identifierSchema,
+            /**
+             * Unique token makes an explicit UI refresh bypass the settled cache exactly once.
+             */
+            refreshToken: identifierSchema.optional(),
+        }),
         result: projectStatusSummarySchema,
     },
     'projectStatus.overview': {

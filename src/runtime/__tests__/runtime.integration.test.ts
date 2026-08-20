@@ -11,6 +11,7 @@ import { listLayoutTerminalIds } from '../../shared/terminal-layout';
 import { createRuntime } from '../bootstrap';
 import { CaxriDatabase } from '../db/repository';
 import { GitService } from '../git';
+import { ProjectStatusService } from '../project-status';
 
 const temporaryDirectories: string[] = [];
 
@@ -399,7 +400,7 @@ describe('Runtime composition root', () => {
         await expect(runtime.close()).resolves.toBeUndefined();
     });
 
-    it('evicts Pull Request caches when Sessions, Projects, or the Runtime are removed', async () => {
+    it('evicts Git and Project Status caches when Sessions, Projects, or the Runtime are removed', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-git-cache-'));
         temporaryDirectories.push(directory);
         const userDataPath = join(directory, 'user-data');
@@ -407,6 +408,7 @@ describe('Runtime composition root', () => {
         const secondRoot = join(directory, 'second');
         await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
         const evict = vi.spyOn(GitService.prototype, 'evictSessions');
+        const evictStatus = vi.spyOn(ProjectStatusService.prototype, 'evictSessions');
         const clear = vi.spyOn(GitService.prototype, 'close');
         const runtime = await createRuntime({
             userDataPath,
@@ -436,14 +438,19 @@ describe('Runtime composition root', () => {
             expect(evict).toHaveBeenCalledWith(
                 expect.arrayContaining([firstSession.session.id, secondSession.session.id]),
             );
+            expect(evictStatus).toHaveBeenCalledWith(
+                expect.arrayContaining([firstSession.session.id, secondSession.session.id]),
+            );
 
             await runtime.handlers['session.delete']({ sessionId: secondSession.session.id });
             expect(evict).toHaveBeenLastCalledWith([secondSession.session.id]);
+            expect(evictStatus).toHaveBeenLastCalledWith([secondSession.session.id]);
             await runtime.close();
             expect(clear).toHaveBeenCalledOnce();
         } finally {
             await runtime.close();
             evict.mockRestore();
+            evictStatus.mockRestore();
             clear.mockRestore();
         }
     });

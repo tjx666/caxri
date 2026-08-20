@@ -183,7 +183,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             (() => configuration.getTheme().value.terminal),
     });
     const terminalRestores = new TerminalRestoreSupervisor();
-    const projectStatus = new ProjectStatusService(git, logger);
+    const projectStatus = new ProjectStatusService(git, logger, undefined, { emit: send });
     const diagnostics = new DiagnosticsService(
         database,
         logger,
@@ -587,6 +587,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                 terminals.terminateSession(session.id);
             }
             git.evictSessions(affectedSessionIds);
+            projectStatus.evictSessions(affectedSessionIds);
             database.deleteProject(projectId);
             workbenchRoots.projectDeleted(affectedWorkbenchSessions.map((session) => session.id));
             watchSessionInBackground(selectedSessionId());
@@ -671,6 +672,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             coordinator.forgetSession(sessionId);
             terminals.terminateSession(sessionId);
             git.evictSessions([sessionId]);
+            projectStatus.evictSessions([sessionId]);
             database.deleteSession(sessionId);
             watchSessionInBackground(selectedSessionId());
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.delete' } });
