@@ -15,6 +15,7 @@ const DEFAULT_SETTLE_FRAME_BUDGET = 8;
  */
 export class TerminalResizeSettler {
     private frame: number | undefined;
+    private paused = false;
     private remainingFrames = 0;
 
     constructor(
@@ -37,14 +38,29 @@ export class TerminalResizeSettler {
     }
 
     schedule(): void {
+        if (this.paused) return;
         this.remainingFrames = this.frameBudget;
         if (this.frame === undefined) this.requestNext();
     }
 
-    dispose(): void {
+    /**
+     * Keeps layout-driven fitting out of snapshot replay, where xterm must retain the recorded source grid.
+     */
+    pause(): void {
+        this.paused = true;
         this.remainingFrames = 0;
         if (this.frame !== undefined) this.cancelFrame(this.frame);
         this.frame = undefined;
+    }
+
+    resume(): void {
+        if (!this.paused) return;
+        this.paused = false;
+        this.schedule();
+    }
+
+    dispose(): void {
+        this.pause();
     }
 }
 

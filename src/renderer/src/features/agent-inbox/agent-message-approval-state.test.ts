@@ -1,8 +1,10 @@
+import type { AgentHeldMessageDetail } from '@shared/ipc';
 import { CaxriError } from '@shared/ipc';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     heldMessageActionResultForError,
+    loadHeldMessageDetail,
     updateHeldMessagesAfterAction,
 } from './agent-message-approval-state';
 
@@ -35,5 +37,49 @@ describe('held message approval state', () => {
         expect(updateHeldMessagesAfterAction(heldMessages, 'held-1', 'confirmed')).toEqual([
             { messageId: 'held-2' },
         ]);
+    });
+
+    it('treats a detail callback as stale when a decision wins while the request is pending', async () => {
+        const completion = Promise.withResolvers<AgentHeldMessageDetail | null>();
+        const onDetail = vi.fn();
+        const onFailure = vi.fn();
+        const onStale = vi.fn();
+        const loading = loadHeldMessageDetail({
+            isActive: () => true,
+            onDetail,
+            onFailure,
+            onStale,
+            request: () => completion.promise,
+        });
+
+        completion.resolve(null);
+        await loading;
+
+        expect(onStale).toHaveBeenCalledOnce();
+        expect(onDetail).not.toHaveBeenCalled();
+        expect(onFailure).not.toHaveBeenCalled();
+    });
+
+    it('ignores a late detail callback after a receipt removes the active card', async () => {
+        const completion = Promise.withResolvers<AgentHeldMessageDetail | null>();
+        const onDetail = vi.fn();
+        const onFailure = vi.fn();
+        const onStale = vi.fn();
+        let isActive = true;
+        const loading = loadHeldMessageDetail({
+            isActive: () => isActive,
+            onDetail,
+            onFailure,
+            onStale,
+            request: () => completion.promise,
+        });
+
+        isActive = false;
+        completion.resolve({ messageId: 'held-1' } as AgentHeldMessageDetail);
+        await loading;
+
+        expect(onDetail).not.toHaveBeenCalled();
+        expect(onStale).not.toHaveBeenCalled();
+        expect(onFailure).not.toHaveBeenCalled();
     });
 });

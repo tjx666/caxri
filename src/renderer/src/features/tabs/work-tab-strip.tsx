@@ -138,7 +138,7 @@ function TerminalWorkTab({
                             isOnlyWorkTab ? 'This is the only tab open in this session' : undefined
                         }
                         disabled={isOnlyWorkTab}
-                        onClick={() => moveTerminalToNewSession(terminal.id)}
+                        onClick={() => moveTerminalToNewSession(terminal.id, isOnlyWorkTab)}
                     >
                         Move to New Session
                     </ContextMenuItem>

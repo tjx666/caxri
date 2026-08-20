@@ -41,6 +41,7 @@ import {
     deleteSelectedSession,
     deleteSession,
     didReorderProject,
+    moveTerminalToNewSession,
     selectProject,
 } from '../session-actions';
 
@@ -129,5 +130,23 @@ describe('Session actions', () => {
 
         expect(mocks.caxriRequest).not.toHaveBeenCalled();
         expect(mocks.tryCommand).not.toHaveBeenCalled();
+    });
+
+    it('does not request a Terminal move when it is the only work tab', () => {
+        moveTerminalToNewSession('terminal-1', true);
+
+        expect(mocks.tryCommand).not.toHaveBeenCalled();
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+    });
+
+    it('requests one Terminal move when another work tab keeps the Session open', async () => {
+        moveTerminalToNewSession('terminal-1', false);
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledTimes(1);
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.moveToNewSession', {
+            terminalId: 'terminal-1',
+        });
+        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: true });
     });
 });

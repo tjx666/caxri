@@ -193,9 +193,11 @@ export function deleteSelectedSession(): void {
  * Moves a live Terminal (its PTY untouched) into a brand-new Session under the same Project, then switches to it —
  * analogous to a browser "move tab to new window". The Runtime already selects the new Session as part of the same
  * operation, so the `refresh: true` bootstrap re-fetch is all that is needed to reflect the switch, matching
- * `session.create`'s flow.
+ * `session.create`'s flow. The only-tab constraint is repeated at this request boundary so an accessibility or
+ * synthetic activation of a disabled menu item cannot reach the Runtime.
  */
-export function moveTerminalToNewSession(terminalId: string): void {
+export function moveTerminalToNewSession(terminalId: string, isOnlyWorkTab = false): void {
+    if (isOnlyWorkTab) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(

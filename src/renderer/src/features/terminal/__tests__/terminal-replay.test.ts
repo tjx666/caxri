@@ -128,6 +128,7 @@ describe('TerminalReplayCoordinator', () => {
                 events.push('reset');
             },
             {
+                beginSnapshot: () => events.push('begin'),
                 finishSnapshot: () => events.push('finish'),
                 prepareSnapshot: ({ cols, rows }) => events.push(`prepare:${cols}x${rows}`),
             },
@@ -137,20 +138,41 @@ describe('TerminalReplayCoordinator', () => {
         const reattachment = coordinator.reattach(() => snapshot.promise);
         await Promise.resolve();
         coordinator.push('live-output');
-        expect(events).toEqual(['prepare:80x24', 'write:old-screen', 'finish']);
+        expect(events).toEqual(['begin', 'prepare:80x24', 'write:old-screen', 'finish', 'begin']);
 
         snapshot.resolve({ cols: 40, payload: 'restored-screen', rows: 12 });
         await reattachment;
         expect(events).toEqual([
+            'begin',
             'prepare:80x24',
             'write:old-screen',
             'finish',
+            'begin',
             'prepare:40x12',
             'reset',
             'write:restored-screen',
             'write:live-output',
             'finish',
         ]);
+    });
+
+    it('finishes the snapshot lifecycle when a reattachment request fails', async () => {
+        const events: string[] = [];
+        const coordinator = new TerminalReplayCoordinator(
+            () => Promise.resolve(),
+            () => events.push('reset'),
+            {
+                beginSnapshot: () => events.push('begin'),
+                finishSnapshot: () => events.push('finish'),
+            },
+        );
+        await coordinator.restoreInitial(null);
+
+        await expect(
+            coordinator.reattach(() => Promise.reject(new Error('offline'))),
+        ).rejects.toThrow('offline');
+
+        expect(events).toEqual(['begin', 'finish', 'begin', 'finish']);
     });
 
     it('bounds output while a reattachment snapshot is slow', async () => {
