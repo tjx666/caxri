@@ -4,6 +4,7 @@ import { basename, dirname, relative, resolve, sep } from 'node:path';
 import type parcelWatcher from '@parcel/watcher';
 
 import type { StructuredLogger } from '../../shared/node/logger';
+import { isOutsideRoot } from '../path-security';
 import type { WatchHandle } from '../watch-hub';
 import { WatchHub } from '../watch-hub';
 
@@ -120,7 +121,7 @@ export class GitMetadataWatcher {
         const worktreeNames = new Set<string | undefined>();
         for (const event of events) {
             const relativePath = relative(repoKey, event.path);
-            if (relativePath.startsWith('..')) continue;
+            if (isOutsideRoot(relativePath)) continue;
             const change = classifyGitMetadataPath(relativePath);
             if (!change) continue;
             if (change.kind === 'topology') isTopologyChanged = true;

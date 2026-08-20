@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
-import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, open, realpath, rename, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, open, realpath } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import { applyEdits, modify } from 'jsonc-parser';
@@ -25,6 +25,7 @@ import type { StructuredLogger } from '../shared/node/logger';
 import { redactLogValue } from '../shared/node/redaction';
 import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '../shared/trusted-domains';
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '../shared/types';
+import { atomicWrite } from './atomic-file';
 import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './theme';
 import type { WatchHandle } from './watch-hub';
 import { WatchHub } from './watch-hub';
@@ -140,30 +141,6 @@ function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[
     return previousDefaultKeybindingSets.some((defaults) => source === JSON.stringify(defaults))
         ? defaultKeybindings
         : keybindings;
-}
-
-async function atomicWrite(path: string, source: string): Promise<void> {
-    const directory = dirname(path);
-    await mkdir(directory, { recursive: true });
-    const temporary = `${path}.${randomUUID()}.tmp`;
-    try {
-        const file = await open(temporary, 'wx', 0o600);
-        try {
-            await file.writeFile(source, 'utf8');
-            await file.sync();
-        } finally {
-            await file.close();
-        }
-        await rename(temporary, path);
-        const directoryHandle = await open(directory, 'r');
-        try {
-            await directoryHandle.sync();
-        } finally {
-            await directoryHandle.close();
-        }
-    } finally {
-        await rm(temporary, { force: true });
-    }
 }
 
 async function readBoundedConfigSource(path: string): Promise<string> {
