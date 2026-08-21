@@ -53,6 +53,11 @@ persistent notice visible instead of letting two same-profile instances evict ea
 Ordinary socket loss remains recoverable. After reconnect, Main re-announces `desktop.ready` and
 places one more event recovery command behind it on the same ordered Host queue, closing the window
 where a durable event could otherwise be journaled after recovery but before live delivery resumed.
+Main expresses this behavior through one explicit, pure-tested Desktop↔Host lifecycle state machine:
+initial attachment converges to `attached`/`ready`, recoverable loss advances through `backoff`,
+`attaching`, and `recovering`, while lease `replaced` and Desktop `disposed` are terminal. Socket,
+timer, readiness, and event-recovery I/O remain in the Main facade and cannot introduce parallel
+lifecycle flags.
 
 The pre-release reset tool treats Host ownership as an operating-system fact, not a discovery-file
 claim: dry-run and apply both use `lsof` to bind a live PID to the selected profile's open lock or
