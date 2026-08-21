@@ -5,7 +5,7 @@ import type { AgentLaunchSettings } from '../../shared/agents';
 import { agentProviderCatalog } from '../../shared/agents';
 import { CaxriError } from '../../shared/ipc/errors';
 import type { TerminalKind } from '../../shared/types';
-import { discoverExecutable } from '../agents';
+import { discoverExecutable } from '../agents/discovery';
 import type { TerminalManagerOptions, TerminalWorkingDirectoryIdentity } from './manager-types';
 
 export async function resolveTerminalExecutable(
