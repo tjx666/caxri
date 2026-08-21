@@ -12,6 +12,7 @@ export const commandIds = [
     'project.create',
     'project.delete',
     'project.openInEditor',
+    'project.customizeIcon',
     'session.create',
     'session.delete',
     'session.selectNext',

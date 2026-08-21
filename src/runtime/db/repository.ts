@@ -5,6 +5,7 @@
 import type Database from 'better-sqlite3';
 
 import { CaxriError } from '../../shared/ipc/errors';
+import type { ProjectIcon } from '../../shared/project-customization';
 import type {
     AgentProvider,
     AgentSnapshot,
@@ -112,6 +113,12 @@ export class CaxriDatabase {
 
     createProject(rootPath: string): ProjectRecord {
         return this.db.projects.create(rootPath);
+    }
+
+    setProjectIcon(projectId: string, icon: ProjectIcon | null): ProjectRecord {
+        if (!this.db.projects.setIcon(projectId, icon))
+            throw new CaxriError('NOT_FOUND', 'Project not found');
+        return this.db.projects.get(projectId)!;
     }
 
     /**

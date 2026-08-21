@@ -7,7 +7,12 @@ import type { SettingsView } from '../stores/dialogs';
  * feature actions, so a test can drive the registry with fakes.
  */
 export interface CommandContext {
-    project: { create(): void; openInExternalEditor(): void; removeSelected(): void };
+    project: {
+        create(): void;
+        customizeIcon(projectId?: string): void;
+        openInExternalEditor(): void;
+        removeSelected(): void;
+    };
     session: {
         create(): void;
         deleteSelected(): void;

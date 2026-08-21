@@ -27,6 +27,7 @@ const fullStateChangeReasonSchema = z.enum([
     'project.create',
     'project.delete',
     'project.reorder',
+    'project.setIcon',
     'session.create',
     'session.select',
     'session.archive',

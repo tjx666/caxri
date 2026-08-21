@@ -34,6 +34,11 @@ function sessionMruInvocation(arguments_: unknown): SessionMruShortcutInvocation
     return { heldModifiers, triggerCode: shortcut.triggerCode };
 }
 
+function projectIdArgument(arguments_: unknown): string | undefined {
+    if (!arguments_ || typeof arguments_ !== 'object' || !('projectId' in arguments_)) return;
+    return typeof arguments_.projectId === 'string' ? arguments_.projectId : undefined;
+}
+
 /**
  * The command table. Populated once as a module side effect; `commands/execute.ts` imports this module so every id in
  * the shared catalog has a matching registry entry before the app runs.
@@ -56,6 +61,9 @@ export const commandDefinitions: CommandDefinition[] = [
         { confirm: true },
     ),
     fromCatalog('project.openInEditor', (context) => context.project.openInExternalEditor()),
+    fromCatalog('project.customizeIcon', (context, arguments_) =>
+        context.project.customizeIcon(projectIdArgument(arguments_)),
+    ),
     fromCatalog('session.create', (context) => context.session.create()),
     fromCatalog(
         'session.delete',

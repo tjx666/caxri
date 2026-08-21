@@ -31,6 +31,7 @@ export const parallelSafeSpecs = [
     'e2e/motion.e2e.ts',
     'e2e/path-browser.e2e.ts',
     'e2e/project-collapse.e2e.ts',
+    'e2e/project-icons.e2e.ts',
     'e2e/project-order.e2e.ts',
     'e2e/project-search.e2e.ts',
     'e2e/settings-parallel-safe.e2e.ts',
