@@ -247,10 +247,32 @@ function retainValidRequests(
     return valid.length === pending.length ? pending : valid;
 }
 
-function view(timeline: SessionHistoryTimeline, pending: SessionNavigationRequest[]) {
+/**
+ * Records a visit only while the Session is still live. A selection that succeeds after its Session was archived must
+ * not write it back into a history the prune just took it out of: the active Session set does not change a second time,
+ * so nothing would ever remove it again and Back would keep offering a target that can no longer be selected.
+ */
+function recordLiveVisit(
+    state: SessionNavigationHistoryState,
+    sessionId: string,
+): SessionHistoryTimeline {
+    if (state.liveSessionIds && !state.liveSessionIds.has(sessionId)) return state.timeline;
+    return recordSessionVisit(state.timeline, sessionId);
+}
+
+/**
+ * `outstanding` is every dispatched-but-unsettled selection, not just the queued navigations: an ordinary selection
+ * drops the navigations from `pending` without cancelling their IPCs, so counting `pending` alone would let each click
+ * reopen the whole queue.
+ */
+function view(
+    timeline: SessionHistoryTimeline,
+    pending: SessionNavigationRequest[],
+    outstanding: number,
+) {
     const visible = projectSessionHistory(timeline, pending);
     // At the cap the controls have to report themselves as unavailable, or the button stays lit and does nothing.
-    const isSaturated = pending.length >= MAX_PENDING_NAVIGATIONS;
+    const isSaturated = outstanding >= MAX_PENDING_NAVIGATIONS;
     return {
         ...sessionHistorySnapshot(visible),
         canGoBack: !isSaturated && sessionHistoryTarget(visible, 'back') !== undefined,
@@ -262,14 +284,16 @@ function view(timeline: SessionHistoryTimeline, pending: SessionNavigationReques
 
 export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryState>(
     (set, get) => ({
-        ...view(EMPTY_SESSION_HISTORY, []),
+        ...view(EMPTY_SESSION_HISTORY, [], 0),
         inFlight: 0,
         nextRequestId: 1,
         observe: (sessionId) =>
             set((state) => {
                 if (state.inFlight > 0) return state;
                 const timeline = recordSessionVisit(state.timeline, sessionId);
-                return timeline === state.timeline ? state : view(timeline, state.pending);
+                return timeline === state.timeline
+                    ? state
+                    : view(timeline, state.pending, state.inFlight);
             }),
         prune: (activeSessionIds) =>
             set((state) => {
@@ -283,17 +307,22 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
                 const liveSessionIds = new Set(activeSessionIds);
                 if (timeline === state.timeline && pending.length === state.pending.length)
                     return { ...state, liveSessionIds };
-                return { ...view(timeline, pending), liveSessionIds };
+                return { ...view(timeline, pending, state.inFlight), liveSessionIds };
             }),
         beginSelection: () =>
-            set((state) => ({ ...view(state.timeline, []), inFlight: state.inFlight + 1 })),
+            set((state) => {
+                const inFlight = state.inFlight + 1;
+                return { ...view(state.timeline, [], inFlight), inFlight };
+            }),
         settleSelection: (sessionId, isSelected) =>
             set((state) => {
                 const inFlight = Math.max(0, state.inFlight - 1);
-                if (!isSelected) return { ...state, inFlight };
-                const timeline = recordSessionVisit(state.timeline, sessionId);
+                // Even a refused selection has to refresh the view: it frees a slot, which can lift the saturation cap.
+                if (!isSelected)
+                    return { ...view(state.timeline, state.pending, inFlight), inFlight };
+                const timeline = recordLiveVisit(state, sessionId);
                 return {
-                    ...view(timeline, retainValidRequests(timeline, state.pending)),
+                    ...view(timeline, retainValidRequests(timeline, state.pending), inFlight),
                     inFlight,
                 };
             }),
@@ -310,9 +339,10 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
                 index,
                 target: state.timeline.entries[index],
             };
+            const inFlight = state.inFlight + 1;
             set({
-                ...view(state.timeline, [...state.pending, request]),
-                inFlight: state.inFlight + 1,
+                ...view(state.timeline, [...state.pending, request], inFlight),
+                inFlight,
                 nextRequestId: state.nextRequestId + 1,
             });
             return request;
@@ -323,15 +353,10 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
                 const position = state.pending.findIndex((step) => step.id === request.id);
                 if (position === -1) {
                     // Pruning or a newer selection already dropped this request, yet the Session did reach the screen,
-                    // so it counts as an ordinary visit — unless it was archived while in flight, which is how it would
-                    // otherwise reappear in a history it was just pruned out of.
-                    const isLive = state.liveSessionIds?.has(request.target) ?? true;
-                    const timeline = isLive
-                        ? recordSessionVisit(state.timeline, request.target)
-                        : state.timeline;
-                    if (timeline === state.timeline) return { ...state, inFlight };
+                    // so it counts as an ordinary visit.
+                    const timeline = recordLiveVisit(state, request.target);
                     return {
-                        ...view(timeline, retainValidRequests(timeline, state.pending)),
+                        ...view(timeline, retainValidRequests(timeline, state.pending), inFlight),
                         inFlight,
                     };
                 }
@@ -341,6 +366,7 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
                     ...view(
                         selectSessionHistoryIndex(state.timeline, request.index),
                         state.pending.slice(position + 1),
+                        inFlight,
                     ),
                     inFlight,
                 };
@@ -349,10 +375,11 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
             set((state) => {
                 const inFlight = Math.max(0, state.inFlight - 1);
                 const pending = state.pending.filter((step) => step.id !== request.id);
-                return pending.length === state.pending.length
-                    ? { ...state, inFlight }
-                    : { ...view(state.timeline, pending), inFlight };
+                return { ...view(state.timeline, pending, inFlight), inFlight };
             }),
-        reset: () => set({ ...view(EMPTY_SESSION_HISTORY, []), inFlight: 0 }),
+        // `liveSessionIds` belongs to the Workbench that is going away, so keeping it would judge the next Workbench's
+        // Sessions against a Session set they were never part of, and every visit would be discarded as archived.
+        reset: () =>
+            set({ ...view(EMPTY_SESSION_HISTORY, [], 0), inFlight: 0, liveSessionIds: undefined }),
     }),
 );

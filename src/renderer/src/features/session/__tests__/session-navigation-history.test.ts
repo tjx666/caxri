@@ -369,6 +369,50 @@ describe('Session navigation requests', () => {
         expect(visible().current).toBe('session-b');
     });
 
+    /**
+     * The mirror of the archived-navigation case. An ordinary click resolves through the same late window, so it can
+     * also succeed after its Session was archived and pruned.
+     */
+    it('does not write back a Session archived while an ordinary selection was in flight', () => {
+        visit('session-a', 'session-b');
+        history().beginSelection();
+        history().prune(['session-a', 'session-b']);
+
+        history().settleSelection('session-c', true);
+        expect(history().timeline.entries).toEqual(['session-a', 'session-b']);
+        expect(visible().current).toBe('session-b');
+    });
+
+    /**
+     * An ordinary selection drops the queued navigations without cancelling their IPCs, so the cap counts every
+     * unsettled selection. Counting only the queue would let each click reopen it.
+     */
+    it('keeps the navigation cap closed while an ordinary selection clears the queue', () => {
+        visit(...Array.from({ length: 32 }, (_, index) => `session-${index}`));
+        let claimed = 0;
+        while (history().request('back') !== undefined) claimed += 1;
+        expect(claimed).toBeGreaterThan(0);
+        expect(history().canGoBack).toBe(false);
+
+        history().beginSelection();
+        expect(history().pending).toEqual([]);
+        expect(history().canGoBack).toBe(false);
+    });
+
+    /**
+     * The live Session set belongs to the Workbench that was torn down. Carrying it over would measure the next
+     * Workbench's Sessions against a set they were never in, and every visit would be discarded as archived.
+     */
+    it('forgets the previous live Sessions on reset', () => {
+        visit('session-a');
+        history().prune(['session-a']);
+        history().reset();
+
+        history().beginSelection();
+        history().settleSelection('session-b', true);
+        expect(visible().current).toBe('session-b');
+    });
+
     it('reports both directions as unavailable on an empty history', () => {
         expect(history().request('back')).toBeUndefined();
         expect(history().request('forward')).toBeUndefined();
