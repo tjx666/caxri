@@ -53,30 +53,102 @@ export function findDmgPair(names: string[]): { checksum?: string; dmg: string }
     return { checksum, dmg };
 }
 
-async function isCaxriRunning(): Promise<boolean> {
-    try {
-        await execFileAsync('pgrep', ['-f', `${INSTALL_PATH}/Contents/MacOS/`]);
-        return true;
-    } catch {
-        return false;
-    }
+const EXECUTABLE_PREFIX = `${INSTALL_PATH}/Contents/MacOS/`;
+const QUIT_POLL_INTERVAL_MS = 500;
+const APPLE_EVENT_ATTEMPTS = 10;
+const SIGNAL_ATTEMPTS = 10;
+
+interface CaxriProcess {
+    command: string;
+    pid: number;
+}
+
+interface QuitOperations {
+    /**
+     * Lists every process currently executing the installed bundle's main executable.
+     */
+    list: () => Promise<CaxriProcess[]>;
+    quitApplication: () => Promise<void>;
+    signalProcess: (pid: number, signal: NodeJS.Signals) => void;
+    wait: (milliseconds: number) => Promise<void>;
 }
 
 /**
- * Politely quits a running installed Caxri before the bundle is replaced; replacing a live app can corrupt its running
- * state.
+ * Distinguishes the detached Host and Runtime from the windowed application. Both run the same executable — the Desktop
+ * re-launches its own binary as a Node runtime with an explicit entry script — so only the argument list tells them
+ * apart.
  */
-async function quitRunningCaxri(): Promise<void> {
-    if (!(await isCaxriRunning())) return;
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function isHeadlessCaxriProcess(command: string): boolean {
+    return /\/out\/main\/[\w-]+\.js\b/u.test(command);
+}
+
+async function listInstalledCaxriProcesses(): Promise<CaxriProcess[]> {
+    const { stdout } = await execFileAsync('/bin/ps', ['-axo', 'pid=,command=']);
+    return stdout.split('\n').flatMap((line) => {
+        const match = /^\s*(?<pid>\d+)\s+(?<command>\S.*)$/u.exec(line);
+        const command = match?.groups?.command;
+        if (!command?.startsWith(EXECUTABLE_PREFIX)) return [];
+        return [{ command, pid: Number(match?.groups?.pid) }];
+    });
+}
+
+const defaultQuitOperations: QuitOperations = {
+    list: listInstalledCaxriProcesses,
+    quitApplication: async () => {
+        await execFileAsync('osascript', ['-e', 'tell application "Caxri" to quit']);
+    },
+    signalProcess: (pid, signal) => {
+        try {
+            process.kill(pid, signal);
+        } catch {
+            // The process exited between the listing and the signal; that is the outcome we wanted.
+        }
+    },
+    wait: (milliseconds) => sleep(milliseconds),
+};
+
+/**
+ * Stops everything running out of the installed bundle before it is replaced; `ditto` over a live app corrupts both the
+ * bundle and the running process.
+ *
+ * The windowed application is asked to quit through an Apple event so it can close its windows normally. The Host and
+ * Runtime are deliberately detached background processes that outlive every window and are not registered applications,
+ * so `tell application "Caxri" to quit` never reaches them — an installer run started after the last window closed used
+ * to send an Apple event nothing received, wait out the full timeout, and fail with "quit it manually" against
+ * processes that have no UI to quit. They are signalled directly instead, exactly as `uninstall-caxri` stops an owned
+ * Host.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export async function quitRunningCaxri(
+    operations: QuitOperations = defaultQuitOperations,
+): Promise<void> {
+    let running = await operations.list();
+    if (running.length === 0) return;
     console.log('Quitting the running Caxri…');
-    await execFileAsync('osascript', ['-e', 'tell application "Caxri" to quit']);
-    for (let attempt = 0; attempt < 20; attempt++) {
-        // eslint-disable-next-line no-await-in-loop -- bounded wait for the app to exit
-        if (!(await isCaxriRunning())) return;
-        // eslint-disable-next-line no-await-in-loop -- bounded wait for the app to exit
-        await sleep(500);
+
+    if (running.some(({ command }) => !isHeadlessCaxriProcess(command))) {
+        await operations.quitApplication();
+        for (let attempt = 0; attempt < APPLE_EVENT_ATTEMPTS && running.length > 0; attempt++) {
+            // eslint-disable-next-line no-await-in-loop -- bounded wait for the windowed app to exit
+            await operations.wait(QUIT_POLL_INTERVAL_MS);
+            // eslint-disable-next-line no-await-in-loop -- bounded wait for the windowed app to exit
+            running = await operations.list();
+        }
+        if (running.length === 0) return;
     }
-    throw new Error('Caxri is still running. Quit it manually and re-run the installer.');
+
+    for (const { pid } of running) operations.signalProcess(pid, 'SIGTERM');
+    for (let attempt = 0; attempt < SIGNAL_ATTEMPTS; attempt++) {
+        // eslint-disable-next-line no-await-in-loop -- bounded wait for the signalled processes to exit
+        await operations.wait(QUIT_POLL_INTERVAL_MS);
+        // eslint-disable-next-line no-await-in-loop -- bounded wait for the signalled processes to exit
+        running = await operations.list();
+        if (running.length === 0) return;
+    }
+    throw new Error(
+        `Caxri is still running (PIDs ${running.map(({ pid }) => pid).join(', ')}). Stop it manually and re-run the installer.`,
+    );
 }
 
 async function main(): Promise<void> {
