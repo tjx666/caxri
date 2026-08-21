@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { isClipboardTextEqual } from './support/clipboard.ts';
 import type { Locator, Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
@@ -157,15 +158,15 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await draftRow.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Copy Path', exact: true }).click();
         await expect
-            .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
-            .toBe(join(root, 'draft.txt'));
+            .poll(() => isClipboardTextEqual(running.app, join(root, 'draft.txt')))
+            .toBe(true);
+        await running.clipboard.claimText(join(root, 'draft.txt'));
         await draftRow.click({ button: 'right' });
         await running.page
             .getByRole('menuitem', { name: 'Copy Relative Path', exact: true })
             .click();
-        await expect
-            .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
-            .toBe('draft.txt');
+        await expect.poll(() => isClipboardTextEqual(running.app, 'draft.txt')).toBe(true);
+        await running.clipboard.claimText('draft.txt');
 
         await draftRow.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Reveal in Finder' }).click();

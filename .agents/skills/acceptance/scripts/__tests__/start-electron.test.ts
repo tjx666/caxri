@@ -2,12 +2,54 @@ import type { ChildProcess } from 'node:child_process';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import type { RuntimeState } from '../runtime-state';
+import type { StaleRuntimeDependencies } from '../start-electron';
 import {
     createChildExitPromise,
     createElectronLaunchSpec,
     createElectronStopController,
+    removeStaleRuntime,
+    shouldPreserveInheritedRuntimeState,
     waitForCdp,
+    waitForOwnedProcesses,
 } from '../start-electron';
+
+const runtime: RuntimeState = {
+    acceptanceCase: { id: 'start-case', mode: 'isolated' },
+    cdpUrl: 'http://127.0.0.1:9222',
+    electronIdentity: 'electron identity',
+    electronPid: 222,
+    launcherIdentity: 'launcher identity',
+    launcherPid: 111,
+    ownedProcesses: [
+        { identity: 'host identity', pid: 333, role: 'host' },
+        { identity: 'runtime identity', pid: 444, role: 'runtime' },
+    ],
+    ownedUserData: true,
+    port: 9222,
+    projectRoot: '/repo',
+    startedAt: '2026-08-21T00:00:00.000Z',
+    testRootPath: '/tmp/project',
+    testRootPaths: ['/tmp/project'],
+    userDataDir: '/tmp/caxri-acceptance-user-start-case',
+};
+
+function staleRuntimeDependencies(
+    overrides: Partial<StaleRuntimeDependencies> = {},
+): StaleRuntimeDependencies {
+    return {
+        canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
+        discoverOwnedProcesses: vi.fn().mockResolvedValue([]),
+        isOwnedProcess: vi.fn().mockResolvedValue(false),
+        isOwnedRuntime: vi.fn().mockResolvedValue(false),
+        projectRoot: '/repo',
+        readRuntime: vi.fn().mockResolvedValue(JSON.stringify(runtime)),
+        removeOwnedUserData: vi.fn().mockResolvedValue(undefined),
+        runtimePath: '/repo/.records/acceptance/runtime.json',
+        unlinkRuntime: vi.fn().mockResolvedValue(undefined),
+        ...overrides,
+    };
+}
 
 class FakeChild {
     private readonly listeners = new Map<string, (...arguments_: unknown[]) => void>();
@@ -33,6 +75,75 @@ function childProcess(fake = new FakeChild()): ChildProcess {
 }
 
 describe('Acceptance Electron launcher seams', () => {
+    it('protects a reused profile as soon as verified process ownership is inherited', () => {
+        expect(shouldPreserveInheritedRuntimeState(runtime.ownedProcesses)).toBe(true);
+        expect(shouldPreserveInheritedRuntimeState([])).toBe(false);
+    });
+
+    it('carries verified Host and Runtime identities into the next matching restart launch', async () => {
+        const restartRuntime = {
+            ...runtime,
+            acceptanceCase: { id: 'start-case', mode: 'restart' as const },
+        };
+        const stale = staleRuntimeDependencies({
+            discoverOwnedProcesses: vi.fn().mockResolvedValue(restartRuntime.ownedProcesses),
+            isOwnedProcess: vi.fn().mockResolvedValue(true),
+            readRuntime: vi.fn().mockResolvedValue(JSON.stringify(restartRuntime)),
+        });
+
+        await expect(
+            removeStaleRuntime(stale, {
+                caseId: 'start-case',
+                userDataDir: restartRuntime.userDataDir,
+            }),
+        ).resolves.toEqual(restartRuntime.ownedProcesses);
+        expect(stale.unlinkRuntime).not.toHaveBeenCalled();
+        expect(stale.removeOwnedUserData).not.toHaveBeenCalled();
+    });
+
+    it('preserves state whose detached ownership was never verified', async () => {
+        const stale = staleRuntimeDependencies({
+            readRuntime: vi
+                .fn()
+                .mockResolvedValue(JSON.stringify({ ...runtime, ownedProcesses: [] })),
+        });
+
+        await expect(removeStaleRuntime(stale)).rejects.toThrow(
+            'Acceptance process ownership was never verified',
+        );
+        expect(stale.unlinkRuntime).not.toHaveBeenCalled();
+        expect(stale.removeOwnedUserData).not.toHaveBeenCalled();
+    });
+
+    it('preserves stale runtime state while a persisted detached process is still live', async () => {
+        const stale = staleRuntimeDependencies({
+            isOwnedProcess: vi.fn(({ pid }: { pid: number }) => Promise.resolve(pid === 444)),
+        });
+
+        await expect(removeStaleRuntime(stale)).rejects.toThrow(
+            'Acceptance detached processes are still running',
+        );
+        expect(stale.unlinkRuntime).not.toHaveBeenCalled();
+        expect(stale.removeOwnedUserData).not.toHaveBeenCalled();
+    });
+
+    it('waits for exact Host and Runtime ownership after CDP becomes reachable', async () => {
+        const ownedProcesses = runtime.ownedProcesses;
+        const discoverOwnedProcesses = vi
+            .fn()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce(ownedProcesses);
+
+        await expect(
+            waitForOwnedProcesses(runtime, '/repo', {
+                discoverOwnedProcesses,
+                now: () => 0,
+                sleep: vi.fn().mockResolvedValue(undefined),
+            }),
+        ).resolves.toEqual(ownedProcesses);
+        expect(discoverOwnedProcesses).toHaveBeenCalledTimes(2);
+    });
+
     it('builds a structured Electron launch with the isolated Acceptance environment', () => {
         const launch = createElectronLaunchSpec({
             electronPath: '/repo/node_modules/.bin/electron',
