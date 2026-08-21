@@ -11,6 +11,7 @@ import { settingCategories, settingsSpecByKey } from '@shared/config';
 export type SettingRowBinding =
     | { type: 'setting'; key: SettingKey }
     | { type: 'provider-toggle'; provider: AgentProvider; field: 'hooks' | 'messaging' }
+    | { type: 'provider-recovery'; provider: AgentProvider }
     | { type: 'provider-launch'; provider: AgentProvider; field: 'executable' | 'args' }
     | { type: 'provider-skill-health'; provider: AgentProvider }
     | { type: 'trusted-domains' }
@@ -99,6 +100,23 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
                 'without stopping the Terminal; restart only if the CLI adapter is unavailable.',
             binding: { type: 'provider-toggle', provider, field: 'messaging' },
             haystack: lower(['peer messaging', 'inbox', ...providerTerms]),
+        },
+        {
+            ...shared,
+            id: `agents.${provider}.recovery`,
+            title: 'Network error recovery',
+            description:
+                'After the parsed Terminal output ends with one of your patterns, waits, sends ' +
+                'Esc, then waits again and submits continue. Disabled by default.',
+            binding: { type: 'provider-recovery', provider },
+            haystack: lower([
+                'network error recovery',
+                'timeout',
+                'retry failed',
+                'escape',
+                'continue',
+                ...providerTerms,
+            ]),
         },
         {
             ...shared,

@@ -1,7 +1,15 @@
 import { z } from 'zod';
 
 import type { AgentProvider, AgentProviderSettings } from '../agent/agents.js';
-import { agentProviderIds, defaultAgentProviderSettings } from '../agent/agents.js';
+import {
+    agentProviderIds,
+    defaultAgentOutputRecoverySettings,
+    defaultAgentProviderSettings,
+    MAX_AGENT_OUTPUT_RECOVERY_DELAY_MS,
+    MAX_AGENT_OUTPUT_RECOVERY_PATTERN_LENGTH,
+    MAX_AGENT_OUTPUT_RECOVERY_PATTERNS,
+    MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS,
+} from '../agent/agents.js';
 import type { IntegerSettingSpec, SettingKey, StringSettingSpec } from './settings-spec.js';
 import { settingsSpecByKey } from './settings-spec.js';
 import {
@@ -41,11 +49,38 @@ const agentHooksSettingsSchema = z
 const agentMessagingSettingsSchema = z
     .object({ enabled: z.boolean().default(true) })
     .default({ enabled: true });
+const agentOutputRecoverySettingsSchema = z
+    .object({
+        enabled: z.boolean(),
+        patterns: z
+            .array(z.string().trim().min(1).max(MAX_AGENT_OUTPUT_RECOVERY_PATTERN_LENGTH))
+            .max(MAX_AGENT_OUTPUT_RECOVERY_PATTERNS)
+            .refine(
+                (patterns) =>
+                    new Set(patterns.map((pattern) => pattern.toLowerCase())).size ===
+                    patterns.length,
+                {
+                    message: 'Recovery patterns must be unique',
+                },
+            ),
+        settleDelayMs: z
+            .number()
+            .int()
+            .min(MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS)
+            .max(MAX_AGENT_OUTPUT_RECOVERY_DELAY_MS),
+        continueDelayMs: z
+            .number()
+            .int()
+            .min(MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS)
+            .max(MAX_AGENT_OUTPUT_RECOVERY_DELAY_MS),
+    })
+    .default(defaultAgentOutputRecoverySettings);
 
 const agentProviderSettingsSchema = z.object({
     hooks: agentHooksSettingsSchema,
     launch: agentLaunchSettingsSchema,
     messaging: agentMessagingSettingsSchema,
+    recovery: agentOutputRecoverySettingsSchema,
 });
 
 /**

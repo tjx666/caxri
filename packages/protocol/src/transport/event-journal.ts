@@ -23,6 +23,7 @@ export type TransientRuntimeEvent = Extract<
             | 'host.connectionChanged'
             | 'projectStatus.changed'
             | 'terminal.output'
+            | 'terminal.outputRecovery'
             | 'workbench.candidate'
             | 'workbench.changed';
     }
@@ -31,6 +32,7 @@ export type DurableRuntimeEvent = Exclude<RuntimeEvent, TransientRuntimeEvent>;
 
 const TRANSIENT_RUNTIME_EVENT_NAMES = new Set<RuntimeEvent['event']>([
     'terminal.output',
+    'terminal.outputRecovery',
     'agent.messaging.changed',
     'agent.message.held',
     'agent.message.receipt',

@@ -23,7 +23,7 @@ afterEach(async () => {
  * Regression coverage for `terminal.moveToNewSession`: proves the moved Terminal keeps its live PTY (same process
  * identity, no respawn) and that the in-memory `TerminalManager` cache tracking, not just the durable DB row, is kept
  * in sync — otherwise deleting the source Session after a move would kill the just-moved, still-live process. See the
- * JSDoc on `TerminalManager.reassignSession` (`src/runtime/terminal/index.ts`) for the underlying hazard.
+ * JSDoc on `TerminalManager.reassignSession` (`src/runtime/terminal/manager.ts`) for the underlying hazard.
  */
 describe('terminal.moveToNewSession', () => {
     it('moves a live Terminal into a new selected Session and switches to it without respawning the PTY', async () => {

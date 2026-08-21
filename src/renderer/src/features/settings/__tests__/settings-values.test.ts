@@ -41,6 +41,24 @@ describe('isRowModified', () => {
         expect(isRowModified(launch, { settings: current })).toBe(true);
     });
 
+    it('tracks and resets provider output recovery as one setting', () => {
+        const current = settings();
+        const binding = { type: 'provider-recovery', provider: 'codex' } as const;
+        expect(isRowModified(binding, { settings: current })).toBe(false);
+        current['agents.providers'].codex.recovery = {
+            ...current['agents.providers'].codex.recovery,
+            enabled: true,
+            patterns: ['API timeout'],
+        };
+        expect(isRowModified(binding, { settings: current })).toBe(true);
+
+        const action = rowResetAction(binding, current);
+        if (action?.kind !== 'field') throw new Error('expected a field reset');
+        expect((action.value as AppSettings['agents.providers']).codex.recovery).toEqual(
+            defaultAppSettings['agents.providers'].codex.recovery,
+        );
+    });
+
     it('treats trusted domains as modified once any rule exists', () => {
         const current = settings();
         expect(isRowModified({ type: 'trusted-domains' }, { settings: current })).toBe(false);

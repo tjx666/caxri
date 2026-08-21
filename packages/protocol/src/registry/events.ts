@@ -10,6 +10,7 @@ import { configurationSourceSchema as configSourceSchema } from '../configuratio
 import { commandIdSchema } from '../domain/commands.js';
 import {
     agentHookHealthMapSchema,
+    agentProviderSchema,
     fileChangeSchema,
     fileMutationOperationSchema,
     identifierSchema,
@@ -85,6 +86,14 @@ export const runtimeEventPayloads = {
         terminalId: identifierSchema,
         data: z.string(),
         droppedBytes: z.number().optional(),
+    }),
+    /**
+     * One-shot, content-free feedback for a provider output recovery attempt.
+     */
+    'terminal.outputRecovery': z.object({
+        terminalId: identifierSchema,
+        provider: agentProviderSchema,
+        status: z.enum(['recovered', 'rate-limited']),
     }),
     'terminal.exit': z.object({
         terminalId: identifierSchema,

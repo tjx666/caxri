@@ -39,6 +39,12 @@ describe('defaultAgentProviderSettings', () => {
             expect(defaultAgentProviderSettings[provider].launch.args).toEqual([]);
             expect(defaultAgentProviderSettings[provider].hooks.enabled).toBe(false);
             expect(defaultAgentProviderSettings[provider].messaging.enabled).toBe(true);
+            expect(defaultAgentProviderSettings[provider].recovery).toEqual({
+                enabled: false,
+                patterns: [],
+                settleDelayMs: 1_000,
+                continueDelayMs: 1_000,
+            });
         }
     });
 });
