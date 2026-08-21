@@ -72,15 +72,24 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect
             .poll(() => readFile(join(sessionRoot, 'note.txt'), 'utf8'))
             .toContain('saved by Caxri');
+        const editorTab = running.page.getByRole('tab', { name: 'note.txt', exact: true });
+        await expect(editorTab).not.toHaveAttribute('aria-describedby');
+
+        const externalReloadNotice = running.page.getByText(
+            /reloaded from disk; external changes take precedence/,
+        );
+        await writeFile(join(sessionRoot, 'note.txt'), 'clean external change\n', 'utf8');
+        await expect(running.page.locator('.view-lines')).toContainText('clean external change');
+        await expect(externalReloadNotice).not.toBeVisible();
 
         await editorSurface.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+A');
         await running.page.keyboard.insertText('dirty local buffer');
+        await expect(editorTab).toHaveAttribute('aria-describedby', /.+/);
         await writeFile(join(sessionRoot, 'note.txt'), 'external wins\n', 'utf8');
-        await expect(
-            running.page.getByText(/reloaded from disk; external changes take precedence/),
-        ).toBeVisible();
+        await expect(externalReloadNotice).toBeVisible();
         await expect(running.page.locator('.view-lines')).toContainText('external wins');
+        await expect(editorTab).not.toHaveAttribute('aria-describedby');
 
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const gitPanelText = running.page.locator('.git-panel').getByText('main', { exact: false });
