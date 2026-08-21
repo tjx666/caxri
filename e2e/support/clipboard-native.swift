@@ -165,19 +165,26 @@ private func metadata(
     )
 }
 
-private func writePayload(_ payload: PasteboardSnapshotPayload) throws {
+private func makePasteboardItems(_ payload: PasteboardSnapshotPayload) throws -> [NSPasteboardItem] {
     try validatePayload(payload)
-    let items: [NSPasteboardItem] = payload.items.map { itemRecord in
+    return payload.items.map { itemRecord in
         let item = NSPasteboardItem()
         for entry in itemRecord.entries {
             item.setData(entry.data, forType: NSPasteboard.PasteboardType(entry.type))
         }
         return item
     }
+}
+
+private func replacePasteboardContents(with items: [NSPasteboardItem]) throws {
     pasteboard.clearContents()
     if !items.isEmpty && !pasteboard.writeObjects(items) {
         throw PasteboardFailure.writeFailed
     }
+}
+
+private func writePayload(_ payload: PasteboardSnapshotPayload) throws {
+    try replacePasteboardContents(with: makePasteboardItems(payload))
 }
 
 private func fixture(_ name: String) throws -> PasteboardSnapshotPayload {
@@ -245,15 +252,17 @@ do {
     case "restore":
         let request = try readInput(RestoreRequest.self)
         let expected = try decodePayload(request.payload)
-        // Decode and validate before the last possible ownership check. NSPasteboard has no atomic compare-and-swap;
-        // the shared desktop lease serializes harness writers while this check prevents overwriting prior external writes.
+        let expectedItems = try makePasteboardItems(expected)
+        // Decode and construct every item before the last possible ownership check. NSPasteboard has no atomic
+        // compare-and-swap; the shared desktop lease serializes harness writers while this check prevents overwriting
+        // an external generation already visible when restoration begins.
         if pasteboard.changeCount != request.expectedGeneration {
             try writeOutput(RestoreResponse(
                 generation: pasteboard.changeCount,
                 status: "skipped-external-write"
             ))
         } else {
-            try writePayload(expected)
+            try replacePasteboardContents(with: expectedItems)
             let restored = try captureStablePayload()
             guard restored.payload == expected else { throw PasteboardFailure.writeFailed }
             try writeOutput(RestoreResponse(
