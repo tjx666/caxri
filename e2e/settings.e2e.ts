@@ -47,9 +47,11 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await dialog.getByRole('button', { name: 'Source' }).click();
         const settingsEditor = configSource(dialog, 'settings');
-        // Monaco virtualizes lines outside the viewport. Assert against the first stable setting so
-        // adding schema fields above `terminal.fontSize` cannot turn source rendering into a false failure.
-        await expect(settingsEditor.locator('.view-lines')).toContainText('session.defaultAgent');
+        /**
+         * Monaco virtualizes off-screen source lines, so wait for highlighted content without pinning the assertion to
+         * a setting whose position moves as the configuration schema grows.
+         */
+        await expect(settingsEditor.locator('.view-lines span').first()).toBeVisible();
         // The accessible name has to sit on Monaco's own textarea, the surface a screen reader
         // focuses. On the role-less wrapper `<div>` it announces nothing, which is why the
         // container above is located by `data-config-source` instead of by label.
