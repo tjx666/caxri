@@ -28,6 +28,29 @@ function json(value: unknown): string {
     return `${JSON.stringify(redactSecrets(value), null, 2)}\n`;
 }
 
+/**
+ * Keeps recovery configuration useful for support while ensuring user-authored output text never enters an export.
+ */
+export function diagnosticSettings(settings: AppSettings): unknown {
+    return {
+        ...settings,
+        'agents.providers': Object.fromEntries(
+            Object.entries(settings['agents.providers']).map(([provider, value]) => [
+                provider,
+                {
+                    ...value,
+                    recovery: {
+                        enabled: value.recovery.enabled,
+                        patternCount: value.recovery.patterns.length,
+                        settleDelayMs: value.recovery.settleDelayMs,
+                        continueDelayMs: value.recovery.continueDelayMs,
+                    },
+                },
+            ]),
+        ),
+    };
+}
+
 interface PerformanceAggregate {
     count: number;
     maximumMs: number;
@@ -252,6 +275,7 @@ export class DiagnosticsService {
             })),
         );
         const performance = summarizePerformanceLogs(redactedLogs.map((log) => log.content));
+        const settings = diagnosticSettings(this.getSettings());
 
         await new Promise<void>((resolve, reject) => {
             const output = createWriteStream(destination, { mode: 0o600 });
@@ -283,7 +307,9 @@ export class DiagnosticsService {
             archive.append(json(projects), { name: 'diagnostics/projects.json' });
             archive.append(json(sessions), { name: 'diagnostics/sessions.json' });
             archive.append(json(terminals), { name: 'diagnostics/terminals.json' });
-            archive.append(json(this.getSettings()), { name: 'diagnostics/settings.json' });
+            archive.append(json(settings), {
+                name: 'diagnostics/settings.json',
+            });
             archive.append(json(performance), { name: 'diagnostics/performance.json' });
             for (const log of redactedLogs)
                 archive.append(log.content, { name: `diagnostics/logs/${log.name}` });

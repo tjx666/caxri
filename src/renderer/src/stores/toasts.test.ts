@@ -78,6 +78,18 @@ describe('toast store', () => {
         expect(useToastStore.getState().toasts).toHaveLength(1);
     });
 
+    it('keeps an optional follow-up action on the notification', () => {
+        const onSelect = vi.fn();
+        pushToast('success', 'recovered', {
+            action: { label: 'Open Settings', onSelect },
+        });
+
+        expect(useToastStore.getState().toasts[0].action).toEqual({
+            label: 'Open Settings',
+            onSelect,
+        });
+    });
+
     it('re-arms the same toast instead of stacking an identical repeat', () => {
         pushToast('info', 'duplicate message');
         const [firstId] = useToastStore.getState().toasts.map((toast) => toast.id);

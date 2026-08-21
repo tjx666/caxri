@@ -7,6 +7,7 @@ import type {
     AgentEndpointMessagingParams as AgentEndpointMessagingParameters,
     AgentEndpointRetireParams as AgentEndpointRetireParameters,
 } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
+import { defaultAgentOutputRecoverySettings } from '../../../shared/agents';
 import type { TerminalRecord } from '../../../shared/types';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { classifyAgentPermission, RuntimeAgentEndpointLifecycle } from '../lifecycle';
@@ -72,6 +73,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                 hooks: { enabled: false },
                 launch: { executable: 'codex', args: [] },
                 messaging: { enabled: true },
+                recovery: defaultAgentOutputRecoverySettings,
             }),
         ).resolves.toMatchObject({
             CAXRI_AGENT_ENDPOINT_HOST_ID: 'host-1',
@@ -104,6 +106,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                 hooks: { enabled: false },
                 launch: { executable: '/bin/zsh', args: [] },
                 messaging: { enabled: true },
+                recovery: defaultAgentOutputRecoverySettings,
             }),
         ).resolves.toEqual({});
         expect(begin).toHaveBeenCalledTimes(1);
@@ -141,6 +144,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },
+            recovery: defaultAgentOutputRecoverySettings,
         };
         await lifecycle.environment(terminal(), 'project-1', settings);
         await lifecycle.environment(terminal(), 'project-1', settings);
@@ -177,6 +181,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },
+            recovery: defaultAgentOutputRecoverySettings,
         };
 
         await lifecycle.environment(terminal(), 'project-1', settings);
@@ -223,11 +228,13 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                 hooks: { enabled: false },
                 launch: { executable: 'codex', args: [] },
                 messaging: { enabled: true },
+                recovery: defaultAgentOutputRecoverySettings,
             },
             claude: {
                 hooks: { enabled: false },
                 launch: { executable: 'claude', args: [] },
                 messaging: { enabled: true },
+                recovery: defaultAgentOutputRecoverySettings,
             },
         };
         await lifecycle.environment(terminal(), 'project-1', enabled.codex);
@@ -286,11 +293,13 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                 hooks: { enabled: false },
                 launch: { executable: 'codex', args: [] },
                 messaging: { enabled: true },
+                recovery: defaultAgentOutputRecoverySettings,
             },
             claude: {
                 hooks: { enabled: false },
                 launch: { executable: 'claude', args: [] },
                 messaging: { enabled: true },
+                recovery: defaultAgentOutputRecoverySettings,
             },
         };
 

@@ -40,6 +40,43 @@ describe('TerminalScreenState', () => {
         screen.dispose();
     });
 
+    it('reads a bounded parsed text tail across ANSI styling, carriage returns, and wrapped rows', async () => {
+        const screen = new TerminalScreenState('', 80, 4);
+
+        screen.write('old value\rnew \u{1B}[31mAPI timeout\u{1B}[0m');
+
+        expect(await screen.textTail(100)).toEqual({
+            beforeCursorLine: '',
+            cursorLine: 'new API timeout',
+            full: 'new API timeout',
+        });
+        expect(await screen.textTail(7)).toEqual({
+            beforeCursorLine: '',
+            cursorLine: 'new API timeout',
+            full: 'timeout',
+        });
+        screen.dispose();
+    });
+
+    it('separates the active cursor line from completed output for Agent status chrome', async () => {
+        const screen = new TerminalScreenState('', 100, 4);
+
+        screen.write(
+            'API Error: The response stopped arriving. The response above may be incomplete.\r\n' +
+                '* Cogitated for 21m 52s',
+        );
+
+        expect(await screen.textTail(200)).toEqual({
+            beforeCursorLine:
+                'API Error: The response stopped arriving. The response above may be incomplete.',
+            cursorLine: '* Cogitated for 21m 52s',
+            full:
+                'API Error: The response stopped arriving. The response above may be incomplete.\n' +
+                '* Cogitated for 21m 52s',
+        });
+        screen.dispose();
+    });
+
     it('bounds parser backlog and makes an overflowed recovery explicit', async () => {
         const overflows: number[] = [];
         const screen = new TerminalScreenState('', 40, 6, {

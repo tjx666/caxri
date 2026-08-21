@@ -193,6 +193,31 @@ describe('workbench Runtime events', () => {
         expect(handlers.onDesktopOpen).toHaveBeenCalledWith('session-1', '/project/file.ts');
         unsubscribe();
     });
+
+    it('reports output recovery completion and rate limiting without exposing matched text', () => {
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+
+        mocks.emit({
+            event: 'terminal.outputRecovery',
+            payload: { terminalId: 'terminal-1', provider: 'codex', status: 'recovered' },
+        });
+        mocks.emit({
+            event: 'terminal.outputRecovery',
+            payload: { terminalId: 'terminal-1', provider: 'codex', status: 'rate-limited' },
+        });
+
+        expect(useToastStore.getState().toasts).toEqual([
+            expect.objectContaining({
+                kind: 'success',
+                message: 'Sent Esc and continue to Codex after a matched recovery rule.',
+            }),
+            expect.objectContaining({
+                kind: 'error',
+                message: 'Automatic recovery paused for Codex after 3 attempts in 10 minutes.',
+            }),
+        ]);
+        unsubscribe();
+    });
 });
 
 describe('workbench Session state', () => {

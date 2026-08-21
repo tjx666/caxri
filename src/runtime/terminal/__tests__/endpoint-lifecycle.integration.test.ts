@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { defaultAgentOutputRecoverySettings } from '../../../shared/agents';
 import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';
@@ -92,6 +93,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
                         hooks: { enabled: false },
                         launch: { executable: 'codex', args: [] },
                         messaging: { enabled: true },
+                        recovery: defaultAgentOutputRecoverySettings,
                     }),
                 onLifecycleStarted: (record) => endpoints.activate(record.id),
                 onLifecycleRetired: (terminalId) => endpoints.retire(terminalId),
@@ -207,6 +209,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
                         hooks: { enabled: false },
                         launch: { executable: 'codex', args: [] },
                         messaging: { enabled: true },
+                        recovery: defaultAgentOutputRecoverySettings,
                     }),
                 onLifecycleRetired: (terminalId) => endpoints.retire(terminalId),
                 resolveExecutable: () => Promise.resolve('/bin/codex'),

@@ -294,9 +294,20 @@ export const settingsSpec = [
         kind: 'complex',
         key: 'agents.providers',
         title: 'Agent providers',
-        description: 'Launch commands, lifecycle hooks, and peer messaging per Agent provider',
+        description:
+            'Launch commands, lifecycle hooks, peer messaging, and output recovery per Agent provider',
         category: 'agents',
-        keywords: ['claude', 'codex', 'executable', 'launch', 'hooks', 'messaging'],
+        keywords: [
+            'claude',
+            'codex',
+            'executable',
+            'launch',
+            'hooks',
+            'messaging',
+            'network',
+            'recovery',
+            'timeout',
+        ],
     },
 ] as const satisfies readonly SettingSpec[];
 

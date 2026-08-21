@@ -46,6 +46,9 @@ describe('filterSettingsRows', () => {
         const byProvider = filterSettingsRows(settingsRows, 'claude');
         expect(byProvider.length).toBeGreaterThan(0);
         expect(byProvider.every((r) => r.haystack.includes('claude'))).toBe(true);
+        expect(filterSettingsRows(settingsRows, 'codex timeout').map((r) => r.id)).toEqual([
+            'agents.codex.recovery',
+        ]);
     });
 });
 

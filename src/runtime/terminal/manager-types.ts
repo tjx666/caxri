@@ -1,6 +1,10 @@
 import type * as pty from 'node-pty';
 
-import type { AgentLaunchSettings, AgentProvider } from '../../shared/agents';
+import type {
+    AgentLaunchSettings,
+    AgentOutputRecoverySettings,
+    AgentProvider,
+} from '../../shared/agents';
 import type {
     ProcessState,
     TerminalKind,
@@ -10,6 +14,7 @@ import type {
 import type { TerminalOutputQueue } from './buffer';
 import type { TerminalColorQueryResponder } from './color-query';
 import type { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
+import type { AgentOutputRecovery } from './output-recovery';
 import type { TerminalScreenState } from './screen';
 
 export interface LiveTerminal {
@@ -19,6 +24,8 @@ export interface LiveTerminal {
     process: pty.IPty;
     record: TerminalRecord;
     screen: TerminalScreenState;
+    outputRecovery?: AgentOutputRecovery;
+    outputRecoveryProvider?: AgentProvider;
     outputQueue: TerminalOutputQueue;
     droppedBytes: number;
     metricOutputBytes: number;
@@ -35,6 +42,7 @@ export interface TerminalManagerOptions {
         launchSettings?: AgentLaunchSettings,
     ) => Promise<string>;
     agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
+    agentOutputRecoverySettings?: (provider: AgentProvider) => AgentOutputRecoverySettings;
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
     /**
      * Adds generation-scoped, non-secret integration variables immediately before PTY spawn.
