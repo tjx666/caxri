@@ -17,6 +17,7 @@ import {
     deleteSelectedSession,
     openSelectedProjectInExternalEditor,
     selectAdjacentSession,
+    switchMruSession,
 } from '../features/session/session-actions';
 import { cycleActiveWork } from '../features/tabs/tab-navigation';
 import {
@@ -114,6 +115,7 @@ const commandContext: CommandContext = {
         },
         deleteSelected: deleteSelectedSession,
         selectAdjacent: selectAdjacentSession,
+        switchMru: switchMruSession,
     },
     terminal: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

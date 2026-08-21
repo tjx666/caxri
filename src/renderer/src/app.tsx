@@ -21,6 +21,8 @@ import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
 import { didSelectSession } from './features/session/session-actions';
 import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
+import { SessionMruSwitcher } from './features/session/session-mru-switcher';
+import { useSessionMruSwitcherLifecycle } from './features/session/use-session-mru-switcher-lifecycle';
 import { SettingsDialog } from './features/settings/settings-dialog';
 import { ProjectSidebar } from './features/sidebar/project-sidebar';
 import { StatusBar } from './features/status-bar/status-bar';
@@ -90,6 +92,7 @@ export function App() {
     useFileMutationReconciliation(isAttached);
     useRuntimeQueryInvalidation();
     useFileTreeQueryInvalidation();
+    useSessionMruSwitcherLifecycle();
     useCommandShortcuts();
     useSessionAttentionAcknowledgement();
     useExternalDocumentSync();
@@ -191,6 +194,7 @@ export function App() {
                 <PathBrowserDialog />
                 <BugReportDialog />
                 <AgentMessageApprovalDialog />
+                <SessionMruSwitcher />
                 <WorkbenchRootPrompt />
                 <ToastOutlet />
                 <ScreencastOverlay />
