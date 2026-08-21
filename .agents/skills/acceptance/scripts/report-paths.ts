@@ -1,7 +1,8 @@
-import { lstat, mkdir, realpath, rename, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+
+export { writeJsonAtomic as writeJsonAtomically } from '../../../../scripts/atomic-json';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 export const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
@@ -102,10 +103,4 @@ export async function validateExistingReportDirectory(path: string): Promise<str
         throw new Error('Acceptance report directory must stay under .records/');
     }
     return directory;
-}
-
-export async function writeJsonAtomically(path: string, value: unknown): Promise<void> {
-    const temporary = `${path}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-    await rename(temporary, path);
 }

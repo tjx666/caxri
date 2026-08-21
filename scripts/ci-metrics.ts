@@ -6,6 +6,8 @@ import { appendFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import process from 'node:process';
 
+import { waitForChildExit } from './exec';
+
 interface ProcessSample {
     pid: number;
     ppid: number;
@@ -114,10 +116,7 @@ async function main(): Promise<void> {
             }
         })();
     }, 250);
-    const exitCode = await new Promise<number>((resolve, reject) => {
-        child.once('error', reject);
-        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
-    });
+    const exitCode = await waitForChildExit(child);
     clearInterval(timer);
     const elapsedSeconds = (performance.now() - started) / 1_000;
     console.log(formatMetricReceipt({ elapsedSeconds, exitCode, label, peakRSSKiB }));
