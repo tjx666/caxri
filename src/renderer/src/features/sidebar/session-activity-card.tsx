@@ -15,16 +15,22 @@ import {
     formatSessionRelativeTime,
     sessionActivityPresentation,
     sessionToneCalloutClassName,
+    sessionUnreadTone,
 } from './session-activity';
 
 /**
  * Reuses the same tone table as the activity dot and the Sidebar ring, per the single source of truth.
+ *
+ * The chip keeps the exact attention kind in its label but takes its tone from `sessionUnreadTone`, so the card matches
+ * the ring that opened it — an unread Session must not read as a warning in the Sidebar and as inert grey in its own
+ * hover card.
  */
 function unreadAttentionPresentation(
     session: SessionRecord,
 ): SessionActivityPresentation | undefined {
     if (!session.hasUnread) return undefined;
-    return sessionActivityPresentation(session.lastAttentionKind ?? 'unknown');
+    const kind = session.lastAttentionKind ?? 'unknown';
+    return { ...sessionActivityPresentation(kind), tone: sessionUnreadTone(kind) };
 }
 
 export function SessionActivityCard({
