@@ -27,6 +27,8 @@ import { computeBuildFingerprint } from '../shared/node/build-fingerprint';
 import type { E2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { e2eAgentPolicyEnvironment } from '../shared/node/e2e-agent-policy';
 import type { StructuredLogger } from '../shared/node/logger';
+import type { HostConnectionState } from './host-connection-state';
+import { initialHostConnectionState, transitionHostConnection } from './host-connection-state';
 import type { HostBuildIdentity } from './host-staleness';
 import { isHostBuildStale } from './host-staleness';
 
@@ -109,16 +111,8 @@ export class DesktopHostConnection extends EventTarget {
     private hostPid?: number;
     private runtimePid?: number;
     private starting?: Promise<void>;
-    private disposed = false;
-    private isDesktopReadyAnnounced = false;
-    private isReconnecting = false;
-    /**
-     * Wall-clock start of the current outage. Kept across failed reconnect rounds so `downtimeMs` reports the full
-     * user-visible gap (transient `terminal.output` events sent inside it were dropped), not just the last retry.
-     */
-    private connectionLostAtMs?: number;
-    private isHostReplacedOnLastConnect = false;
-    private isLeaseReplaced = false;
+    private reconnectTask?: Promise<void>;
+    private lifecycle: HostConnectionState = initialHostConnectionState;
     /**
      * Once this connection has replaced one stale Host, further mismatches only warn. Without this instance-level
      * guard, every background reconnect (`reconnectUntilAttached` → `connect`) restarts the replacement from scratch,
@@ -130,7 +124,7 @@ export class DesktopHostConnection extends EventTarget {
         super();
     }
 
-    private async connect(): Promise<void> {
+    private async connect(): Promise<'same' | 'replaced'> {
         let hostIdentity = await this.attachToCurrentHost();
         hostIdentity ??= await this.attachToCurrentHost(true);
         if (hostIdentity === undefined)
@@ -142,7 +136,7 @@ export class DesktopHostConnection extends EventTarget {
         );
         this.client = client;
         client.onClose((reason) => this.handleConnectionLoss(client, reason));
-        this.isHostReplacedOnLastConnect =
+        const isHostContinuity =
             this.eventsHostIdentity !== undefined && this.eventsHostIdentity !== hostIdentity;
         // Reconnecting to the SAME Host process must keep the consumed event cursor: restarting at
         // zero would replay the whole journal and stale events (for example old `settings.changed`
@@ -179,6 +173,22 @@ export class DesktopHostConnection extends EventTarget {
         const events = this.events;
         client.onEvent((event) => events.receive(event));
         await events.start();
+        return isHostContinuity ? 'replaced' : 'same';
+    }
+
+    private async attach(): Promise<void> {
+        try {
+            const hostContinuity = await this.connect();
+            this.lifecycle = transitionHostConnection(this.lifecycle, {
+                type: 'attachment-succeeded',
+                hostContinuity,
+            });
+        } catch (error) {
+            this.lifecycle = transitionHostConnection(this.lifecycle, {
+                type: 'attachment-failed',
+            });
+            throw error;
+        }
     }
 
     /**
@@ -265,12 +275,15 @@ export class DesktopHostConnection extends EventTarget {
      * takeover is terminal for this Main instance so it cannot evict the replacement in return.
      */
     private handleConnectionLoss(lost: HostClient, reason?: DesktopLeaseRevocationReason): void {
-        if (this.disposed || this.client !== lost) return;
+        if (this.lifecycle.status === 'disposed' || this.client !== lost) return;
         this.client = undefined;
         this.starting = undefined;
+        this.lifecycle = transitionHostConnection(this.lifecycle, {
+            type: 'connection-lost',
+            atMs: Date.now(),
+            reason: reason === 'replaced' ? 'replaced' : 'transport',
+        });
         if (reason === 'replaced') {
-            this.isLeaseReplaced = true;
-            this.connectionLostAtMs = undefined;
             this.options.logger.write('warn', 'host.desktop_lease_replaced', {});
             this.dispatchEvent(
                 new CustomEvent<RuntimeEvent>('event', {
@@ -282,92 +295,97 @@ export class DesktopHostConnection extends EventTarget {
             );
             return;
         }
-        this.connectionLostAtMs ??= Date.now();
         this.options.logger.write('warn', 'host.connection_lost', {});
-        // The retry loop handles every failure internally (it never rejects), so the kickoff is
-        // intentionally fire-and-forget from this synchronous close listener.
-        // eslint-disable-next-line no-void
-        void this.reconnectUntilAttached();
+        this.ensureReconnectLoop();
     }
 
-    private isReconnectStopped(): boolean {
-        return this.disposed || this.isLeaseReplaced;
+    /**
+     * Owns the single reconnect-loop task. The task handle is an I/O deduplication seam, while every lifecycle decision
+     * remains in the pure state machine.
+     */
+    private ensureReconnectLoop(): void {
+        if (this.reconnectTask) return;
+        const task = this.reconnectUntilAttached();
+        this.reconnectTask = task;
+        // The loop handles attempt failures internally; this finalizer only releases the task ownership.
+        // eslint-disable-next-line no-void
+        void task.finally(() => {
+            if (this.reconnectTask === task) this.reconnectTask = undefined;
+        });
     }
 
     private async reconnectUntilAttached(): Promise<void> {
-        if (this.isReconnecting) return;
-        this.isReconnecting = true;
-        try {
-            for (let attempt = 1; ; attempt += 1) {
-                const backoffMs = Math.min(500 * 2 ** (attempt - 1), 10_000);
-                // eslint-disable-next-line no-await-in-loop -- sequential backoff between retries.
-                await new Promise((resolve) => setTimeout(resolve, backoffMs));
-                if (this.isReconnectStopped()) return;
-                try {
-                    // eslint-disable-next-line no-await-in-loop -- see the backoff note above.
-                    await this.start();
-                } catch (error) {
-                    this.options.logger.write('warn', 'host.reconnect_failed', {
-                        fields: { attempt, error: errorMessage(error, 'unknown') },
-                    });
-                    continue;
-                }
-                const downtimeMs =
-                    this.connectionLostAtMs === undefined
-                        ? 0
-                        : Date.now() - this.connectionLostAtMs;
-                const isHostReplaced = this.isHostReplacedOnLastConnect;
-                this.options.logger.write('info', 'host.reconnected', {
-                    fields: { attempt, downtimeMs, isHostReplaced },
+        while (this.lifecycle.status === 'backoff') {
+            const waiting = this.lifecycle;
+            const { attempt, outageStartedAtMs } = waiting;
+            const backoffMs = Math.min(500 * 2 ** (attempt - 1), 10_000);
+            // eslint-disable-next-line no-await-in-loop -- sequential backoff between retries.
+            await new Promise((resolve) => setTimeout(resolve, backoffMs));
+            if (this.lifecycle !== waiting) continue;
+            this.lifecycle = transitionHostConnection(this.lifecycle, {
+                type: 'backoff-elapsed',
+            });
+            try {
+                // eslint-disable-next-line no-await-in-loop -- each attempt must settle before the next backoff.
+                await this.start();
+            } catch (error) {
+                this.options.logger.write('warn', 'host.reconnect_failed', {
+                    fields: { attempt, error: errorMessage(error, 'unknown') },
                 });
-                // Re-announce Renderer readiness so the replacement Host resumes delivering
-                // one-shot window commands without waiting for another boot.
-                if (this.isDesktopReadyAnnounced)
-                    try {
-                        // eslint-disable-next-line no-await-in-loop -- final await before returning.
-                        await this.markDesktopReady();
-                        /**
-                         * `desktop.ready` and this recovery command share Host's ordered control queue. The recovery
-                         * reply is therefore a readiness barrier: it includes every durable event journaled after the
-                         * first reconnect recovery and before ready became active, without adding an initial-startup
-                         * round trip.
-                         */
-                        // eslint-disable-next-line no-await-in-loop -- ordered readiness barrier for this attempt.
-                        await this.events?.start();
-                    } catch (error) {
-                        this.options.logger.write('error', 'host.desktop_ready_failed', {
-                            fields: { error: errorMessage(error, 'unknown') },
-                        });
-                    }
-                // The replacement connection can be lost again while this loop is still finishing
-                // (its close listener sees `isReconnecting` and cannot start another loop), so a
-                // cleared attachment here means "keep retrying", not success.
-                if (!this.client) {
-                    if (this.isReconnectStopped()) return;
-                    continue;
-                }
-                this.connectionLostAtMs = undefined;
-                /**
-                 * Transient events (PTY bytes above all) sent during the outage were dropped without replay, so the
-                 * Renderer must re-attach mounted Terminal panes; durable-event recovery alone cannot restore them.
-                 */
-                this.dispatchEvent(
-                    new CustomEvent<RuntimeEvent>('event', {
-                        detail: {
-                            event: 'host.connectionChanged',
-                            payload: {
-                                status: 'reconnected',
-                                downtimeMs,
-                                attempt,
-                                isHostReplaced,
-                            },
-                        },
-                    }),
-                );
+                continue;
+            }
+            if (this.lifecycle.status !== 'recovering') {
+                if (this.lifecycle.status === 'backoff') continue;
                 return;
             }
-        } finally {
-            this.isReconnecting = false;
+            const recovering = this.lifecycle;
+            const downtimeMs = Date.now() - outageStartedAtMs;
+            const isHostReplaced = recovering.hostContinuity === 'replaced';
+            this.options.logger.write('info', 'host.reconnected', {
+                fields: { attempt, downtimeMs, isHostReplaced },
+            });
+            // Re-announce Renderer readiness so the replacement Host resumes delivering
+            // one-shot window commands without waiting for another boot.
+            if (recovering.readiness === 'announced')
+                try {
+                    // eslint-disable-next-line no-await-in-loop -- final readiness barrier for this attempt.
+                    await this.markDesktopReady();
+                    /**
+                     * `desktop.ready` and this recovery command share Host's ordered control queue. The recovery reply
+                     * is therefore a readiness barrier: it includes every durable event journaled after the first
+                     * reconnect recovery and before ready became active, without adding an initial-startup round trip.
+                     */
+                    // eslint-disable-next-line no-await-in-loop -- ordered readiness barrier for this attempt.
+                    await this.events?.start();
+                } catch (error) {
+                    this.options.logger.write('error', 'host.desktop_ready_failed', {
+                        fields: { error: errorMessage(error, 'unknown') },
+                    });
+                }
+            // The replacement connection can be lost again while this loop is still finishing,
+            // so a backoff state here means "keep retrying", not success.
+            if (!this.client) continue;
+            this.lifecycle = transitionHostConnection(this.lifecycle, {
+                type: 'recovery-completed',
+            });
+            /**
+             * Transient events (PTY bytes above all) sent during the outage were dropped without replay, so the
+             * Renderer must re-attach mounted Terminal panes; durable-event recovery alone cannot restore them.
+             */
+            this.dispatchEvent(
+                new CustomEvent<RuntimeEvent>('event', {
+                    detail: {
+                        event: 'host.connectionChanged',
+                        payload: {
+                            status: 'reconnected',
+                            downtimeMs,
+                            attempt,
+                            isHostReplaced,
+                        },
+                    },
+                }),
+            );
+            return;
         }
     }
 
@@ -380,14 +398,16 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     start(): Promise<void> {
-        if (this.isLeaseReplaced)
+        if (this.lifecycle.status === 'replaced')
             return Promise.reject(
                 new CaxriError(
                     'CONFLICT',
                     'Another Caxri window replaced this Desktop profile lease',
                 ),
             );
-        const starting = this.starting ?? this.connect();
+        if (this.lifecycle.status === 'disposed') return Promise.resolve();
+        this.lifecycle = transitionHostConnection(this.lifecycle, { type: 'start' });
+        const starting = this.starting ?? this.attach();
         this.starting = starting;
         // `start()` returns the in-flight connection promise synchronously; resetting
         // `this.starting` on failure so a later caller can retry is deliberately
@@ -445,12 +465,12 @@ export class DesktopHostConnection extends EventTarget {
             return Promise.reject(
                 new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host'),
             );
-        this.isDesktopReadyAnnounced = true;
+        this.lifecycle = transitionHostConnection(this.lifecycle, { type: 'desktop-ready' });
         return client.markDesktopReady();
     }
 
     close(): void {
-        this.disposed = true;
+        this.lifecycle = transitionHostConnection(this.lifecycle, { type: 'dispose' });
         this.client?.close();
         this.client = undefined;
     }
