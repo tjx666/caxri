@@ -184,6 +184,98 @@ async function terminalEdgeGlyphEvidence(
     };
 }
 
+async function waitForStableTerminalGrid(page: Page, terminalId: string): Promise<string> {
+    const pane = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
+    const input = pane.locator('.xterm-helper-textarea');
+    const rows = pane.locator('.xterm-rows');
+    await input.focus();
+    await input.press('Control+L');
+    await input.pressSequentially(
+        String.raw`printf 'CAXRI_PTY_GRID_%sx%s\n' "$(tput cols)" "$(tput lines)"`,
+    );
+    await input.press('Enter');
+
+    let candidate: string | undefined;
+    let matchingSamples = 0;
+    let stableGrid: string | undefined;
+    await expect
+        .poll(async () => {
+            const [rendererState, terminalText] = await Promise.all([
+                pane.locator('.terminal-surface').evaluate((surface) => {
+                    const terminalSurface = surface as HTMLElement;
+                    const screen = terminalSurface.querySelector<HTMLElement>('.xterm-screen');
+                    const terminal = terminalSurface.querySelector<HTMLElement>('.xterm');
+                    const viewport = terminalSurface.querySelector<HTMLElement>('.xterm-viewport');
+                    const scrollbar = terminalSurface.querySelector<HTMLElement>(
+                        '.xterm-scrollbar.xterm-vertical',
+                    );
+                    const rendererGrid = terminalSurface.dataset.terminalGrid ?? null;
+                    const columns = Number(rendererGrid?.split('x', 1)[0]);
+                    if (
+                        !screen ||
+                        !terminal ||
+                        !viewport ||
+                        !rendererGrid ||
+                        !Number.isFinite(columns)
+                    )
+                        return {
+                            cellWidth: 0,
+                            fillsPane: false,
+                            horizontalPadding: 0,
+                            rendererGrid,
+                            scrollbarWidth: 0,
+                            screenWidth: 0,
+                            viewportWidth: 0,
+                        };
+                    const screenWidth = screen.getBoundingClientRect().width;
+                    const viewportWidth = viewport.getBoundingClientRect().width;
+                    const terminalStyle = getComputedStyle(terminal);
+                    const horizontalPadding =
+                        Number(terminalStyle.paddingLeft.slice(0, -2)) +
+                        Number(terminalStyle.paddingRight.slice(0, -2));
+                    const scrollbarWidth = scrollbar?.getBoundingClientRect().width ?? 0;
+                    const cellWidth = screenWidth / columns;
+                    return {
+                        cellWidth,
+                        fillsPane:
+                            viewportWidth - screenWidth <=
+                            horizontalPadding + scrollbarWidth + cellWidth * 2 + 2,
+                        horizontalPadding,
+                        rendererGrid,
+                        scrollbarWidth,
+                        screenWidth,
+                        viewportWidth,
+                    };
+                }),
+                rows.textContent(),
+            ]);
+            const ptyGrid = (terminalText ?? '')
+                .match(/CAXRI_PTY_GRID_\d+x\d+/g)
+                ?.at(-1)
+                ?.slice('CAXRI_PTY_GRID_'.length);
+            if (
+                !rendererState.rendererGrid ||
+                !rendererState.fillsPane ||
+                rendererState.rendererGrid !== ptyGrid
+            ) {
+                candidate = undefined;
+                matchingSamples = 0;
+                return { ...rendererState, ptyGrid, stable: false };
+            }
+            const rendererGrid = rendererState.rendererGrid;
+            if (rendererGrid === candidate) matchingSamples += 1;
+            else {
+                candidate = rendererGrid;
+                matchingSamples = 1;
+            }
+            if (matchingSamples < 3) return { ...rendererState, ptyGrid, stable: false };
+            stableGrid = rendererGrid;
+            return { ...rendererState, ptyGrid, stable: true };
+        })
+        .toMatchObject({ fillsPane: true, stable: true });
+    return stableGrid!;
+}
+
 test('Terminal split layout drags, resizes, restores, and preserves the live PTY', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -534,12 +626,11 @@ sleep 30
                 }),
             )
             .toBe(13);
-        await running.page.evaluate(
-            () =>
-                new Promise<void>((resolve) =>
-                    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-                ),
-        );
+        const splitGrids = [
+            await waitForStableTerminalGrid(running.page, terminalId),
+            await waitForStableTerminalGrid(running.page, secondTerminalId),
+        ];
+        expect(splitGrids.every((grid) => /^\d+x\d+$/.test(grid))).toBe(true);
         const splitLeft = await terminalEdgeGlyphEvidence(
             running.app,
             running.page,
@@ -551,7 +642,6 @@ sleep 30
             running.page,
             secondTerminalId,
             output,
-            { ascii: 3, cjk: 2 },
         );
         for (const split of [splitLeft, splitRight]) {
             const splitEvidence = JSON.stringify(split);

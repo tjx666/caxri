@@ -1,6 +1,36 @@
+import type { AgentHeldMessageDetail } from '@shared/ipc';
 import { isCaxriError } from '@shared/ipc';
 
 export type HeldMessageActionResult = 'confirmed' | 'rejected' | 'final-rejection';
+
+interface LoadHeldMessageDetailOptions {
+    isActive: () => boolean;
+    onDetail: (detail: AgentHeldMessageDetail) => void;
+    onFailure: (error: unknown) => void;
+    onStale: () => void;
+    request: () => Promise<AgentHeldMessageDetail | null>;
+}
+
+/**
+ * Reconciles an in-flight detail request with a receipt or decision that can remove the same held message first.
+ * Keeping the active check beside the nullable Host result makes both callback orders deterministic and testable.
+ */
+export async function loadHeldMessageDetail({
+    isActive,
+    onDetail,
+    onFailure,
+    onStale,
+    request,
+}: LoadHeldMessageDetailOptions): Promise<void> {
+    try {
+        const detail = await request();
+        if (!isActive()) return;
+        if (detail) onDetail(detail);
+        else onStale();
+    } catch (error) {
+        if (isActive()) onFailure(error);
+    }
+}
 
 /**
  * Non-retryable protocol failures mean the Host can no longer settle this held message. Retaining it would leave an

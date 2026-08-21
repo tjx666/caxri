@@ -52,7 +52,11 @@ import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-se
 import { TERMINAL_SEARCH_HIGHLIGHT_LIMIT } from './terminal-search';
 import { TerminalSelectionClipboard } from './terminal-selection-clipboard';
 import type { TerminalSize } from './terminal-size';
-import { didTerminalSizeChange, terminalSizeWithScrollbarGutter } from './terminal-size';
+import {
+    didTerminalSizeChange,
+    TerminalResizeSettler,
+    terminalSizeWithScrollbarGutter,
+} from './terminal-size';
 
 interface TerminalPaneRuntimeOptions {
     active: boolean;
@@ -324,7 +328,6 @@ export function useTerminalPaneRuntime({
         xtermReference.current = xterm;
         let isDisposed = false;
         let lastSentSize: TerminalSize | undefined;
-
         const fitToPane = (): TerminalSize | undefined => {
             const size = terminalSizeWithScrollbarGutter(fit.proposeDimensions());
             if (!size) return undefined;
@@ -333,7 +336,6 @@ export function useTerminalPaneRuntime({
             container.dataset.terminalGrid = `${size.cols}x${size.rows}`;
             return size;
         };
-
         const sendResize = async (size: TerminalSize): Promise<void> => {
             try {
                 await caxri.request('terminal.resize', { terminalId, ...size });
@@ -345,23 +347,21 @@ export function useTerminalPaneRuntime({
                     lastSentSize = undefined;
             }
         };
-
         const fitAndResize = (): void => {
             try {
                 const size = fitToPane();
                 if (!size || latestReference.current.processState !== 'running') return;
                 if (!didTerminalSizeChange(lastSentSize, size)) return;
                 lastSentSize = size;
-                // A ResizeObserver callback cannot be async; the failure path above already retries
-                // on the next layout observation.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void sendResize(size);
             } catch {
                 // The pane may be between layout and disposal during a Session switch.
             }
         };
-        fitAndResizeReference.current = fitAndResize;
-
+        const resizeSettler = new TerminalResizeSettler(fitAndResize);
+        const scheduleResize = (): void => resizeSettler.schedule();
+        fitAndResizeReference.current = scheduleResize;
         let isRendererFallbackNotified = false;
         const publishRendererStatus = (status: TerminalRendererStatus): void => {
             container.dataset.terminalRenderer = status.mode;
@@ -441,7 +441,7 @@ export function useTerminalPaneRuntime({
             }
         };
         pasteReference.current = pasteFromClipboard;
-        const observer = new ResizeObserver(fitAndResize);
+        const observer = new ResizeObserver(scheduleResize);
         const replay = new TerminalReplayCoordinator(
             (value) =>
                 new Promise<void>((resolve) => {
@@ -452,13 +452,13 @@ export function useTerminalPaneRuntime({
                 if (!isDisposed) xterm.reset();
             },
             {
+                beginSnapshot: () => resizeSettler.pause(),
                 finishSnapshot: () => {
                     if (isDisposed) return;
-                    fitAndResize();
                     observer.observe(container);
+                    resizeSettler.resume();
                 },
                 prepareSnapshot: ({ cols, rows }) => {
-                    observer.disconnect();
                     if (
                         didTerminalSizeChange(
                             { cols: xterm.cols, rows: xterm.rows },
@@ -505,6 +505,7 @@ export function useTerminalPaneRuntime({
         document.addEventListener('pointerdown', trackExplicitInteraction, { capture: true });
         const initialSize = fitToPane();
         const initialize = async (): Promise<void> => {
+            resizeSettler.pause();
             let attachment: TerminalSnapshot | null = null;
             try {
                 attachment = await caxri.request(
@@ -550,11 +551,11 @@ export function useTerminalPaneRuntime({
         // Effects cannot be async themselves; initialize already reports its own failure via onError.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void initialize();
-
         return () => {
             isDisposed = true;
             delete container.dataset.terminalAttached;
             observer.disconnect();
+            resizeSettler.dispose();
             document.removeEventListener('focusin', trackNewerFocus);
             document.removeEventListener('keydown', trackExplicitInteraction, true);
             document.removeEventListener('pointerdown', trackExplicitInteraction, true);
@@ -578,7 +579,7 @@ export function useTerminalPaneRuntime({
              */
             xterm.dispose();
             xtermReference.current = undefined;
-            if (fitAndResizeReference.current === fitAndResize)
+            if (fitAndResizeReference.current === scheduleResize)
                 fitAndResizeReference.current = undefined;
             if (rendererReference.current === renderer) rendererReference.current = undefined;
             if (searchReference.current === search) searchReference.current = undefined;
@@ -778,7 +779,6 @@ export function useTerminalPaneRuntime({
         },
         [],
     );
-
     const focusTerminal = useCallback((): void => xtermReference.current?.focus(), []);
 
     const pasteFromClipboard = useCallback((): void => {
