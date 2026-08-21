@@ -98,6 +98,11 @@ describe('Agent adapter fallback', () => {
             Promise.all([service.snapshot('codex'), service.snapshot('codex')]),
         ).resolves.toHaveLength(2);
         expect(snapshot).toHaveBeenCalledTimes(1);
+        /**
+         * `snapshot()` waits for the provider result, not asynchronous logger I/O. Flush the owning queue before
+         * asserting against its durable file.
+         */
+        await logger.flush();
         const records = (await readFile(logger.path, 'utf8'))
             .trim()
             .split('\n')
