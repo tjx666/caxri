@@ -1,5 +1,6 @@
+import { bottomPanelViewRegistrations } from './bottom-panel';
 import { inspectorModeRegistrations } from './inspector';
-import { inspectorCommandId } from './ipc';
+import { bottomPanelCommandId, inspectorCommandId } from './ipc';
 import type { CommandId, Keybinding } from './types';
 
 export type { CommandId };
@@ -215,6 +216,19 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Show or hide the Inspector',
         nativeMenu: { menu: 'view', group: 0, order: 2 },
     },
+    ...bottomPanelViewRegistrations.map(({ commandDescription, commandId, commandTitle }) => ({
+        id: bottomPanelCommandId(commandId),
+        title: commandTitle,
+        category: 'Bottom Panel',
+        description: commandDescription,
+    })),
+    {
+        id: 'bottomPanel.toggle',
+        title: 'Toggle Bottom Panel',
+        category: 'Bottom Panel',
+        description: 'Show or hide the Bottom Panel',
+        nativeMenu: { menu: 'view', group: 0, order: 3 },
+    },
     {
         id: 'sidebar.toggle',
         title: 'Toggle Primary Sidebar',
@@ -354,8 +368,16 @@ export const defaultKeybindings: Keybinding[] = [
         key: defaultKeybinding,
         command: inspectorCommandId(commandId),
     })),
+    ...bottomPanelViewRegistrations.map(({ commandId, defaultKeybinding }) => ({
+        key: defaultKeybinding,
+        command: bottomPanelCommandId(commandId),
+    })),
     { key: 'cmd+shift+f', command: 'inspector.searchFiles' },
     { key: 'cmd+[', command: 'sidebar.toggle' },
     { key: 'cmd+]', command: 'inspector.toggle' },
+    /**
+     * `Cmd+J` matches VS Code's Toggle Panel chord, which this region is modeled on.
+     */
+    { key: 'cmd+j', command: 'bottomPanel.toggle' },
     { key: 'cmd+,', command: 'settings.open' },
 ];

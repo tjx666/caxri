@@ -13,6 +13,7 @@ const rendererRoot = fileURLToPath(new URL('../src', import.meta.url));
 const nativeInputTypes = new Set(['color']);
 const allowedArbitraryClasses = new Set([
     'gap-[5px]',
+    'h-[3px]',
     'h-[34px]',
     'h-[360px]',
     'leading-[1.45]',

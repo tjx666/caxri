@@ -2,13 +2,7 @@ import { useState } from 'react';
 
 import type { GitDiffTab } from '@shared/git-diff';
 import type { GitCommitDetails, GitPullRequestChanges, GitRepositorySummary } from '@shared/types';
-import {
-    ChevronDown,
-    ChevronRight,
-    GitBranch,
-    GitCommitHorizontal,
-    GitPullRequest,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, FolderGit2 } from 'lucide-react';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
@@ -18,6 +12,7 @@ import { Empty } from '../../../../components/ui/empty';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { DiffMultipleIcon } from '../../../../icons/codicons/diff-multiple-icon';
 import { DiscardIcon } from '../../../../icons/codicons/discard-icon';
+import { FileSubmoduleIcon } from '../../../../icons/codicons/file-submodule-icon';
 import { SyncIcon } from '../../../../icons/codicons/sync-icon';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
@@ -65,23 +60,26 @@ function GitRepoHeader({
         }
     };
     return (
-        /* The toggle stays a plain full-width button (its class and title anchor the E2E
-           selectors); the Sync action lives in an overlaid sibling so no button ever nests. */
-        <div className="git-repository-header group relative">
+        /* The toggle stays a plain button (its class and title anchor the E2E selectors) and the Sync action is a
+           flex sibling rather than a nested one, so no button ever nests. Sync holds its own slot instead of being
+           overlaid: it is always visible, and an overlay would have to sit on top of the ahead/behind counts. Row
+           hover moves up to this wrapper so the highlight still covers the whole row including the Sync slot. */
+        <div className="git-repository-header group flex items-center bg-surface hover:bg-elevated">
             <button
-                className="git-repository-row flex w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-surface p-2 text-left text-foreground hover:bg-elevated"
+                className="git-repository-row flex min-w-0 flex-1 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-transparent p-2 text-left text-foreground"
                 aria-expanded={expanded}
                 title={repository.rootPath}
                 onClick={() => onExpandedChange(!expanded)}
             >
                 <span className="git-repository-identity flex shrink-0 items-center gap-1">
                     {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                    {mode === 'pull-request' ? (
-                        <GitPullRequest size={12} />
-                    ) : mode === 'commit' ? (
-                        <GitCommitHorizontal size={12} />
+                    {/* The mark names what the row *is* — a repository — not which mode the panel is in;
+                        the mode already has its own segmented control in the panel header, and repeating it
+                        here is what made four near-identical branch glyphs share one screen. */}
+                    {repository.kind === 'primary' ? (
+                        <FolderGit2 size={12} />
                     ) : (
-                        <GitBranch size={12} />
+                        <FileSubmoduleIcon size={12} />
                     )}
                     <strong className="git-repository-name shrink-0 font-semibold whitespace-nowrap">
                         {repository.name}
@@ -117,10 +115,7 @@ function GitRepoHeader({
             {mode === 'working' && (
                 <Tooltip content="Sync Changes (Pull, then Push)">
                     <Button
-                        className={cn(
-                            'git-sync absolute top-1/2 right-1 size-6 -translate-y-1/2 bg-elevated',
-                            syncing ? 'flex' : 'hidden group-focus-within:flex group-hover:flex',
-                        )}
+                        className="git-sync mr-1 flex size-6 flex-none"
                         size="icon"
                         variant="ghost"
                         aria-label={`Sync Changes in ${repository.name}`}

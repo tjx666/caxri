@@ -12,6 +12,7 @@ import {
     createShellSession,
     launchCaxri,
     openAddProjectDialog,
+    openBottomPanelView,
     pageReply,
     selectedSessionId,
     sessionCard,
@@ -271,7 +272,7 @@ test('Info inspector lists only the current Session Terminals', async () => {
         await running.page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
         await expect(running.page.locator('.session-card')).toHaveCount(1);
 
-        await running.page.getByRole('tab', { name: 'Info', exact: true }).click();
+        await openBottomPanelView(running.page, 'Info');
         const terminalCards = running.page.locator('.terminal-info-card');
         await expect(terminalCards).toHaveCount(1);
         await expect(terminalCards.filter({ hasText: 'Codex' })).toBeVisible();

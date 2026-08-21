@@ -230,6 +230,56 @@ describe('ConfigurationService', () => {
         },
     );
 
+    /**
+     * The derivation chain above is self-consistent by construction, so it cannot prove the newest historical set
+     * matches what actually shipped. This pins the literal table every pre-Bottom-Panel profile holds on disk — Info on
+     * `Cmd+4`, no `bottomPanel.*` — because that is the file the migration has to recognize to hand out `Cmd+J`.
+     */
+    it('upgrades the literal pre-Bottom-Panel keybinding file that shipped Info on Cmd+4', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-pre-bottom-panel-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        const shipped = [
+            { key: 'alt+p', command: 'pathBrowser.open' },
+            { key: 'cmd+shift+p', command: 'commandPalette.open' },
+            { key: 'cmd+o', command: 'project.create' },
+            { key: 'cmd+t', command: 'terminal.new' },
+            { key: 'cmd+k', command: 'terminal.clear' },
+            { key: 'cmd+c', command: 'terminal.copy' },
+            { key: 'cmd+f', command: 'terminal.find' },
+            { key: 'ctrl+tab', command: 'workbench.nextTab' },
+            { key: 'ctrl+shift+tab', command: 'workbench.previousTab' },
+            { key: 'cmd+shift+arrowup', command: 'terminal.previousCommand' },
+            { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
+            { key: 'cmd+shift+r', command: 'terminal.restart' },
+            { key: 'cmd+w', command: 'workbench.closeActiveTab' },
+            { key: 'cmd+s', command: 'editor.save' },
+            { key: 'cmd+1', command: 'inspector.showFiles' },
+            { key: 'cmd+2', command: 'inspector.showGit' },
+            { key: 'cmd+3', command: 'inspector.showStatus' },
+            { key: 'cmd+4', command: 'inspector.showInfo' },
+            { key: 'cmd+shift+f', command: 'inspector.searchFiles' },
+            { key: 'cmd+[', command: 'sidebar.toggle' },
+            { key: 'cmd+]', command: 'inspector.toggle' },
+            { key: 'cmd+,', command: 'settings.open' },
+        ];
+        await writeFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            `${JSON.stringify(shipped, null, 2)}\n`,
+            'utf8',
+        );
+        const service = new ConfigService(directory, () => {});
+
+        await service.initialize();
+
+        const upgraded = service.getKeybindings().value;
+        expect(upgraded).toEqual(defaultKeybindings);
+        expect(upgraded).toContainEqual({ key: 'cmd+j', command: 'bottomPanel.toggle' });
+        expect(upgraded.some((binding) => binding.command === 'inspector.showInfo')).toBe(false);
+        await service.close();
+    });
+
     it('leaves a customized keybinding file untouched', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-custom-keybindings-'));
         temporaryDirectories.push(directory);

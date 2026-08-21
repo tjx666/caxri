@@ -4,7 +4,6 @@ import { useState } from 'react';
 import type { ProjectStatusRepository, ProjectStatusState } from '@shared/types';
 import { keepPreviousData } from '@tanstack/react-query';
 import {
-    Activity,
     AlertTriangle,
     ChevronDown,
     ChevronRight,
@@ -24,6 +23,7 @@ import {
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
+import { PanelHeader } from '../../../../components/panel-header';
 import { Button } from '../../../../components/ui/button';
 import { Spinner } from '../../../../components/ui/spinner';
 import { Tooltip } from '../../../../components/ui/tooltip';
@@ -248,25 +248,26 @@ export function ProjectStatusPanel() {
     };
     return (
         <div className="inspector-content project-status-panel flex min-h-0 flex-1 flex-col overflow-auto">
-            <div className="project-status-heading flex min-h-[38px] items-center justify-between border-b border-border pt-1 pr-1.5 pb-1 pl-2.5 uppercase">
-                <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-[0.04em]">
-                    <Activity size={14} /> Project Status
-                </span>
-                <Tooltip content="Refresh Project Status">
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Refresh Project Status"
-                        disabled={isRefreshing}
-                        onClick={refresh}
-                    >
-                        <RefreshCw
-                            className={isRefreshing ? 'animate-spin' : undefined}
-                            size={14}
-                        />
-                    </Button>
-                </Tooltip>
-            </div>
+            <PanelHeader
+                className="project-status-heading"
+                title="Project Status"
+                actions={
+                    <Tooltip content="Refresh Project Status">
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Refresh Project Status"
+                            disabled={isRefreshing}
+                            onClick={refresh}
+                        >
+                            <RefreshCw
+                                className={isRefreshing ? 'animate-spin' : undefined}
+                                size={14}
+                            />
+                        </Button>
+                    </Tooltip>
+                }
+            />
             {!summary && (
                 <div className="empty-panel px-3 py-4 text-center text-muted">
                     Loading Project Status…

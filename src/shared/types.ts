@@ -18,6 +18,7 @@ export {
     type ArgvConfig,
     type ArgvConfigChanges,
     type BootstrapState,
+    type BottomPanelView,
     type CommandId,
     DEFAULT_FILES_EXCLUDE,
     type FileChange,

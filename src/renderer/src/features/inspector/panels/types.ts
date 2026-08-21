@@ -15,8 +15,8 @@ export interface InspectorPanelDefinition<Mode extends InspectorMode> {
     /**
      * When true, the panel is mounted with `key={sessionId}` so it fully remounts whenever the selected Session
      * changes, per the project-architecture Session-isolation contract. Git and Status keep repository/diff selection
-     * and expansion state that must not leak across Sessions. Files and Info already scope their state to the selected
-     * Session internally, so they stay mounted.
+     * and expansion state that must not leak across Sessions. Files already scopes its state to the selected Session
+     * internally, so it stays mounted.
      */
     resetOnSessionChange: boolean;
 }

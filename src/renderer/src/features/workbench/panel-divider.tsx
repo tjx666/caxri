@@ -1,4 +1,5 @@
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
+import { cn } from '../../lib/utilities';
 import { PANEL_RESIZE_STEP } from '../../stores/panel-layout';
 
 /**
@@ -10,56 +11,83 @@ const DRAG_CLASS = 'panel-resize-active';
 
 /**
  * The seam is invisible at rest — like VS Code's unset `sideBar.border`, the adjacent `bg-surface`/`bg-background` step
- * alone marks the boundary — while a 6px hit column stays comfortable to grab. The column paints `bg-surface` (not
+ * alone marks the boundary — while a 6px hit band stays comfortable to grab. The band paints `bg-surface` (not
  * transparent): the grid behind it is `bg-background`, which would otherwise show through as a light stripe where both
  * neighbors are surface-colored chrome (Sidebar title beside the tab strip). Hover/focus/drag reveal a centered
  * hairline using a foreground tint, never `--accent` — the divider is chrome, not the one focus indicator (DESIGN.md
  * "One accent focus per screen").
  */
 const dividerClassName =
-    'panel-divider relative w-1.5 min-w-1.5 bg-surface cursor-col-resize touch-none ' +
-    "after:content-[''] after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 " +
-    'after:bg-transparent after:pointer-events-none ' +
-    'hover:after:w-[3px] hover:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
-    'data-[dragging=true]:after:w-[3px] data-[dragging=true]:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
-    'focus-visible:outline-none focus-visible:after:w-[3px] ' +
-    'focus-visible:after:bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)] ' +
-    'focus-visible:after:shadow-[0_0_0_2px_color-mix(in_srgb,var(--foreground)_25%,transparent)]';
+    'panel-divider relative bg-surface touch-none ' +
+    "after:content-[''] after:absolute after:bg-transparent after:pointer-events-none";
+
+/**
+ * Axis-specific geometry for the same seam: which side the 6px band is thin on, and which way the revealed hairline
+ * stretches. Kept as two whole strings rather than interpolated fragments so Tailwind's scanner sees every class.
+ */
+const axisClassName = {
+    horizontal:
+        'h-1.5 min-h-1.5 cursor-row-resize ' +
+        'after:inset-x-0 after:top-1/2 after:h-px after:-translate-y-1/2 ' +
+        'hover:after:h-[3px] hover:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
+        'data-[dragging=true]:after:h-[3px] data-[dragging=true]:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
+        'focus-visible:outline-none focus-visible:after:h-[3px] ' +
+        'focus-visible:after:bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)] ' +
+        'focus-visible:after:shadow-[0_0_0_2px_color-mix(in_srgb,var(--foreground)_25%,transparent)]',
+    vertical:
+        'w-1.5 min-w-1.5 cursor-col-resize ' +
+        'after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 ' +
+        'hover:after:w-[3px] hover:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
+        'data-[dragging=true]:after:w-[3px] data-[dragging=true]:after:bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] ' +
+        'focus-visible:outline-none focus-visible:after:w-[3px] ' +
+        'focus-visible:after:bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)] ' +
+        'focus-visible:after:shadow-[0_0_0_2px_color-mix(in_srgb,var(--foreground)_25%,transparent)]',
+} as const;
 
 interface PanelDividerProperties {
     ariaLabel: string;
     /**
-     * The last committed width; only updated on pointer up, arrow key, or reset — never mid-drag.
+     * The last committed width (vertical seam) or height (horizontal seam); only updated on pointer up, arrow key, or
+     * reset — never mid-drag.
      */
-    width: number;
+    size: number;
     min: number;
     max: number;
-    defaultWidth: number;
+    defaultSize: number;
     /**
      * Custom property this divider drives directly during a drag, bypassing React state.
      */
-    cssVariable: '--sidebar-width' | '--inspector-width';
+    cssVariable: '--sidebar-width' | '--inspector-width' | '--bottom-panel-height';
     /**
-     * `1` when the panel grows as the pointer moves right (Sidebar), `-1` when it grows as the pointer moves left
-     * (Inspector). Also flips the Arrow key mapping so Right always matches the physical drag direction for that
-     * divider.
+     * `1` when the panel grows as the pointer moves right/down (Sidebar), `-1` when it grows as the pointer moves
+     * left/up (Inspector, Bottom Panel). Also flips the Arrow key mapping so the "increase" key always matches the
+     * physical drag direction for that divider.
      */
     growDirection: 1 | -1;
-    onCommit(width: number): void;
+    /**
+     * `'vertical'` for a column seam dragged along X (Sidebar↔main, main↔Inspector); `'horizontal'` for a row seam
+     * dragged along Y (work surface↔Bottom Panel). Also selects the Arrow key pair.
+     */
+    orientation: 'horizontal' | 'vertical';
+    onCommit(size: number): void;
 }
 
 /**
- * A min/max-constrained drag divider shared by the Sidebar↔main and main↔Inspector seams. Dragging writes the live
- * width straight to a root CSS custom property (and to `aria-valuenow`) instead of React state, so a mousemove never
- * triggers a render; the width only reaches the panel-layout store — and `localStorage` — once the gesture ends.
+ * A min/max-constrained drag divider shared by the Sidebar↔main, main↔Inspector, and work-surface↔Bottom Panel seams.
+ * Dragging writes the live size straight to a root CSS custom property (and to `aria-valuenow`) instead of React state,
+ * so a pointermove never triggers a render; the size only reaches the panel-layout store — and `localStorage` — once
+ * the gesture ends.
  */
 export function PanelDivider(properties: PanelDividerProperties) {
+    const isHorizontal = properties.orientation === 'horizontal';
     const dragResize = usePointerDragResize({
-        value: properties.width,
+        value: properties.size,
         min: properties.min,
         max: properties.max,
         resolveValue: (event, start) =>
-            start.startValue + (event.clientX - start.startX) * properties.growDirection,
+            start.startValue +
+            (isHorizontal ? event.clientY - start.startY : event.clientX - start.startX) *
+                properties.growDirection,
         onDragMove: (next, event) => {
             document.documentElement.style.setProperty(properties.cssVariable, `${next}px`);
             event.currentTarget.setAttribute('aria-valuenow', String(Math.round(next)));
@@ -72,24 +100,28 @@ export function PanelDivider(properties: PanelDividerProperties) {
             properties.onCommit(next);
         },
         resolveStep: (event) => {
-            const isDecrease = event.key === 'ArrowLeft';
-            const isIncrease = event.key === 'ArrowRight';
+            const isDecrease = event.key === (isHorizontal ? 'ArrowUp' : 'ArrowLeft');
+            const isIncrease = event.key === (isHorizontal ? 'ArrowDown' : 'ArrowRight');
             if (!isDecrease && !isIncrease) return;
             return PANEL_RESIZE_STEP * properties.growDirection * (isIncrease ? 1 : -1);
         },
-        onReset: () => properties.onCommit(properties.defaultWidth),
+        onReset: () => properties.onCommit(properties.defaultSize),
     });
 
     return (
         <div
             role="separator"
             tabIndex={0}
-            className={dividerClassName}
-            aria-orientation="vertical"
+            className={cn(dividerClassName, axisClassName[properties.orientation])}
+            /*
+             * ARIA orientation describes the separator's own axis, not the axis it is dragged along: the line between
+             * two columns runs vertically, and the line between two rows runs horizontally.
+             */
+            aria-orientation={properties.orientation}
             aria-label={properties.ariaLabel}
             aria-valuemin={properties.min}
             aria-valuemax={properties.max}
-            aria-valuenow={Math.round(properties.width)}
+            aria-valuenow={Math.round(properties.size)}
             onPointerDown={(event) => {
                 dragResize.onPointerDown(event);
                 document.body.classList.add(DRAG_CLASS);
@@ -99,7 +131,7 @@ export function PanelDivider(properties: PanelDividerProperties) {
             onPointerUp={dragResize.onPointerUp}
             onPointerCancel={dragResize.onPointerCancel}
             onLostPointerCapture={dragResize.onLostPointerCapture}
-            onDoubleClick={() => properties.onCommit(properties.defaultWidth)}
+            onDoubleClick={() => properties.onCommit(properties.defaultSize)}
             onKeyDown={dragResize.onKeyDown}
         />
     );

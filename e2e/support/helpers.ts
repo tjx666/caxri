@@ -621,6 +621,22 @@ export function sessionCard(page: Page, sessionId: string) {
 }
 
 /**
+ * Reveals a Bottom Panel view and returns its tab. The Bottom Panel is closed at rest, so its tabs are not in the DOM
+ * until `Command+J` opens the region; the toggle is idempotent here only because the panel is asserted closed first.
+ */
+export async function openBottomPanelView(page: Page, name: 'Info' | 'Logs'): Promise<Locator> {
+    const tablist = page.getByRole('tablist', { name: 'Bottom Panel' });
+    if ((await tablist.count()) === 0) {
+        await page.keyboard.press('Meta+j');
+        await expect(tablist).toBeVisible();
+    }
+    const tab = tablist.getByRole('tab', { name, exact: true });
+    await tab.click();
+    await expect(tab).toHaveAttribute('aria-selected', 'true');
+    return tab;
+}
+
+/**
  * Splits an existing Terminal by exercising the same tab-to-pane drag gesture as a user.
  */
 export async function splitTerminalToRight(page: Page, terminalId: string): Promise<void> {

@@ -1,3 +1,4 @@
+import { bottomPanelViewRegistrations } from '@shared/bottom-panel';
 import type { CommandId } from '@shared/commands';
 import { getCommandDefinition } from '@shared/commands';
 import { inspectorModeRegistrations } from '@shared/inspector';
@@ -111,6 +112,14 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     fromCatalog('inspector.toggle', (context) => context.inspector.toggle(), {
+        allowInEditable: true,
+    }),
+    ...bottomPanelViewRegistrations.map(({ commandId, view }) =>
+        fromCatalog(commandId, (context) => context.bottomPanel.activateView(view), {
+            allowInEditable: true,
+        }),
+    ),
+    fromCatalog('bottomPanel.toggle', (context) => context.bottomPanel.toggle(), {
         allowInEditable: true,
     }),
     fromCatalog('sidebar.toggle', (context) => context.sidebar.toggle(), { allowInEditable: true }),
