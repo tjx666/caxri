@@ -132,146 +132,56 @@ it stale.
 
 After all issue commits:
 
-1. Finish every gate likely to change code, including affected tests,
-   changed-file checks, `knip`, `doctor`, builds, and focused Electron E2E. Then
-   Call the Skill tool with "deep-review" in full deep mode over the whole
-   Goal range.
-   Record every canonical platform-neutral command through `validation-start` /
-   `validation-complete` first; the ledger rejects a full aggregate review when any exact-head
-   receipt is missing or stale. Reuse an already passed exact-head command instead of rerunning it.
-   Before the first ready PR push, run the exact platform-neutral command list
-   exported by `scripts/ci-fallback.ts`; its contract test keeps that list in
-   lockstep with every executable `checks` step in `.github/workflows/ci.yml`.
-2. Collect all reports for the round before adjudication. Repair valid product
-   P0/P1 findings as one cohesive batch and run only affected validation.
-   Delivery evidence, PR prose, and workflow bookkeeping never reopen product
-   review.
-3. Freeze the run's review policy before the aggregate review. The default is
-   `full-once`: exactly one full Goal-range review is allowed for the entire
-   ledger. `quick` or `light` may replace that baseline only through an explicit
-   pre-review policy override.
-4. Collect the aggregate review completely, repair its valid P0/P1 findings as
-   one batch, then review only the exact code delta in light mode. Every light
-   decision records the original baseline head/id, direct parent review id, and
-   `parentHead..currentHead` range. Repeat light review only for a newly changed
-   delta. If architecture, security, or frozen requirements change so much that
-   light review is not credible, request a user decision; never start a second
+1. Complete every code-changing gate selected by the dirty layers, then record
+   its exact-head receipt. Before the first ready PR push, run the platform-neutral
+   command list exported by `scripts/ci-fallback.ts`.
+2. Freeze the review policy. The default is `full-once`: Call the Skill tool with
+   "deep-review" in full deep mode exactly once over the whole Goal range.
+3. A review round is adjudicated as one complete set. Repair valid P0/P1 roots in
+   one cohesive batch, rerun affected gates, and use light mode only for the exact
+   repair delta. If that delta cannot credibly cover an architecture, security, or
+   frozen-requirement change, request a user decision instead of starting another
    full review.
-5. When the current head has no product P0/P1, freeze it with `state.ts review
---freeze`. Record CI, fixture, evidence, gates, and remote-state checks with
-   `validation-start` / `validation-complete`, not as review modes. A validation
-   records its exact head, command, session, artifact log, failure lineage, and
-   final exit code. Recover a pending command before retrying, never rerun an
-   uninvalidated passing exact-head gate, and stop when the lineage repair budget
-   is exhausted.
-6. Push the branch and create a PR whose body maps issues to behavior and uses
-   closing keywords for issues that should close on merge. The PR cannot become
-   ready until every in-scope issue's material drift is commented and every
-   scope decision is resolved.
-7. Recheck that the actual PR diff is exactly covered by the frozen Goal and its
-   issue-level Acceptance coverage contract. A narrow Acceptance must never
-   certify a broader PR.
-8. Monitor CI, conflicts, review threads, and required checks. Do not busy poll.
-   Before starting two or more long-running remote validations, tell the user
-   the frozen run count, the minimum wall time implied by recent runs, why each
-   sample is required, and the stop condition. Record run ids as they are
-   dispatched instead of reconstructing an A/B table from the transcript.
-   A failing E2E pool retains the fast `maxFailures` stop, then census-runs each suppressed test in
-   isolation. Do not start a repair or push a new head until both logical pool receipts classify
-   every planned spec and the combined failure groups are available.
-9. Route code failures through repair, focused validation, one light delta
-   review, commit, and push. A zero-step self-hosted Actions infrastructure
-   failure remains external and blocked. Exact-head local substitution always
-   needs separate user authorization. Record the authorization before running
-   the exact platform-check gates and one full isolated Electron E2E suite.
-   Start the fallback only after the review-clean PR head is explicitly frozen.
-   Never call the Actions check green.
+4. Freeze a current head only when it has no product P0/P1 and every receipt is
+   current. CI, fixtures, evidence, gates, and remote-state checks are validations,
+   never review modes.
+5. Push one branch and create one PR whose issue map, closing keywords, and diff
+   exactly match the frozen Goal and Acceptance coverage contract.
+6. Monitor checks, conflicts, and review threads without busy polling. A code
+   failure returns through repair, focused validation, light delta review, commit,
+   and push. A zero-step external Actions failure remains blocked; exact-head local
+   substitution requires separate authorization and never makes Actions green.
 
 Read [references/workflow.md](references/workflow.md) for the transition table
 and repair routing.
 
 ## Phase 3: Acceptance loop
 
-After the PR head is review-clean and either its required checks are green or an
-exact-head local fallback has passed, have a fresh context-isolated tester
-subagent independently draft the final Acceptance plan. Then Call the Skill tool with
-"acceptance". Its only product surface is isolated macOS
-Electron desktop. If the frozen issues have no product or desktop claim and the
-user explicitly waives Acceptance for the exact head, record the waiver and
-reason, transition directly from `delivery` to `acceptance_handoff`, and do not
-invent desktop evidence.
-
 Read [references/acceptance-loop.md](references/acceptance-loop.md) before the
-first round. Give the planner the original requirement, admitted issue bodies,
-stable check ids, exact PR head and diff, and the relevant product and Acceptance
-contracts. Do not give it a builder-authored plan or expected verdicts. The root
-agent adjudicates coverage and feasibility without weakening a check to fit the
-implementation. If subagent execution is unavailable, pause before Acceptance
-and ask for direction instead of silently substituting the builder's own plan.
-The issue-level contracts already authorize the resulting in-scope cases; do not
-add another routine confirmation gate.
+first round. After the PR head is review-clean and required checks are green, or
+an authorized exact-head local fallback has passed, a fresh context-isolated
+tester independently authors the final plan. Then Call the Skill tool with
+"acceptance". Its only product surface is isolated macOS Electron.
+Hidden ordering uses the observable desktop result plus an owning focused test or
+log receipt; desktop timing alone is not proof. Builders never accept or reject
+their own delivery, and any later code change invalidates the accepted head.
 
-Before the first launch, reject any plan that tries to prove hidden callback
-ordering solely through desktop timing. Keep the business requirement intact,
-but express its evidence as the observable desktop outcome plus the smallest
-focused test or log receipt that owns the internal ordering contract. One
-published blocked round is enough to diagnose an infeasible evidence method;
-repair the method once rather than extending the run with ad hoc timing probes.
-
-- Publish failures discovered after round execution starts; never silently fix
-  and erase the failed snapshot.
-- Route in-scope product failures back to their issue, repair, review, commit,
-  push, and a new immutable round.
-- Route evidence, adapter, fixture, or report failures to validation repair,
-  not product code.
-- File unrelated discoveries as follow-up issues and continue only when they do
-  not weaken the accepted business requirement.
-- After a passing round, transition to `acceptance_handoff`, generate the
-  exact-head `handoff-report.md`, validate its checksum and required sections,
-  and deliver its full summary with the stable Acceptance URL. Record
-  `deliveredAt` only after that user handoff. Then transition to
-  `waiting_acceptance` while keeping the Goal active and yield control.
-  Do not start a same-turn polling loop or emit periodic pending updates. Query
-  status once only after a later user or automatic continuation; never rerun
-  code or tests merely because review is pending.
-- Never accept or reject the builder's own delivery.
-
-On human rejection, fetch actionable feedback, reuse stable check ids, omit
-accepted checks unless at risk, transition back through `acceptance` to
-`issue_execution` or `deep_review`, repair, and publish the next round. On human
-acceptance, proceed to merge. Any code change needed to merge invalidates the
-accepted head and requires review plus another Acceptance round.
+If the frozen issues have no product or desktop claim and the user explicitly
+waives Acceptance for the exact head, record the head and reason, transition to
+`acceptance_handoff`, and do not invent desktop evidence.
 
 ## Phase 4: merge, close, and learn
 
-1. Merge the accepted or explicitly waived PR and verify its remote merged SHA.
-2. Verify every intended issue is closed. Close an authorized issue directly
-   only when merge automation did not.
-3. Refresh all remote state before reporting it.
-4. Read [references/report.md](references/report.md). Reuse the already persisted
-   handoff report rather than regenerating it. Write `finalization.json` from
-   refreshed remote evidence for the accepted/waived head, merged PR, merge SHA,
-   every intended closed issue, and Project `Done` state. The generated command
-   output is the brief final-response template; include its `Workflow 改进` and
-   `自动化候选` sections even when either contains an explicit none entry. Record
-   both delivery timestamps before completion.
-5. Always identify concrete token waste from this run and repeated manual steps
-   that should become scripts. Record both the observed cost and the prevention;
-   explicitly say none was found instead of omitting either audit.
-   Treat a status question or complaint about elapsed time as an immediate cost
-   checkpoint: answer with completed work, the current wait, remaining required
-   gates, and a revised lower-bound ETA before launching anything else. Drop
-   optional proof that no longer changes the frozen delivery decision.
-6. Apply obvious, narrow project-local workflow fixes when discovered early
-   enough to remain inside the reviewed PR. Never silently mutate the active
-   skill to change the current run's rules; an explicit user instruction may
-   update it prospectively, after which focused skill validation and a new
-   exact-head review freeze are required. Never recursively run self-improvement
-   or append literal feedback as permanent policy.
-7. Create follow-up issues for durable product debt. Keep larger or generic
-   workflow proposals in the report or route them upstream.
-8. Mark the Goal complete only after no required work remains. When the Goal has
-   a token budget, report final usage returned by the Goal tool.
+Read [references/report.md](references/report.md). Merge only the accepted or
+explicitly waived head, refresh the merged SHA, and verify every intended issue is
+closed with its Project item `Done`. Reuse the persisted handoff report, generate
+the final remote receipt, and include explicit workflow, automation, cost, debt,
+and remaining-boundary results.
+
+Only an explicit user instruction may update this skill while its workflow is
+active; the update applies prospectively and requires focused validation plus a
+new exact-head review freeze. Never recursively self-improve. Mark the Goal
+complete only after every delivery and finalization receipt is delivered.
 
 ## Non-negotiable invariants
 
