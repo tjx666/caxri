@@ -85,6 +85,14 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Host, SQLite,
   and logs) so they never contend with the installed production app; `CAXRI_USER_DATA_DIR`
   overrides it (`src/main/user-data.ts`).
+- Stop every dev instance you started before reporting a request complete, and verify it actually
+  died. One launch leaves four separate processes: the `electron-vite dev` launcher, the Electron
+  window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached
+  `<worktree>/out/main/host.js` and `runtime.js`. `pkill -f "Electron.app/Contents/MacOS/Electron"`
+  silently misses the window process and the launcher can outlive the signal, so never trust
+  `pkill`'s exit code: confirm with `ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`, and
+  kill the surviving PIDs directly. Match on the absolute `<worktree>/out/` path so a sibling
+  worktree's session and the installed `/Applications/Caxri.app` are never hit.
 - Manage isolated worktrees by explicitly invoking `$switch-worktree`.
 - Format the repository: `bun run format`; verify formatting: `bun run format:check`
 - Format Markdown: `bun run format:md`; verify formatting: `bun run format:md:check`
