@@ -1,4 +1,5 @@
 import { editorModelPath } from '@shared/editor-state';
+import { errorMessage } from '@shared/ipc';
 import type { Terminal } from '@xterm/xterm';
 
 import { caxri } from '../../lib/caxri';
@@ -7,6 +8,7 @@ import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
 import { revealEditorLocation } from '../editor/editor-reveal';
+import { registerTerminalPasteHandler } from './terminal-actions';
 import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
 import type { TerminalRendererReason } from './terminal-renderer';
@@ -64,6 +66,42 @@ export async function detachTerminalQuietly(terminalId: string): Promise<void> {
     } catch {
         // Intentionally swallowed, see the function comment above.
     }
+}
+
+/**
+ * Keeps keyboard input and Files-drop paste on the same live xterm path. `xterm.paste` preserves bracketed-paste
+ * semantics, while `onData` remains the single ordered bridge into the Runtime-owned PTY.
+ */
+export function registerTerminalInputHandlers(
+    terminal: Terminal,
+    terminalId: string,
+    isRunning: () => boolean,
+): () => void {
+    const sendInput = async (data: string): Promise<void> => {
+        try {
+            await caxri.request('terminal.input', { terminalId, data });
+        } catch (error) {
+            onError(errorMessage(error, 'Terminal input failed'));
+        }
+    };
+    const dataDisposable = terminal.onData((data) => {
+        if (!isRunning()) return;
+        // xterm's onData callback cannot be async; sendInput already reports its own failure.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void sendInput(data);
+    });
+    const unregisterPasteHandler = registerTerminalPasteHandler(terminalId, {
+        paste(data) {
+            if (!isRunning()) return false;
+            terminal.paste(data);
+            terminal.focus();
+            return true;
+        },
+    });
+    return () => {
+        unregisterPasteHandler();
+        dataDisposable.dispose();
+    };
 }
 
 interface TerminalLinkSnapshot {

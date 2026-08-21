@@ -135,6 +135,31 @@ export function clearActiveTerminal(terminalId: string): void {
 }
 
 /**
+ * Files-to-Terminal drops must enter through the mounted xterm instance so bracketed-paste mode, PTY ordering, and
+ * focus behave exactly like an ordinary paste. The layout owns the drop target while the pane owns xterm, so this
+ * per-Terminal registry bridges those two Renderer surfaces without adding another IPC input path.
+ */
+interface TerminalPasteHandlers {
+    paste(data: string): boolean;
+}
+
+const pasteHandlers = new Map<string, TerminalPasteHandlers>();
+
+export function registerTerminalPasteHandler(
+    terminalId: string,
+    handlers: TerminalPasteHandlers,
+): () => void {
+    pasteHandlers.set(terminalId, handlers);
+    return () => {
+        if (pasteHandlers.get(terminalId) === handlers) pasteHandlers.delete(terminalId);
+    };
+}
+
+export function didPasteIntoTerminal(terminalId: string, data: string): boolean {
+    return pasteHandlers.get(terminalId)?.paste(data) ?? false;
+}
+
+/**
  * The mounted `TerminalPane` registers its live xterm selection here, mirroring {@link registerTerminalClearHandler}:
  * `copySelection` reuses `TerminalSelectionClipboard` (already serializing writes against a stale selection) instead of
  * a second clipboard write path, and `hasSelection` backs both the `terminal.copy` command's `when` gate and the

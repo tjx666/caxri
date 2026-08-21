@@ -36,8 +36,10 @@ vi.mock('../../../stores/workbench', () => ({
 import {
     clearActiveTerminal,
     copyActiveTerminalSelection,
+    didPasteIntoTerminal,
     hasActiveTerminalSelection,
     registerTerminalClearHandler,
+    registerTerminalPasteHandler,
     registerTerminalSelectionHandlers,
     restartTerminal,
     sendTerminalSequence,
@@ -233,6 +235,34 @@ describe('clear handler registration contract', () => {
 
         expect(firstHandler).not.toHaveBeenCalled();
         expect(secondHandler).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('paste handler registration contract', () => {
+    it('routes data to the mounted Terminal and returns whether it accepted the paste', () => {
+        const handlers = { paste: vi.fn(() => true) };
+        const unregister = registerTerminalPasteHandler('terminal-paste-1', handlers);
+
+        expect(didPasteIntoTerminal('terminal-paste-1', "'/repo/a file.txt'")).toBe(true);
+        expect(handlers.paste).toHaveBeenCalledWith("'/repo/a file.txt'");
+
+        unregister();
+    });
+
+    it('returns false after unregister and does not let stale cleanup evict a newer pane', () => {
+        const firstHandlers = { paste: vi.fn(() => true) };
+        const secondHandlers = { paste: vi.fn(() => true) };
+        const unregisterFirst = registerTerminalPasteHandler('terminal-paste-2', firstHandlers);
+        const unregisterSecond = registerTerminalPasteHandler('terminal-paste-2', secondHandlers);
+
+        unregisterFirst();
+
+        expect(didPasteIntoTerminal('terminal-paste-2', '/repo/folder')).toBe(true);
+        expect(firstHandlers.paste).not.toHaveBeenCalled();
+        expect(secondHandlers.paste).toHaveBeenCalledWith('/repo/folder');
+
+        unregisterSecond();
+        expect(didPasteIntoTerminal('terminal-paste-2', '/repo/folder')).toBe(false);
     });
 });
 
