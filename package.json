@@ -1,6 +1,6 @@
 {
     "name": "caxri",
-    "version": "0.0.16",
+    "version": "0.0.17",
     "private": true,
     "author": "Caxri contributors",
     "description": "A project-first, terminal-native local development workbench for macOS.",
