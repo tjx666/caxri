@@ -22,6 +22,7 @@ import {
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
+import { executeCommand } from '../../../../commands/execute';
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { PanelHeader } from '../../../../components/panel-header';
 import { Button } from '../../../../components/ui/button';
@@ -163,6 +164,16 @@ function StatusTreeNode({ depth, node }: { depth: number; node: ProjectStatusTre
                 >
                     {content}
                 </a>
+            ) : node.kind === 'error' && node.detailsView === 'logs' ? (
+                <button
+                    type="button"
+                    className={cn(rowClassName, 'cursor-pointer')}
+                    style={style}
+                    title={node.description ?? node.label}
+                    onClick={() => executeCommand('bottomPanel.showLogs')}
+                >
+                    {content}
+                </button>
             ) : (
                 <div className={rowClassName} style={style} title={node.description}>
                     {content}
