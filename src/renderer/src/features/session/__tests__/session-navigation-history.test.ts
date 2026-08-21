@@ -34,7 +34,7 @@ function snapshot(
  * Drives the store the way the Workbench does: each id is a Session the Runtime reported as selected.
  */
 function visit(...sessionIds: string[]): void {
-    for (const sessionId of sessionIds) history().observe(sessionId);
+    for (const sessionId of sessionIds) history().recordWorkbenchSelection(sessionId);
 }
 
 /**
@@ -182,7 +182,7 @@ describe('Session navigation requests', () => {
         const second = history().request('back');
 
         // The folded snapshot only ever reports the final Session, and it arrives before either confirmation.
-        history().observe('session-a');
+        history().recordWorkbenchSelection('session-a');
         history().confirm(first!);
         history().confirm(second!);
         expect(visible()).toEqual(
@@ -292,7 +292,7 @@ describe('Session navigation requests', () => {
         const toA = history().request('back');
         const pending = visible();
 
-        history().observe('session-a');
+        history().recordWorkbenchSelection('session-a');
         expect(visible()).toEqual(pending);
         expect(history().pending).toHaveLength(1);
         history().confirm(toA!);
@@ -325,7 +325,7 @@ describe('Session navigation requests', () => {
         const toB = history().request('back');
 
         history().beginSelection();
-        history().observe('session-c');
+        history().recordWorkbenchSelection('session-c');
         history().confirm(toC!);
         history().confirm(toB!);
         history().settleSelection('session-c', true);
@@ -376,7 +376,7 @@ describe('Session navigation requests', () => {
     it('ignores the Workbench snapshot while a selection is still in flight', () => {
         visit('session-a', 'session-b');
         history().beginSelection();
-        history().observe('session-a');
+        history().recordWorkbenchSelection('session-a');
         expect(visible().current).toBe('session-b');
 
         history().settleSelection('session-a', false);
@@ -425,7 +425,7 @@ describe('Session navigation requests', () => {
         visit('session-a');
         selectWorkbenchSession('session-a');
         history().beginSelection();
-        history().observe('session-n');
+        history().recordWorkbenchSelection('session-n');
         selectWorkbenchSession('session-n');
 
         history().settleSelection('session-b', true);
