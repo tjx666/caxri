@@ -304,9 +304,9 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
-        await expect(running.page.locator('.terminal-group')).toHaveCount(2);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
         const terminalSplitter = running.page.getByRole('separator', {
-            name: /Terminal split/,
+            name: /Resize .* split/,
         });
         await expect(terminalSplitter).toHaveCount(1);
         const runningBeforeMove = await pageRequest<number>(running.page, 'terminal.runningCount');
@@ -334,9 +334,12 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
                         `.work-tab[data-terminal-id="${CSS.escape(firstTerminalId)}"]`,
                     );
                     // `NodeListOf`'s index signature (unlike `.item()`) types out-of-range access as
-                    // always-defined; correct that here since `targetIndex` may be out of bounds.
-                    const target = document.querySelectorAll('.terminal-group')[targetIndex] as
-                        Element | undefined;
+                    // always-defined; correct that here since `targetIndex` may be out of bounds. The actual drop
+                    // listeners live on `.pane-surface`, the content area beneath a pane's tab bar, not on the
+                    // outer `.workbench-pane` box.
+                    const target = document.querySelectorAll('.workbench-pane .pane-surface')[
+                        targetIndex
+                    ] as Element | undefined;
                     if (!source || !target) throw new Error('Terminal drag fixture not found');
                     const transfer = new DataTransfer();
                     const bounds = target.getBoundingClientRect();
@@ -356,9 +359,9 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
                 { firstTerminalId, targetIndex, xRatio, yRatio },
             );
         await dragFirstTab(1, 0.5, 0.5);
-        await expect(running.page.locator('.terminal-group')).toHaveCount(1);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
         await dragFirstTab(0, 0.9, 0.5);
-        await expect(running.page.locator('.terminal-group')).toHaveCount(2);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
 
         const firstInput = running.page.locator(
             `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-helper-textarea`,
@@ -378,18 +381,17 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         await terminalSplitter.focus();
         await running.page.keyboard.press('ArrowRight');
         const savedRatio = (
-            await pageRequest<{ sessionStates: Array<{ layout: { root?: { ratio?: number } } }> }>(
-                running.page,
-                'app.bootstrap',
-            )
-        ).sessionStates[0].layout.root?.ratio;
+            await pageRequest<{
+                sessionStates: Array<{ paneLayout: { root?: { ratio?: number } } }>;
+            }>(running.page, 'app.bootstrap')
+        ).sessionStates[0].paneLayout.root?.ratio;
         expect(savedRatio).toBeCloseTo(0.55, 2);
 
         await running.app.close();
         running = await launchCaxri({ userDataDir: userData, testRootPath: root });
-        await expect(running.page.locator('.terminal-group')).toHaveCount(2);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
         await expect(
-            running.page.getByRole('separator', { name: /Terminal split/ }),
+            running.page.getByRole('separator', { name: /Resize .* split/ }),
         ).toHaveAttribute('aria-valuenow', '55');
 
         const restoredFirstTab = running.page.locator(
@@ -397,7 +399,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
         );
         await restoredFirstTab.hover();
         await restoredFirstTab.locator('.tab-close').click();
-        await expect(running.page.locator('.terminal-group')).toHaveCount(1);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
     } finally {
         try {
             await running.app.close();
@@ -608,7 +610,7 @@ sleep 30
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
         const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
-        await expect(running.page.locator('.terminal-group')).toHaveCount(2);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
         await pageRequest(running.page, 'settings.update', {
             source: JSON.stringify({ ...settings.value, 'terminal.fontSize': 13 }),
         });

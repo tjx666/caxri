@@ -63,7 +63,7 @@ test('Files entries dragged to Terminal insert shell-safe paths without opening 
         await expect.poll(() => readFile(folderResult, 'utf8')).toBe(folderPath);
 
         await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
-        await expect(running.page.locator('.terminal-group')).toHaveCount(1);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
         await expect(running.page.locator('.terminal-drop-preview')).toHaveCount(0);
 
         await running.page.keyboard.type('exit');

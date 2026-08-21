@@ -150,7 +150,7 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
         await expect(terminalCommandStatus(running.page, firstTerminalId)).toHaveText(
             'Command completed successfully.',
         );
-        const splitter = running.page.getByRole('separator', { name: /Terminal split/u });
+        const splitter = running.page.getByRole('separator', { name: /Resize .* split/u });
         const splitterBox = await splitter.boundingBox();
         if (!splitterBox) throw new Error('Terminal split handle was not rendered');
         await running.page.mouse.move(
