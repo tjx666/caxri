@@ -102,91 +102,127 @@ export function sessionNavigationTarget(
     return direction === 'back' ? snapshot.back.at(-1) : snapshot.forward.at(-1);
 }
 
+/**
+ * A navigation the user has already asked for and the Runtime has not confirmed yet.
+ */
+interface QueuedSessionNavigation {
+    direction: SessionNavigationDirection;
+    target: string;
+}
+
+/**
+ * Upper bound on unconfirmed navigations. A human cannot outrun a healthy Runtime by more than a step or two; a queue
+ * this deep means the Runtime stopped answering, and letting it grow would keep firing selections and replay them all
+ * once it recovers.
+ */
+const MAX_PENDING_NAVIGATIONS = 16;
+
+/**
+ * The history the user would see once every queued navigation lands. Buttons read it and `request` computes from it, so
+ * a second press composes with the first instead of recomputing from a state the screen has already left behind.
+ */
+function projectSessionHistory(
+    confirmed: SessionNavigationHistorySnapshot,
+    queue: readonly QueuedSessionNavigation[],
+): SessionNavigationHistorySnapshot {
+    return queue.reduce(
+        (snapshot, step) => applySessionNavigation(snapshot, step.direction),
+        confirmed,
+    );
+}
+
 interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot {
     /**
-     * Targets of navigations already applied to the stacks, oldest first, still waiting for the Runtime to report them
-     * as the selected Session.
-     *
-     * The queue exists because those confirmations arrive late and in request order: pressing Back twice in quick
-     * succession lands the first snapshot only after the second step was applied, and treating it as a fresh selection
-     * would push the Session onto `back` and wipe `forward`. Matching each confirmation against its own target — not
-     * merely against `current` — is what makes overlapping navigations safe.
+     * The history of Sessions the workbench has actually shown. Everything the user sees is projected from it, and it
+     * only ever moves on a confirmed selection, so no failed or overtaken request can corrupt it.
      */
-    pendingTargets: string[];
+    confirmed: SessionNavigationHistorySnapshot;
+    /**
+     * Requested navigations still waiting for the Runtime, oldest first.
+     */
+    queue: QueuedSessionNavigation[];
     /**
      * Records the Session the workbench actually shows. Every selection path (Sidebar, palette, MRU switcher, Session
      * creation, a Runtime-driven switch) funnels through the observed selection rather than through each call site, so
-     * no navigation source can forget to write history. Re-observing the same Session is a no-op, which also makes the
-     * React StrictMode double effect harmless.
+     * no navigation source can forget to write history.
+     *
+     * A confirmation is matched against the oldest queued target rather than against the visible `current`, because
+     * confirmations arrive late and in request order: after two quick Backs, the first one names a Session the screen
+     * has already left. Anything else means an ordinary selection won the race and takes the history over from the last
+     * Session that was really displayed.
      */
     observe(sessionId?: string): void;
     prune(activeSessionIds: readonly string[]): void;
     /**
-     * Claims the next target in `direction`, moving the stacks immediately and returning the Session to select.
-     *
-     * The move is optimistic on purpose: the Runtime's snapshot refresh is asynchronous, so a second navigation issued
-     * before it lands must compute from the state the first one produced. Pressing Back then Forward that fast is then
-     * exactly a no-op, instead of both steps reading the same stale stacks and stranding the history.
+     * Claims the next target in `direction` and returns the Session to select, or nothing when that direction is empty
+     * or too many navigations are already unconfirmed.
      */
     request(direction: SessionNavigationDirection): string | undefined;
     /**
-     * Rolls back to `snapshot` when the selection this store optimistically applied never took effect. Nothing is
-     * restored if another navigation or selection has moved on since, because that newer state is the truthful one.
+     * Drops a navigation the Runtime refused, along with every later one — those were computed on top of a step that
+     * never happened. The confirmed history is untouched, so nothing pruned can come back and no successful step is
+     * undone.
      */
-    restore(snapshot: SessionNavigationHistorySnapshot, appliedSessionId: string): void;
+    abandon(target: string): void;
     reset(): void;
+}
+
+function withQueue(
+    confirmed: SessionNavigationHistorySnapshot,
+    queue: QueuedSessionNavigation[],
+): SessionNavigationHistorySnapshot & {
+    confirmed: SessionNavigationHistorySnapshot;
+    queue: QueuedSessionNavigation[];
+} {
+    return { ...projectSessionHistory(confirmed, queue), confirmed, queue };
 }
 
 export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryState>(
     (set, get) => ({
         ...EMPTY_SNAPSHOT,
-        pendingTargets: [],
+        confirmed: EMPTY_SNAPSHOT,
+        queue: [],
         observe: (sessionId) =>
             set((state) => {
-                const [oldest, ...rest] = state.pendingTargets;
-                if (sessionId === undefined || state.pendingTargets.length === 0) {
-                    return recordSessionVisit(state, sessionId);
-                }
-                // The confirmation this store is waiting for: the stacks already moved, so only the queue advances.
-                if (sessionId === oldest) return { pendingTargets: rest };
-                // Any other Session means an ordinary selection overtook the navigation, and it owns the history now.
-                return { ...recordSessionVisit(state, sessionId), pendingTargets: [] };
+                const [oldest, ...rest] = state.queue;
+                if (
+                    sessionId !== undefined &&
+                    state.queue.length > 0 &&
+                    sessionId === oldest.target
+                )
+                    return withQueue(
+                        applySessionNavigation(state.confirmed, oldest.direction),
+                        rest,
+                    );
+                const confirmed = recordSessionVisit(state.confirmed, sessionId);
+                // A snapshot that re-reports the Session already recorded changes nothing and must not disturb the
+                // queue: it is a refresh, not a selection, and React StrictMode replays this effect too.
+                if (confirmed === state.confirmed) return state;
+                return withQueue(confirmed, []);
             }),
         prune: (activeSessionIds) =>
             set((state) => {
                 const active = new Set(activeSessionIds);
-                return {
-                    ...pruneSessionHistory(state, activeSessionIds),
-                    pendingTargets: state.pendingTargets.filter((target) => active.has(target)),
-                };
+                const stale = state.queue.findIndex((step) => !active.has(step.target));
+                return withQueue(
+                    pruneSessionHistory(state.confirmed, activeSessionIds),
+                    stale === -1 ? state.queue : state.queue.slice(0, stale),
+                );
             }),
         request: (direction) => {
             const state = get();
             const target = sessionNavigationTarget(state, direction);
-            if (target === undefined) return;
-            set({
-                ...applySessionNavigation(state, direction),
-                pendingTargets: [...state.pendingTargets, target],
-            });
+            if (target === undefined || state.queue.length >= MAX_PENDING_NAVIGATIONS) return;
+            set(withQueue(state.confirmed, [...state.queue, { direction, target }]));
             return target;
         },
-        restore: (snapshot, appliedSessionId) =>
+        abandon: (target) =>
             set((state) => {
-                const index = state.pendingTargets.indexOf(appliedSessionId);
-                const pendingTargets =
-                    index === -1 ? state.pendingTargets : state.pendingTargets.toSpliced(index, 1);
-                return state.current === appliedSessionId
-                    ? { ...snapshot, pendingTargets }
-                    : { pendingTargets };
+                const index = state.queue.findIndex((step) => step.target === target);
+                return index === -1
+                    ? state
+                    : withQueue(state.confirmed, state.queue.slice(0, index));
             }),
-        reset: () => set({ ...EMPTY_SNAPSHOT, pendingTargets: [] }),
+        reset: () => set({ ...EMPTY_SNAPSHOT, confirmed: EMPTY_SNAPSHOT, queue: [] }),
     }),
 );
-
-/**
- * The plain history value behind the store, safe to hold across an await as a rollback target.
- */
-export function sessionNavigationSnapshot(): SessionNavigationHistorySnapshot {
-    const { back, current, forward } = useSessionNavigationHistoryStore.getState();
-    return { back: [...back], current, forward: [...forward] };
-}
