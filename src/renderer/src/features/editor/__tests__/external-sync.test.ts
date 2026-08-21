@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../../../lib/caxri', () => ({ caxri: mocks }));
 
-import { useSessionViewStore } from '../../../stores/session-view';
+import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
 import { useToastStore } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import { useFileOperationStore } from '../../inspector/panels/files/file-operation-state';
@@ -166,6 +166,44 @@ describe('subscribeExternalDocumentSync', () => {
         unsubscribe();
     });
 
+    it('silently reloads a clean buffer after an external change', async () => {
+        useSessionViewStore.getState().cacheDocument('session-1', {
+            path: '/project/first.ts',
+            content: 'cached content',
+            dirty: false,
+            mtimeMs: 1,
+            size: 14,
+        });
+        mocks.request.mockImplementationOnce((_method, parameters) =>
+            Promise.resolve({
+                path: (parameters as { path: string }).path,
+                content: 'disk content',
+                dirty: false,
+                mtimeMs: 2,
+                size: 12,
+            }),
+        );
+        const unsubscribe = subscribeExternalDocumentSync();
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                overflow: false,
+                changes: [{ kind: 'update', path: '/project/first.ts' }],
+            },
+        });
+
+        await vi.waitFor(() => {
+            expect(
+                getSessionDocuments('session-1', 'project-1')?.['/project/first.ts'],
+            ).toMatchObject({ content: 'disk content', dirty: false });
+        });
+        expect(useToastStore.getState().toasts).toEqual([]);
+        unsubscribe();
+    });
+
     it('keeps the external-reload notice on screen because it can discard unsaved work', async () => {
         useSessionViewStore.getState().cacheDocument('session-1', {
             path: '/project/first.ts',
@@ -200,6 +238,94 @@ describe('subscribeExternalDocumentSync', () => {
                 expect.objectContaining({ kind: 'info', persist: true }),
             );
         });
+        unsubscribe();
+    });
+
+    it('reports only discarded dirty buffers when a mixed batch reloads', async () => {
+        const paths = ['/project/first.ts', '/project/second.ts', '/project/third.ts'] as const;
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: {
+                ...state.bootstrap!,
+                sessionStates: state.bootstrap!.sessionStates.map((current) =>
+                    current.sessionId === 'session-1'
+                        ? {
+                              ...current,
+                              openTabs: paths.map((path) => ({ path, dirty: false })),
+                          }
+                        : current,
+                ),
+            },
+        }));
+        for (const [index, path] of paths.entries()) {
+            useSessionViewStore.getState().cacheDocument('session-1', {
+                path,
+                content: 'cached content',
+                dirty: index < 2,
+                mtimeMs: 1,
+                size: 14,
+            });
+            mocks.request.mockImplementationOnce(() =>
+                Promise.resolve({
+                    path,
+                    content: 'disk content',
+                    dirty: false,
+                    mtimeMs: 2,
+                    size: 12,
+                }),
+            );
+        }
+        const unsubscribe = subscribeExternalDocumentSync();
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                overflow: false,
+                changes: paths.map((path) => ({ kind: 'update', path })),
+            },
+        });
+
+        await vi.waitFor(() => {
+            expect(useToastStore.getState().toasts).toEqual([
+                expect.objectContaining({
+                    kind: 'info',
+                    message: '2 open files reloaded from disk; external changes take precedence.',
+                    persist: true,
+                }),
+            ]);
+        });
+        for (const path of paths)
+            expect(getSessionDocuments('session-1', 'project-1')?.[path]).toMatchObject({
+                content: 'disk content',
+                dirty: false,
+            });
+        unsubscribe();
+    });
+
+    it('silently reconciles a clean buffer after selecting its Session', async () => {
+        mocks.request.mockImplementationOnce((_method, parameters) =>
+            Promise.resolve({
+                path: (parameters as { path: string }).path,
+                content: 'reconciled content',
+                dirty: false,
+                mtimeMs: 2,
+                size: 18,
+            }),
+        );
+        const unsubscribe = subscribeExternalDocumentSync();
+
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: { ...state.bootstrap!, selectedSessionId: 'session-2' },
+        }));
+
+        await vi.waitFor(() => {
+            expect(getSessionDocuments('session-2', 'project-1')?.[oldPath]).toMatchObject({
+                content: 'reconciled content',
+                dirty: false,
+            });
+        });
+        expect(useToastStore.getState().toasts).toEqual([]);
         unsubscribe();
     });
 
