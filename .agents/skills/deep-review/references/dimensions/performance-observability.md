@@ -30,6 +30,8 @@ diagnosable without leaking user content.
 - A non-obvious fix or workaround lacks a why-comment, or a catch silently swallows failure
 - New boundary work lacks correlation/timing logs, while added logs contain content rather than
   timings, counts, IDs, relative paths, or byte totals
+- A framed transport bounds individual payloads but not buffered bytes, pending requests, queued
+  frames, or partial-write lifetime, so slow or disconnected peers can exceed the intended capacity
 
 ## How to check
 
@@ -37,6 +39,9 @@ diagnosable without leaking user content.
 2. Multiply per-Terminal and per-file work by the documented global/session capacity.
 3. Inspect existing coalescing, debounce, semaphore, and disposal helpers before proposing new ones.
 4. Check the relevant benchmark assertion and structured log event for changed startup/hot paths.
+5. For framed transports, put independent limits on frame bytes, buffered bytes, pending request
+   count, queue depth, and write/close lifetime. Verify capacity is released on reply, timeout,
+   cancellation, parse failure, and peer close.
 
 ## Rule sources
 

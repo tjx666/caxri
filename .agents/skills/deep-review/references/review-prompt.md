@@ -62,8 +62,10 @@ Every issue requires:
 - `location`: `path:line`;
 - `summary`, `core_problem`, `fix_cost`, non-empty `fix_options`, and `need_test`.
 
-Use `scenario` for every low-likelihood or legacy finding. Legacy findings also require `exposure`.
-Use `rule_source` for convention/design claims.
+Use `scenario` for every architecture, state-lifecycle, security-privacy, low-likelihood, or legacy
+finding. For the three cross-boundary dimensions, name the initiating action, the authority or
+identity before the boundary, the interleaving or changed state, and the incorrect observable
+result. Legacy findings also require `exposure`. Use `rule_source` for convention/design claims.
 
 ```json
 {
