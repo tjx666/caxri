@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { lstat, mkdtemp, rm } from 'node:fs/promises';
+import { lstat, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createConnection, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -426,6 +426,40 @@ describe('AgentHookServer', () => {
                 child.kill();
                 await new Promise<void>((resolve) => server.close(() => resolve()));
                 await rm(socketPath, { force: true });
+            }
+        });
+
+        /**
+         * The sweep used to stop after a fixed number of directory entries, so a stale socket was reclaimed only if it
+         * happened to be reached before unrelated temp files exhausted the budget. A routine macOS `$TMPDIR` already
+         * holds several thousand entries, which is what made the two removal assertions in this suite fail
+         * intermittently — and, in production, what let a crashed Runtime's socket survive forever. The bound now
+         * counts profile-owned candidates, so foreign entries cannot starve it however many there are.
+         */
+        it('reclaims a stale socket that unrelated directory entries would have crowded out', async () => {
+            const suffix = randomBytes(2).toString('hex');
+            // Short directory and profile names on purpose: a Unix domain socket path is bounded by
+            // `sockaddr_un.sun_path` (104 bytes on macOS) and `tmpdir()` already spends ~49 of them.
+            const directory = await mkdtemp(join(tmpdir(), 'cxh'));
+            temporaryDirectories.push(directory);
+            const socketPath = join(directory, `caxri-hooks-p${suffix}-2147483646.sock`);
+            await Promise.all(
+                Array.from({ length: 200 }, (_, index) =>
+                    writeFile(join(directory, `filler-${index}`), '', 'utf8'),
+                ),
+            );
+            const server = createServer();
+            server.listen(socketPath);
+            await once(server, 'listening');
+
+            try {
+                // A candidate cap of 1 is enough for the single profile-owned socket; only a bound
+                // that counted the 200 foreign entries too would run out before reaching it.
+                await pruneStaleAgentHookSockets(directory, `p${suffix}`, process.pid, 1);
+
+                await expect(lstat(socketPath)).rejects.toMatchObject({ code: 'ENOENT' });
+            } finally {
+                await new Promise<void>((resolve) => server.close(() => resolve()));
             }
         });
 

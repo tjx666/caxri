@@ -15,6 +15,11 @@ interface ChromeTabsProperties<Value extends string> {
     ariaLabel: string;
     className?: string;
     idPrefix: string;
+    /**
+     * Upper bound for the selected-tab mark. Only evenly divided rails need one: a slot that grows with the region
+     * would otherwise stretch the mark into a bar. Natural-width tabs are already bounded by their own content.
+     */
+    indicatorMaxWidth?: number;
     items: ReadonlyArray<ChromeTabItem<Value>>;
     onValueChange: (value: Value) => void;
     renderTab?: (item: ChromeTabItem<Value>, tab: ReactElement) => ReactNode;
@@ -28,12 +33,19 @@ interface IndicatorGeometry {
 }
 
 /**
+ * Trimmed off each side of the tab slot so the mark reads as belonging to the tab instead of butting against its
+ * neighbours. Small enough that it never eats into the tab's own content.
+ */
+const INDICATOR_INSET = 8;
+
+/**
  * Shared top-level chrome tabs with automatic activation and one measured moving indicator.
  */
 export function ChromeTabs<Value extends string>({
     ariaLabel,
     className,
     idPrefix,
+    indicatorMaxWidth = Infinity,
     items,
     onValueChange,
     renderTab,
@@ -43,23 +55,31 @@ export function ChromeTabs<Value extends string>({
     const isReducedMotion = useShouldReduceMotion();
     const listReference = useRef<HTMLDivElement>(null);
     const tabReferences = useRef(new Map<Value, HTMLButtonElement>());
-    const contentReferences = useRef(new Map<Value, HTMLSpanElement>());
     const [geometry, setGeometry] = useState<IndicatorGeometry>();
     const [motionReady, setMotionReady] = useState(false);
 
+    /**
+     * The indicator is measured from the tab slot, not the label inside it, then inset and capped and centred in that
+     * slot. In the Inspector's `auto-cols-fr` strip that makes every mark the same size, so it reads as "this region is
+     * selected" rather than tracking a word whose length is incidental, and a responsive tab that drops its label keeps
+     * its mark unchanged. The inset and cap keep an even division from looking like a segmented control.
+     */
     const measureIndicator = useCallback((): void => {
         const list = listReference.current;
-        const content = contentReferences.current.get(value);
-        if (!list || !content) return;
+        const tab = tabReferences.current.get(value);
+        if (!list || !tab) return;
         const listBox = list.getBoundingClientRect();
-        const contentBox = content.getBoundingClientRect();
+        const tabBox = tab.getBoundingClientRect();
         /**
          * Dialog enter motion scales client rects; normalize them back into this list's CSS pixels.
          */
         const scaleX = list.offsetWidth > 0 ? listBox.width / list.offsetWidth : 1;
+        const slotLeft = (tabBox.left - listBox.left) / scaleX;
+        const slotWidth = tabBox.width / scaleX;
+        const width = Math.min(Math.max(slotWidth - INDICATOR_INSET * 2, 0), indicatorMaxWidth);
         const next = {
-            left: (contentBox.left - listBox.left) / scaleX,
-            width: contentBox.width / scaleX,
+            left: slotLeft + (slotWidth - width) / 2,
+            width,
         };
         setGeometry((current) =>
             current &&
@@ -68,13 +88,13 @@ export function ChromeTabs<Value extends string>({
                 ? current
                 : next,
         );
-    }, [value]);
+    }, [indicatorMaxWidth, value]);
 
     useLayoutEffect(() => {
         measureIndicator();
         const observer = new ResizeObserver(measureIndicator);
         if (listReference.current) observer.observe(listReference.current);
-        for (const content of contentReferences.current.values()) observer.observe(content);
+        for (const tab of tabReferences.current.values()) observer.observe(tab);
         return () => observer.disconnect();
     }, [items, measureIndicator]);
 
@@ -145,10 +165,6 @@ export function ChromeTabs<Value extends string>({
                         onKeyDown={(event) => activateFromKeyboard(event, index)}
                     >
                         <span
-                            ref={(element) => {
-                                if (element) contentReferences.current.set(item.value, element);
-                                else contentReferences.current.delete(item.value);
-                            }}
                             className="inline-flex items-center justify-center gap-1"
                             data-slot="chrome-tab-content"
                         >

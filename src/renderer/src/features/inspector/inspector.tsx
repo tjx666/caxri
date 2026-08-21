@@ -27,6 +27,12 @@ export function Inspector() {
                 ariaLabel="Inspector"
                 className="inspector-tabs grid h-11 auto-cols-fr grid-flow-col items-end"
                 idPrefix="inspector"
+                /**
+                 * The rail divides evenly, so a slot grows with the whole Inspector (240–600px). Without a cap the
+                 * selected mark would stretch to 190px on a wide rail and read as a filled segment rather than an
+                 * underline; 72px stays comfortably wider than the icon-plus-label content at every rail width.
+                 */
+                indicatorMaxWidth={72}
                 items={tabs}
                 tabClassName="h-9 w-full text-[11px]"
                 value={mode}

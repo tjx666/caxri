@@ -218,6 +218,13 @@ Sidebar-vs-Panel split. The Bottom Panel is closed at rest, its tabs sit left at
 width, and a trailing close button dismisses it. `Command+J` toggles it. A new surface picks its
 region by content shape, not by which region has room left.
 
+**Chrome tabs** — the moving underline is derived from the tab slot, never from the label inside it:
+inset 8px on each side, capped, and centred in the slot. In the Inspector's evenly divided rail every
+mark is therefore the same size, so it reads as "this region is selected" instead of tracking a word
+whose length is incidental, and a responsive tab that drops its label keeps its underline unchanged.
+The inset and the cap are what keep an even division from reading as a segmented control — a mark
+that runs slot edge to slot edge on a 600px rail is a filled bar, not an underline.
+
 **Iconography** — an icon names what a thing _is_, never which mode a surrounding control is in.
 A glyph reused for two meanings on one screen is a bug: the Git tab keeps the branch mark, so the
 Source Control caption drops it, repository rows take a repository mark (`FolderGit2`, or the
