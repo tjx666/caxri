@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
+    discoverOwnedProcesses,
     errorCode,
     getProcessIdentity,
     isAlive,
@@ -25,8 +26,13 @@ describe('Acceptance runtime ownership', () => {
                 electronPid: 124,
                 launcherIdentity: 'started-at command',
                 launcherPid: 123,
+                ownedProcesses: [
+                    { identity: 'host identity', pid: 333, role: 'host' },
+                    { identity: 'runtime identity', pid: 444, role: 'runtime' },
+                ],
                 ownedUserData: true,
                 port: 9222,
+                projectRoot: '/repo',
                 startedAt: '2026-08-09T00:00:00.000Z',
                 testRootPath: '/tmp/project',
                 testRootPaths: ['/tmp/project', '/tmp/project-two'],
@@ -64,6 +70,63 @@ describe('Acceptance runtime ownership', () => {
                 launcherPid: process.pid,
             }),
         ).resolves.toBe(true);
+    });
+
+    it('discovers only the exact worktree Host and its direct Runtime child from the profile lock', async () => {
+        const getProcessIdentity = vi.fn((pid: number) => Promise.resolve(`identity-${pid}`));
+        const dependencies = {
+            canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
+            getProcessCommand: vi
+                .fn()
+                .mockResolvedValue('/Applications/Electron /repo/out/main/host.js'),
+            getProcessIdentity,
+            inspectPathOwner: vi.fn().mockResolvedValue(333),
+            listChildProcesses: vi.fn().mockResolvedValue([
+                { command: '/Applications/Electron /repo/out/main/runtime.js', pid: 444 },
+                {
+                    command: '/Applications/Electron /repo-sibling/out/main/runtime.js',
+                    pid: 555,
+                },
+            ]),
+        };
+
+        await expect(
+            discoverOwnedProcesses(
+                { projectRoot: '/repo', userDataDir: '/tmp/acceptance-profile' },
+                '/repo',
+                dependencies,
+            ),
+        ).resolves.toEqual([
+            { identity: 'identity-333', pid: 333, role: 'host' },
+            { identity: 'identity-444', pid: 444, role: 'runtime' },
+        ]);
+        expect(getProcessIdentity).not.toHaveBeenCalledWith(555);
+
+        await expect(
+            discoverOwnedProcesses(
+                { projectRoot: '/repo-sibling', userDataDir: '/tmp/acceptance-profile' },
+                '/repo',
+                dependencies,
+            ),
+        ).rejects.toThrow('different worktree');
+    });
+
+    it('fails closed when the profile lock owner does not run the recorded worktree Host', async () => {
+        await expect(
+            discoverOwnedProcesses(
+                { projectRoot: '/repo', userDataDir: '/tmp/acceptance-profile' },
+                '/repo',
+                {
+                    canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
+                    getProcessCommand: vi
+                        .fn()
+                        .mockResolvedValue('/Applications/Electron /repo-sibling/out/main/host.js'),
+                    getProcessIdentity: vi.fn().mockResolvedValue('identity-333'),
+                    inspectPathOwner: vi.fn().mockResolvedValue(333),
+                    listChildProcesses: vi.fn().mockResolvedValue([]),
+                },
+            ),
+        ).rejects.toThrow('outside the recorded worktree');
     });
 
     it('removes only explicitly owned Acceptance temp directories', async () => {

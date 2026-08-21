@@ -1,6 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { access, readFile, realpath, unlink } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
@@ -23,13 +23,16 @@ import {
 } from './report';
 import type { RuntimeState } from './runtime-state';
 import {
+    discoverOwnedProcesses,
     errorCode,
     getProcessIdentity,
     isAlive,
+    isOwnedProcess,
     isOwnedRuntime,
     prepareAcceptanceUserData,
     removeOwnedUserData,
     runtimeStateSchema,
+    writeRuntimeState,
 } from './runtime-state';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -76,6 +79,7 @@ const WATCHED_BUILD_INPUT_EXTENSIONS = new Set([
     '.woff',
     '.woff2',
 ]);
+const OWNED_PROCESS_DISCOVERY_TIMEOUT_MS = 10_000;
 
 type OptionValue = string | true;
 // Partial (not Record<string, OptionValue[]>): the object starts empty and keys are only
@@ -97,6 +101,35 @@ interface WaitForCdpDependencies {
     now: () => number;
     sleep: (milliseconds: number) => Promise<void>;
 }
+
+export interface StaleRuntimeDependencies {
+    canonicalPath: (path: string) => Promise<string>;
+    discoverOwnedProcesses: typeof discoverOwnedProcesses;
+    isOwnedProcess: typeof isOwnedProcess;
+    isOwnedRuntime: typeof isOwnedRuntime;
+    projectRoot: string;
+    readRuntime: () => Promise<string>;
+    removeOwnedUserData: typeof removeOwnedUserData;
+    runtimePath: string;
+    unlinkRuntime: () => Promise<void>;
+}
+
+export interface RestartRuntimeExpectation {
+    caseId: string;
+    userDataDir: string;
+}
+
+export interface WaitForOwnedProcessesDependencies {
+    discoverOwnedProcesses: typeof discoverOwnedProcesses;
+    now: () => number;
+    sleep: (milliseconds: number) => Promise<void>;
+}
+
+const defaultWaitForOwnedProcessesDependencies: WaitForOwnedProcessesDependencies = {
+    discoverOwnedProcesses,
+    now: Date.now,
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+};
 
 interface StopControllerDependencies {
     isAlive: typeof isAlive;
@@ -225,12 +258,27 @@ export function createElectronStopController(
     };
 }
 
-async function removeStaleRuntime(): Promise<void> {
+const defaultStaleRuntimeDependencies: StaleRuntimeDependencies = {
+    canonicalPath: realpath,
+    discoverOwnedProcesses,
+    isOwnedProcess,
+    isOwnedRuntime,
+    projectRoot: PROJECT_ROOT,
+    readRuntime: () => readFile(RUNTIME_PATH, 'utf8'),
+    removeOwnedUserData,
+    runtimePath: RUNTIME_PATH,
+    unlinkRuntime: () => unlink(RUNTIME_PATH),
+};
+
+export async function removeStaleRuntime(
+    dependencies: StaleRuntimeDependencies = defaultStaleRuntimeDependencies,
+    expectedRestart?: RestartRuntimeExpectation,
+): Promise<RuntimeState['ownedProcesses']> {
     let rawText: string;
     try {
-        rawText = await readFile(RUNTIME_PATH, 'utf8');
+        rawText = await dependencies.readRuntime();
     } catch (error: unknown) {
-        if (errorCode(error) === 'ENOENT') return;
+        if (errorCode(error) === 'ENOENT') return [];
         throw error;
     }
 
@@ -240,18 +288,97 @@ async function removeStaleRuntime(): Promise<void> {
         current = runtimeStateSchema.parse(raw);
     } catch {
         throw new Error(
-            `Invalid ${relative(PROJECT_ROOT, RUNTIME_PATH)}; inspect it before removing stale state`,
+            `Invalid ${relative(dependencies.projectRoot, dependencies.runtimePath)}; inspect it before removing stale state`,
         );
     }
 
-    /**
-     * Preserve a verified live owner; only stale identity can release its state.
-     */
-    if (await isOwnedRuntime(current)) {
+    if (await dependencies.isOwnedRuntime(current)) {
         throw new Error('Acceptance instance already running with a live owned process');
     }
-    await unlink(RUNTIME_PATH);
-    await removeOwnedUserData(current);
+    /**
+     * An empty receipt means startup never crossed the Host/Runtime ownership boundary, so absence is not proof.
+     */
+    if (current.ownedProcesses.length === 0) {
+        throw new Error(
+            'Acceptance process ownership was never verified; runtime state and profile were preserved',
+        );
+    }
+    const persistedLiveness = await Promise.all(
+        current.ownedProcesses.map((ownedProcess) => dependencies.isOwnedProcess(ownedProcess)),
+    );
+    const discoveredProcesses = await dependencies.discoverOwnedProcesses(
+        current,
+        dependencies.projectRoot,
+    );
+    const isMatchingRestart = expectedRestart
+        ? current.acceptanceCase?.id === expectedRestart.caseId &&
+          current.acceptanceCase.mode === 'restart' &&
+          (await dependencies.canonicalPath(current.projectRoot)) ===
+              (await dependencies.canonicalPath(dependencies.projectRoot)) &&
+          (await dependencies.canonicalPath(current.userDataDir)) ===
+              (await dependencies.canonicalPath(expectedRestart.userDataDir))
+        : false;
+    if (isMatchingRestart && (persistedLiveness.some(Boolean) || discoveredProcesses.length > 0)) {
+        /**
+         * A restart may inherit the same verified Host generation, but never adopt a replacement profile owner.
+         */
+        const persistedHostKeys = new Set(
+            current.ownedProcesses
+                .filter(({ role }) => role === 'host')
+                .map(({ identity, pid }) => `${pid}:${identity}`),
+        );
+        const discoveredHost = discoveredProcesses.find(({ role }) => role === 'host');
+        if (
+            !discoveredHost ||
+            !persistedHostKeys.has(`${discoveredHost.pid}:${discoveredHost.identity}`)
+        ) {
+            throw new Error('Acceptance restart profile owner changed process identity');
+        }
+        return new Map(
+            [...current.ownedProcesses, ...discoveredProcesses].map((ownedProcess) => [
+                `${ownedProcess.pid}:${ownedProcess.identity}`,
+                ownedProcess,
+            ]),
+        )
+            .values()
+            .toArray();
+    }
+    if (persistedLiveness.some(Boolean) || discoveredProcesses.length > 0) {
+        throw new Error(
+            'Acceptance detached processes are still running; run stop-electron before starting another instance',
+        );
+    }
+    await dependencies.unlinkRuntime();
+    if (!isMatchingRestart) await dependencies.removeOwnedUserData(current);
+    return [];
+}
+
+/**
+ * A reused profile stays protected from cleanup while any verified inherited process receipt exists.
+ */
+export function shouldPreserveInheritedRuntimeState(
+    inheritedOwnedProcesses: RuntimeState['ownedProcesses'],
+): boolean {
+    return inheritedOwnedProcesses.length > 0;
+}
+
+export async function waitForOwnedProcesses(
+    runtime: Pick<RuntimeState, 'projectRoot' | 'userDataDir'>,
+    expectedProjectRoot: string,
+    dependencies: WaitForOwnedProcessesDependencies = defaultWaitForOwnedProcessesDependencies,
+): Promise<RuntimeState['ownedProcesses']> {
+    const deadline = dependencies.now() + OWNED_PROCESS_DISCOVERY_TIMEOUT_MS;
+    while (true) {
+        // eslint-disable-next-line no-await-in-loop -- readiness must observe one ordered Host/Runtime ownership snapshot
+        const processes = await dependencies.discoverOwnedProcesses(runtime, expectedProjectRoot);
+        const roles = new Set(processes.map(({ role }) => role));
+        if (roles.has('host') && roles.has('runtime')) return processes;
+        if (dependencies.now() >= deadline) {
+            throw new Error('Timed out waiting for owned Acceptance Host and Runtime processes');
+        }
+        // eslint-disable-next-line no-await-in-loop -- poll cadence is intentionally sequential
+        await dependencies.sleep(100);
+    }
 }
 
 async function assertPortAvailable(port: number): Promise<void> {
@@ -270,13 +397,6 @@ async function assertPortAvailable(port: number): Promise<void> {
     await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
     );
-}
-
-async function writeRuntime(state: RuntimeState): Promise<void> {
-    await mkdir(dirname(RUNTIME_PATH), { recursive: true });
-    const temporary = `${RUNTIME_PATH}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-    await rename(temporary, RUNTIME_PATH);
 }
 
 export async function waitForCdp(
@@ -316,6 +436,15 @@ async function main(): Promise<void> {
         throw new Error('--port must be an integer between 1024 and 65535');
     }
 
+    const caseId = stringOption(options, 'case-id');
+    const reportDirectory = stringOption(options, 'report-dir');
+    if (!caseId || !reportDirectory) {
+        throw new Error('Acceptance launch requires --case-id and --report-dir');
+    }
+    const caseMode = (stringOption(options, 'case-mode') ?? 'isolated') as 'isolated' | 'restart';
+    const reuseUserDataDirectory = stringOption(options, 'reuse-user-data');
+    const isCleanupReusable = hasBooleanOption(options, 'cleanup-reused-user-data');
+
     let desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
     try {
         await access(ELECTRON_PATH);
@@ -325,7 +454,15 @@ async function main(): Promise<void> {
             staleMessage: STALE_BUILD_MESSAGE,
             watchedDirectoryExtensions: WATCHED_BUILD_INPUT_EXTENSIONS,
         });
-        await removeStaleRuntime();
+        const inheritedOwnedProcesses = await removeStaleRuntime(
+            defaultStaleRuntimeDependencies,
+            caseMode === 'restart' && reuseUserDataDirectory
+                ? {
+                      caseId,
+                      userDataDir: resolve(PROJECT_ROOT, reuseUserDataDirectory),
+                  }
+                : undefined,
+        );
         await assertPortAvailable(port);
 
         const requestedRoots = stringOptions(options, 'test-root');
@@ -342,15 +479,6 @@ async function main(): Promise<void> {
             }),
         );
         const testRootPath = testRootPaths[0];
-        const caseId = stringOption(options, 'case-id');
-        const reportDirectory = stringOption(options, 'report-dir');
-        if (!caseId || !reportDirectory) {
-            throw new Error('Acceptance launch requires --case-id and --report-dir');
-        }
-        const caseMode = (stringOption(options, 'case-mode') ?? 'isolated') as
-            'isolated' | 'restart';
-        const reuseUserDataDirectory = stringOption(options, 'reuse-user-data');
-        const isCleanupReusable = hasBooleanOption(options, 'cleanup-reused-user-data');
         const plannedCase = await loadAcceptanceCasePlan(reportDirectory, caseId);
         assertAcceptanceBuildCommit({
             builtMainSource: await readFile(BUILT_MAIN_PATH, 'utf8'),
@@ -371,6 +499,10 @@ async function main(): Promise<void> {
             reuseUserDataDir: reuseUserDataDirectory,
         });
         let lifecycleLaunchId: string;
+        let hasVerifiedOwnedProcesses = false;
+        let isPreserveOwnedRuntimeState =
+            shouldPreserveInheritedRuntimeState(inheritedOwnedProcesses);
+        let runtime: RuntimeState | undefined;
         try {
             lifecycleLaunchId = await beginCaseLifecycle(plannedCase.directory, {
                 caseId,
@@ -378,7 +510,9 @@ async function main(): Promise<void> {
                 stateIsolation: plannedCase.item.stateIsolation,
             });
         } catch (error: unknown) {
-            await removeOwnedUserData({ ownedUserData, userDataDir });
+            if (!isPreserveOwnedRuntimeState) {
+                await removeOwnedUserData({ ownedUserData, userDataDir });
+            }
             throw error;
         }
 
@@ -409,22 +543,28 @@ async function main(): Promise<void> {
                 if (!electronIdentity)
                     throw new Error('Could not establish Acceptance Electron identity');
                 desktopLease = await transferDesktopLease(desktopLease, electronPid);
-                const runtime: RuntimeState = {
+                runtime = {
                     acceptanceCase,
                     cdpUrl: `http://127.0.0.1:${port}`,
                     electronIdentity,
                     electronPid,
                     launcherIdentity,
                     launcherPid: process.pid,
+                    ownedProcesses: inheritedOwnedProcesses,
                     ownedUserData,
                     port,
+                    projectRoot: PROJECT_ROOT,
                     startedAt: new Date().toISOString(),
                     testRootPath,
                     testRootPaths,
                     userDataDir,
                 };
-                await writeRuntime(runtime);
+                isPreserveOwnedRuntimeState = true;
+                await writeRuntimeState(RUNTIME_PATH, runtime);
                 await Promise.race([waitForCdp(port, child), rejectOnChildExit()]);
+                runtime.ownedProcesses = await waitForOwnedProcesses(runtime, PROJECT_ROOT);
+                hasVerifiedOwnedProcesses = true;
+                await writeRuntimeState(RUNTIME_PATH, runtime);
                 await markCaseLifecycleReady(plannedCase.directory, {
                     caseId,
                     launchId: lifecycleLaunchId,
@@ -448,22 +588,60 @@ async function main(): Promise<void> {
                 }
                 process.off('SIGINT', stop);
                 process.off('SIGTERM', stop);
-                try {
-                    await unlink(RUNTIME_PATH);
-                } catch (error: unknown) {
-                    // A non-ENOENT failure to remove the owned runtime.json is itself an
-                    // unexpected filesystem error worth surfacing over an in-flight launch
-                    // failure; this intentionally preserves the pre-existing
-                    // `.catch()`-chain masking behavior rather than silently swallowing it.
-                    // eslint-disable-next-line no-unsafe-finally
-                    if (errorCode(error) !== 'ENOENT') throw error;
+                const detachedProcesses = runtime
+                    ? await discoverOwnedProcesses(runtime, PROJECT_ROOT)
+                    : [];
+                if (runtime && detachedProcesses.length > 0) {
+                    const recordedProcessKeys = new Set(
+                        runtime.ownedProcesses.map(({ identity, pid }) => `${pid}:${identity}`),
+                    );
+                    runtime.ownedProcesses.push(
+                        ...detachedProcesses.filter(
+                            ({ identity, pid }) => !recordedProcessKeys.has(`${pid}:${identity}`),
+                        ),
+                    );
+                    await writeRuntimeState(RUNTIME_PATH, runtime);
+                }
+                /**
+                 * The Host owns the profile lock, but Runtime can survive after Host exits and is then reparented. Keep
+                 * runtime.json while any identity captured at CDP readiness is still alive so stop-electron can recover
+                 * that orphan without scanning unrelated worktrees or profiles.
+                 */
+                const hasRecordedProcess = runtime
+                    ? (
+                          await Promise.all(
+                              runtime.ownedProcesses.map((ownedProcess) =>
+                                  isOwnedProcess(ownedProcess),
+                              ),
+                          )
+                      ).some(Boolean)
+                    : false;
+                if (
+                    hasVerifiedOwnedProcesses &&
+                    !hasRecordedProcess &&
+                    detachedProcesses.length === 0
+                ) {
+                    try {
+                        await unlink(RUNTIME_PATH);
+                        isPreserveOwnedRuntimeState = false;
+                    } catch (error: unknown) {
+                        // A non-ENOENT failure to remove the owned runtime.json is itself an
+                        // unexpected filesystem error worth surfacing over an in-flight launch
+                        // failure; this intentionally preserves the pre-existing
+                        // `.catch()`-chain masking behavior rather than silently swallowing it.
+                        // eslint-disable-next-line no-unsafe-finally
+                        if (errorCode(error) !== 'ENOENT') throw error;
+                        isPreserveOwnedRuntimeState = false;
+                    }
                 }
             }
         } finally {
             let isCleanupCompleted = false;
             try {
-                await removeOwnedUserData({ ownedUserData, userDataDir });
-                isCleanupCompleted = ownedUserData;
+                if (!isPreserveOwnedRuntimeState) {
+                    await removeOwnedUserData({ ownedUserData, userDataDir });
+                    isCleanupCompleted = ownedUserData;
+                }
             } finally {
                 await completeCaseLifecycle(plannedCase.directory, {
                     caseId,
