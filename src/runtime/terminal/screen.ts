@@ -30,12 +30,29 @@ export interface TerminalScreenSnapshotOptions {
     excludeModes?: boolean;
 }
 
+/**
+ * Receives the OSC 0/2 window titles xterm parses out of the PTY stream, and hands its delivery lifetime to the screen.
+ *
+ * `cancel` runs from `dispose()`. A title observer is normally throttled, and `restart()` finalizes the outgoing screen
+ * before spawning the replacement under the same durable Terminal ID — without an explicit cancel the retired PTY's
+ * still-pending trailing delivery would land after the replacement wrote its own title and silently overwrite it.
+ */
+export interface TerminalTitleObserver {
+    (title: string): void;
+    cancel: () => void;
+}
+
 export interface TerminalScreenStateOptions {
     /**
      * Test seam and hard ceiling for raw input waiting on xterm's asynchronous parser.
      */
     maximumQueuedBytes?: number;
     onOverflow?: (droppedBytes: number) => void;
+    /**
+     * Emitted for every Terminal the Runtime owns, mounted or not, because this parser runs independently of any
+     * Renderer pane.
+     */
+    onTitleChange?: TerminalTitleObserver;
 }
 
 /**
@@ -52,6 +69,7 @@ export class TerminalScreenState {
     private draining?: Promise<void>;
     private readonly maximumQueuedBytes: number;
     private readonly onOverflow?: (droppedBytes: number) => void;
+    private readonly onTitleChange?: TerminalTitleObserver;
     private readonly operations: ScreenOperation[] = [];
     private queuedWriteBytes = 0;
     private readonly serialize = new SerializeAddon();
@@ -65,6 +83,7 @@ export class TerminalScreenState {
     ) {
         this.maximumQueuedBytes = options.maximumQueuedBytes ?? DEFAULT_MAXIMUM_QUEUED_BYTES;
         this.onOverflow = options.onOverflow;
+        this.onTitleChange = options.onTitleChange;
         if (!Number.isSafeInteger(this.maximumQueuedBytes) || this.maximumQueuedBytes < 1)
             throw new RangeError('Terminal screen queue limit must be a positive integer');
         this.terminal = new Terminal({
@@ -82,6 +101,12 @@ export class TerminalScreenState {
         this.terminal.loadAddon(new Unicode11Addon());
         this.terminal.unicode.activeVersion = '11';
         this.terminal.loadAddon(this.serialize);
+        /**
+         * Attached before the snapshot replay below so a recovered Terminal re-derives its title from whatever OSC the
+         * replay happens to carry. The serializer does not currently emit the window title, so in practice recovery
+         * relies on the persisted `terminals.title` until the shell reprints its own at the next prompt.
+         */
+        if (this.onTitleChange) this.terminal.onTitleChange(this.onTitleChange);
         this.write(initialSnapshot);
     }
 
@@ -207,6 +232,7 @@ export class TerminalScreenState {
     dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
+        this.onTitleChange?.cancel();
         const pendingOperations = [...this.operations];
         this.operations.length = 0;
         for (const operation of pendingOperations) {

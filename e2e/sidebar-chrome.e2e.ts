@@ -466,7 +466,7 @@ test('Project titles toggle disclosure when no active Session can be selected', 
     }
 });
 
-test('work tabs leave a draggable titlebar and keep New Terminal beside the last tab', async () => {
+test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal outside the scroll rail', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -500,9 +500,31 @@ test('work tabs leave a draggable titlebar and keep New Terminal beside the last
         expect(metrics[0].region).toBe('drag');
         expect(metrics[1].region).toBe('no-drag');
         expect(metrics[2].region).toBe('no-drag');
-        expect(Math.abs(metrics[2].left - metrics[1].right)).toBeLessThanOrEqual(1);
-        expect(metrics[0].right - metrics[2].right).toBeGreaterThan(100);
+        // New Terminal now trails the scroll rail rather than the last tab: evenly divided Terminal tabs
+        // consume the rail, so the button would otherwise scroll out of reach behind them.
+        expect(metrics[2].left).toBeGreaterThanOrEqual(metrics[1].right - 1);
+        // The gap between the button and the window edge is the frameless window's only draggable chrome.
+        expect(metrics[0].right - metrics[2].right).toBeGreaterThanOrEqual(64);
+        const isActionsOutsideScrollRail = await running.page
+            .locator('.work-tab-scroll')
+            .evaluate((element) => !element.contains(document.querySelector('.tab-actions')));
+        expect(isActionsOutsideScrollRail).toBe(true);
         await expect(running.page.getByRole('button', { name: 'Split Terminal' })).toHaveCount(0);
+
+        // Terminal tabs divide the rail evenly (iTerm2/Chrome), so a tab's position depends on the tab
+        // count alone and Command+1..9 keeps a stable spatial meaning.
+        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        await expect(strip.locator('.work-tab')).toHaveCount(2);
+        await expect
+            .poll(async () =>
+                strip.evaluate((element) => {
+                    const widths = [...element.querySelectorAll('.work-tab')].map(
+                        (tab) => tab.getBoundingClientRect().width,
+                    );
+                    return Math.round(Math.max(...widths) - Math.min(...widths));
+                }),
+            )
+            .toBeLessThanOrEqual(1);
 
         const alignedBottoms = async (...selectors: string[]) =>
             Promise.all(
@@ -525,9 +547,25 @@ test('work tabs leave a draggable titlebar and keep New Terminal beside the last
         assertAligned(await alignedBottoms('.sidebar-title', '.work-tabs'));
         await running.page.keyboard.press('Meta+]');
 
+        // A Terminal tab renders a title compressed to fit; the untruncated one has to stay reachable,
+        // and a native `title` attribute would be pointer-only.
+        const terminalTab = strip.locator('.work-tab[data-terminal-id] .tab-select').first();
+        const fullTitle = await terminalTab.evaluate(
+            (element) =>
+                // The sr-only sibling exists only when the label was compressed; otherwise the two agree.
+                element.querySelector('.sr-only')?.textContent ??
+                element.querySelector('.tab-label')?.textContent ??
+                '',
+        );
+        expect(fullTitle.length).toBeGreaterThan(0);
+        await terminalTab.hover();
+        // `[data-open]` because a previously shown tooltip stays mounted through its exit animation.
+        await expect(running.page.locator('.tooltip-popup[data-open]')).toContainText(fullTitle);
+        await running.page.mouse.move(0, 300);
+
         const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
         await newTerminal.hover();
-        const tooltip = running.page.locator('.tooltip-popup');
+        const tooltip = running.page.locator('.tooltip-popup[data-open]');
         await expect(tooltip).toContainText('Create a Terminal in the current Session');
         await expect(tooltip.locator('kbd')).toHaveText(['⌘', 'T']);
     } finally {
