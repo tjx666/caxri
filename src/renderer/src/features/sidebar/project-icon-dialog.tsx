@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useReducer, useState } from 'react';
 
 import type { ProjectIconColor, ProjectIconName } from '@shared/project-customization';
 import { projectIconColors, projectIconNames } from '@shared/project-customization';
@@ -19,19 +19,48 @@ import { ProjectIcon } from './project-icon';
 import { didSaveProjectIcon } from './project-icon-actions';
 import { projectIconColorPresentation, projectIconRegistry } from './project-icon-registry';
 
+interface ProjectIconDraft {
+    iconColor: ProjectIconColor;
+    iconName: ProjectIconName | undefined;
+}
+
+type ProjectIconDraftAction =
+    | { iconColor: ProjectIconColor; type: 'select-color' }
+    | { iconName: ProjectIconName; type: 'select-icon' };
+
+function projectIconDraftReducer(
+    state: ProjectIconDraft,
+    action: ProjectIconDraftAction,
+): ProjectIconDraft {
+    return action.type === 'select-icon'
+        ? { ...state, iconName: action.iconName }
+        : { ...state, iconColor: action.iconColor };
+}
+
+function initialProjectIconDraft(icon: ProjectRecord['icon']): ProjectIconDraft {
+    return { iconColor: icon?.color, iconName: icon?.name };
+}
+
 function ProjectIconDialogForm({ close, project }: { close: () => void; project: ProjectRecord }) {
-    const [iconName, setIconName] = useState<ProjectIconName | undefined>(project.icon?.name);
-    const [iconColor, setIconColor] = useState<ProjectIconColor>(project.icon?.color);
+    const [{ iconColor, iconName }, dispatch] = useReducer(
+        projectIconDraftReducer,
+        project.icon,
+        initialProjectIconDraft,
+    );
     const [saving, setSaving] = useState(false);
 
     const persist = async (shouldClear: boolean): Promise<void> => {
         if (!shouldClear && !iconName) return;
         setSaving(true);
-        const didSave = await didSaveProjectIcon(
-            project.id,
-            shouldClear ? null : { name: iconName!, ...(iconColor && { color: iconColor }) },
-        );
-        setSaving(false);
+        let didSave: boolean;
+        try {
+            didSave = await didSaveProjectIcon(
+                project.id,
+                shouldClear ? null : { name: iconName!, ...(iconColor && { color: iconColor }) },
+            );
+        } finally {
+            setSaving(false);
+        }
         if (didSave) close();
     };
     const clearIcon = async (): Promise<void> => {
@@ -64,7 +93,7 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                                     'grid min-h-14 cursor-pointer place-items-center gap-1 rounded border border-border bg-transparent p-2 text-[10px] text-muted hover:bg-elevated hover:text-foreground focus-visible:border-accent focus-visible:outline-none',
                                     iconName === name && 'bg-elevated text-foreground',
                                 )}
-                                onClick={() => setIconName(name)}
+                                onClick={() => dispatch({ iconName: name, type: 'select-icon' })}
                             >
                                 <ProjectIcon
                                     icon={{ name, ...(iconColor && { color: iconColor }) }}
@@ -85,7 +114,7 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                                 'flex h-8 cursor-pointer items-center gap-2 rounded border border-border bg-transparent px-2 text-[10px] hover:bg-elevated focus-visible:border-accent focus-visible:outline-none',
                                 iconColor === undefined && 'bg-elevated',
                             )}
-                            onClick={() => setIconColor(undefined)}
+                            onClick={() => dispatch({ iconColor: undefined, type: 'select-color' })}
                         >
                             <span className="size-3 rounded-full border border-border bg-foreground" />
                             Default
@@ -100,7 +129,7 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
                                     'flex h-8 cursor-pointer items-center gap-2 rounded border border-border bg-transparent px-2 text-[10px] hover:bg-elevated focus-visible:border-accent focus-visible:outline-none',
                                     iconColor === color && 'bg-elevated',
                                 )}
-                                onClick={() => setIconColor(color)}
+                                onClick={() => dispatch({ iconColor: color, type: 'select-color' })}
                             >
                                 <span
                                     className={cn(

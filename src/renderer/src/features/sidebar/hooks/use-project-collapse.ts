@@ -10,7 +10,7 @@ import {
     projectCollapseAfterPolicy,
 } from '../project-collapse';
 
-const STORAGE_KEY = 'caxri.sidebar-project-collapse';
+const STORAGE_KEY = 'caxri.sidebar-project-collapse.v1';
 const AUTO_COLLAPSE_IDLE_DELAY_MS = 500;
 const AUTO_COLLAPSE_RECHECK_MS = 60 * 1000;
 
@@ -51,12 +51,10 @@ export function useProjectCollapse(input: UseProjectCollapseInput) {
     const manuallyExpandedProjectIds = useRef(new Set<string>());
 
     const update = useCallback((next: ProjectCollapseState): void => {
-        setCollapsedProjects((current) => {
-            if (isEqual(current, next)) return current;
-            writePersistedState(next);
-            return next;
-        });
+        setCollapsedProjects((current) => (isEqual(current, next) ? current : next));
     }, []);
+
+    useEffect(() => writePersistedState(collapsedProjects), [collapsedProjects]);
 
     const applyPolicy = useCallback(
         (shouldAutoCollapse: boolean): void => {
@@ -88,20 +86,20 @@ export function useProjectCollapse(input: UseProjectCollapseInput) {
         };
     }, [applyPolicy, autoCollapseSetting, hasFocus, isHovered]);
 
-    const toggleProject = useCallback((projectId: string): void => {
-        setCollapsedProjects((current) => {
-            const next = { ...current };
-            if (next[projectId]) {
+    const toggleProject = useCallback(
+        (projectId: string): void => {
+            const next = { ...collapsedProjects };
+            if (collapsedProjects[projectId]) {
                 delete next[projectId];
                 manuallyExpandedProjectIds.current.add(projectId);
             } else {
                 next[projectId] = 'manual';
                 manuallyExpandedProjectIds.current.delete(projectId);
             }
-            writePersistedState(next);
-            return next;
-        });
-    }, []);
+            update(next);
+        },
+        [collapsedProjects, update],
+    );
 
     const isProjectExpanded = useCallback(
         (projectId: string): boolean => collapsedProjects[projectId] === undefined,
