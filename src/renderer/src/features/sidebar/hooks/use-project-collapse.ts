@@ -36,7 +36,7 @@ function writePersistedState(state: ProjectCollapseState): void {
 
 interface UseProjectCollapseInput {
     autoCollapseSetting: AppSettings['sidebar.autoCollapseProjects'];
-    projects: readonly ProjectRecord[];
+    projects: readonly ProjectRecord[] | undefined;
     selectedSessionId: string | undefined;
     sessions: readonly SessionRecord[];
 }

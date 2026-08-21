@@ -84,6 +84,16 @@ describe('Project collapse policy', () => {
         ).toEqual({ running: 'manual' });
     });
 
+    it('preserves persisted disclosure until the Project catalog has loaded', () => {
+        expect(
+            policy({
+                collapsedProjects: { persisted: 'manual' },
+                projects: undefined,
+                shouldAutoCollapse: false,
+            }),
+        ).toEqual({ persisted: 'manual' });
+    });
+
     it('does nothing automatic when the setting is off or the Sidebar is busy', () => {
         expect(policy({ autoCollapseThresholdMs: undefined })).toEqual({});
         expect(policy({ shouldAutoCollapse: false })).toEqual({});

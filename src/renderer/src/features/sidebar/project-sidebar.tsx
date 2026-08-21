@@ -48,7 +48,8 @@ const sidebarLogoUrl = import.meta.env.DEV ? '/src/assets/caxri-logo-dev.png' : 
 const onAddProject = (): void => executeCommand('project.create');
 
 export function ProjectSidebar() {
-    const projects = useProjects() ?? NO_RECORDS;
+    const loadedProjects = useProjects();
+    const projects = loadedProjects ?? NO_RECORDS;
     const sessions = useSessions() ?? NO_RECORDS;
     const terminals = useTerminals();
     const isFullScreen = useIsFullScreen();
@@ -58,7 +59,7 @@ export function ProjectSidebar() {
     const projectOrder = useProjectOrder(projects);
     const projectCollapse = useProjectCollapse({
         autoCollapseSetting,
-        projects,
+        projects: loadedProjects,
         selectedSessionId,
         sessions,
     });
