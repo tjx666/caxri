@@ -73,6 +73,23 @@ export interface AgentProviderDescriptor {
         context: { agentSessionId: string; cwd: string },
         environment: AgentEnvironment,
     ): string;
+    /**
+     * Provider-owned parent of every per-Project transcript root.
+     */
+    transcriptBaseRoot?(environment: AgentEnvironment): string;
+    /**
+     * Owning directory for `transcriptPath`. Runtime canonicalizes this boundary independently before reading or
+     * watching the provider file.
+     */
+    transcriptRoot?(context: { cwd: string }, environment: AgentEnvironment): string;
+}
+
+/**
+ * Provider session IDs are opaque basenames, never path fragments. Keeping the rule provider-neutral protects every
+ * filesystem-backed capability that correlates a hook signal with local Agent state.
+ */
+export function isOpaqueAgentSessionId(value: string): boolean {
+    return /^[a-z\d][\w.-]{0,255}$/i.test(value) && value !== '.' && value !== '..';
 }
 
 export function processStateToAgentActivity(state?: ProcessState): AgentActivityState {

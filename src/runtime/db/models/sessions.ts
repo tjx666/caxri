@@ -436,12 +436,14 @@ export class SessionsModel {
      * Returns true when a row existed and was touched.
      */
     touchLastOpened(id: string, now = Date.now()): boolean {
+        /**
+         * MRU switches can land inside one millisecond. A strictly increasing durable value keeps their ordering from
+         * falling back to creation time or UUID order after the optimistic Renderer state settles.
+         */
+        const lastOpenedAt = sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.lastOpenedAt}) + 1 FROM ${sessions}), ${now}))`;
         return (
-            this.database
-                .update(sessions)
-                .set({ lastOpenedAt: now })
-                .where(eq(sessions.id, id))
-                .run().changes === 1
+            this.database.update(sessions).set({ lastOpenedAt }).where(eq(sessions.id, id)).run()
+                .changes === 1
         );
     }
 

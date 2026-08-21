@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     resolveSessionMruNavigation,
+    resolveSessionMruView,
     sessionMruCandidates,
     useSessionMruSwitcherStore,
 } from '../session-mru-switcher-state';
@@ -82,6 +83,41 @@ describe('Session MRU switcher state', () => {
             }),
         ).toBe('session-b');
         expect(useSessionMruSwitcherStore.getState().isOpen).toBe(false);
+    });
+
+    it('clamps the view selection and safely empties when candidates disappear during refresh', () => {
+        const available = session('session-b', 2);
+        expect(resolveSessionMruView(['removed', available.id], [available], 1)).toEqual({
+            candidates: [available],
+            selected: available,
+            selectedIndex: 0,
+        });
+        expect(resolveSessionMruView(['removed'], [], 0)).toEqual({
+            candidates: [],
+            selected: undefined,
+            selectedIndex: -1,
+        });
+    });
+
+    it('commits the candidate displayed after a selected Session disappears', () => {
+        const store = useSessionMruSwitcherStore.getState();
+        store.beginOrCycle(['session-a', 'session-b', 'session-c'], {
+            heldModifiers: ['Control', 'Alt'],
+            triggerCode: 'Tab',
+        });
+        store.cycle(1);
+
+        expect(store.commit(['session-a', 'session-c'])).toBe('session-c');
+    });
+
+    it('excludes archived candidates from the live switcher view', () => {
+        expect(
+            resolveSessionMruView(
+                ['session-a', 'session-b'],
+                [session('session-a', 1, { archivedAt: 2 }), session('session-b', 2)],
+                0,
+            ),
+        ).toMatchObject({ selected: { id: 'session-b' }, selectedIndex: 0 });
     });
 
     it('uses pending logical selection while the Runtime snapshot is stale', () => {

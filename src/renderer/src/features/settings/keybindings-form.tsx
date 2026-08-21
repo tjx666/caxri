@@ -232,6 +232,7 @@ export function KeybindingsForm({
                                 aria-describedby={conflictId}
                                 className="min-w-36"
                                 data-keybinding-command={row.command}
+                                data-keybinding-recording={isRecording || undefined}
                                 size="sm"
                                 variant={isRecording && recording.pending ? 'default' : 'secondary'}
                                 onBlur={() => handleRecordingBlur(row)}

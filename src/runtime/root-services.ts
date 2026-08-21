@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 
 import { errorMessage } from '../shared/ipc/errors';
-import { AgentTranscriptWatcher, resolveAgentTranscriptPath } from './agents';
+import { AgentTranscriptWatcher, resolveAgentTranscriptLocation } from './agents';
 import type { RuntimeDependencies } from './bootstrap-types';
 import { ConfigService } from './config';
 import { CaxriDatabase } from './db';
@@ -56,8 +56,8 @@ export async function createRootServices({
     const watchHub = new WatchHub({ logger });
     const transcripts = new AgentTranscriptWatcher({
         emit: send,
-        pathForTerminal: (terminalId) =>
-            resolveAgentTranscriptPath(database, terminalId, agentEnvironment),
+        locationForTerminal: (terminalId) =>
+            resolveAgentTranscriptLocation(database, terminalId, agentEnvironment),
         terminalIdsForSession: (sessionId) =>
             database.listTerminals(sessionId).map((terminal) => terminal.id),
         watchHub,

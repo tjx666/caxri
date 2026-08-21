@@ -32,6 +32,7 @@ import { createIntrospectionServices } from './introspection';
 import { assertInsideRoot } from './path-security';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
+import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
 import { createTerminalMoveHandler } from './terminal-move';
@@ -48,15 +49,12 @@ function mainOwned(method: RuntimeMethod): never {
 }
 
 /**
- * Composition root: constructs every Runtime service, wires the event flow between them, and returns the typed handler
- * table plus one disposal path. Nothing is constructed at module scope, so a test can create several isolated Runtimes
- * in one process.
+ * Owns Runtime service construction, event wiring, handler composition, and the single disposal path.
  */
 export async function createRuntime(dependencies: RuntimeDependencies): Promise<Runtime> {
     const { logger, send, userDataPath } = dependencies;
     const startedAt = dependencies.startedAt ?? Date.now();
     const pid = dependencies.pid ?? process.pid;
-
     const {
         acknowledgeFileMutation,
         configuration,
@@ -423,6 +421,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     });
     agentDispatchState.service = dispatchService;
     dispatchService.initialize();
+    const sessionSelections = new SessionSelectionQueue();
 
     let isClosed = false;
     async function close(): Promise<void> {
@@ -629,15 +628,19 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                 terminal: created.terminal ? database.getTerminal(created.terminal.id)! : null,
             };
         },
-        'session.select': async ({ sessionId }) => {
-            await workbenchRoots.validateSession(sessionId);
-            database.selectSession(sessionId);
-            watchSessionInBackground(sessionId);
-            restoreInterruptedTerminalsInBackground(sessionId);
-            coordinator.probeSessionPrimaryAgent(sessionId);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.select' } });
-            return database.getSession(sessionId)!;
-        },
+        'session.select': ({ sessionId }) =>
+            sessionSelections.run(async () => {
+                await workbenchRoots.validateSession(sessionId);
+                database.selectSession(sessionId);
+                watchSessionInBackground(sessionId);
+                restoreInterruptedTerminalsInBackground(sessionId);
+                coordinator.probeSessionPrimaryAgent(sessionId);
+                send({
+                    event: 'state.changed',
+                    payload: { kind: 'full', reason: 'session.select' },
+                });
+                return database.getSession(sessionId)!;
+            }),
         'session.markRead': ({ sessionId, attentionEpoch }) => {
             const result = database.markSessionAttentionRead(sessionId, attentionEpoch);
             if (result.acknowledged)

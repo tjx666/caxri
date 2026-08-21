@@ -36,7 +36,7 @@ export async function didSelectSession(sessionId: string): Promise<boolean> {
  * snapshot refresh completes. Runtime remains authoritative: the pending link disappears when its refreshed selected
  * Session arrives, and a failed request or any ordinary Session selection clears it.
  */
-export function selectMruSession(sessionId: string): void {
+function selectMruSession(sessionId: string): void {
     const bootstrap = getBootstrap();
     if (!bootstrap) return;
     const navigation = resolveSessionMruNavigation(
@@ -275,4 +275,14 @@ export function switchMruSession(invocation?: SessionMruShortcutInvocation): voi
         .beginOrCycle(navigation.candidateIds, invocation);
     // A command-palette invocation, or a binding with no held modifier, is a one-shot jump to the previous Session.
     if (immediateSessionId) selectMruSession(immediateSessionId);
+}
+
+export function commitMruSession(): void {
+    const state = useSessionMruSwitcherStore.getState();
+    const sessions = getBootstrap()?.sessions ?? [];
+    const availableCandidateIds = state.candidateIds.filter((id) =>
+        sessions.some((session) => session.id === id && session.archivedAt === undefined),
+    );
+    const sessionId = state.commit(availableCandidateIds);
+    if (sessionId) selectMruSession(sessionId);
 }
