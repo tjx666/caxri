@@ -36,7 +36,7 @@ async function readDocuments(sessionId: string, paths: readonly string[]): Promi
 
 /**
  * Caxri's explicit product policy: a newer disk state replaces the open buffer without prompting, even when that buffer
- * is dirty. The reload is announced instead of negotiated.
+ * is dirty. Routine Agent writes to clean buffers stay silent; only discarded unsaved work is announced.
  */
 function applyExternalDocuments(
     sessionId: string,
@@ -50,6 +50,11 @@ function applyExternalDocuments(
         selected.workbenchProjectId !== workbenchProjectId
     )
         return;
+    const cached = getSessionDocuments(sessionId, workbenchProjectId) ?? {};
+    const discardedDirtyDocuments = reloaded.flatMap((document) => {
+        const previous = readCachedDocument(cached, document.path);
+        return previous?.dirty ? [previous] : [];
+    });
     useSessionViewStore
         .getState()
         .cacheDocuments(sessionId, reloaded.map(replaceWithExternalDocument), workbenchProjectId);
@@ -63,6 +68,7 @@ function applyExternalDocuments(
             'External editor state could not be saved',
         );
     }
+    if (discardedDirtyDocuments.length === 0) return;
     /**
      * A 4-second auto-dismiss would let this notice vanish while the user is away from the window, silently taking the
      * only record of a discarded dirty buffer with it. This event already cost the user unsaved work, so it stays until
@@ -70,9 +76,9 @@ function applyExternalDocuments(
      */
     pushToast(
         'info',
-        reloaded.length === 1
-            ? `${pathBasename(reloaded[0].path)} reloaded from disk; external changes take precedence.`
-            : `${reloaded.length} open files reloaded from disk; external changes take precedence.`,
+        discardedDirtyDocuments.length === 1
+            ? `${pathBasename(discardedDirtyDocuments[0].path)} reloaded from disk; external changes take precedence.`
+            : `${discardedDirtyDocuments.length} open files reloaded from disk; external changes take precedence.`,
         { persist: true },
     );
 }
