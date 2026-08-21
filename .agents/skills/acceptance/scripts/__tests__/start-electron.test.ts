@@ -37,6 +37,7 @@ function staleRuntimeDependencies(
     overrides: Partial<StaleRuntimeDependencies> = {},
 ): StaleRuntimeDependencies {
     return {
+        canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
         discoverOwnedProcesses: vi.fn().mockResolvedValue([]),
         isOwnedProcess: vi.fn().mockResolvedValue(false),
         isOwnedRuntime: vi.fn().mockResolvedValue(false),
@@ -73,6 +74,41 @@ function childProcess(fake = new FakeChild()): ChildProcess {
 }
 
 describe('Acceptance Electron launcher seams', () => {
+    it('carries verified Host and Runtime identities into the next matching restart launch', async () => {
+        const restartRuntime = {
+            ...runtime,
+            acceptanceCase: { id: 'start-case', mode: 'restart' as const },
+        };
+        const stale = staleRuntimeDependencies({
+            discoverOwnedProcesses: vi.fn().mockResolvedValue(restartRuntime.ownedProcesses),
+            isOwnedProcess: vi.fn().mockResolvedValue(true),
+            readRuntime: vi.fn().mockResolvedValue(JSON.stringify(restartRuntime)),
+        });
+
+        await expect(
+            removeStaleRuntime(stale, {
+                caseId: 'start-case',
+                userDataDir: restartRuntime.userDataDir,
+            }),
+        ).resolves.toEqual(restartRuntime.ownedProcesses);
+        expect(stale.unlinkRuntime).not.toHaveBeenCalled();
+        expect(stale.removeOwnedUserData).not.toHaveBeenCalled();
+    });
+
+    it('preserves state whose detached ownership was never verified', async () => {
+        const stale = staleRuntimeDependencies({
+            readRuntime: vi
+                .fn()
+                .mockResolvedValue(JSON.stringify({ ...runtime, ownedProcesses: [] })),
+        });
+
+        await expect(removeStaleRuntime(stale)).rejects.toThrow(
+            'Acceptance process ownership was never verified',
+        );
+        expect(stale.unlinkRuntime).not.toHaveBeenCalled();
+        expect(stale.removeOwnedUserData).not.toHaveBeenCalled();
+    });
+
     it('preserves stale runtime state while a persisted detached process is still live', async () => {
         const stale = staleRuntimeDependencies({
             isOwnedProcess: vi.fn(({ pid }: { pid: number }) => Promise.resolve(pid === 444)),

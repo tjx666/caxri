@@ -1,6 +1,6 @@
-import { mkdtemp, realpath, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, isAbsolute, join, relative, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import process from 'node:process';
 
 import { z } from 'zod';
@@ -41,6 +41,16 @@ export const runtimeStateSchema = z.object({
 
 export type RuntimeState = z.infer<typeof runtimeStateSchema>;
 export type OwnedProcess = z.infer<typeof ownedProcessSchema>;
+
+/**
+ * Persists exact process receipts atomically so an interrupted cleanup never leaves partial ownership state.
+ */
+export async function writeRuntimeState(path: string, state: RuntimeState): Promise<void> {
+    await mkdir(dirname(path), { recursive: true });
+    const temporary = `${path}.${process.pid}.tmp`;
+    await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+    await rename(temporary, path);
+}
 
 export interface ProcessDiscoveryDependencies {
     canonicalPath: (path: string) => Promise<string>;

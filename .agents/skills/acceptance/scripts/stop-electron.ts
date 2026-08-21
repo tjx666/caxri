@@ -12,6 +12,7 @@ import {
     isOwnedRuntime,
     removeOwnedUserData,
     runtimeStateSchema,
+    writeRuntimeState,
 } from './runtime-state';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -33,6 +34,7 @@ export interface StopElectronDependencies {
     runtimePath: string;
     sleep: (milliseconds: number) => Promise<void>;
     unlinkRuntime: () => Promise<void>;
+    writeRuntime: (runtime: RuntimeState) => Promise<void>;
 }
 
 const defaultDependencies: StopElectronDependencies = {
@@ -59,6 +61,7 @@ const defaultDependencies: StopElectronDependencies = {
     runtimePath: RUNTIME_PATH,
     sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     unlinkRuntime: () => unlink(RUNTIME_PATH),
+    writeRuntime: (runtime) => writeRuntimeState(RUNTIME_PATH, runtime),
 };
 
 async function removeRuntimeFile(dependencies: StopElectronDependencies): Promise<void> {
@@ -109,6 +112,7 @@ export async function stopElectron(
         );
     }
 
+    const hasPersistedProcessOwnership = runtime.ownedProcesses.length > 0;
     const capturedProcesses = new Map<
         string,
         Awaited<ReturnType<typeof dependencies.discoverOwnedProcesses>>[number]
@@ -134,23 +138,26 @@ export async function stopElectron(
             }
             acceptedHostKeys.add(discoveredHostKey);
         }
+        let isRuntimeChanged = false;
         for (const ownedProcess of discoveredProcesses) {
-            capturedProcesses.set(processKey(ownedProcess), ownedProcess);
+            const key = processKey(ownedProcess);
+            if (!capturedProcesses.has(key)) {
+                capturedProcesses.set(key, ownedProcess);
+                runtime.ownedProcesses.push(ownedProcess);
+                isRuntimeChanged = true;
+            }
         }
+        /**
+         * Persist every exact Runtime generation before signaling so a later orphan remains recoverable.
+         */
+        if (isRuntimeChanged) await dependencies.writeRuntime(runtime);
     };
     await captureCurrentProcesses();
 
-    const desktopOwned = await dependencies.isOwnedRuntime(runtime);
-    const cdpReachable = await dependencies.isCdpReachable(runtime.cdpUrl);
-    if (!desktopOwned && !cdpReachable && capturedProcesses.size === 0) {
-        await removeRuntimeFile(dependencies);
-        await dependencies.removeOwnedUserData(runtime);
-        dependencies.log('Removed stale Caxri acceptance runtime state');
-        return;
-    }
-
-    if (!desktopOwned && capturedProcesses.size === 0) {
-        throw new Error('Acceptance CDP is reachable without a matching owned process identity');
+    if (!hasPersistedProcessOwnership && capturedProcesses.size === 0) {
+        throw new Error(
+            'Acceptance process ownership was never verified; runtime state and profile were preserved',
+        );
     }
 
     const signaledProcesses = new Set<string>();

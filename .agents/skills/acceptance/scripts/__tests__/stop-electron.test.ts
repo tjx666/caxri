@@ -37,6 +37,7 @@ function dependencies(overrides: Partial<StopElectronDependencies> = {}): StopEl
         runtimePath: '/repo/.records/acceptance/runtime.json',
         sleep: vi.fn().mockResolvedValue(undefined),
         unlinkRuntime: vi.fn().mockResolvedValue(undefined),
+        writeRuntime: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
 }
@@ -58,12 +59,33 @@ describe('Acceptance Electron stopper', () => {
     });
 
     it('removes stale state and its explicitly owned profile without signaling a process', async () => {
-        const stale = dependencies();
+        const stale = dependencies({
+            isOwnedProcess: vi.fn().mockResolvedValue(false),
+            readRuntime: vi.fn().mockResolvedValue(
+                JSON.stringify({
+                    ...runtime,
+                    ownedProcesses: [{ identity: 'dead host', pid: 333, role: 'host' }],
+                }),
+            ),
+        });
         await expect(stopElectron(stale)).resolves.toBeUndefined();
         expect(stale.kill).not.toHaveBeenCalled();
         expect(stale.unlinkRuntime).toHaveBeenCalledOnce();
-        expect(stale.removeOwnedUserData).toHaveBeenCalledWith(runtime);
-        expect(stale.log).toHaveBeenCalledWith('Removed stale Caxri acceptance runtime state');
+        expect(stale.removeOwnedUserData).toHaveBeenCalledOnce();
+        expect(stale.log).toHaveBeenCalledWith('Stopped owned Caxri acceptance instance');
+    });
+
+    it('preserves state and profile when process ownership was never verified', async () => {
+        const pending = dependencies({
+            isOwnedLauncher: vi.fn().mockResolvedValue(false),
+        });
+
+        await expect(stopElectron(pending)).rejects.toThrow(
+            'Acceptance process ownership was never verified',
+        );
+        expect(pending.kill).not.toHaveBeenCalled();
+        expect(pending.unlinkRuntime).not.toHaveBeenCalled();
+        expect(pending.removeOwnedUserData).not.toHaveBeenCalled();
     });
 
     it('signals the live launcher and cleans up only after ownership disappears', async () => {
@@ -72,12 +94,21 @@ describe('Acceptance Electron stopper', () => {
             .mockResolvedValueOnce(true)
             .mockResolvedValueOnce(false)
             .mockResolvedValueOnce(false);
-        const live = dependencies({ isOwnedRuntime });
+        const live = dependencies({
+            isOwnedProcess: vi.fn(({ pid }: { pid: number }) => Promise.resolve(pid !== 333)),
+            isOwnedRuntime,
+            readRuntime: vi.fn().mockResolvedValue(
+                JSON.stringify({
+                    ...runtime,
+                    ownedProcesses: [{ identity: 'dead host', pid: 333, role: 'host' }],
+                }),
+            ),
+        });
 
         await expect(stopElectron(live)).resolves.toBeUndefined();
         expect(live.kill).toHaveBeenCalledWith(111, 'SIGTERM');
         expect(live.unlinkRuntime).toHaveBeenCalledOnce();
-        expect(live.removeOwnedUserData).toHaveBeenCalledWith(runtime);
+        expect(live.removeOwnedUserData).toHaveBeenCalledOnce();
         expect(live.log).toHaveBeenCalledWith('Stopped owned Caxri acceptance instance');
     });
 
@@ -89,7 +120,14 @@ describe('Acceptance Electron stopper', () => {
             .mockResolvedValueOnce(false);
         const live = dependencies({
             isOwnedLauncher: vi.fn().mockResolvedValue(false),
+            isOwnedProcess: vi.fn(({ pid }: { pid: number }) => Promise.resolve(pid !== 333)),
             isOwnedRuntime,
+            readRuntime: vi.fn().mockResolvedValue(
+                JSON.stringify({
+                    ...runtime,
+                    ownedProcesses: [{ identity: 'dead host', pid: 333, role: 'host' }],
+                }),
+            ),
         });
 
         await stopElectron(live);
@@ -180,11 +218,50 @@ describe('Acceptance Electron stopper', () => {
         expect(replacement.removeOwnedUserData).not.toHaveBeenCalled();
     });
 
+    it('persists a newly discovered Runtime identity before signaling it', async () => {
+        const recordedProcesses = [
+            { identity: 'host identity', pid: 333, role: 'host' },
+            { identity: 'old runtime identity', pid: 444, role: 'runtime' },
+        ] as const;
+        const discoveredProcesses = [
+            recordedProcesses[0],
+            { identity: 'new runtime identity', pid: 555, role: 'runtime' },
+        ] as const;
+        const liveProcessIds = new Set([333, 555]);
+        const replacement = dependencies({
+            discoverOwnedProcesses: vi.fn().mockResolvedValue(discoveredProcesses),
+            isOwnedLauncher: vi.fn().mockResolvedValue(false),
+            isOwnedProcess: vi.fn(({ pid }: { pid: number }) =>
+                Promise.resolve(liveProcessIds.has(pid)),
+            ),
+            isOwnedRuntime: vi.fn().mockResolvedValue(false),
+            kill: vi.fn((pid: number) => liveProcessIds.delete(pid)),
+            readRuntime: vi
+                .fn()
+                .mockResolvedValue(
+                    JSON.stringify({ ...runtime, ownedProcesses: recordedProcesses }),
+                ),
+        });
+
+        await stopElectron(replacement);
+
+        const persistedRuntime = vi.mocked(replacement.writeRuntime).mock.calls[0][0];
+        expect(persistedRuntime.ownedProcesses).toContainEqual(discoveredProcesses[1]);
+        expect(replacement.kill).toHaveBeenCalledWith(555, 'SIGTERM');
+    });
+
     it('fails closed on timeout and retains runtime state and user data', async () => {
         const timestamps = [0, 0, 10_000];
         const live = dependencies({
+            isOwnedProcess: vi.fn().mockResolvedValue(true),
             isOwnedRuntime: vi.fn().mockResolvedValue(true),
             now: () => timestamps.shift() ?? 10_000,
+            readRuntime: vi.fn().mockResolvedValue(
+                JSON.stringify({
+                    ...runtime,
+                    ownedProcesses: [{ identity: 'live host', pid: 333, role: 'host' }],
+                }),
+            ),
         });
 
         await expect(stopElectron(live)).rejects.toThrow(
