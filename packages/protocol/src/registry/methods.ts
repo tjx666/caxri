@@ -31,6 +31,7 @@ import {
     identifierSchema,
     keybindingConflictSchema,
     keybindingSchema,
+    MAX_TERMINAL_INPUT_LENGTH,
     movedFileEntrySchema,
     mutableFileEntrySchema,
     pathSchema,
@@ -358,7 +359,10 @@ export const methods = {
     },
     'terminal.input': {
         ...terminalStreamControl,
-        params: z.object({ terminalId: identifierSchema, data: z.string().max(65_536) }),
+        params: z.object({
+            terminalId: identifierSchema,
+            data: z.string().max(MAX_TERMINAL_INPUT_LENGTH),
+        }),
         result: z.null(),
     },
     'terminal.resize': {

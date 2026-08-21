@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { getRegisteredCommand } from '../../commands/registry';
 import { ShortcutBadge } from '../../components/shortcut-badge';
-import { isEditableEventTarget } from '../../lib/keybindings';
+import { isEditableEventTarget, isTerminalEventTarget } from '../../lib/keybindings';
 import { useWorkbenchStore } from '../../stores/workbench';
 import type { ScreencastKeyDescription } from './screencast';
 import { describeScreencastKey, useScreencastStore } from './screencast';
@@ -44,6 +44,7 @@ function ActiveScreencastOverlay() {
                 commandAllowsEditable: (commandId) =>
                     getRegisteredCommand(commandId)?.allowInEditable === true,
                 editable: isEditableEventTarget(event.target),
+                terminalFocus: isTerminalEventTarget(event.target),
             });
             if (!description) return;
             setKeyOverlay({ ...description, id: ++nextId.current });

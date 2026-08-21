@@ -135,6 +135,40 @@ test('Codex Terminal maps multiline, line-boundary, and image-paste shortcuts', 
         await expect(rows).toContainText('FAKE_CODEX_READY');
         await input.focus();
 
+        const keybindings = await pageRequest<{
+            value: Array<{
+                args?: Record<string, unknown>;
+                command: string;
+                key: string;
+                when?: 'terminalFocus';
+            }>;
+        }>(running.page, 'keybindings.get');
+        await pageRequest(running.page, 'keybindings.update', {
+            source: JSON.stringify(
+                [
+                    ...keybindings.value,
+                    {
+                        args: { text: '\u{1B}[1;3B' },
+                        command: 'workbench.action.terminal.sendSequence',
+                        key: 'cmd+enter',
+                        when: 'terminalFocus',
+                    },
+                ],
+                null,
+                2,
+            ),
+        });
+        await running.page.keyboard.press('Meta+,');
+        const keybindingsDialog = running.page.getByRole('dialog');
+        await keybindingsDialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await keybindingsDialog.getByLabel('Search keyboard shortcuts').fill('send sequence');
+        await expect(keybindingsDialog.locator('[data-shortcut="cmd+enter"]')).toBeVisible();
+        await running.page.keyboard.press('Escape');
+        await input.focus();
+
+        await input.press('Meta+Enter');
+        await expect(rows).toContainText('INPUT_HEX:1b5b313b3342');
+
         await input.press('Shift+Enter');
         await expect(rows).toContainText('INPUT_HEX:1b0d');
         await input.press('Meta+ArrowLeft');
