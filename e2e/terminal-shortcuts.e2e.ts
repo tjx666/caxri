@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { readSystemClipboardText } from './support/clipboard.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -28,6 +29,26 @@ async function typeInTerminal(page: Page, terminalId: string, command: string): 
 async function terminalIds(page: Page): Promise<string[]> {
     const state = await pageRequest<{ terminals: Array<{ id: string }> }>(page, 'app.bootstrap');
     return state.terminals.map((terminal) => terminal.id);
+}
+
+async function removeQuitTestDirectory(path: string): Promise<void> {
+    await expect
+        .poll(async () => {
+            try {
+                await rm(path, { recursive: true, force: true });
+                return true;
+            } catch (error) {
+                if (
+                    typeof error === 'object' &&
+                    error !== null &&
+                    'code' in error &&
+                    Reflect.get(error, 'code') === 'ENOTEMPTY'
+                )
+                    return false;
+                throw error;
+            }
+        })
+        .toBe(true);
 }
 
 test('Command+K/T/W affect only the active Terminal and pause behind modals', async () => {
@@ -107,11 +128,12 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
     }
 });
 
-test('Codex Terminal maps multiline, line-boundary, and image-paste shortcuts', async () => {
+test('Codex Terminal maps input shortcuts and restores the clipboard on quit', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-input-shortcuts-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const capture = join(testDirectory, 'agent-input.hex');
+    const originalClipboardText = await readSystemClipboardText();
     await Promise.all([mkdir(root), writeFile(capture, '')]);
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
@@ -128,6 +150,7 @@ test('Codex Terminal maps multiline, line-boundary, and image-paste shortcuts', 
         userDataDir: userData,
         testRootPath: root,
     });
+    let isClosed = false;
     try {
         await createProjectSession(running.page, 'codex');
         const input = running.page.locator('.xterm-helper-textarea');
@@ -194,12 +217,28 @@ test('Codex Terminal maps multiline, line-boundary, and image-paste shortcuts', 
         await running.app.evaluate(({ clipboard }) => clipboard.writeText('TEXT_PASTE'));
         await input.press('Meta+V');
         await expect(rows).toContainText('INPUT_HEX:544558545f5041535445');
-    } finally {
+
+        const closed = running.app.waitForEvent('close');
         try {
-            await running.app.close();
+            /**
+             * Bypass the wrapped Playwright close path to prove Main's `before-quit` guardian restores the clipboard.
+             */
+            await running.app.evaluate(({ app }) => app.quit());
         } catch {
-            // Ignore close failures during cleanup.
+            // The evaluation transport may close before returning because quitting is the operation under test.
         }
-        await rm(testDirectory, { recursive: true, force: true });
+        await closed;
+        await running.app.close();
+        isClosed = true;
+        expect(await readSystemClipboardText()).toBe(originalClipboardText);
+    } finally {
+        if (!isClosed) {
+            try {
+                await running.app.close();
+            } catch {
+                // Ignore close failures during cleanup.
+            }
+        }
+        await removeQuitTestDirectory(testDirectory);
     }
 });

@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     CODEX_IMAGE_PASTE_INPUT,
     isClipboardContainingImage,
     terminalKeyboardInput,
+    writeTerminalSelectionToCopyEvent,
 } from '../terminal-keyboard';
 
 function keyEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
@@ -74,5 +75,30 @@ describe('isClipboardContainingImage', () => {
             }),
         ).toBe(false);
         expect(CODEX_IMAGE_PASTE_INPUT).toBe('\u{16}');
+    });
+});
+
+describe('writeTerminalSelectionToCopyEvent', () => {
+    it('writes the live xterm selection into a native copy event', () => {
+        const setData = vi.fn();
+        const preventDefault = vi.fn();
+
+        writeTerminalSelectionToCopyEvent(
+            { clipboardData: { setData }, preventDefault },
+            'PANE_TWO',
+        );
+        expect(preventDefault).toHaveBeenCalledOnce();
+        expect(setData).toHaveBeenCalledWith('text/plain', 'PANE_TWO');
+    });
+
+    it('leaves copy unchanged without a selection or writable clipboard data', () => {
+        const preventDefault = vi.fn();
+
+        writeTerminalSelectionToCopyEvent(
+            { clipboardData: { setData: vi.fn() }, preventDefault },
+            '',
+        );
+        writeTerminalSelectionToCopyEvent({ clipboardData: null, preventDefault }, 'text');
+        expect(preventDefault).not.toHaveBeenCalled();
     });
 });

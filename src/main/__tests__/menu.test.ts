@@ -77,6 +77,22 @@ describe('application menu', () => {
         expect(item?.accelerator).toBeUndefined();
     });
 
+    it('leaves contextual Terminal copy to the focused Renderer surface', () => {
+        const dispatchCommand = vi.fn();
+        const template = buildAppMenuTemplate({
+            keybindings: [{ command: 'terminal.copy', key: 'cmd+c' }],
+            dispatchCommand,
+            openProcessExplorer: vi.fn(),
+        });
+        const item = submenu(template, 'Terminal').find(
+            (candidate) => candidate.id === 'command.terminal.copy',
+        );
+
+        expect(item?.accelerator).toBeUndefined();
+        item?.click?.({} as MenuItem, undefined, { triggeredByAccelerator: false });
+        expect(dispatchCommand).toHaveBeenCalledWith('terminal.copy', false);
+    });
+
     it('keeps Process Explorer opening in Main for its diagnostic window', () => {
         const dispatchCommand = vi.fn();
         const openProcessExplorer = vi.fn();

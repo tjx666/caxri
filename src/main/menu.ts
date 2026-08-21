@@ -65,7 +65,16 @@ export function buildAppMenuTemplate({
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
         id: `command.${definition.id}`,
         label: definition.title,
-        accelerator: commandAccelerator(keybindings, definition.id),
+        /**
+         * Native Edit > Copy owns `Cmd+C` so Monaco and inputs keep standard copy semantics. Giving the contextual
+         * Terminal command the same native accelerator makes Electron dispatch it before the focused Renderer surface
+         * can decline it; xterm handles the standard copy event instead. Other command-backed menu items retain the
+         * shared contextual-chord precedence enforced by `commandAccelerator`.
+         */
+        accelerator:
+            definition.id === 'terminal.copy'
+                ? undefined
+                : commandAccelerator(keybindings, definition.id),
         /**
          * `event.triggeredByAccelerator` tells the Renderer whether this click came from the menu's keyboard
          * accelerator (which must honour the editable-focus shortcut policy, DESIGN.md:121-123, the same way
