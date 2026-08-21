@@ -20,14 +20,24 @@ export function Tooltip({
     children,
     content,
     shortcut,
+    triggerId,
 }: {
     children: ReactElement;
     content: ReactNode;
     shortcut?: string;
+    /**
+     * Required when the trigger element needs an `id` of its own (a WAI-ARIA `role="tab"`, for example).
+     *
+     * Base UI writes its generated trigger id onto the rendered element, but merges the element's own props last, so a
+     * plain `id` on the child silently wins — and the tooltip store is then keyed to an id no element carries, leaving
+     * the tooltip permanently closed. Passing the id here makes the store and the DOM agree; the child must not also
+     * set one.
+     */
+    triggerId?: string;
 }) {
     return (
         <TooltipPrimitive.Root>
-            <TooltipPrimitive.Trigger render={children} />
+            <TooltipPrimitive.Trigger id={triggerId} render={children} />
             <TooltipPrimitive.Portal>
                 <TooltipPrimitive.Positioner className="z-[90]" side="bottom" sideOffset={6}>
                     <TooltipPrimitive.Popup

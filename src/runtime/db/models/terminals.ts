@@ -202,6 +202,21 @@ export class TerminalsModel {
     }
 
     /**
+     * Records the live title a Terminal's own PTY reported through OSC 0/2. Returns `false` when the row is gone or
+     * already carries this title, which is the caller's signal to skip the Renderer broadcast — Shells re-report an
+     * unchanged title on every prompt.
+     */
+    setTitle(id: string, title: string, now = Date.now()): boolean {
+        return (
+            this.database
+                .update(terminals)
+                .set({ title, updatedAt: now })
+                .where(and(eq(terminals.id, id), sql`${terminals.title} != ${title}`))
+                .run().changes === 1
+        );
+    }
+
+    /**
      * Moves a Terminal row to a different Session, resetting `order_index` to `0` since the destination is always a
      * brand-new Session in the only current caller (`CaxriDatabase.moveTerminalToNewSession`).
      */

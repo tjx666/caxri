@@ -12,6 +12,7 @@ import { pathBasename } from '@caxri/utils';
 import { agentTranscriptTabLabel, parseAgentTranscriptTab } from '@shared/agent-transcript';
 import { findPathGroupId, sessionEditorLayout } from '@shared/editor-layout';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
+import { terminalTabLabel } from '@shared/terminal-title';
 import type { TerminalRecord } from '@shared/types';
 import type { WorkItem } from '@shared/work-item';
 import { areWorkItemsEqual, workItemKey } from '@shared/work-item';
@@ -48,6 +49,10 @@ import { encodeEditorDragPayload } from '../editor/editor-drop-zone';
 import { EDITOR_DRAG_TYPE, splitEditorTabTo } from '../editor/editor-layout-actions';
 import { moveTerminalToNewSession } from '../session/session-actions';
 import {
+    sessionActivityPresentation,
+    sessionToneBackgroundClassName,
+} from '../sidebar/session-activity';
+import {
     activateTerminal,
     closeTerminal,
     createTerminal,
@@ -64,6 +69,26 @@ import { pruneEditorTabMotionStates, reconcileEditorTabMotion } from './editor-t
 import { WorkTab } from './work-tab';
 import type { WorkTabNavigationKey } from './work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from './work-tab-accessibility';
+
+/**
+ * Agent activity for the Terminal that owns the selected Session's title, or `undefined` for a Shell and for a
+ * secondary Agent Terminal whose activity the Session read model does not track.
+ *
+ * Process state answers "is the PTY alive"; this answers "is the Agent waiting for me", which is the only Terminal
+ * state worth switching tabs for. Reuses the Sidebar's tone table so one Session never wears two different colors for
+ * the same state in two places.
+ */
+function useAgentTabActivity(
+    terminalId: string,
+): { className: string; description: string } | undefined {
+    const session = useSelectedSession();
+    if (session?.primaryAgentTerminalId !== terminalId) return undefined;
+    const activity = sessionActivityPresentation(session.lastActivityState);
+    return {
+        className: sessionToneBackgroundClassName(activity.tone),
+        description: activity.ariaLabel,
+    };
+}
 
 function TerminalWorkTab({
     active,
@@ -84,6 +109,7 @@ function TerminalWorkTab({
     const isCompacting = terminal.agentOperation === 'compacting';
     const ProgressIcon =
         progress?.kind === 'error' ? CircleAlert : progress?.kind === 'paused' ? Pause : undefined;
+    const activity = useAgentTabActivity(terminal.id);
     return (
         <WorkTab
             active={active}
@@ -127,9 +153,12 @@ function TerminalWorkTab({
                 ) : undefined
             }
             closeLabel="Close Terminal"
+            fill
             icon={terminal.kind}
-            label={terminal.title}
+            label={terminalTabLabel(terminal.title)}
+            labelTooltip={terminal.title}
             status={terminal.lastProcessState}
+            statusActivity={activity}
             tabId={tabId}
             terminalId={terminal.id}
             onClose={() => closeTerminal(terminal.id)}
@@ -406,61 +435,70 @@ export function WorkTabStrip() {
     );
     return (
         <div
-            ref={stripReference}
             className={cn(
-                'work-tabs flex h-11 overflow-x-auto bg-surface [-webkit-app-region:drag]',
+                'work-tabs flex h-11 bg-surface [-webkit-app-region:drag]',
                 !isSidebarVisible && 'pl-[78px]',
             )}
         >
             <div
-                className="work-tab-list flex h-11 flex-none items-stretch"
-                role="tablist"
-                aria-label="Open work"
-                aria-orientation="horizontal"
+                ref={stripReference}
+                className="work-tab-scroll flex min-w-0 flex-1 overflow-x-auto"
             >
-                <LazyMotion strict features={domAnimation}>
-                    {/* Keying this Fragment by Session remounts the whole subtree on Session switch:
+                <div
+                    /**
+                     * `min-w-full` (not `w-full`) lets evenly divided Terminal tabs claim the whole rail while still
+                     * allowing the list to grow past it once enough tabs hit their minimum width, which is what hands
+                     * overflow back to the scroll container above.
+                     */
+                    className="work-tab-list flex h-11 min-w-full items-stretch"
+                    role="tablist"
+                    aria-label="Open work"
+                    aria-orientation="horizontal"
+                >
+                    <LazyMotion strict features={domAnimation}>
+                        {/* Keying this Fragment by Session remounts the whole subtree on Session switch:
                         the fresh mount renders without enter keyframes (AnimatePresence's
                         `initial={false}` only suppresses animation on first render of a subtree), and
                         the previous subtree unmounts without exit keyframes. This replaces the old
                         sessionIdRef-based "skip animation once" logic. */}
-                    <Fragment key={selectedSessionId}>
-                        <AnimatePresence initial={false}>
-                            {items.map((item) =>
-                                item.kind === 'terminal' ? (
-                                    <TerminalWorkTab
-                                        key={item.motionKey}
-                                        active={isActive(activeWork, item.item)}
-                                        isOnlyWorkTab={items.length === 1}
-                                        onNavigate={(key) => navigateWorkTabs(item.item, key)}
-                                        onSelect={() => selectWorkItem(item.item)}
-                                        tabId={
-                                            selectedSessionId
-                                                ? workTabId(selectedSessionId, item.item)
-                                                : ''
-                                        }
-                                        terminal={item.terminal}
-                                    />
-                                ) : (
-                                    <EditorWorkTab
-                                        key={item.motionKey}
-                                        active={isActive(activeWork, item.item)}
-                                        motionIdentity={item.motionKey}
-                                        onNavigate={(key) => navigateWorkTabs(item.item, key)}
-                                        onSelect={() => selectWorkItem(item.item)}
-                                        path={item.path}
-                                        preview={item.preview}
-                                        tabId={
-                                            selectedSessionId
-                                                ? workTabId(selectedSessionId, item.item)
-                                                : ''
-                                        }
-                                    />
-                                ),
-                            )}
-                        </AnimatePresence>
-                    </Fragment>
-                </LazyMotion>
+                        <Fragment key={selectedSessionId}>
+                            <AnimatePresence initial={false}>
+                                {items.map((item) =>
+                                    item.kind === 'terminal' ? (
+                                        <TerminalWorkTab
+                                            key={item.motionKey}
+                                            active={isActive(activeWork, item.item)}
+                                            isOnlyWorkTab={items.length === 1}
+                                            onNavigate={(key) => navigateWorkTabs(item.item, key)}
+                                            onSelect={() => selectWorkItem(item.item)}
+                                            tabId={
+                                                selectedSessionId
+                                                    ? workTabId(selectedSessionId, item.item)
+                                                    : ''
+                                            }
+                                            terminal={item.terminal}
+                                        />
+                                    ) : (
+                                        <EditorWorkTab
+                                            key={item.motionKey}
+                                            active={isActive(activeWork, item.item)}
+                                            motionIdentity={item.motionKey}
+                                            onNavigate={(key) => navigateWorkTabs(item.item, key)}
+                                            onSelect={() => selectWorkItem(item.item)}
+                                            path={item.path}
+                                            preview={item.preview}
+                                            tabId={
+                                                selectedSessionId
+                                                    ? workTabId(selectedSessionId, item.item)
+                                                    : ''
+                                            }
+                                        />
+                                    ),
+                                )}
+                            </AnimatePresence>
+                        </Fragment>
+                    </LazyMotion>
+                </div>
             </div>
             <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
                 <CommandTooltip commandId="terminal.new">
@@ -477,6 +515,10 @@ export function WorkTabStrip() {
                     </Button>
                 </CommandTooltip>
             </div>
+            {/* Evenly divided Terminal tabs would otherwise reach the window's right edge and leave this frameless
+                window with no draggable chrome at all. This reserved gap inherits the strip's drag region and is the
+                only remaining way to move the window by its title area. */}
+            <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-18 flex-none" />
         </div>
     );
 }

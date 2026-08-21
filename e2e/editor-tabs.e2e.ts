@@ -226,9 +226,11 @@ test('editor previews pin and expose the standard close actions', async () => {
         await dTab.getByRole('tab').dblclick();
         await expect(dTab).not.toHaveAttribute('data-preview');
 
+        // The quiet scrollbar belongs to the inner rail that actually overflows, not to the outer strip
+        // row that also holds New Terminal and the window drag gap.
         expect(
             await running.page
-                .locator('.work-tabs')
+                .locator('.work-tab-scroll')
                 .evaluate((element) => getComputedStyle(element, '::-webkit-scrollbar').height),
         ).toBe('3px');
 
