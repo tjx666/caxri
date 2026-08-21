@@ -47,8 +47,11 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   frozen plan, and maintains the case's `assets/<case-id>-state-isolation.json` receipt. Include
   that receipt in `cases[].evidence`; finalization verifies exact profile reuse and cleanup.
 
-- **Stop:** `bun run .agents/skills/acceptance/scripts/stop-electron.ts`. Stop only the
-  process recorded in the runtime file.
+- **Stop:** `bun run .agents/skills/acceptance/scripts/stop-electron.ts`. The adapter stops only the
+  immutable launcher/window identities recorded in the runtime file plus the Host that owns that
+  profile's kernel lock and its exact worktree Runtime child. It rechecks every identity before
+  signaling, preserves state on a mismatch or timeout, and does not return success until CDP and all
+  captured owned processes are gone.
 - **Already-running detection:** the adapter compares the recorded launcher PID
   and immutable process identity. It refuses to replace a verified live owner
   and treats a recycled PID as stale state.
