@@ -1,8 +1,11 @@
 import { join } from 'node:path';
 
 import { errorMessage } from '../shared/ipc/errors';
-import { resolveAgentTranscriptLocation } from './agents/transcript';
-import { AgentTranscriptWatcher } from './agents/transcript-watcher';
+/**
+ * Runtime domain boundaries require cross-domain dependencies to enter through the owning domain root.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
+import { AgentTranscriptWatcher, resolveAgentTranscriptLocation } from './agents';
 import type { RuntimeDependencies } from './bootstrap-types';
 import { ConfigService } from './config';
 import { CaxriDatabase } from './db';
