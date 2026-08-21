@@ -1,0 +1,85 @@
+import { access, mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import type { Locator } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
+import { createProjectSession, launchCaxri } from './support/helpers.ts';
+
+function quoteShellPath(path: string): string {
+    return `'${path.replaceAll("'", String.raw`'\''`)}'`;
+}
+
+async function dragEntryToTerminal(source: Locator, terminal: Locator): Promise<void> {
+    await expect(source).toBeAttached();
+    await source.dragTo(terminal);
+}
+
+async function expectMissing(path: string): Promise<void> {
+    await expect(access(path)).rejects.toThrow();
+}
+
+test('Files entries dragged to Terminal insert shell-safe paths without opening an Editor', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-terminal-drag-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const rootInput = join(testDirectory, 'project');
+    await mkdir(rootInput);
+    const root = await realpath(rootInput);
+    const fileName = "file with 'quote'.txt";
+    const folderName = 'folder with spaces';
+    const filePath = join(root, fileName);
+    const folderPath = join(root, folderName);
+    await Promise.all([writeFile(filePath, 'fixture\n', 'utf8'), mkdir(folderPath)]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const fileList = running.page.locator('.file-list').first();
+        const terminalSurface = running.page.locator('.terminal-surface');
+        const terminalInput = running.page.locator('.xterm-helper-textarea');
+
+        const fileResult = join(root, '.file-drop-result');
+        await terminalInput.click();
+        await running.page.keyboard.type("printf '%s' ");
+        await dragEntryToTerminal(
+            fileList.getByRole('treeitem', { name: fileName, exact: true }),
+            terminalSurface,
+        );
+        await expectMissing(fileResult);
+        await expect(terminalInput).toBeFocused();
+        await running.page.keyboard.type(` > ${quoteShellPath(fileResult)}`);
+        await running.page.keyboard.press('Enter');
+        await expect.poll(() => readFile(fileResult, 'utf8')).toBe(filePath);
+
+        const folderResult = join(root, '.folder-drop-result');
+        await running.page.keyboard.type("printf '%s' ");
+        await dragEntryToTerminal(
+            fileList.getByRole('treeitem', { name: folderName, exact: true }),
+            terminalSurface,
+        );
+        await expectMissing(folderResult);
+        await running.page.keyboard.type(` > ${quoteShellPath(folderResult)}`);
+        await running.page.keyboard.press('Enter');
+        await expect.poll(() => readFile(folderResult, 'utf8')).toBe(folderPath);
+
+        await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
+        await expect(running.page.locator('.terminal-group')).toHaveCount(1);
+        await expect(running.page.locator('.terminal-drop-preview')).toHaveCount(0);
+
+        await running.page.keyboard.type('exit');
+        await running.page.keyboard.press('Enter');
+        await expect(running.page.locator('[data-terminal-exit-state="stopped"]')).toBeVisible();
+        const stoppedRows = await running.page.locator('.xterm-rows').textContent();
+        await dragEntryToTerminal(
+            fileList.getByRole('treeitem', { name: fileName, exact: true }),
+            terminalSurface,
+        );
+        await expect
+            .poll(() => running.page.locator('.xterm-rows').textContent())
+            .toBe(stoppedRows);
+        await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
+        await expect(running.page.locator('.terminal-drop-preview')).toHaveCount(0);
+    } finally {
+        await running.app.close();
+    }
+});
