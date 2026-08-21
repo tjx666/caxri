@@ -34,12 +34,17 @@ describe('describeScreencastKey', () => {
             describeScreencastKey(keyboardInput('k', { metaKey: true }), keybindings, {
                 commandAllowsEditable: () => true,
                 editable: false,
+                terminalFocus: false,
             }),
         ).toEqual({ commandTitle: 'Clear Terminal', shortcut: 'cmd+k' });
     });
 
     it('never exposes printable input or IME composition', () => {
-        const options = { commandAllowsEditable: () => false, editable: true };
+        const options = {
+            commandAllowsEditable: () => false,
+            editable: true,
+            terminalFocus: false,
+        };
 
         expect(describeScreencastKey(keyboardInput('s'), keybindings, options)).toBeUndefined();
         expect(
@@ -56,6 +61,7 @@ describe('describeScreencastKey', () => {
             describeScreencastKey(keyboardInput('p'), [{ key: 'p', command: 'terminal.clear' }], {
                 commandAllowsEditable: () => true,
                 editable: true,
+                terminalFocus: false,
             }),
         ).toBeUndefined();
     });
@@ -65,6 +71,7 @@ describe('describeScreencastKey', () => {
             describeScreencastKey(keyboardInput('n', { metaKey: true }), keybindings, {
                 commandAllowsEditable: () => false,
                 editable: true,
+                terminalFocus: false,
             }),
         ).toBeUndefined();
     });
@@ -74,14 +81,36 @@ describe('describeScreencastKey', () => {
             describeScreencastKey(keyboardInput('Escape'), keybindings, {
                 commandAllowsEditable: () => false,
                 editable: false,
+                terminalFocus: false,
             }),
         ).toEqual({ shortcut: 'escape' });
         expect(
             describeScreencastKey(keyboardInput('Escape'), keybindings, {
                 commandAllowsEditable: () => false,
                 editable: true,
+                terminalFocus: false,
             }),
         ).toBeUndefined();
+    });
+
+    it('shows a terminalFocus shortcut only for a Terminal event target', () => {
+        const binding: Keybinding = {
+            args: { text: '\u{1B}[1;3B' },
+            command: 'workbench.action.terminal.sendSequence',
+            key: 'cmd+enter',
+            when: 'terminalFocus',
+        };
+        const event = keyboardInput('Enter', { metaKey: true });
+        const options = {
+            commandAllowsEditable: () => true,
+            editable: true,
+            terminalFocus: false,
+        };
+
+        expect(describeScreencastKey(event, [binding], options)).toBeUndefined();
+        expect(
+            describeScreencastKey(event, [binding], { ...options, terminalFocus: true }),
+        ).toEqual({ commandTitle: 'Send Sequence', shortcut: 'cmd+enter' });
     });
 });
 

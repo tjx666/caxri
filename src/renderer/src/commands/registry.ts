@@ -30,6 +30,7 @@ export interface CommandContext {
          */
         hasSelection(): boolean;
         navigateCommand(direction: 1 | -1): void;
+        sendSequence(text: string): void;
         restartActive(): void;
         startNewAgentSession(): void;
         closeActive(): void;

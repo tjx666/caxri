@@ -51,6 +51,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 hasActive: () => true,
                 hasSelection: () => true,
                 navigateCommand: record('terminal.navigateCommand'),
+                sendSequence: record('terminal.sendSequence'),
                 restartActive: record('terminal.restart'),
                 startNewAgentSession: record('terminal.startNewAgentSession'),
                 closeActive: record('terminal.close'),
@@ -94,7 +95,11 @@ describe('executeCommand', () => {
     it('dispatches every command in the shared catalog', () => {
         for (const definition of sharedCommandDefinitions) {
             const { calls, context } = recordingContext();
-            executeCommand(definition.id, undefined, context);
+            executeCommand(
+                definition.id,
+                definition.requiresArguments ? { text: 'configured argument' } : undefined,
+                context,
+            );
             expect(calls, `no handler ran for ${definition.id}`).toHaveLength(1);
         }
     });
@@ -179,6 +184,16 @@ describe('executeCommand', () => {
         executeCommand('workbench.previousTab', undefined, context);
 
         expect(calls).toEqual(['workbench.cycleTab(1)', 'workbench.cycleTab(-1)']);
+    });
+
+    it('sends an exact configured control sequence to the active Terminal', () => {
+        const { context } = recordingContext();
+        const sendSequence = vi.fn();
+        context.terminal.sendSequence = sendSequence;
+
+        executeCommand('workbench.action.terminal.sendSequence', { text: '\u{1B}[1;3B' }, context);
+
+        expect(sendSequence).toHaveBeenCalledWith('\u{1B}[1;3B');
     });
 
     it('maps each Editor split command to its direction', () => {

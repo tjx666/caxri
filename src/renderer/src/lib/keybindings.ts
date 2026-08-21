@@ -38,21 +38,48 @@ export function keyboardEventShortcut(event: KeyboardEvent): string {
 }
 
 /**
- * Normalized chord -> command id, built once per keybinding change instead of scanning the whole table on every
- * keystroke. The first binding for a given chord wins, matching the previous `Array#find` behaviour when the keybinding
- * source declares a duplicate.
+ * Normalized chord -> bindings in source order, built once per keybinding change instead of scanning the whole table on
+ * every keystroke. Keeping every declaration lets a contextual binding fall through to the next declaration when its
+ * `when` clause is inactive while preserving the existing first-match-wins rule.
  */
-export function buildShortcutMap(keybindings: Keybinding[]): Map<string, string> {
-    const map = new Map<string, string>();
+export function buildShortcutMap(keybindings: readonly Keybinding[]): Map<string, Keybinding[]> {
+    const map = new Map<string, Keybinding[]>();
     for (const binding of keybindings) {
         const chord = normalizeShortcut(binding.key);
-        if (!map.has(chord)) map.set(chord, binding.command);
+        const entries = map.get(chord);
+        if (entries) entries.push(binding);
+        else map.set(chord, [binding]);
     }
     return map;
 }
 
+export interface KeybindingContext {
+    terminalFocus: boolean;
+}
+
+/**
+ * Resolves the first source-ordered binding whose supported context is active.
+ */
+export function resolveShortcutBinding(
+    shortcutMap: ReadonlyMap<string, readonly Keybinding[]>,
+    shortcut: string,
+    context: KeybindingContext,
+): Keybinding | undefined {
+    return shortcutMap
+        .get(shortcut)
+        ?.find((binding) => binding.when === undefined || context[binding.when]);
+}
+
 const EDITABLE_SELECTOR = 'input, textarea, [contenteditable], .monaco-editor, .xterm';
+const TERMINAL_SELECTOR = '.xterm';
 const KEYBINDING_RECORDING_SELECTOR = '[data-keybinding-recording="true"]';
+
+function eventTargetClosest(target: EventTarget | null, selector: string): unknown {
+    if (!target) return;
+    const closest = (target as unknown as { closest?: unknown }).closest;
+    if (typeof closest !== 'function') return;
+    return Reflect.apply(closest, target, [selector]);
+}
 
 /**
  * True when the event target is (or is nested inside) an editable surface: a form control, a `contenteditable` region,
@@ -60,7 +87,14 @@ const KEYBINDING_RECORDING_SELECTOR = '[data-keybinding-recording="true"]';
  * with `allowInEditable`.
  */
 export function isEditableEventTarget(target: EventTarget | null): boolean {
-    return target instanceof Element && target.closest(EDITABLE_SELECTOR) !== null;
+    return eventTargetClosest(target, EDITABLE_SELECTOR) != null;
+}
+
+/**
+ * Matches VS Code's `terminalFocus` keybinding context against the concrete xterm event target.
+ */
+export function isTerminalEventTarget(target: EventTarget | null): boolean {
+    return eventTargetClosest(target, TERMINAL_SELECTOR) != null;
 }
 
 /**
@@ -69,10 +103,7 @@ export function isEditableEventTarget(target: EventTarget | null): boolean {
  * that lets only that control bypass app-wide dispatch while modal safety remains intact everywhere else.
  */
 export function isKeybindingRecordingEventTarget(target: EventTarget | null): boolean {
-    if (!target) return false;
-    const closest = (target as unknown as { closest?: unknown }).closest;
-    if (typeof closest !== 'function') return false;
-    return Reflect.apply(closest, target, [KEYBINDING_RECORDING_SELECTOR]) !== null;
+    return eventTargetClosest(target, KEYBINDING_RECORDING_SELECTOR) != null;
 }
 
 const MODIFIER_SYMBOLS: Record<string, string> = {

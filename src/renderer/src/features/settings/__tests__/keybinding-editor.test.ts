@@ -56,6 +56,28 @@ describe('keybinding rows', () => {
         expect(filterKeybindingRows(rows, 'cmd+shift+t')).toHaveLength(1);
         expect(filterKeybindingRows(rows, '⇧⌘T')).toHaveLength(1);
     });
+
+    it('shows an existing argument-required binding without offering an incomplete unbound row', () => {
+        expect(
+            rows.find((row) => row.command === 'workbench.action.terminal.sendSequence'),
+        ).toBeUndefined();
+
+        const configured = buildKeybindingRows([
+            ...bindings,
+            {
+                args: { text: '\u{1B}[1;3B' },
+                command: 'workbench.action.terminal.sendSequence',
+                key: 'cmd+enter',
+                when: 'terminalFocus',
+            },
+        ]).find((row) => row.command === 'workbench.action.terminal.sendSequence');
+
+        expect(configured).toMatchObject({
+            category: 'Terminal',
+            key: 'cmd+enter',
+            title: 'Send Sequence',
+        });
+    });
 });
 
 describe('recording key classification', () => {

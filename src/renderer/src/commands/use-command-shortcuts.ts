@@ -6,7 +6,9 @@ import {
     buildShortcutMap,
     isEditableEventTarget,
     isKeybindingRecordingEventTarget,
+    isTerminalEventTarget,
     keyboardEventShortcut,
+    resolveShortcutBinding,
 } from '../lib/keybindings';
 import { useWorkbenchStore } from '../stores/workbench';
 import { isCommandAvailable, runCommand } from './execute';
@@ -39,7 +41,7 @@ function sessionMruShortcutInvocation(event: KeyboardEvent): SessionMruShortcutI
 export function useCommandShortcuts(): void {
     useEffect(() => {
         let cachedKeybindings: Keybinding[] | undefined;
-        let shortcutMap = new Map<string, string>();
+        let shortcutMap = new Map<string, Keybinding[]>();
 
         const onKeyDown = (event: KeyboardEvent): void => {
             /**
@@ -53,8 +55,11 @@ export function useCommandShortcuts(): void {
                 cachedKeybindings = bootstrap.keybindings;
                 shortcutMap = buildShortcutMap(cachedKeybindings);
             }
-            const commandId = shortcutMap.get(keyboardEventShortcut(event));
-            if (!commandId) return;
+            const binding = resolveShortcutBinding(shortcutMap, keyboardEventShortcut(event), {
+                terminalFocus: isTerminalEventTarget(event.target),
+            });
+            if (!binding) return;
+            const commandId = binding.command;
             const definition = getRegisteredCommand(commandId);
             /**
              * A contextual shortcut must fall through untouched so the owning editor can handle the same chord
@@ -70,8 +75,8 @@ export function useCommandShortcuts(): void {
             runCommand(
                 commandId as CommandId,
                 commandId === 'session.switchMru'
-                    ? { shortcut: sessionMruShortcutInvocation(event) }
-                    : undefined,
+                    ? { ...binding.args, shortcut: sessionMruShortcutInvocation(event) }
+                    : binding.args,
             );
         };
         addEventListener('keydown', onKeyDown, { capture: true });

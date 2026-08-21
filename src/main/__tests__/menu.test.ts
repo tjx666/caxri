@@ -40,7 +40,10 @@ describe('application menu', () => {
     it('uses configured accelerators and preserves accelerator-aware dispatch', () => {
         const dispatchCommand = vi.fn();
         const template = buildAppMenuTemplate({
-            keybindings: [{ command: 'terminal.new', key: 'cmd+shift+t' }],
+            keybindings: [
+                { command: 'terminal.new', key: 'cmd+t', when: 'terminalFocus' },
+                { command: 'terminal.new', key: 'cmd+shift+t' },
+            ],
             dispatchCommand,
             openProcessExplorer: vi.fn(),
         });
@@ -51,6 +54,27 @@ describe('application menu', () => {
         expect(item?.accelerator).toBe('Command+Shift+T');
         item?.click?.({} as MenuItem, undefined, { triggeredByAccelerator: true });
         expect(dispatchCommand).toHaveBeenCalledWith('terminal.new', true);
+    });
+
+    it('leaves a global menu chord to an earlier contextual Renderer binding', () => {
+        const template = buildAppMenuTemplate({
+            keybindings: [
+                {
+                    args: { text: '\u{3}' },
+                    command: 'workbench.action.terminal.sendSequence',
+                    key: 'Command+K',
+                    when: 'terminalFocus',
+                },
+                { command: 'terminal.clear', key: 'cmd+k' },
+            ],
+            dispatchCommand: vi.fn(),
+            openProcessExplorer: vi.fn(),
+        });
+        const item = submenu(template, 'Terminal').find(
+            (candidate) => candidate.id === 'command.terminal.clear',
+        );
+
+        expect(item?.accelerator).toBeUndefined();
     });
 
     it('keeps Process Explorer opening in Main for its diagnostic window', () => {

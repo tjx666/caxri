@@ -2,6 +2,7 @@ import type { BaseWindow, KeyboardEvent, MenuItem, MenuItemConstructorOptions } 
 
 import type { CommandDefinition, CommandId, NativeMenuId } from '../shared/commands';
 import { getNativeMenuCommandGroups } from '../shared/commands';
+import { normalizeShortcut } from '../shared/shortcuts';
 import type { Keybinding } from '../shared/types';
 
 export interface AppMenuOptions {
@@ -28,6 +29,30 @@ function electronAccelerator(key: string | undefined): string | undefined {
 }
 
 /**
+ * Native menu accelerators consume macOS key events before the Renderer can evaluate contextual bindings. Preserve
+ * source-order precedence by leaving a global menu chord to the Renderer whenever an earlier contextual binding owns
+ * the same normalized chord.
+ */
+function commandAccelerator(
+    keybindings: readonly Keybinding[],
+    commandId: string,
+): string | undefined {
+    const candidateIndex = keybindings.findIndex(
+        (binding) => binding.command === commandId && binding.when === undefined,
+    );
+    if (candidateIndex === -1) return;
+    const candidate = keybindings[candidateIndex];
+    const candidateChord = normalizeShortcut(candidate.key);
+    const earlierContextualBindingOwnsChord = keybindings.some(
+        (binding, index) =>
+            index < candidateIndex &&
+            binding.when !== undefined &&
+            normalizeShortcut(binding.key) === candidateChord,
+    );
+    return earlierContextualBindingOwnsChord ? undefined : electronAccelerator(candidate.key);
+}
+
+/**
  * Builds the native menu from the shared command catalog. Standard Electron roles remain explicit, while every
  * command-backed item inherits its placement, label, and configured accelerator from the same catalog/keybinding
  * sources as the Renderer.
@@ -37,12 +62,10 @@ export function buildAppMenuTemplate({
     dispatchCommand,
     openProcessExplorer,
 }: AppMenuOptions): MenuItemConstructorOptions[] {
-    const accelerator = (id: string): string | undefined =>
-        electronAccelerator(keybindings.find((binding) => binding.command === id)?.key);
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
         id: `command.${definition.id}`,
         label: definition.title,
-        accelerator: accelerator(definition.id),
+        accelerator: commandAccelerator(keybindings, definition.id),
         /**
          * `event.triggeredByAccelerator` tells the Renderer whether this click came from the menu's keyboard
          * accelerator (which must honour the editable-focus shortcut policy, DESIGN.md:121-123, the same way

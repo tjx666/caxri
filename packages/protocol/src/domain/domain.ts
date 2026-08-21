@@ -5,6 +5,7 @@ import { agentProviderIds } from '../agent/agents.js';
 import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
+import type { CommandId } from './commands.js';
 import { editorLayoutSchema } from './editor-layout.js';
 import { gitCommitSchema } from './git.js';
 import { inspectorModeSchema } from './inspector.js';
@@ -16,6 +17,9 @@ export * from './git.js';
 
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
+export const MAX_TERMINAL_INPUT_LENGTH = 65_536;
+const TERMINAL_SEND_SEQUENCE_COMMAND_ID =
+    'workbench.action.terminal.sendSequence' satisfies CommandId;
 
 /**
  * Main returns this instead of a Runtime result when the user dismisses a confirmation dialog.
@@ -244,13 +248,41 @@ export const persistedWindowStateSchema = z.object({
     isFullScreen: z.boolean(),
 });
 
-export const keybindingSchema = z.object({
-    key: z.string().min(1).max(100),
-    /**
-     * Catalog IDs are `CommandId` (see `./commands.js`); unknown values stay visible as custom keybindings.
-     */
-    command: z.string().min(1).max(200),
-});
+export const keybindingWhenSchema = z.enum(['terminalFocus']);
+
+export const keybindingSchema = z
+    .object({
+        key: z.string().min(1).max(100),
+        /**
+         * Catalog IDs are `CommandId` (see `./commands.js`); unknown values stay visible as custom keybindings.
+         */
+        command: z.string().min(1).max(200),
+        /**
+         * Arbitrary JSON arguments are retained verbatim; commands with schema-level requirements validate below.
+         */
+        args: z.record(z.string(), z.unknown()).optional(),
+        when: keybindingWhenSchema.optional(),
+    })
+    .superRefine((binding, context) => {
+        if (binding.command !== TERMINAL_SEND_SEQUENCE_COMMAND_ID) return;
+        if (!binding.args || typeof binding.args.text !== 'string') {
+            context.addIssue({
+                code: 'custom',
+                message: 'workbench.action.terminal.sendSequence requires args.text',
+                path: ['args', 'text'],
+            });
+            return;
+        }
+        if (binding.args.text.length > MAX_TERMINAL_INPUT_LENGTH)
+            context.addIssue({
+                code: 'too_big',
+                maximum: MAX_TERMINAL_INPUT_LENGTH,
+                message: `Terminal input must contain at most ${MAX_TERMINAL_INPUT_LENGTH} characters`,
+                origin: 'string',
+                path: ['args', 'text'],
+                type: 'string',
+            });
+    });
 
 export const keybindingConflictSchema = z.object({
     key: z.string(),

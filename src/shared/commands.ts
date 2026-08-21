@@ -10,6 +10,11 @@ export interface CommandDefinition {
     title: string;
     category: string;
     description: string;
+    /**
+     * Commands that require configured arguments remain available to keybindings but stay out of the palette, whose
+     * invocation path cannot supply those arguments.
+     */
+    requiresArguments?: boolean;
     nativeMenu?: {
         menu: NativeMenuId;
         group: number;
@@ -136,6 +141,13 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Terminal',
         description: 'Scroll the active Terminal to the next command boundary',
         nativeMenu: { menu: 'terminal', group: 1, order: 3 },
+    },
+    {
+        id: 'workbench.action.terminal.sendSequence',
+        title: 'Send Sequence',
+        category: 'Terminal',
+        description: 'Send configured text directly to the active Terminal',
+        requiresArguments: true,
     },
     {
         id: 'terminal.restart',

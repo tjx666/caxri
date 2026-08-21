@@ -180,6 +180,19 @@ export function navigateActiveTerminalCommand(
 }
 
 /**
+ * Sends the configured bytes through the same typed input boundary as xterm's `onData`. The text is intentionally not
+ * escaped or rewritten: JSONC already decoded sequences such as `\u001b`, and the command exists specifically to let a
+ * user reproduce an exact Terminal input sequence.
+ */
+export function sendTerminalSequence(terminalId: string, text: string): void {
+    // This is a sync command handler; tryCommand already routes any failure into a toast.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand('Terminal input failed', () =>
+        caxri.request('terminal.input', { terminalId, data: text }),
+    );
+}
+
+/**
  * Layout edits (drag, drop, splitter resize) clear `activeTab`; the drop handler re-activates the moved Terminal right
  * afterwards, and a resize leaves the layout's own active group in charge.
  */

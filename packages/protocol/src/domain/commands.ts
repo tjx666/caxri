@@ -24,6 +24,7 @@ export const commandIds = [
     'terminal.find',
     'terminal.previousCommand',
     'terminal.nextCommand',
+    'workbench.action.terminal.sendSequence',
     'terminal.restart',
     'terminal.startNewAgentSession',
     'terminal.close',

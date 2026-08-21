@@ -5,6 +5,7 @@ import {
     formatShortcut,
     isKeybindingRecordingEventTarget,
     keyboardEventShortcut,
+    resolveShortcutBinding,
 } from './keybindings';
 
 /**
@@ -101,14 +102,38 @@ describe('buildShortcutMap', () => {
             { key: 'cmd+k', command: 'first' },
             { key: 'Cmd+K', command: 'second' },
         ]);
-        expect(map.get('cmd+k')).toBe('first');
+        expect(resolveShortcutBinding(map, 'cmd+k', { terminalFocus: false })?.command).toBe(
+            'first',
+        );
         expect(map.size).toBe(1);
     });
 
     it('matches a chord recorded from an Option keystroke', () => {
         const map = buildShortcutMap([{ key: 'alt+p', command: 'pathBrowser.open' }]);
         const chord = keyboardEventShortcut(keyEvent({ key: 'π', code: 'KeyP', altKey: true }));
-        expect(map.get(chord)).toBe('pathBrowser.open');
+        expect(resolveShortcutBinding(map, chord, { terminalFocus: false })?.command).toBe(
+            'pathBrowser.open',
+        );
+    });
+
+    it('resolves terminalFocus before forwarding the matching binding arguments', () => {
+        const sequence = {
+            args: { text: '\u{1B}[1;3B' },
+            command: 'workbench.action.terminal.sendSequence',
+            key: 'cmd+enter',
+            when: 'terminalFocus' as const,
+        };
+        const map = buildShortcutMap([sequence, { command: 'editor.fallback', key: 'cmd+enter' }]);
+
+        expect(resolveShortcutBinding(map, 'cmd+enter', { terminalFocus: true })).toEqual(sequence);
+        expect(resolveShortcutBinding(map, 'cmd+enter', { terminalFocus: false })?.command).toBe(
+            'editor.fallback',
+        );
+        expect(
+            resolveShortcutBinding(buildShortcutMap([sequence]), 'cmd+enter', {
+                terminalFocus: false,
+            }),
+        ).toBeUndefined();
     });
 });
 
