@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 
-import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { isAbsolute, normalize, resolve, sep } from 'node:path';
 import process from 'node:process';
 
 import type { CIChecksScope } from './ci-execution-plan';
+import { runChildProcess } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -50,11 +50,7 @@ function validatePath(path: string): string {
 }
 
 async function run(command: string, arguments_: string[]): Promise<number> {
-    const child = spawn(command, arguments_, { cwd: projectRoot, stdio: 'inherit' });
-    return new Promise<number>((resolve, reject) => {
-        child.once('error', reject);
-        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
-    });
+    return runChildProcess(command, arguments_, { cwd: projectRoot, stdio: 'inherit' });
 }
 
 async function main(): Promise<void> {

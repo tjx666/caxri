@@ -119,7 +119,7 @@ A prototype is a surface — DESIGN.md applies to what it _demonstrates_:
 - Honor the redlines: type-scale tiers (13/12/11px), the 4px spacing grid, radius 4/6/8,
   one durable `--accent` focus per screen, quiet chrome. Loading is `Spinner`/skeleton;
   boolean preferences are `Switch`, pre-submit opt-ins are `Checkbox`.
-- Research precedent first for substantial new surfaces — load the `competitors` skill
+- Research precedent first for substantial new surfaces — Call the Skill tool with "competitors"
   (VS Code / GitLens references) before inventing a new interaction pattern.
 - Don't paint affordances you don't wire (a hover tint with no click, a kbd hint with
   no key handler) — in an _interactive_ prototype a dead affordance is a spec bug.

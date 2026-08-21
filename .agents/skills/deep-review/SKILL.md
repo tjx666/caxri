@@ -105,10 +105,9 @@ contracts, not docs-only changes.
 6. Report no findings when the evidence is clean. Do not invent suggestions to fill dimensions.
 7. Apply the repair policy to validated findings, then recheck the repaired diff before reporting.
 
-When this session implemented the change under review, do not run the checklist inline over your
-own implementation context: dispatch one clean-context subagent with the light-mode instructions
-and scope, then apply its findings with your own judgment. This guards against self-review bias
-and is not an escalation to deep mode.
+An author reviewing their own implementation must dispatch one clean-context subagent with the
+light-mode instructions and scope, then adjudicate its findings. This is an independence boundary,
+not an escalation to deep mode.
 
 ## Quick mode
 
@@ -128,12 +127,16 @@ unavailable, say so and offer light mode; never substitute a single-agent "deep"
 ## Sources of truth
 
 - `AGENTS.md` for repository commands and hard boundaries
+- `CONTEXT.md` for the project's ubiquitous language and canonical domain terms
 - [project architecture](../project-architecture/references/architecture.md) for process,
   persistence, security, recovery, and performance contracts
 - [Electron toolchain ADR](../project-architecture/references/electron-toolchain.md) for build,
   native-module, and release decisions
 - [stack baseline](../project-architecture/references/stack-baseline.md) for dependency and
   primitive-layer choices when a change adds or swaps a library
-- `DESIGN.md` for frontend and interaction rules
+- For Renderer changes:
+  - Call the Skill tool with "react".
+  - Call the Skill tool with "source-layout".
+  - Read `DESIGN.md` for frontend and interaction rules.
 - The focused `build`, `debug`, `performance`, `quality-check`, `release`, `unit-testing`, and
   `e2e-testing` skills when a changed surface routes to them

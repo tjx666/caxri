@@ -22,6 +22,8 @@ const DimensionSchema = z.enum(
     ],
 );
 
+const scenarioRequiredDimensions = new Set(['architecture', 'security-privacy', 'state-lifecycle']);
+
 const ReviewIssueSchema = z
     .strictObject({
         core_problem: z.string().min(1),
@@ -66,6 +68,13 @@ const ReviewIssueSchema = z
             context.addIssue({
                 code: 'custom',
                 message: 'low-likelihood findings require scenario',
+            });
+        }
+
+        if (scenarioRequiredDimensions.has(issue.dimension) && !issue.scenario) {
+            context.addIssue({
+                code: 'custom',
+                message: `${issue.dimension} findings require scenario`,
             });
         }
     });

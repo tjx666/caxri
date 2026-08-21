@@ -1,6 +1,7 @@
 ---
 name: audit-architecture-debt
 description: Audit Caxri's current implementation for technical debt, architecture drift, layering and directory-taxonomy problems, weak extension points, lifecycle or concurrency hazards, stale practices, and AI-coding friction. Coordinate context-isolated subagent discovery, independent falsification, and root-agent synthesis for broad audits when collaboration tools are available. Use for repository-wide architecture reviews, "find similar problems" sweeps, modernization scans, module-organization reviews, technical-debt prioritization, or before a large refactor; also use to decide whether a suspicious pattern is intentional, already fixed, or real debt.
+disable-model-invocation: true
 ---
 
 # Audit Caxri Architecture Debt
@@ -13,8 +14,8 @@ Perform an evidence-first, read-only audit of the current repository. Treat past
 - Read [references/subagent-workflow.md](references/subagent-workflow.md) for every broad audit, every explicit subagent request, and every focused audit that uses independent reviewers.
 - Read [references/report-format.md](references/report-format.md) before producing the final report.
 - Read [references/debt-ledger.md](references/debt-ledger.md) whenever `docs/architecture-debt.md` exists or the user asks to persist findings across runs.
-- Read the relevant `project-architecture` reference before judging an implementation boundary. That skill describes intended architecture; this skill tests whether the current implementation honors it and whether the intent itself creates debt.
-- Use `performance` for measurements, `debug` for a concrete failure path, `competitors` for a design problem already solved by peer products, and `quality-check` only after an explicitly authorized implementation.
+- Call the Skill tool with "project-architecture" before judging an implementation boundary and read its relevant reference. That skill describes intended architecture; this skill tests whether the current implementation honors it and whether the intent itself creates debt.
+- Call the Skill tool with "performance" for measurements. Call the Skill tool with "debug" for a concrete failure path. Call the Skill tool with "competitors" for a design problem already solved by peer products. Call the Skill tool with "quality-check" only after an explicitly authorized implementation.
 
 ## Preserve the investigation boundary
 
@@ -30,7 +31,7 @@ Perform an evidence-first, read-only audit of the current repository. Treat past
 - The root agent reviews each wave's diff before dispatching the next wave, and runs `knip` once at the end when renderer or shared-contract files changed.
 - Keep large refactors that need their own design (event-model changes, migration frameworks, dependency swaps) out of the batch; report them as scoped follow-ups instead of improvising them mid-fix.
 
-Do not substitute this skill for `deep-review`. Use `deep-review` for a diff, commit, branch, or PR and its merge/release readiness. Use this skill for the current system's structural sustainability, including legacy debt, contract drift, modernization opportunities, intentional tradeoffs, and historical revalidation.
+Do not substitute this skill for `deep-review`. Call the Skill tool with "deep-review" for a diff, commit, branch, or PR and its merge/release readiness. Use this skill for the current system's structural sustainability, including legacy debt, contract drift, modernization opportunities, intentional tradeoffs, and historical revalidation.
 
 ## Workflow
 

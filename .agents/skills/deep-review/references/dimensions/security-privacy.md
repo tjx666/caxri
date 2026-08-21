@@ -32,6 +32,9 @@ This dimension is exempt from codebase calibration.
 - Agent integration parses transcripts or writes provider-owned state instead of reading bounded,
   capability-detected metadata
 - Capacity/output/time limits are removed from an attacker- or repository-controlled path
+- Transport connectivity or an authenticated caller identity is treated as activation authority or
+  mutation capability without independently validating the current principal, generation, and
+  operation-specific grant
 
 ## How to check
 
@@ -41,6 +44,9 @@ This dimension is exempt from codebase calibration.
 3. Inspect both success and error logging, including object serialization and diagnostic export.
 4. For subprocesses, confirm executable and argv are structured and the target is allowlisted or
    revalidated against Runtime-owned state.
+5. Separate four proofs at each privileged boundary: transport connectivity, caller principal,
+   activation authority, and operation-specific mutation capability. Show when credentials become
+   usable and how generation or ownership changes revoke them before the sink runs.
 
 ## Rule sources
 

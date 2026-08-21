@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     directImportTestCandidates,
+    dirtyLayerReportForFiles,
+    formatCheckSummary,
     hasDirectSourceImport,
     IMPORT_PATH_ALIASES,
     lintBucketsForFiles,
@@ -15,6 +17,79 @@ import {
     selectedTestCandidates,
     testCandidatesForFile,
 } from './check';
+
+describe('dirty layer report', () => {
+    it('keeps Runtime-only tests off Renderer, knip, and E2E recommendations', () => {
+        expect(dirtyLayerReportForFiles(['src/runtime/files/search.test.ts'], true)).toEqual({
+            layers: ['Runtime'],
+            suggestedGates: [],
+        });
+    });
+
+    it('recommends Renderer and shared-contract gates without claiming they ran', () => {
+        expect(
+            dirtyLayerReportForFiles(
+                [
+                    'src/renderer/src/features/files/file-tree-panel.tsx',
+                    'packages/protocol/src/domain/session.ts',
+                ],
+                true,
+            ),
+        ).toEqual({
+            layers: ['Renderer', 'IPC'],
+            suggestedGates: ['bun run doctor:changed', 'bun run knip'],
+        });
+
+        const summary = formatCheckSummary({
+            changedFileCount: 2,
+            dirtyLayers: ['Renderer', 'IPC'],
+            executedChecks: ['lint 2', 'tests 1'],
+            suggestedGates: ['bun run doctor:changed', 'bun run knip'],
+        });
+        expect(summary).toContain('suggested gates bun run doctor:changed, bun run knip');
+        expect(summary).toContain('ran lint 2 · tests 1');
+        expect(summary).not.toContain('ran knip');
+    });
+
+    it('suggests --e2e only for explicitly selected Playwright specs', () => {
+        expect(dirtyLayerReportForFiles(['e2e/smoke.e2e.ts'], true)).toEqual({
+            layers: ['e2e'],
+            suggestedGates: ['--e2e'],
+        });
+        expect(dirtyLayerReportForFiles(['e2e/smoke.e2e.ts'], false)).toEqual({
+            layers: ['e2e'],
+            suggestedGates: [],
+        });
+        expect(dirtyLayerReportForFiles(['e2e/support/fixtures.ts'], true)).toEqual({
+            layers: ['e2e'],
+            suggestedGates: [],
+        });
+    });
+
+    it('routes protected Playwright specs to their dedicated gates', () => {
+        expect(
+            dirtyLayerReportForFiles(
+                ['e2e/real-agent-smoke.e2e.ts', 'e2e/failure-isolation.e2e.ts'],
+                true,
+            ),
+        ).toEqual({
+            layers: ['e2e'],
+            suggestedGates: [
+                'bun run test:e2e:real-agent',
+                'bun run scripts/run-e2e-failure-isolation.ts',
+            ],
+        });
+    });
+
+    it('classifies contributor skills and non-code documentation independently', () => {
+        expect(
+            dirtyLayerReportForFiles(['.agents/skills/go/SKILL.md', 'docs/architecture.md'], true),
+        ).toEqual({
+            layers: ['skills', 'docs'],
+            suggestedGates: [],
+        });
+    });
+});
 
 describe('parseCheckArguments', () => {
     it('defaults to lint and related tests', () => {

@@ -9,6 +9,7 @@ import {
     acquireDesktopLease,
     releaseDesktopLease,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
+import { waitForChildExit } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -72,10 +73,7 @@ async function main(): Promise<void> {
     child.stderr.on('data', capture);
     let exitCode: number;
     try {
-        exitCode = await new Promise<number>((resolve, reject) => {
-            child.once('error', reject);
-            child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
-        });
+        exitCode = await waitForChildExit(child);
     } finally {
         await releaseDesktopLease(coordinator);
     }

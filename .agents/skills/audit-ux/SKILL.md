@@ -2,6 +2,7 @@
 name: audit-ux
 description: Audit Caxri's user-visible experience with context-isolated subagents and real macOS Electron screenshots, then synthesize a prioritized optimization list. Always takes an explicit scope argument — a time window ("last 2 days"), a commit count or rev-range ("last 15 commits", "HEAD~5..HEAD"), or a UI surface ("settings dialog", "terminal", "file tree"). Use when asked to review UX changes in recent commits, audit a page or feature's interaction quality, find UX optimization points, or 优化/审查 a UI surface; also use for the UX pass after a large feature lands. Not a bug hunt and not a code-correctness review — use deep-review for merge readiness.
 argument-hint: '<last N days | last N commits | <rev-range> | <surface>> [--no-desktop] [--fix]'
+disable-model-invocation: true
 ---
 
 # Audit Caxri UX
@@ -13,7 +14,7 @@ optimization list; implementation happens only in the separate fix mode below.
 The benchmark is `DESIGN.md` (tokens, motion system, confirmations, status-bar redlines,
 plain-language settings) plus macOS desktop conventions. When judging a surface whose class
 another product already solved (terminal links, copy-on-select, shortcut recorders), name the
-class norm first — invoke `competitors` when the norm is unclear. Reading our own code only
+class norm first — Call the Skill tool with "competitors" when the norm is unclear. Reading our own code only
 polishes what exists; it is structurally blind to an affordance we never built.
 
 ## 1. Resolve the scope — required, never implied

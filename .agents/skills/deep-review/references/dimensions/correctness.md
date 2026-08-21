@@ -20,6 +20,8 @@ Check whether the change satisfies the stated behavior under real inputs and fai
 - State-machine gaps across creating, running, detached, exited, dead, restarting, and disposed
 - A bug fix without a behavior-level regression that fails for the original scenario
 - Tests that assert a mock call but do not observe the user-visible or process-boundary result
+- A framed transport does not preserve submission order and frame boundaries across partial writes,
+  or does not define duplicate-request, late-reply, peer-close, and retry behavior together
 
 ## How to check
 
@@ -28,6 +30,9 @@ Check whether the change satisfies the stated behavior under real inputs and fai
 3. Chase callers and schemas before claiming an input is reachable.
 4. Read the focused test and confirm it covers the reported behavior rather than an implementation
    detail.
+5. For framed transports, trace one partial write, two overlapping requests, a duplicate request, a
+   reply after cancellation, and peer close. Verify ordering and idempotency at the layer that owns
+   each transition.
 
 ## Rule sources
 

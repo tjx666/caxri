@@ -11,7 +11,7 @@ description: >
 
 # Caxri Acceptance
 
-Verify the delivery as its builder. A separate human review decides whether to
+Builders may produce delivery evidence, but only a separate human review may
 accept or reject it. Treat macOS Electron desktop as the only product surface.
 Use focused tests, build output, logs, or probes as supporting evidence, never as
 substitutes for the real desktop path when the claim is user-visible.

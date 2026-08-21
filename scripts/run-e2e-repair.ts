@@ -6,6 +6,7 @@ import {
     acquireDesktopLease,
     releaseDesktopLease,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
+import { waitForChildExit } from './exec';
 
 type E2EPool = 'control' | 'desktop-exclusive' | 'parallel-safe';
 
@@ -50,10 +51,7 @@ async function runFocused(
         ],
         { env: environment, stdio: 'inherit' },
     );
-    return new Promise<number>((resolve, reject) => {
-        child.once('error', reject);
-        child.once('close', (code) => resolve(code ?? 1));
-    });
+    return waitForChildExit(child, { event: 'close', nullExitCode: 1 });
 }
 
 async function main(): Promise<void> {
