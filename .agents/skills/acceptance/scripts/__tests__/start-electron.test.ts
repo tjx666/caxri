@@ -9,6 +9,7 @@ import {
     createElectronLaunchSpec,
     createElectronStopController,
     removeStaleRuntime,
+    shouldPreserveInheritedRuntimeState,
     waitForCdp,
     waitForOwnedProcesses,
 } from '../start-electron';
@@ -74,6 +75,11 @@ function childProcess(fake = new FakeChild()): ChildProcess {
 }
 
 describe('Acceptance Electron launcher seams', () => {
+    it('protects a reused profile as soon as verified process ownership is inherited', () => {
+        expect(shouldPreserveInheritedRuntimeState(runtime.ownedProcesses)).toBe(true);
+        expect(shouldPreserveInheritedRuntimeState([])).toBe(false);
+    });
+
     it('carries verified Host and Runtime identities into the next matching restart launch', async () => {
         const restartRuntime = {
             ...runtime,
