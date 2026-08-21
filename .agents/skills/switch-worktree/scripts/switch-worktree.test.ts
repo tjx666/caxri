@@ -78,7 +78,12 @@ async function createFixture(): Promise<Fixture> {
 }
 
 async function fakeInstall(path: string): Promise<void> {
-    await mkdir(join(path, 'node_modules'));
+    const electronDirectory = join(path, 'node_modules', 'electron');
+    await mkdir(join(electronDirectory, 'dist'), { recursive: true });
+    await writeFile(join(electronDirectory, 'package.json'), '{"version":"1.0.0"}\n', 'utf8');
+    await writeFile(join(electronDirectory, 'path.txt'), 'electron', 'utf8');
+    await writeFile(join(electronDirectory, 'dist', 'version'), 'v1.0.0\n', 'utf8');
+    await writeFile(join(electronDirectory, 'dist', 'electron'), 'binary', 'utf8');
 }
 
 afterEach(async () => {
@@ -267,7 +272,7 @@ describe('switch-worktree creation and diagnostics', () => {
         const niPath = join(binaryDirectory, 'ni');
         await writeFile(
             niPath,
-            '#!/bin/sh\nprintf "install noise\\n"\nmkdir node_modules\n',
+            '#!/bin/sh\nprintf "install noise\\n"\nmkdir -p node_modules/electron/dist\nprintf \'{"version":"1.0.0"}\\n\' > node_modules/electron/package.json\nprintf "electron" > node_modules/electron/path.txt\nprintf "v1.0.0\\n" > node_modules/electron/dist/version\nprintf "binary" > node_modules/electron/dist/electron\n',
             'utf8',
         );
         await chmod(niPath, 0o755);
@@ -299,7 +304,7 @@ describe('switch-worktree creation and diagnostics', () => {
         const niPath = join(binaryDirectory, 'ni');
         await writeFile(
             niPath,
-            '#!/bin/sh\nrm pnpm-lock.yaml\nln -s "$CAXRI_TEST_EXTERNAL_TARGET" pnpm-lock.yaml\nprintf "packages: []\\n" > pnpm-workspace.yaml\nmkdir node_modules\n',
+            '#!/bin/sh\nrm pnpm-lock.yaml\nln -s "$CAXRI_TEST_EXTERNAL_TARGET" pnpm-lock.yaml\nprintf "packages: []\\n" > pnpm-workspace.yaml\nmkdir -p node_modules/electron/dist\nprintf \'{"version":"1.0.0"}\\n\' > node_modules/electron/package.json\nprintf "electron" > node_modules/electron/path.txt\nprintf "v1.0.0\\n" > node_modules/electron/dist/version\nprintf "binary" > node_modules/electron/dist/electron\n',
             'utf8',
         );
         await chmod(niPath, 0o755);
