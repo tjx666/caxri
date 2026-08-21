@@ -38,6 +38,11 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
                 settings['agents.providers'][binding.provider].recovery,
                 defaultAgentProviderSettings[binding.provider].recovery,
             );
+        case 'provider-actions':
+            return !isEqual(
+                settings['agents.providers'][binding.provider].actions,
+                defaultAgentProviderSettings[binding.provider].actions,
+            );
         case 'trusted-domains':
             return settings['security.trustedDomains'].length > 0;
         case 'files-exclude':
@@ -106,6 +111,16 @@ export function rowResetAction(
                 value: withProviderField(settings, binding.provider, {
                     recovery: structuredClone(
                         defaultAgentProviderSettings[binding.provider].recovery,
+                    ),
+                }),
+            };
+        case 'provider-actions':
+            return {
+                kind: 'field',
+                key: 'agents.providers',
+                value: withProviderField(settings, binding.provider, {
+                    actions: structuredClone(
+                        defaultAgentProviderSettings[binding.provider].actions,
                     ),
                 }),
             };

@@ -160,6 +160,23 @@ export function didPasteIntoTerminal(terminalId: string, data: string): boolean 
 }
 
 /**
+ * Dialogs opened from a keyboard command have no DOM trigger for Radix to restore focus to. The mounted Terminal pane
+ * therefore exposes its live xterm focus operation through the same ownership-safe registry used by clear and copy.
+ */
+const focusHandlers = new Map<string, () => void>();
+
+export function registerTerminalFocusHandler(terminalId: string, handler: () => void): () => void {
+    focusHandlers.set(terminalId, handler);
+    return () => {
+        if (focusHandlers.get(terminalId) === handler) focusHandlers.delete(terminalId);
+    };
+}
+
+export function focusTerminalById(terminalId: string): void {
+    focusHandlers.get(terminalId)?.();
+}
+
+/**
  * The mounted `TerminalPane` registers its live xterm selection here, mirroring {@link registerTerminalClearHandler}:
  * `copySelection` reuses `TerminalSelectionClipboard` (already serializing writes against a stale selection) instead of
  * a second clipboard write path, and `hasSelection` backs both the `terminal.copy` command's `when` gate and the

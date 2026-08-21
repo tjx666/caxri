@@ -1,0 +1,198 @@
+import { useState } from 'react';
+
+import type { AgentProvider } from '@shared/agents';
+import type { AgentActionOverride, AgentActionsSettings } from '@shared/ipc';
+import {
+    agentActionInvocationSchema,
+    defaultAgentActions,
+    MAX_AGENT_ACTION_DESCRIPTION_LENGTH,
+    MAX_AGENT_ACTIONS,
+} from '@shared/types';
+import { Plus, Trash2 } from 'lucide-react';
+
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Switch } from '../../components/ui/switch';
+import { Tooltip } from '../../components/ui/tooltip';
+
+interface AgentActionSettingsEditorProperties {
+    provider: AgentProvider;
+    value: AgentActionsSettings;
+    onChange: (value: AgentActionsSettings) => void;
+}
+
+export function AgentActionSettingsEditor({
+    provider,
+    value,
+    onChange,
+}: AgentActionSettingsEditorProperties) {
+    const [invocationDraft, setInvocationDraft] = useState('');
+    const [descriptionDraft, setDescriptionDraft] = useState('');
+    const defaults = defaultAgentActions[provider];
+    const defaultInvocations = new Set(defaults.map((action) => action.invocation));
+    const overrideFor = (invocation: string): AgentActionOverride | undefined =>
+        Object.hasOwn(value.items, invocation) ? value.items[invocation] : undefined;
+    const defaultEntries = defaults.map((action) => ({
+        action,
+        override: overrideFor(action.invocation),
+    }));
+    const customInvocations = Object.keys(value.items)
+        .filter((invocation) => !defaultInvocations.has(invocation))
+        .toSorted((left, right) => left.localeCompare(right));
+    const isAtCapacity = Object.keys(value.items).length >= MAX_AGENT_ACTIONS;
+    const isValidDraft = agentActionInvocationSchema.safeParse(invocationDraft.trim()).success;
+    const hasCapacity = Object.hasOwn(value.items, invocationDraft.trim()) || !isAtCapacity;
+
+    const changeEnabled = (invocation: string, isEnabled: boolean): void => {
+        const current = overrideFor(invocation);
+        const items = { ...value.items };
+        if (
+            isEnabled &&
+            defaultInvocations.has(invocation) &&
+            !current?.description &&
+            !current?.argumentHint
+        )
+            delete items[invocation];
+        else items[invocation] = { ...current, enabled: isEnabled };
+        onChange({ items });
+    };
+
+    const addAction = (): void => {
+        const invocation = invocationDraft.trim();
+        if (!hasCapacity || !agentActionInvocationSchema.safeParse(invocation).success) return;
+        onChange({
+            items: {
+                ...value.items,
+                [invocation]: {
+                    enabled: true,
+                    ...(descriptionDraft.trim() && { description: descriptionDraft.trim() }),
+                },
+            },
+        });
+        setInvocationDraft('');
+        setDescriptionDraft('');
+    };
+
+    return (
+        <div className="flex flex-col gap-2">
+            <ul
+                aria-label={`${provider} agent actions`}
+                className="m-0 flex list-none flex-col p-0"
+            >
+                {defaultEntries.map(({ action, override }) => (
+                    <li
+                        key={action.invocation}
+                        className="flex min-h-9 items-center gap-2 rounded px-1"
+                    >
+                        <Switch
+                            aria-label={`Show ${action.invocation}`}
+                            checked={override?.enabled ?? true}
+                            disabled={!override && isAtCapacity}
+                            onCheckedChange={(checked) => changeEnabled(action.invocation, checked)}
+                        />
+                        <code className="w-24 shrink-0 font-mono text-[12px] text-foreground">
+                            {action.invocation}
+                        </code>
+                        <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
+                            {override?.description ?? action.description}
+                        </span>
+                        <small className="text-[10px] text-muted">Built-in</small>
+                    </li>
+                ))}
+                {customInvocations.map((invocation) => (
+                    <li
+                        key={invocation}
+                        className="group/action flex min-h-9 items-center gap-2 rounded px-1"
+                    >
+                        <Switch
+                            aria-label={`Show ${invocation}`}
+                            checked={value.items[invocation].enabled}
+                            onCheckedChange={(checked) => changeEnabled(invocation, checked)}
+                        />
+                        <code className="w-24 shrink-0 truncate font-mono text-[12px] text-foreground">
+                            {invocation}
+                        </code>
+                        <Input
+                            aria-label={`Description for ${invocation}`}
+                            className="min-w-0 flex-1 bg-background"
+                            maxLength={MAX_AGENT_ACTION_DESCRIPTION_LENGTH}
+                            placeholder="Optional description"
+                            size="dense"
+                            value={value.items[invocation].description ?? ''}
+                            onChange={(event) =>
+                                onChange({
+                                    items: {
+                                        ...value.items,
+                                        [invocation]: {
+                                            ...value.items[invocation],
+                                            description: event.target.value || undefined,
+                                        },
+                                    },
+                                })
+                            }
+                        />
+                        <Tooltip content="Remove action">
+                            <Button
+                                aria-label={`Remove agent action ${invocation}`}
+                                className="opacity-0 group-focus-within/action:opacity-100 group-hover/action:opacity-100"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                    const items = { ...value.items };
+                                    delete items[invocation];
+                                    onChange({ items });
+                                }}
+                            >
+                                <Trash2 size={13} />
+                            </Button>
+                        </Tooltip>
+                    </li>
+                ))}
+            </ul>
+            <div className="grid grid-cols-[minmax(110px,0.55fr)_minmax(160px,1fr)_auto] items-center gap-2">
+                <Input
+                    aria-label="New agent action invocation"
+                    className="bg-background font-mono"
+                    placeholder={provider === 'codex' ? '/goal or $commit' : '/deploy'}
+                    size="dense"
+                    value={invocationDraft}
+                    onChange={(event) => setInvocationDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter') addAction();
+                    }}
+                />
+                <Input
+                    aria-label="New agent action description"
+                    className="bg-background"
+                    maxLength={MAX_AGENT_ACTION_DESCRIPTION_LENGTH}
+                    placeholder="Optional description"
+                    size="dense"
+                    value={descriptionDraft}
+                    onChange={(event) => setDescriptionDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter') addAction();
+                    }}
+                />
+                <Button
+                    aria-label="Add agent action"
+                    disabled={!isValidDraft || !hasCapacity}
+                    size="sm"
+                    variant="secondary"
+                    onClick={addAction}
+                >
+                    <Plus size={13} /> Add
+                </Button>
+            </div>
+            {invocationDraft.trim() && !isValidDraft && (
+                <p className="m-0 text-[11px] text-danger" role="status">
+                    Use an exact invocation starting with / or $, without spaces.
+                </p>
+            )}
+            {isValidDraft && !hasCapacity && (
+                <p className="m-0 text-[11px] text-danger" role="status">
+                    Remove an override before adding another Agent action.
+                </p>
+            )}
+        </div>
+    );
+}

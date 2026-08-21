@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
+import { codexProvider } from '..';
 
 const temporaryDirectories: string[] = [];
 
@@ -19,6 +20,65 @@ afterEach(async () => {
 });
 
 describe('Codex provider', () => {
+    it('declares current and compatibility skill roots with Codex invocation syntax', () => {
+        const roots = codexProvider.actions?.roots(
+            { projectRoot: '/repo', cwd: '/repo/packages/app' },
+            { homeDirectory: '/Users/dev', variables: { CODEX_HOME: '/custom/codex' } },
+        );
+
+        expect(roots?.slice(0, 4)).toEqual([
+            {
+                directory: '/custom/codex/skills',
+                kind: 'skills',
+                scope: 'legacy',
+            },
+            {
+                directory: '/Users/dev/.agents/skills',
+                kind: 'skills',
+                scope: 'global',
+            },
+            {
+                boundaryDirectory: '/repo',
+                directory: '/repo/.codex/skills',
+                kind: 'skills',
+                scope: 'legacy',
+            },
+            {
+                boundaryDirectory: '/repo',
+                directory: '/repo/.agents/skills',
+                kind: 'skills',
+                scope: 'project',
+            },
+        ]);
+        expect(roots).toEqual(
+            expect.arrayContaining([
+                {
+                    directory: '/Users/dev/.agents/skills',
+                    kind: 'skills',
+                    scope: 'global',
+                },
+                {
+                    directory: '/custom/codex/skills',
+                    kind: 'skills',
+                    scope: 'legacy',
+                },
+                {
+                    boundaryDirectory: '/repo',
+                    directory: '/repo/.agents/skills',
+                    kind: 'skills',
+                    scope: 'project',
+                },
+                {
+                    boundaryDirectory: '/repo',
+                    directory: '/repo/packages/app/.codex/skills',
+                    kind: 'skills',
+                    scope: 'legacy',
+                },
+            ]),
+        );
+        expect(codexProvider.actions?.skillInvocation('commit')).toBe('$commit');
+    });
+
     it('capability-detects the Codex thread index and exposes bounded metadata', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-codex-state-'));
         temporaryDirectories.push(directory);

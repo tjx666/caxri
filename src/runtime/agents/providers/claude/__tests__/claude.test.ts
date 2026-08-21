@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
+import { claudeProvider } from '..';
 
 const temporaryDirectories: string[] = [];
 
@@ -18,6 +19,68 @@ afterEach(async () => {
 });
 
 describe('Claude Code provider', () => {
+    it('declares skills and compatibility command roots with Claude invocation syntax', () => {
+        const roots = claudeProvider.actions?.roots(
+            { projectRoot: '/repo', cwd: '/repo/packages/app' },
+            { homeDirectory: '/Users/dev', variables: { CLAUDE_CONFIG_DIR: '/custom/claude' } },
+        );
+
+        expect(roots?.slice(0, 4)).toEqual([
+            {
+                directory: '/custom/claude/commands',
+                kind: 'commands',
+                scope: 'global',
+            },
+            {
+                directory: '/custom/claude/skills',
+                kind: 'skills',
+                scope: 'global',
+            },
+            {
+                boundaryDirectory: '/repo',
+                directory: '/repo/.claude/commands',
+                kind: 'commands',
+                scope: 'project',
+            },
+            {
+                boundaryDirectory: '/repo',
+                directory: '/repo/.claude/skills',
+                kind: 'skills',
+                scope: 'project',
+            },
+        ]);
+        expect(roots).toEqual(
+            expect.arrayContaining([
+                {
+                    directory: '/custom/claude/commands',
+                    kind: 'commands',
+                    scope: 'global',
+                },
+                {
+                    directory: '/custom/claude/skills',
+                    kind: 'skills',
+                    scope: 'global',
+                },
+                {
+                    boundaryDirectory: '/repo',
+                    directory: '/repo/.claude/skills',
+                    kind: 'skills',
+                    scope: 'project',
+                },
+                {
+                    boundaryDirectory: '/repo',
+                    directory: '/repo/packages/app/.claude/commands',
+                    kind: 'commands',
+                    scope: 'project',
+                },
+            ]),
+        );
+        expect(claudeProvider.actions?.skillInvocation('deploy')).toBe('/deploy');
+        expect(claudeProvider.actions?.commandInvocation?.('release/deploy')).toBe(
+            '/release:deploy',
+        );
+    });
+
     it('reads Claude Code live-session metadata', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-claude-state-'));
         temporaryDirectories.push(directory);

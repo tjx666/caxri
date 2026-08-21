@@ -1,6 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 
 import type { AgentProvider } from '../../shared/agents';
@@ -45,6 +45,34 @@ export interface AgentEnvironment {
     variables: NodeJS.ProcessEnv;
 }
 
+export interface AgentActionDiscoveryRoot {
+    /**
+     * Canonical containment boundary for Project-scoped roots.
+     */
+    boundaryDirectory?: string;
+    directory: string;
+    kind: 'commands' | 'skills';
+    scope: 'global' | 'project' | 'legacy';
+}
+
+export interface AgentActionDiscoveryContext {
+    cwd: string;
+    projectRoot: string;
+}
+
+export interface AgentActionDiscoveryAdapter {
+    /**
+     * Declares only provider-owned, documented configuration roots. Generic Runtime code owns bounded traversal and
+     * metadata parsing so no provider can accidentally expose file paths or skill bodies over IPC.
+     */
+    roots(
+        context: AgentActionDiscoveryContext,
+        environment: AgentEnvironment,
+    ): AgentActionDiscoveryRoot[];
+    skillInvocation(name: string): string;
+    commandInvocation?(relativeName: string): string;
+}
+
 export function defaultAgentEnvironment(
     variables: NodeJS.ProcessEnv = process.env,
 ): AgentEnvironment {
@@ -59,6 +87,7 @@ export function defaultAgentEnvironment(
  * Runtime code owns every filesystem mutation, bridge process, and lifecycle signal.
  */
 export interface AgentProviderDescriptor {
+    actions?: AgentActionDiscoveryAdapter;
     hooks?: AgentHookAdapter;
     id: AgentProvider;
     readState(
@@ -82,6 +111,32 @@ export interface AgentProviderDescriptor {
      * watching the provider file.
      */
     transcriptRoot?(context: { cwd: string }, environment: AgentEnvironment): string;
+}
+
+/**
+ * Ordered directories from the authorized Project root to a Terminal cwd inside it. A cwd outside the Project is
+ * deliberately reduced to the Project root so action discovery never broadens filesystem authority.
+ */
+export function projectDirectories(context: AgentActionDiscoveryContext): string[] {
+    const projectRoot = resolve(context.projectRoot);
+    const cwd = resolve(context.cwd);
+    const suffix = relative(projectRoot, cwd);
+    if (
+        suffix === '' ||
+        (suffix !== '..' && !isAbsolute(suffix) && !suffix.startsWith(`..${sep}`))
+    ) {
+        const segments = suffix ? suffix.split(sep).filter(Boolean) : [];
+        const directories = [
+            projectRoot,
+            ...segments.map((_, index) => resolve(projectRoot, ...segments.slice(0, index + 1))),
+        ];
+        /**
+         * A persisted path is bounded by the wire schema but can still contain thousands of one-character segments.
+         * Keep the Project root plus the deepest 29 ancestors so provider root expansion remains predictably bounded.
+         */
+        return directories.length <= 30 ? directories : [directories[0], ...directories.slice(-29)];
+    }
+    return [projectRoot];
 }
 
 /**

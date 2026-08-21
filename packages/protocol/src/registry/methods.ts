@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentActionMethods } from '../agent/agent-action-contract.js';
 import {
     agentDispatchInternalMethods,
     agentDispatchMethods,
@@ -119,6 +120,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
  * its application handler.
  */
 export const methods = {
+    ...agentActionMethods,
     ...agentDispatchMethods,
     ...agentEndpointMethods,
     ...agentInboxMethods,
