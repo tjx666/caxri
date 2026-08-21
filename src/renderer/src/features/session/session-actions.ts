@@ -15,10 +15,7 @@ import {
     useSessionMruSwitcherStore,
 } from './session-mru-switcher-state';
 import type { SessionNavigationDirection } from './session-navigation-history';
-import {
-    sessionNavigationTarget,
-    useSessionNavigationHistoryStore,
-} from './session-navigation-history';
+import { useSessionNavigationHistoryStore } from './session-navigation-history';
 
 const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {};
 
@@ -287,22 +284,21 @@ export function switchMruSession(invocation?: SessionMruShortcutInvocation): voi
  * window's navigation, not persisted Session state, so a relaunch legitimately starts with an empty stack.
  */
 export function navigateSessionHistory(direction: SessionNavigationDirection): void {
-    const target = useSessionNavigationHistoryStore.getState().request(direction);
-    if (!target) return;
+    const request = useSessionNavigationHistoryStore.getState().request(direction);
+    if (!request) return;
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`; the only thing left
-    // to do here is drop the queued step the Runtime refused, so a navigation that never happened is not remembered as
-    // one the user already took.
+    // to do here is report the outcome back, so the history moves only for a navigation that actually happened.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void didSelectSession(target).then((selected) => {
-        if (!selected) useSessionNavigationHistoryStore.getState().abandon(target);
+    void didSelectSession(request.target).then((selected) => {
+        const history = useSessionNavigationHistoryStore.getState();
+        if (selected) history.confirm(request);
+        else history.abandon(request);
     });
 }
 
 export function canNavigateSessionHistory(direction: SessionNavigationDirection): boolean {
-    return (
-        sessionNavigationTarget(useSessionNavigationHistoryStore.getState(), direction) !==
-        undefined
-    );
+    const history = useSessionNavigationHistoryStore.getState();
+    return direction === 'back' ? history.canGoBack : history.canGoForward;
 }
 
 export function commitMruSession(): void {

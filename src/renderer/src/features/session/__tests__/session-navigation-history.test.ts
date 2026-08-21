@@ -2,12 +2,25 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { SessionNavigationHistorySnapshot } from '../session-navigation-history';
 import {
-    applySessionNavigation,
+    EMPTY_SESSION_HISTORY,
     pruneSessionHistory,
     recordSessionVisit,
-    sessionNavigationTarget,
+    sessionHistorySnapshot,
+    sessionHistoryTarget,
     useSessionNavigationHistoryStore,
 } from '../session-navigation-history';
+
+function history() {
+    return useSessionNavigationHistoryStore.getState();
+}
+
+/**
+ * Every Session the Workbench displayed, in order, as the controls see it.
+ */
+function visible(): SessionNavigationHistorySnapshot {
+    const { back, current, forward } = history();
+    return { back, current, forward };
+}
 
 function snapshot(
     overrides: Partial<SessionNavigationHistorySnapshot> = {},
@@ -16,251 +29,277 @@ function snapshot(
 }
 
 /**
- * What the navigation buttons show: the confirmed history with every unconfirmed request folded in.
+ * Drives the store the way the Workbench does: each id is a Session the Runtime reported as selected.
  */
-function visible(): SessionNavigationHistorySnapshot {
-    const { back, current, forward } = useSessionNavigationHistoryStore.getState();
-    return { back, current, forward };
+function visit(...sessionIds: string[]): void {
+    for (const sessionId of sessionIds) history().observe(sessionId);
 }
 
-/**
- * The history the workbench has actually shown, which no failed or overtaken request may corrupt.
- */
-function confirmed(): SessionNavigationHistorySnapshot {
-    return useSessionNavigationHistoryStore.getState().confirmed;
-}
-
-describe('Session navigation history', () => {
-    beforeEach(() => {
-        useSessionNavigationHistoryStore.getState().reset();
-    });
-
-    it('stacks ordinary visits and truncates the forward history', () => {
-        let state = recordSessionVisit(snapshot(), 'session-a');
-        state = recordSessionVisit(state, 'session-b');
-        expect(state).toEqual(snapshot({ back: ['session-a'], current: 'session-b' }));
-
-        state = applySessionNavigation(state, 'back');
-        expect(state).toEqual(snapshot({ current: 'session-a', forward: ['session-b'] }));
-
-        state = recordSessionVisit(state, 'session-c');
-        expect(state).toEqual(snapshot({ back: ['session-a'], current: 'session-c' }));
-    });
-
-    it('keeps back and forward symmetric', () => {
-        const start = snapshot({ back: ['session-a'], current: 'session-b' });
-        expect(applySessionNavigation(applySessionNavigation(start, 'back'), 'forward')).toEqual(
-            start,
-        );
-    });
-
-    it('ignores a re-observed current Session and an empty selection', () => {
-        const state = snapshot({ back: ['session-a'], current: 'session-b' });
-        expect(recordSessionVisit(state, 'session-b')).toBe(state);
-        expect(recordSessionVisit(state, undefined)).toEqual(
-            snapshot({ back: ['session-a'], current: undefined }),
-        );
-    });
-
-    it('leaves a direction with no target untouched', () => {
-        const state = snapshot({ back: ['session-a'], current: 'session-b' });
-        expect(applySessionNavigation(state, 'forward')).toBe(state);
-        expect(sessionNavigationTarget(state, 'forward')).toBeUndefined();
-    });
-
-    it('drops archived and deleted Sessions from both stacks', () => {
-        const state = snapshot({
-            back: ['gone', 'session-a'],
-            current: 'session-b',
-            forward: ['archived'],
-        });
-        expect(pruneSessionHistory(state, ['session-a', 'session-b'])).toEqual(
+describe('Session history timeline', () => {
+    it('stacks ordinary visits and drops the forward entries', () => {
+        let timeline = recordSessionVisit(EMPTY_SESSION_HISTORY, 'session-a');
+        timeline = recordSessionVisit(timeline, 'session-b');
+        expect(sessionHistorySnapshot(timeline)).toEqual(
             snapshot({ back: ['session-a'], current: 'session-b' }),
         );
-        expect(pruneSessionHistory(state, ['gone', 'session-a', 'session-b', 'archived'])).toBe(
-            state,
+
+        timeline = { ...timeline, index: 0 };
+        expect(sessionHistorySnapshot(timeline)).toEqual(
+            snapshot({ current: 'session-a', forward: ['session-b'] }),
         );
+
+        timeline = recordSessionVisit(timeline, 'session-c');
+        expect(sessionHistorySnapshot(timeline)).toEqual(
+            snapshot({ back: ['session-a'], current: 'session-c' }),
+        );
+    });
+
+    it('ignores a re-observed current Session', () => {
+        const timeline = recordSessionVisit(EMPTY_SESSION_HISTORY, 'session-a');
+        expect(recordSessionVisit(timeline, 'session-a')).toBe(timeline);
     });
 
     /**
-     * `A → B → A` then archiving B leaves `back: ['session-a']` while `session-a` is already on screen. Without
-     * collapsing that top entry, Back stays enabled forever and every press re-selects the current Session.
+     * Losing the selection is not the same as never having had one: the Session that was on screen has to stay
+     * reachable, or deleting a Session would strand the user with a dead `Go Back`.
      */
-    it('drops stack entries that pruning left equal to the current Session', () => {
-        expect(
-            pruneSessionHistory(
-                snapshot({ back: ['session-a', 'session-b'], current: 'session-a' }),
-                ['session-a'],
-            ),
-        ).toEqual(snapshot({ back: [], current: 'session-a' }));
-        expect(
-            pruneSessionHistory(
-                snapshot({ current: 'session-a', forward: ['session-b', 'session-a'] }),
-                ['session-a'],
-            ),
-        ).toEqual(snapshot({ current: 'session-a', forward: [] }));
+    it('keeps the last displayed Session as the next back target when nothing is selected', () => {
+        let timeline = recordSessionVisit(EMPTY_SESSION_HISTORY, 'session-a');
+        timeline = recordSessionVisit(timeline, undefined);
+        expect(sessionHistorySnapshot(timeline)).toEqual(snapshot({ back: ['session-a'] }));
+        expect(sessionHistoryTarget(timeline, 'back')).toBe(0);
+
+        // Re-selecting it restores the cursor instead of recording the same Session twice.
+        expect(recordSessionVisit(timeline, 'session-a').entries).toEqual(['session-a']);
+        expect(sessionHistorySnapshot(recordSessionVisit(timeline, 'session-a'))).toEqual(
+            snapshot({ current: 'session-a' }),
+        );
+    });
+
+    it('reports the next position in each direction', () => {
+        const timeline = { entries: ['a', 'b', 'c'], hasCurrent: true, index: 1 };
+        expect(sessionHistoryTarget(timeline, 'back')).toBe(0);
+        expect(sessionHistoryTarget(timeline, 'forward')).toBe(2);
+        expect(sessionHistoryTarget({ ...timeline, index: 0 }, 'back')).toBeUndefined();
+        expect(sessionHistoryTarget({ ...timeline, index: 2 }, 'forward')).toBeUndefined();
     });
 
     it('caps the remembered visits', () => {
-        let state = recordSessionVisit(snapshot(), 'session-0');
-        for (let index = 1; index <= 60; index++) {
-            state = recordSessionVisit(state, `session-${index}`);
+        let timeline = EMPTY_SESSION_HISTORY;
+        for (let index = 0; index <= 60; index++) {
+            timeline = recordSessionVisit(timeline, `session-${index}`);
         }
-        expect(state.back).toHaveLength(50);
-        expect(state.back[0]).toBe('session-10');
-        expect(state.current).toBe('session-60');
+        expect(timeline.entries).toHaveLength(50);
+        expect(timeline.entries[0]).toBe('session-11');
+        expect(timeline.entries[timeline.index]).toBe('session-60');
+    });
+
+    it('drops archived Sessions and reports where the survivors moved', () => {
+        const timeline = { entries: ['a', 'gone', 'c'], hasCurrent: true, index: 2 };
+        const pruned = pruneSessionHistory(timeline, ['a', 'c']);
+        expect(pruned.positions).toEqual([0, -1, 1]);
+        expect(pruned.timeline).toEqual({ entries: ['a', 'c'], hasCurrent: true, index: 1 });
+        expect(pruneSessionHistory(timeline, ['a', 'gone', 'c']).timeline).toBe(timeline);
     });
 
     /**
-     * The Runtime confirms a Session switch asynchronously, so a second navigation routinely lands before the first one
-     * is observed. Both must compute from the state the user can already see, which is why the queued requests are
-     * projected on top of the confirmed history, and why the late confirmations must not move it a second time.
+     * `A → B → A` minus B leaves `A` next to itself. Navigating to that repeat would re-select the Session already on
+     * screen, so the control would stay enabled forever and every press would do nothing.
+     */
+    it('collapses a repeat that pruning left behind', () => {
+        const pruned = pruneSessionHistory(
+            { entries: ['a', 'b', 'a'], hasCurrent: true, index: 2 },
+            ['a'],
+        );
+        expect(pruned.timeline).toEqual({ entries: ['a'], hasCurrent: true, index: 0 });
+        expect(pruned.positions).toEqual([0, -1, 0]);
+    });
+
+    it('falls back to the newest surviving entry when the current Session is archived', () => {
+        const pruned = pruneSessionHistory(
+            { entries: ['a', 'b', 'c'], hasCurrent: true, index: 2 },
+            ['a', 'b'],
+        );
+        expect(pruned.timeline).toEqual({ entries: ['a', 'b'], hasCurrent: false, index: 1 });
+        expect(sessionHistorySnapshot(pruned.timeline)).toEqual(snapshot({ back: ['a', 'b'] }));
+    });
+});
+
+describe('Session navigation requests', () => {
+    beforeEach(() => {
+        history().reset();
+    });
+
+    it('records every observed selection and offers the previous Session', () => {
+        visit('session-a', 'session-b');
+        expect(visible()).toEqual(snapshot({ back: ['session-a'], current: 'session-b' }));
+        expect(history().canGoBack).toBe(true);
+        expect(history().canGoForward).toBe(false);
+    });
+
+    /**
+     * The Runtime confirms a Session switch asynchronously, so a second navigation routinely lands before the first is
+     * confirmed. Both compute from the state the user can already see, which is why the requests are projected on top
+     * of the confirmed timeline.
      */
     it('lets a second navigation build on the first before the Runtime confirms it', () => {
-        const store = useSessionNavigationHistoryStore.getState();
-        store.observe('session-a');
-        store.observe('session-b');
-        store.observe('session-c');
-        expect(store.request('back')).toBe('session-b');
-        expect(store.request('back')).toBe('session-a');
+        visit('session-a', 'session-b', 'session-c');
+        const first = history().request('back');
+        const second = history().request('back');
+        expect([first?.target, second?.target]).toEqual(['session-b', 'session-a']);
         const navigated = snapshot({ current: 'session-a', forward: ['session-c', 'session-b'] });
         expect(visible()).toEqual(navigated);
 
-        // Both confirmations arrive in request order, the first one naming a Session no longer on screen.
-        store.observe('session-b');
+        history().confirm(first!);
+        history().confirm(second!);
         expect(visible()).toEqual(navigated);
-        store.observe('session-a');
-        expect(visible()).toEqual(navigated);
-        expect(confirmed()).toEqual(navigated);
-        expect(useSessionNavigationHistoryStore.getState().queue).toEqual([]);
-    });
-
-    it('treats Back then Forward at that same speed as an exact no-op', () => {
-        const store = useSessionNavigationHistoryStore.getState();
-        store.observe('session-a');
-        store.observe('session-b');
-        store.observe('session-c');
-        const before = visible();
-        expect(store.request('back')).toBe('session-b');
-        expect(store.request('forward')).toBe('session-c');
-        expect(visible()).toEqual(before);
+        expect(history().pending).toEqual([]);
     });
 
     /**
-     * A Session the user genuinely reached must survive, even when it arrives out of order: the confirmed history is
-     * what the workbench really showed, so the late confirmation stacks on top of it rather than on the optimistic
-     * projection the overtaking selection already invalidated.
+     * `refreshWorkbench` folds a burst of refreshes into a single snapshot, so the Workbench may never report the
+     * intermediate Session at all. Confirmations therefore carry the position they claimed instead of being matched
+     * against what the snapshot happens to show.
      */
-    it('hands the history to an ordinary selection that overtakes a navigation', () => {
-        const store = useSessionNavigationHistoryStore.getState();
-        store.observe('session-a');
-        store.observe('session-b');
-        expect(store.request('back')).toBe('session-a');
+    it('lands correctly when the Workbench snapshot skips the intermediate Session', () => {
+        visit('session-a', 'session-b', 'session-c');
+        const first = history().request('back');
+        const second = history().request('back');
 
-        // A Session created and selected from the Sidebar resolved first, so it owns the history from `session-b`.
-        store.observe('session-c');
+        // The folded snapshot only ever reports the final Session, and it arrives before either confirmation.
+        history().observe('session-a');
+        history().confirm(first!);
+        history().confirm(second!);
+        expect(visible()).toEqual(
+            snapshot({ current: 'session-a', forward: ['session-c', 'session-b'] }),
+        );
+    });
+
+    /**
+     * `A → B → A → C`: two of the three Backs name `session-a`, so a request has to be identified by more than its
+     * target.
+     */
+    it('walks a timeline that visits the same Session twice', () => {
+        visit('session-a', 'session-b', 'session-a', 'session-c');
+        const requests = [
+            history().request('back'),
+            history().request('back'),
+            history().request('back'),
+        ];
+        expect(requests.map((request) => request?.target)).toEqual([
+            'session-a',
+            'session-b',
+            'session-a',
+        ]);
+        for (const request of requests) history().confirm(request!);
+        expect(visible()).toEqual(
+            snapshot({ current: 'session-a', forward: ['session-c', 'session-a', 'session-b'] }),
+        );
+    });
+
+    /**
+     * The Runtime's selection queue keeps running after a failure, so a request queued behind a refused one still
+     * lands. Dropping it here would leave the user unable to go Forward to a Session that is on screen.
+     */
+    it('keeps a queued navigation when the one before it is refused', () => {
+        visit('session-a', 'session-b', 'session-c');
+        const refused = history().request('back');
+        const landed = history().request('back');
+
+        history().abandon(refused!);
+        expect(history().pending).toHaveLength(1);
+        history().confirm(landed!);
+        expect(visible()).toEqual(
+            snapshot({ current: 'session-a', forward: ['session-c', 'session-b'] }),
+        );
+    });
+
+    /**
+     * An old refusal must not cut a newer request that happens to name the same Session.
+     */
+    it('refuses only the request that failed, not a later one with the same target', () => {
+        visit('session-a', 'session-b', 'session-c');
+        const stale = history().request('back');
+
+        // A Session created and selected from the Sidebar overtakes the navigation and clears the queue.
+        visit('session-d');
+        const toC = history().request('back');
+        const toB = history().request('back');
+        expect([toC?.target, toB?.target]).toEqual(['session-c', 'session-b']);
+
+        history().abandon(stale!);
+        expect(history().pending).toHaveLength(2);
+        history().confirm(toC!);
+        history().confirm(toB!);
+        expect(visible().current).toBe('session-b');
+    });
+
+    /**
+     * Archiving the Session a queued navigation targets must not take the requests behind it down as well: their
+     * selections are already on the wire and will still land.
+     */
+    it('keeps a queued navigation whose target survives an archive', () => {
+        visit('session-a', 'session-b', 'session-c');
+        const toB = history().request('back');
+        const toA = history().request('back');
+
+        history().prune(['session-a', 'session-c']);
+        expect(history().pending).toHaveLength(1);
+        history().abandon(toB!);
+        history().confirm(toA!);
+        expect(visible()).toEqual(snapshot({ current: 'session-a', forward: ['session-c'] }));
+    });
+
+    /**
+     * A Session the user genuinely reached must survive even when it arrives out of order: the confirmed timeline is
+     * what the Workbench really showed, so the late confirmation stacks on top of it rather than on the projection the
+     * overtaking selection already invalidated.
+     */
+    it('records a navigation an ordinary selection overtook as a visit', () => {
+        visit('session-a', 'session-b');
+        const toA = history().request('back');
+
+        visit('session-c');
         expect(visible()).toEqual(
             snapshot({ back: ['session-a', 'session-b'], current: 'session-c' }),
         );
 
-        // Only then does the Back land, as an ordinary visit — `session-c` was on screen and must stay reachable.
-        store.observe('session-a');
+        history().confirm(toA!);
         expect(visible()).toEqual(
             snapshot({ back: ['session-a', 'session-b', 'session-c'], current: 'session-a' }),
         );
     });
 
-    it('ignores a snapshot that re-reports the Session already recorded', () => {
-        const store = useSessionNavigationHistoryStore.getState();
-        store.observe('session-a');
-        expect(store.request('back')).toBeUndefined();
-        store.observe('session-b');
-        expect(store.request('back')).toBe('session-a');
-
+    it('ignores a snapshot that reports a Session a request is already heading to', () => {
+        visit('session-a', 'session-b');
+        const toA = history().request('back');
         const pending = visible();
-        store.observe('session-b');
+
+        history().observe('session-a');
         expect(visible()).toEqual(pending);
-        expect(useSessionNavigationHistoryStore.getState().queue).toHaveLength(1);
-    });
-
-    it('forgets queued navigations to Sessions archived mid-flight', () => {
-        const store = useSessionNavigationHistoryStore.getState();
-        store.observe('session-a');
-        store.observe('session-b');
-        expect(store.request('back')).toBe('session-a');
-
-        store.prune(['session-b']);
-        expect(useSessionNavigationHistoryStore.getState().queue).toEqual([]);
-        expect(visible()).toEqual(snapshot({ current: 'session-b' }));
-
-        // The refused selection lands afterwards and must not bring the archived Session back.
-        store.abandon('session-a');
-        expect(visible()).toEqual(snapshot({ current: 'session-b' }));
+        expect(history().pending).toHaveLength(1);
+        history().confirm(toA!);
+        expect(visible()).toEqual(snapshot({ current: 'session-a', forward: ['session-b'] }));
     });
 
     /**
-     * Rolling the visible stacks back would be wrong here: the confirmed history never moved, so dropping the refused
-     * step and everything queued behind it — those were computed on top of a step that never happened — is enough.
+     * A stalled Runtime must not accumulate navigations it replays all at once on recovery, and the controls have to
+     * say so rather than staying lit while every press does nothing.
      */
-    it('drops a refused navigation together with the steps queued behind it', () => {
-        const store = useSessionNavigationHistoryStore.getState();
-        store.observe('session-a');
-        store.observe('session-b');
-        store.observe('session-c');
-        expect(store.request('back')).toBe('session-b');
-        expect(store.request('back')).toBe('session-a');
+    it('stops queueing navigations a stalled Runtime never confirms', () => {
+        for (let index = 0; index <= 40; index++) visit(`session-${index}`);
 
-        store.abandon('session-b');
-        expect(useSessionNavigationHistoryStore.getState().queue).toEqual([]);
-        expect(visible()).toEqual(
-            snapshot({ back: ['session-a', 'session-b'], current: 'session-c' }),
-        );
+        const requests = Array.from({ length: 20 }, () => history().request('back'));
+        expect(requests.filter(Boolean)).toHaveLength(16);
+        expect(requests.at(-1)).toBeUndefined();
+        expect(history().pending).toHaveLength(16);
+        expect(history().canGoBack).toBe(false);
+        expect(history().canGoForward).toBe(false);
     });
 
-    /**
-     * `A → B → A`: both Backs name `session-a`, so a refusal must be matched by position rather than by Session, or the
-     * rollback would cut the queue at the wrong step.
-     */
-    it('cuts the queue at the oldest occurrence when the same Session is queued twice', () => {
-        const store = useSessionNavigationHistoryStore.getState();
-        store.observe('session-a');
-        store.observe('session-b');
-        store.observe('session-a');
-        store.observe('session-c');
-        expect(store.request('back')).toBe('session-a');
-        expect(store.request('back')).toBe('session-b');
-        expect(store.request('back')).toBe('session-a');
-
-        store.abandon('session-a');
-        expect(useSessionNavigationHistoryStore.getState().queue).toEqual([]);
-        expect(visible()).toEqual(
-            snapshot({ back: ['session-a', 'session-b', 'session-a'], current: 'session-c' }),
-        );
-    });
-
-    it('refuses to queue more navigations than a stalled Runtime could ever confirm', () => {
-        const store = useSessionNavigationHistoryStore.getState();
-        for (let index = 0; index <= 40; index++) {
-            store.observe(`session-${index}`);
-        }
-
-        const targets: Array<string | undefined> = [];
-        for (let index = 0; index < 20; index++) {
-            targets.push(store.request('back'));
-        }
-        expect(targets.filter(Boolean)).toHaveLength(16);
-        expect(targets.at(-1)).toBeUndefined();
-        expect(useSessionNavigationHistoryStore.getState().queue).toHaveLength(16);
-    });
-
-    it('reports the next target in each direction', () => {
-        const state = snapshot({
-            back: ['session-a', 'session-b'],
-            current: 'session-c',
-            forward: ['session-e', 'session-d'],
-        });
-        expect(sessionNavigationTarget(state, 'back')).toBe('session-b');
-        expect(sessionNavigationTarget(state, 'forward')).toBe('session-d');
-        expect(sessionNavigationTarget(snapshot(), 'back')).toBeUndefined();
+    it('reports both directions as unavailable on an empty history', () => {
+        expect(history().request('back')).toBeUndefined();
+        expect(history().request('forward')).toBeUndefined();
+        expect(visible()).toEqual(snapshot());
     });
 });
