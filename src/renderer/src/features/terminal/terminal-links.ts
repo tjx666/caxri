@@ -3,6 +3,7 @@ import { sortBy } from 'es-toolkit';
 
 const MAX_LOGICAL_LINE_ROWS = 16;
 const MAX_LOGICAL_LINE_LENGTH = 16_384;
+const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
 
@@ -95,7 +96,16 @@ function parseFileLocation(text: string): {
     };
 }
 
+/**
+ * Shell home shorthand needs OS user lookup and may resolve outside the authorized Project root. The Renderer has
+ * neither authority, so presenting it as an openable file link would guarantee a wrong or denied target.
+ */
+function isShellHomeShorthand(path: string): boolean {
+    return /^~[^/]*\//.test(path);
+}
+
 function isLikelyFilePath(path: string): boolean {
+    if (isShellHomeShorthand(path)) return false;
     if (/^file:\/\//i.test(path)) return true;
     if (/^[a-z][a-z\d+.-]*:\/\//i.test(path)) return false;
     if (path.startsWith('/') || path.startsWith('./') || path.startsWith('../')) return true;
@@ -131,6 +141,33 @@ function tokenizeByWordSeparators(text: string, wordSeparators: string): RawToke
 }
 
 /**
+ * Detaches a path suffix from CJK prose only when the suffix has an explicit path marker. Bare Project-relative paths
+ * remain ambiguous (`目录。version/file.ts` may be one valid path), so treating every CJK punctuation mark as a separator
+ * would corrupt them. The implicit boundaries apply only to the default setting; custom word separators retain exact
+ * control over tokenization.
+ */
+function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators: string): RawToken {
+    if (wordSeparators !== TERMINAL_DEFAULT_WORD_SEPARATORS) return token;
+    const firstSlash = token.text.indexOf('/');
+    const searchStart = (firstSlash === -1 ? token.text.length : firstSlash) - 1;
+    for (let index = searchStart; index >= 0; index -= 1) {
+        if (!CJK_PROSE_BOUNDARIES.has(token.text[index])) continue;
+        const candidate = token.text.slice(index + 1);
+        const trimmed = trimToken(candidate);
+        if (
+            !trimmed.text.startsWith('.') &&
+            !trimmed.text.startsWith('/') &&
+            !/^file:\/\//i.test(trimmed.text)
+        )
+            return token;
+        if (!trimmed.text || !isLikelyFilePath(parseFileLocation(trimmed.text).target))
+            return token;
+        return { index: token.index + index + 1, text: candidate };
+    }
+    return token;
+}
+
+/**
  * Extracts bounded URL and file candidates from rendered text without surrounding prose.
  */
 export function findTerminalLinks(
@@ -151,7 +188,8 @@ export function findTerminalLinks(
             text: trimmed.text,
         });
     }
-    for (const token of tokenizeByWordSeparators(text, wordSeparators)) {
+    for (const rawToken of tokenizeByWordSeparators(text, wordSeparators)) {
+        const token = detachPathCandidateFromCjkProse(rawToken, wordSeparators);
         const raw = token.text;
         const rawStart = token.index;
         const trimmed = trimToken(raw);
@@ -201,7 +239,7 @@ export function resolveTerminalFilePath(
     { cwd, projectRoot }: Pick<TerminalLinkContext, 'cwd' | 'projectRoot'>,
 ): string | undefined {
     const filePath = /^file:\/\//i.test(target) ? fileUrlPath(target) : target;
-    if (!filePath) return;
+    if (!filePath || isShellHomeShorthand(filePath)) return;
     if (filePath.startsWith('/')) return normalizeAbsolutePath(filePath);
     const base = filePath.startsWith('./') || filePath.startsWith('../') ? cwd : projectRoot;
     return normalizeAbsolutePath(`${base}/${filePath}`);
@@ -402,7 +440,10 @@ export function registerTerminalLinks(
     terminal.options.linkHandler = {
         activate(event, text) {
             const match = findTerminalLinks(text, context.wordSeparators).find(
-                (candidate) => candidate.startIndex === 0 && candidate.endIndex === text.length,
+                (candidate) =>
+                    candidate.endIndex === text.length &&
+                    (candidate.startIndex === 0 ||
+                        CJK_PROSE_BOUNDARIES.has(text[candidate.startIndex - 1])),
             );
             if (match) activateLink(event, match, context);
         },
