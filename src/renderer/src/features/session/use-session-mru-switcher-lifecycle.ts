@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { selectMruSession } from './session-actions';
+import { commitMruSession } from './session-actions';
 import { useSessionMruSwitcherStore } from './session-mru-switcher-state';
 
 const HELD_MODIFIER_KEYS: ReadonlySet<string> = new Set(['Alt', 'Control', 'Meta', 'Shift']);
@@ -10,8 +10,7 @@ function isHeldModifier(key: string): key is 'Alt' | 'Control' | 'Meta' | 'Shift
 }
 
 function commitSessionMruSwitcher(): void {
-    const sessionId = useSessionMruSwitcherStore.getState().commit();
-    if (sessionId) selectMruSession(sessionId);
+    commitMruSession();
 }
 
 /**

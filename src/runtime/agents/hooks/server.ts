@@ -8,6 +8,7 @@ import process from 'node:process';
 
 import type { AgentProvider } from '../../../shared/agents';
 import { agentProviderIds } from '../../../shared/agents';
+import { isOpaqueAgentSessionId } from '../contract';
 import type { AgentLifecyclePhase, AgentLifecycleSignal } from './contract';
 import { agentLifecyclePhases } from './contract';
 
@@ -120,8 +121,8 @@ function parseSignal(source: string): HookWireSignal | undefined {
     if (
         signal.agentSessionId !== undefined &&
         (typeof signal.agentSessionId !== 'string' ||
-            signal.agentSessionId.length === 0 ||
-            signal.agentSessionId.length > MAX_AGENT_SESSION_ID_LENGTH)
+            signal.agentSessionId.length > MAX_AGENT_SESSION_ID_LENGTH ||
+            !isOpaqueAgentSessionId(signal.agentSessionId))
     ) {
         return undefined;
     }

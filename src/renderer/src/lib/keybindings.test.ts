@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildShortcutMap, formatShortcut, keyboardEventShortcut } from './keybindings';
+import {
+    buildShortcutMap,
+    formatShortcut,
+    isKeybindingRecordingEventTarget,
+    keyboardEventShortcut,
+} from './keybindings';
 
 /**
  * `keyboardEventShortcut` only reads `key`, `code`, and the four modifier flags, so a plain object is a faithful
@@ -104,5 +109,19 @@ describe('buildShortcutMap', () => {
         const map = buildShortcutMap([{ key: 'alt+p', command: 'pathBrowser.open' }]);
         const chord = keyboardEventShortcut(keyEvent({ key: 'π', code: 'KeyP', altKey: true }));
         expect(map.get(chord)).toBe('pathBrowser.open');
+    });
+});
+
+describe('isKeybindingRecordingEventTarget', () => {
+    it('recognizes only a target inside the active keybinding recorder without requiring a DOM', () => {
+        const recordingTarget = {
+            closest: (selector: string) =>
+                selector === '[data-keybinding-recording="true"]' ? {} : null,
+        } as unknown as EventTarget;
+        const ordinaryTarget = { closest: () => null } as unknown as EventTarget;
+
+        expect(isKeybindingRecordingEventTarget(recordingTarget)).toBe(true);
+        expect(isKeybindingRecordingEventTarget(ordinaryTarget)).toBe(false);
+        expect(isKeybindingRecordingEventTarget(null)).toBe(false);
     });
 });

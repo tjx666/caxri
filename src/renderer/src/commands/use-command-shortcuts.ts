@@ -2,7 +2,12 @@ import { useEffect } from 'react';
 
 import type { CommandId, Keybinding } from '@shared/types';
 
-import { buildShortcutMap, isEditableEventTarget, keyboardEventShortcut } from '../lib/keybindings';
+import {
+    buildShortcutMap,
+    isEditableEventTarget,
+    isKeybindingRecordingEventTarget,
+    keyboardEventShortcut,
+} from '../lib/keybindings';
 import { useWorkbenchStore } from '../stores/workbench';
 import { isCommandAvailable, runCommand } from './execute';
 import type { SessionMruShortcutInvocation } from './registry';
@@ -41,6 +46,7 @@ export function useCommandShortcuts(): void {
              * An IME composition keystroke (e.g. picking a Pinyin candidate) is not a shortcut.
              */
             if (event.isComposing) return;
+            if (isKeybindingRecordingEventTarget(event.target)) return;
             const bootstrap = useWorkbenchStore.getState().bootstrap;
             if (!bootstrap) return;
             if (bootstrap.keybindings !== cachedKeybindings) {

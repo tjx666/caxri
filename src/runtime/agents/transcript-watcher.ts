@@ -1,8 +1,10 @@
-import { realpath, stat } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { stat } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { WatchHandle, WatchHub } from '../watch-hub';
+import type { AgentTranscriptLocation } from './transcript-security';
+import { resolveSafeAgentTranscriptPath } from './transcript-security';
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
 
@@ -11,12 +13,18 @@ interface TranscriptWatchEntry {
     path: string;
     signature: string;
     sourcePath: string;
+    sourceRoot: string;
     terminalId: string;
+}
+
+interface PendingTranscriptInstall {
+    location: AgentTranscriptLocation;
+    promise: Promise<void>;
 }
 
 export interface AgentTranscriptWatcherOptions {
     emit: (event: RuntimeEvent) => void;
-    pathForTerminal: (terminalId: string) => string | undefined;
+    locationForTerminal: (terminalId: string) => AgentTranscriptLocation | undefined;
     pollIntervalMs?: number;
     terminalIdsForSession: (sessionId: string) => readonly string[];
     watchHub: WatchHub;
@@ -32,23 +40,6 @@ async function transcriptSignature(path: string): Promise<string> {
 }
 
 /**
- * Native macOS events canonicalize `/var` to `/private/var`, while provider paths can retain the symlinked spelling.
- * Canonicalizing the existing file (or its parent before the file exists) keeps exact-path filtering reliable without
- * broadening a transcript subscription to unrelated files in the same provider directory.
- */
-async function canonicalTranscriptPath(path: string): Promise<string> {
-    try {
-        return await realpath(path);
-    } catch {
-        try {
-            return join(await realpath(dirname(path)), basename(path));
-        } catch {
-            return resolve(path);
-        }
-    }
-}
-
-/**
  * Retains one Runtime/WatchHub subscription per transcript that a Renderer has actually opened. Native events carry no
  * content; fallback polling compares only filesystem metadata. A post-subscribe signature check closes the race between
  * the initial signature read and WatchHub becoming live.
@@ -57,7 +48,7 @@ export class AgentTranscriptWatcher {
     private closed = false;
     private readonly entries = new Map<string, TranscriptWatchEntry>();
     private readonly generations = new Map<string, number>();
-    private readonly installs = new Map<string, Promise<void>>();
+    private readonly installs = new Map<string, PendingTranscriptInstall>();
 
     constructor(private readonly options: AgentTranscriptWatcherOptions) {}
 
@@ -78,10 +69,12 @@ export class AgentTranscriptWatcher {
 
     private async install(
         terminalId: string,
-        sourcePath: string,
+        location: AgentTranscriptLocation,
         generation: number,
     ): Promise<void> {
-        const path = await canonicalTranscriptPath(sourcePath);
+        const safe = await resolveSafeAgentTranscriptPath(location);
+        if (!safe) return;
+        const { path } = safe;
         const previous = this.entries.get(terminalId);
         if (previous) {
             this.entries.delete(terminalId);
@@ -90,10 +83,11 @@ export class AgentTranscriptWatcher {
         const entry = {
             terminalId,
             path,
-            sourcePath,
+            sourcePath: location.path,
+            sourceRoot: location.root,
             signature: await transcriptSignature(path),
         } as Omit<TranscriptWatchEntry, 'handle'> & { handle?: WatchHandle };
-        const acceptedPaths = new Set([resolve(sourcePath), path]);
+        const acceptedPaths = new Set([resolve(location.path), path]);
         const handle = await this.options.watchHub.register({
             label: 'agent-transcript',
             root: dirname(path),
@@ -122,22 +116,36 @@ export class AgentTranscriptWatcher {
 
     async watch(terminalId: string): Promise<void> {
         if (this.closed) return;
-        const sourcePath = this.options.pathForTerminal(terminalId);
-        if (!sourcePath) {
+        const location = this.options.locationForTerminal(terminalId);
+        if (!location) {
             this.forgetTerminal(terminalId);
             return;
         }
-        if (this.entries.get(terminalId)?.sourcePath === sourcePath) return;
+        const entry = this.entries.get(terminalId);
+        if (entry?.sourcePath === location.path && entry.sourceRoot === location.root) return;
         const pending = this.installs.get(terminalId);
-        if (pending) return pending;
+        if (pending) {
+            await pending.promise;
+            // Another lifecycle call can close the watcher while the install promise is pending.
+            // oxlint-disable-next-line typescript/no-unnecessary-condition -- concurrent lifecycle mutation across await
+            if (this.closed) return;
+            const latest = this.options.locationForTerminal(terminalId);
+            if (
+                latest &&
+                (latest.path !== pending.location.path || latest.root !== pending.location.root)
+            )
+                await this.watch(terminalId);
+            return;
+        }
         const generation = (this.generations.get(terminalId) ?? 0) + 1;
         this.generations.set(terminalId, generation);
-        const install = this.install(terminalId, sourcePath, generation);
-        this.installs.set(terminalId, install);
+        const install = this.install(terminalId, location, generation);
+        const pendingInstall = { location, promise: install };
+        this.installs.set(terminalId, pendingInstall);
         try {
             await install;
         } finally {
-            if (this.installs.get(terminalId) === install) this.installs.delete(terminalId);
+            if (this.installs.get(terminalId) === pendingInstall) this.installs.delete(terminalId);
         }
     }
 
@@ -165,7 +173,7 @@ export class AgentTranscriptWatcher {
         this.entries.clear();
         await Promise.all([
             ...entries.map((entry) => entry.handle.dispose()),
-            ...this.installs.values(),
+            ...this.installs.values().map((install) => install.promise),
         ]);
     }
 }

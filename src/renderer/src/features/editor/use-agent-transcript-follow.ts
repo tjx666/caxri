@@ -6,7 +6,7 @@ import { isTranscriptAtLatest } from './transcript-follow';
 
 type TranscriptEditor = Parameters<OnMount>[0];
 
-export function useAgentTranscriptFollow() {
+export function useAgentTranscriptFollow(scopeKey: string) {
     const editorReference = useRef<TranscriptEditor | null>(null);
     const subscriptionsReference = useRef<Array<{ dispose(): void }>>([]);
     const frameReference = useRef<number | null>(null);
@@ -62,6 +62,11 @@ export function useAgentTranscriptFollow() {
         },
         [scheduleLatest, updateFollowing],
     );
+
+    useEffect(() => {
+        followingReference.current = true;
+        scheduleLatest(true);
+    }, [scheduleLatest, scopeKey]);
 
     useEffect(
         () => () => {

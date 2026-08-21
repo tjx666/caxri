@@ -19,6 +19,19 @@ export function sessionMruCandidates(
         );
 }
 
+export function resolveSessionMruView(
+    candidateIds: readonly string[],
+    sessions: readonly SessionRecord[],
+    requestedSelectedIndex: number,
+): { candidates: SessionRecord[]; selected?: SessionRecord; selectedIndex: number } {
+    const candidates = candidateIds.flatMap((id) => {
+        const session = sessions.find((item) => item.id === id);
+        return session && session.archivedAt === undefined ? [session] : [];
+    });
+    const selectedIndex = Math.min(requestedSelectedIndex, candidates.length - 1);
+    return { candidates, selected: candidates.at(selectedIndex), selectedIndex };
+}
+
 export interface PendingSessionMruSelection {
     currentSessionId: string;
     previousSessionId: string;
@@ -62,7 +75,7 @@ interface SessionMruSwitcherState {
         invocation?: SessionMruShortcutInvocation,
     ): string | undefined;
     cancel(): void;
-    commit(): string | undefined;
+    commit(availableCandidateIds?: readonly string[]): string | undefined;
     cycle(delta: 1 | -1): void;
 }
 
@@ -110,9 +123,11 @@ export const useSessionMruSwitcherStore = create<SessionMruSwitcherState>((set, 
             clearRevealTimer();
             set(closedState);
         },
-        commit: () => {
+        commit: (availableCandidateIds) => {
             const state = get();
-            const sessionId = state.isOpen ? state.candidateIds[state.selectedIndex] : undefined;
+            const candidates = availableCandidateIds ?? state.candidateIds;
+            const selectedIndex = Math.min(state.selectedIndex, candidates.length - 1);
+            const sessionId = state.isOpen ? candidates.at(selectedIndex) : undefined;
             clearRevealTimer();
             set(closedState);
             return sessionId;

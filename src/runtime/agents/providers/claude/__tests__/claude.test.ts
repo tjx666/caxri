@@ -187,6 +187,28 @@ describe('Claude Code provider', () => {
         await expect(
             service.snapshot('claude', { rootPath: root, processState: 'running' }),
         ).resolves.toMatchObject({ title: 'Migrate market search to ES with flags' });
+
+        await writeFile(
+            join(config, 'projects', 'outside.jsonl'),
+            `${JSON.stringify({ aiTitle: 'Escaped title', type: 'ai-title' })}\n`,
+            'utf8',
+        );
+        const escapedMetadataUpdatedAt = new Date(Date.now() + 1_000).toISOString();
+        await writeFile(
+            join(config, 'sessions', 'session.json'),
+            JSON.stringify({
+                cwd: root,
+                name: 'project-worktree-7d',
+                nameSource: 'derived',
+                sessionId: '../../outside',
+                status: 'busy',
+                updatedAt: escapedMetadataUpdatedAt,
+            }),
+            'utf8',
+        );
+        await expect(
+            service.snapshot('claude', { rootPath: root, processState: 'running' }),
+        ).resolves.toMatchObject({ title: 'project-worktree-7d' });
     });
 
     it('falls back to the transcript last prompt before the derived name, mirroring the /resume list', async () => {

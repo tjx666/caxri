@@ -313,6 +313,19 @@ describe('AgentHookServer', () => {
                     agentSessionId: 'x'.repeat(257),
                 }),
             ],
+            [
+                'a path-like agentSessionId',
+                JSON.stringify({
+                    protocolVersion: 1,
+                    schemaVersion: 2,
+                    launchId: 'l',
+                    terminalId: 't',
+                    provider: 'codex',
+                    phase: 'turnFinished',
+                    token: 'tok',
+                    agentSessionId: '../outside',
+                }),
+            ],
         ])('rejects a signal that is %s', async (_description, payload) => {
             const { server, socketPath, onSignal } = await createTestServer();
             try {

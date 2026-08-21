@@ -26,7 +26,7 @@ function transcriptLine(marker: string): string {
     return `${JSON.stringify({ message: marker, type: 'assistant' })}\n`;
 }
 
-function claudeFixtureSource(agentSessionId: string): string {
+function claudeFixtureSource(): string {
     return String.raw`#!${process.execPath}
 const fs = require('node:fs');
 const path = require('node:path');
@@ -35,12 +35,13 @@ if (process.argv.includes('--version')) {
   process.exit(0);
 }
 const now = Date.now();
+const agentSessionId = 'e2e-transcript-' + path.basename(process.cwd());
 const sessions = path.join(process.env.CLAUDE_CONFIG_DIR, 'sessions');
 fs.mkdirSync(sessions, { recursive: true });
 fs.writeFileSync(path.join(sessions, 'current.json'), JSON.stringify({
   cwd: process.cwd(),
   name: 'Transcript Follow Fixture',
-  sessionId: ${JSON.stringify(agentSessionId)},
+  sessionId: agentSessionId,
   startedAt: now,
   status: 'busy',
   updatedAt: now,
@@ -55,11 +56,12 @@ test('live transcript updates follow the bottom until the user scrolls away', as
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-transcript-follow-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
-    await mkdir(root, { recursive: true });
-    const agentSessionId = 'e2e-transcript-follow';
+    const secondaryRoot = join(root, 'secondary');
+    await mkdir(secondaryRoot, { recursive: true });
+    const agentSessionId = 'e2e-transcript-project';
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
-        providers: { claude: { executableSource: claudeFixtureSource(agentSessionId) } },
+        providers: { claude: { executableSource: claudeFixtureSource() } },
     });
     const launchOptions = { agentMode, userDataDir: userData, testRootPath: root };
     const running = await launchCaxri(launchOptions);
@@ -137,6 +139,48 @@ test('live transcript updates follow the bottom until the user scrolls away', as
         await appendFile(transcriptPath, transcriptLine(thirdMarker));
         await expect(editor.locator('.view-lines')).toContainText(thirdMarker);
         await expect(content).toHaveAttribute('data-transcript-following', 'true');
+
+        await scrollable.hover();
+        await running.page.mouse.wheel(0, -3_000);
+        await expect(content).toHaveAttribute('data-transcript-following', 'false');
+
+        const secondTerminal = await pageRequest<{ cwd: string; id: string }>(
+            running.page,
+            'terminal.create',
+            {
+                sessionId,
+                kind: 'claude',
+                cwd: secondaryRoot,
+            },
+        );
+        const secondAgentSessionId = 'e2e-transcript-secondary';
+        await expect
+            .poll(async () => {
+                const state = await pageRequest<{
+                    terminals: Array<{ agentSessionId?: string; id: string }>;
+                }>(running.page, 'app.bootstrap');
+                return state.terminals.find((candidate) => candidate.id === secondTerminal.id)
+                    ?.agentSessionId;
+            })
+            .toBe(secondAgentSessionId);
+        const secondTranscriptPath = join(
+            claudeConfigDirectory,
+            'projects',
+            secondTerminal.cwd.replaceAll(/[^a-z0-9]/gi, '-'),
+            `${secondAgentSessionId}.jsonl`,
+        );
+        await mkdir(dirname(secondTranscriptPath), { recursive: true });
+        await writeFile(secondTranscriptPath, transcriptLine('second-transcript-latest'));
+        await running.page.locator(`.work-tab[data-terminal-id="${secondTerminal.id}"]`).click();
+        await openBottomPanelView(running.page, 'Info');
+        await running.page
+            .locator(`[data-terminal-info-id="${secondTerminal.id}"]`)
+            .getByRole('button')
+            .click();
+
+        await expect(content).toHaveAttribute('data-transcript-following', 'true');
+        await expect(editor.locator('.view-lines')).toContainText('second-transcript-latest');
+        await expect(jump).toBeHidden();
     } finally {
         await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });

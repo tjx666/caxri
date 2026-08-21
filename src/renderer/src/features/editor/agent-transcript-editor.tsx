@@ -24,11 +24,11 @@ const emptyWorkDangerClassName =
 export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
     const theme = useTheme();
     const fontFamily = useEditorFontFamily();
-    const follow = useAgentTranscriptFollow();
     const query = useCaxriQuery('terminal.agentTranscript', {
         terminalId: tab.terminalId,
         withContent: true,
     });
+    const follow = useAgentTranscriptFollow(query.data?.path ?? tab.terminalId);
     if (!theme) return null;
     if (query.isPending) return <div className={emptyWorkClassName}>Loading transcript…</div>;
     if (query.isError)

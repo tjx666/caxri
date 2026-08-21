@@ -1,10 +1,12 @@
+import { useEffect } from 'react';
+
 import { Circle } from 'lucide-react';
 
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import { sessionActivityPresentation } from '../sidebar/session-activity';
-import { useSessionMruSwitcherStore } from './session-mru-switcher-state';
+import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru-switcher-state';
 
 function useSessionMruSwitcherView() {
     const candidateIds = useSessionMruSwitcherStore((state) => state.candidateIds);
@@ -19,19 +21,30 @@ function useSessionMruSwitcherView() {
 
 export function SessionMruSwitcher() {
     const view = useSessionMruSwitcherView();
-    if (!view.isOpen || !view.isVisible) return null;
-    const { candidateIds, projects, selectedIndex, sessions, terminals } = view;
-    const candidates = candidateIds.flatMap((id) => {
-        const session = sessions.find((item) => item.id === id);
-        return session ? [session] : [];
-    });
+    const {
+        candidateIds,
+        projects,
+        selectedIndex: requestedSelectedIndex,
+        sessions,
+        terminals,
+    } = view;
+    const { candidates, selected, selectedIndex } = resolveSessionMruView(
+        candidateIds,
+        sessions,
+        requestedSelectedIndex,
+    );
+    useEffect(() => {
+        if (!selected && view.isOpen) useSessionMruSwitcherStore.getState().cancel();
+    }, [selected, view.isOpen]);
+    if (!selected || !view.isOpen || !view.isVisible) return null;
     return (
-        <div
-            className="pointer-events-none fixed inset-0 z-[60] grid place-items-center"
-            aria-live="polite"
-        >
+        <div className="pointer-events-none fixed inset-0 z-[60] grid place-items-center">
+            <p className="sr-only" aria-atomic="true" aria-live="assertive" role="status">
+                {`Selected ${selected.displayTitle}, ${selectedIndex + 1} of ${candidates.length}`}
+            </p>
             <div
                 className="session-mru-switcher motion-safe:animate-in fade-in-0 zoom-in-95 w-[min(520px,calc(100vw-40px))] overflow-hidden rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)]"
+                aria-activedescendant={`session-mru-option-${selected.id}`}
                 aria-label="Recently used Sessions"
                 role="listbox"
             >
@@ -48,6 +61,7 @@ export function SessionMruSwitcher() {
                         return (
                             <div
                                 key={session.id}
+                                id={`session-mru-option-${session.id}`}
                                 className={cn(
                                     'flex min-h-10 items-center gap-2 rounded px-2 py-1.5 text-foreground',
                                     index === selectedIndex && 'bg-elevated',
