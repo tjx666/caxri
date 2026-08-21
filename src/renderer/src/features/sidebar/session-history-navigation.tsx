@@ -11,8 +11,8 @@ import { useSessionNavigationHistoryStore } from '../session/session-navigation-
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 function SessionHistoryButton({ direction }: { direction: SessionNavigationDirection }) {
-    const enabled = useSessionNavigationHistoryStore(
-        (state) => (direction === 'back' ? state.back : state.forward).length > 0,
+    const isEnabled = useSessionNavigationHistoryStore((state) =>
+        direction === 'back' ? state.canGoBack : state.canGoForward,
     );
     const Icon = direction === 'back' ? ArrowLeft : ArrowRight;
     return (
@@ -25,7 +25,7 @@ function SessionHistoryButton({ direction }: { direction: SessionNavigationDirec
                 variant="ghost"
                 aria-label={direction === 'back' ? 'Go Back' : 'Go Forward'}
                 data-session-history={direction}
-                disabled={!enabled}
+                disabled={!isEnabled}
                 onClick={() => navigateSessionHistory(direction)}
             >
                 <Icon size={14} />

@@ -8,6 +8,7 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
+    pageRequest,
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
@@ -98,12 +99,20 @@ test('Session history navigates back and forward from the Sidebar header and the
         await expect(settingsDialog).toBeVisible();
         await pressSideButton('back');
         await expect(settingsDialog).toBeVisible();
-        expect(await selectedSessionId(running.page)).toBe(sessionA);
+
+        /**
+         * `session.select` is serialized by the Runtime while `app.bootstrap` is not, so reading the selection straight
+         * after the gesture could still observe the state from before a leaked navigation. Selecting a Session through
+         * that same queue is the barrier — it cannot resolve until a leaked selection has been applied — and it also
+         * makes the two worlds diverge durably, because a leaked Back would have dropped the forward entries first.
+         */
+        await pageRequest(running.page, 'session.select', { sessionId: sessionC });
+        await expect.poll(() => selectedSessionId(running.page)).toBe(sessionC);
 
         await running.page.keyboard.press('Escape');
         await expect(settingsDialog).toBeHidden();
         await pressSideButton('back');
-        await expect.poll(() => selectedSessionId(running.page)).toBe(sessionB);
+        await expect.poll(() => selectedSessionId(running.page)).toBe(sessionA);
     } finally {
         try {
             await running.app.close();
