@@ -1,0 +1,114 @@
+export type DesktopReadiness = 'pending' | 'announced';
+
+interface ReconnectContext {
+    attempt: number;
+    outageStartedAtMs: number;
+    readiness: DesktopReadiness;
+}
+
+export type HostConnectionState =
+    | { status: 'idle' }
+    | { status: 'attaching'; mode: 'initial' }
+    | ({ status: 'backoff' } & ReconnectContext)
+    | ({ status: 'attaching'; mode: 'reconnect' } & ReconnectContext)
+    | ({ status: 'recovering'; hostContinuity: 'same' | 'replaced' } & ReconnectContext)
+    | { status: 'attached' }
+    | { status: 'ready' }
+    | { status: 'replaced' }
+    | { status: 'disposed' };
+
+export type HostConnectionTransition =
+    | { type: 'start' }
+    | { type: 'attachment-succeeded'; hostContinuity: 'same' | 'replaced' }
+    | { type: 'attachment-failed' }
+    | { type: 'desktop-ready' }
+    | { type: 'connection-lost'; atMs: number; reason: 'replaced' | 'transport' }
+    | { type: 'backoff-elapsed' }
+    | { type: 'recovery-completed' }
+    | { type: 'dispose' };
+
+export const initialHostConnectionState: HostConnectionState = { status: 'idle' };
+
+function reconnectContext(state: HostConnectionState): ReconnectContext | undefined {
+    switch (state.status) {
+        case 'backoff':
+        case 'recovering':
+            return state;
+        case 'attaching':
+            return state.mode === 'reconnect' ? state : undefined;
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * Pure Desktop↔Host lifecycle transition table. Socket, timer, readiness, and event-recovery I/O stay in
+ * `DesktopHostConnection`; this model only makes mutually exclusive phases and terminal states explicit.
+ */
+export function transitionHostConnection(
+    state: HostConnectionState,
+    transition: HostConnectionTransition,
+): HostConnectionState {
+    if (transition.type === 'dispose') return { status: 'disposed' };
+    if (state.status === 'disposed' || state.status === 'replaced') return state;
+
+    switch (transition.type) {
+        case 'start':
+            if (state.status === 'idle') return { status: 'attaching', mode: 'initial' };
+            return state;
+        case 'attachment-succeeded': {
+            if (state.status !== 'attaching') return state;
+            if (state.mode === 'initial') return { status: 'attached' };
+            return {
+                status: 'recovering',
+                attempt: state.attempt,
+                hostContinuity: transition.hostContinuity,
+                outageStartedAtMs: state.outageStartedAtMs,
+                readiness: state.readiness,
+            };
+        }
+        case 'attachment-failed': {
+            if (state.status !== 'attaching') return state;
+            if (state.mode === 'initial') return { status: 'idle' };
+            return {
+                status: 'backoff',
+                attempt: state.attempt + 1,
+                outageStartedAtMs: state.outageStartedAtMs,
+                readiness: state.readiness,
+            };
+        }
+        case 'desktop-ready': {
+            if (state.status === 'attached') return { status: 'ready' };
+            if (state.status === 'backoff' || state.status === 'recovering')
+                return { ...state, readiness: 'announced' };
+            if (state.status === 'attaching' && state.mode === 'reconnect')
+                return { ...state, readiness: 'announced' };
+            return state;
+        }
+        case 'connection-lost': {
+            if (transition.reason === 'replaced') return { status: 'replaced' };
+            const context = reconnectContext(state);
+            if (context) {
+                return {
+                    status: 'backoff',
+                    attempt: context.attempt + (state.status === 'backoff' ? 0 : 1),
+                    outageStartedAtMs: context.outageStartedAtMs,
+                    readiness: context.readiness,
+                };
+            }
+            if (state.status === 'idle') return state;
+            return {
+                status: 'backoff',
+                attempt: 1,
+                outageStartedAtMs: transition.atMs,
+                readiness: state.status === 'ready' ? 'announced' : 'pending',
+            };
+        }
+        case 'backoff-elapsed':
+            if (state.status !== 'backoff') return state;
+            return { ...state, status: 'attaching', mode: 'reconnect' };
+        case 'recovery-completed':
+            if (state.status !== 'recovering') return state;
+            return state.readiness === 'announced' ? { status: 'ready' } : { status: 'attached' };
+    }
+}
