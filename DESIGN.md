@@ -143,6 +143,12 @@ Project ordering uses the whole Project heading as its drag source. While draggi
 source group and show a 2px `--accent` insertion line with a circular leading cap between Project
 groups; Session rows are never drop targets. `Option+Up` / `Option+Down` on a focused Project name
 provides the keyboard-equivalent reorder and announces the resulting position.
+The Sidebar header carries the Session history pair — Back then Forward, ghost icon buttons in
+`--muted` that lift to `--foreground` on hover, placed immediately after the traffic-light clearance
+because that is where every browser puts them. They are `no-drag` islands in the header's drag
+region. A direction with an empty stack renders disabled rather than hidden, so the pair never
+reflows and its position stays learnable; the shortcut and command name reach the user through the
+shared command tooltip instead of a bespoke label.
 Archived Sessions use one stable Sidebar footer entry with a global count. Search, filters,
 Project-grouped results, restore, and delete live in a full-width management dialog; Project
 disclosures contain active Sessions only, so low-frequency history never fragments navigation.
@@ -261,6 +267,17 @@ border `--border`, shadow from `--shadow`. Never a close X inside the command pa
 **Command palette** — rows show command title left, `kbd` shortcut hint right (render
 from live keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px.
 
+**Session switcher** — the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment that
+ends on key release, so it wears the Dialog scrim (`--overlay` + `blur(2px)`) and the palette's 560px
+width, centred. It reads top to bottom as caption / list / hint: a panel-caption title with the live
+position on the right, Session rows (activity dot, Agent identity icon, title over Project, relative
+`Last opened`, unread ring — the same indicator components the Sidebar renders), and a footer of live
+`kbd` chips for cycle, reverse, cancel, and release-to-commit. The highlighted row is the one place a
+list selection may carry `--accent` (an inset ring over the `--elevated` fill): the surface exists only
+while its chord is held and its whole purpose is to show where the pending jump lands, which is the
+transient action-scoped carve-out in principle 2. Cycling scrolls the highlight into view; a pointer
+may highlight a row by moving over it and commit it by clicking.
+
 **Inputs** — shared `Input` density is always explicit outside standard forms: `standard` (36px,
 base), `dense` (28px, dense), `compact` (24px, dense), or `palette` (44px, base). `appearance`
 selects the standard themed fill, workbench canvas, inline surface, or an embedded field owned by
@@ -300,6 +317,11 @@ not touched.").
   `Command+J` toggles the Bottom Panel; the Status Bar contains no panel-collapse controls.
 - Panel sizes and visibility are device-local (`localStorage`), never Session state, so a layout
   never travels between machines with a Project.
+- Session history navigation (`Control+Option+Left` / `Control+Option+Right`, and the mouse's
+  side buttons) is one of the deliberate opt-ins to the editable-target rule: switching Sessions is
+  exactly what the user wants while an Agent Terminal holds focus. Its chords stay in the same
+  `Control+Option` family as the MRU switcher so the whole Session-navigation set is one gesture
+  family, and none of them shadow a Terminal control sequence.
 
 ## Known gaps
 

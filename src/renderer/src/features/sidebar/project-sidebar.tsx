@@ -18,6 +18,7 @@ import { archiveSession, beginSessionCreation, selectProject } from '../session/
 import { useProjectCollapse } from './hooks/use-project-collapse';
 import { ProjectGroup } from './project-group';
 import { hasProjectDragType } from './project-order';
+import { SessionHistoryNavigation } from './session-history-navigation';
 import type { SidebarVerticalKey } from './sidebar-tree';
 import {
     flattenSidebarRows,
@@ -193,10 +194,11 @@ export function ProjectSidebar() {
                     <img
                         src={sidebarLogoUrl}
                         alt="Caxri"
-                        className="mr-auto h-7 w-7 object-contain"
+                        className="mr-2 h-7 w-7 object-contain"
                         data-caxri-logo
                     />
                 )}
+                <SessionHistoryNavigation />
             </div>
             <div
                 ref={treeReference}

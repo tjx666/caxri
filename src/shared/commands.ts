@@ -101,6 +101,20 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Switch between active Sessions in recently used order',
     },
     {
+        id: 'session.navigateBack',
+        title: 'Go Back',
+        category: 'Session',
+        description: 'Return to the Session you were viewing before this one',
+        nativeMenu: { menu: 'session', group: 2, order: 0 },
+    },
+    {
+        id: 'session.navigateForward',
+        title: 'Go Forward',
+        category: 'Session',
+        description: 'Move forward again through the Sessions you stepped back from',
+        nativeMenu: { menu: 'session', group: 2, order: 1 },
+    },
+    {
         id: 'terminal.new',
         title: 'New Terminal',
         category: 'Terminal',
@@ -385,6 +399,13 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'ctrl+tab', command: 'workbench.nextTab' },
     { key: 'ctrl+shift+tab', command: 'workbench.previousTab' },
     { key: 'ctrl+alt+tab', command: 'session.switchMru' },
+    /**
+     * Session navigation shares one `Ctrl+Alt` family: `Tab` cycles recently used Sessions, the arrows walk the visit
+     * history. VS Code's `Ctrl+-` / `Ctrl+Shift+-` is unavailable here because these commands must fire while a
+     * Terminal owns focus, where they would shadow the shell's own `Ctrl+_`.
+     */
+    { key: 'ctrl+alt+arrowleft', command: 'session.navigateBack' },
+    { key: 'ctrl+alt+arrowright', command: 'session.navigateForward' },
     { key: 'cmd+shift+arrowup', command: 'terminal.previousCommand' },
     { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
