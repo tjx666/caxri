@@ -1,9 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ClipboardNativeAdapter } from './clipboard.ts';
-import { snapshotClipboard } from './clipboard.ts';
+import { runNativeHelper, snapshotClipboard } from './clipboard.ts';
 
 const PRIVATE_PAYLOAD = 'private clipboard snapshot payload';
+
+function shellHelperOptions(
+    overrides: { maxInputBytes?: number; maxOutputBytes?: number; timeoutMs?: number } = {},
+) {
+    return {
+        executablePath: '/bin/sh',
+        helperPath: '-c',
+        maxInputBytes: overrides.maxInputBytes ?? 1_024,
+        maxOutputBytes: overrides.maxOutputBytes ?? 1_024,
+        timeoutMs: overrides.timeoutMs ?? 1_000,
+    };
+}
 
 function nativeAdapter(overrides: Partial<ClipboardNativeAdapter> = {}): ClipboardNativeAdapter {
     return {
@@ -28,6 +40,37 @@ function nativeAdapter(overrides: Partial<ClipboardNativeAdapter> = {}): Clipboa
 }
 
 describe('E2E clipboard ownership session', () => {
+    it('kills a stalled native helper at the owning process boundary', async () => {
+        await expect(
+            runNativeHelper('exec sleep 5', undefined, shellHelperOptions({ timeoutMs: 20 })),
+        ).rejects.toThrow('Could not run exec sleep 5 for the native E2E clipboard');
+    });
+
+    it('rejects oversized helper input and output without exposing clipboard bytes', async () => {
+        const privateInput = PRIVATE_PAYLOAD.repeat(4);
+        let inputFailure: unknown;
+        let outputFailure: unknown;
+        try {
+            await runNativeHelper('exit 0', privateInput, shellHelperOptions({ maxInputBytes: 8 }));
+        } catch (error) {
+            inputFailure = error;
+        }
+        try {
+            await runNativeHelper(
+                "printf '%02048d' 0",
+                undefined,
+                shellHelperOptions({ maxOutputBytes: 64 }),
+            );
+        } catch (error) {
+            outputFailure = error;
+        }
+
+        expect(inputFailure).toBeInstanceOf(Error);
+        expect(outputFailure).toBeInstanceOf(Error);
+        expect((inputFailure as Error).message.includes(privateInput)).toBe(false);
+        expect((outputFailure as Error).message.includes(PRIVATE_PAYLOAD)).toBe(false);
+    });
+
     it('preserves an external write whose generation replaced the last test-owned generation', async () => {
         let generation = 11;
         let nativeWrites = 0;

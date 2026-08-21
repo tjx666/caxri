@@ -9,6 +9,8 @@ import { join } from 'node:path';
 import type { ElectronApplication } from '@playwright/test';
 
 const NATIVE_HELPER_PATH = join(import.meta.dirname, 'clipboard-native.swift');
+const NATIVE_HELPER_MAX_TRANSPORT_BYTES = 64 * 1024 * 1024;
+const NATIVE_HELPER_TIMEOUT_MS = 10_000;
 
 export interface ClipboardMetadata {
     formatCount: number;
@@ -41,24 +43,59 @@ function contentFreeNativeError(action: string): Error {
     return new Error(`Could not ${action} the native E2E clipboard`);
 }
 
+export interface NativeHelperRunOptions {
+    executablePath: string;
+    helperPath: string;
+    maxInputBytes: number;
+    maxOutputBytes: number;
+    timeoutMs: number;
+}
+
+const defaultNativeHelperRunOptions: NativeHelperRunOptions = {
+    executablePath: '/usr/bin/swift',
+    helperPath: NATIVE_HELPER_PATH,
+    maxInputBytes: NATIVE_HELPER_MAX_TRANSPORT_BYTES,
+    maxOutputBytes: NATIVE_HELPER_MAX_TRANSPORT_BYTES,
+    timeoutMs: NATIVE_HELPER_TIMEOUT_MS,
+};
+
 /**
  * Runs the AppKit boundary with structured argv and sends snapshot bytes only over stdin/stdout. Clipboard payloads
  * never enter process arguments, logs, thrown errors, or Playwright protocol artifacts.
  */
-async function runNativeHelper(command: string, input?: string): Promise<string> {
+export async function runNativeHelper(
+    command: string,
+    input?: string,
+    options: NativeHelperRunOptions = defaultNativeHelperRunOptions,
+): Promise<string> {
+    if (input && Buffer.byteLength(input) > options.maxInputBytes) {
+        throw contentFreeNativeError(`run ${command} for`);
+    }
     return new Promise((resolve, reject) => {
-        const child = spawn('/usr/bin/swift', [NATIVE_HELPER_PATH, command], {
+        const child = spawn(options.executablePath, [options.helperPath, command], {
+            killSignal: 'SIGKILL',
             stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: options.timeoutMs,
         });
         const output: Buffer[] = [];
+        let outputBytes = 0;
         let isSettled = false;
-        const rejectOnce = (): void => {
+        const rejectOnce = (shouldKillChild = false): void => {
             if (isSettled) return;
             isSettled = true;
+            if (shouldKillChild) child.kill('SIGKILL');
             reject(contentFreeNativeError(`run ${command} for`));
         };
-        child.once('error', rejectOnce);
-        child.stdout.on('data', (chunk: Buffer) => output.push(Buffer.from(chunk)));
+        child.once('error', () => rejectOnce());
+        child.stdout.on('data', (chunk: Buffer) => {
+            if (isSettled) return;
+            outputBytes += chunk.byteLength;
+            if (outputBytes > options.maxOutputBytes) {
+                rejectOnce(true);
+                return;
+            }
+            output.push(Buffer.from(chunk));
+        });
         child.stderr.resume();
         child.stdin.on('error', () => {
             // The exit handler below reports a content-free failure if the helper closes stdin early.
