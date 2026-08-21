@@ -461,6 +461,61 @@ describe('workbench Session state', () => {
             .patchSessionState(movedState, undefined, undefined, 'retain');
     });
 
+    it('lets a bootstrap read issued after an unresolved write win once it resolves', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            inspectorMode: 'files',
+            paneLayout: paneLayout('/project/a.ts', '/project/b.ts'),
+        };
+        const bootstrap = {
+            configurationErrors: [],
+            sessions: [],
+            terminals: [],
+            sessionStates: [filesState],
+        } as unknown as BootstrapState;
+        useWorkbenchStore.setState({ bootstrap });
+
+        // An earlier, still in-flight write — e.g. selecting a newly created Terminal tab —
+        // never resolves during this test.
+        const updateRequest = Promise.withResolvers<SessionState>();
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'session.updateState') return updateRequest.promise;
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+        const selectState: SessionState = {
+            ...filesState,
+            paneLayout: paneLayout('/project/a.ts', '/project/b.ts', '/project/c.ts'),
+        };
+        patchSessionState(selectState);
+
+        // A later, unrelated server-side mutation (e.g. closing a Terminal) pushes a full
+        // refresh. The read it issues starts after the write above was sent, so once it
+        // resolves it must reflect the write's effect *and* the later mutation — it must not
+        // be clobbered by the still-unresolved write's own stale optimistic snapshot.
+        const convergedState: SessionState = {
+            ...filesState,
+            paneLayout: paneLayout('/project/a.ts', '/project/c.ts'),
+        };
+        mocks.request.mockImplementation((method: unknown) => {
+            if (method === 'app.bootstrap')
+                return Promise.resolve({
+                    configurationErrors: [],
+                    sessions: [],
+                    terminals: [],
+                    sessionStates: [convergedState],
+                });
+            if (method === 'session.updateState') return updateRequest.promise;
+            return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+        });
+        await refreshWorkbench();
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([convergedState]);
+
+        updateRequest.resolve(selectState);
+        await updateRequest.promise;
+    });
+
     it('does not let a stale, failed patch clobber a newer confirmed patch', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
