@@ -1,5 +1,11 @@
 import type { PaneSplitSide } from '@shared/pane-layout';
-import { findResourceTabs, openResource, splitTabIntoPane } from '@shared/pane-layout';
+import {
+    findResourceTabs,
+    moveTab,
+    openResource,
+    selectTab,
+    splitTabIntoPane,
+} from '@shared/pane-layout';
 import type { TerminalKind } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
@@ -46,17 +52,24 @@ export async function createTerminal(
             kind,
             ...(cwd && { cwd }),
         });
+        /**
+         * Every Root the Session has already arranged gets this Terminal placed into it as a background tab before
+         * `terminal.create` even resolves (`SessionsModel.addTerminalToAllRootStates`), including the active Root this
+         * caller is about to update. Refreshing first, instead of mutating the caller's stale cached layout, means
+         * `openResource` below finds that placement already there and reuses its tab id — computing a second, competing
+         * tab id here would fight the server's for the same Terminal and flash a duplicate.
+         */
+        await refreshWorkbench();
         const currentState = getSessionState();
         if (currentState) {
-            const opened = openResource(
-                currentState.paneLayout,
-                { kind: 'terminal', terminalId: terminal.id },
-                { paneId },
-            );
-            const target = findResourceTabs(opened, {
-                kind: 'terminal',
-                terminalId: terminal.id,
-            }).at(0);
+            const resource = { kind: 'terminal' as const, terminalId: terminal.id };
+            const placed = findResourceTabs(currentState.paneLayout, resource).at(0);
+            const opened = placed
+                ? paneId && placed.pane.id !== paneId
+                    ? moveTab(currentState.paneLayout, placed.tab.id, paneId)
+                    : selectTab(currentState.paneLayout, placed.tab.id)
+                : openResource(currentState.paneLayout, resource, { paneId });
+            const target = findResourceTabs(opened, resource).at(0);
             patchSessionState({
                 ...currentState,
                 paneLayout:
@@ -65,7 +78,6 @@ export async function createTerminal(
                         : opened,
             });
         }
-        await refreshWorkbench();
     });
 }
 
