@@ -1,0 +1,130 @@
+import type { SessionRecord } from '@shared/types';
+import { create } from 'zustand';
+
+import type { SessionMruShortcutInvocation } from '../../commands/registry';
+
+const SWITCHER_REVEAL_DELAY_MS = 120;
+
+export function sessionMruCandidates(
+    sessions: readonly SessionRecord[],
+    selectedSessionId: string | undefined,
+): SessionRecord[] {
+    return sessions
+        .filter((session) => session.archivedAt === undefined && session.id !== selectedSessionId)
+        .toSorted(
+            (left, right) =>
+                right.lastOpenedAt - left.lastOpenedAt ||
+                right.createdAt - left.createdAt ||
+                left.id.localeCompare(right.id),
+        );
+}
+
+export interface PendingSessionMruSelection {
+    currentSessionId: string;
+    previousSessionId: string;
+}
+
+export function resolveSessionMruNavigation(
+    sessions: readonly SessionRecord[],
+    selectedSessionId: string | undefined,
+    pendingSelection?: PendingSessionMruSelection,
+): {
+    candidateIds: string[];
+    pendingSelection?: PendingSessionMruSelection;
+    selectedSessionId: string | undefined;
+} {
+    const pending =
+        pendingSelection?.currentSessionId === selectedSessionId ? undefined : pendingSelection;
+    const effectiveSelectedSessionId = pending?.currentSessionId ?? selectedSessionId;
+    const candidateIds = sessionMruCandidates(sessions, effectiveSelectedSessionId).map(
+        (session) => session.id,
+    );
+    if (pending) {
+        const previousIndex = candidateIds.indexOf(pending.previousSessionId);
+        if (previousIndex > 0) candidateIds.unshift(...candidateIds.splice(previousIndex, 1));
+    }
+    return {
+        candidateIds,
+        ...(pending && { pendingSelection: pending }),
+        selectedSessionId: effectiveSelectedSessionId,
+    };
+}
+
+interface SessionMruSwitcherState {
+    candidateIds: string[];
+    heldModifiers: SessionMruShortcutInvocation['heldModifiers'];
+    isOpen: boolean;
+    isVisible: boolean;
+    selectedIndex: number;
+    triggerCode?: string;
+    beginOrCycle(
+        candidateIds: string[],
+        invocation?: SessionMruShortcutInvocation,
+    ): string | undefined;
+    cancel(): void;
+    commit(): string | undefined;
+    cycle(delta: 1 | -1): void;
+}
+
+const closedState = {
+    candidateIds: [] as string[],
+    heldModifiers: [] as SessionMruShortcutInvocation['heldModifiers'],
+    isOpen: false,
+    isVisible: false,
+    selectedIndex: 0,
+    triggerCode: undefined,
+};
+
+export const useSessionMruSwitcherStore = create<SessionMruSwitcherState>((set, get) => {
+    let revealTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearRevealTimer = (): void => {
+        if (revealTimer !== undefined) clearTimeout(revealTimer);
+        revealTimer = undefined;
+    };
+
+    return {
+        ...closedState,
+        beginOrCycle: (candidateIds, invocation) => {
+            if (get().isOpen) {
+                get().cycle(1);
+                return;
+            }
+            if (candidateIds.length === 0) return;
+            if (!invocation || invocation.heldModifiers.length === 0) return candidateIds[0];
+            clearRevealTimer();
+            set({
+                candidateIds,
+                heldModifiers: invocation.heldModifiers,
+                isOpen: true,
+                isVisible: false,
+                selectedIndex: 0,
+                triggerCode: invocation.triggerCode,
+            });
+            revealTimer = setTimeout(() => {
+                revealTimer = undefined;
+                if (get().isOpen) set({ isVisible: true });
+            }, SWITCHER_REVEAL_DELAY_MS);
+            return;
+        },
+        cancel: () => {
+            clearRevealTimer();
+            set(closedState);
+        },
+        commit: () => {
+            const state = get();
+            const sessionId = state.isOpen ? state.candidateIds[state.selectedIndex] : undefined;
+            clearRevealTimer();
+            set(closedState);
+            return sessionId;
+        },
+        cycle: (delta) =>
+            set((state) => {
+                if (!state.isOpen || state.candidateIds.length === 0) return state;
+                return {
+                    selectedIndex:
+                        (state.selectedIndex + delta + state.candidateIds.length) %
+                        state.candidateIds.length,
+                };
+            }),
+    };
+});

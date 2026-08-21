@@ -33,6 +33,7 @@ export const parallelSafeSpecs = [
     'e2e/project-order.e2e.ts',
     'e2e/project-search.e2e.ts',
     'e2e/settings-parallel-safe.e2e.ts',
+    'e2e/session-mru-switcher.e2e.ts',
     'e2e/session-title.e2e.ts',
     'e2e/smoke.e2e.ts',
     'e2e/statusbar.e2e.ts',

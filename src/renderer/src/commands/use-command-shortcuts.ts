@@ -5,12 +5,28 @@ import type { CommandId, Keybinding } from '@shared/types';
 import { buildShortcutMap, isEditableEventTarget, keyboardEventShortcut } from '../lib/keybindings';
 import { useWorkbenchStore } from '../stores/workbench';
 import { isCommandAvailable, runCommand } from './execute';
+import type { SessionMruShortcutInvocation } from './registry';
 import { getRegisteredCommand } from './registry';
 
+function sessionMruShortcutInvocation(event: KeyboardEvent): SessionMruShortcutInvocation {
+    return {
+        heldModifiers: [
+            event.altKey && 'Alt',
+            event.ctrlKey && 'Control',
+            event.metaKey && 'Meta',
+            event.shiftKey && 'Shift',
+        ].filter((modifier): modifier is SessionMruShortcutInvocation['heldModifiers'][number] =>
+            Boolean(modifier),
+        ),
+        triggerCode: event.code,
+    };
+}
+
 /**
- * Global keyboard dispatch. The binding table is read from the store at keystroke time, so the listener is installed
- * once instead of being torn down on every snapshot refresh. The chord map is rebuilt only when the keybinding array
- * reference changes (a settings update), not on every keystroke.
+ * Global keyboard dispatch. Capture phase lets opted-in commands run before xterm or Monaco stop an editable target's
+ * event. The binding table is read from the store at keystroke time, so the listener is installed once instead of being
+ * torn down on every snapshot refresh. The chord map is rebuilt only when the keybinding array reference changes (a
+ * settings update), not on every keystroke.
  *
  * A bound shortcut is always consumed, even while a modal is open: `Command+W` must not fall through to Electron's
  * window close just because {@link runCommand} declines to act behind a dialog.
@@ -44,9 +60,15 @@ export function useCommandShortcuts(): void {
              */
             if (isEditableEventTarget(event.target) && !definition?.allowInEditable) return;
             event.preventDefault();
-            runCommand(commandId as CommandId);
+            event.stopPropagation();
+            runCommand(
+                commandId as CommandId,
+                commandId === 'session.switchMru'
+                    ? { shortcut: sessionMruShortcutInvocation(event) }
+                    : undefined,
+            );
         };
-        addEventListener('keydown', onKeyDown);
-        return () => removeEventListener('keydown', onKeyDown);
+        addEventListener('keydown', onKeyDown, { capture: true });
+        return () => removeEventListener('keydown', onKeyDown, { capture: true });
     }, []);
 }

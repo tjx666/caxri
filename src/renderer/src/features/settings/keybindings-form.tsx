@@ -100,7 +100,7 @@ export function KeybindingsForm({
         row: KeybindingRow,
     ): void => {
         if (recording?.rowId !== row.id) return;
-        if (isFocusNavigationKey(event.key)) {
+        if (isFocusNavigationKey(event)) {
             // Let Tab/Shift+Tab pass through un-captured so focus keeps moving normally;
             // recording just cancels instead of trapping the key.
             setRecording(undefined);

@@ -16,6 +16,7 @@ export const commandIds = [
     'session.delete',
     'session.selectNext',
     'session.selectPrevious',
+    'session.switchMru',
     'terminal.new',
     'terminal.clear',
     'terminal.copy',
