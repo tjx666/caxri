@@ -5,5 +5,6 @@ export * from './domain.js';
 export * from './editor-layout.js';
 export * from './inspector.js';
 export * from './layout.js';
+export * from './pane-layout.js';
 export * from './project-customization.js';
 export * from './work-item.js';
