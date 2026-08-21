@@ -8,7 +8,9 @@ import type {
 } from './ipc/pane-layout';
 import {
     isRepeatablePaneResource,
+    MAX_PANE_LAYOUT_PANES,
     MAX_SPLIT_RATIO,
+    MAX_TABS_PER_PANE,
     MIN_SPLIT_RATIO,
     paneResourceKey,
 } from './ipc/pane-layout';
@@ -186,6 +188,7 @@ export function openResource(
      * previewing file after file swaps a label instead of destroying and recreating a tab each time.
      */
     const replaced = preview ? target.tabs.find((candidate) => candidate.preview) : undefined;
+    if (!replaced && target.tabs.length >= MAX_TABS_PER_PANE) return layout;
     const tab: PaneTab = { id: replaced?.id ?? id(), resource, ...(preview && { preview: true }) };
     return {
         root: replaceNode(layout.root, target.id, (node) => {
@@ -272,6 +275,7 @@ export function splitTabIntoPane(
     if (!found || !target) return layout;
     // Splitting a pane's only tab off itself would just move the pane sideways.
     if (found.pane.id === targetPaneId && found.pane.tabs.length === 1) return layout;
+    if (listPanes(layout).length >= MAX_PANE_LAYOUT_PANES) return layout;
     const removed = removeTabFromNode(layout.root, tabId) ?? layout.root;
     if (listPanes({ root: removed }).every((pane) => pane.id !== targetPaneId)) return layout;
     const pane: PaneNode = { type: 'pane', id: id(), tabs: [found.tab], activeTabId: found.tab.id };
@@ -286,6 +290,29 @@ export function splitTabIntoPane(
             second: isBefore ? node : pane,
         })),
         activePaneId: pane.id,
+    };
+}
+
+/**
+ * Adds a Terminal tab without disturbing what is currently focused. `openResource` always activates what it opens,
+ * which is right for a user-initiated action but wrong for retrofitting a newly created Terminal into a Workbench Root
+ * that is not the one on screen: stealing activation away from whatever that Root's owner last arranged there would be
+ * a worse regression than a tab that simply exists, unselected, until they switch to it.
+ */
+export function addPaneTerminalSilently(
+    layout: PaneLayout,
+    terminalId: string,
+    id: PaneIdFactory = createId,
+): PaneLayout {
+    const target = activePane(layout);
+    if (target.tabs.length >= MAX_TABS_PER_PANE) return layout;
+    const tab: PaneTab = { id: id(), resource: { kind: 'terminal', terminalId } };
+    return {
+        ...layout,
+        root: replaceNode(layout.root, target.id, (node) => ({
+            ...(node as PaneNode),
+            tabs: [...(node as PaneNode).tabs, tab],
+        })),
     };
 }
 
@@ -365,6 +392,11 @@ export function closeTabs(layout: PaneLayout, tabIds: readonly string[]): PaneLa
 
 /**
  * Rewrites document paths after a Project root move. Terminal occurrences carry no path and are left untouched.
+ *
+ * A Replace can remap two occurrences in the same pane onto the same target path — the moved file and a file already
+ * open at the destination. The schema forbids a pane from listing one resource twice, so occurrences are merged
+ * deterministically: the earliest tab in tree order survives, later ones are dropped, and a dropped active tab hands
+ * activation to its survivor.
  */
 export function remapPaneLayoutPaths(
     layout: PaneLayout,
@@ -383,11 +415,24 @@ export function remapPaneLayoutPaths(
                 ? node
                 : { ...node, first, second };
         }
-        const tabs = node.tabs.map((tab) => {
+        const remapped = node.tabs.map((tab) => {
             const resource = remapResource(tab.resource);
             return resource === tab.resource ? tab : { ...tab, resource };
         });
-        return tabs.every((tab, index) => tab === node.tabs[index]) ? node : { ...node, tabs };
+        if (remapped.every((tab, index) => tab === node.tabs[index])) return node;
+        const survivorIdByKey = new Map<string, string>();
+        for (const tab of remapped) {
+            const key = paneResourceKey(tab.resource);
+            if (!survivorIdByKey.has(key)) survivorIdByKey.set(key, tab.id);
+        }
+        const tabs = remapped.filter(
+            (tab) => survivorIdByKey.get(paneResourceKey(tab.resource)) === tab.id,
+        );
+        const activeSourceTab = remapped.find((tab) => tab.id === node.activeTabId);
+        const activeTabId = activeSourceTab
+            ? survivorIdByKey.get(paneResourceKey(activeSourceTab.resource))
+            : node.activeTabId;
+        return { ...node, tabs, activeTabId };
     };
     const root = visit(layout.root);
     return root === layout.root ? layout : { ...layout, root };

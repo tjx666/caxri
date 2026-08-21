@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PaneLayout, PaneResource } from '../ipc/pane-layout';
-import { paneLayoutSchema } from '../ipc/pane-layout';
+import { MAX_PANE_LAYOUT_PANES, MAX_TABS_PER_PANE, paneLayoutSchema } from '../ipc/pane-layout';
 import {
     activePane,
     activeTab,
@@ -257,6 +257,53 @@ describe('pane layout reducer', () => {
             file('/new/b.ts'),
         ]);
         expect(remapPaneLayoutPaths(remapped, (path) => path)).toBe(remapped);
+    });
+
+    it('merges occurrences a Replace remaps onto the same target path', () => {
+        const id = ids();
+        let layout = createPaneLayout(file('/old/source.ts'), id);
+        layout = openResource(layout, file('/dest/source.ts'), {}, id);
+        const [movedTab, targetTab] = activePane(layout).tabs;
+        layout = selectTab(layout, movedTab.id);
+
+        const remapped = valid(
+            remapPaneLayoutPaths(layout, (path) =>
+                path === '/old/source.ts' ? '/dest/source.ts' : path,
+            ),
+        );
+        const occurrences = findResourceTabs(remapped, file('/dest/source.ts'));
+        expect(occurrences).toHaveLength(1);
+        expect(occurrences[0]?.tab.id).toBe(movedTab.id);
+        expect(activePane(remapped).activeTabId).toBe(movedTab.id);
+        expect(findTab(remapped, targetTab.id)).toBeUndefined();
+    });
+
+    it('refuses to grow a pane past the tab cap', () => {
+        const id = ids();
+        let layout = createPaneLayout(file('file-0.ts'), id);
+        for (let index = 1; index < MAX_TABS_PER_PANE; index++) {
+            layout = valid(openResource(layout, file(`file-${index}.ts`), {}, id));
+        }
+        expect(activePane(layout).tabs).toHaveLength(MAX_TABS_PER_PANE);
+
+        const atCap = openResource(layout, file('one-too-many.ts'), {}, id);
+        expect(atCap).toBe(layout);
+    });
+
+    it('refuses to grow the tree past the pane cap', () => {
+        const id = ids();
+        let layout = createPaneLayout(file('a.ts'), id);
+        for (let index = 0; index < MAX_PANE_LAYOUT_PANES - 1; index++) {
+            layout = openResource(layout, file(`extra-${index}.ts`), {}, id);
+            const opened = activeTab(layout)!;
+            layout = valid(splitTabIntoPane(layout, opened.id, activePane(layout).id, 'right', id));
+        }
+        expect(listPanes(layout)).toHaveLength(MAX_PANE_LAYOUT_PANES);
+
+        layout = openResource(layout, file('overflow.ts'), {}, id);
+        const overflowTab = activeTab(layout)!;
+        const atCap = splitTabIntoPane(layout, overflowTab.id, activePane(layout).id, 'right', id);
+        expect(atCap).toBe(layout);
     });
 
     it('ignores operations that name something the layout does not hold', () => {
