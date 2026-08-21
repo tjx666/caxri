@@ -33,6 +33,8 @@ Review observable states against Caxri's workbench behavior and `DESIGN.md`, not
   diverges from the nearest established interaction without a recorded product decision
 - Large lists/diffs/search results become unusable without pagination, lazy loading,
   virtualization, or bounded results
+- An approval surface displays one value while approving, submitting, or executing a separately
+  normalized or mutable value without proving they share the same canonical identity
 
 ## How to check
 
@@ -40,6 +42,9 @@ Review observable states against Caxri's workbench behavior and `DESIGN.md`, not
 2. Walk mouse, keyboard, and failure paths in the smallest relevant Electron workflow.
 3. Inspect computed behavior/theme tokens, not only class names.
 4. Compare with the nearest existing Caxri interaction and recorded acceptance criteria.
+5. For approvals, trace the displayed, approved, submitted, and executed value from one canonical
+   representation. Include edits, normalization, stale dialogs, retries, and target replacement
+   between display and execution.
 
 ## Rule sources
 

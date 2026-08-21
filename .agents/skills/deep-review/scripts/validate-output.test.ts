@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import { extractJsonPayload, validateOutput } from './validate-output';
@@ -95,6 +97,42 @@ describe('validateOutput', () => {
         ).toThrow();
     });
 
+    it('requires scenarios for cross-boundary proof dimensions', () => {
+        const cases = [
+            { dimension: 'architecture', id: 'arch-1' },
+            { dimension: 'security-privacy', id: 'sec-1' },
+            { dimension: 'state-lifecycle', id: 'life-1' },
+        ] as const;
+
+        for (const { dimension, id } of cases) {
+            expect(() =>
+                validateOutput('review', {
+                    issues: [
+                        {
+                            ...validReviewIssue,
+                            dimension,
+                            id,
+                            scenario: undefined,
+                        },
+                    ],
+                }),
+            ).toThrow(`${dimension} findings require scenario`);
+        }
+
+        expect(() =>
+            validateOutput('review', {
+                issues: [
+                    {
+                        ...validReviewIssue,
+                        dimension: 'correctness',
+                        id: 'logic-1',
+                        scenario: undefined,
+                    },
+                ],
+            }),
+        ).not.toThrow();
+    });
+
     it('keeps verification fields specific to each verdict', () => {
         expect(() =>
             validateOutput('verify', {
@@ -142,5 +180,24 @@ describe('validateOutput', () => {
                 ],
             }),
         ).toThrow('consolidation ids must be unique');
+    });
+
+    it('preserves entry-mode routing and delegated read-only boundaries', async () => {
+        const skill = await readFile(new URL('../SKILL.md', import.meta.url), 'utf8');
+        const reviewPrompt = await readFile(
+            new URL('../references/review-prompt.md', import.meta.url),
+            'utf8',
+        );
+        const deepWorkflow = await readFile(
+            new URL('../references/deep-workflow.md', import.meta.url),
+            'utf8',
+        );
+
+        expect(skill).toContain('| Light | Ordinary review requests');
+        expect(skill).toContain('| Quick | "quick deep review"');
+        expect(skill).toContain('| Deep  | Explicit `$deep-review`');
+        expect(skill).toContain('Do not silently escalate light or quick mode to deep mode.');
+        expect(reviewPrompt).toContain('Do not edit files, post comments, or mutate GitHub state.');
+        expect(deepWorkflow).toContain('Delegated discovery and verification stay read-only');
     });
 });
