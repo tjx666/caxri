@@ -203,7 +203,7 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
      * Records a Session the Workbench shows that no dispatched selection accounts for — a Runtime-driven switch, or the
      * reconciliation after everything settles. Selections the Renderer issued report themselves instead.
      */
-    observe(sessionId?: string): void;
+    recordWorkbenchSelection(sessionId?: string): void;
     prune(activeSessionIds: readonly string[]): void;
     /**
      * Registers a Session selection made by any other means. It is newer than every navigation still in flight, so
@@ -315,7 +315,7 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
         ...view(EMPTY_SESSION_HISTORY, [], 0),
         inFlight: 0,
         nextRequestId: 1,
-        observe: (sessionId) =>
+        recordWorkbenchSelection: (sessionId) =>
             set((state) => {
                 if (state.inFlight > 0) return state;
                 const timeline = recordSessionVisit(state.timeline, sessionId);
@@ -329,9 +329,12 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
                     state.timeline,
                     activeSessionIds,
                 );
-                const pending = state.pending
-                    .map((step) => ({ ...step, index: positions[step.index] }))
-                    .filter((step) => step.index >= 0 && step.index < timeline.entries.length);
+                const pending = state.pending.flatMap((step) => {
+                    const index = positions[step.index];
+                    return index >= 0 && index < timeline.entries.length
+                        ? [{ ...step, index }]
+                        : [];
+                });
                 const liveSessionIds = new Set(activeSessionIds);
                 if (timeline === state.timeline && pending.length === state.pending.length)
                     return { ...state, liveSessionIds };

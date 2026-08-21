@@ -30,7 +30,7 @@ export function useSessionNavigationHistory(): void {
     );
 
     useEffect(() => {
-        useSessionNavigationHistoryStore.getState().observe(selectedSessionId);
+        useSessionNavigationHistoryStore.getState().recordWorkbenchSelection(selectedSessionId);
     }, [selectedSessionId]);
 
     useEffect(() => {
