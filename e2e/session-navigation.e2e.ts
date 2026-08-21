@@ -86,6 +86,24 @@ test('Session history navigates back and forward from the Sidebar header and the
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionB);
         await pressSideButton('forward');
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionA);
+
+        /**
+         * A global gesture must stand down behind a modal: switching the Session underneath an open dialog would leave
+         * that dialog editing a Session the user can no longer see.
+         */
+        // Re-selecting the Session already on screen is a no-op that leaves the shortcut a non-editable focus target.
+        await sessionCard(running.page, sessionA).click();
+        await running.page.keyboard.press('Meta+,');
+        const settingsDialog = running.page.getByRole('dialog');
+        await expect(settingsDialog).toBeVisible();
+        await pressSideButton('back');
+        await expect(settingsDialog).toBeVisible();
+        expect(await selectedSessionId(running.page)).toBe(sessionA);
+
+        await running.page.keyboard.press('Escape');
+        await expect(settingsDialog).toBeHidden();
+        await pressSideButton('back');
+        await expect.poll(() => selectedSessionId(running.page)).toBe(sessionB);
     } finally {
         try {
             await running.app.close();
