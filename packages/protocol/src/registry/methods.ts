@@ -283,12 +283,10 @@ export const methods = {
     },
     'project.setIcon': {
         ...hostWrite,
-        params: z
-            .object({
-                projectId: identifierSchema,
-                icon: projectIconSchema.nullable(),
-            })
-            .strict(),
+        params: z.strictObject({
+            projectId: identifierSchema,
+            icon: projectIconSchema.nullable(),
+        }),
         result: projectRecordSchema,
     },
     'session.create': {

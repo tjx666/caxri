@@ -20,12 +20,10 @@ export const projectIconColors = [
     'danger',
 ] as const;
 
-export const projectIconSchema = z
-    .object({
-        name: z.enum(projectIconNames),
-        color: z.enum(projectIconColors).optional(),
-    })
-    .strict();
+export const projectIconSchema = z.strictObject({
+    name: z.enum(projectIconNames),
+    color: z.enum(projectIconColors).optional(),
+});
 
 export type ProjectIcon = z.infer<typeof projectIconSchema>;
 export type ProjectIconColor = ProjectIcon['color'];

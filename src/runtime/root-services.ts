@@ -1,7 +1,8 @@
 import { join } from 'node:path';
 
 import { errorMessage } from '../shared/ipc/errors';
-import { AgentTranscriptWatcher, resolveAgentTranscriptLocation } from './agents';
+import { resolveAgentTranscriptLocation } from './agents/transcript';
+import { AgentTranscriptWatcher } from './agents/transcript-watcher';
 import type { RuntimeDependencies } from './bootstrap-types';
 import { ConfigService } from './config';
 import { CaxriDatabase } from './db';

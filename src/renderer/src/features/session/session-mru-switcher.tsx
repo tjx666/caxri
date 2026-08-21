@@ -39,7 +39,7 @@ export function SessionMruSwitcher() {
     if (!selected || !view.isOpen || !view.isVisible) return null;
     return (
         <div className="pointer-events-none fixed inset-0 z-[60] grid place-items-center">
-            <p className="sr-only" aria-atomic="true" aria-live="assertive" role="status">
+            <p className="sr-only" aria-atomic="true" role="status">
                 {`Selected ${selected.displayTitle}, ${selectedIndex + 1} of ${candidates.length}`}
             </p>
             <div
@@ -47,6 +47,7 @@ export function SessionMruSwitcher() {
                 aria-activedescendant={`session-mru-option-${selected.id}`}
                 aria-label="Recently used Sessions"
                 role="listbox"
+                tabIndex={-1}
             >
                 <div className="border-b border-border px-3 py-2 text-[11px] font-medium text-muted">
                     Recently used Sessions
