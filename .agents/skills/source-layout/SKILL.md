@@ -126,11 +126,12 @@ When moving, `git mv`, then fix relative imports and `import.meta.url` paths in 
 | Repo scripts                     | `scripts/__tests__/`                           |
 | Electron workflows               | `e2e/*.e2e.ts`                                 |
 
-Do not leave `*.test.ts` beside production files outside the Renderer. How to write or run tests
-is `unit-testing` or `e2e-testing`. Rendering and interaction belong to `e2e-testing`.
+Do not leave `*.test.ts` beside production files outside the Renderer. For test execution guidance,
+Call the Skill tool with "unit-testing" or "e2e-testing" as applicable. Rendering and interaction
+belong to `e2e-testing`.
 
 ## 7. Finish
 
 If a file is approaching 800 physical lines, split a cohesive module before the `max-lines` gate.
-Run `quality-check` on the moved set. If the change adds or removes a locked domain name, update
+Call the Skill tool with "quality-check" on the moved set. If the change adds or removes a locked domain name, update
 the contract test that owns that list in the same change.

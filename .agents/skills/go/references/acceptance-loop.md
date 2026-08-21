@@ -1,6 +1,6 @@
 # Acceptance Repair Loop
 
-Invoke the project-local `acceptance` skill for the detailed report and evidence
+Call the Skill tool with "acceptance" for the detailed report and evidence
 protocol. Caxri has one product surface for this workflow: isolated macOS
 Electron desktop.
 

@@ -42,8 +42,9 @@ never launches full Electron E2E, packaging, or performance gates automatically.
 authorized gates.
 
 An E2E path passed with `--test` may report zero tests because Vitest does not own Playwright files.
-That is selection feedback, not a passing E2E result; use `--e2e` instead. Use `unit-testing` for
-focused Vitest selection and regression design, and follow `e2e-testing` for Electron isolation.
+That is selection feedback, not a passing E2E result; use `--e2e` instead. Call the Skill tool with
+"unit-testing" for focused Vitest selection and regression design, and Call the Skill tool with
+"e2e-testing" for Electron isolation.
 
 Successful ESLint, Prettier, build, Vitest, and Playwright output is intentionally collapsed into
 one summary. Failures include the underlying tool output needed to act.

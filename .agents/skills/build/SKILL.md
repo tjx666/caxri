@@ -6,7 +6,7 @@ description: Build Caxri's Electron Main, CommonJS sandboxed Preload, Renderer, 
 # Build Caxri
 
 1. Install dependencies with `ni` when the lockfile or environment requires it.
-2. Use the `quality-check` skill or run `bun run check --lint --test --type` for the current changes.
+2. Call the Skill tool with "quality-check" or run `bun run check --lint --test --type` for the current changes.
 3. Run `bun run spike:native`, `bun run spike:pty`, and the applicable `bun run spike:agents` probe
    after Electron, native-module, Agent adapter, or packaging changes.
 4. Validate the browser-safe protocol and Node-only CLI workspaces with

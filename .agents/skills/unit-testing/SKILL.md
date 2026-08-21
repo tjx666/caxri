@@ -32,4 +32,4 @@ Validate the smallest observable behavior below the Electron desktop boundary.
    a shared cross-cutting contract makes focused coverage insufficient.
 
 This skill does not own Playwright, Electron desktop lifecycle, real PTYs, window focus, remote full
-E2E, or the guarded Go fallback. Invoke `e2e-testing` for those surfaces.
+E2E, or the guarded Go fallback. Call the Skill tool with "e2e-testing" for those surfaces.

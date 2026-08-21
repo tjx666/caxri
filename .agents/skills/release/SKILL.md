@@ -1,6 +1,7 @@
 ---
 name: release
 description: Prepare Caxri releases and optional local unsigned macOS artifacts. Use when creating a development package, performing a release-readiness check, or publishing and verifying a GitHub Release.
+disable-model-invocation: true
 ---
 
 # Release Caxri

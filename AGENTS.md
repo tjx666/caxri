@@ -43,6 +43,7 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
 - Use `.agents/skills/` for agent-discoverable, task-routed execution workflows and the project
   architecture or toolchain contracts an agent must load to work safely. Keep reusable automation
   beside its owning skill and keep each skill description specific enough for reliable routing.
+- Contributor skill invocation follows [.agents/invocation.md](.agents/invocation.md).
 - When a difficult, ambiguous, or costly decision would benefit from an independent perspective,
   use `dianjiang` to consult another agent harness. Keep consultations read-only unless the current
   request explicitly authorizes the same scoped mutation, treat the result as evidence, and keep
