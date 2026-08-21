@@ -266,10 +266,12 @@ describe('Renderer design contract', () => {
         ).toEqual([]);
     });
 
-    it('gates every hover affordance on Button and its disabled-capable consumers behind :enabled', async () => {
+    it('gates the shared Button and the Session history controls hover affordances behind :enabled', async () => {
         // A disabled button still matches `:hover` in CSS even though Chromium dispatches no pointer events to it, so
-        // an ungated `hover:` utility paints a hover fill under a cursor whose click does nothing. Consumers that pass
-        // `disabled` carry the same obligation for the hover utilities they add on top of the variant recipe.
+        // an ungated `hover:` utility paints a hover fill under a cursor whose click does nothing. The Button recipe is
+        // the shared obligation; the history arrows are listed because they add their own hover utility on top of it.
+        // Other consumers that pass `disabled` are not scanned yet — widening this to every `.tsx` needs a way to tell
+        // a disabled-capable control from an always-interactive one first.
         const paths = [
             join(rendererRoot, 'components/ui/button.tsx'),
             join(rendererRoot, 'features/sidebar/session-history-navigation.tsx'),
