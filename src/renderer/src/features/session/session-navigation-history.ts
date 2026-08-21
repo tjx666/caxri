@@ -32,30 +32,49 @@ function pushCapped(stack: readonly string[], sessionId: string): string[] {
 }
 
 /**
- * Folds an observed Session selection into the history, browser-style.
+ * Drops entries that repeat {@link SessionNavigationHistorySnapshot.current} at the top of a stack.
  *
- * `pending` carries the direction the user asked for, so the selection a `Go Back` triggered moves the current Session
- * onto the forward stack instead of pushing a new visit. It is honored only when the arriving Session is the one that
- * direction actually pointed at; any other selection (the user clicked a Session while the request was in flight, or
- * the Runtime selected one on its own) is an ordinary visit, which is what clears a stale pending direction.
+ * A repeat deeper in a stack is real history (`A → B → A` genuinely visited A twice), but a repeat at the top is a dead
+ * step: navigating to it would re-select the Session already on screen, leave the stack unchanged, and keep the button
+ * enabled forever. Pruning an archived Session out of the middle is what creates them.
+ */
+function dropRedundantTop(stack: readonly string[], current: string | undefined): string[] {
+    let end = stack.length;
+    while (end > 0 && stack[end - 1] === current) end--;
+    return end === stack.length ? [...stack] : stack.slice(0, end);
+}
+
+/**
+ * Folds an ordinary Session selection into the history: the outgoing Session becomes the next `back` target and the
+ * forward history is truncated, exactly like following a link in a browser.
+ *
+ * History navigation does not go through here — {@link applySessionNavigation} moves the stacks at request time so a
+ * second navigation issued before the Runtime confirms the first still computes from the state the user can see.
  */
 export function recordSessionVisit(
     snapshot: SessionNavigationHistorySnapshot,
     next: string | undefined,
-    pending?: SessionNavigationDirection,
 ): SessionNavigationHistorySnapshot {
     const { back, current, forward } = snapshot;
     if (next === current) return snapshot;
     if (next === undefined) return { back, current: undefined, forward };
     if (current === undefined) return { back, current: next, forward };
-    if (pending === 'back' && back.at(-1) === next) {
-        return { back: back.slice(0, -1), current: next, forward: pushCapped(forward, current) };
-    }
-    if (pending === 'forward' && forward.at(-1) === next) {
-        return { back: pushCapped(back, current), current: next, forward: forward.slice(0, -1) };
-    }
-    // An ordinary visit truncates the forward history, exactly like following a link in a browser.
     return { back: pushCapped(back, current), current: next, forward: [] };
+}
+
+/**
+ * Moves the stacks one step in `direction`, returning the snapshot unchanged when that direction has no target.
+ */
+export function applySessionNavigation(
+    snapshot: SessionNavigationHistorySnapshot,
+    direction: SessionNavigationDirection,
+): SessionNavigationHistorySnapshot {
+    const { back, current, forward } = snapshot;
+    const target = sessionNavigationTarget(snapshot, direction);
+    if (target === undefined || current === undefined) return snapshot;
+    return direction === 'back'
+        ? { back: back.slice(0, -1), current: target, forward: pushCapped(forward, current) }
+        : { back: pushCapped(back, current), current: target, forward: forward.slice(0, -1) };
 }
 
 /**
@@ -67,8 +86,9 @@ export function pruneSessionHistory(
     activeSessionIds: readonly string[],
 ): SessionNavigationHistorySnapshot {
     const active = new Set(activeSessionIds);
-    const back = snapshot.back.filter((sessionId) => active.has(sessionId));
-    const forward = snapshot.forward.filter((sessionId) => active.has(sessionId));
+    const isActive = (sessionId: string): boolean => active.has(sessionId);
+    const back = dropRedundantTop(snapshot.back.filter(isActive), snapshot.current);
+    const forward = dropRedundantTop(snapshot.forward.filter(isActive), snapshot.current);
     if (back.length === snapshot.back.length && forward.length === snapshot.forward.length) {
         return snapshot;
     }
@@ -83,7 +103,16 @@ export function sessionNavigationTarget(
 }
 
 interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot {
-    pending?: SessionNavigationDirection;
+    /**
+     * Targets of navigations already applied to the stacks, oldest first, still waiting for the Runtime to report them
+     * as the selected Session.
+     *
+     * The queue exists because those confirmations arrive late and in request order: pressing Back twice in quick
+     * succession lands the first snapshot only after the second step was applied, and treating it as a fresh selection
+     * would push the Session onto `back` and wipe `forward`. Matching each confirmation against its own target — not
+     * merely against `current` — is what makes overlapping navigations safe.
+     */
+    pendingTargets: string[];
     /**
      * Records the Session the workbench actually shows. Every selection path (Sidebar, palette, MRU switcher, Session
      * creation, a Runtime-driven switch) funnels through the observed selection rather than through each call site, so
@@ -93,35 +122,71 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
     observe(sessionId?: string): void;
     prune(activeSessionIds: readonly string[]): void;
     /**
-     * Claims the next target in `direction` and marks the resulting selection as history navigation.
+     * Claims the next target in `direction`, moving the stacks immediately and returning the Session to select.
+     *
+     * The move is optimistic on purpose: the Runtime's snapshot refresh is asynchronous, so a second navigation issued
+     * before it lands must compute from the state the first one produced. Pressing Back then Forward that fast is then
+     * exactly a no-op, instead of both steps reading the same stale stacks and stranding the history.
      */
     request(direction: SessionNavigationDirection): string | undefined;
+    /**
+     * Rolls back to `snapshot` when the selection this store optimistically applied never took effect. Nothing is
+     * restored if another navigation or selection has moved on since, because that newer state is the truthful one.
+     */
+    restore(snapshot: SessionNavigationHistorySnapshot, appliedSessionId: string): void;
     reset(): void;
 }
 
 export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryState>(
     (set, get) => ({
         ...EMPTY_SNAPSHOT,
-        pending: undefined,
+        pendingTargets: [],
         observe: (sessionId) =>
             set((state) => {
-                /*
-                 * A refresh that reports the Session already on screen must not clear `pending`: a `Go Back` request
-                 * can land after an unrelated snapshot refresh, and consuming the direction here would turn the
-                 * navigation that follows into an ordinary visit.
-                 */
-                if (sessionId === state.current) return state;
+                const [oldest, ...rest] = state.pendingTargets;
+                if (sessionId === undefined || state.pendingTargets.length === 0) {
+                    return recordSessionVisit(state, sessionId);
+                }
+                // The confirmation this store is waiting for: the stacks already moved, so only the queue advances.
+                if (sessionId === oldest) return { pendingTargets: rest };
+                // Any other Session means an ordinary selection overtook the navigation, and it owns the history now.
+                return { ...recordSessionVisit(state, sessionId), pendingTargets: [] };
+            }),
+        prune: (activeSessionIds) =>
+            set((state) => {
+                const active = new Set(activeSessionIds);
                 return {
-                    ...recordSessionVisit(state, sessionId, state.pending),
-                    pending: undefined,
+                    ...pruneSessionHistory(state, activeSessionIds),
+                    pendingTargets: state.pendingTargets.filter((target) => active.has(target)),
                 };
             }),
-        prune: (activeSessionIds) => set((state) => pruneSessionHistory(state, activeSessionIds)),
         request: (direction) => {
-            const target = sessionNavigationTarget(get(), direction);
-            if (target) set({ pending: direction });
+            const state = get();
+            const target = sessionNavigationTarget(state, direction);
+            if (target === undefined) return;
+            set({
+                ...applySessionNavigation(state, direction),
+                pendingTargets: [...state.pendingTargets, target],
+            });
             return target;
         },
-        reset: () => set({ ...EMPTY_SNAPSHOT, pending: undefined }),
+        restore: (snapshot, appliedSessionId) =>
+            set((state) => {
+                const index = state.pendingTargets.indexOf(appliedSessionId);
+                const pendingTargets =
+                    index === -1 ? state.pendingTargets : state.pendingTargets.toSpliced(index, 1);
+                return state.current === appliedSessionId
+                    ? { ...snapshot, pendingTargets }
+                    : { pendingTargets };
+            }),
+        reset: () => set({ ...EMPTY_SNAPSHOT, pendingTargets: [] }),
     }),
 );
+
+/**
+ * The plain history value behind the store, safe to hold across an await as a rollback target.
+ */
+export function sessionNavigationSnapshot(): SessionNavigationHistorySnapshot {
+    const { back, current, forward } = useSessionNavigationHistoryStore.getState();
+    return { back: [...back], current, forward: [...forward] };
+}

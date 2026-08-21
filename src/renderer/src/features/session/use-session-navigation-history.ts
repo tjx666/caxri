@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 
+import { runCommand } from '../../commands/execute';
 import { useSelectedSession, useSessions } from '../../stores/selectors';
-import { navigateSessionHistory } from './session-actions';
 import { useSessionNavigationHistoryStore } from './session-navigation-history';
 
 /**
@@ -41,7 +41,16 @@ export function useSessionNavigationHistory(): void {
         const onMouseUp = (event: MouseEvent): void => {
             if (event.button !== MOUSE_BUTTON_BACK && event.button !== MOUSE_BUTTON_FORWARD) return;
             event.preventDefault();
-            navigateSessionHistory(event.button === MOUSE_BUTTON_BACK ? 'back' : 'forward');
+            /**
+             * Routed through `runCommand` rather than the action directly: the side buttons are a global gesture, so
+             * they have to stand down behind an open modal exactly like the keyboard binding does. Skipping the command
+             * layer would let a click switch the Session underneath an open dialog.
+             */
+            runCommand(
+                event.button === MOUSE_BUTTON_BACK
+                    ? 'session.navigateBack'
+                    : 'session.navigateForward',
+            );
         };
         addEventListener('mouseup', onMouseUp);
         return () => removeEventListener('mouseup', onMouseUp);
