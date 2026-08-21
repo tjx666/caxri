@@ -292,7 +292,7 @@ function PaneNodeView({
     node: PaneLayoutNode;
 }) {
     return node.type === 'pane' ? (
-        <PaneBox isLeading={node.id === leadingPane} layout={layout} pane={node} />
+        <PaneBox key={node.id} isLeading={node.id === leadingPane} layout={layout} pane={node} />
     ) : (
         <PaneSplitView leadingPane={leadingPane} layout={layout} node={node} />
     );
