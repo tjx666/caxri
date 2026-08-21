@@ -29,6 +29,7 @@ describe('command registry', () => {
                 { key: 'cmd+shift+f', command: 'inspector.searchFiles' },
                 { key: 'cmd+,', command: 'settings.open' },
                 { key: 'cmd+shift+p', command: 'commandPalette.open' },
+                { key: 'cmd+shift+a', command: 'agentActions.open' },
                 { key: 'ctrl+alt+tab', command: 'session.switchMru' },
                 { key: 'cmd+t', command: 'terminal.new' },
                 { key: 'cmd+w', command: 'workbench.closeActiveTab' },

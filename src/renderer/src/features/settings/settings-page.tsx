@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
     AgentHookHealthMap,
+    AgentProvider,
     AgentSkillHealth,
     AppSettings,
     ArgvConfig,
@@ -27,6 +28,7 @@ export interface SettingsPageProperties {
     argvConfig?: ArgvConfig;
     agentHookHealth?: AgentHookHealthMap;
     agentSkillHealth?: AgentSkillHealth;
+    agentActionsFocusRequest?: { id: number; provider: AgentProvider };
     trustedDomainsFocusRequestId?: number;
     onArgvConfigChange: (changes: ArgvConfigChanges) => void;
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
@@ -159,6 +161,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const isSearching = query.trim().length > 0;
     const scrollParentReference = useRef<HTMLDivElement>(null);
     const handledFocusRequest = useRef(0);
+    const handledAgentActionsFocusRequest = useRef(0);
 
     const visibleRows = useMemo(() => filterSettingsRows(settingsRows, query), [query]);
     const list = useMemo(() => buildSettingsList(settingsCategories, visibleRows), [visibleRows]);
@@ -205,6 +208,16 @@ export function SettingsPage(properties: SettingsPageProperties) {
         );
         if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
     }, [list, trustedDomainsFocusRequestId, virtualizer]);
+
+    useEffect(() => {
+        const request = properties.agentActionsFocusRequest;
+        if (!request || handledAgentActionsFocusRequest.current === request.id) return;
+        handledAgentActionsFocusRequest.current = request.id;
+        const index = list.findIndex(
+            (item) => item.kind === 'row' && item.row.id === `agents.${request.provider}.actions`,
+        );
+        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [list, properties.agentActionsFocusRequest, virtualizer]);
 
     const handlers = {
         onArgvConfigChange: properties.onArgvConfigChange,

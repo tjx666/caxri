@@ -59,6 +59,23 @@ describe('removeSessionQueries', () => {
 });
 
 describe('subscribeRuntimeQueryInvalidation', () => {
+    it('drops cached Agent Actions only after a valid settings change', () => {
+        const queryClient = new QueryClient();
+        const key = ['agentActions.list', { terminalId: 'terminal-a' }];
+        queryClient.setQueryData(key, { actions: [{ invocation: '/old' }] });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'settings.changed',
+            payload: { source: '{}', error: 'invalid settings' },
+        });
+        expect(queryClient.getQueryData(key)).toBeDefined();
+
+        mocks.state.handler?.({ event: 'settings.changed', payload: { source: '{}' } });
+        expect(queryClient.getQueryData(key)).toBeUndefined();
+        unsubscribe();
+    });
+
     it('invalidates every Session currently routed to the changed Workbench Project, but never Git queries', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();

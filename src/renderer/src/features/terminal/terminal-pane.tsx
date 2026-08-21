@@ -23,6 +23,7 @@ import {
     copyActiveTerminalSelection,
     findInActiveTerminal,
     hasActiveTerminalSelection,
+    registerTerminalFocusHandler,
     restartTerminal,
     startNewAgentSession,
 } from './terminal-actions';
@@ -197,6 +198,11 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         terminalTheme,
         wordSeparators,
     });
+
+    useEffect(
+        () => registerTerminalFocusHandler(terminalId, focusTerminal),
+        [focusTerminal, terminalId],
+    );
 
     useEffect(
         () =>

@@ -6,6 +6,7 @@ import type { HostMethod } from '../shared/ipc/methods';
  * `mainOwned()`.
  */
 export const hostForwardedMethods = [
+    'agentActions.list',
     'agentHooks.get',
     'agentSkills.get',
     'app.bootstrap',

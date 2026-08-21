@@ -107,6 +107,8 @@ function SettingsDialogView(controller: SettingsDialogController) {
                             sourceView
                         ) : (
                             <SettingsPage
+                                key={controller.agentActionsFocusRequest?.id ?? 'settings'}
+                                agentActionsFocusRequest={controller.agentActionsFocusRequest}
                                 agentHookHealth={controller.agentHookHealth}
                                 agentSkillHealth={controller.agentSkillHealth}
                                 argvConfig={controller.argvConfig}

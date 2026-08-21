@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { canonicalPath, processStateToAgentActivity } from '../contract';
+import { canonicalPath, processStateToAgentActivity, projectDirectories } from '../contract';
 
 const temporaryDirectories: string[] = [];
 
@@ -48,5 +48,19 @@ describe('processStateToAgentActivity', () => {
         [undefined, 'unknown'],
     ] as const)('maps process state %s to activity %s', (state, activity) => {
         expect(processStateToAgentActivity(state)).toBe(activity);
+    });
+});
+
+describe('projectDirectories', () => {
+    it('stays inside the Project and bounds deeply nested discovery roots', () => {
+        expect(projectDirectories({ projectRoot: '/project', cwd: '/outside/worktree' })).toEqual([
+            '/project',
+        ]);
+
+        const deepCwd = join('/project', ...Array.from({ length: 100 }, (_, index) => `d${index}`));
+        const directories = projectDirectories({ projectRoot: '/project', cwd: deepCwd });
+        expect(directories).toHaveLength(30);
+        expect(directories[0]).toBe('/project');
+        expect(directories.at(-1)).toBe(deepCwd);
     });
 });
