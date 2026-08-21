@@ -243,10 +243,10 @@ export async function runProjectStatusCommand(
                     LC_ALL: 'C',
                     ...(command === 'linear' && {
                         /**
-                         * @schpet/linear-cli 2.5.0 loads LINEAR_API_KEY from the repository's `.env` when the variable
-                         * is absent. An explicit empty value preserves dotenv's existing-own-property guard, blocking
-                         * that fallback while keeping Runtime's credential filter and the user's configured workspace
-                         * credentials authoritative.
+                         * `@schpet/linear-cli` 2.5.0 loads LINEAR_API_KEY from the repository's `.env` when the
+                         * variable is absent. An explicit empty value preserves dotenv's existing-own-property guard,
+                         * blocking that fallback while keeping Runtime's credential filter and the user's configured
+                         * workspace credentials authoritative.
                          */
                         LINEAR_API_KEY: '',
                     }),
