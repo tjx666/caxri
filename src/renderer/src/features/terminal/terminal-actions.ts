@@ -1,30 +1,42 @@
-import { addTerminal, splitTerminal } from '@shared/terminal-layout';
-import type { TerminalKind, TerminalLayout } from '@shared/types';
-import type { WorkItem } from '@shared/work-item';
+import type { PaneSplitSide } from '@shared/pane-layout';
+import { findResourceTabs, openResource, splitTabIntoPane } from '@shared/pane-layout';
+import type { TerminalKind } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
 import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';
-import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
+import { getPaneLayout, selectPaneTab } from '../workbench/pane-actions';
 import type { TerminalCommandNavigationDirection } from './terminal-commands';
 import { didNavigateTerminalCommand } from './terminal-commands';
 import { clearTerminalProgress } from './terminal-progress';
 import { openTerminalSearch } from './terminal-search';
 
 /**
- * Drag payload type shared by the Terminal tab strip and the split-layout drop targets.
+ * Reveals a Terminal wherever it is placed. A Terminal owns exactly one tab occurrence, so this is a plain selection —
+ * there is no separate "which pane should it go to" question to answer.
  */
-export const TERMINAL_DRAG_TYPE = 'application/x-caxri-terminal';
-
 export function activateTerminal(terminalId: string): void {
-    useSessionViewStore.getState().activateWork({ kind: 'terminal', terminalId });
+    const layout = getPaneLayout();
+    const occurrence = layout && findResourceTabs(layout, { kind: 'terminal', terminalId })[0];
+    if (occurrence) selectPaneTab(occurrence.tab.id);
+}
+
+interface CreateTerminalOptions {
+    cwd?: string;
+    /**
+     * Where to place the new Terminal; defaults to the active pane.
+     */
+    paneId?: string;
+    /**
+     * Open the Terminal in a new pane split off the target pane instead of as another tab in it.
+     */
+    split?: PaneSplitSide;
 }
 
 export async function createTerminal(
     kind: TerminalKind = 'shell',
-    shouldSplit = false,
-    cwd?: string,
+    { cwd, paneId, split }: CreateTerminalOptions = {},
 ): Promise<void> {
     const session = getSelectedSession();
     if (!session) return;
@@ -35,19 +47,23 @@ export async function createTerminal(
             ...(cwd && { cwd }),
         });
         const currentState = getSessionState();
-        const item: WorkItem = { kind: 'terminal', terminalId: terminal.id };
-        useSessionViewStore.getState().setActiveWork(session.id, item);
         if (currentState) {
-            const layout =
-                shouldSplit && currentState.layout.activeGroupId
-                    ? splitTerminal(
-                          currentState.layout,
-                          terminal.id,
-                          currentState.layout.activeGroupId,
-                          'horizontal',
-                      )
-                    : addTerminal(currentState.layout, terminal.id);
-            patchSessionState({ ...currentState, activeTab: item, layout });
+            const opened = openResource(
+                currentState.paneLayout,
+                { kind: 'terminal', terminalId: terminal.id },
+                { paneId },
+            );
+            const target = findResourceTabs(opened, {
+                kind: 'terminal',
+                terminalId: terminal.id,
+            }).at(0);
+            patchSessionState({
+                ...currentState,
+                paneLayout:
+                    split && target
+                        ? splitTabIntoPane(opened, target.tab.id, target.pane.id, split)
+                        : opened,
+            });
         }
         await refreshWorkbench();
     });
@@ -215,13 +231,4 @@ export function sendTerminalSequence(terminalId: string, text: string): void {
     void tryCommand('Terminal input failed', () =>
         caxri.request('terminal.input', { terminalId, data: text }),
     );
-}
-
-/**
- * Layout edits (drag, drop, splitter resize) clear `activeTab`; the drop handler re-activates the moved Terminal right
- * afterwards, and a resize leaves the layout's own active group in charge.
- */
-export function applyTerminalLayout(layout: TerminalLayout): void {
-    const current = getSessionState();
-    if (current) patchSessionState({ ...current, activeTab: undefined, layout });
 }

@@ -5,7 +5,7 @@ import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-co
  * Shared with `sessions.ts` so the DDL default and the `createSession` insert never drift apart.
  */
 export const DEFAULT_LAYOUT_VERSION = 2;
-export const CURRENT_SESSION_STATE_VERSION = 1;
+export const CURRENT_SESSION_STATE_VERSION = 2;
 
 export const projects = sqliteTable(
     'projects',
@@ -118,15 +118,12 @@ export const sessionState = sqliteTable('session_state', {
         .primaryKey()
         .references(() => sessions.id, { onDelete: 'cascade' }),
     stateVersion: integer('state_version').notNull().default(CURRENT_SESSION_STATE_VERSION),
-    openTabsJson: text('open_tabs_json').notNull(),
-    activeTabJson: text('active_tab_json'),
-    editorRemapOperationId: text('editor_remap_operation_id'),
     /**
-     * Root-local Editor snapshots keyed by authorized Project ID; Terminal layout stays global.
+     * Root-local Workbench snapshots keyed by authorized Project ID. One unified pane tree per Root holds Terminals and
+     * documents alike; Terminal processes themselves stay Session-global.
      */
     workbenchStateJson: text('workbench_state_json').notNull().default('{}'),
     inspectorMode: text('inspector_mode').notNull(),
-    layoutJson: text('layout_json').notNull(),
 });
 
 export const appState = sqliteTable('app_state', {

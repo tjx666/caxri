@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from './layout.js';
+/**
+ * A split keeps both sides usable: below these bounds a pane is too narrow to show a Terminal line or an editor gutter.
+ */
+export const MIN_SPLIT_RATIO = 0.15;
+export const MAX_SPLIT_RATIO = 0.85;
 
 /**
  * The single Workbench split tree, replacing the mutually exclusive Terminal (`./layout.js`) and Editor
@@ -8,21 +12,7 @@ import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from './layout.js';
  * renders, never how the tree splits, reorders, or closes. See `docs/adr/0002-unified-pane-layout.md`.
  */
 export type PaneResource =
-    | { kind: 'terminal'; terminalId: string }
-    | { kind: 'file'; path: string }
-    | { kind: 'transcript'; terminalId: string }
-    | { kind: 'diff'; diff: PaneDiffTarget };
-
-/**
- * Diff surfaces are modeled explicitly instead of being encoded into a fake Editor path, so nothing downstream has to
- * parse a tab path to discover that it must not be saved, renamed, or read through `files.*`.
- */
-export type PaneDiffTarget =
-    | { target: 'changes'; repositoryId: string; repositoryName: string; source: DiffSource }
-    | { target: 'file'; repositoryId: string; path: string; source: DiffSource }
-    | { target: 'commit-file'; repositoryId: string; path: string; sha: string };
-
-type DiffSource = 'working' | 'pull-request';
+    { kind: 'terminal'; terminalId: string } | { kind: 'file'; path: string };
 
 /**
  * One appearance of a resource in one pane.
@@ -74,37 +64,10 @@ const MAX_PANE_LAYOUT_TERMINALS = 16;
 
 const paneLayoutId = z.string().min(1).max(200);
 const paneLayoutPath = z.string().min(1).max(16_384);
-const diffSourceSchema = z.enum(['working', 'pull-request']);
-
-const paneDiffTargetSchema: z.ZodType<PaneDiffTarget, PaneDiffTarget> = z.discriminatedUnion(
-    'target',
-    [
-        z.object({
-            target: z.literal('changes'),
-            repositoryId: paneLayoutId,
-            repositoryName: z.string().min(1).max(200),
-            source: diffSourceSchema,
-        }),
-        z.object({
-            target: z.literal('file'),
-            repositoryId: paneLayoutId,
-            path: paneLayoutPath,
-            source: diffSourceSchema,
-        }),
-        z.object({
-            target: z.literal('commit-file'),
-            repositoryId: paneLayoutId,
-            path: paneLayoutPath,
-            sha: z.string().length(40),
-        }),
-    ],
-);
 
 const paneResourceSchema: z.ZodType<PaneResource, PaneResource> = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('terminal'), terminalId: paneLayoutId }),
     z.object({ kind: z.literal('file'), path: paneLayoutPath }),
-    z.object({ kind: z.literal('transcript'), terminalId: paneLayoutId }),
-    z.object({ kind: z.literal('diff'), diff: paneDiffTargetSchema }),
 ]);
 
 const paneTabSchema: z.ZodType<PaneTab, PaneTab> = z.object({
@@ -136,26 +99,13 @@ paneLayoutNodeSchema = z.union([paneNodeSchema, paneSplitNodeSchema]);
 
 /**
  * Canonical content identity, stable across occurrences. Two tabs sharing a key show the same thing and must share the
- * document model, the dirty buffer, and the PTY.
+ * document model, the dirty buffer, and the PTY. A Git diff and an Agent transcript are documents like any other: they
+ * ride on the same virtual `file` path they already use elsewhere in the Renderer.
  */
 export function paneResourceKey(resource: PaneResource): string {
-    switch (resource.kind) {
-        case 'terminal': {
-            return `terminal:${resource.terminalId}`;
-        }
-        case 'transcript': {
-            return `transcript:${resource.terminalId}`;
-        }
-        case 'file': {
-            return `file:${resource.path}`;
-        }
-        default: {
-            const { diff } = resource;
-            return diff.target === 'changes'
-                ? `diff:changes:${diff.source}:${diff.repositoryId}`
-                : `diff:${diff.target}:${diff.target === 'commit-file' ? diff.sha : diff.source}:${diff.repositoryId}:${diff.path}`;
-        }
-    }
+    return resource.kind === 'terminal'
+        ? `terminal:${resource.terminalId}`
+        : `file:${resource.path}`;
 }
 
 /**

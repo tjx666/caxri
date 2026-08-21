@@ -6,13 +6,19 @@ import {
     activePane,
     activeTab,
     closeTab,
+    closeTabs,
     createPaneLayout,
     findPane,
     findResourceTabs,
     findTab,
     listPanes,
+    listPaneTerminalIds,
     moveTab,
     openResource,
+    paneTabIdsToClose,
+    pinPaneTab,
+    remapPaneLayoutPaths,
+    removePaneTerminal,
     resizeSplit,
     selectTab,
     splitTabIntoPane,
@@ -78,7 +84,7 @@ describe('pane layout reducer', () => {
         layout = openResource(layout, file('a.ts'), {}, id);
         const home = activePane(layout).id;
         const documentTab = activePane(layout).tabs[1];
-        layout = splitTabIntoPane(layout, documentTab.id, home, 'horizontal', id);
+        layout = splitTabIntoPane(layout, documentTab.id, home, 'right', id);
         const right = activePane(layout).id;
         expect(right).not.toBe(home);
 
@@ -92,7 +98,7 @@ describe('pane layout reducer', () => {
         let layout = createPaneLayout(file('a.ts'), id);
         layout = openResource(layout, file('b.ts'), {}, id);
         const [firstTab] = activePane(layout).tabs;
-        layout = splitTabIntoPane(layout, firstTab.id, activePane(layout).id, 'vertical', id);
+        layout = splitTabIntoPane(layout, firstTab.id, activePane(layout).id, 'down', id);
 
         layout = valid(openResource(layout, file('b.ts'), { duplicate: true }, id));
         const occurrences = findResourceTabs(layout, file('b.ts'));
@@ -126,7 +132,7 @@ describe('pane layout reducer', () => {
         let layout = createPaneLayout(file('a.ts'), id);
         layout = openResource(layout, file('b.ts'), {}, id);
         const [firstTab] = activePane(layout).tabs;
-        layout = splitTabIntoPane(layout, firstTab.id, activePane(layout).id, 'horizontal', id);
+        layout = splitTabIntoPane(layout, firstTab.id, activePane(layout).id, 'right', id);
         expect(listPanes(layout)).toHaveLength(2);
 
         layout = valid(closeTab(layout, firstTab.id));
@@ -145,7 +151,7 @@ describe('pane layout reducer', () => {
         layout = openResource(layout, terminal('terminal-2'), {}, id);
         const source = activePane(layout).id;
         const [movedTab] = activePane(layout).tabs;
-        layout = splitTabIntoPane(layout, movedTab.id, source, 'horizontal', id);
+        layout = splitTabIntoPane(layout, movedTab.id, source, 'right', id);
         const target = activePane(layout).id;
 
         const [stayingTab] = findPane(layout, source)!.tabs;
@@ -173,7 +179,7 @@ describe('pane layout reducer', () => {
         const id = ids();
         const layout = createPaneLayout(file('a.ts'), id);
         const [onlyTab] = activePane(layout).tabs;
-        expect(splitTabIntoPane(layout, onlyTab.id, activePane(layout).id, 'horizontal', id)).toBe(
+        expect(splitTabIntoPane(layout, onlyTab.id, activePane(layout).id, 'right', id)).toBe(
             layout,
         );
     });
@@ -183,11 +189,74 @@ describe('pane layout reducer', () => {
         let layout = createPaneLayout(file('a.ts'), id);
         layout = openResource(layout, file('b.ts'), {}, id);
         const [firstTab] = activePane(layout).tabs;
-        layout = splitTabIntoPane(layout, firstTab.id, activePane(layout).id, 'horizontal', id);
+        layout = splitTabIntoPane(layout, firstTab.id, activePane(layout).id, 'right', id);
         const splitId = layout.root.type === 'split' ? layout.root.id : '';
 
         expect(valid(resizeSplit(layout, splitId, 0.99)).root).toMatchObject({ ratio: 0.85 });
         expect(valid(resizeSplit(layout, splitId, 0)).root).toMatchObject({ ratio: 0.15 });
+    });
+
+    it('pins one occurrence of a preview without pinning the other', () => {
+        const id = ids();
+        let layout = createPaneLayout(file('b.ts'), id);
+        layout = openResource(layout, file('a.ts'), { preview: true }, id);
+        const [anchor, firstPreview] = activePane(layout).tabs;
+        layout = splitTabIntoPane(layout, anchor.id, activePane(layout).id, 'right', id);
+        layout = openResource(layout, file('a.ts'), { preview: true }, id);
+        const secondPreview = activePane(layout).tabs.at(-1)!;
+
+        const pinned = valid(pinPaneTab(layout, firstPreview.id));
+        expect(findTab(pinned, firstPreview.id)?.tab.preview).toBeUndefined();
+        expect(findTab(pinned, secondPreview.id)?.tab.preview).toBe(true);
+        expect(pinPaneTab(pinned, firstPreview.id)).toBe(pinned);
+    });
+
+    it('closes tab families inside the owning pane only', () => {
+        const id = ids();
+        let layout = createPaneLayout(file('a.ts'), id);
+        layout = openResource(layout, file('b.ts'), {}, id);
+        layout = openResource(layout, file('c.ts'), {}, id);
+        const [first, second] = activePane(layout).tabs;
+        // The same document opened in a second pane must survive every pane-local close mode.
+        layout = splitTabIntoPane(layout, second.id, activePane(layout).id, 'right', id);
+        const remainingPaneId = findTab(layout, first.id)!.pane.id;
+
+        expect(paneTabIdsToClose(layout, first.id, 'one')).toEqual([first.id]);
+        expect(paneTabIdsToClose(layout, first.id, 'others')).toHaveLength(1);
+        expect(paneTabIdsToClose(layout, first.id, 'right')).toHaveLength(1);
+        expect(paneTabIdsToClose(layout, first.id, 'all')).toHaveLength(2);
+        expect(paneTabIdsToClose(layout, 'missing', 'all')).toEqual([]);
+        const closed = valid(closeTabs(layout, paneTabIdsToClose(layout, first.id, 'all')));
+        expect(findPane(closed, remainingPaneId)).toBeUndefined();
+        expect(findTab(closed, second.id)).toBeDefined();
+    });
+
+    it('drops a closed Terminal wherever it was placed', () => {
+        const id = ids();
+        let layout = createPaneLayout(terminal('terminal-1'), id);
+        layout = openResource(layout, file('a.ts'), {}, id);
+
+        const removed = valid(removePaneTerminal(layout, 'terminal-1'));
+        expect(listPaneTerminalIds(removed)).toEqual([]);
+        expect(listPaneTerminalIds(layout)).toEqual(['terminal-1']);
+        expect(removePaneTerminal(removed, 'terminal-1')).toBe(removed);
+    });
+
+    it('remaps document paths after a Project root move and leaves Terminals alone', () => {
+        const id = ids();
+        let layout = createPaneLayout(terminal('terminal-1'), id);
+        layout = openResource(layout, file('/old/a.ts'), {}, id);
+        layout = openResource(layout, file('/old/b.ts'), {}, id);
+
+        const remapped = valid(
+            remapPaneLayoutPaths(layout, (path) => path.replace('/old/', '/new/')),
+        );
+        expect(activePane(remapped).tabs.map((tab) => tab.resource)).toEqual([
+            terminal('terminal-1'),
+            file('/new/a.ts'),
+            file('/new/b.ts'),
+        ]);
+        expect(remapPaneLayoutPaths(remapped, (path) => path)).toBe(remapped);
     });
 
     it('ignores operations that name something the layout does not hold', () => {
@@ -196,7 +265,7 @@ describe('pane layout reducer', () => {
         expect(closeTab(layout, 'missing')).toBe(layout);
         expect(selectTab(layout, 'missing')).toBe(layout);
         expect(moveTab(layout, 'missing', activePane(layout).id)).toBe(layout);
-        expect(splitTabIntoPane(layout, 'missing', activePane(layout).id, 'horizontal', id)).toBe(
+        expect(splitTabIntoPane(layout, 'missing', activePane(layout).id, 'right', id)).toBe(
             layout,
         );
     });

@@ -1,0 +1,223 @@
+import { lstat, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+import {
+    activeTab as activePaneTab,
+    listPaneTabs,
+    listPaneTerminalIds,
+    openResource,
+} from '../../../shared/pane-layout';
+import type { PaneLayout } from '../../../shared/types';
+import { CaxriDatabase } from '../repository';
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+    const directoriesToRemove = [...temporaryDirectories];
+    temporaryDirectories.length = 0;
+    await Promise.all(
+        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
+    );
+});
+
+async function temporaryDirectory(prefix: string): Promise<string> {
+    const directory = await mkdtemp(join(tmpdir(), prefix));
+    temporaryDirectories.push(directory);
+    return directory;
+}
+
+function filePaths(layout: PaneLayout): string[] {
+    return listPaneTabs(layout)
+        .filter((occurrence) => occurrence.tab.resource.kind === 'file')
+        .map((occurrence) => (occurrence.tab.resource as { kind: 'file'; path: string }).path);
+}
+
+function activeFilePath(layout: PaneLayout): string | undefined {
+    const tab = activePaneTab(layout);
+    return tab?.resource.kind === 'file' ? tab.resource.path : undefined;
+}
+
+/**
+ * Coverage for how `CaxriDatabase` scopes a Session's durable editor state (open document tabs, active tab, and remaps)
+ * per Workbench Root while keeping owner identity and Terminal cwd global. See `./repo.integration.test.ts` for the
+ * rest of the facade-level wiring; `./database.integration.test.ts` for pure-SQL/schema behavior.
+ */
+describe('CaxriDatabase Workbench Root editor state', () => {
+    it('keeps owner identity and Terminal cwd global while restoring editor state per Workbench Root', async () => {
+        const directory = await temporaryDirectory('caxri-db-workbench-root-');
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const ownerState = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...ownerState,
+            paneLayout: openResource(ownerState.paneLayout, {
+                kind: 'file',
+                path: join(ownerRoot, 'owner.ts'),
+            }),
+        });
+        const identity = await lstat(worktreeRoot, { bigint: true });
+
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+
+        expect(database.getSession(created.session.id)).toMatchObject({
+            projectId: owner.id,
+            workbenchProjectId: worktree.id,
+            rootPath: worktreeRoot,
+        });
+        const freshWorktreeState = database.getSessionState(created.session.id);
+        expect(freshWorktreeState.workbenchProjectId).toBe(worktree.id);
+        expect(filePaths(freshWorktreeState.paneLayout)).toEqual([]);
+        // The worktree root has never been arranged, so the Session's own Terminal still shows.
+        expect(listPaneTerminalIds(freshWorktreeState.paneLayout)).toEqual([created.terminal!.id]);
+        const worktreeState = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...worktreeState,
+            paneLayout: openResource(worktreeState.paneLayout, {
+                kind: 'file',
+                path: join(worktreeRoot, 'worktree.ts'),
+            }),
+        });
+        const laterTerminal = database.createTerminal(created.session.id, 'shell');
+        expect(laterTerminal.cwd).toBe(ownerRoot);
+
+        database.selectWorkbenchProject(created.session.id, owner.id);
+        const restoredOwnerState = database.getSessionState(created.session.id);
+        expect(restoredOwnerState.workbenchProjectId).toBe(owner.id);
+        expect(filePaths(restoredOwnerState.paneLayout)).toEqual([join(ownerRoot, 'owner.ts')]);
+        expect(activeFilePath(restoredOwnerState.paneLayout)).toBe(join(ownerRoot, 'owner.ts'));
+        expect(() => database.updateSessionState(worktreeState)).toThrow(/stale Workbench Root/);
+
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        const restoredWorktreeState = database.getSessionState(created.session.id);
+        expect(restoredWorktreeState.workbenchProjectId).toBe(worktree.id);
+        expect(filePaths(restoredWorktreeState.paneLayout)).toEqual([
+            join(worktreeRoot, 'worktree.ts'),
+        ]);
+        expect(activeFilePath(restoredWorktreeState.paneLayout)).toBe(
+            join(worktreeRoot, 'worktree.ts'),
+        );
+        expect(listPaneTerminalIds(restoredWorktreeState.paneLayout)).toEqual([
+            created.terminal!.id,
+        ]);
+
+        database.deleteProject(worktree.id);
+        expect(database.getSession(created.session.id)).toMatchObject({
+            projectId: owner.id,
+            workbenchProjectId: owner.id,
+            rootPath: ownerRoot,
+        });
+        expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+            cwd: ownerRoot,
+            id: created.terminal!.id,
+        });
+        database.close();
+    });
+
+    it('remaps durable editor state for an inactive Workbench Root idempotently', async () => {
+        const directory = await temporaryDirectory('caxri-db-inactive-root-remap-');
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const identity = await lstat(worktreeRoot, { bigint: true });
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        const previousDirectory = join(worktreeRoot, 'source');
+        const nextDirectory = join(worktreeRoot, 'destination');
+        const previousPath = join(previousDirectory, 'document.ts');
+        const nextPath = join(nextDirectory, 'document.ts');
+        const gitDiffPath = 'caxri-git-diff://file/repository/source%2Fdocument.ts';
+        const beforeRemapState = database.getSessionState(created.session.id);
+        const openedGitDiff = openResource(beforeRemapState.paneLayout, {
+            kind: 'file',
+            path: gitDiffPath,
+        });
+        const openedPrevious = openResource(openedGitDiff, { kind: 'file', path: previousPath });
+        database.updateSessionState({ ...beforeRemapState, paneLayout: openedPrevious });
+        database.selectWorkbenchProject(created.session.id, owner.id);
+
+        expect(
+            database.remapWorkbenchEditorState(
+                worktree.id,
+                'operation-1',
+                previousDirectory,
+                nextDirectory,
+            ),
+        ).toBe(1);
+        const ownerStateAfterRemap = database.getSessionState(created.session.id);
+        expect(ownerStateAfterRemap.workbenchProjectId).toBe(owner.id);
+        expect(filePaths(ownerStateAfterRemap.paneLayout)).toEqual([]);
+
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        const remapped = database.getSessionState(created.session.id);
+        expect(remapped.workbenchProjectId).toBe(worktree.id);
+        expect(filePaths(remapped.paneLayout)).toEqual([gitDiffPath, nextPath]);
+        expect(activeFilePath(remapped.paneLayout)).toBe(nextPath);
+        expect(remapped.editorRemapOperationId).toBe('operation-1');
+        expect(
+            database.remapWorkbenchEditorState(
+                worktree.id,
+                'operation-1',
+                previousDirectory,
+                nextDirectory,
+            ),
+        ).toBe(0);
+        expect(database.getSessionState(created.session.id)).toEqual(remapped);
+        database.close();
+    });
+
+    it('leaves virtual editor tabs untouched when the remap source covers the process cwd', async () => {
+        const directory = await temporaryDirectory('caxri-db-virtual-tab-remap-');
+        const ownerRoot = join(directory, 'owner');
+        await mkdir(ownerRoot);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const transcriptPath = 'caxri-agent-transcript://terminal-1/Claude%20Code';
+        const state = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...state,
+            paneLayout: openResource(state.paneLayout, { kind: 'file', path: transcriptPath }),
+        });
+
+        // A virtual tab path is not absolute, so without the scheme exemption `relative()` would
+        // resolve it against the process cwd; a remap whose source covers the cwd would then
+        // rewrite the tab into a bogus filesystem path. The count still reports 1: it counts
+        // Sessions stamped with the operation, not changed paths.
+        expect(
+            database.remapWorkbenchEditorState(
+                owner.id,
+                'operation-1',
+                process.cwd(),
+                join(directory, 'moved'),
+            ),
+        ).toBe(1);
+        expect(filePaths(database.getSessionState(created.session.id).paneLayout)).toEqual([
+            transcriptPath,
+        ]);
+        database.close();
+    });
+});

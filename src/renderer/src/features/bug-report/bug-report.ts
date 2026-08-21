@@ -1,8 +1,7 @@
 import type { AgentProvider } from '@shared/agents';
 import { agentProviderCatalog } from '@shared/agents';
 import { redactSecretText } from '@shared/redaction';
-import type { TerminalRecord } from '@shared/types';
-import type { WorkItem } from '@shared/work-item';
+import type { PaneResource, TerminalRecord } from '@shared/types';
 
 export interface BugReportDraft {
     actual: string;
@@ -45,7 +44,7 @@ export function buildBugReport(draft: BugReportDraft, context: BugReportContext)
             ? `Editor: ${safeText(context.visibleWork.fileName)}`
             : context.visibleWork.kind === 'terminal'
               ? `${context.visibleWork.provider ? agentProviderCatalog[context.visibleWork.provider].displayName : 'Shell'} Terminal (\`${safeText(context.visibleWork.terminalId)}\`)`
-              : 'No active work item';
+              : 'No active tab';
     return [
         '# Caxri Bug Report',
         '',
@@ -89,10 +88,11 @@ export function runningAgentTargets(
 export function chooseBugReportTarget(
     terminals: readonly TerminalRecord[],
     sessionId: string,
-    activeWork: WorkItem | undefined,
+    activeResource: PaneResource | undefined,
 ): string | undefined {
     const targets = runningAgentTargets(terminals, sessionId);
-    const activeTerminalId = activeWork?.kind === 'terminal' ? activeWork.terminalId : undefined;
+    const activeTerminalId =
+        activeResource?.kind === 'terminal' ? activeResource.terminalId : undefined;
     return targets.find((terminal) => terminal.id === activeTerminalId)?.id ?? targets[0]?.id;
 }
 

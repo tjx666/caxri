@@ -1,5 +1,4 @@
 import { agentProviderCatalog } from '@shared/agents';
-import { reconcileEditorTabDirtiness, withoutEditorTabDirtiness } from '@shared/editor-state';
 import { assertNever } from '@shared/ipc';
 import type { RuntimeEvent } from '@shared/ipc/events';
 import type {
@@ -129,7 +128,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 pendingSessionPatches.delete(patchKey);
         };
         try {
-            await caxri.request('session.updateState', withoutEditorTabDirtiness(next));
+            await caxri.request('session.updateState', next);
             sessionStateWrites.completed += 1;
             if (pendingSessionPatches.get(patchKey)?.revision === revision)
                 persistedSessionPatches.set(patchKey, {
@@ -199,24 +198,12 @@ function applyPendingSessionPatches(state: BootstrapState, readStamp: number): B
     return { ...state, sessionStates };
 }
 
-async function applySnapshot(state: BootstrapState, readStamp: number): Promise<void> {
-    /**
-     * Dynamic import avoids a static store cycle: `session-view` uses this module to persist UI state.
-     */
-    const { sessionViewScope, useSessionViewStore } = await import('./session-view');
-    const documents = useSessionViewStore.getState().documents;
-    const pending = applyPendingSessionPatches(state, readStamp);
-    const current = {
-        ...pending,
-        sessionStates: pending.sessionStates.map((sessionState) =>
-            reconcileEditorTabDirtiness(
-                sessionState,
-                documents[
-                    sessionViewScope(sessionState.sessionId, sessionState.workbenchProjectId)
-                ],
-            ),
-        ),
-    };
+/**
+ * Dirtiness is no longer mirrored into the persisted Session state: an unsaved buffer lives only in the Renderer's
+ * document cache, so a Runtime snapshot can be applied as is.
+ */
+function applySnapshot(state: BootstrapState, readStamp: number): void {
+    const current = applyPendingSessionPatches(state, readStamp);
     useWorkbenchStore.setState((previous) => ({
         bootstrap: mergeStructurally(previous.bootstrap, current),
     }));
@@ -312,7 +299,7 @@ async function runLoadBootstrap(): Promise<void> {
     try {
         const readStamp = sessionStateWrites.completed;
         const state = await caxri.request('app.bootstrap');
-        await applySnapshot(state, readStamp);
+        applySnapshot(state, readStamp);
     } catch (error: unknown) {
         pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
     } finally {

@@ -1,6 +1,6 @@
 # One pane tree for Terminals and documents
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-08-21
 - Refs: [#257](https://github.com/tjx666/caxri/issues/257)
 
@@ -21,8 +21,12 @@ is what forces every asymmetry:
 - **Resource** — the thing being shown; owns the PTY process, the document model and its dirty
   buffer, and Monaco's language services.
 
-`file`, `diff`, `transcript`, and `terminal` are modeled explicitly. Diffs and transcripts stop
-masquerading as Editor paths.
+`PaneResource` is a two-way union: `{ kind: 'file', path }` or `{ kind: 'terminal', terminalId }`.
+Diffs and transcripts stay `file` resources named by a virtual URI scheme
+(`caxri-git-diff://…`, `caxri-agent-transcript://…`, recognized by `isVirtualEditorTabPath`)
+rather than becoming their own `PaneResource` kinds — they already behave like documents (openable,
+closable, repeatable, never read or written through `files.*`), so a third and fourth kind would
+duplicate the `file` branch everywhere without buying new behavior.
 
 ## Instance versus document
 
@@ -87,8 +91,19 @@ handle.
 This breaks the wire contract: `SessionState` is shared by `app.bootstrap` and `session.updateState`,
 so the protocol version, the session-state version, and the layout version all step forward together
 and Host, Runtime, Preload, CLI, and fixtures upgrade atomically. Per the pre-public compatibility
-policy there is no adapter and no dual read or write. The SQLite migration converts both old trees
-per root inside one transaction, joins them with a deterministic split when both exist, derives
-Terminal tab ids from their Terminal id, and fails closed to a single pane holding every durable
-Terminal when the stored state is unusable. The first release caps a layout at 8 panes; a migrated
-tree over that keeps every tab and collapses the excess topology rather than dropping work.
+policy there is no adapter and no dual read or write. Migration `0012_unified_pane_layout.sql` drops
+`session_state` down to its four surviving columns and hard-resets every row's `state_version` to `2`
+and `workbench_state_json` to `{}` — it does not attempt to convert the old Terminal/Editor trees
+into pane layouts, since Caxri has no public release yet and there is nothing to preserve worth the
+conversion complexity. Each Workbench Root then rebuilds its layout the first time it is read after
+upgrade: `SessionsModel.defaultPaneLayout` places every durable Terminal owned by the Session into
+one pane, and any previously open Editor tabs are gone. Terminal identity, PTY state, and Session/
+Project records are untouched — only pane placement resets. A layout is capped at 8 panes
+(`MAX_PANE_LAYOUT_PANES`); `defaultPaneLayout`'s single-pane arrangement never approaches that limit.
+
+## Command surface
+
+The old mutually-exclusive trees exposed separate split commands per tree. The unified tree exposes
+one family — `workbench.splitLeft` / `splitRight` / `splitUp` / `splitDown` — that splits whatever
+pane is active regardless of what its tabs hold; `workbench.closeActiveTab`, `workbench.nextTab`, and
+`workbench.previousTab` follow the same pattern (`src/renderer/src/commands/definitions.ts`).

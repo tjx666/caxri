@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type {
-    PaneDiffTarget,
-    PaneLayoutNode,
-    PaneNode,
-    PaneResource,
-    PaneTab,
-} from '../pane-layout.js';
+import type { PaneLayoutNode, PaneNode, PaneResource, PaneTab } from '../pane-layout.js';
 import {
     isRepeatablePaneResource,
     MAX_PANE_LAYOUT_PANES,
@@ -16,8 +10,6 @@ import {
 
 const terminal = (terminalId: string): PaneResource => ({ kind: 'terminal', terminalId });
 const file = (path: string): PaneResource => ({ kind: 'file', path });
-const transcript = (terminalId: string): PaneResource => ({ kind: 'transcript', terminalId });
-const diff = (target: PaneDiffTarget): PaneResource => ({ kind: 'diff', diff: target });
 
 function tab(id: string, resource: PaneResource): PaneTab {
     return { id, resource };
@@ -58,19 +50,8 @@ describe('pane layout contract', () => {
         expect(parsed.success).toBe(true);
     });
 
-    it('accepts every resource kind inside a single pane', () => {
-        const root = paneOf(
-            'pane-1',
-            terminal('terminal-1'),
-            file('README.md'),
-            transcript('terminal-1'),
-            diff({
-                target: 'file',
-                repositoryId: 'repo-1',
-                path: 'src/index.ts',
-                source: 'working',
-            }),
-        );
+    it('accepts a Terminal beside a document in a single pane', () => {
+        const root = paneOf('pane-1', terminal('terminal-1'), file('README.md'));
         expect(paneLayoutSchema.safeParse({ root }).success).toBe(true);
     });
 
@@ -133,38 +114,12 @@ describe('pane layout contract', () => {
         expect(failure(root)).toMatch(/exceeds \d+ (?:panes|nodes)/);
     });
 
-    it('distinguishes every resource by key', () => {
+    it('distinguishes a Terminal from a document of the same name', () => {
         const keys = [
             paneResourceKey(file('a.ts')),
-            paneResourceKey(terminal('terminal-1')),
-            paneResourceKey(transcript('terminal-1')),
-            paneResourceKey(
-                diff({ target: 'file', repositoryId: 'repo-1', path: 'a.ts', source: 'working' }),
-            ),
-            paneResourceKey(
-                diff({
-                    target: 'file',
-                    repositoryId: 'repo-1',
-                    path: 'a.ts',
-                    source: 'pull-request',
-                }),
-            ),
-            paneResourceKey(
-                diff({
-                    target: 'commit-file',
-                    repositoryId: 'repo-1',
-                    path: 'a.ts',
-                    sha: 'a'.repeat(40),
-                }),
-            ),
-            paneResourceKey(
-                diff({
-                    target: 'changes',
-                    repositoryId: 'repo-1',
-                    repositoryName: 'caxri',
-                    source: 'working',
-                }),
-            ),
+            paneResourceKey(terminal('a.ts')),
+            // Git diffs and Agent transcripts are documents on their own virtual paths.
+            paneResourceKey(file('caxri-diff:repo-1/a.ts')),
         ];
         expect(new Set(keys).size).toBe(keys.length);
     });
@@ -172,6 +127,5 @@ describe('pane layout contract', () => {
     it('marks every resource except a Terminal as repeatable', () => {
         expect(isRepeatablePaneResource(terminal('terminal-1'))).toBe(false);
         expect(isRepeatablePaneResource(file('a.ts'))).toBe(true);
-        expect(isRepeatablePaneResource(transcript('terminal-1'))).toBe(true);
     });
 });

@@ -1,4 +1,3 @@
-import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from './ipc/layout';
 import type {
     PaneLayout,
     PaneLayoutNode,
@@ -7,7 +6,12 @@ import type {
     PaneSplitNode,
     PaneTab,
 } from './ipc/pane-layout';
-import { isRepeatablePaneResource, paneResourceKey } from './ipc/pane-layout';
+import {
+    isRepeatablePaneResource,
+    MAX_SPLIT_RATIO,
+    MIN_SPLIT_RATIO,
+    paneResourceKey,
+} from './ipc/pane-layout';
 
 export type PaneIdFactory = () => string;
 
@@ -53,31 +57,31 @@ export function findPane(layout: PaneLayout, paneId: string): PaneNode | undefin
 }
 
 /**
+ * Every tab occurrence in the tree, each with the pane that holds it, in tree order.
+ */
+export function listPaneTabs(layout: PaneLayout): PaneTabOccurrence[] {
+    return listPanes(layout).flatMap((pane) => pane.tabs.map((tab) => ({ pane, tab })));
+}
+
+export interface PaneTabOccurrence {
+    pane: PaneNode;
+    tab: PaneTab;
+}
+
+/**
  * The pane a tab occurrence lives in, together with the occurrence itself.
  */
-export function findTab(
-    layout: PaneLayout,
-    tabId: string,
-): { pane: PaneNode; tab: PaneTab } | undefined {
-    for (const pane of listPanes(layout)) {
-        const tab = pane.tabs.find((candidate) => candidate.id === tabId);
-        if (tab) return { pane, tab };
-    }
-    return undefined;
+export function findTab(layout: PaneLayout, tabId: string): PaneTabOccurrence | undefined {
+    return listPaneTabs(layout).find((occurrence) => occurrence.tab.id === tabId);
 }
 
 /**
  * Every occurrence of one resource, in tree order. A Terminal has at most one; a document may have several.
  */
-export function findResourceTabs(
-    layout: PaneLayout,
-    resource: PaneResource,
-): Array<{ pane: PaneNode; tab: PaneTab }> {
+export function findResourceTabs(layout: PaneLayout, resource: PaneResource): PaneTabOccurrence[] {
     const key = paneResourceKey(resource);
-    return listPanes(layout).flatMap((pane) =>
-        pane.tabs
-            .filter((tab) => paneResourceKey(tab.resource) === key)
-            .map((tab) => ({ pane, tab })),
+    return listPaneTabs(layout).filter(
+        (occurrence) => paneResourceKey(occurrence.tab.resource) === key,
     );
 }
 
@@ -176,13 +180,18 @@ export function openResource(
     // A Terminal is an instance: opening one that already lives elsewhere reveals it instead of cloning the PTY.
     if (existing.length > 0 && !isRepeatablePaneResource(resource))
         return selectTab(layout, existing[0].tab.id);
-    const tab: PaneTab = { id: id(), resource, ...(preview && { preview: true }) };
+    /**
+     * A preview tab is a slot, not a stack: the next preview takes over the existing one in place — same position, same
+     * tab id. Reusing the id is what keeps the slot's DOM node, focus, and enter/exit animation identity stable, so
+     * previewing file after file swaps a label instead of destroying and recreating a tab each time.
+     */
+    const replaced = preview ? target.tabs.find((candidate) => candidate.preview) : undefined;
+    const tab: PaneTab = { id: replaced?.id ?? id(), resource, ...(preview && { preview: true }) };
     return {
         root: replaceNode(layout.root, target.id, (node) => {
             const pane = node as PaneNode;
-            // A preview tab is a slot, not a stack: the next preview replaces it rather than piling up.
-            const tabs = preview
-                ? [...pane.tabs.filter((candidate) => !candidate.preview), tab]
+            const tabs = replaced
+                ? pane.tabs.map((candidate) => (candidate.id === replaced.id ? tab : candidate))
                 : [...pane.tabs, tab];
             return { ...pane, tabs, activeTabId: tab.id };
         }),
@@ -234,6 +243,20 @@ export function moveTab(
 }
 
 /**
+ * Which side of the target pane the new pane takes. The four drop edges, the four split commands, and the tab context
+ * menu all speak this vocabulary, so the split axis and the ordering are decided in one place instead of at every call
+ * site.
+ */
+export type PaneSplitSide = 'down' | 'left' | 'right' | 'up';
+
+const splitDirections: Record<PaneSplitSide, PaneSplitNode['direction']> = {
+    left: 'horizontal',
+    right: 'horizontal',
+    up: 'vertical',
+    down: 'vertical',
+};
+
+/**
  * Splits `targetPaneId` and moves the occurrence into the new pane. Dropping a tab on a pane edge is this operation for
  * every kind; `openResource` with `duplicate` is how a document instead gains a second occurrence.
  */
@@ -241,7 +264,7 @@ export function splitTabIntoPane(
     layout: PaneLayout,
     tabId: string,
     targetPaneId: string,
-    direction: PaneSplitNode['direction'],
+    side: PaneSplitSide,
     id: PaneIdFactory = createId,
 ): PaneLayout {
     const found = findTab(layout, tabId);
@@ -252,17 +275,122 @@ export function splitTabIntoPane(
     const removed = removeTabFromNode(layout.root, tabId) ?? layout.root;
     if (listPanes({ root: removed }).every((pane) => pane.id !== targetPaneId)) return layout;
     const pane: PaneNode = { type: 'pane', id: id(), tabs: [found.tab], activeTabId: found.tab.id };
+    const isBefore = side === 'left' || side === 'up';
     return {
         root: replaceNode(removed, targetPaneId, (node) => ({
             type: 'split',
             id: id(),
-            direction,
+            direction: splitDirections[side],
             ratio: 0.5,
-            first: node,
-            second: pane,
+            first: isBefore ? pane : node,
+            second: isBefore ? node : pane,
         })),
         activePaneId: pane.id,
     };
+}
+
+/**
+ * Every Terminal placed in this layout, in tree order. A Terminal occupies exactly one pane, so this is also the set of
+ * Terminals the Workbench currently shows.
+ */
+export function listPaneTerminalIds(layout: PaneLayout): string[] {
+    return listPanes(layout).flatMap((pane) =>
+        pane.tabs.flatMap((tab) =>
+            tab.resource.kind === 'terminal' ? [tab.resource.terminalId] : [],
+        ),
+    );
+}
+
+/**
+ * The Terminals actually on screen: one per pane, since a pane shows only its active tab. Restore and attachment work
+ * prioritizes these over Terminals sitting behind another tab.
+ */
+export function visiblePaneTerminalIds(layout: PaneLayout): string[] {
+    return listPanes(layout).flatMap((pane) => {
+        const visible = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
+        return visible?.resource.kind === 'terminal' ? [visible.resource.terminalId] : [];
+    });
+}
+
+/**
+ * Drops a closed Terminal's occurrence. Called when the process is gone, so nothing else in the tree has to know.
+ */
+export function removePaneTerminal(layout: PaneLayout, terminalId: string): PaneLayout {
+    const occurrence = findResourceTabs(layout, { kind: 'terminal', terminalId }).at(0);
+    return occurrence ? closeTab(layout, occurrence.tab.id) : layout;
+}
+
+/**
+ * Turns a preview occurrence into an ordinary one. Pinning is per occurrence: previewing the same file in two panes and
+ * pinning one leaves the other replaceable.
+ */
+export function pinPaneTab(layout: PaneLayout, tabId: string): PaneLayout {
+    const found = findTab(layout, tabId);
+    if (!found?.tab.preview) return layout;
+    return {
+        ...layout,
+        root: replaceNode(layout.root, found.pane.id, (node) => ({
+            ...(node as PaneNode),
+            tabs: (node as PaneNode).tabs.map((tab) =>
+                tab.id === tabId ? { id: tab.id, resource: tab.resource } : tab,
+            ),
+        })),
+    };
+}
+
+export type PaneTabCloseMode = 'all' | 'one' | 'others' | 'right';
+
+/**
+ * Close Others / Close to the Right / Close All are pane-local, matching VS Code: they act on the bar the tab lives in,
+ * never on occurrences in other panes.
+ */
+export function paneTabIdsToClose(
+    layout: PaneLayout,
+    tabId: string,
+    mode: PaneTabCloseMode,
+): string[] {
+    const found = findTab(layout, tabId);
+    if (!found) return [];
+    const { tabs } = found.pane;
+    const index = tabs.findIndex((tab) => tab.id === tabId);
+    if (mode === 'one') return [tabId];
+    if (mode === 'all') return tabs.map((tab) => tab.id);
+    if (mode === 'others') return tabs.flatMap((tab) => (tab.id === tabId ? [] : [tab.id]));
+    return tabs.slice(index + 1).map((tab) => tab.id);
+}
+
+export function closeTabs(layout: PaneLayout, tabIds: readonly string[]): PaneLayout {
+    return tabIds.reduce((current, tabId) => closeTab(current, tabId), layout);
+}
+
+/**
+ * Rewrites document paths after a Project root move. Terminal occurrences carry no path and are left untouched.
+ */
+export function remapPaneLayoutPaths(
+    layout: PaneLayout,
+    remap: (path: string) => string,
+): PaneLayout {
+    const remapResource = (resource: PaneResource): PaneResource => {
+        if (resource.kind !== 'file') return resource;
+        const path = remap(resource.path);
+        return path === resource.path ? resource : { kind: 'file', path };
+    };
+    const visit = (node: PaneLayoutNode): PaneLayoutNode => {
+        if (node.type === 'split') {
+            const first = visit(node.first);
+            const second = visit(node.second);
+            return first === node.first && second === node.second
+                ? node
+                : { ...node, first, second };
+        }
+        const tabs = node.tabs.map((tab) => {
+            const resource = remapResource(tab.resource);
+            return resource === tab.resource ? tab : { ...tab, resource };
+        });
+        return tabs.every((tab, index) => tab === node.tabs[index]) ? node : { ...node, tabs };
+    };
+    const root = visit(layout.root);
+    return root === layout.root ? layout : { ...layout, root };
 }
 
 export function resizeSplit(layout: PaneLayout, splitId: string, ratio: number): PaneLayout {

@@ -12,7 +12,7 @@ import { Tooltip } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utilities';
 import { queryClient, useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
-import { useActiveWork } from '../../../../stores/session-view';
+import { useActivePaneTab } from '../../../workbench/pane-actions';
 import type { GitPanelMode } from './git-repo-section';
 import { GitRepoSection } from './git-repo-section';
 import { submoduleRepositoriesByPath } from './git-tree';
@@ -23,7 +23,7 @@ import { submoduleRepositoriesByPath } from './git-tree';
  */
 export function GitPanel() {
     const session = useSelectedSession();
-    const activeWork = useActiveWork();
+    const activeResource = useActivePaneTab()?.resource;
     const scope = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
     const [navigationByScope, setNavigationByScope] = useState<
         Record<
@@ -63,7 +63,8 @@ export function GitPanel() {
             expandedDirectories: { ...navigation.expandedDirectories, [key]: isExpanded },
         });
     const sessionId = session?.id;
-    const activeDiff = activeWork?.kind === 'editor' ? parseGitDiffTab(activeWork.path) : undefined;
+    const activeDiff =
+        activeResource?.kind === 'file' ? parseGitDiffTab(activeResource.path) : undefined;
     /**
      * `git.changed` invalidation is wired centrally in `useRuntimeQueryInvalidation`, so this query only needs to
      * describe what it reads; the re-fetch on Git-affecting repository activity happens without a local effect. The

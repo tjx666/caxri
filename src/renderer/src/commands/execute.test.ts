@@ -61,12 +61,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             workbench: {
                 closeActiveTab: record('workbench.closeActiveTab'),
                 cycleTab: record('workbench.cycleTab'),
-            },
-            editor: {
-                saveActive: record('editor.save'),
                 canSplitActive: () => true,
-                splitActive: record('editor.splitActive'),
+                splitActive: record('workbench.splitActive'),
             },
+            editor: { saveActive: record('editor.save') },
             inspector: {
                 searchFiles: record('inspector.searchFiles'),
                 activateMode: record('inspector.activateMode'),
@@ -198,32 +196,31 @@ describe('executeCommand', () => {
         expect(sendSequence).toHaveBeenCalledWith('\u{1B}[1;3B');
     });
 
-    it('maps each Editor split command to its direction', () => {
+    it('maps each split command to the side its new pane takes', () => {
         const { calls, context } = recordingContext();
-        executeCommand('editor.splitLeft', undefined, context);
-        executeCommand('editor.splitRight', undefined, context);
-        executeCommand('editor.splitUp', undefined, context);
-        executeCommand('editor.splitDown', undefined, context);
+        executeCommand('workbench.splitLeft', undefined, context);
+        executeCommand('workbench.splitRight', undefined, context);
+        executeCommand('workbench.splitUp', undefined, context);
+        executeCommand('workbench.splitDown', undefined, context);
 
         expect(calls).toEqual([
-            'editor.splitActive(left)',
-            'editor.splitActive(right)',
-            'editor.splitActive(up)',
-            'editor.splitActive(down)',
+            'workbench.splitActive(left)',
+            'workbench.splitActive(right)',
+            'workbench.splitActive(up)',
+            'workbench.splitActive(down)',
         ]);
     });
 
     /**
-     * The active work item must be an Editor tab whose split group can actually grow; otherwise the split commands are
-     * no-ops so the palette and native menu never invoke `splitActive` against a stale, non-Editor, or
-     * single-tab-same-path selection.
+     * The active pane must hold more than one tab; otherwise the split commands are no-ops so the palette and native
+     * menu never invoke `splitActive` against a pane that would be left empty.
      */
-    it('keeps Editor split commands contextual on an active, splittable Editor tab', () => {
+    it('keeps split commands contextual on a pane that can actually be split', () => {
         const { calls, context } = recordingContext();
-        context.editor.canSplitActive = () => false;
+        context.workbench.canSplitActive = () => false;
 
-        expect(isCommandAvailable('editor.splitLeft', context)).toBe(false);
-        executeCommand('editor.splitLeft', undefined, context);
+        expect(isCommandAvailable('workbench.splitLeft', context)).toBe(false);
+        executeCommand('workbench.splitLeft', undefined, context);
 
         expect(calls).toEqual([]);
     });

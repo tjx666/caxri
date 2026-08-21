@@ -34,6 +34,23 @@ import {
     useWorkbenchStore,
 } from './workbench';
 
+/**
+ * A minimal one-pane layout; these tests only care that Session state round-trips, not about its tree shape.
+ */
+function paneLayout(...paths: string[]): SessionState['paneLayout'] {
+    return {
+        root: {
+            type: 'pane',
+            id: 'pane-1',
+            tabs: paths.map((path, index) => ({
+                id: `tab-${index}`,
+                resource: { kind: 'file', path },
+            })),
+        },
+        activePaneId: 'pane-1',
+    };
+}
+
 function eventHandlers() {
     return { onCommand: vi.fn(), onDesktopOpen: vi.fn() };
 }
@@ -43,7 +60,7 @@ afterEach(() => {
     mocks.onEvent.mockClear();
     mocks.reset();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0, isFullScreen: false });
-    useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
+    useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
     useToastStore.setState({ toasts: [] });
 });
 
@@ -221,90 +238,12 @@ describe('workbench Runtime events', () => {
 });
 
 describe('workbench Session state', () => {
-    it('rehydrates dirty tabs from live document bodies after a Runtime snapshot refresh', async () => {
-        const cleanState: SessionState = {
-            sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
-            openTabs: [{ path: '/project/unsaved.ts', dirty: false }],
-            inspectorMode: 'files',
-            layout: {},
-        };
-        const bootstrap = {
-            configurationErrors: [],
-            sessionStates: [cleanState],
-        } as unknown as BootstrapState;
-        useSessionViewStore.getState().cacheDocument('session-1', {
-            path: '/project/unsaved.ts',
-            content: 'unsaved body',
-            dirty: true,
-            mtimeMs: 1,
-            size: 12,
-        });
-        mocks.request.mockResolvedValueOnce(bootstrap);
-
-        await refreshWorkbench();
-
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
-            { path: '/project/unsaved.ts', dirty: true },
-        ]);
-    });
-
-    it('clears snapshot dirtiness when no recoverable document body survives', async () => {
-        const staleState: SessionState = {
-            sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
-            openTabs: [{ path: '/project/lost.ts', dirty: true }],
-            inspectorMode: 'files',
-            layout: {},
-        };
-        mocks.request.mockResolvedValueOnce({
-            configurationErrors: [],
-            sessionStates: [staleState],
-        });
-
-        await refreshWorkbench();
-
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
-            { path: '/project/lost.ts', dirty: false },
-        ]);
-    });
-
-    it('keeps transient dirtiness optimistic while persisting only clean tab metadata', async () => {
-        const cleanState: SessionState = {
-            sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
-            openTabs: [{ path: '/project/file.ts', dirty: false, preview: true }],
-            inspectorMode: 'files',
-            layout: {},
-        };
-        useWorkbenchStore.setState({
-            bootstrap: {
-                configurationErrors: [],
-                sessionStates: [cleanState],
-            } as unknown as BootstrapState,
-        });
-        mocks.request.mockResolvedValueOnce(cleanState);
-        const dirtyState: SessionState = {
-            ...cleanState,
-            openTabs: [{ path: '/project/file.ts', dirty: true }],
-        };
-
-        await useWorkbenchStore.getState().patchSessionState(dirtyState);
-
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([dirtyState]);
-        expect(mocks.request).toHaveBeenCalledWith('session.updateState', {
-            ...dirtyState,
-            openTabs: [{ path: '/project/file.ts', dirty: false }],
-        });
-    });
-
     it('keeps an optimistic change when an older bootstrap request resolves', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            openTabs: [],
             inspectorMode: 'files',
-            layout: {},
+            paneLayout: paneLayout(),
         };
         const staleBootstrap = {
             configurationErrors: [],
@@ -333,9 +272,8 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            openTabs: [],
             inspectorMode: 'files',
-            layout: {},
+            paneLayout: paneLayout(),
         };
         const staleBootstrap = {
             configurationErrors: [],
@@ -380,9 +318,8 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            openTabs: [],
             inspectorMode: 'files',
-            layout: {},
+            paneLayout: paneLayout(),
         };
         const bootstrap = {
             configurationErrors: [],
@@ -410,9 +347,8 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            openTabs: [],
             inspectorMode: 'files',
-            layout: {},
+            paneLayout: paneLayout(),
         };
         const bootstrap = {
             configurationErrors: [],
@@ -444,9 +380,8 @@ describe('workbench Session state', () => {
         const ownerState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-owner',
-            openTabs: [{ path: '/owner/first.ts', dirty: false }],
             inspectorMode: 'files',
-            layout: {},
+            paneLayout: paneLayout('/owner/first.ts'),
         };
         useWorkbenchStore.setState({
             bootstrap: {
@@ -463,9 +398,8 @@ describe('workbench Session state', () => {
         const worktreeState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-worktree',
-            openTabs: [{ path: '/worktree/second.ts', dirty: false }],
             inspectorMode: 'git',
-            layout: {},
+            paneLayout: paneLayout('/worktree/second.ts'),
         };
         useWorkbenchStore.setState((current) => ({
             bootstrap: current.bootstrap
@@ -484,10 +418,8 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            openTabs: [{ path: '/project/source.ts', dirty: true }],
-            activeTab: { kind: 'editor', path: '/project/source.ts' },
             inspectorMode: 'files',
-            layout: {},
+            paneLayout: paneLayout('/project/source.ts'),
         };
         const bootstrap = {
             configurationErrors: [],
@@ -510,8 +442,7 @@ describe('workbench Session state', () => {
         });
         const movedState: SessionState = {
             ...filesState,
-            openTabs: [{ path: '/project/renamed.ts', dirty: true }],
-            activeTab: { kind: 'editor', path: '/project/renamed.ts' },
+            paneLayout: paneLayout('/project/renamed.ts'),
             editorRemapOperationId: 'operation-1',
         };
 
@@ -534,9 +465,8 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            openTabs: [],
             inspectorMode: 'files',
-            layout: {},
+            paneLayout: paneLayout(),
         };
         const bootstrap = {
             configurationErrors: [],

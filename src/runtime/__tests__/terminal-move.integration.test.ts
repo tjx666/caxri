@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/ipc';
 import { StructuredLogger } from '../../shared/node/logger';
-import { listLayoutTerminalIds } from '../../shared/terminal-layout';
+import { listPaneTerminalIds } from '../../shared/pane-layout';
 import { createRuntime } from '../bootstrap';
 import { createFakePty } from './create-test-runtime';
 
@@ -73,12 +73,10 @@ describe('terminal.moveToNewSession', () => {
                 sessionId: moved.session.id,
                 processId: 4242,
             });
-            expect(
-                listLayoutTerminalIds(
-                    bootstrap.sessionStates.find((state) => state.sessionId === moved.session.id)
-                        ?.layout ?? {},
-                ),
-            ).toEqual([terminalId]);
+            const movedState = bootstrap.sessionStates.find(
+                (state) => state.sessionId === moved.session.id,
+            );
+            expect(movedState && listPaneTerminalIds(movedState.paneLayout)).toEqual([terminalId]);
 
             expect(
                 events

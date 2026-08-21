@@ -1,57 +1,39 @@
 import type { ProcessState } from '@shared/types';
-import type { WorkItem } from '@shared/work-item';
-import { areWorkItemsEqual } from '@shared/work-item';
 
 export type WorkTabNavigationKey = 'ArrowLeft' | 'ArrowRight' | 'End' | 'Home';
 
 /**
- * Produces a short DOM-safe suffix without putting a user-controlled path or identifier into the DOM. Two independent
- * 32-bit hashes keep practical collision risk low while bounding every ID.
+ * Tab occurrence ids are already unique across the whole tree, so a DOM id needs no Session or pane prefix — and,
+ * unlike the paths and Terminal ids the previous global strip hashed, an occurrence id is generated rather than user
+ * data, so it is safe to put in the DOM as is.
  */
-function idHash(value: string, seed: number): string {
-    let hash = seed;
-    for (let index = 0; index < value.length; index += 1) {
-        hash ^= value.codePointAt(index) ?? 0;
-        hash = Math.imul(hash, 0x01000193);
-    }
-    return (hash >>> 0).toString(36);
-}
-
-function workItemIdentity(sessionId: string, item: WorkItem): string {
-    return `${sessionId}\u{0}${item.kind}\u{0}${item.kind === 'terminal' ? item.terminalId : item.path}`;
+export function workTabId(tabId: string): string {
+    return `work-tab-${tabId}`;
 }
 
 /**
- * Returns the paired tab ID for the currently selected Session and work item.
+ * Returns the ID of the pane surface labelled by {@link workTabId}.
  */
-export function workTabId(sessionId: string, item: WorkItem): string {
-    const identity = workItemIdentity(sessionId, item);
-    return `work-tab-${idHash(identity, 0x811c9dc5)}-${idHash(identity, 0x9e3779b9)}`;
+export function workPanelId(tabId: string): string {
+    return `${workTabId(tabId)}-panel`;
 }
 
 /**
- * Returns the ID of the active work surface labelled by {@link workTabId}.
- */
-export function workPanelId(sessionId: string, item: WorkItem): string {
-    return `${workTabId(sessionId, item)}-panel`;
-}
-
-/**
- * Calculates the roving-focus target with automatic activation for the tab composite.
+ * Calculates the roving-focus target with automatic activation inside one pane's tab bar. Arrow keys stay in the bar
+ * they started in; moving between panes is a separate command.
  */
 export function workTabNavigationTarget(
-    items: readonly WorkItem[],
-    active: WorkItem | undefined,
+    tabIds: readonly string[],
+    activeTabId: string | undefined,
     key: WorkTabNavigationKey,
-): WorkItem | undefined {
-    if (items.length === 0) return undefined;
-    if (key === 'Home') return items[0];
-    if (key === 'End') return items.at(-1);
-    const activeIndex = items.findIndex((item) => areWorkItemsEqual(item, active));
-    if (activeIndex === -1) return key === 'ArrowRight' ? items[0] : items.at(-1);
-    const currentIndex = activeIndex;
+): string | undefined {
+    if (tabIds.length === 0) return undefined;
+    if (key === 'Home') return tabIds[0];
+    if (key === 'End') return tabIds.at(-1);
+    const activeIndex = activeTabId === undefined ? -1 : tabIds.indexOf(activeTabId);
+    if (activeIndex === -1) return key === 'ArrowRight' ? tabIds[0] : tabIds.at(-1);
     const delta = key === 'ArrowRight' ? 1 : -1;
-    return items[(currentIndex + delta + items.length) % items.length];
+    return tabIds[(activeIndex + delta + tabIds.length) % tabIds.length];
 }
 
 /**

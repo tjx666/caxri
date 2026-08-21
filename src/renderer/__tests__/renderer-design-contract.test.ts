@@ -126,7 +126,7 @@ function collectUnlayeredSelectors(css: string): string[] {
  */
 const borderlessChromeFiles = [
     'features/workbench/panel-divider.tsx',
-    'features/tabs/work-tab-strip.tsx',
+    'features/workbench/pane-tab-bar.tsx',
     'features/status-bar/status-bar.tsx',
     'features/inspector/inspector.tsx',
     'features/settings/settings-dialog.tsx',

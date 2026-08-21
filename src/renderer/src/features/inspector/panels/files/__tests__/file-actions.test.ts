@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('../../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { caxriQueryKey, queryClient } from '../../../../../queries/client';
+import { useSessionViewStore } from '../../../../../stores/session-view';
 import { dismissToast, useToastStore } from '../../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../../stores/workbench';
 import { didTrashFile, duplicateFile, moveFile, pasteFile, renameFile } from '../file-actions';
@@ -37,6 +38,18 @@ function session(id: string, projectId: string) {
     return { id, projectId, workbenchProjectId: projectId };
 }
 
+function paneLayout(path: string) {
+    return {
+        root: {
+            type: 'pane',
+            id: 'pane-1',
+            tabs: [{ id: 'tab-1', resource: { kind: 'file', path } }],
+            activeTabId: 'tab-1',
+        },
+        activePaneId: 'pane-1',
+    };
+}
+
 beforeEach(() => vi.stubGlobal('window', globalThis));
 
 afterEach(() => {
@@ -46,6 +59,7 @@ afterEach(() => {
     useFileClipboardStore.setState({ entry: undefined });
     useFileConflictDialogStore.setState({ request: undefined, resolve: undefined });
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
+    useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
     dismissToast();
     vi.unstubAllGlobals();
 });
@@ -255,13 +269,19 @@ describe('file action lifecycle', () => {
                     {
                         sessionId: 'session-a',
                         workbenchProjectId: 'project-1',
-                        openTabs: [{ path: '/project/source.txt', dirty: true }],
                         inspectorMode: 'files',
-                        layout: {},
+                        paneLayout: paneLayout('/project/source.txt'),
                     },
                 ],
                 terminals: [],
             } as unknown as BootstrapState,
+        });
+        useSessionViewStore.getState().cacheDocument('session-a', {
+            path: '/project/source.txt',
+            content: 'unsaved',
+            dirty: true,
+            mtimeMs: 1,
+            size: 7,
         });
         mocks.request.mockResolvedValue({
             kind: 'file',
@@ -294,13 +314,19 @@ describe('file action lifecycle', () => {
                     {
                         sessionId: 'session-a',
                         workbenchProjectId: 'project-1',
-                        openTabs: [{ path: '/project/source.txt', dirty: false }],
                         inspectorMode: 'files',
-                        layout: {},
+                        paneLayout: paneLayout('/project/source.txt'),
                     },
                 ],
                 terminals: [],
             } as unknown as BootstrapState,
+        });
+        useSessionViewStore.getState().cacheDocument('session-a', {
+            path: '/project/source.txt',
+            content: 'saved',
+            dirty: false,
+            mtimeMs: 1,
+            size: 5,
         });
         mocks.request.mockResolvedValue({
             kind: 'file',

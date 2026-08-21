@@ -6,12 +6,10 @@ import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import type { CommandId } from './commands.js';
-import { editorLayoutSchema } from './editor-layout.js';
 import { gitCommitSchema } from './git.js';
 import { inspectorModeSchema } from './inspector.js';
-import { terminalLayoutSchema } from './layout.js';
+import { paneLayoutSchema } from './pane-layout.js';
 import { projectIconSchema } from './project-customization.js';
-import { workItemSchema } from './work-item.js';
 
 export * from './git.js';
 
@@ -174,38 +172,23 @@ export const agentTranscriptSchema = z.object({
     truncated: z.boolean(),
 });
 
-const editorTabStateSchema = z.object({
-    path: pathSchema,
-    dirty: z.boolean(),
-    /**
-     * Missing on legacy state and pinned tabs; only the one replaceable editor sets this.
-     */
-    preview: z.literal(true).optional(),
-});
-
 export const sessionStateSchema = z.object({
     sessionId: identifierSchema,
     /**
      * Scopes every ordinary Editor path in this snapshot to one authorized Workbench Root.
      */
     workbenchProjectId: identifierSchema,
-    openTabs: z.array(editorTabStateSchema).max(100),
-    /**
-     * The currently focused center-pane WorkItem (Terminal or editor tab); see `resolveActiveWork`.
-     */
-    activeTab: workItemSchema.optional(),
     /**
      * Last durable file mutation whose editor remap was applied to this atomic Session snapshot.
      */
     editorRemapOperationId: identifierSchema.optional(),
     inspectorMode: inspectorModeSchema,
-    layout: terminalLayoutSchema,
     /**
-     * Independent split-pane tree for the Editor center pane, keyed to the same Workbench Root as `openTabs`. Kept
-     * optional so legacy state rows without it stay valid; `deriveDefaultEditorLayout` backfills a default at read time
-     * (see `src/shared/editor-layout.ts`).
+     * The Workbench split tree: the single source of truth for which Terminals and documents are open, how they are
+     * arranged, and which one each pane shows. Terminal processes stay Session-global; only their placement is
+     * root-local, so this tree is stored per Workbench Root. See `docs/adr/0002-unified-pane-layout.md`.
      */
-    editorLayout: editorLayoutSchema.optional(),
+    paneLayout: paneLayoutSchema,
 });
 
 const agentHookHealthKindSchema = z.enum([

@@ -53,11 +53,6 @@ interface WorkTabProperties {
     closeLabel: string;
     dirty?: boolean;
     fileIconName?: string;
-    /**
-     * Terminal tabs divide the strip evenly (iTerm2/Chrome), Editor tabs keep their natural width. See
-     * `TERMINAL_TAB_MAX_WIDTH` for why the two differ.
-     */
-    fill?: boolean;
     icon: 'file' | AgentIconIdentity;
     label: string;
     /**
@@ -84,30 +79,21 @@ interface WorkTabProperties {
 }
 
 /**
- * Target width an Editor tab grows to/from during its enter/exit width animation.
+ * Every tab divides its own pane's bar equally, with no maximum width. VS Code caps tabs at 160px because a pane there
+ * holds many files; Caxri is terminal-first — most Sessions never open an editor — and a Terminal tab's title is the
+ * only thing that tells two Agents apart, so the room goes to the title. This bound only has to exceed any realistic
+ * pane width, since it exists to give the enter/exit width animation something to travel to.
  */
-const TAB_MAX_WIDTH = 180;
+const TAB_ANIMATION_MAX_WIDTH = 2000;
 
 /**
- * Terminal tabs divide the strip evenly instead of hugging their label. Agent and Shell Terminals are this product's
- * high-frequency surface and their count is naturally bounded (a handful per Session), which is exactly the shape even
- * division is for: a large click target and a tab position that depends only on the tab count, so `Command+1..9` keeps
- * a stable spatial meaning. Editor tabs are the low-frequency, transient exception and stay natural-width — if they
- * divided too, opening one file would resize and shift every Agent tab.
- *
- * The cap keeps two Terminals from each claiming half the window and, on this frameless window, preserves the trailing
- * `-webkit-app-region: drag` gap that is the only way to move the window (see `WorkTabStrip`).
- */
-const TERMINAL_TAB_MAX_WIDTH = 320;
-
-/**
- * Floor for an evenly divided Terminal tab. Once enough tabs are open to push past it, flex stops shrinking and the
- * strip's `overflow-x-auto` takes over — even division degrades to scrolling rather than to unreadable slivers.
+ * Floor for an evenly divided tab. Once enough tabs are open to push past it, flex stops shrinking and the bar's
+ * `overflow-x-auto` takes over — even division degrades to scrolling rather than to unreadable slivers.
  *
  * It is animated from 0 alongside `maxWidth` because CSS resolves `min-width` above `max-width`: a static floor would
  * override the `maxWidth: 0` keyframe and the enter/exit width animation would never play.
  */
-const TERMINAL_TAB_MIN_WIDTH = 120;
+const TAB_MIN_WIDTH = 80;
 
 export function WorkTab({
     active,
@@ -115,7 +101,6 @@ export function WorkTab({
     closeLabel,
     dirty = false,
     fileIconName,
-    fill = false,
     icon,
     label,
     labelTooltip,
@@ -169,12 +154,7 @@ export function WorkTab({
                 'work-tab group relative flex items-center border-r border-border bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
                 // `basis-0` is what makes the division even: without it flex distributes only the
                 // leftover space, so a long label would still win a wider slot than a short one.
-                fill && 'min-w-0 flex-1 basis-0',
-                // Natural width has to be pinned, not merely left at the default `flex: 0 1 auto`:
-                // once a Terminal sibling grows, the flex line is over-constrained and every
-                // shrinkable item is compressed. Without this an Editor tab collapses toward its
-                // animated `minWidth: 0` instead of handing overflow to the strip's scroll container.
-                !fill && 'flex-none',
+                'min-w-0 flex-1 basis-0',
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
                     "active bg-background text-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
@@ -202,8 +182,8 @@ export function WorkTab({
             }}
             initial={{ maxWidth: 0, minWidth: 0, opacity: 0, overflow: 'hidden' }}
             animate={{
-                maxWidth: fill ? TERMINAL_TAB_MAX_WIDTH : TAB_MAX_WIDTH,
-                minWidth: fill ? TERMINAL_TAB_MIN_WIDTH : 0,
+                maxWidth: TAB_ANIMATION_MAX_WIDTH,
+                minWidth: TAB_MIN_WIDTH,
                 opacity: 1,
                 transitionEnd: { overflow: 'visible' },
                 transition: { duration: enterDuration, ease: 'easeOut' },
@@ -261,11 +241,10 @@ export function WorkTab({
                     {statusActivity?.description ?? processStateDescription(status)}
                 </span>
             )}
-            {/* An evenly divided Terminal tab has room the natural-width Editor tab never had, so process state stops
-                trading places with the close button: pointing at a Terminal to close it is exactly when hiding its
-                state is least helpful. Editor tabs keep DESIGN.md's original single-slot redline ("Dirty dot replaces
-                the close button until hover/focus") because they are still only as wide as their filename. */}
-            {fill && status && (
+            {/* An evenly divided tab has room a natural-width one never had, so process state stops trading places with
+                the close button: pointing at a Terminal to close it is exactly when hiding its state is least
+                helpful. */}
+            {status && (
                 <i
                     aria-hidden="true"
                     title={statusActivity?.description}
@@ -285,18 +264,6 @@ export function WorkTab({
                     >
                         ●
                     </b>
-                )}
-                {!dirty && !fill && status && (
-                    <i
-                        aria-hidden="true"
-                        className={cn(
-                            processIndicatorClassName,
-                            'absolute inset-0 m-auto',
-                            'group-focus-within:opacity-0 group-hover:opacity-0',
-                            `process-${status}`,
-                            statusToneClassName(status),
-                        )}
-                    />
                 )}
                 <Tooltip content={closeLabel}>
                     <button
