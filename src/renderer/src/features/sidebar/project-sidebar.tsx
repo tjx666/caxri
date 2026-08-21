@@ -11,9 +11,11 @@ import {
     useSelectedProject,
     useSelectedSession,
     useSessions,
+    useSettings,
     useTerminals,
 } from '../../stores/selectors';
 import { archiveSession, beginSessionCreation, selectProject } from '../session/session-actions';
+import { useProjectCollapse } from './hooks/use-project-collapse';
 import { ProjectGroup } from './project-group';
 import { hasProjectDragType } from './project-order';
 import type { SidebarVerticalKey } from './sidebar-tree';
@@ -35,8 +37,8 @@ const SIDEBAR_VERTICAL_KEYS: readonly SidebarVerticalKey[] = [
 function isSidebarVerticalKey(key: string): key is SidebarVerticalKey {
     return (SIDEBAR_VERTICAL_KEYS as readonly string[]).includes(key);
 }
-import { useProjectOrder } from './use-project-order';
-import { useSessionRename } from './use-session-rename';
+import { useProjectOrder } from './hooks/use-project-order';
+import { useSessionRename } from './hooks/use-session-rename';
 
 const NO_RECORDS: never[] = [];
 /**
@@ -50,10 +52,16 @@ export function ProjectSidebar() {
     const sessions = useSessions() ?? NO_RECORDS;
     const terminals = useTerminals();
     const isFullScreen = useIsFullScreen();
+    const autoCollapseSetting = useSettings()?.['sidebar.autoCollapseProjects'] ?? 'off';
     const selectedProjectId = useSelectedProject()?.id;
     const selectedSessionId = useSelectedSession()?.id;
     const projectOrder = useProjectOrder(projects);
-    const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set());
+    const projectCollapse = useProjectCollapse({
+        autoCollapseSetting,
+        projects,
+        selectedSessionId,
+        sessions,
+    });
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
     /**
      * The last tree row the user actually focused; feeds `rovingSidebarRowId`'s roving-tabindex resolution.
@@ -62,10 +70,7 @@ export function ProjectSidebar() {
     const treeReference = useRef<HTMLDivElement>(null);
     const sessionRename = useSessionRename(sessions);
 
-    const isProjectExpanded = useCallback(
-        (projectId: string) => !collapsedProjects.has(projectId),
-        [collapsedProjects],
-    );
+    const isProjectExpanded = projectCollapse.isProjectExpanded;
 
     /**
      * Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes.
@@ -103,12 +108,7 @@ export function ProjectSidebar() {
 
     const toggleProject = (projectId: string): void => {
         setAnimatedProjectIds((current) => new Set(current).add(projectId));
-        setCollapsedProjects((current) => {
-            const next = new Set(current);
-            if (next.has(projectId)) next.delete(projectId);
-            else next.add(projectId);
-            return next;
-        });
+        projectCollapse.toggleProject(projectId);
     };
 
     const focusRow = (rowId: string): void => {
@@ -207,7 +207,14 @@ export function ProjectSidebar() {
                     projectOrder.onListDragOver(event);
                 }}
                 onFocusCapture={handleTreeFocus}
+                onBlurCapture={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget))
+                        projectCollapse.setHasFocus(false);
+                }}
+                onFocus={() => projectCollapse.setHasFocus(true)}
                 onKeyDown={handleTreeKeyDown}
+                onPointerEnter={() => projectCollapse.setIsHovered(true)}
+                onPointerLeave={() => projectCollapse.setIsHovered(false)}
             >
                 {projects.map((project) => {
                     const projectSessions = sessions.filter(

@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { ProjectRecord } from '@shared/types';
 
-import { didReorderProject } from '../session/session-actions';
-import type { ProjectDropTarget } from './project-order';
+import { didReorderProject } from '../../session/session-actions';
+import type { ProjectDropTarget } from '../project-order';
 import {
     adjacentProjectOrder,
     areProjectDropTargetsEqual,
@@ -12,7 +12,7 @@ import {
     createProjectOrderIntentTracker,
     PROJECT_DRAG_TYPE,
     projectOrderAfterDrop,
-} from './project-order';
+} from '../project-order';
 
 interface ProjectOrderController {
     draggedProjectId?: string;
