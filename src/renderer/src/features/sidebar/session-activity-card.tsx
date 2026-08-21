@@ -10,6 +10,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
+import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
     formatSessionRelativeTime,
@@ -105,8 +106,11 @@ export function SessionActivityCard({
                         <h3 className="m-0 text-[13px] font-semibold wrap-break-word">
                             {session.displayTitle}
                         </h3>
-                        <p className="mt-0.5 mb-0 truncate text-[10px] text-muted">
-                            {project.displayTitle} · {agentLabel}
+                        <p className="mt-0.5 mb-0 flex items-center gap-1 truncate text-[10px] text-muted">
+                            <ProjectIcon icon={project.icon} size={11} />
+                            <span className="truncate">
+                                {project.displayTitle} · {agentLabel}
+                            </span>
                         </p>
                     </div>
                 </div>

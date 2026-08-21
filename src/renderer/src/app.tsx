@@ -24,6 +24,7 @@ import { useSessionAttentionAcknowledgement } from './features/session/session-a
 import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { useSessionMruSwitcherLifecycle } from './features/session/use-session-mru-switcher-lifecycle';
 import { SettingsDialog } from './features/settings/settings-dialog';
+import { ProjectIconDialog } from './features/sidebar/project-icon-dialog';
 import { ProjectSidebar } from './features/sidebar/project-sidebar';
 import { StatusBar } from './features/status-bar/status-bar';
 import { ToastOutlet } from './features/toasts/toast-outlet';
@@ -193,6 +194,7 @@ export function App() {
                 <CommandPalette />
                 <PathBrowserDialog />
                 <BugReportDialog />
+                <ProjectIconDialog />
                 <AgentMessageApprovalDialog />
                 <SessionMruSwitcher />
                 <WorkbenchRootPrompt />

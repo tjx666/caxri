@@ -55,6 +55,13 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'project', group: 1, order: 0 },
     },
     {
+        id: 'project.customizeIcon',
+        title: 'Customize Project Icon…',
+        category: 'Project',
+        description: 'Choose a controlled icon and color for the selected Project',
+        nativeMenu: { menu: 'project', group: 1, order: 1 },
+    },
+    {
         id: 'session.create',
         title: 'New Session',
         category: 'Session',

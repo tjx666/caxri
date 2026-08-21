@@ -603,6 +603,11 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.reorder' } });
             return reordered;
         },
+        'project.setIcon': ({ projectId, icon }) => {
+            const project = database.setProjectIcon(projectId, icon);
+            send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.setIcon' } });
+            return project;
+        },
         'session.create': async ({ projectId, defaultAgent }) => {
             const project = database.getProject(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');

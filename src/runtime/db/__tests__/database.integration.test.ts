@@ -343,6 +343,12 @@ describe('CaxriDatabaseConnection', () => {
             expect.objectContaining({ id: oldestProject.id, orderIndex: 1 }),
             expect.objectContaining({ id: middleProject.id, orderIndex: 2 }),
         ]);
+        expect(upgraded.projects.get(project.id)).not.toHaveProperty('icon');
+        expect(
+            (upgraded.database.pragma('table_info(projects)') as Array<{ name: string }>).map(
+                ({ name }) => name,
+            ),
+        ).toEqual(expect.arrayContaining(['icon_name', 'icon_color']));
         expect(upgraded.sessions.get('session-preserved')).toMatchObject({
             attentionEpoch: 0,
             id: 'session-preserved',
