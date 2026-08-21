@@ -130,7 +130,11 @@ accessible names and hover tooltips.
 indented 16px. Selection = `--elevated` fill (radius 6), no border and no accent — the
 sidebar stays entirely neutral so the focused pane keeps the screen's one accent.
 Activity dots and the Session hover/focus card share one color, short-label, explanation, and
-`aria-label` mapping. The Portal card opens to the Sidebar's right after a short hover delay (or
+`aria-label` mapping. Unread attention is the one deliberate exception to that shared color: the
+unread ring and the card's unread chip collapse every attention kind but `failed` to `--warning`,
+because a `--muted` unread marker reads as inert chrome at glance distance — the activity dot on the
+same row still carries the full state, and both surfaces keep the exact kind in their label.
+The Portal card opens to the Sidebar's right after a short hover delay (or
 immediately on keyboard focus), collision-shifts within the viewport, and shows only the full title,
 Project, primary Agent, activity explanation, `Last opened`, and unread-attention metadata.
 All non-archived Project and Session names and navigation icons use `--foreground`, including

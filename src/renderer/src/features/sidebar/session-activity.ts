@@ -95,6 +95,20 @@ export function sessionToneBackgroundClassName(tone: SessionActivityPresentation
 }
 
 /**
+ * Tone for the Sidebar unread indicator, which is deliberately coarser than {@link sessionActivityPresentation}.
+ *
+ * Every unread kind except an outright failure collapses to `warning`. The ring's job is "this row wants you", and a
+ * `--muted` (or even `--foreground`) dot reads as inert chrome at sidebar-glance distance — which is exactly what the
+ * most common attention kinds (`completed`/`idle`/`unknown`) used to resolve to. Collapsing the tone costs nothing: the
+ * activity dot on the row's left edge still carries the full success/warning/danger/neutral state, and the hover card
+ * names the attention kind outright. `danger` stays distinct because "the Agent failed" and "the Agent has something
+ * for you" warrant different urgency at a glance.
+ */
+export function sessionUnreadTone(kind: AgentActivityState): SessionActivityPresentation['tone'] {
+    return PRESENTATIONS[kind].tone === 'danger' ? 'danger' : 'warning';
+}
+
+/**
  * Soft background + matching text for a tone-colored callout chip (e.g. the unread explanation).
  */
 export function sessionToneCalloutClassName(tone: SessionActivityPresentation['tone']): string {

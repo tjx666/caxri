@@ -1,7 +1,11 @@
 import type { AgentActivityState } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
-import { formatSessionRelativeTime, sessionActivityPresentation } from '../session-activity';
+import {
+    formatSessionRelativeTime,
+    sessionActivityPresentation,
+    sessionUnreadTone,
+} from '../session-activity';
 
 describe('Session activity presentation', () => {
     it.each<
@@ -39,6 +43,17 @@ describe('Session activity presentation', () => {
             label,
             tone,
         });
+    });
+
+    it.each<[AgentActivityState, 'danger' | 'warning']>([
+        ['waiting', 'warning'],
+        ['completed', 'warning'],
+        ['idle', 'warning'],
+        ['unknown', 'warning'],
+        ['running', 'warning'],
+        ['failed', 'danger'],
+    ])('resolves the %s unread ring to a non-neutral tone', (kind, tone) => {
+        expect(sessionUnreadTone(kind)).toBe(tone);
     });
 
     it('labels Session recency as last-opened relative time', () => {
