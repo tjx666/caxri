@@ -27,11 +27,7 @@ import {
 } from './terminal-commands';
 import { loadTerminalFonts } from './terminal-fonts';
 import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
-import {
-    CODEX_IMAGE_PASTE_INPUT,
-    isClipboardContainingImage,
-    terminalKeyboardInput,
-} from './terminal-keyboard';
+import { registerTerminalClipboardHandlers, terminalKeyboardInput } from './terminal-keyboard';
 import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
 import {
     detachTerminalQuietly,
@@ -311,21 +307,13 @@ export function useTerminalPaneRuntime({
             xterm.input(input);
             return false;
         });
-        const handlePaste = (event: ClipboardEvent): void => {
-            if (
-                !latestReference.current.isCodex ||
-                !event.clipboardData ||
-                !isClipboardContainingImage(event.clipboardData)
-            )
-                return;
-            /**
-             * Codex owns image encoding and temp-file lifecycle; it only needs its Ctrl+V binding.
-             */
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            xterm.input(CODEX_IMAGE_PASTE_INPUT);
-        };
-        container.addEventListener('paste', handlePaste, { capture: true });
+        const unregisterClipboardHandlers = registerTerminalClipboardHandlers({
+            container,
+            document,
+            getSelection: () => xterm.getSelection(),
+            isCodex: () => latestReference.current.isCodex,
+            pasteCodexImage: (input) => xterm.input(input),
+        });
         xtermReference.current = xterm;
         let isDisposed = false;
         let lastSentSize: TerminalSize | undefined;
@@ -552,7 +540,7 @@ export function useTerminalPaneRuntime({
             document.removeEventListener('focusin', trackNewerFocus);
             document.removeEventListener('keydown', trackExplicitInteraction, true);
             document.removeEventListener('pointerdown', trackExplicitInteraction, true);
-            container.removeEventListener('paste', handlePaste, true);
+            unregisterClipboardHandlers();
             unsubscribe();
             progressDisposable.dispose();
             searchResultsDisposable.dispose();
