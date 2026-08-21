@@ -540,6 +540,7 @@ const projectStatusErrorSchema = z.object({
     source: z.enum(['github', 'linear', 'vercel']),
     message: z.string(),
     hint: z.string(),
+    detailsView: z.literal('logs').optional(),
 });
 
 const projectStatusRepoSchema = z.object({

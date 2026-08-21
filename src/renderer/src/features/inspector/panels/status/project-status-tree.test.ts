@@ -88,4 +88,33 @@ describe('buildProjectStatusNodes', () => {
             ],
         });
     });
+
+    it('only exposes log details for errors whose Runtime hint points to Logs', () => {
+        const repo: ProjectStatusRepository = {
+            id: 'repo-1',
+            kind: 'primary',
+            name: 'project',
+            rootPath: '/project',
+            branch: 'feature',
+            linearIssues: [],
+            errors: [
+                {
+                    source: 'linear',
+                    message: 'linear: error',
+                    hint: 'See Runtime logs for details.',
+                    detailsView: 'logs',
+                },
+                {
+                    source: 'github',
+                    message: 'gh: not logged in',
+                    hint: 'Run `gh auth login` in a Terminal.',
+                },
+            ],
+        };
+
+        expect(buildProjectStatusNodes(repo).filter((node) => node.kind === 'error')).toEqual([
+            expect.objectContaining({ detailsView: 'logs', label: 'linear: error' }),
+            expect.not.objectContaining({ detailsView: 'logs' }),
+        ]);
+    });
 });

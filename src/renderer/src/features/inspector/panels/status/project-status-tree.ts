@@ -4,11 +4,20 @@ import { uniq } from 'es-toolkit';
 export type ProjectStatusTreeNode =
     | {
           id: string;
-          kind: 'branch' | 'linear' | 'deployment' | 'check' | 'error' | 'hidden';
+          kind: 'branch' | 'linear' | 'deployment' | 'check' | 'hidden';
           label: string;
           description?: string;
           state?: ProjectStatusState;
           url?: string;
+      }
+    | {
+          id: string;
+          kind: 'error';
+          label: string;
+          description?: string;
+          state?: ProjectStatusState;
+          detailsView?: 'logs';
+          url?: never;
       }
     | {
           id: string;
@@ -131,6 +140,7 @@ export function buildProjectStatusNodes(repo: ProjectStatusRepository): ProjectS
             label: error.message,
             description: error.hint,
             state: 'failure',
+            detailsView: error.detailsView,
         });
     }
     return nodes;
