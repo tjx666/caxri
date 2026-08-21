@@ -188,4 +188,136 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         ).toBe(false);
         unsubscribe();
     });
+
+    it('invalidates only the transcript query for the changed Terminal', () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(
+            ['terminal.agentTranscript', { terminalId: 'terminal-a', withContent: true }],
+            { content: 'old' },
+        );
+        queryClient.setQueryData(
+            ['terminal.agentTranscript', { terminalId: 'terminal-b', withContent: true }],
+            { content: 'other' },
+        );
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'agentTranscript.changed',
+            payload: { terminalId: 'terminal-a' },
+        });
+
+        expect(
+            queryClient.getQueryState([
+                'terminal.agentTranscript',
+                { terminalId: 'terminal-a', withContent: true },
+            ])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState([
+                'terminal.agentTranscript',
+                { terminalId: 'terminal-b', withContent: true },
+            ])?.isInvalidated,
+        ).toBe(false);
+        unsubscribe();
+    });
+
+    it('invalidates every transcript after a Host reconnect closes a journal-gap race', () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(
+            ['terminal.agentTranscript', { terminalId: 'terminal-a', withContent: true }],
+            { content: 'old-a' },
+        );
+        queryClient.setQueryData(
+            ['terminal.agentTranscript', { terminalId: 'terminal-b', withContent: true }],
+            { content: 'old-b' },
+        );
+        queryClient.setQueryData(['files.browse', { sessionId: 'session-a' }], { entries: [] });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'host.connectionChanged',
+            payload: { status: 'replaced' },
+        });
+
+        expect(
+            queryClient.getQueryState([
+                'terminal.agentTranscript',
+                { terminalId: 'terminal-a', withContent: true },
+            ])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState([
+                'terminal.agentTranscript',
+                { terminalId: 'terminal-b', withContent: true },
+            ])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(['files.browse', { sessionId: 'session-a' }])?.isInvalidated,
+        ).toBe(false);
+        unsubscribe();
+    });
+
+    it('invalidates the rebound Terminal transcript on a record-scoped state change', () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(
+            ['terminal.agentTranscript', { terminalId: 'terminal-a', withContent: true }],
+            { content: 'old-a' },
+        );
+        queryClient.setQueryData(
+            ['terminal.agentTranscript', { terminalId: 'terminal-b', withContent: true }],
+            { content: 'old-b' },
+        );
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'state.changed',
+            payload: { kind: 'records', sessionIds: [], terminalIds: ['terminal-a'] },
+        });
+
+        expect(
+            queryClient.getQueryState([
+                'terminal.agentTranscript',
+                { terminalId: 'terminal-a', withContent: true },
+            ])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState([
+                'terminal.agentTranscript',
+                { terminalId: 'terminal-b', withContent: true },
+            ])?.isInvalidated,
+        ).toBe(false);
+        unsubscribe();
+    });
+
+    it('invalidates every transcript when a full state change may replace Terminal bindings', () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(
+            ['terminal.agentTranscript', { terminalId: 'terminal-a', withContent: true }],
+            { content: 'old-a' },
+        );
+        queryClient.setQueryData(
+            ['terminal.agentTranscript', { terminalId: 'terminal-b', withContent: true }],
+            { content: 'old-b' },
+        );
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'terminal.create' },
+        });
+
+        expect(
+            queryClient.getQueryState([
+                'terminal.agentTranscript',
+                { terminalId: 'terminal-a', withContent: true },
+            ])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState([
+                'terminal.agentTranscript',
+                { terminalId: 'terminal-b', withContent: true },
+            ])?.isInvalidated,
+        ).toBe(true);
+        unsubscribe();
+    });
 });

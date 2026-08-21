@@ -63,6 +63,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         database,
         files,
         git,
+        transcripts,
         watchHub,
         workbenchRoots,
     } = await createRootServices(dependencies);
@@ -439,6 +440,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         await files.close();
         await configuration.close();
         await git.close();
+        await transcripts.close();
         await watchHub.close();
         database.close();
     }
@@ -584,6 +586,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             for (const session of ownedSessions) {
                 terminalRestores.cancel(session.id);
                 coordinator.forgetSession(session.id);
+                transcripts.forgetSession(session.id);
                 terminals.terminateSession(session.id);
             }
             git.evictSessions(affectedSessionIds);
@@ -602,11 +605,6 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             const reordered = database.reorderProject(projectId, targetIndex);
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.reorder' } });
             return reordered;
-        },
-        'project.setIcon': ({ projectId, icon }) => {
-            const project = database.setProjectIcon(projectId, icon);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.setIcon' } });
-            return project;
         },
         'session.create': async ({ projectId, defaultAgent }) => {
             const project = database.getProject(projectId);
@@ -675,6 +673,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         'session.delete': ({ sessionId }) => {
             terminalRestores.cancel(sessionId);
             coordinator.forgetSession(sessionId);
+            transcripts.forgetSession(sessionId);
             terminals.terminateSession(sessionId);
             git.evictSessions([sessionId]);
             projectStatus.evictSessions([sessionId]);
@@ -709,6 +708,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         'terminal.close': ({ terminalId }) => {
             const sessionId = database.getTerminal(terminalId)?.sessionId;
             coordinator.forgetTerminal(terminalId);
+            transcripts.forgetTerminal(terminalId);
             terminals.close(terminalId);
             /**
              * Closing the primary Agent Terminal promotes another one, whose metadata must catch up.
@@ -768,11 +768,13 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             awaitAgentSettingsReconcile: () => agentSettingsReconcile,
             configuration,
             database,
+            emit: send,
             diagnostics,
             files,
             git,
             introspection,
             projectStatus,
+            transcripts,
             userDataPath,
         }),
         'runtime.shutdown': async () => {

@@ -80,6 +80,7 @@ export const runtimeEventPayloads = {
         restartCount: z.number(),
     }),
     'state.changed': stateChangedPayloadSchema,
+    'agentTranscript.changed': z.object({ terminalId: identifierSchema }),
     'terminal.output': z.object({
         terminalId: identifierSchema,
         data: z.string(),

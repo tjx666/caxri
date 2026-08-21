@@ -15,6 +15,19 @@ import { agentProviders } from './providers';
  */
 export const MAX_AGENT_TRANSCRIPT_BYTES = 4 * 1024 * 1024;
 
+export function resolveAgentTranscriptPath(
+    database: CaxriDatabase,
+    terminalId: string,
+    environment: AgentEnvironment = defaultAgentEnvironment(),
+): string | undefined {
+    const terminal = database.getTerminal(terminalId);
+    if (!terminal?.provider || !terminal.agentSessionId) return;
+    return agentProviders[terminal.provider].transcriptPath?.(
+        { agentSessionId: terminal.agentSessionId, cwd: terminal.cwd },
+        environment,
+    );
+}
+
 async function readTranscriptTail(
     path: string,
 ): Promise<{ content: string; truncated: boolean } | undefined> {
@@ -69,12 +82,7 @@ export async function readAgentTranscript(
     shouldIncludeContent: boolean,
     environment: AgentEnvironment = defaultAgentEnvironment(),
 ): Promise<AgentTranscript | null> {
-    const terminal = database.getTerminal(terminalId);
-    if (!terminal?.provider || !terminal.agentSessionId) return null;
-    const path = agentProviders[terminal.provider].transcriptPath?.(
-        { agentSessionId: terminal.agentSessionId, cwd: terminal.cwd },
-        environment,
-    );
+    const path = resolveAgentTranscriptPath(database, terminalId, environment);
     if (path === undefined) return null;
     if (!shouldIncludeContent) {
         try {

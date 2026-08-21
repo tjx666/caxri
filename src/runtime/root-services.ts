@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 
 import { errorMessage } from '../shared/ipc/errors';
+import { AgentTranscriptWatcher, resolveAgentTranscriptPath } from './agents';
 import type { RuntimeDependencies } from './bootstrap-types';
 import { ConfigService } from './config';
 import { CaxriDatabase } from './db';
@@ -36,7 +37,12 @@ export async function acknowledgeFileMutation(
 /**
  * Builds the persistence and root-authorized services that Files, Git, and Workbench share.
  */
-export async function createRootServices({ logger, send, userDataPath }: RuntimeDependencies) {
+export async function createRootServices({
+    agentEnvironment,
+    logger,
+    send,
+    userDataPath,
+}: RuntimeDependencies) {
     const database = new CaxriDatabase(join(userDataPath, 'caxri.db'), {
         onSessionStateRepair: ({ reason, sessionId, stateVersion }) =>
             logger.write('warn', 'db.session_state_repaired', {
@@ -48,6 +54,14 @@ export async function createRootServices({ logger, send, userDataPath }: Runtime
      * count, polling degradations, and event rates stay centrally gated and observable (`DiagnosticsService`).
      */
     const watchHub = new WatchHub({ logger });
+    const transcripts = new AgentTranscriptWatcher({
+        emit: send,
+        pathForTerminal: (terminalId) =>
+            resolveAgentTranscriptPath(database, terminalId, agentEnvironment),
+        terminalIdsForSession: (sessionId) =>
+            database.listTerminals(sessionId).map((terminal) => terminal.id),
+        watchHub,
+    });
     const config = new ConfigService(userDataPath, send, logger, { watchHub });
     await config.initialize();
     database.setAppState('activeThemeId', config.getTheme().value.id);
@@ -99,6 +113,7 @@ export async function createRootServices({ logger, send, userDataPath }: Runtime
         database,
         files,
         git,
+        transcripts,
         watchHub,
         workbenchRoots,
     };
