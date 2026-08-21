@@ -5,6 +5,7 @@ import { MAX_PANE_LAYOUT_PANES, MAX_TABS_PER_PANE, paneLayoutSchema } from '../i
 import {
     activePane,
     activeTab,
+    addPaneTerminalSilently,
     closeTab,
     closeTabs,
     createPaneLayout,
@@ -304,6 +305,22 @@ describe('pane layout reducer', () => {
         const overflowTab = activeTab(layout)!;
         const atCap = splitTabIntoPane(layout, overflowTab.id, activePane(layout).id, 'right', id);
         expect(atCap).toBe(layout);
+    });
+
+    it('adds a Terminal silently without activating it', () => {
+        const id = ids();
+        const layout = createPaneLayout(terminal('term-1'), id);
+        const added = valid(addPaneTerminalSilently(layout, 'term-2', id));
+        expect(tabResources(added, activePane(added).id)).toEqual(['term-1', 'term-2']);
+        expect(activeTab(added)?.resource).toEqual(terminal('term-1'));
+    });
+
+    it('does not duplicate a Terminal that already has an occurrence when adding it silently', () => {
+        const id = ids();
+        const layout = createPaneLayout(terminal('term-1'), id);
+        const added = addPaneTerminalSilently(layout, 'term-1', id);
+        expect(added).toBe(layout);
+        expect(findResourceTabs(added, terminal('term-1'))).toHaveLength(1);
     });
 
     it('ignores operations that name something the layout does not hold', () => {

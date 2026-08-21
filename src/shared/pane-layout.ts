@@ -298,12 +298,17 @@ export function splitTabIntoPane(
  * which is right for a user-initiated action but wrong for retrofitting a newly created Terminal into a Workbench Root
  * that is not the one on screen: stealing activation away from whatever that Root's owner last arranged there would be
  * a worse regression than a tab that simply exists, unselected, until they switch to it.
+ *
+ * A no-op when the Terminal already has an occurrence: the caller cannot tell whether this Root is the one the normal
+ * `openResource` flow is about to place the Terminal into, so silently re-adding an already-present Terminal would
+ * double its tab instead of leaving it alone.
  */
 export function addPaneTerminalSilently(
     layout: PaneLayout,
     terminalId: string,
     id: PaneIdFactory = createId,
 ): PaneLayout {
+    if (findResourceTabs(layout, { kind: 'terminal', terminalId }).length > 0) return layout;
     const target = activePane(layout);
     if (target.tabs.length >= MAX_TABS_PER_PANE) return layout;
     const tab: PaneTab = { id: id(), resource: { kind: 'terminal', terminalId } };
