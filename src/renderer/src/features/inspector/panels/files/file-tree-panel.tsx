@@ -15,6 +15,7 @@ import {
     ContextMenuTrigger,
 } from '../../../../components/ui/context-menu';
 import { CommandTooltip, Tooltip } from '../../../../components/ui/tooltip';
+import { dragPath, hasDraggedPath } from '../../../../lib/file-drag';
 import { cn } from '../../../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../stores/selectors';
 import type { EditRequest, FocusTarget } from './directory-entries';
@@ -29,7 +30,6 @@ import {
     useFileOperationStore,
 } from './file-operation-state';
 import { closeFileSearch, useFileSearchStore } from './file-search-state';
-import { dragPath, hasDraggedPath } from './file-tree-drag';
 import { ProjectSearch } from './project-search';
 
 const captionActionClassName =
@@ -66,6 +66,35 @@ function useIsCancelRevealed(operation: PendingFileOperation | undefined): boole
 function discard(promise: Promise<unknown>): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void promise;
+}
+
+interface PendingFileOperationStatusProperties {
+    isCancelRevealed: boolean;
+    operation: PendingFileOperation;
+}
+
+function PendingFileOperationStatus({
+    isCancelRevealed,
+    operation,
+}: PendingFileOperationStatusProperties) {
+    return (
+        <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-between gap-2 border-b border-border bg-surface px-2 py-1 text-[11px] text-muted"
+        >
+            <span className="truncate">{operation.label}</span>
+            {isCancelRevealed && (
+                <button
+                    className="shrink-0 text-foreground underline decoration-dotted underline-offset-2 hover:text-accent"
+                    type="button"
+                    onClick={() => discard(cancelFileOperation(operation.id))}
+                >
+                    Cancel
+                </button>
+            )}
+        </div>
+    );
 }
 
 export function FileTreePanel() {
@@ -177,7 +206,12 @@ export function FileTreePanel() {
             aria-label="Files"
             className="min-h-0 flex-1 overflow-auto"
             onDragOver={(event) => {
-                if (!isRootPasteBlocked && hasDraggedPath(event)) event.preventDefault();
+                if (isRootPasteBlocked || !hasDraggedPath(event)) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
             }}
             onDrop={(event) => discard(dropIntoProjectRoot(event))}
         >
@@ -291,22 +325,10 @@ export function FileTreePanel() {
                 }
             />
             {pendingOperation && (
-                <div
-                    role="status"
-                    aria-live="polite"
-                    className="flex items-center justify-between gap-2 border-b border-border bg-surface px-2 py-1 text-[11px] text-muted"
-                >
-                    <span className="truncate">{pendingOperation.label}</span>
-                    {isCancelRevealed && (
-                        <button
-                            className="shrink-0 text-foreground underline decoration-dotted underline-offset-2 hover:text-accent"
-                            type="button"
-                            onClick={() => discard(cancelFileOperation(pendingOperation.id))}
-                        >
-                            Cancel
-                        </button>
-                    )}
-                </div>
+                <PendingFileOperationStatus
+                    isCancelRevealed={isCancelRevealed}
+                    operation={pendingOperation}
+                />
             )}
             {isSearchVisible ? (
                 <ProjectSearch

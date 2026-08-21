@@ -10,9 +10,15 @@ import type {
 } from '@shared/types';
 
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
+import { dragPath, hasDraggedPath, terminalInputPath } from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
 import { useSessionState, useSessionTerminals } from '../../stores/selectors';
-import { activateTerminal, applyTerminalLayout, TERMINAL_DRAG_TYPE } from './terminal-actions';
+import {
+    activateTerminal,
+    applyTerminalLayout,
+    didPasteIntoTerminal,
+    TERMINAL_DRAG_TYPE,
+} from './terminal-actions';
 import { TerminalPane } from './terminal-pane';
 
 type DropZone = 'center' | 'right' | 'down';
@@ -88,13 +94,19 @@ function TerminalGroupView(properties: NodeViewProperties & { node: TerminalGrou
     if (!terminal) return null;
     const isActive = properties.layout.activeGroupId === properties.node.id;
     const applyDrop = (event: React.DragEvent<HTMLDivElement>): void => {
-        event.preventDefault();
-        const draggedTerminalId =
-            event.dataTransfer.getData(TERMINAL_DRAG_TYPE) ||
-            event.dataTransfer.getData('text/plain');
-        const zone = dropZone(event);
         setActiveDropZone(undefined);
+        const path = dragPath(event);
+        if (path) {
+            if (terminal.lastProcessState !== 'running') return;
+            event.preventDefault();
+            if (!didPasteIntoTerminal(terminal.id, terminalInputPath(path))) return;
+            activateTerminal(terminal.id);
+            return;
+        }
+        const draggedTerminalId = event.dataTransfer.getData(TERMINAL_DRAG_TYPE);
         if (!draggedTerminalId) return;
+        event.preventDefault();
+        const zone = dropZone(event);
         const next =
             zone === 'center'
                 ? moveTerminal(properties.layout, draggedTerminalId, properties.node.id)
@@ -118,17 +130,25 @@ function TerminalGroupView(properties: NodeViewProperties & { node: TerminalGrou
             data-drop-zone={activeDropZone}
             data-group-id={properties.node.id}
             onDragEnter={(event) => {
+                const isTerminalDrag = event.dataTransfer.types.includes(TERMINAL_DRAG_TYPE);
+                const isFileDrag = hasDraggedPath(event);
+                if (!isTerminalDrag && !(isFileDrag && terminal.lastProcessState === 'running'))
+                    return;
                 event.preventDefault();
-                setActiveDropZone(dropZone(event));
+                setActiveDropZone(isTerminalDrag ? dropZone(event) : undefined);
             }}
             onDragLeave={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null))
                     setActiveDropZone(undefined);
             }}
             onDragOver={(event) => {
+                const isTerminalDrag = event.dataTransfer.types.includes(TERMINAL_DRAG_TYPE);
+                const isFileDrag = hasDraggedPath(event);
+                if (!isTerminalDrag && !(isFileDrag && terminal.lastProcessState === 'running'))
+                    return;
                 event.preventDefault();
-                event.dataTransfer.dropEffect = 'move';
-                setActiveDropZone(dropZone(event));
+                event.dataTransfer.dropEffect = isTerminalDrag ? 'move' : 'copy';
+                setActiveDropZone(isTerminalDrag ? dropZone(event) : undefined);
             }}
             onDrop={applyDrop}
         >

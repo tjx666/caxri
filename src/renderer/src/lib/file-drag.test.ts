@@ -2,7 +2,7 @@ import type { DragEvent } from 'react';
 
 import { describe, expect, it } from 'vitest';
 
-import { dragPath, FILE_TREE_DRAG_TYPE, hasDraggedPath } from '../file-tree-drag';
+import { dragPath, FILE_TREE_DRAG_TYPE, hasDraggedPath, terminalInputPath } from './file-drag';
 
 /**
  * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), so a real
@@ -49,5 +49,23 @@ describe('hasDraggedPath', () => {
         const event = fakeDragEvent({ 'text/plain': 'hello' });
 
         expect(hasDraggedPath(event)).toBe(false);
+    });
+});
+
+describe('terminalInputPath', () => {
+    it('keeps an ordinary absolute path readable', () => {
+        expect(terminalInputPath('/repo/src/index.ts')).toBe('/repo/src/index.ts');
+    });
+
+    it('quotes whitespace and shell metacharacters as one argument', () => {
+        expect(terminalInputPath('/repo/a file;echo unsafe.txt')).toBe(
+            "'/repo/a file;echo unsafe.txt'",
+        );
+    });
+
+    it('closes and reopens the quote around an embedded single quote', () => {
+        expect(terminalInputPath("/repo/file with 'quote'.txt")).toBe(
+            String.raw`'/repo/file with '\''quote'\''.txt'`,
+        );
     });
 });

@@ -39,6 +39,7 @@ import {
     onError,
     opaqueSearchColor,
     OSC52_BLOCK_MESSAGES,
+    registerTerminalInputHandlers,
     registerTerminalPaneLinks,
     RENDERER_FALLBACK_MESSAGES,
 } from './terminal-pane-support';
@@ -389,19 +390,11 @@ export function useTerminalPaneRuntime({
         rendererReference.current = renderer;
         renderer.setPreference(latest.gpuAcceleration);
 
-        const sendInput = async (data: string): Promise<void> => {
-            try {
-                await caxri.request('terminal.input', { terminalId, data });
-            } catch (error) {
-                onError(errorMessage(error, 'Terminal input failed'));
-            }
-        };
-        const dataDisposable = xterm.onData((data) => {
-            if (latestReference.current.processState !== 'running') return;
-            // xterm's onData callback cannot be async; sendInput already reports its own failure.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void sendInput(data);
-        });
+        const unregisterInputHandlers = registerTerminalInputHandlers(
+            xterm,
+            terminalId,
+            () => latestReference.current.processState === 'running',
+        );
         let isClipboardFailureReported = false;
         const selectionClipboard = new TerminalSelectionClipboard(
             (value) => navigator.clipboard.writeText(value),
@@ -565,8 +558,8 @@ export function useTerminalPaneRuntime({
             searchResultsDisposable.dispose();
             selectionDisposable.dispose();
             unregisterSelectionHandlers();
+            unregisterInputHandlers();
             if (pasteReference.current === pasteFromClipboard) pasteReference.current = undefined;
-            dataDisposable.dispose();
             unregisterLinks();
             unregisterCommandNavigation();
             commandTracker.dispose();
