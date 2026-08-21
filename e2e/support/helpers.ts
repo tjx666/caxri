@@ -21,7 +21,13 @@ import {
     e2eAgentShellShims,
     e2eFakeExecutableEnvironmentKeys,
 } from '../../src/shared/node/e2e-agent-policy.ts';
-import { armClipboardRestoreOnQuit, restoreClipboard, snapshotClipboard } from './clipboard.ts';
+import type { ClipboardFixture, ClipboardSnapshot } from './clipboard.ts';
+import {
+    armClipboardRestoreOnQuit,
+    restoreClipboard,
+    snapshotClipboard,
+    writeClipboardFixture,
+} from './clipboard.ts';
 import { registerE2ELaunch } from './error-gate.ts';
 import { resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
@@ -122,6 +128,17 @@ export interface LaunchCaxriOptions {
      * Restart workflows let the next launch inherit the same live Host; the final launch cleans it.
      */
     preserveHostOnClose?: boolean;
+    /**
+     * Seeds a native pasteboard fixture after the shared desktop lease is held and restores the pre-launch clipboard
+     * after the launch's own format-complete restoration has been verified.
+     */
+    clipboardFixture?: ClipboardFixture;
+}
+
+export interface RunningCaxri {
+    app: ElectronApplication;
+    clipboard: ClipboardSnapshot;
+    page: Page;
 }
 
 type E2EAgentMode =
@@ -271,9 +288,7 @@ export async function waitForNewTerminalId(
  * {@link launchCaxri} instead; this lower-level entry point exists for specs (eg. the startup benchmark) that need to
  * measure the readiness wait themselves.
  */
-export async function launchCaxriApp(
-    options: LaunchCaxriOptions,
-): Promise<{ app: ElectronApplication; page: Page }> {
+export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri> {
     await assertBuildIsFresh();
     const {
         userDataDir,
@@ -284,6 +299,7 @@ export async function launchCaxriApp(
         windowMode = 'hidden',
         agentMode = { mode: 'blocked' },
         preserveHostOnClose = false,
+        clipboardFixture,
     } = options;
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
     const workerIsolation = resolveE2EWorkerIsolation(process.env);
@@ -322,6 +338,8 @@ export async function launchCaxriApp(
     let releasePromise: Promise<void> | undefined;
     const releaseLease = (): Promise<void> => (releasePromise ??= releaseDesktopLease(lease));
     let app: ElectronApplication;
+    let clipboardBaseline: ClipboardSnapshot | undefined;
+    let clipboardSnapshot: ClipboardSnapshot | undefined;
     try {
         lease = await beginDesktopLeaseHandoff(lease);
         app = await electron.launch({
@@ -340,17 +358,60 @@ export async function launchCaxriApp(
         let cleanupPromise: Promise<void> | undefined;
         const cleanup = (): Promise<void> =>
             (cleanupPromise ??= (async () => {
-                if (!preserveHostOnClose) await stopE2EHost(userDataDir);
-                await releaseLease();
+                let failure: unknown;
+                try {
+                    await clipboardSnapshot?.dispose();
+                } catch (error) {
+                    clipboardRestoreFailure =
+                        error instanceof Error
+                            ? error
+                            : new Error('E2E clipboard cleanup failed with a non-Error value');
+                    failure = clipboardRestoreFailure;
+                }
+                try {
+                    const outcome = await clipboardSnapshot?.restoreOutcome();
+                    if (clipboardBaseline && outcome?.status !== 'skipped-external-write') {
+                        if (outcome?.status === 'restored') {
+                            clipboardBaseline.claimGeneration(outcome.generation);
+                        }
+                        await clipboardBaseline.restore();
+                    }
+                    await clipboardBaseline?.dispose();
+                } catch (error) {
+                    clipboardRestoreFailure =
+                        error instanceof Error
+                            ? error
+                            : new Error('E2E clipboard cleanup failed with a non-Error value');
+                    failure ??= clipboardRestoreFailure;
+                }
+                try {
+                    if (!preserveHostOnClose) await stopE2EHost(userDataDir);
+                } catch (error) {
+                    failure ??= error;
+                }
+                try {
+                    await releaseLease();
+                } catch (error) {
+                    failure ??= error;
+                }
                 /**
                  * Specs intentionally ignore direct close failures in `finally`; the shared error gate awaits this
                  * cleanup promise too, so carrying a clipboard failure here keeps it observable after Electron closes.
                  */
-                if (clipboardRestoreFailure) throw clipboardRestoreFailure;
+                failure ??= clipboardRestoreFailure;
+                if (failure) {
+                    throw failure instanceof Error
+                        ? failure
+                        : new Error('E2E cleanup failed with a non-Error value');
+                }
             })());
-        let clipboardSnapshot: Awaited<ReturnType<typeof snapshotClipboard>>;
         try {
-            clipboardSnapshot = await snapshotClipboard(app);
+            if (clipboardFixture) {
+                clipboardBaseline = await snapshotClipboard();
+                const fixtureMetadata = await writeClipboardFixture(clipboardFixture);
+                clipboardBaseline.claimGeneration(fixtureMetadata.generation);
+            }
+            clipboardSnapshot = await snapshotClipboard();
             await armClipboardRestoreOnQuit(app, clipboardSnapshot);
         } catch (error) {
             let failure: unknown = error;
@@ -368,6 +429,7 @@ export async function launchCaxriApp(
                 ? failure
                 : new Error('E2E clipboard setup failed with a non-Error value');
         }
+        const activeClipboardSnapshot = clipboardSnapshot;
         const electronProcess = app.process();
         const close = app.close.bind(app);
         Object.defineProperty(app, 'close', {
@@ -379,7 +441,7 @@ export async function launchCaxriApp(
                 }
                 let failure: unknown;
                 try {
-                    await restoreClipboard(app, clipboardSnapshot);
+                    await restoreClipboard(activeClipboardSnapshot);
                 } catch (error) {
                     clipboardRestoreFailure =
                         error instanceof Error
@@ -413,7 +475,7 @@ export async function launchCaxriApp(
     }
     try {
         const page = await app.firstWindow();
-        return { app, page };
+        return { app, clipboard: clipboardSnapshot, page };
     } catch (error) {
         try {
             await app.close();
@@ -446,9 +508,7 @@ export async function waitForRuntimeReady(page: Page): Promise<void> {
 /**
  * Launches Caxri and waits for the Runtime to report ready.
  */
-export async function launchCaxri(
-    options: LaunchCaxriOptions,
-): Promise<{ app: ElectronApplication; page: Page }> {
+export async function launchCaxri(options: LaunchCaxriOptions): Promise<RunningCaxri> {
     const running = await launchCaxriApp(options);
     await waitForRuntimeReady(running.page);
     return running;

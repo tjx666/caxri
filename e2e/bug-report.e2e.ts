@@ -147,6 +147,7 @@ test('Bug report delivers an opted-in screenshot through Codex image paste', asy
         await expect
             .poll(() => running.app.evaluate(({ clipboard }) => !clipboard.readImage().isEmpty()))
             .toBe(true);
+        await running.clipboard.claimImage();
         let agentInput = '';
         await expect
             .poll(async () => {
