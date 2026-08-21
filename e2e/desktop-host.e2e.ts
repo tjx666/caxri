@@ -300,6 +300,125 @@ test('stops reconnecting when another Desktop takes over the same profile', asyn
     }
 });
 
+test('recovers requests, events, and Desktop commands after the Host process is killed', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-host-relaunch-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        windowMode: 'visible',
+    });
+    let recoveredClient: Awaited<ReturnType<typeof connectToHost>> | undefined;
+    try {
+        const selectedRoot = await pageRequest<string | null>(
+            running.page,
+            'dialog.selectDirectory',
+        );
+        expect(selectedRoot).toBe(root);
+        if (!selectedRoot) throw new Error('Expected the test directory selection to succeed');
+        const project = await pageRequest<{ id: string }>(running.page, 'project.create', {
+            rootPath: selectedRoot,
+        });
+        await running.page.evaluate(() => {
+            const target = globalThis as unknown as {
+                __caxriRecoveredStateChanges?: string[];
+                caxri: {
+                    onEvent(listener: (event: unknown) => void): () => void;
+                };
+            };
+            target.__caxriRecoveredStateChanges = [];
+            target.caxri.onEvent((event) => {
+                const candidate = event as {
+                    event?: string;
+                    payload?: { reason?: string };
+                };
+                if (candidate.event === 'state.changed' && candidate.payload?.reason) {
+                    target.__caxriRecoveredStateChanges?.push(candidate.payload.reason);
+                }
+            });
+        });
+
+        const before = await pageRequest<{ pid: number; runtimePid?: number }>(
+            running.page,
+            'host.status',
+        );
+        process.kill(before.pid, 'SIGKILL');
+        await expect
+            .poll(() => {
+                try {
+                    process.kill(before.pid, 0);
+                    return true;
+                } catch {
+                    return false;
+                }
+            })
+            .toBe(false);
+
+        let after: { pid: number; runtimePid?: number } | undefined;
+        await expect
+            .poll(async () => {
+                let candidate: Awaited<ReturnType<typeof connectToHost>> | undefined;
+                try {
+                    candidate = await connectToHost(userData, 2_000);
+                    after = await candidate.request('host.status');
+                    if (after.pid === before.pid) return before.pid;
+                    recoveredClient?.close();
+                    recoveredClient = candidate;
+                    candidate = undefined;
+                    return after.pid;
+                } catch {
+                    return before.pid;
+                } finally {
+                    candidate?.close();
+                }
+            })
+            .not.toBe(before.pid);
+        expect(after).toMatchObject({ pid: expect.any(Number), runtimePid: expect.any(Number) });
+        if (!recoveredClient) throw new Error('Expected the relaunched Host client to connect');
+        const recoveredHost = recoveredClient;
+
+        await expect
+            .poll(async () => (await recoveredHost.request('desktop.status')).state)
+            .toBe('window');
+        await expect(
+            pageRequest<{ ready: boolean }>(running.page, 'app.health'),
+        ).resolves.toMatchObject({ ready: true });
+
+        const created = await pageRequest<{ session: { id: string } }>(
+            running.page,
+            'session.create',
+            { projectId: project.id, defaultAgent: 'shell' },
+        );
+        await expect
+            .poll(() =>
+                running.page.evaluate(() => {
+                    const target = globalThis as unknown as {
+                        __caxriRecoveredStateChanges?: string[];
+                    };
+                    return target.__caxriRecoveredStateChanges ?? [];
+                }),
+            )
+            .toContain('session.create');
+        await expect(
+            running.page.locator(`.session-card[data-session-id="${created.session.id}"]`),
+        ).toBeVisible();
+
+        await expect(
+            recoveredHost.request('desktop.focus', { launchIfNeeded: false }),
+        ).resolves.toMatchObject({ state: 'focused', generation: expect.any(Number) });
+    } finally {
+        recoveredClient?.close();
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('reconnects a new Desktop generation to the same live PTY', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-desktop-reconnect-e2e-'));
     const userData = join(testDirectory, 'user-data');
