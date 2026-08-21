@@ -5,7 +5,6 @@ import {
     findResourceTabs,
     listPanes,
     moveTab,
-    paneTabIdsToClose,
     resizeSplit,
     selectTab,
     splitTabIntoPane,
@@ -84,12 +83,4 @@ export function getActivePaneId(): string | undefined {
 export function findPaneTabId(resource: PaneResource): string | undefined {
     const layout = getPaneLayout();
     return layout ? findResourceTabs(layout, resource)[0]?.tab.id : undefined;
-}
-
-export function paneTabCloseFamily(
-    tabId: string,
-    mode: Parameters<typeof paneTabIdsToClose>[2],
-): string[] {
-    const layout = getPaneLayout();
-    return layout ? paneTabIdsToClose(layout, tabId, mode) : [];
 }

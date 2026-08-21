@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { pathBasename } from '@caxri/utils';
 import { agentTranscriptTabLabel, parseAgentTranscriptTab } from '@shared/agent-transcript';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
+import { paneTabIdsToClose } from '@shared/pane-layout';
 import { terminalTabLabel } from '@shared/terminal-title';
 import type { PaneNode, PaneTab, TerminalRecord } from '@shared/types';
 import { CircleAlert, Pause, Plus } from 'lucide-react';
@@ -19,9 +20,13 @@ import { Spinner } from '../../components/ui/spinner';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { usePanelLayoutStore } from '../../stores/panel-layout';
-import { useSelectedSession, useTerminal } from '../../stores/selectors';
+import { useSelectedSession, useSessionState, useTerminal } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
-import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
+import {
+    closeDocumentTabFamily,
+    closeDocumentTabs,
+    pinDocumentTab,
+} from '../editor/document-actions';
 import { moveTerminalToNewSession } from '../session/session-actions';
 import {
     sessionActivityPresentation,
@@ -36,7 +41,7 @@ import {
     terminalProgressLabel,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
-import { movePaneTab, paneTabCloseFamily, selectPaneTab, splitPaneTab } from './pane-actions';
+import { movePaneTab, selectPaneTab, splitPaneTab } from './pane-actions';
 import { PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 
 function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
@@ -169,6 +174,12 @@ function DocumentPaneTab({
     tab,
 }: PaneTabProperties & { path: string }) {
     const session = useSelectedSession();
+    /**
+     * Read reactively (not through the imperative `getPaneLayout` other actions use): an on-demand store read inside
+     * the `contextMenu` JSX tree does not reliably reflect the latest layout once other tabs open or close around it,
+     * leaving "Close to the Right" etc. stuck at a stale disabled state.
+     */
+    const paneLayout = useSessionState()?.paneLayout;
     const gitDiffTab = parseGitDiffTab(path);
     const transcriptTab = parseAgentTranscriptTab(path);
     // Tab identity is the terminal ID alone; the label follows the terminal's live title.
@@ -221,25 +232,30 @@ function DocumentPaneTab({
             onSelect={() => selectPaneTab(tab.id)}
             contextMenu={
                 <ContextMenuContent>
-                    {(['one', 'others', 'right', 'all'] as const).map((mode) => (
-                        <ContextMenuItem
-                            key={mode}
-                            disabled={paneTabCloseFamily(tab.id, mode).length === 0}
-                            onClick={() => {
-                                // eslint-disable-next-line no-void -- intentional floating-promise discard, closeDocumentTabs() reports its own errors
-                                void closeDocumentTabs(paneTabCloseFamily(tab.id, mode));
-                            }}
-                        >
-                            {
+                    {(['one', 'others', 'right', 'all'] as const).map((mode) => {
+                        const family = paneLayout
+                            ? paneTabIdsToClose(paneLayout, tab.id, mode)
+                            : [];
+                        return (
+                            <ContextMenuItem
+                                key={mode}
+                                disabled={family.length === 0}
+                                onClick={() => {
+                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, closeDocumentTabFamily() reports its own errors
+                                    void closeDocumentTabFamily(tab.id, mode);
+                                }}
+                            >
                                 {
-                                    one: 'Close',
-                                    others: 'Close Others',
-                                    right: 'Close to the Right',
-                                    all: 'Close All',
-                                }[mode]
-                            }
-                        </ContextMenuItem>
-                    ))}
+                                    {
+                                        one: 'Close',
+                                        others: 'Close Others',
+                                        right: 'Close to the Right',
+                                        all: 'Close All',
+                                    }[mode]
+                                }
+                            </ContextMenuItem>
+                        );
+                    })}
                     <ContextMenuSeparator />
                     {(['left', 'right', 'up', 'down'] as const).map((side) => (
                         <ContextMenuItem
@@ -268,7 +284,21 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: b
         properties.tab.resource.kind === 'terminal'
             ? properties.tab.resource.terminalId
             : undefined;
-    const terminal = useTerminal(terminalId ?? '');
+    const liveTerminal = useTerminal(terminalId ?? '');
+    /**
+     * `AnimatePresence` keeps this component mounted through its exit transition after `tab` drops out of the pane, but
+     * a Terminal close removes the record `useTerminal` reads in that same store update — without this snapshot the
+     * exit render sees `terminal === undefined` and bails to `null` one commit into the transition, unmounting
+     * `WorkTab` before it ever renders `aria-hidden`/plays its exit animation. This follows React's documented
+     * "adjusting state during render" pattern
+     * (https://react.dev/reference/react/useState#storing-information-from-previous-renders) instead of a ref, since
+     * this repo's lint config forbids reading `ref.current` during render.
+     */
+    const [lastKnownTerminal, setLastKnownTerminal] = useState<TerminalRecord | undefined>(
+        liveTerminal,
+    );
+    if (liveTerminal && liveTerminal !== lastKnownTerminal) setLastKnownTerminal(liveTerminal);
+    const terminal = liveTerminal ?? lastKnownTerminal;
     if (properties.tab.resource.kind === 'terminal')
         return terminal ? <TerminalPaneTab {...properties} terminal={terminal} /> : null;
     return <DocumentPaneTab {...properties} path={properties.tab.resource.path} />;
