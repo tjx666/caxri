@@ -95,6 +95,23 @@ process.stdout.write('Compaction Agent ready\r\n');
             'Compacting. Codex is summarizing earlier context before continuing.',
         );
         await expect(sessionRow.locator('.session-unread')).toHaveCount(0);
+
+        /**
+         * A Session has to read the same way wherever its row is drawn. The MRU switcher shares the Sidebar's activity
+         * dot, so a compacting Agent must not appear there as a plain running one.
+         */
+        await running.page.keyboard.down('Control');
+        await running.page.keyboard.down('Alt');
+        await running.page.keyboard.press('Tab');
+        const switcherRow = running.page
+            .getByRole('listbox', { name: 'Recently used Sessions' })
+            .locator(`[data-session-id="${sessionId}"] .activity`);
+        await expect(switcherRow).toHaveAttribute('data-agent-operation', 'compacting');
+        await expect(switcherRow).toHaveAccessibleName(
+            'Compacting. Codex is summarizing earlier context before continuing.',
+        );
+        await running.page.keyboard.up('Alt');
+        await running.page.keyboard.up('Control');
         expect(await tabOperation.evaluate((element) => element.getAnimations().length)).toBe(0);
 
         const compactingState = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');

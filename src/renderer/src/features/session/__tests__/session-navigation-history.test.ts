@@ -1,5 +1,7 @@
+import type { BootstrapState } from '@shared/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { useWorkbenchStore } from '../../../stores/workbench';
 import type { SessionNavigationHistorySnapshot } from '../session-navigation-history';
 import {
     EMPTY_SESSION_HISTORY,
@@ -33,6 +35,18 @@ function snapshot(
  */
 function visit(...sessionIds: string[]): void {
     for (const sessionId of sessionIds) history().observe(sessionId);
+}
+
+/**
+ * The Session the Workbench itself reports as selected, which is what a settling selection reconciles against.
+ */
+function selectWorkbenchSession(sessionId: string): void {
+    useWorkbenchStore.setState({
+        bootstrap: {
+            selectedSessionId: sessionId,
+            sessions: [{ id: sessionId }],
+        } as unknown as BootstrapState,
+    });
 }
 
 describe('Session history timeline', () => {
@@ -128,6 +142,7 @@ describe('Session history timeline', () => {
 describe('Session navigation requests', () => {
     beforeEach(() => {
         history().reset();
+        useWorkbenchStore.setState({ bootstrap: undefined });
     });
 
     it('records every observed selection and offers the previous Session', () => {
@@ -397,6 +412,35 @@ describe('Session navigation requests', () => {
         history().beginSelection();
         expect(history().pending).toEqual([]);
         expect(history().canGoBack).toBe(false);
+        expect(history().request('back')).toBeUndefined();
+    });
+
+    /**
+     * The Runtime switches Sessions on its own — an archived current Session, a Terminal moved to a new Session — and
+     * that snapshot arrives while a dispatched selection is still settling, where it is ignored as that selection's own
+     * echo. The Session id never changes again, so the settlement is the only chance left to record where the Workbench
+     * really ended up.
+     */
+    it('records where the Workbench ended up when the Runtime switched during a selection', () => {
+        visit('session-a');
+        selectWorkbenchSession('session-a');
+        history().beginSelection();
+        history().observe('session-n');
+        selectWorkbenchSession('session-n');
+
+        history().settleSelection('session-b', true);
+        expect(history().timeline.entries).toEqual(['session-a', 'session-b', 'session-n']);
+        expect(visible().current).toBe('session-n');
+    });
+
+    it('leaves the history alone when the Workbench is where the selection landed', () => {
+        visit('session-a');
+        history().beginSelection();
+        selectWorkbenchSession('session-b');
+
+        history().settleSelection('session-b', true);
+        expect(history().timeline.entries).toEqual(['session-a', 'session-b']);
+        expect(visible().current).toBe('session-b');
     });
 
     /**
