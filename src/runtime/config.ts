@@ -63,9 +63,15 @@ const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
 /**
+ * The untouched defaults immediately before Agent Actions gained its configurable shortcut.
+ */
+const preAgentActionsDefaultKeybindings = defaultKeybindings.filter(
+    (binding) => binding.command !== 'agentActions.open',
+);
+/**
  * The untouched defaults immediately before Sessions gained browser-style back/forward navigation.
  */
-const preSessionNavigationDefaultKeybindings = defaultKeybindings.filter(
+const preSessionNavigationDefaultKeybindings = preAgentActionsDefaultKeybindings.filter(
     (binding) => !['session.navigateBack', 'session.navigateForward'].includes(binding.command),
 );
 /**
@@ -135,6 +141,7 @@ const newlyAddedDefaultCommands = new Set([
  * that release never shipped.
  */
 export const previousDefaultKeybindingSets = [
+    preAgentActionsDefaultKeybindings,
     preSessionNavigationDefaultKeybindings,
     preSessionMruDefaultKeybindings,
     preBottomPanelDefaultKeybindings,

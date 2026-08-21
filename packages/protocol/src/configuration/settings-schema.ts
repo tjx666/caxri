@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentActionsSettingsSchema } from '../agent/agent-action-settings.js';
 import type { AgentProvider, AgentProviderSettings } from '../agent/agents.js';
 import {
     agentProviderIds,
@@ -77,6 +78,7 @@ const agentOutputRecoverySettingsSchema = z
     .default(defaultAgentOutputRecoverySettings);
 
 const agentProviderSettingsSchema = z.object({
+    actions: agentActionsSettingsSchema,
     hooks: agentHooksSettingsSchema,
     launch: agentLaunchSettingsSchema,
     messaging: agentMessagingSettingsSchema,

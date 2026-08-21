@@ -69,6 +69,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
 
         await expect(
             lifecycle.environment(terminal(), 'project-1', {
+                actions: { items: {} },
                 hooks: { enabled: false },
                 launch: { executable: 'codex', args: [] },
                 messaging: { enabled: true },
@@ -102,6 +103,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
         await vi.waitFor(() => expect(messaging).toHaveBeenCalledOnce());
         await expect(
             lifecycle.environment(terminal('shell'), 'project-1', {
+                actions: { items: {} },
                 hooks: { enabled: false },
                 launch: { executable: '/bin/zsh', args: [] },
                 messaging: { enabled: true },
@@ -140,6 +142,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             probe(),
         );
         const settings = {
+            actions: { items: {} },
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },
@@ -177,6 +180,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             probe(),
         );
         const settings = {
+            actions: { items: {} },
             hooks: { enabled: false },
             launch: { executable: 'codex', args: [] },
             messaging: { enabled: true },
@@ -224,12 +228,14 @@ describe('RuntimeAgentEndpointLifecycle', () => {
         );
         const enabled = {
             codex: {
+                actions: { items: {} },
                 hooks: { enabled: false },
                 launch: { executable: 'codex', args: [] },
                 messaging: { enabled: true },
                 recovery: defaultAgentOutputRecoverySettings,
             },
             claude: {
+                actions: { items: {} },
                 hooks: { enabled: false },
                 launch: { executable: 'claude', args: [] },
                 messaging: { enabled: true },
@@ -289,12 +295,14 @@ describe('RuntimeAgentEndpointLifecycle', () => {
         );
         const settings = {
             codex: {
+                actions: { items: {} },
                 hooks: { enabled: false },
                 launch: { executable: 'codex', args: [] },
                 messaging: { enabled: true },
                 recovery: defaultAgentOutputRecoverySettings,
             },
             claude: {
+                actions: { items: {} },
                 hooks: { enabled: false },
                 launch: { executable: 'claude', args: [] },
                 messaging: { enabled: true },

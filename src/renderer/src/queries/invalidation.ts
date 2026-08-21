@@ -151,6 +151,14 @@ function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient
 }
 
 /**
+ * Agent Action results already include provider settings. Drop them after a valid settings write so reopening the
+ * picker starts from the current Renderer fallback instead of briefly rendering cached pre-write overrides.
+ */
+function removeAgentActionQueries(queryClient: QueryClient): void {
+    queryClient.removeQueries({ queryKey: ['agentActions.list'] });
+}
+
+/**
  * Wires `caxri.onEvent` runtime pushes to targeted query invalidation. Mounted once at the app root (see `app.tsx`)
  * alongside the existing Zustand `subscribeWorkbenchEvents` wiring — Session/Project bootstrap state stays on that
  * push-based Zustand path; this hook only owns the request/response reads that moved to React Query.
@@ -189,7 +197,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             return;
         }
         if (event.event === 'settings.changed') {
-            if (!event.payload.error) invalidateFileTreeQueries(queryClient);
+            if (!event.payload.error) {
+                invalidateFileTreeQueries(queryClient);
+                removeAgentActionQueries(queryClient);
+            }
             return;
         }
         if (event.event === 'git.changed') {

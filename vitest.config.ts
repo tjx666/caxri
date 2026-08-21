@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config';
 
 export const desktopTestFiles = [
     'src/**/*.test.ts',
+    'e2e/support/*.test.ts',
     '.agents/skills/**/scripts/*.test.ts',
     '.agents/skills/**/scripts/__tests__/*.test.ts',
     'scripts/__tests__/*.test.ts',

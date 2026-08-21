@@ -24,6 +24,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { setArchivedSessionsOpen, setSettingsOpen } from '../../stores/dialogs';
+import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { EnumControl } from './enum-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { IntegerControl } from './integer-control';
@@ -58,6 +59,7 @@ function isFullWidthRow(row: SettingRowDescriptor): boolean {
     if (row.binding.type === 'setting') return settingsSpecByKey[row.binding.key].kind === 'string';
     return [
         'files-exclude',
+        'provider-actions',
         'provider-launch',
         'provider-recovery',
         'provider-skill-health',
@@ -326,6 +328,21 @@ function rowControl(properties: SettingRowProperties): {
                 ),
             };
         }
+        case 'provider-actions':
+            return {
+                control: (
+                    <AgentActionSettingsEditor
+                        provider={binding.provider}
+                        value={settings['agents.providers'][binding.provider].actions}
+                        onChange={(actions) =>
+                            onFieldChange(
+                                'agents.providers',
+                                withProviderField(settings, binding.provider, { actions }),
+                            )
+                        }
+                    />
+                ),
+            };
         case 'provider-skill-health':
             return {
                 control: (

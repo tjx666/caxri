@@ -5,6 +5,7 @@ import { cssFontFamilyEntry } from '@caxri/utils';
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/use-command-shortcuts';
 import { TooltipProvider } from './components/ui/tooltip';
+import { AgentActionsDialog } from './features/agent-actions/agent-actions-dialog';
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
 import { BugReportDialog } from './features/bug-report/bug-report-dialog';
 import { openFileForSession } from './features/editor/document-actions';
@@ -194,6 +195,7 @@ export function App() {
                 <SettingsDialog />
                 <UpdateDialog />
                 <CommandPalette />
+                <AgentActionsDialog />
                 <PathBrowserDialog />
                 <BugReportDialog />
                 <ProjectIconDialog />

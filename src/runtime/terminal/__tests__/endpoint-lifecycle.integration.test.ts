@@ -90,6 +90,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
                 agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
                 lifecycleEnvironment: (record) =>
                     endpoints.environment(record, created.session.projectId, {
+                        actions: { items: {} },
                         hooks: { enabled: false },
                         launch: { executable: 'codex', args: [] },
                         messaging: { enabled: true },
@@ -206,6 +207,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
                 agentLaunchSettings: () => ({ executable: 'codex', args: [] }),
                 lifecycleEnvironment: (record) =>
                     endpoints.environment(record, created.session.projectId, {
+                        actions: { items: {} },
                         hooks: { enabled: false },
                         launch: { executable: 'codex', args: [] },
                         messaging: { enabled: true },

@@ -278,6 +278,15 @@ while its chord is held and its whole purpose is to show where the pending jump 
 transient action-scoped carve-out in principle 2. Cycling scrolls the highlight into view; a pointer
 may highlight a row by moving over it and commit it by clicking.
 
+**Agent Actions picker** — `Command+Shift+A` opens an independent 560px picker only for a running
+Agent Terminal. Its fixed target line names the provider, Session, and Terminal captured at open;
+results are grouped as Commands and Skills and searchable without typing the `/` or `$` prefix.
+`Enter` appends the exact invocation plus one space to the existing draft without submitting it;
+`Command+Enter` submits an argument-free action directly, while actions with required arguments must
+first be inserted and completed in the Terminal. The footer exposes both key meanings and a quiet
+`Manage in Settings…` route. Selection or `Escape` returns focus to the captured Terminal. The picker
+never reads, clears, or replaces the current Terminal draft.
+
 **Inputs** — shared `Input` density is always explicit outside standard forms: `standard` (36px,
 base), `dense` (28px, dense), `compact` (24px, dense), or `palette` (44px, base). `appearance`
 selects the standard themed fill, workbench canvas, inline surface, or an embedded field owned by
@@ -309,7 +318,8 @@ not touched.").
 ## Interaction rules
 
 - Global shortcuts never fire while focus is in an editable target (inputs, textarea,
-  Monaco, xterm) unless the binding explicitly opts in (e.g. save).
+  Monaco, xterm) unless the binding explicitly opts in (e.g. save or opening Agent Actions from
+  its running xterm).
 - Every interactive element is keyboard-reachable; status conveyed by color always has
   a text/aria twin.
 - Sidebar, Inspector, and Bottom Panel get min/max-constrained drag resize; double-click a divider

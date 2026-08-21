@@ -37,8 +37,10 @@ import {
     clearActiveTerminal,
     copyActiveTerminalSelection,
     didPasteIntoTerminal,
+    focusTerminalById,
     hasActiveTerminalSelection,
     registerTerminalClearHandler,
+    registerTerminalFocusHandler,
     registerTerminalPasteHandler,
     registerTerminalSelectionHandlers,
     restartTerminal,
@@ -262,6 +264,32 @@ describe('paste handler registration contract', () => {
 
         unregisterSecond();
         expect(didPasteIntoTerminal('terminal-paste-2', '/repo/folder')).toBe(false);
+    });
+});
+
+describe('focus handler registration contract', () => {
+    it('routes focus to the mounted Terminal handler', () => {
+        const handler = vi.fn();
+        const unregister = registerTerminalFocusHandler('terminal-focus', handler);
+
+        focusTerminalById('terminal-focus');
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        unregister();
+    });
+
+    it('does not let a stale unregister callback evict a newer focus handler', () => {
+        const firstHandler = vi.fn();
+        const secondHandler = vi.fn();
+        const unregisterFirst = registerTerminalFocusHandler('terminal-focus', firstHandler);
+        const unregisterSecond = registerTerminalFocusHandler('terminal-focus', secondHandler);
+
+        unregisterFirst();
+        focusTerminalById('terminal-focus');
+
+        expect(firstHandler).not.toHaveBeenCalled();
+        expect(secondHandler).toHaveBeenCalledTimes(1);
+        unregisterSecond();
     });
 });
 

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { writeTestClipboardText } from './support/clipboard.ts';
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest, revealSettingsSection } from './support/helpers.ts';
@@ -19,12 +20,12 @@ function configSource(dialog: Locator, kind: 'keybindings' | 'settings' | 'theme
 }
 
 async function replaceMonacoText(
-    app: Awaited<ReturnType<typeof launchCaxri>>['app'],
+    running: Awaited<ReturnType<typeof launchCaxri>>,
     page: Page,
     editor: Locator,
     source: string,
 ): Promise<void> {
-    await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), source);
+    await writeTestClipboardText(running.app, running.clipboard, source);
     await editor.locator('.monaco-editor').click({ position: { x: 120, y: 24 } });
     await page.keyboard.press('Meta+A');
     await page.keyboard.press('Meta+V');
@@ -47,9 +48,11 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await dialog.getByRole('button', { name: 'Source' }).click();
         const settingsEditor = configSource(dialog, 'settings');
-        // Monaco virtualizes lines outside the viewport. Assert against the first stable setting so
-        // adding schema fields above `terminal.fontSize` cannot turn source rendering into a false failure.
-        await expect(settingsEditor.locator('.view-lines')).toContainText('session.defaultAgent');
+        /**
+         * Monaco virtualizes off-screen source lines, so wait for highlighted content without pinning the assertion to
+         * a setting whose position moves as the configuration schema grows.
+         */
+        await expect(settingsEditor.locator('.view-lines span').first()).toBeVisible();
         // The accessible name has to sit on Monaco's own textarea, the surface a screen reader
         // focuses. On the role-less wrapper `<div>` it announces nothing, which is why the
         // container above is located by `data-config-source` instead of by label.
@@ -158,8 +161,9 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                     value: {
                         'agents.providers': {
                             claude: {
+                                actions: { items: Record<string, unknown> };
                                 hooks: { enabled: boolean };
-                                launch: { executable: string };
+                                launch: { executable: string; args: string[] };
                                 messaging: { enabled: boolean };
                                 recovery: {
                                     enabled: boolean;
@@ -174,6 +178,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 return providerSettings.value['agents.providers'].claude;
             })
             .toEqual({
+                actions: { items: {} },
                 hooks: { enabled: true },
                 launch: { executable: 'claude', args: [] },
                 messaging: { enabled: true },
@@ -259,7 +264,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
 
         await dialog.getByRole('button', { name: 'Source' }).click();
         let sourceEditor = configSource(dialog, 'settings');
-        await replaceMonacoText(running.app, running.page, sourceEditor, legalSource);
+        await replaceMonacoText(running, running.page, sourceEditor, legalSource);
         await expect(dialog.getByRole('alert')).toHaveCount(0);
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
         await dialog.getByRole('button', { name: 'UI' }).click();
@@ -278,7 +283,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await dialog.getByRole('button', { name: 'Source' }).click();
         sourceEditor = configSource(dialog, 'settings');
         await replaceMonacoText(
-            running.app,
+            running,
             running.page,
             sourceEditor,
             '{\n  "terminal.fontSize": nope\n}',
@@ -303,7 +308,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         // tab switch away and back (the "preserves drafts across tabs" half of this test).
         await dialog.getByRole('button', { name: 'Source' }).click();
         sourceEditor = configSource(dialog, 'settings');
-        await replaceMonacoText(running.app, running.page, sourceEditor, legalSource);
+        await replaceMonacoText(running, running.page, sourceEditor, legalSource);
         await expect(dialog.getByRole('alert')).toHaveCount(0);
         await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
         await expect(configSource(dialog, 'keybindings')).toBeVisible();
@@ -349,7 +354,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
 
         await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
         const keybindingsEditor = configSource(dialog, 'keybindings');
-        await replaceMonacoText(running.app, running.page, keybindingsEditor, '[ invalid');
+        await replaceMonacoText(running, running.page, keybindingsEditor, '[ invalid');
         await expect(dialog.getByRole('alert')).toContainText('keybindings.jsonc');
 
         // Reissuing "Open Settings (JSON)" jumps straight back to the Settings source tab even

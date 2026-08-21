@@ -123,6 +123,47 @@ describe('wire schema versus file schema', () => {
         ).toBe(false);
     });
 
+    it('fills Agent Actions for an existing provider object and validates manual invocations', () => {
+        const parsed = appSettingsFileSchema.parse({
+            'agents.providers': {
+                codex: {
+                    hooks: { enabled: false },
+                    launch: { executable: 'codex', args: [] },
+                    messaging: { enabled: true },
+                },
+            },
+        });
+        expect(parsed['agents.providers'].codex.actions).toEqual({ items: {} });
+
+        const customized = appSettingsFileSchema.parse({
+            'agents.providers': {
+                codex: {
+                    ...defaultAgentProviderSettings.codex,
+                    actions: {
+                        items: {
+                            '/goal': { enabled: true, description: 'Manage a long-running goal' },
+                            '$commit': { enabled: false },
+                        },
+                    },
+                },
+            },
+        });
+        expect(customized['agents.providers'].codex.actions.items).toMatchObject({
+            '/goal': { enabled: true, description: 'Manage a long-running goal' },
+            '$commit': { enabled: false },
+        });
+        expect(
+            appSettingsFileSchema.safeParse({
+                'agents.providers': {
+                    codex: {
+                        ...defaultAgentProviderSettings.codex,
+                        actions: { items: { '/two words': { enabled: true } } },
+                    },
+                },
+            }).success,
+        ).toBe(false);
+    });
+
     it('merges files.exclude on top of the shipped exclusions in the file parser only', () => {
         const parsed = appSettingsFileSchema.parse({
             'files.exclude': { '**/node_modules': true, '**/.git': false },

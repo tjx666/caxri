@@ -57,6 +57,13 @@ function activeTerminalId(): string | undefined {
     return resource?.kind === 'terminal' ? resource.terminalId : undefined;
 }
 
+function activeAgentTerminal() {
+    const terminalId = activeTerminalId();
+    if (!terminalId) return;
+    const terminal = getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);
+    return terminal?.provider && terminal.lastProcessState === 'running' ? terminal : undefined;
+}
+
 /**
  * The active pane's tab together with the pane holding it — the target of every command that splits or closes "the
  * current tab", whatever kind it holds.
@@ -99,6 +106,13 @@ function isTerminalSurfaceFocused(): boolean {
 // registry's `run(context, arguments_)` contract (see `./registry`) is synchronous, so none of
 // these can be awaited by their caller anyway.
 const commandContext: CommandContext = {
+    agentActions: {
+        canOpen: () => Boolean(activeAgentTerminal()),
+        open: () => {
+            const terminal = activeAgentTerminal();
+            if (terminal) useDialogStore.getState().openAgentActions(terminal.id);
+        },
+    },
     project: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void chooseProjectDirectory(),

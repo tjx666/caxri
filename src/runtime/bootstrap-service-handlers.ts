@@ -2,7 +2,7 @@ import { CaxriError } from '../shared/ipc/errors';
 import type { RuntimeMethod } from '../shared/ipc/methods';
 import { agentSkillHealthReader } from './agent-skills';
 import type { AgentEnvironment, AgentHookManager, AgentTranscriptWatcher } from './agents';
-import { readAgentTranscript } from './agents';
+import { listAgentActions, readAgentTranscript } from './agents';
 import type { RuntimeDependencies } from './bootstrap-types';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
@@ -14,6 +14,7 @@ import type { createIntrospectionServices } from './introspection';
 import type { ProjectStatusService } from './project-status';
 
 type ServiceHandlerMethods =
+    | 'agentActions.list'
     | 'files.list'
     | 'files.browse'
     | 'files.create'
@@ -108,6 +109,13 @@ export function createServiceHandlers(services: {
         userDataPath,
     } = services;
     return {
+        'agentActions.list': ({ terminalId }) =>
+            listAgentActions(
+                database,
+                agentEnvironment,
+                configuration.getSettings().value,
+                terminalId,
+            ),
         'files.list': ({ sessionId, directory }) => files.list(sessionId, directory),
         'files.browse': (parameters) => files.browse(parameters),
         'files.create': (parameters) => files.create(parameters),
