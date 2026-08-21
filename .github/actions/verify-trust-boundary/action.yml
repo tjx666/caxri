@@ -1,0 +1,62 @@
+name: Verify trust boundary
+description: Recheck the repository-owned actor and event policy before executing source code.
+
+inputs:
+  event-name:
+    description: Event name whose trust policy must be enforced.
+    required: true
+  actor:
+    description: Actor that initiated the event.
+    required: true
+  triggering-actor:
+    description: Actor that triggered the current workflow attempt.
+    required: true
+  event-repository:
+    description: Repository that supplied the event head.
+    required: true
+  event-ref:
+    description: Fully qualified ref for push-style events.
+    required: true
+  pull-request-author:
+    description: Pull request author, or the event actor for non-PR events.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        EVENT_ACTOR: ${{ inputs.actor }}
+        EVENT_NAME: ${{ inputs.event-name }}
+        EVENT_REF: ${{ inputs.event-ref }}
+        EVENT_REPOSITORY: ${{ inputs.event-repository }}
+        PR_AUTHOR: ${{ inputs.pull-request-author }}
+        TRIGGERING_ACTOR: ${{ inputs.triggering-actor }}
+      run: |
+        policy=.github/ci-trust-policy.json
+        trusted_actor="$(sed -nE 's/^[[:space:]]*"trustedActor":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
+        pull_request_event="$(sed -nE 's/^[[:space:]]*"pullRequestEvent":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
+        workflow_dispatch_event="$(sed -nE 's/^[[:space:]]*"workflowDispatchEvent":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
+        push_event="$(sed -nE 's/^[[:space:]]*"pushEvent":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
+        push_ref="$(sed -nE 's/^[[:space:]]*"pushRef":[[:space:]]*"([^"]+)".*/\1/p' "$policy")"
+
+        test -n "$trusted_actor"
+        test -n "$pull_request_event"
+        test -n "$workflow_dispatch_event"
+        test -n "$push_event"
+        test -n "$push_ref"
+        test "$EVENT_ACTOR" = "$trusted_actor"
+        test "$TRIGGERING_ACTOR" = "$trusted_actor"
+        test "$EVENT_REPOSITORY" = "$GITHUB_REPOSITORY"
+
+        if [[ "$EVENT_NAME" == "$pull_request_event" ]]; then
+          test "$PR_AUTHOR" = "$trusted_actor"
+        elif [[ "$EVENT_NAME" == "$push_event" ]]; then
+          test "$EVENT_REF" = "$push_ref"
+        else
+          test "$EVENT_NAME" = "$workflow_dispatch_event"
+        fi
+
+        test "$RUNNER_ENVIRONMENT" = self-hosted
+        test "$RUNNER_OS" = macOS
+        test "$RUNNER_ARCH" = ARM64

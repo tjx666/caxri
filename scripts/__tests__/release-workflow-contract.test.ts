@@ -11,11 +11,7 @@ describe('Release workflow contract', () => {
     it('routes trusted exact-head packaging to the dedicated self-hosted capability', () => {
         expect(workflow).toContain('runs-on: [self-hosted, macOS, ARM64, caxri-release]');
         expect(workflow).not.toContain('runs-on: macos-15');
-        expect(workflow).toContain(
-            'github.event.workflow_run.head_repository.full_name == github.repository',
-        );
-        expect(workflow).toContain("github.event.workflow_run.actor.login == 'tjx666'");
-        expect(workflow).toContain("github.event.workflow_run.triggering_actor.login == 'tjx666'");
+        expect(workflow).toContain('uses: ./.github/actions/verify-trust-boundary');
         expect(workflow).toContain(
             "startsWith(github.event.workflow_run.display_title, 'release: v')",
         );
