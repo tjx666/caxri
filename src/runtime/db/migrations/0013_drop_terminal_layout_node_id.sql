@@ -1,0 +1,1 @@
+ALTER TABLE `terminals` DROP COLUMN `layout_node_id`;

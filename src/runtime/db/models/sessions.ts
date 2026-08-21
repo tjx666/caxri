@@ -140,8 +140,8 @@ function parseWorkbenchEditorStates(source: string): WorkbenchEditorStates | und
 }
 
 /**
- * Remaps one stored editor path after a Project root move. Note the parallel implementation for the `editorLayout`
- * tree: `remapEditorLayoutPaths` in `src/shared/editor-layout.ts` does a pure string-prefix rewrite (browser-safe, no
+ * Remaps one stored editor path after a Project root move. Note the parallel implementation for the `paneLayout` tree:
+ * `remapPaneLayoutPaths` in `src/shared/pane-layout.ts` does a pure string-prefix rewrite (browser-safe, no
  * `node:path`), while this one uses `relative`/`resolve`. Both agree for Caxri's canonical absolute POSIX-style paths;
  * if either ever needs to handle non-canonical input, change both together.
  */

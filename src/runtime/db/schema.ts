@@ -74,7 +74,6 @@ export const terminals = sqliteTable(
         title: text('title').notNull(),
         icon: text('icon').notNull(),
         orderIndex: integer('order_index').notNull(),
-        layoutNodeId: text('layout_node_id').notNull(),
         agentSessionId: text('agent_session_id'),
         lastProcessState: text('last_process_state').notNull(),
         /**

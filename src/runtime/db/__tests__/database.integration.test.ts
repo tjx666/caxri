@@ -168,17 +168,17 @@ describe('CaxriDatabaseConnection', () => {
         database.database
             .prepare(
                 `INSERT INTO terminals
-                 (id, session_id, kind, provider, cwd, title, icon, order_index, layout_node_id,
+                 (id, session_id, kind, provider, cwd, title, icon, order_index,
                   last_process_state, created_at, updated_at)
-                 VALUES ('terminal-b', ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'layout-b', 'stopped', ?, ?)`,
+                 VALUES ('terminal-b', ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'stopped', ?, ?)`,
             )
             .run(session.id, root, now, now);
         database.database
             .prepare(
                 `INSERT INTO terminals
-                 (id, session_id, kind, provider, cwd, title, icon, order_index, layout_node_id,
+                 (id, session_id, kind, provider, cwd, title, icon, order_index,
                   last_process_state, created_at, updated_at)
-                 VALUES ('terminal-a', ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'layout-a', 'stopped', ?, ?)`,
+                 VALUES ('terminal-a', ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'stopped', ?, ?)`,
             )
             .run(session.id, root, now, now);
 
@@ -303,9 +303,8 @@ describe('CaxriDatabaseConnection', () => {
         previous
             .prepare(
                 `INSERT INTO session_state
-                 (session_id, open_tabs_json, active_tab_json, inspector_mode, layout_json,
-                  state_version, editor_remap_operation_id)
-                 VALUES ('session-preserved', '[]', NULL, 'files', '{}', 1, NULL)`,
+                 (session_id, state_version, workbench_state_json, inspector_mode)
+                 VALUES ('session-preserved', 2, '{}', 'files')`,
             )
             .run();
         previous

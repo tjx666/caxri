@@ -25,7 +25,6 @@ function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
         title: 'Shell',
         icon: 'shell',
         orderIndex: 0,
-        layoutNodeId: 'layout-1',
         agentSessionId: undefined,
         lastProcessState: 'running',
         createdAt: 0,

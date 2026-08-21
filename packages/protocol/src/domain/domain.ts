@@ -130,7 +130,6 @@ export const terminalRecordSchema = z.object({
     title: z.string(),
     icon: z.string(),
     orderIndex: z.number(),
-    layoutNodeId: z.string(),
     agentSessionId: z.string().optional(),
     /**
      * Live Runtime-only Agent subphase. It is projected with Terminal records and is never persisted.

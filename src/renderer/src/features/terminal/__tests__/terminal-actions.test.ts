@@ -59,7 +59,6 @@ function terminalFixture(overrides: Partial<TerminalRecord> = {}): TerminalRecor
         title: 'Shell',
         icon: 'terminal',
         orderIndex: 0,
-        layoutNodeId: 'node-1',
         lastProcessState: 'running',
         createdAt: 0,
         updatedAt: 0,
