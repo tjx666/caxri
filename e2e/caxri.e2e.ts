@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -297,10 +297,40 @@ test('Project Status inspector renders and refreshes the current repository tree
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-status-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
-    await execFileAsync('mkdir', ['-p', root]);
+    const bin = join(testDirectory, 'bin');
+    await execFileAsync('mkdir', ['-p', root, bin]);
     await execFileAsync('git', ['init', '-b', 'feature/status'], { cwd: root });
+    await execFileAsync(
+        'git',
+        ['remote', 'add', 'origin', 'https://github.com/tjx666/project.git'],
+        { cwd: root },
+    );
+    await writeFile(
+        join(bin, 'gh'),
+        `#!/bin/sh
+printf '%s' '${JSON.stringify({
+            body: 'Related to https://linear.app/lobehub/issue/LOBE-42/project-status',
+            number: 42,
+            title: 'Project Status navigation',
+            url: 'https://github.com/tjx666/project/pull/42',
+            statusCheckRollup: [],
+        })}'
+`,
+        'utf8',
+    );
+    await writeFile(
+        join(bin, 'linear'),
+        "#!/bin/sh\nprintf 'Linear fixture failed\\n' >&2\nexit 1\n",
+        'utf8',
+    );
+    await writeFile(join(bin, 'vc'), "#!/bin/sh\nprintf '%s' '{\"teams\":[]}'\n", 'utf8');
+    await Promise.all(['gh', 'linear', 'vc'].map((name) => chmod(join(bin, name), 0o755)));
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
+    });
     try {
         await openAddProjectDialog(running.page);
         try {
@@ -325,6 +355,17 @@ test('Project Status inspector renders and refreshes the current repository tree
         await repo.locator('.project-status-repository-row').click();
         await running.page.getByRole('button', { name: 'Refresh Project Status' }).click();
         await expect(repo.getByText('feature/status', { exact: true })).toBeVisible();
+
+        const linearError = repo.getByRole('button', { name: /linear: error/ });
+        await expect(linearError).toBeVisible();
+        await expect(linearError).toHaveAttribute('title', 'See Runtime logs for details.');
+        await expect(running.page.getByRole('region', { name: 'Bottom Panel' })).toHaveCount(0);
+        await linearError.click();
+        await expect(running.page.getByRole('region', { name: 'Bottom Panel' })).toBeVisible();
+        await expect(running.page.getByRole('tab', { name: 'Logs', exact: true })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
     } finally {
         try {
             await running.app.close();

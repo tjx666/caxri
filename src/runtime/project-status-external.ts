@@ -98,7 +98,12 @@ export function projectStatusCliError(
             message: `${command} timed out`,
             hint: 'Check the network or proxy, then refresh.',
         };
-    return { source, message: `${command}: error`, hint: 'See Runtime logs for details.' };
+    return {
+        source,
+        message: `${command}: error`,
+        hint: 'See Runtime logs for details.',
+        detailsView: 'logs',
+    };
 }
 
 export function isNoPullRequest(error: unknown): boolean {
@@ -233,7 +238,19 @@ export async function runProjectStatusCommand(
                 cwd,
                 timeout: CLI_TIMEOUT_MS,
                 maxBuffer: CLI_MAX_BUFFER_BYTES,
-                env: { CI: '1', LC_ALL: 'C' },
+                env: {
+                    CI: '1',
+                    LC_ALL: 'C',
+                    ...(command === 'linear' && {
+                        /**
+                         * @schpet/linear-cli 2.5.0 loads LINEAR_API_KEY from the repository's `.env` when the variable
+                         * is absent. An explicit empty value preserves dotenv's existing-own-property guard, blocking
+                         * that fallback while keeping Runtime's credential filter and the user's configured workspace
+                         * credentials authoritative.
+                         */
+                        LINEAR_API_KEY: '',
+                    }),
+                },
             },
             dependencies,
         );
