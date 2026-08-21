@@ -6,7 +6,6 @@ import process from 'node:process';
 
 import { agentProviderCatalog } from '../shared/agents';
 import { CaxriError, errorMessage } from '../shared/ipc/errors';
-import type { RuntimeMethod } from '../shared/ipc/methods';
 import type {
     AgentProvider,
     BootstrapState,
@@ -24,7 +23,7 @@ import {
     defaultAgentEnvironment,
 } from './agents';
 import { createBackgroundTasks } from './background-tasks';
-import { createServiceHandlers } from './bootstrap-service-handlers';
+import { createServiceHandlers, mainOwned } from './bootstrap-service-handlers';
 import type { Runtime, RuntimeDependencies } from './bootstrap-types';
 import { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
@@ -41,13 +40,6 @@ import { createWorkbenchRootHandlers } from './workbench-roots';
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 export type { Runtime, RuntimeDependencies } from './bootstrap-types';
-/**
- * Methods the Renderer may call but that only Electron Main can satisfy.
- */
-function mainOwned(method: RuntimeMethod): never {
-    throw new CaxriError('CONFLICT', `${method} must be handled by Electron Main`);
-}
-
 /**
  * Owns Runtime service construction, event wiring, handler composition, and the single disposal path.
  */
@@ -77,6 +69,8 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     });
     const agentLaunchSettings = (provider: AgentProvider) =>
         configuration.getSettings().value['agents.providers'][provider].launch;
+    const agentOutputRecoverySettings = (provider: AgentProvider) =>
+        configuration.getSettings().value['agents.providers'][provider].recovery;
     const agentEnvironment = dependencies.agentEnvironment ?? defaultAgentEnvironment();
     const agents = new AgentService(
         logger,
@@ -140,6 +134,8 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     const terminals = new TerminalManager(database, send, logger, {
         ...dependencies.terminal,
         agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
+        agentOutputRecoverySettings:
+            dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
         lifecycleEnvironment: async (terminal, launch) => {
             const hookEnvironment = agentHooks.terminalEnvironment(terminal.id, terminal.provider);
             if (!launch || terminal.kind === 'shell' || !dependencies.agentEndpoints)
@@ -182,6 +178,9 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             dependencies.terminal?.terminalColors ??
             (() => configuration.getTheme().value.terminal),
     });
+    const unsubscribeTerminalSettings = configuration.subscribeSettings(() =>
+        terminals.reconcileOutputRecoverySettings(),
+    );
     const terminalRestores = new TerminalRestoreSupervisor();
     const projectStatus = new ProjectStatusService(git, logger, undefined, { emit: send });
     const diagnostics = new DiagnosticsService(
@@ -429,6 +428,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         isClosed = true;
         terminalRestores.close();
         coordinator.close();
+        unsubscribeTerminalSettings();
         await terminals.shutdown('orderly');
         dispatchService.close();
         await workbenchRoots.close();

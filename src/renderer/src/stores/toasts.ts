@@ -5,6 +5,11 @@ import { refreshWorkbench } from './workbench';
 
 export type ToastKind = 'info' | 'success' | 'error';
 
+interface ToastAction {
+    label: string;
+    onSelect: () => void;
+}
+
 interface Toast {
     id: number;
     kind: ToastKind;
@@ -13,6 +18,7 @@ interface Toast {
      * Stays on screen until dismissed, like an error, without claiming the failure styling.
      */
     persist: boolean;
+    action?: ToastAction;
 }
 
 export interface ToastOptions {
@@ -22,6 +28,10 @@ export interface ToastOptions {
      * silently take the only record of it away.
      */
     persist?: boolean;
+    /**
+     * Optional immediate follow-up rendered as a keyboard-accessible button.
+     */
+    action?: ToastAction;
 }
 
 /**
@@ -79,7 +89,10 @@ export const useToastStore = create<ToastState>((set, get) => ({
         toastIdCounter.current += 1;
         const id = toastIdCounter.current;
         set((state) => {
-            const next = [...state.toasts, { id, kind, message, persist: isPersist }];
+            const next = [
+                ...state.toasts,
+                { id, kind, message, persist: isPersist, action: options?.action },
+            ];
             const overflow = next.splice(0, Math.max(0, next.length - MAX_VISIBLE_TOASTS));
             for (const dropped of overflow) clearDismissTimer(dropped.id);
             return { toasts: next };

@@ -5,6 +5,7 @@ import * as m from 'motion/react-m';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
+import { Button } from '../../components/ui/button';
 import { Toast, ToastDismiss, ToastIcon, ToastTitle } from '../../components/ui/toast';
 import { motionDurationMs } from '../../lib/motion';
 import { dismissToast, useToastStore } from '../../stores/toasts';
@@ -62,6 +63,19 @@ export function ToastOutlet() {
                             <Toast kind={toast.kind} onClick={() => dismissToast(toast.id)}>
                                 <ToastIcon kind={toast.kind} />
                                 <ToastTitle>{toast.message}</ToastTitle>
+                                {toast.action && (
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            toast.action?.onSelect();
+                                            dismissToast(toast.id);
+                                        }}
+                                    >
+                                        {toast.action.label}
+                                    </Button>
+                                )}
                                 <ToastDismiss onClick={() => dismissToast(toast.id)} />
                             </Toast>
                         </m.div>

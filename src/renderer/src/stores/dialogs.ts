@@ -108,6 +108,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
 
 export const setSettingsOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setSettingsOpen(isOpen);
+export const openSettings = (view: SettingsView = 'ui'): void =>
+    useDialogStore.getState().openSettings(view);
 export const setArchivedSessionsOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setArchivedSessionsOpen(isOpen);
 export const setPaletteOpen = (isOpen: boolean): void =>

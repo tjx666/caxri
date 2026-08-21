@@ -14,6 +14,9 @@ describe('isTransientRuntimeEvent / transient and durable schemas', () => {
         expect(isTransientRuntimeEvent({ event: 'terminal.output', payload: {} } as never)).toBe(
             true,
         );
+        expect(
+            isTransientRuntimeEvent({ event: 'terminal.outputRecovery', payload: {} } as never),
+        ).toBe(true);
         expect(isTransientRuntimeEvent({ event: 'command.execute', payload: {} } as never)).toBe(
             true,
         );

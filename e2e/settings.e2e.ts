@@ -157,6 +157,12 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                         hooks: { enabled: boolean };
                         launch: { executable: string };
                         messaging: { enabled: boolean };
+                        recovery: {
+                            enabled: boolean;
+                            patterns: string[];
+                            settleDelayMs: number;
+                            continueDelayMs: number;
+                        };
                     };
                 };
             };
@@ -165,6 +171,12 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             hooks: { enabled: true },
             launch: { executable: 'claude', args: [] },
             messaging: { enabled: true },
+            recovery: {
+                enabled: false,
+                patterns: [],
+                settleDelayMs: 1_000,
+                continueDelayMs: 1_000,
+            },
         });
 
         // Settings search: AND-token filtering narrows the virtual list and the TOC shows

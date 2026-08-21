@@ -93,6 +93,36 @@ describe('wire schema versus file schema', () => {
         expect(parsed['agents.providers'].claude).toEqual(defaultAgentProviderSettings.claude);
     });
 
+    it('fills recovery defaults for an existing provider entry and bounds custom rules', () => {
+        const existingProvider = {
+            hooks: { enabled: false },
+            launch: { executable: 'codex', args: [] },
+            messaging: { enabled: true },
+        };
+        const parsed = appSettingsFileSchema.parse({
+            'agents.providers': { codex: existingProvider },
+        });
+        expect(parsed['agents.providers'].codex.recovery).toEqual(
+            defaultAgentProviderSettings.codex.recovery,
+        );
+
+        expect(
+            appSettingsFileSchema.safeParse({
+                'agents.providers': {
+                    codex: {
+                        ...existingProvider,
+                        recovery: {
+                            enabled: true,
+                            patterns: ['API timeout', 'api TIMEOUT'],
+                            settleDelayMs: 250,
+                            continueDelayMs: 250,
+                        },
+                    },
+                },
+            }).success,
+        ).toBe(false);
+    });
+
     it('merges files.exclude on top of the shipped exclusions in the file parser only', () => {
         const parsed = appSettingsFileSchema.parse({
             'files.exclude': { '**/node_modules': true, '**/.git': false },

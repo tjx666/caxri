@@ -18,6 +18,37 @@ export interface AgentLaunchSettings {
     args: string[];
 }
 
+export const MAX_AGENT_OUTPUT_RECOVERY_PATTERNS = 20;
+export const MAX_AGENT_OUTPUT_RECOVERY_PATTERN_LENGTH = 256;
+export const MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS = 250;
+export const MAX_AGENT_OUTPUT_RECOVERY_DELAY_MS = 10_000;
+
+export interface AgentOutputRecoverySettings {
+    /**
+     * Explicit opt-in: output-driven Terminal input is never enabled implicitly.
+     */
+    enabled: boolean;
+    /**
+     * Case-insensitive literal suffixes matched against the parsed Terminal screen tail.
+     */
+    patterns: string[];
+    /**
+     * Quiet period after the latest output before Caxri sends Escape.
+     */
+    settleDelayMs: number;
+    /**
+     * Delay between Escape and the follow-up `continue` submission.
+     */
+    continueDelayMs: number;
+}
+
+export const defaultAgentOutputRecoverySettings: AgentOutputRecoverySettings = {
+    enabled: false,
+    patterns: [],
+    settleDelayMs: 1_000,
+    continueDelayMs: 1_000,
+};
+
 interface AgentHookSettings {
     /**
      * Explicitly authorizes Caxri to install and maintain this provider's lifecycle hooks.
@@ -36,6 +67,7 @@ export interface AgentProviderSettings {
     hooks: AgentHookSettings;
     launch: AgentLaunchSettings;
     messaging: AgentMessagingSettings;
+    recovery: AgentOutputRecoverySettings;
 }
 
 /**
@@ -89,6 +121,7 @@ export const defaultAgentProviderSettings = Object.fromEntries(
         {
             hooks: { enabled: false },
             messaging: { enabled: true },
+            recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },
             launch: {
                 executable: agentProviderCatalog[provider].executableName,
                 args: [],

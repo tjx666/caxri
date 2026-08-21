@@ -2,8 +2,14 @@ import process from 'node:process';
 
 import { describe, expect, it } from 'vitest';
 
+import { defaultAppSettings } from '../../shared/config';
 import { redactLogValue, redactSecrets } from '../../shared/node/redaction';
-import { normalizeHome, summarizePerformanceLogs, summarizeRecentErrorIds } from '../diagnostics';
+import {
+    diagnosticSettings,
+    normalizeHome,
+    summarizePerformanceLogs,
+    summarizeRecentErrorIds,
+} from '../diagnostics';
 
 describe('diagnostics redaction', () => {
     it('redacts secret-like keys and values', () => {
@@ -27,6 +33,21 @@ describe('diagnostics redaction', () => {
         expect(
             redactLogValue(`${process.env.HOME}/project token=private-value Bearer abc.def.ghi`),
         ).toBe('$HOME/project token=[REDACTED] [REDACTED]');
+    });
+
+    it('excludes user-authored output recovery patterns', () => {
+        const settings = structuredClone(defaultAppSettings);
+        settings['agents.providers'].codex.recovery = {
+            enabled: true,
+            patterns: ['private proxy timeout text'],
+            settleDelayMs: 500,
+            continueDelayMs: 750,
+        };
+
+        const exported = JSON.stringify(diagnosticSettings(settings));
+
+        expect(exported).not.toContain('private proxy timeout text');
+        expect(exported).toContain('"patternCount":1');
     });
 
     it.each([

@@ -28,6 +28,7 @@ import { EnumControl } from './enum-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { IntegerControl } from './integer-control';
 import { hookHealthLabel } from './provider-health';
+import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import type { SettingRowDescriptor } from './settings-registry';
 import type { SettingsValueContext } from './settings-values';
@@ -58,6 +59,7 @@ function isFullWidthRow(row: SettingRowDescriptor): boolean {
     return [
         'files-exclude',
         'provider-launch',
+        'provider-recovery',
         'provider-skill-health',
         'trusted-domains',
     ].includes(row.binding.type);
@@ -299,6 +301,25 @@ function rowControl(properties: SettingRowProperties): {
                                             .filter((argument) => argument.length > 0),
                                     },
                                 }),
+                            )
+                        }
+                    />
+                ),
+            };
+        }
+        case 'provider-recovery': {
+            const recovery = settings['agents.providers'][binding.provider].recovery;
+            return {
+                labelFor: controlId,
+                control: (
+                    <ProviderRecoveryEditor
+                        id={controlId}
+                        provider={binding.provider}
+                        value={recovery}
+                        onChange={(value) =>
+                            onFieldChange(
+                                'agents.providers',
+                                withProviderField(settings, binding.provider, { recovery: value }),
                             )
                         }
                     />
