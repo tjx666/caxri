@@ -3,7 +3,7 @@ import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 
 import { inspectDesktopLease } from './desktop-lease';
@@ -107,6 +107,78 @@ async function restoreManifest(path: string, source: Buffer | undefined): Promis
     }
 }
 
+/**
+ * Pnpm may reuse a store entry without materializing Electron's package-owned side effects in a new worktree. Repair
+ * only an incomplete install so `create` retains its ready-to-run contract without introducing a second package-manager
+ * install or repeating a completed postinstall.
+ *
+ * @see https://github.com/tjx666/caxri/issues/276
+ */
+async function hasElectronPostinstallArtifacts(path: string): Promise<boolean> {
+    const electronDirectory = join(path, 'node_modules', 'electron');
+    try {
+        const executableRelativePath = (await readFile(join(electronDirectory, 'path.txt'), 'utf8'))
+            .toString()
+            .trim();
+        const packageManifest = JSON.parse(
+            await readFile(join(electronDirectory, 'package.json'), 'utf8'),
+        ) as { version?: unknown };
+        const installedVersion = (
+            await readFile(join(electronDirectory, 'dist', 'version'), 'utf8')
+        )
+            .trim()
+            .replace(/^v/, '');
+        if (
+            !executableRelativePath ||
+            typeof packageManifest.version !== 'string' ||
+            installedVersion !== packageManifest.version
+        ) {
+            return false;
+        }
+        const distributionDirectory = resolve(electronDirectory, 'dist');
+        const executablePath = resolve(distributionDirectory, executableRelativePath);
+        const executableWithinDistribution = relative(distributionDirectory, executablePath);
+        if (
+            !executableWithinDistribution ||
+            executableWithinDistribution === '..' ||
+            executableWithinDistribution.startsWith(`..${sep}`) ||
+            isAbsolute(executableWithinDistribution)
+        ) {
+            return false;
+        }
+        return (await lstat(executablePath)).isFile();
+    } catch (error) {
+        if (errorCode(error) === 'ENOENT' || error instanceof SyntaxError) return false;
+        throw error;
+    }
+}
+
+async function ensureElectronPostinstall(
+    path: string,
+    shouldPipeStdoutToStderr: boolean,
+): Promise<void> {
+    const electronDirectory = join(path, 'node_modules', 'electron');
+    if (await hasElectronPostinstallArtifacts(path)) return;
+
+    const installScript = join(electronDirectory, 'install.js');
+    if (!(await isPathPresent(installScript))) {
+        throw new CommandError(`Electron postinstall script is missing: ${installScript}`);
+    }
+    const exitCode = await runInherited('node', [installScript], {
+        cwd: path,
+        env: process.env,
+        stdoutToStderr: shouldPipeStdoutToStderr,
+    });
+    if (exitCode !== 0) {
+        throw new CommandError(`Electron postinstall failed with exit code ${exitCode}`);
+    }
+    if (!(await hasElectronPostinstallArtifacts(path))) {
+        throw new CommandError(
+            `Electron postinstall left incomplete artifacts in ${electronDirectory}`,
+        );
+    }
+}
+
 export async function installWorktreeDependencies(
     path: string,
     shouldPipeStdoutToStderr = false,
@@ -152,6 +224,7 @@ export async function installWorktreeDependencies(
         );
     }
     if (exitCode !== 0) throw new CommandError(`ni failed with exit code ${exitCode}`);
+    await ensureElectronPostinstall(path, shouldPipeStdoutToStderr);
 }
 
 async function dependencyState(path: string): Promise<WorktreeStatus['dependencies']> {
@@ -325,10 +398,12 @@ async function setupManagedWorktree(
     if (existingDependencies === 'symlink') {
         throw new CommandError(`Refusing shared node_modules symlink in ${path}`);
     }
-    if (existingDependencies === 'ready') return;
+    if (existingDependencies === 'ready' && (await hasElectronPostinstallArtifacts(path))) return;
     await install(path);
     if ((await dependencyState(path)) !== 'ready')
         throw new CommandError(`ni did not create ${path}/node_modules`);
+    if (!(await hasElectronPostinstallArtifacts(path)))
+        throw new CommandError(`ni left incomplete Electron artifacts in ${path}/node_modules`);
 }
 
 async function repairManagedWorktree(
@@ -337,7 +412,14 @@ async function repairManagedWorktree(
     install: (path: string) => Promise<void>,
 ): Promise<WorktreeStatus> {
     const status = await inspectOne(context, worktree, await inspectDesktopLease(context.root));
-    if (!status.managed || (status.dependencies === 'ready' && status.profile)) return status;
+    if (
+        !status.managed ||
+        (status.dependencies === 'ready' &&
+            status.profile &&
+            (await hasElectronPostinstallArtifacts(worktree.path)))
+    ) {
+        return status;
+    }
     await setupManagedWorktree(context, worktree.path, install);
     return inspectOne(context, worktree, await inspectDesktopLease(context.root));
 }
