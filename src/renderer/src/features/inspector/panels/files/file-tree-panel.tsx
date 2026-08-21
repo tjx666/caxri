@@ -68,6 +68,35 @@ function discard(promise: Promise<unknown>): void {
     void promise;
 }
 
+interface PendingFileOperationStatusProperties {
+    isCancelRevealed: boolean;
+    operation: PendingFileOperation;
+}
+
+function PendingFileOperationStatus({
+    isCancelRevealed,
+    operation,
+}: PendingFileOperationStatusProperties) {
+    return (
+        <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-between gap-2 border-b border-border bg-surface px-2 py-1 text-[11px] text-muted"
+        >
+            <span className="truncate">{operation.label}</span>
+            {isCancelRevealed && (
+                <button
+                    className="shrink-0 text-foreground underline decoration-dotted underline-offset-2 hover:text-accent"
+                    type="button"
+                    onClick={() => discard(cancelFileOperation(operation.id))}
+                >
+                    Cancel
+                </button>
+            )}
+        </div>
+    );
+}
+
 export function FileTreePanel() {
     const session = useSelectedSession();
     const project = useSelectedWorkbenchProject();
@@ -296,22 +325,10 @@ export function FileTreePanel() {
                 }
             />
             {pendingOperation && (
-                <div
-                    role="status"
-                    aria-live="polite"
-                    className="flex items-center justify-between gap-2 border-b border-border bg-surface px-2 py-1 text-[11px] text-muted"
-                >
-                    <span className="truncate">{pendingOperation.label}</span>
-                    {isCancelRevealed && (
-                        <button
-                            className="shrink-0 text-foreground underline decoration-dotted underline-offset-2 hover:text-accent"
-                            type="button"
-                            onClick={() => discard(cancelFileOperation(pendingOperation.id))}
-                        >
-                            Cancel
-                        </button>
-                    )}
-                </div>
+                <PendingFileOperationStatus
+                    isCancelRevealed={isCancelRevealed}
+                    operation={pendingOperation}
+                />
             )}
             {isSearchVisible ? (
                 <ProjectSearch
