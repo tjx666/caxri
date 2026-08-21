@@ -58,12 +58,53 @@ describe('findTerminalLinks', () => {
         ]);
     });
 
+    it.each(['。', '，', '：'])('splits a path from CJK prose after %s', (separator) => {
+        const text = `说明${separator}.local-config/model-config/meta.json:4`;
+
+        expect(findTerminalLinks(text)).toEqual([
+            {
+                column: 1,
+                endIndex: text.length,
+                kind: 'file',
+                line: 4,
+                startIndex: 3,
+                target: '.local-config/model-config/meta.json',
+                text: '.local-config/model-config/meta.json:4',
+            },
+        ]);
+    });
+
+    it('preserves CJK punctuation inside valid relative paths', () => {
+        expect(findTerminalLinks('./目录。版本/file.ts:8')).toMatchObject([
+            { kind: 'file', target: './目录。版本/file.ts', line: 8, column: 1 },
+        ]);
+        expect(findTerminalLinks('目录。版本/file.ts:8')).toMatchObject([
+            { kind: 'file', target: '目录。版本/file.ts', line: 8, column: 1 },
+        ]);
+        expect(findTerminalLinks('目录。version/file.ts:8')).toMatchObject([
+            { kind: 'file', target: '目录。version/file.ts', line: 8, column: 1 },
+        ]);
+        expect(findTerminalLinks('docs/中文说明.md')).toMatchObject([
+            { kind: 'file', target: 'docs/中文说明.md' },
+        ]);
+    });
+
     it('honors custom word separators from the terminal.wordSeparators setting', () => {
         // With `(` removed from the separators the glued token stays one word (the pre-setting
         // behavior), and with `:` added the line suffix stops being parsed — mirroring VS Code's
         // documented caveat about putting `:` in `terminal.integrated.wordSeparators`.
         expect(findTerminalLinks('串联(src/api/x.ts)', ' ')).toMatchObject([
             { kind: 'file', target: '串联(src/api/x.ts)' },
+        ]);
+        expect(
+            findTerminalLinks('说明。.local-config/model-config/meta.json:4', ' '),
+        ).toMatchObject([
+            {
+                kind: 'file',
+                target: '说明。.local-config/model-config/meta.json',
+                line: 4,
+                column: 1,
+            },
         ]);
         const withColonSeparator = findTerminalLinks('src/a.ts:12', ' :');
         expect(withColonSeparator).toMatchObject([{ kind: 'file', target: 'src/a.ts' }]);
@@ -74,6 +115,10 @@ describe('findTerminalLinks', () => {
         expect(findTerminalLinks('javascript:alert(1) --flag version.')).toEqual([]);
     });
 
+    it('does not offer unsupported shell-home shorthand as a file link', () => {
+        expect(findTerminalLinks('config: ~/example/path.json')).toEqual([]);
+    });
+
     it('keeps maximal trailing-bracket trimming bounded', () => {
         const text = `https://example.com/value${')'.repeat(16_000)}`;
         const startedAt = performance.now();
@@ -81,6 +126,14 @@ describe('findTerminalLinks', () => {
         expect(findTerminalLinks(text)).toMatchObject([
             { kind: 'url', target: 'https://example.com/value' },
         ]);
+        expect(performance.now() - startedAt).toBeLessThan(500);
+    });
+
+    it('keeps maximal CJK prose boundary scanning bounded', () => {
+        const text = '。'.repeat(16_000);
+        const startedAt = performance.now();
+
+        expect(findTerminalLinks(text)).toEqual([]);
         expect(performance.now() - startedAt).toBeLessThan(500);
     });
 });
@@ -107,6 +160,10 @@ describe('resolveTerminalFilePath', () => {
         expect(resolveTerminalFilePath('/repo/a/../b.ts', context)).toBe('/repo/b.ts');
         expect(resolveTerminalFilePath('file:///repo/a%20b.ts', context)).toBe('/repo/a b.ts');
         expect(resolveTerminalFilePath('file://remote/repo/a.ts', context)).toBeUndefined();
+    });
+
+    it('rejects shell-home shorthand that cannot be authorized against the Project root', () => {
+        expect(resolveTerminalFilePath('~/example/path.json', context)).toBeUndefined();
     });
 });
 
@@ -225,6 +282,16 @@ describe('registerTerminalLinks', () => {
         );
         expect(openFile).toHaveBeenCalledWith('/repo/other.ts', {
             line: 8,
+            column: 1,
+        });
+
+        terminal.terminal.options.linkHandler?.activate(
+            { metaKey: true } as MouseEvent,
+            '说明。.local-config/model-config/meta.json:4',
+            { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } },
+        );
+        expect(openFile).toHaveBeenCalledWith('/repo/.local-config/model-config/meta.json', {
+            line: 4,
             column: 1,
         });
 
