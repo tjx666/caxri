@@ -1,16 +1,7 @@
 ---
 name: go
-description: >
-  Manual-only Caxri delivery orchestration for turning one or many requirements
-  into a continuously executing Codex Goal. Use only when the user explicitly
-  invokes `$go`, `/go`, or asks to run the project Go workflow. It triages and
-  deduplicates requirements, resolves material decisions before starting,
-  creates GitHub issues, executes each issue through implementation, focused
-  validation, light review and commit, performs a final deep review, opens and
-  repairs a PR, runs required macOS Electron Acceptance or records an explicit
-  non-product waiver, merges, closes issues, and reports technical debt and
-  workflow improvements. Do not trigger on an
-  ordinary conversational "go ahead" or a single routine edit.
+description: Manual-only multi-issue Caxri delivery orchestration.
+disable-model-invocation: true
 ---
 
 # Go
@@ -62,7 +53,7 @@ Read [references/intake.md](references/intake.md) in full.
    canonical `lobehub whoami --json` probe fails closed before Acceptance work.
 2. Normalize the user's requirements. Deduplicate them and classify each as
    execute now, already satisfied, defer, reject, or discuss before execution.
-3. Invoke the `competitors` skill before proposing issue solutions. Use current
+3. Before proposing issue solutions, Call the Skill tool with "competitors". Use current
    source evidence from relevant products, prefer VS Code for performance,
    security, filesystem, editor, IPC, and desktop-platform mechanics, and prefer
    Orca, Muxy, Kero, or another close workbench for UI and UX behavior.
@@ -70,8 +61,8 @@ Read [references/intake.md](references/intake.md) in full.
    destructive action, or unavailable prerequisite now. Do not knowingly carry
    an ordinary decision gate into the active Goal.
 5. Split selected work into independently verifiable GitHub issues. Reuse an
-   existing issue when it already owns the work; otherwise invoke the
-   repository's `file-issue` skill. Every admitted issue must contain explicit
+   existing issue when it already owns the work. Otherwise, Call the Skill tool with
+   "file-issue". Every admitted issue must contain explicit
    `UX 设计` and `Acceptance 方案` sections, including a reason when no direct UI
    claim exists.
 6. Freeze dependencies, priorities, execution order, issue completion criteria,
@@ -116,7 +107,7 @@ For each queued issue in dependency order:
    new comment revision; never edit or duplicate the old comment. Scope-changing
    drift remains `decision_required` after its discovery comment and requires
    user direction.
-6. Invoke `deep-review` in light mode for the issue's current diff. Collect and
+6. For the issue's current diff, Call the Skill tool with "deep-review" in light mode. Collect and
    adjudicate the whole result before editing; do not repair findings as
    reviewers arrive.
 7. Repair valid product P0/P1 findings, run focused validation, and use at most
@@ -143,7 +134,7 @@ After all issue commits:
 
 1. Finish every gate likely to change code, including affected tests,
    changed-file checks, `knip`, `doctor`, builds, and focused Electron E2E. Then
-   invoke the repository's `deep-review` skill in full deep mode over the whole
+   Call the Skill tool with "deep-review" in full deep mode over the whole
    Goal range.
    Record every canonical platform-neutral command through `validation-start` /
    `validation-complete` first; the ledger rejects a full aggregate review when any exact-head
@@ -203,8 +194,8 @@ and repair routing.
 
 After the PR head is review-clean and either its required checks are green or an
 exact-head local fallback has passed, have a fresh context-isolated tester
-subagent independently draft the final Acceptance plan, then invoke the
-project-local `acceptance` skill. Its only product surface is isolated macOS
+subagent independently draft the final Acceptance plan. Then Call the Skill tool with
+"acceptance". Its only product surface is isolated macOS
 Electron desktop. If the frozen issues have no product or desktop claim and the
 user explicitly waives Acceptance for the exact head, record the waiver and
 reason, transition directly from `delivery` to `acceptance_handoff`, and do not

@@ -11,7 +11,7 @@ description: Diagnose Caxri failures across the headless Host, Electron Main, se
 4. Trace the typed method and event from its `packages/protocol` declaration (owner `host` or `desktop`) through the owning dispatcher, Preload, Runtime, and its Renderer consumer; `src/shared/ipc` is a compatibility re-export layer, not the schema source. Treat the selected Session root as a security and state-lifetime boundary.
 5. Never print terminal output, file contents, credentials, or snapshots, and never weaken path containment to make a symlink error disappear.
 6. Add a focused regression test at the lowest useful layer. Use Electron E2E when the process boundary is part of the failure.
-7. Use the `quality-check` skill with the changed source and regression test before any broader suite.
+7. Call the Skill tool with "quality-check" with the changed source and regression test before any broader suite.
 
 For native load failures, run `bun run spike:native` and `bun run spike:pty`, then verify the packaged app rather than assuming the development ABI matches.
 

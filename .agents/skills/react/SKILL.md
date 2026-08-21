@@ -113,6 +113,6 @@ over-render or memoize defensively.
 
 ## 8. Finish
 
-After a composition refactor, run `source-layout` rules for the new file names, then
+After a composition refactor, Call the Skill tool with "source-layout" for the new file names, then
 `bun run --silent check <files> --lint --type --test` on the touched set. If the refactor revealed
 a convention this skill does not cover, extend this skill in the same change.

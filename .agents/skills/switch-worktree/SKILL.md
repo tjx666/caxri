@@ -1,6 +1,7 @@
 ---
 name: switch-worktree
 description: Create, resolve, diagnose, run, and safely remove isolated Caxri Git worktrees. Use only when explicitly invoked with `$switch-worktree` to manage parallel repository checkouts, start an isolated development instance, inspect worktree health, or serialize a macOS Electron desktop task.
+disable-model-invocation: true
 ---
 
 # Switch Worktree
@@ -29,7 +30,7 @@ between stages:
    from the branch work and the eventual PR.
 2. Implement and validate the change in the isolated worktree.
 3. Review the completed local work (light `deep-review` scope) and repair validated P0/P1 findings.
-4. Push the branch and open a pull request with the `pull-request` skill.
+4. Call the Skill tool with "pull-request" to push the branch and open a pull request.
 5. Watch CI on the PR, repair failures, and re-push until checks are green.
 6. Merge the PR, close the linked issues, and synchronize the primary checkout.
 7. File a GitHub issue (same language conventions) for any debt or follow-up the delivery leaves

@@ -86,8 +86,9 @@ fully handling it, use `Refs #123` instead of a closing keyword.
 
 ## Validate and commit
 
-Run the smallest relevant validation selected by `quality-check` and the owning testing skill for
-the changed files. Re-inspect the staged diff, then commit it. Repeat the stage, validate, and commit
+Call the Skill tool with "quality-check", then Call the Skill tool with "unit-testing" or
+"e2e-testing" when that owning testing discipline applies to the changed files. Re-inspect the
+staged diff, then commit it. Repeat the stage, validate, and commit
 sequence for every planned commit. Never amend or rewrite existing commits unless the user
 explicitly requests it.
 
