@@ -1,7 +1,8 @@
 import type { CSSProperties, DragEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from '@shared/ipc/pane-layout';
+import { listPanes, listPaneTerminalIds } from '@shared/pane-layout';
 import type { PaneLayout, PaneLayoutNode, PaneNode, PaneSplitNode } from '@shared/types';
 import { TerminalSquare } from 'lucide-react';
 
@@ -15,6 +16,7 @@ import { EditorSurface } from '../editor/editor-surface';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 import { createTerminal, didPasteIntoTerminal } from '../terminal/terminal-actions';
 import { TerminalPane } from '../terminal/terminal-pane';
+import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { focusPane, movePaneTab, resizePaneSplit, splitPaneTab } from './pane-actions';
 import type { PaneDropZone } from './pane-drop-zone';
 import { hasPaneTabDragType, PANE_TAB_DRAG_TYPE, resolvePaneDropZone } from './pane-drop-zone';
@@ -117,6 +119,12 @@ function PaneBox({
      * only a live Terminal accepts it.
      */
     const isAcceptsFileDrop = Boolean(terminal) && terminal?.lastProcessState === 'running';
+    // A stable, tree-order name so a screen reader can tell each pane's tablist apart; `aria-label="Open tabs"`
+    // repeated on every pane left them indistinguishable once a Workbench held more than one.
+    const paneLabel = `pane ${listPanes(layout).findIndex((candidate) => candidate.id === pane.id) + 1}`;
+    // Session-wide, not pane-local: a Terminal moved to a new session leaves its Session behind entirely, so the guard
+    // must see every pane's Terminals, not just the ones sharing this Terminal's own tab bar.
+    const isOnlySessionTerminal = listPaneTerminalIds(layout).length === 1;
     const canPreviewDrop = (event: DragEvent<HTMLElement>): boolean => {
         const isTabDrag = hasPaneTabDragType(event.dataTransfer.types);
         if (!isTabDrag && !(isAcceptsFileDrop && hasDraggedPath(event))) return false;
@@ -152,7 +160,12 @@ function PaneBox({
             data-pane-id={pane.id}
             onFocusCapture={() => focusPane(pane.id)}
         >
-            <PaneTabBar isRootBar={isLeading} pane={pane} />
+            <PaneTabBar
+                isOnlySessionTerminal={isOnlySessionTerminal}
+                isRootBar={isLeading}
+                pane={pane}
+                paneLabel={paneLabel}
+            />
             <div
                 className="pane-surface relative min-h-0 flex-1"
                 data-drop-zone={activeDropZone}
@@ -291,6 +304,15 @@ function PaneNodeView({
  */
 export function PaneView() {
     const layout = useSessionState()?.paneLayout;
+    /**
+     * Retained once for the whole layout, not per pane: `retainTerminalProgress` drops every Terminal outside the set
+     * it is given, so calling it from each `PaneTabBar` with only that pane's Terminals would have panes clearing each
+     * other's progress badges every time any of them re-ran the effect.
+     */
+    const terminalKey = layout ? listPaneTerminalIds(layout).join('\u{0}') : '';
+    useEffect(() => {
+        retainTerminalProgress(new Set(terminalKey ? terminalKey.split('\u{0}') : []));
+    }, [terminalKey]);
     if (!layout) return null;
     return (
         <PaneNodeView leadingPane={leadingPaneId(layout.root)} layout={layout} node={layout.root} />

@@ -32,13 +32,16 @@ import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from '../tabs/work-tab-accessibility';
 import { closeTerminal, createTerminal } from '../terminal/terminal-actions';
 import {
-    retainTerminalProgress,
     terminalProgressAriaLabel,
     terminalProgressLabel,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
 import { movePaneTab, paneTabCloseFamily, selectPaneTab, splitPaneTab } from './pane-actions';
 import { PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
+
+function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
+    return event.dataTransfer.types.includes(PANE_TAB_DRAG_TYPE);
+}
 
 /**
  * Agent activity for the Terminal that owns the selected Session's title, or `undefined` for a Shell and for a
@@ -65,11 +68,11 @@ interface PaneTabProperties {
 
 function TerminalPaneTab({
     active,
-    isOnlyTab,
+    isOnlySessionTerminal,
     onNavigate,
     tab,
     terminal,
-}: PaneTabProperties & { isOnlyTab: boolean; terminal: TerminalRecord }) {
+}: PaneTabProperties & { isOnlySessionTerminal: boolean; terminal: TerminalRecord }) {
     const progress = useTerminalProgress(terminal.id);
     const isCompacting = terminal.agentOperation === 'compacting';
     const ProgressIcon =
@@ -140,10 +143,12 @@ function TerminalPaneTab({
                 <ContextMenuContent>
                     <ContextMenuItem
                         disabledReason={
-                            isOnlyTab ? 'This is the only tab open in this session' : undefined
+                            isOnlySessionTerminal
+                                ? 'This is the only tab open in this session'
+                                : undefined
                         }
-                        disabled={isOnlyTab}
-                        onClick={() => moveTerminalToNewSession(terminal.id, isOnlyTab)}
+                        disabled={isOnlySessionTerminal}
+                        onClick={() => moveTerminalToNewSession(terminal.id, isOnlySessionTerminal)}
                     >
                         Move to New Session
                     </ContextMenuItem>
@@ -258,7 +263,7 @@ function DocumentPaneTab({
     );
 }
 
-function PaneTabEntry(properties: PaneTabProperties & { isOnlyTab: boolean }) {
+function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: boolean }) {
     const terminalId =
         properties.tab.resource.kind === 'terminal'
             ? properties.tab.resource.terminalId
@@ -273,19 +278,22 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlyTab: boolean }) {
  * One pane's own tab bar. Every pane has one, split or not, and the bar never branches on what its tabs hold: the two
  * tab components differ only in what they render inside the same `WorkTab`.
  */
-export function PaneTabBar({ isRootBar, pane }: { isRootBar: boolean; pane: PaneNode }) {
+export function PaneTabBar({
+    isOnlySessionTerminal,
+    isRootBar,
+    pane,
+    paneLabel,
+}: {
+    isOnlySessionTerminal: boolean;
+    isRootBar: boolean;
+    pane: PaneNode;
+    paneLabel: string;
+}) {
     const isSidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
     const [isDropTarget, setIsDropTarget] = useState(false);
     const barReference = useRef<HTMLDivElement>(null);
     const activeTabId =
         pane.tabs.find((tab) => tab.id === pane.activeTabId)?.id ?? pane.tabs[0]?.id;
-    const terminalIds = pane.tabs.flatMap((tab) =>
-        tab.resource.kind === 'terminal' ? [tab.resource.terminalId] : [],
-    );
-    const terminalKey = terminalIds.join('\u{0}');
-    useEffect(() => {
-        retainTerminalProgress(new Set(terminalKey ? terminalKey.split('\u{0}') : []));
-    }, [terminalKey]);
     /**
      * `overflow-x-auto` has no built-in cue for "the active tab is off to the side," so selecting or creating a tab
      * that lands outside the visible bar must scroll it into view itself.
@@ -315,8 +323,6 @@ export function PaneTabBar({ isRootBar, pane }: { isRootBar: boolean; pane: Pane
         }
         selectPaneTab(target);
     };
-    const canAcceptDrop = (event: DragEvent<HTMLElement>): boolean =>
-        event.dataTransfer.types.includes(PANE_TAB_DRAG_TYPE);
     return (
         <div
             className={cn(
@@ -359,7 +365,7 @@ export function PaneTabBar({ isRootBar, pane }: { isRootBar: boolean; pane: Pane
                      */
                     className="work-tab-list flex h-11 min-w-full items-stretch"
                     role="tablist"
-                    aria-label="Open tabs"
+                    aria-label={`Open tabs in ${paneLabel}`}
                     aria-orientation="horizontal"
                 >
                     <LazyMotion strict features={domAnimation}>
@@ -368,7 +374,7 @@ export function PaneTabBar({ isRootBar, pane }: { isRootBar: boolean; pane: Pane
                                 <PaneTabEntry
                                     key={tab.id}
                                     active={tab.id === activeTabId}
-                                    isOnlyTab={pane.tabs.length === 1}
+                                    isOnlySessionTerminal={isOnlySessionTerminal}
                                     onNavigate={(key) => navigate(tab.id, key)}
                                     paneId={pane.id}
                                     tab={tab}
