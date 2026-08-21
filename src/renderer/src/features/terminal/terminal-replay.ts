@@ -18,6 +18,10 @@ export interface TerminalReplaySnapshot {
 
 export interface TerminalReplayCoordinatorOptions extends TerminalReplayBufferOptions {
     /**
+     * Pauses layout-driven fitting before a snapshot request can observe or restore the source grid.
+     */
+    beginSnapshot?: () => void;
+    /**
      * Locks xterm to the source grid immediately before a serialized framebuffer is parsed.
      */
     prepareSnapshot?: (snapshot: TerminalReplaySnapshot) => void;
@@ -172,6 +176,7 @@ export class TerminalReplayCoordinator {
     }
 
     async restoreInitial(snapshot: TerminalReplaySnapshot | null): Promise<void> {
+        this.replayOptions.beginSnapshot?.();
         try {
             if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
             await this.replay.restore(snapshot?.payload ?? '');
@@ -186,15 +191,12 @@ export class TerminalReplayCoordinator {
             await this.tail;
             const replay = new TerminalReplayBuffer(this.write, this.replayOptions);
             this.replay = replay;
+            this.replayOptions.beginSnapshot?.();
             try {
                 const snapshot = await loadSnapshot();
-                try {
-                    if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
-                    this.reset();
-                    await replay.restore(snapshot?.payload ?? '');
-                } finally {
-                    this.replayOptions.finishSnapshot?.();
-                }
+                if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
+                this.reset();
+                await replay.restore(snapshot?.payload ?? '');
             } catch (error) {
                 /**
                  * Keep the existing screen on an attach failure, but release output buffered while the Runtime request
@@ -202,6 +204,8 @@ export class TerminalReplayCoordinator {
                  */
                 await replay.restore('');
                 throw error;
+            } finally {
+                this.replayOptions.finishSnapshot?.();
             }
         })();
         this.tail = settleQuietly(task);

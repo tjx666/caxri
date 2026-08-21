@@ -15,6 +15,7 @@ import { caxri } from '../../lib/caxri';
 import { describeFailure, pushToast } from '../../stores/toasts';
 import {
     heldMessageActionResultForError,
+    loadHeldMessageDetail,
     updateHeldMessagesAfterAction,
 } from './agent-message-approval-state';
 
@@ -78,23 +79,23 @@ export function AgentMessageApprovalDialog() {
         const messageId = currentMessageId;
         if (!messageId) return () => {};
         let isActive = true;
-        async function loadDetail(id: string): Promise<void> {
-            try {
-                const value = await caxri.request('agent.message.held.get', {
-                    messageId: id,
-                });
-                if (isActive) setDetail(value);
-            } catch (error: unknown) {
-                if (!isActive) return;
+        // eslint-disable-next-line no-void -- the loader owns error handling and the effect cleanup only flips isActive
+        void loadHeldMessageDetail({
+            isActive: () => isActive,
+            onDetail: setDetail,
+            onFailure: (error) => {
                 setDetailFailed(true);
                 pushToast(
                     'error',
                     describeFailure(error, 'Unable to load the complete peer message'),
                 );
-            }
-        }
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void loadDetail(messageId);
+            },
+            onStale: () =>
+                setMessages((existing) =>
+                    existing.filter(({ messageId: existingId }) => existingId !== messageId),
+                ),
+            request: () => caxri.request('agent.message.held.get', { messageId }),
+        });
         return () => {
             isActive = false;
         };

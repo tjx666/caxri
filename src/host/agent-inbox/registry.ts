@@ -603,19 +603,24 @@ export class AgentInboxRegistry {
             .map(heldMessageProjection);
     }
 
-    heldDetail(messageId: string): AgentHeldMessageDetail {
+    heldDetail(messageId: string): AgentHeldMessageDetail | null {
         this.sweep();
         const message = this.messages.get(messageId);
-        if (message?.state !== 'held')
-            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        if (!message) throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        /**
+         * A Desktop read can race the receipt event that removes a message from the approval dialog. `null` keeps a
+         * known terminal receipt out of the error channel without weakening unknown-ID validation or retaining body.
+         */
+        if (message.state !== 'held') return null;
         return heldMessageDetail(message);
     }
 
     approve(messageId: string): AgentMessageReceipt {
         this.sweep();
         const message = this.messages.get(messageId);
-        if (message?.state !== 'held' || !message.to)
-            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        if (!message) throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        if (message.state !== 'held') return message.receipt;
+        if (!message.to) throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
         this.endpoints.resolve(message.to.ref);
         const receiverKey = endpointKey(message.to.ref);
         if ((this.waiting.get(receiverKey)?.length ?? 0) >= MAX_WAITING_PER_ENDPOINT) {
@@ -638,8 +643,8 @@ export class AgentInboxRegistry {
     deny(messageId: string): AgentMessageReceipt {
         this.sweep();
         const message = this.messages.get(messageId);
-        if (message?.state !== 'held')
-            throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        if (!message) throw new CaxriError('NOT_FOUND', 'Held Agent message was not found');
+        if (message.state !== 'held') return message.receipt;
         this.finish(message, 'refused');
         return message.receipt;
     }
