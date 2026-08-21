@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -63,8 +64,30 @@ function literalVersionLocations(): string[] {
         );
 }
 
+async function repoVersionLocations(): Promise<string[]> {
+    const { stdout } = await execFileAsync('git', ['ls-files', '-z'], { cwd: repoRoot });
+    const executableSource =
+        /(?:^|\/)(?:[^/]+\.(?:cjs|js|json|mjs|sh|toml|ts|yaml|yml)|Dockerfile)$/u;
+    const excluded = new Set(['mise.toml', 'pnpm-lock.yaml']);
+    const versions = [miseVersion('node'), miseVersion('pnpm')];
+
+    const candidates = stdout
+        .split('\0')
+        .filter((path) => path && !excluded.has(path) && executableSource.test(path));
+    const sources = await Promise.all(
+        candidates.map(async (path) => ({
+            path,
+            source: await readFile(join(repoRoot, path), 'utf8'),
+        })),
+    );
+
+    return sources.flatMap(({ path, source }) =>
+        versions.some((version) => source.includes(version)) ? [path] : [],
+    );
+}
+
 describe('toolchain contract', () => {
-    it('loads the exact Node.js and pnpm versions from mise.toml without action-local copies', () => {
+    it('loads the exact Node.js and pnpm versions from mise.toml without action-local copies', async () => {
         const versionStep = stepByName('Read mise tool versions');
         const nodeSetupStep = setupActionDocument.runs.steps.find((step) =>
             step.uses?.startsWith('actions/setup-node@'),
@@ -101,6 +124,11 @@ describe('toolchain contract', () => {
             literalLocations,
             `Action-local version copies: ${literalLocations.join(', ')}`,
         ).toEqual([]);
+        const repoLocations = await repoVersionLocations();
+        expect(
+            repoLocations,
+            `Repository-local version copies: ${repoLocations.join(', ')}`,
+        ).toEqual([]);
     });
 
     it('exports the mise versions for later composite-action steps', async () => {
@@ -132,7 +160,13 @@ describe('toolchain contract', () => {
     it('keeps the TypeScript 7 CLI and TypeScript 6 JavaScript API wired side by side', async () => {
         const tscPath = join(repoRoot, 'node_modules', '.bin', 'tsc');
         const { stdout } = await execFileAsync(tscPath, ['--version']);
-        const typescript = (await import('typescript')) as { version: string };
+        const eslintConfigRequire = createRequire(
+            new URL('../../eslint.config.ts', import.meta.url),
+        );
+        const eslintConfigEntry = eslintConfigRequire.resolve(
+            '@yutengjing/eslint-config-typescript',
+        );
+        const typescript = createRequire(eslintConfigEntry)('typescript') as { version: string };
 
         expect(packageManifest.devDependencies['@typescript/native']).toMatch(
             /^npm:typescript@7\./u,
