@@ -63,6 +63,29 @@ test('Session history navigates back and forward from the Sidebar header and the
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionA);
         await expect(forward).toBeDisabled();
         await expect(back).toBeEnabled();
+
+        /**
+         * The two extra mouse buttons drive the same history. Playwright's `mouse` API only models left/right/middle,
+         * so they are dispatched over raw CDP — which is also the closest thing to a real device event available here.
+         */
+        const cdp = await running.page.context().newCDPSession(running.page);
+        const pressSideButton = async (button: 'back' | 'forward'): Promise<void> => {
+            const event = { button, clickCount: 1, x: 200, y: 200 };
+            await cdp.send('Input.dispatchMouseEvent', {
+                ...event,
+                type: 'mousePressed',
+                buttons: button === 'back' ? 8 : 16,
+            });
+            await cdp.send('Input.dispatchMouseEvent', {
+                ...event,
+                type: 'mouseReleased',
+                buttons: 0,
+            });
+        };
+        await pressSideButton('back');
+        await expect.poll(() => selectedSessionId(running.page)).toBe(sessionB);
+        await pressSideButton('forward');
+        await expect.poll(() => selectedSessionId(running.page)).toBe(sessionA);
     } finally {
         try {
             await running.app.close();
