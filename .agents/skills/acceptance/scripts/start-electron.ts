@@ -1,6 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { access, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { access, readFile, realpath, unlink } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
@@ -32,6 +32,7 @@ import {
     prepareAcceptanceUserData,
     removeOwnedUserData,
     runtimeStateSchema,
+    writeRuntimeState,
 } from './runtime-state';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -102,6 +103,7 @@ interface WaitForCdpDependencies {
 }
 
 export interface StaleRuntimeDependencies {
+    canonicalPath: (path: string) => Promise<string>;
     discoverOwnedProcesses: typeof discoverOwnedProcesses;
     isOwnedProcess: typeof isOwnedProcess;
     isOwnedRuntime: typeof isOwnedRuntime;
@@ -110,6 +112,11 @@ export interface StaleRuntimeDependencies {
     removeOwnedUserData: typeof removeOwnedUserData;
     runtimePath: string;
     unlinkRuntime: () => Promise<void>;
+}
+
+export interface RestartRuntimeExpectation {
+    caseId: string;
+    userDataDir: string;
 }
 
 export interface WaitForOwnedProcessesDependencies {
@@ -252,6 +259,7 @@ export function createElectronStopController(
 }
 
 const defaultStaleRuntimeDependencies: StaleRuntimeDependencies = {
+    canonicalPath: realpath,
     discoverOwnedProcesses,
     isOwnedProcess,
     isOwnedRuntime,
@@ -264,12 +272,13 @@ const defaultStaleRuntimeDependencies: StaleRuntimeDependencies = {
 
 export async function removeStaleRuntime(
     dependencies: StaleRuntimeDependencies = defaultStaleRuntimeDependencies,
-): Promise<void> {
+    expectedRestart?: RestartRuntimeExpectation,
+): Promise<RuntimeState['ownedProcesses']> {
     let rawText: string;
     try {
         rawText = await dependencies.readRuntime();
     } catch (error: unknown) {
-        if (errorCode(error) === 'ENOENT') return;
+        if (errorCode(error) === 'ENOENT') return [];
         throw error;
     }
 
@@ -283,11 +292,16 @@ export async function removeStaleRuntime(
         );
     }
 
-    /**
-     * Preserve a verified live owner; only stale identity can release its state.
-     */
     if (await dependencies.isOwnedRuntime(current)) {
         throw new Error('Acceptance instance already running with a live owned process');
+    }
+    /**
+     * An empty receipt means startup never crossed the Host/Runtime ownership boundary, so absence is not proof.
+     */
+    if (current.ownedProcesses.length === 0) {
+        throw new Error(
+            'Acceptance process ownership was never verified; runtime state and profile were preserved',
+        );
     }
     const persistedLiveness = await Promise.all(
         current.ownedProcesses.map((ownedProcess) => dependencies.isOwnedProcess(ownedProcess)),
@@ -296,13 +310,47 @@ export async function removeStaleRuntime(
         current,
         dependencies.projectRoot,
     );
+    const isMatchingRestart = expectedRestart
+        ? current.acceptanceCase?.id === expectedRestart.caseId &&
+          current.acceptanceCase.mode === 'restart' &&
+          (await dependencies.canonicalPath(current.projectRoot)) ===
+              (await dependencies.canonicalPath(dependencies.projectRoot)) &&
+          (await dependencies.canonicalPath(current.userDataDir)) ===
+              (await dependencies.canonicalPath(expectedRestart.userDataDir))
+        : false;
+    if (isMatchingRestart && (persistedLiveness.some(Boolean) || discoveredProcesses.length > 0)) {
+        /**
+         * A restart may inherit the same verified Host generation, but never adopt a replacement profile owner.
+         */
+        const persistedHostKeys = new Set(
+            current.ownedProcesses
+                .filter(({ role }) => role === 'host')
+                .map(({ identity, pid }) => `${pid}:${identity}`),
+        );
+        const discoveredHost = discoveredProcesses.find(({ role }) => role === 'host');
+        if (
+            !discoveredHost ||
+            !persistedHostKeys.has(`${discoveredHost.pid}:${discoveredHost.identity}`)
+        ) {
+            throw new Error('Acceptance restart profile owner changed process identity');
+        }
+        return new Map(
+            [...current.ownedProcesses, ...discoveredProcesses].map((ownedProcess) => [
+                `${ownedProcess.pid}:${ownedProcess.identity}`,
+                ownedProcess,
+            ]),
+        )
+            .values()
+            .toArray();
+    }
     if (persistedLiveness.some(Boolean) || discoveredProcesses.length > 0) {
         throw new Error(
             'Acceptance detached processes are still running; run stop-electron before starting another instance',
         );
     }
     await dependencies.unlinkRuntime();
-    await dependencies.removeOwnedUserData(current);
+    if (!isMatchingRestart) await dependencies.removeOwnedUserData(current);
+    return [];
 }
 
 export async function waitForOwnedProcesses(
@@ -342,13 +390,6 @@ async function assertPortAvailable(port: number): Promise<void> {
     );
 }
 
-async function writeRuntime(state: RuntimeState): Promise<void> {
-    await mkdir(dirname(RUNTIME_PATH), { recursive: true });
-    const temporary = `${RUNTIME_PATH}.${process.pid}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-    await rename(temporary, RUNTIME_PATH);
-}
-
 export async function waitForCdp(
     port: number,
     child: ChildProcess,
@@ -386,6 +427,15 @@ async function main(): Promise<void> {
         throw new Error('--port must be an integer between 1024 and 65535');
     }
 
+    const caseId = stringOption(options, 'case-id');
+    const reportDirectory = stringOption(options, 'report-dir');
+    if (!caseId || !reportDirectory) {
+        throw new Error('Acceptance launch requires --case-id and --report-dir');
+    }
+    const caseMode = (stringOption(options, 'case-mode') ?? 'isolated') as 'isolated' | 'restart';
+    const reuseUserDataDirectory = stringOption(options, 'reuse-user-data');
+    const isCleanupReusable = hasBooleanOption(options, 'cleanup-reused-user-data');
+
     let desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
     try {
         await access(ELECTRON_PATH);
@@ -395,7 +445,15 @@ async function main(): Promise<void> {
             staleMessage: STALE_BUILD_MESSAGE,
             watchedDirectoryExtensions: WATCHED_BUILD_INPUT_EXTENSIONS,
         });
-        await removeStaleRuntime();
+        const inheritedOwnedProcesses = await removeStaleRuntime(
+            defaultStaleRuntimeDependencies,
+            caseMode === 'restart' && reuseUserDataDirectory
+                ? {
+                      caseId,
+                      userDataDir: resolve(PROJECT_ROOT, reuseUserDataDirectory),
+                  }
+                : undefined,
+        );
         await assertPortAvailable(port);
 
         const requestedRoots = stringOptions(options, 'test-root');
@@ -412,15 +470,6 @@ async function main(): Promise<void> {
             }),
         );
         const testRootPath = testRootPaths[0];
-        const caseId = stringOption(options, 'case-id');
-        const reportDirectory = stringOption(options, 'report-dir');
-        if (!caseId || !reportDirectory) {
-            throw new Error('Acceptance launch requires --case-id and --report-dir');
-        }
-        const caseMode = (stringOption(options, 'case-mode') ?? 'isolated') as
-            'isolated' | 'restart';
-        const reuseUserDataDirectory = stringOption(options, 'reuse-user-data');
-        const isCleanupReusable = hasBooleanOption(options, 'cleanup-reused-user-data');
         const plannedCase = await loadAcceptanceCasePlan(reportDirectory, caseId);
         assertAcceptanceBuildCommit({
             builtMainSource: await readFile(BUILT_MAIN_PATH, 'utf8'),
@@ -489,7 +538,7 @@ async function main(): Promise<void> {
                     electronPid,
                     launcherIdentity,
                     launcherPid: process.pid,
-                    ownedProcesses: [],
+                    ownedProcesses: inheritedOwnedProcesses,
                     ownedUserData,
                     port,
                     projectRoot: PROJECT_ROOT,
@@ -499,11 +548,11 @@ async function main(): Promise<void> {
                     userDataDir,
                 };
                 isPreserveOwnedRuntimeState = true;
-                await writeRuntime(runtime);
+                await writeRuntimeState(RUNTIME_PATH, runtime);
                 await Promise.race([waitForCdp(port, child), rejectOnChildExit()]);
                 runtime.ownedProcesses = await waitForOwnedProcesses(runtime, PROJECT_ROOT);
                 hasVerifiedOwnedProcesses = true;
-                await writeRuntime(runtime);
+                await writeRuntimeState(RUNTIME_PATH, runtime);
                 await markCaseLifecycleReady(plannedCase.directory, {
                     caseId,
                     launchId: lifecycleLaunchId,
@@ -539,7 +588,7 @@ async function main(): Promise<void> {
                             ({ identity, pid }) => !recordedProcessKeys.has(`${pid}:${identity}`),
                         ),
                     );
-                    await writeRuntime(runtime);
+                    await writeRuntimeState(RUNTIME_PATH, runtime);
                 }
                 /**
                  * The Host owns the profile lock, but Runtime can survive after Host exits and is then reparented. Keep

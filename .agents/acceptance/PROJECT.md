@@ -54,7 +54,10 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   captured owned processes are gone.
 - **Already-running detection:** the adapter compares the recorded launcher PID
   and immutable process identity. It refuses to replace a verified live owner
-  and treats a recycled PID as stale state.
+  and treats a recycled PID as stale state. A declared restart may carry the same verified Host
+  generation into its next launch only when the case, canonical profile, and worktree all match.
+  State written before Host/Runtime ownership was verified is preserved for inspection rather than
+  being treated as safely stale.
 - **CDP resolution:** read `port` and `cdpUrl` from the runtime file or from the
   JSON readiness line printed by the start script. Do not assume another Caxri
   instance uses the same port.
