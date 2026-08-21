@@ -105,10 +105,9 @@ contracts, not docs-only changes.
 6. Report no findings when the evidence is clean. Do not invent suggestions to fill dimensions.
 7. Apply the repair policy to validated findings, then recheck the repaired diff before reporting.
 
-When this session implemented the change under review, do not run the checklist inline over your
-own implementation context: dispatch one clean-context subagent with the light-mode instructions
-and scope, then apply its findings with your own judgment. This guards against self-review bias
-and is not an escalation to deep mode.
+An author reviewing their own implementation must dispatch one clean-context subagent with the
+light-mode instructions and scope, then adjudicate its findings. This is an independence boundary,
+not an escalation to deep mode.
 
 ## Quick mode
 

@@ -46,8 +46,9 @@ That is selection feedback, not a passing E2E result; use `--e2e` instead. Call 
 "unit-testing" for focused Vitest selection and regression design, and Call the Skill tool with
 "e2e-testing" for Electron isolation.
 
-Successful ESLint, Prettier, build, Vitest, and Playwright output is intentionally collapsed into
-one summary. Failures include the underlying tool output needed to act.
+Successful output reports dirty ownership layers, suggested follow-up gates, and actually executed
+checks as separate fields. Suggested gates are not execution receipts. Failures include the
+underlying tool output needed to act.
 
 `bun run knip` remains a repository-wide CI gate; run `knip` (or `--knip`) before pushing Renderer
 or shared-contract changes. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff

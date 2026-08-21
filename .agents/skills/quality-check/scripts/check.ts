@@ -30,6 +30,109 @@ export interface CheckOptions {
     type: boolean;
 }
 
+export type DirtyLayer =
+    | 'Renderer'
+    | 'Main'
+    | 'Preload'
+    | 'Host'
+    | 'Runtime'
+    | 'IPC'
+    | 'Shared'
+    | 'CLI'
+    | 'e2e'
+    | 'skills'
+    | 'tooling'
+    | 'docs'
+    | 'other';
+
+export interface DirtyLayerReport {
+    layers: DirtyLayer[];
+    suggestedGates: string[];
+}
+
+const PROTECTED_E2E_GATES = new Map([
+    ['e2e/real-agent-smoke.e2e.ts', 'bun run test:e2e:real-agent'],
+    ['e2e/failure-isolation.e2e.ts', 'bun run scripts/run-e2e-failure-isolation.ts'],
+]);
+
+const DIRTY_LAYER_ORDER: DirtyLayer[] = [
+    'Renderer',
+    'Main',
+    'Preload',
+    'Host',
+    'Runtime',
+    'IPC',
+    'Shared',
+    'CLI',
+    'e2e',
+    'skills',
+    'tooling',
+    'docs',
+    'other',
+];
+
+function dirtyLayerForFile(file: string): DirtyLayer {
+    const normalized = file.replaceAll('\\', '/');
+    if (normalized.startsWith('src/renderer/')) return 'Renderer';
+    if (normalized.startsWith('src/main/')) return 'Main';
+    if (normalized.startsWith('src/preload/')) return 'Preload';
+    if (normalized.startsWith('src/host/')) return 'Host';
+    if (normalized.startsWith('src/runtime/')) return 'Runtime';
+    if (normalized.startsWith('packages/protocol/') || normalized.startsWith('src/shared/ipc/'))
+        return 'IPC';
+    if (normalized.startsWith('packages/utils/') || normalized.startsWith('src/shared/'))
+        return 'Shared';
+    if (normalized.startsWith('packages/cli/')) return 'CLI';
+    if (normalized.startsWith('e2e/')) return 'e2e';
+    if (normalized.startsWith('.agents/skills/')) return 'skills';
+    if (
+        normalized.startsWith('.github/') ||
+        normalized.startsWith('build/') ||
+        normalized.startsWith('scripts/')
+    )
+        return 'tooling';
+    if (normalized.startsWith('docs/') || extname(normalized).toLowerCase() === '.md')
+        return 'docs';
+    return 'other';
+}
+
+/**
+ * Reports affected ownership layers and follow-up gates without executing the suggested gates.
+ */
+export function dirtyLayerReportForFiles(
+    files: string[],
+    hasExplicitFiles: boolean,
+): DirtyLayerReport {
+    const dirtyLayers = new Set(files.map(dirtyLayerForFile));
+    const layers = DIRTY_LAYER_ORDER.filter((layer) => dirtyLayers.has(layer));
+    const suggestedGates: string[] = [];
+    if (dirtyLayers.has('Renderer')) suggestedGates.push('bun run doctor:changed');
+    if (dirtyLayers.has('Renderer') || dirtyLayers.has('IPC') || dirtyLayers.has('Shared'))
+        suggestedGates.push('bun run knip');
+    if (hasExplicitFiles) {
+        const e2eSpecs = files.filter((file) => /^e2e\/.+\.e2e\.ts$/.test(file));
+        if (e2eSpecs.some((file) => !PROTECTED_E2E_GATES.has(file))) suggestedGates.push('--e2e');
+        for (const [file, gate] of PROTECTED_E2E_GATES) {
+            if (e2eSpecs.includes(file)) suggestedGates.push(gate);
+        }
+    }
+    return { layers, suggestedGates };
+}
+
+export function formatCheckSummary(input: {
+    changedFileCount: number;
+    dirtyLayers: DirtyLayer[];
+    executedChecks: string[];
+    suggestedGates: string[];
+}): string {
+    const dirtyLayers = input.dirtyLayers.length > 0 ? input.dirtyLayers.join(', ') : 'none';
+    const suggestedGates =
+        input.suggestedGates.length > 0 ? input.suggestedGates.join(', ') : 'none';
+    const executedChecks =
+        input.executedChecks.length > 0 ? input.executedChecks.join(' · ') : 'none';
+    return `✓ check · ${input.changedFileCount} changed · dirty layers ${dirtyLayers} · suggested gates ${suggestedGates} · ran ${executedChecks}`;
+}
+
 class CheckError extends Error {
     constructor(
         message: string,
@@ -514,7 +617,15 @@ async function main(): Promise<void> {
         summaries.push(`e2e ${await runE2E(root, e2eSpecs, options.e2eGrep)}`);
     }
 
-    console.log(`✓ check · ${files.length} changed · ${summaries.join(' · ')}`);
+    const dirtyLayerReport = dirtyLayerReportForFiles(files, options.files.length > 0);
+    console.log(
+        formatCheckSummary({
+            changedFileCount: files.length,
+            dirtyLayers: dirtyLayerReport.layers,
+            executedChecks: summaries,
+            suggestedGates: dirtyLayerReport.suggestedGates,
+        }),
+    );
 }
 
 const currentFile = fileURLToPath(import.meta.url);
