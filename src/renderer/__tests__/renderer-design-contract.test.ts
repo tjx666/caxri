@@ -265,4 +265,32 @@ describe('Renderer design contract', () => {
             'arbitrary classes missing from the DESIGN.md allowlist',
         ).toEqual([]);
     });
+
+    it('gates the shared Button and the Session history controls hover affordances behind :enabled', async () => {
+        // A disabled button still matches `:hover` in CSS even though Chromium dispatches no pointer events to it, so
+        // an ungated `hover:` utility paints a hover fill under a cursor whose click does nothing. The Button recipe is
+        // the shared obligation; the history arrows are listed because they add their own hover utility on top of it.
+        // Other consumers that pass `disabled` are not scanned yet — widening this to every `.tsx` needs a way to tell
+        // a disabled-capable control from an always-interactive one first.
+        const paths = [
+            join(rendererRoot, 'components/ui/button.tsx'),
+            join(rendererRoot, 'features/sidebar/session-history-navigation.tsx'),
+        ];
+        const violationsByFile = await Promise.all(
+            paths.map(async (path): Promise<string[]> => {
+                const source = await readFile(path, 'utf8');
+                const sourceFile = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
+                return source
+                    .matchAll(/([\w-]*:?)hover:/g)
+                    .filter((match) => !['enabled:', 'group-', 'peer-'].includes(match[1]))
+                    .map((match) => sourceLocation(path, sourceFile, match.index))
+                    .toArray();
+            }),
+        );
+
+        expect(
+            violationsByFile.flat(),
+            'use `enabled:hover:` so a disabled control never renders a hover affordance',
+        ).toEqual([]);
+    });
 });

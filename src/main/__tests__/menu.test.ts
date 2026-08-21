@@ -93,6 +93,35 @@ describe('application menu', () => {
         expect(dispatchCommand).toHaveBeenCalledWith('terminal.copy', false);
     });
 
+    it('translates DOM key names Electron does not accept as accelerator tokens', () => {
+        // `ARROWLEFT` is not an Electron token, so an unmapped arrow silently leaves the menu item without a working
+        // accelerator while the Renderer's own DOM shortcut keeps firing — the failure is invisible from the Renderer.
+        const template = buildAppMenuTemplate({
+            keybindings: [
+                { command: 'session.navigateBack', key: 'ctrl+alt+arrowleft' },
+                { command: 'session.navigateForward', key: 'ctrl+alt+arrowright' },
+                { command: 'terminal.previousCommand', key: 'cmd+shift+arrowup' },
+                { command: 'terminal.nextCommand', key: 'cmd+shift+arrowdown' },
+            ],
+            dispatchCommand: vi.fn(),
+            openProcessExplorer: vi.fn(),
+        });
+        const accelerators = template.flatMap((menu) =>
+            Array.isArray(menu.submenu)
+                ? menu.submenu.flatMap((item) =>
+                      item.id && item.accelerator ? [[item.id, item.accelerator]] : [],
+                  )
+                : [],
+        );
+
+        expect(Object.fromEntries(accelerators)).toMatchObject({
+            'command.session.navigateBack': 'Control+Alt+Left',
+            'command.session.navigateForward': 'Control+Alt+Right',
+            'command.terminal.previousCommand': 'Command+Shift+Up',
+            'command.terminal.nextCommand': 'Command+Shift+Down',
+        });
+    });
+
     it('keeps Process Explorer opening in Main for its diagnostic window', () => {
         const dispatchCommand = vi.fn();
         const openProcessExplorer = vi.fn();

@@ -12,9 +12,11 @@ import {
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     beginSessionCreation,
+    canNavigateSessionHistory,
     chooseProjectDirectory,
     deleteSelectedProject,
     deleteSelectedSession,
+    navigateSessionHistory,
     openSelectedProjectInExternalEditor,
     selectAdjacentSession,
     switchMruSession,
@@ -120,7 +122,9 @@ const commandContext: CommandContext = {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else void chooseProjectDirectory();
         },
+        canNavigateHistory: canNavigateSessionHistory,
         deleteSelected: deleteSelectedSession,
+        navigateHistory: navigateSessionHistory,
         selectAdjacent: selectAdjacentSession,
         switchMru: switchMruSession,
     },

@@ -6,7 +6,13 @@ import process from 'node:process';
 import type { AppSettings, BootstrapState } from '../src/shared/types.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    createAdditionalShellSession,
+    createProjectSession,
+    launchCaxri,
+    pageRequest,
+    selectedSessionId,
+} from './support/helpers.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
 test('Codex compaction is visible without becoming attention or hiding process state', async ({}, testInfo) => {
@@ -46,6 +52,9 @@ process.stdin.on('data', () => {
   } else if (step === 2) {
     invokeHook('PostCompact');
     process.stdout.write('Compaction finished\r\n');
+  } else if (step === 3) {
+    invokeHook('PreCompact');
+    process.stdout.write('Compaction restarted\r\n');
   }
 });
 process.stdin.resume();
@@ -95,6 +104,7 @@ process.stdout.write('Compaction Agent ready\r\n');
             'Compacting. Codex is summarizing earlier context before continuing.',
         );
         await expect(sessionRow.locator('.session-unread')).toHaveCount(0);
+
         expect(await tabOperation.evaluate((element) => element.getAnimations().length)).toBe(0);
 
         const compactingState = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
@@ -134,6 +144,29 @@ process.stdout.write('Compaction Agent ready\r\n');
             finishedState.terminals.find((terminal) => terminal.sessionId === sessionId)
                 ?.agentOperation,
         ).toBeUndefined();
+
+        /**
+         * A Session has to read the same way wherever its row is drawn, and the MRU switcher shares the Sidebar's
+         * activity dot. Compaction is restarted here, at the end, because the switcher only lists the Sessions the user
+         * is not on: reaching it needs a second Session and a switch, which discards the ephemeral Terminal progress
+         * the workflow above asserts.
+         */
+        await running.page.locator('.xterm-helper-textarea').press('c');
+        await expect(tabOperation).toHaveText('Compacting');
+        await createAdditionalShellSession(running.page);
+        await running.page.keyboard.down('Control');
+        await running.page.keyboard.down('Alt');
+        await running.page.keyboard.press('Tab');
+        const switcherRow = running.page
+            .getByRole('listbox', { name: 'Recently used Sessions' })
+            .locator(`[data-session-id="${sessionId}"] .activity`);
+        await expect(switcherRow).toHaveAttribute('data-agent-operation', 'compacting');
+        await expect(switcherRow).toHaveAccessibleName(
+            'Compacting. Codex is summarizing earlier context before continuing.',
+        );
+        await running.page.keyboard.up('Alt');
+        await running.page.keyboard.up('Control');
+        await expect.poll(() => selectedSessionId(running.page)).toBe(sessionId);
     } finally {
         try {
             await running.app.close();

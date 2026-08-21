@@ -63,9 +63,15 @@ const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
 /**
+ * The untouched defaults immediately before Sessions gained browser-style back/forward navigation.
+ */
+const preSessionNavigationDefaultKeybindings = defaultKeybindings.filter(
+    (binding) => !['session.navigateBack', 'session.navigateForward'].includes(binding.command),
+);
+/**
  * The untouched defaults immediately before Session MRU switching gained its own configurable shortcut.
  */
-const preSessionMruDefaultKeybindings = defaultKeybindings.filter(
+const preSessionMruDefaultKeybindings = preSessionNavigationDefaultKeybindings.filter(
     (binding) => binding.command !== 'session.switchMru',
 );
 /**
@@ -129,6 +135,7 @@ const newlyAddedDefaultCommands = new Set([
  * that release never shipped.
  */
 export const previousDefaultKeybindingSets = [
+    preSessionNavigationDefaultKeybindings,
     preSessionMruDefaultKeybindings,
     preBottomPanelDefaultKeybindings,
     preProjectOpenDefaultKeybindings,

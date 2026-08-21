@@ -64,6 +64,27 @@ describe('Session MRU switcher state', () => {
         expect(useSessionMruSwitcherStore.getState().isOpen).toBe(false);
     });
 
+    it('commits the candidate a pointer highlighted and ignores out-of-range rows', () => {
+        const store = useSessionMruSwitcherStore.getState();
+        store.beginOrCycle(['session-b', 'session-a', 'session-c'], {
+            heldModifiers: ['Control', 'Alt'],
+            triggerCode: 'Tab',
+        });
+        store.select(2);
+        expect(useSessionMruSwitcherStore.getState().selectedIndex).toBe(2);
+        store.select(3);
+        store.select(-1);
+        expect(useSessionMruSwitcherStore.getState().selectedIndex).toBe(2);
+        expect(store.commit()).toBe('session-c');
+    });
+
+    it('ignores pointer selection while the switcher is closed', () => {
+        const store = useSessionMruSwitcherStore.getState();
+        store.select(1);
+        expect(useSessionMruSwitcherStore.getState().selectedIndex).toBe(0);
+        expect(useSessionMruSwitcherStore.getState().isOpen).toBe(false);
+    });
+
     it('does not reveal the overlay during a quick press and release', () => {
         const store = useSessionMruSwitcherStore.getState();
         store.beginOrCycle(['session-b'], {

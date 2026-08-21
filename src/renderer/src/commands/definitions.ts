@@ -85,6 +85,23 @@ export const commandDefinitions: CommandDefinition[] = [
         (context, arguments_) => context.session.switchMru(sessionMruInvocation(arguments_)),
         { allowInEditable: true },
     ),
+    /**
+     * Both directions reach through a focused Terminal — history navigation is worthless if it stands down exactly
+     * where the cursor usually is — and stay unavailable while their stack is empty, so the chord falls through to the
+     * Terminal instead of being swallowed by a command that would do nothing.
+     */
+    fromCatalog('session.navigateBack', (context) => context.session.navigateHistory('back'), {
+        allowInEditable: true,
+        when: (context) => context.session.canNavigateHistory('back'),
+    }),
+    fromCatalog(
+        'session.navigateForward',
+        (context) => context.session.navigateHistory('forward'),
+        {
+            allowInEditable: true,
+            when: (context) => context.session.canNavigateHistory('forward'),
+        },
+    ),
     fromCatalog('terminal.new', (context) => context.terminal.create(), { allowInEditable: true }),
     fromCatalog('terminal.clear', (context) => context.terminal.clearActive(), {
         allowInEditable: true,

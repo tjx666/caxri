@@ -23,6 +23,7 @@ import { didSelectSession } from './features/session/session-actions';
 import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
 import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { useSessionMruSwitcherLifecycle } from './features/session/use-session-mru-switcher-lifecycle';
+import { useSessionNavigationHistory } from './features/session/use-session-navigation-history';
 import { SettingsDialog } from './features/settings/settings-dialog';
 import { ProjectIconDialog } from './features/sidebar/project-icon-dialog';
 import { ProjectSidebar } from './features/sidebar/project-sidebar';
@@ -94,6 +95,7 @@ export function App() {
     useRuntimeQueryInvalidation();
     useFileTreeQueryInvalidation();
     useSessionMruSwitcherLifecycle();
+    useSessionNavigationHistory();
     useCommandShortcuts();
     useSessionAttentionAcknowledgement();
     useExternalDocumentSync();

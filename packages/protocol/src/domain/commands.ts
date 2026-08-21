@@ -18,6 +18,8 @@ export const commandIds = [
     'session.selectNext',
     'session.selectPrevious',
     'session.switchMru',
+    'session.navigateBack',
+    'session.navigateForward',
     'terminal.new',
     'terminal.clear',
     'terminal.copy',

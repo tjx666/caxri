@@ -14,16 +14,30 @@ import {
     resolveSessionMruNavigation,
     useSessionMruSwitcherStore,
 } from './session-mru-switcher-state';
+import type { SessionNavigationDirection } from './session-navigation-history';
+import { useSessionNavigationHistoryStore } from './session-navigation-history';
 
 const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {};
 
-async function didRequestSessionSelection(sessionId: string): Promise<boolean> {
+async function didRequestSelection(sessionId: string): Promise<boolean> {
     const selected = await tryCommand(
         'Session selection failed',
         () => caxri.request('session.select', { sessionId }),
         { refresh: true },
     );
     return selected !== undefined;
+}
+
+/**
+ * Every Session selection the Renderer issues, history navigation aside, reports itself to the visit history. Leaving
+ * that to the observed Workbench snapshot cannot work: the snapshot carries no attribution, so a selection that races a
+ * history navigation is indistinguishable from that navigation's own echo.
+ */
+async function didRequestSessionSelection(sessionId: string): Promise<boolean> {
+    useSessionNavigationHistoryStore.getState().beginSelection();
+    const selected = await didRequestSelection(sessionId);
+    useSessionNavigationHistoryStore.getState().settleSelection(sessionId, selected);
+    return selected;
 }
 
 export async function didSelectSession(sessionId: string): Promise<boolean> {
@@ -275,6 +289,31 @@ export function switchMruSession(invocation?: SessionMruShortcutInvocation): voi
         .beginOrCycle(navigation.candidateIds, invocation);
     // A command-palette invocation, or a binding with no held modifier, is a one-shot jump to the previous Session.
     if (immediateSessionId) selectMruSession(immediateSessionId);
+}
+
+/**
+ * Walks the Session visit history, browser-style. The history stack is device-local and in-memory: it describes this
+ * window's navigation, not persisted Session state, so a relaunch legitimately starts with an empty stack.
+ */
+export function navigateSessionHistory(direction: SessionNavigationDirection): void {
+    const request = useSessionNavigationHistoryStore.getState().request(direction);
+    if (!request) return;
+    delete mruNavigationState.pendingSelection;
+    // Fire-and-forget: `didRequestSelection` funnels its own failures into a toast via `tryCommand`; the only thing
+    // left to do here is report the outcome back, so the history moves only for a navigation that actually happened.
+    // The request already registered itself with the history, which is why this does not go through
+    // `didRequestSessionSelection`.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void didRequestSelection(request.target).then((selected) => {
+        const history = useSessionNavigationHistoryStore.getState();
+        if (selected) history.confirm(request);
+        else history.abandon(request);
+    });
+}
+
+export function canNavigateSessionHistory(direction: SessionNavigationDirection): boolean {
+    const history = useSessionNavigationHistoryStore.getState();
+    return direction === 'back' ? history.canGoBack : history.canGoForward;
 }
 
 export function commitMruSession(): void {

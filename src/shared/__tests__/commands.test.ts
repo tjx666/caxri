@@ -74,6 +74,7 @@ describe('command registry', () => {
         ).toEqual([
             ['session.create', 'session.delete'],
             ['session.selectPrevious', 'session.selectNext'],
+            ['session.navigateBack', 'session.navigateForward'],
         ]);
     });
 
