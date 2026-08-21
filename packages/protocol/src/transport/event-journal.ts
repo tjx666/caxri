@@ -104,6 +104,7 @@ export type EventRecovery = z.infer<typeof eventRecoverySchema>;
 const OBSERVABLE_EVENT_NAMES = {
     'runtime.status': true,
     'state.changed': true,
+    'agentTranscript.changed': true,
     'terminal.exit': true,
     'files.changed': true,
     'files.operationChanged': true,

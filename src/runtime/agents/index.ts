@@ -4,4 +4,5 @@ export { discoverExecutable, readVersion } from './discovery';
 export { AgentHookManager } from './hooks';
 export type { AgentLifecyclePhase, AgentLifecycleSignal } from './hooks/contract';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
-export { readAgentTranscript } from './transcript';
+export { readAgentTranscript, resolveAgentTranscriptPath } from './transcript';
+export { AgentTranscriptWatcher } from './transcript-watcher';

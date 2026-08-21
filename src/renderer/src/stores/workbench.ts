@@ -477,6 +477,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'agent.message.held':
             case 'agent.message.receipt':
             case 'agent.messaging.changed':
+            case 'agentTranscript.changed':
             case 'agentHooks.changed':
             case 'files.changed':
             case 'files.operationChanged':
