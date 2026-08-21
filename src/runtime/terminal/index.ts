@@ -47,6 +47,7 @@ import {
     TerminalSnapshotPersistence,
 } from './snapshot-persistence';
 import { terminalEnvironment } from './terminal-environment';
+import { createTerminalTitleListener } from './terminal-title';
 
 export type {
     TerminalManagerOptions,
@@ -245,6 +246,11 @@ export class TerminalManager {
                             this.logger.write('warn', 'pty.screen_backpressure', {
                                 fields: { terminalId: record.id, droppedBytes },
                             }),
+                        onTitleChange: createTerminalTitleListener(
+                            record.id,
+                            this.database,
+                            this.emit,
+                        ),
                     },
                 ),
                 outputQueue: new TerminalOutputQueue(MAX_OUTPUT_BATCH_BYTES),

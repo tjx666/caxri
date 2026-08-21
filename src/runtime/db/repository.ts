@@ -655,6 +655,14 @@ export class CaxriDatabase {
         });
     }
 
+    /**
+     * Applies a PTY-reported (OSC 0/2) Terminal title. Returns whether anything actually changed so the caller can skip
+     * broadcasting a no-op; see `TerminalsModel.setTitle`.
+     */
+    setTerminalTitle(id: string, title: string): boolean {
+        return this.db.terminals.setTitle(id, title);
+    }
+
     closeTerminal(id: string): void {
         this.db.transaction(() => {
             const terminal = this.db.terminals.get(id);

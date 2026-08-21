@@ -20,17 +20,59 @@ import { processStateDescription } from './work-tab-accessibility';
 const processIndicatorClassName =
     'process-indicator w-1.5 h-1.5 flex-none m-0 rounded-full bg-muted';
 
+/**
+ * Wraps the tab in the shared `Tooltip` only when there is an untruncated title to reveal, so an Editor tab keeps its
+ * current tooltip-free behavior. The tooltip hangs off the `role="tab"` button rather than the label span because that
+ * is the focusable element — a native `title` attribute would be pointer-only.
+ */
+function MaybeTooltip({
+    children,
+    content,
+    triggerId,
+}: {
+    children: ReactElement;
+    content?: string;
+    triggerId?: string;
+}) {
+    if (!content) return children;
+    return (
+        <Tooltip content={content} triggerId={triggerId}>
+            {children}
+        </Tooltip>
+    );
+}
+
+function statusToneClassName(status: ProcessState): string | false {
+    if (status === 'running') return 'bg-success';
+    return ['dead', 'failed', 'interrupted'].includes(status) && 'bg-danger';
+}
+
 interface WorkTabProperties {
     active: boolean;
     accessory?: ReactNode;
     closeLabel: string;
     dirty?: boolean;
     fileIconName?: string;
+    /**
+     * Terminal tabs divide the strip evenly (iTerm2/Chrome), Editor tabs keep their natural width. See
+     * `TERMINAL_TAB_MAX_WIDTH` for why the two differ.
+     */
+    fill?: boolean;
     icon: 'file' | AgentIconIdentity;
     label: string;
+    /**
+     * Untruncated title behind an abbreviated `label`; see `terminalTabLabel`.
+     */
+    labelTooltip?: string;
     motionIdentity?: string;
     preview?: boolean;
     status?: ProcessState;
+    /**
+     * Agent activity for the Terminal that owns its Session's title, replacing raw process state on the status dot.
+     * "The PTY is alive" and "the Agent is waiting for you" are different questions, and only the second one is worth
+     * interrupting for; see `agentStatusDot`.
+     */
+    statusActivity?: { className: string; description: string };
     tabId: string;
     terminalId?: string;
     contextMenu?: ReactNode;
@@ -42,9 +84,30 @@ interface WorkTabProperties {
 }
 
 /**
- * Target width the tab grows to/from during its enter/exit width animation.
+ * Target width an Editor tab grows to/from during its enter/exit width animation.
  */
 const TAB_MAX_WIDTH = 180;
+
+/**
+ * Terminal tabs divide the strip evenly instead of hugging their label. Agent and Shell Terminals are this product's
+ * high-frequency surface and their count is naturally bounded (a handful per Session), which is exactly the shape even
+ * division is for: a large click target and a tab position that depends only on the tab count, so `Command+1..9` keeps
+ * a stable spatial meaning. Editor tabs are the low-frequency, transient exception and stay natural-width — if they
+ * divided too, opening one file would resize and shift every Agent tab.
+ *
+ * The cap keeps two Terminals from each claiming half the window and, on this frameless window, preserves the trailing
+ * `-webkit-app-region: drag` gap that is the only way to move the window (see `WorkTabStrip`).
+ */
+const TERMINAL_TAB_MAX_WIDTH = 320;
+
+/**
+ * Floor for an evenly divided Terminal tab. Once enough tabs are open to push past it, flex stops shrinking and the
+ * strip's `overflow-x-auto` takes over — even division degrades to scrolling rather than to unreadable slivers.
+ *
+ * It is animated from 0 alongside `maxWidth` because CSS resolves `min-width` above `max-width`: a static floor would
+ * override the `maxWidth: 0` keyframe and the enter/exit width animation would never play.
+ */
+const TERMINAL_TAB_MIN_WIDTH = 120;
 
 export function WorkTab({
     active,
@@ -52,11 +115,14 @@ export function WorkTab({
     closeLabel,
     dirty = false,
     fileIconName,
+    fill = false,
     icon,
     label,
+    labelTooltip,
     motionIdentity,
     preview = false,
     status,
+    statusActivity,
     tabId,
     terminalId,
     contextMenu,
@@ -85,10 +151,30 @@ export function WorkTab({
         ...(isPresent && dirty ? [dirtyDescriptionId] : []),
         ...(isPresent && status ? [statusDescriptionId] : []),
     ];
+    /**
+     * `terminalTabLabel` compresses a PTY title to fit the tab, and CSS truncates whatever still overflows. Both losses
+     * are visual only: the untouched title stays the tab's accessible name (below) and its tooltip, so a keyboard user
+     * reaches it the same way a pointer user does.
+     */
+    const isLabelAbbreviated = Boolean(labelTooltip) && labelTooltip !== label;
+    /**
+     * Spread rather than written inline because the key has to be _absent_, not `undefined`, whenever the tooltip owns
+     * it: Base UI merges the rendered element's own props last, so `id={undefined}` erases the trigger id it writes and
+     * leaves the tab with no id for `aria-controls`/roving focus to target. See `Tooltip`'s `triggerId`.
+     */
+    const tabIdProperty = labelTooltip || !isPresent ? {} : { id: tabId };
     const tab = (
         <m.div
             className={cn(
                 'work-tab group relative flex items-center border-r border-border bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
+                // `basis-0` is what makes the division even: without it flex distributes only the
+                // leftover space, so a long label would still win a wider slot than a short one.
+                fill && 'min-w-0 flex-1 basis-0',
+                // Natural width has to be pinned, not merely left at the default `flex: 0 1 auto`:
+                // once a Terminal sibling grows, the flex line is over-constrained and every
+                // shrinkable item is compressed. Without this an Editor tab collapses toward its
+                // animated `minWidth: 0` instead of handing overflow to the strip's scroll container.
+                !fill && 'flex-none',
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
                     "active bg-background text-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
@@ -114,48 +200,57 @@ export function WorkTab({
             onAuxClick={(event) => {
                 if (event.button === 1) onClose();
             }}
-            initial={{ maxWidth: 0, opacity: 0, overflow: 'hidden' }}
+            initial={{ maxWidth: 0, minWidth: 0, opacity: 0, overflow: 'hidden' }}
             animate={{
-                maxWidth: TAB_MAX_WIDTH,
+                maxWidth: fill ? TERMINAL_TAB_MAX_WIDTH : TAB_MAX_WIDTH,
+                minWidth: fill ? TERMINAL_TAB_MIN_WIDTH : 0,
                 opacity: 1,
                 transitionEnd: { overflow: 'visible' },
                 transition: { duration: enterDuration, ease: 'easeOut' },
             }}
             exit={{
                 maxWidth: 0,
+                minWidth: 0,
                 opacity: 0,
                 overflow: 'hidden',
                 transition: { duration: exitDuration, ease: 'easeIn' },
             }}
         >
-            <button
-                type="button"
-                role="tab"
-                id={isPresent ? tabId : undefined}
-                aria-controls={isVisuallyActive ? `${tabId}-panel` : undefined}
-                aria-describedby={descriptions.length > 0 ? descriptions.join(' ') : undefined}
-                aria-selected={isVisuallyActive}
-                tabIndex={isVisuallyActive ? 0 : -1}
-                className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit"
-                onBlur={(event) => delete event.currentTarget.dataset.preserveTerminalFocus}
-                onClick={onSelect}
-                onKeyDown={onKeyDown}
-            >
-                {icon === 'file' ? (
-                    <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
-                ) : (
-                    <AgentIdentityIcon identity={icon} size={13} />
-                )}
-                <span
-                    className={cn(
-                        'tab-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
-                        preview && 'italic',
-                    )}
+            <MaybeTooltip content={labelTooltip} triggerId={isPresent ? tabId : undefined}>
+                <button
+                    {...tabIdProperty}
+                    type="button"
+                    role="tab"
+                    aria-controls={isVisuallyActive ? `${tabId}-panel` : undefined}
+                    aria-describedby={descriptions.length > 0 ? descriptions.join(' ') : undefined}
+                    aria-selected={isVisuallyActive}
+                    tabIndex={isVisuallyActive ? 0 : -1}
+                    className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit"
+                    onBlur={(event) => delete event.currentTarget.dataset.preserveTerminalFocus}
+                    onClick={onSelect}
+                    onKeyDown={onKeyDown}
                 >
-                    {label}
-                </span>
-                {accessory}
-            </button>
+                    {icon === 'file' ? (
+                        <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
+                    ) : (
+                        <AgentIdentityIcon identity={icon} size={13} />
+                    )}
+                    <span
+                        // Hiding visible text is normally wrong, but here the sr-only sibling carries the
+                        // same string in full, so the accessible name gains the elided part instead of
+                        // losing anything — and the badge in `accessory` still contributes to it.
+                        aria-hidden={isLabelAbbreviated || undefined}
+                        className={cn(
+                            'tab-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
+                            preview && 'italic',
+                        )}
+                    >
+                        {label}
+                    </span>
+                    {isLabelAbbreviated && <span className="sr-only">{labelTooltip}</span>}
+                    {accessory}
+                </button>
+            </MaybeTooltip>
             {isPresent && dirty && (
                 <span id={dirtyDescriptionId} className="sr-only">
                     Unsaved changes.
@@ -163,13 +258,25 @@ export function WorkTab({
             )}
             {isPresent && status && (
                 <span id={statusDescriptionId} className="sr-only">
-                    {processStateDescription(status)}
+                    {statusActivity?.description ?? processStateDescription(status)}
                 </span>
             )}
-            {/* DESIGN.md's tab-strip redline: "Dirty dot replaces the close button until
-                hover/focus" — one slot, not two. The dirty dot and the Terminal status dot both
-                live here (mutually exclusive: dirty only applies to editor tabs, status only to
-                Terminal tabs) and fade out in favor of the close button on hover/focus. */}
+            {/* An evenly divided Terminal tab has room the natural-width Editor tab never had, so process state stops
+                trading places with the close button: pointing at a Terminal to close it is exactly when hiding its
+                state is least helpful. Editor tabs keep DESIGN.md's original single-slot redline ("Dirty dot replaces
+                the close button until hover/focus") because they are still only as wide as their filename. */}
+            {fill && status && (
+                <i
+                    aria-hidden="true"
+                    title={statusActivity?.description}
+                    className={cn(
+                        processIndicatorClassName,
+                        'mr-0.5',
+                        `process-${status}`,
+                        statusActivity?.className ?? statusToneClassName(status),
+                    )}
+                />
+            )}
             <span className="tab-tail relative h-6 w-6 flex-none">
                 {dirty && (
                     <b
@@ -179,7 +286,7 @@ export function WorkTab({
                         ●
                     </b>
                 )}
-                {!dirty && status && (
+                {!dirty && !fill && status && (
                     <i
                         aria-hidden="true"
                         className={cn(
@@ -187,9 +294,7 @@ export function WorkTab({
                             'absolute inset-0 m-auto',
                             'group-focus-within:opacity-0 group-hover:opacity-0',
                             `process-${status}`,
-                            status === 'running'
-                                ? 'bg-success'
-                                : ['dead', 'failed', 'interrupted'].includes(status) && 'bg-danger',
+                            statusToneClassName(status),
                         )}
                     />
                 )}
