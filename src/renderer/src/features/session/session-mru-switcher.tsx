@@ -1,22 +1,178 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
-import { Circle } from 'lucide-react';
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
 
+import { useNow } from '@/hooks/use-now';
+
+import type { SessionMruShortcutInvocation } from '../../commands/registry';
+import { ShortcutBadge } from '../../components/shortcut-badge';
+import { Kbd } from '../../components/ui/kbd';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { formatShortcutParts, useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
-import { sessionActivityPresentation } from '../sidebar/session-activity';
+import { ProjectIcon } from '../sidebar/project-icon';
+import { formatSessionRelativeTime } from '../sidebar/session-activity';
+import { SessionActivityDot } from '../sidebar/session-activity-dot';
+import { SessionUnreadIndicator } from '../sidebar/session-unread-indicator';
+import { commitMruSession } from './session-actions';
 import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru-switcher-state';
+
+/**
+ * Chord names for the modifiers the user is physically holding, so the release hint renders through the shared
+ * `formatShortcutParts` symbol table instead of a second private mapping.
+ */
+const HELD_MODIFIER_CHORD_NAMES: Record<'Alt' | 'Control' | 'Meta' | 'Shift', string> = {
+    Alt: 'alt',
+    Control: 'ctrl',
+    Meta: 'cmd',
+    Shift: 'shift',
+};
 
 function useSessionMruSwitcherView() {
     const candidateIds = useSessionMruSwitcherStore((state) => state.candidateIds);
+    const heldModifiers = useSessionMruSwitcherStore((state) => state.heldModifiers);
     const isOpen = useSessionMruSwitcherStore((state) => state.isOpen);
     const isVisible = useSessionMruSwitcherStore((state) => state.isVisible);
     const selectedIndex = useSessionMruSwitcherStore((state) => state.selectedIndex);
     const projects = useProjects() ?? [];
     const sessions = useSessions() ?? [];
     const terminals = useTerminals();
-    return { candidateIds, isOpen, isVisible, projects, selectedIndex, sessions, terminals };
+    return {
+        candidateIds,
+        heldModifiers,
+        isOpen,
+        isVisible,
+        projects,
+        selectedIndex,
+        sessions,
+        terminals,
+    };
+}
+
+/**
+ * Keeps the highlighted row inside the scroll viewport while the user cycles past the visible candidates. `nearest`
+ * scrolls the minimum distance, so a switcher that already shows the row does not jump under the cursor.
+ */
+function useScrollSelectionIntoView(selectedIndex: number, isPanelVisible: boolean) {
+    const listReference = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!isPanelVisible) return;
+        listReference.current
+            ?.querySelector('[aria-selected="true"]')
+            ?.scrollIntoView({ block: 'nearest' });
+    }, [selectedIndex, isPanelVisible]);
+    return listReference;
+}
+
+function SessionMruRow({
+    index,
+    now,
+    project,
+    selected,
+    session,
+    terminal,
+}: {
+    index: number;
+    now: number;
+    project?: ProjectRecord;
+    selected: boolean;
+    session: SessionRecord;
+    terminal?: TerminalRecord;
+}) {
+    return (
+        <div
+            id={`session-mru-option-${session.id}`}
+            className={cn(
+                'flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-foreground',
+                /*
+                 * DESIGN.md principle 2 reserves `--accent` for the screen's single resting focus, with an explicit
+                 * carve-out for transient, action-scoped feedback. The switcher exists only while its chord is held
+                 * and its entire job is to show where the pending jump will land, so the highlighted row earns the
+                 * accent ring the Sidebar's persistent selection is denied.
+                 */
+                selected && 'bg-elevated ring-1 ring-accent/70 ring-inset',
+            )}
+            aria-selected={selected}
+            data-session-id={session.id}
+            role="option"
+            onClick={() => {
+                useSessionMruSwitcherStore.getState().select(index);
+                commitMruSession();
+            }}
+            /*
+             * `mousemove`, not `mouseenter`: the overlay can appear underneath a resting cursor, and an enter event
+             * fired by the panel arriving (rather than by the user moving) would hijack the keyboard selection.
+             */
+            onMouseMove={() => useSessionMruSwitcherStore.getState().select(index)}
+        >
+            <SessionActivityDot state={session.lastActivityState} />
+            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={16} />
+            <span className="min-w-0 flex-1">
+                <strong
+                    className={cn(
+                        'block truncate text-[13px]',
+                        selected ? 'font-semibold' : 'font-medium',
+                    )}
+                >
+                    {session.displayTitle}
+                </strong>
+                <span className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
+                    <ProjectIcon className="flex-none" icon={project?.icon} size={11} />
+                    <span className="truncate">{project?.displayTitle ?? 'Unknown Project'}</span>
+                </span>
+            </span>
+            <span className="flex-none text-[11px] text-muted tabular-nums">
+                {formatSessionRelativeTime(session.lastOpenedAt, now)}
+            </span>
+            <SessionUnreadIndicator session={session} />
+        </div>
+    );
+}
+
+/**
+ * The hold-to-cycle contract is invisible otherwise: nothing on screen says the chord repeats, that Shift reverses it,
+ * or that releasing the modifiers is what commits. The chips read the live keybinding, so a rebound chord stays
+ * honest.
+ */
+function SessionMruHint({
+    heldModifiers,
+}: {
+    heldModifiers: SessionMruShortcutInvocation['heldModifiers'];
+}) {
+    const shortcut = useCommandShortcut('session.switchMru');
+    const releaseParts = formatShortcutParts(
+        heldModifiers.map((modifier) => HELD_MODIFIER_CHORD_NAMES[modifier]).join('+'),
+    );
+    return (
+        <div className="flex items-center gap-3 border-t border-border px-3 py-1.5 text-[11px] text-muted">
+            {shortcut && (
+                <span className="inline-flex items-center gap-1">
+                    <ShortcutBadge compact shortcut={shortcut} />
+                    Next
+                </span>
+            )}
+            <span className="inline-flex items-center gap-1">
+                <Kbd size="compact">⇧</Kbd>
+                Previous
+            </span>
+            <span className="inline-flex items-center gap-1">
+                <Kbd size="compact">Esc</Kbd>
+                Cancel
+            </span>
+            {releaseParts.length > 0 && (
+                <span className="ml-auto inline-flex items-center gap-1">
+                    Release
+                    {releaseParts.map((part) => (
+                        <Kbd key={part} size="compact">
+                            {part}
+                        </Kbd>
+                    ))}
+                    to switch
+                </span>
+            )}
+        </div>
+    );
 }
 
 export function SessionMruSwitcher() {
@@ -33,73 +189,57 @@ export function SessionMruSwitcher() {
         sessions,
         requestedSelectedIndex,
     );
+    const isPanelVisible = Boolean(selected) && view.isOpen && view.isVisible;
+    const listReference = useScrollSelectionIntoView(selectedIndex, isPanelVisible);
+    const now = useNow(30_000);
     useEffect(() => {
         if (!selected && view.isOpen) useSessionMruSwitcherStore.getState().cancel();
     }, [selected, view.isOpen]);
-    if (!selected || !view.isOpen || !view.isVisible) return null;
+    if (!selected || !isPanelVisible) return null;
     return (
         <div className="pointer-events-none fixed inset-0 z-[60] grid place-items-center">
+            {/* Same scrim redline as a Dialog: the switcher is a modal moment, just one that ends on key release. */}
+            <div
+                aria-hidden="true"
+                className="motion-safe:animate-in fade-in-0 absolute inset-0 bg-overlay backdrop-blur-[2px] duration-(--motion-overlay-enter)"
+            />
             <p className="sr-only" aria-atomic="true" role="status">
                 {`Selected ${selected.displayTitle}, ${selectedIndex + 1} of ${candidates.length}`}
             </p>
-            <div
-                className="session-mru-switcher motion-safe:animate-in fade-in-0 zoom-in-95 w-[min(520px,calc(100vw-40px))] overflow-hidden rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)]"
-                aria-activedescendant={`session-mru-option-${selected.id}`}
-                aria-label="Recently used Sessions"
-                role="listbox"
-                tabIndex={-1}
-            >
-                <div className="border-b border-border px-3 py-2 text-[11px] font-medium text-muted">
-                    Recently used Sessions
+            <div className="session-mru-switcher motion-safe:animate-in fade-in-0 zoom-in-95 pointer-events-auto relative flex w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[0_16px_48px_var(--shadow)] duration-(--motion-overlay-enter)">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+                    <span className="text-[11px] font-bold tracking-[0.04em] text-foreground uppercase">
+                        Recently used Sessions
+                    </span>
+                    <span className="text-[11px] text-muted tabular-nums">
+                        {selectedIndex + 1} / {candidates.length}
+                    </span>
                 </div>
-                <div className="max-h-[min(420px,60vh)] overflow-y-auto p-1">
-                    {candidates.map((session, index) => {
-                        const project = projects.find((item) => item.id === session.projectId);
-                        const terminal =
-                            terminals.find((item) => item.id === session.primaryAgentTerminalId) ??
-                            terminals.find((item) => item.sessionId === session.id);
-                        const activity = sessionActivityPresentation(session.lastActivityState);
-                        return (
-                            <div
-                                key={session.id}
-                                id={`session-mru-option-${session.id}`}
-                                className={cn(
-                                    'flex min-h-10 items-center gap-2 rounded px-2 py-1.5 text-foreground',
-                                    index === selectedIndex && 'bg-elevated',
-                                )}
-                                aria-selected={index === selectedIndex}
-                                data-session-id={session.id}
-                                role="option"
-                            >
-                                <span
-                                    className={cn(
-                                        'flex size-3 flex-none items-center justify-center',
-                                        activity.indicatorClassName,
-                                    )}
-                                    aria-label={activity.ariaLabel}
-                                    role="img"
-                                >
-                                    <Circle size={6} fill="currentColor" />
-                                </span>
-                                <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={16} />
-                                <span className="min-w-0 flex-1">
-                                    <strong className="block truncate text-[13px] font-medium">
-                                        {session.displayTitle}
-                                    </strong>
-                                    <span className="block truncate text-[11px] text-muted">
-                                        {project?.displayTitle ?? 'Unknown Project'}
-                                    </span>
-                                </span>
-                                {session.hasUnread && (
-                                    <span
-                                        className="size-1.5 flex-none rounded-full bg-warning"
-                                        aria-label="Unread"
-                                    />
-                                )}
-                            </div>
-                        );
-                    })}
+                <div
+                    ref={listReference}
+                    className="max-h-[min(360px,50vh)] overflow-y-auto p-1.5"
+                    aria-activedescendant={`session-mru-option-${selected.id}`}
+                    aria-label="Recently used Sessions"
+                    role="listbox"
+                    tabIndex={-1}
+                >
+                    {candidates.map((session, index) => (
+                        <SessionMruRow
+                            key={session.id}
+                            index={index}
+                            now={now}
+                            project={projects.find((item) => item.id === session.projectId)}
+                            selected={index === selectedIndex}
+                            session={session}
+                            terminal={
+                                terminals.find(
+                                    (item) => item.id === session.primaryAgentTerminalId,
+                                ) ?? terminals.find((item) => item.sessionId === session.id)
+                            }
+                        />
+                    ))}
                 </div>
+                <SessionMruHint heldModifiers={view.heldModifiers} />
             </div>
         </div>
     );

@@ -77,6 +77,7 @@ interface SessionMruSwitcherState {
     cancel(): void;
     commit(availableCandidateIds?: readonly string[]): string | undefined;
     cycle(delta: 1 | -1): void;
+    select(index: number): void;
 }
 
 const closedState = {
@@ -140,6 +141,17 @@ export const useSessionMruSwitcherStore = create<SessionMruSwitcherState>((set, 
                         (state.selectedIndex + delta + state.candidateIds.length) %
                         state.candidateIds.length,
                 };
+            }),
+        /**
+         * Pointer-driven highlight. The index addresses the rendered candidate list, which `resolveSessionMruView`
+         * derives from `candidateIds` with the same archived filter `commit` applies, so a hovered row commits to the
+         * Session the user actually pointed at. Out-of-range indexes are ignored rather than clamped: a stale row under
+         * the cursor must never silently retarget the keyboard selection.
+         */
+        select: (index) =>
+            set((state) => {
+                if (!state.isOpen || index < 0 || index >= state.candidateIds.length) return state;
+                return { selectedIndex: index };
             }),
     };
 });

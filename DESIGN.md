@@ -261,6 +261,17 @@ border `--border`, shadow from `--shadow`. Never a close X inside the command pa
 **Command palette** — rows show command title left, `kbd` shortcut hint right (render
 from live keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px.
 
+**Session switcher** — the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment that
+ends on key release, so it wears the Dialog scrim (`--overlay` + `blur(2px)`) and the palette's 560px
+width, centred. It reads top to bottom as caption / list / hint: a panel-caption title with the live
+position on the right, Session rows (activity dot, Agent identity icon, title over Project, relative
+`Last opened`, unread ring — the same indicator components the Sidebar renders), and a footer of live
+`kbd` chips for cycle, reverse, cancel, and release-to-commit. The highlighted row is the one place a
+list selection may carry `--accent` (an inset ring over the `--elevated` fill): the surface exists only
+while its chord is held and its whole purpose is to show where the pending jump lands, which is the
+transient action-scoped carve-out in principle 2. Cycling scrolls the highlight into view; a pointer
+may highlight a row by moving over it and commit it by clicking.
+
 **Inputs** — shared `Input` density is always explicit outside standard forms: `standard` (36px,
 base), `dense` (28px, dense), `compact` (24px, dense), or `palette` (44px, base). `appearance`
 selects the standard themed fill, workbench canvas, inline surface, or an embedded field owned by
