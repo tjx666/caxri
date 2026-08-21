@@ -13,9 +13,11 @@ type SubscribeCallback = Parameters<typeof parcelWatcher.subscribe>[1];
 const directories: string[] = [];
 
 async function transcriptFixture(): Promise<string> {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-transcript-watcher-'));
-    directories.push(directory);
-    const path = join(directory, 'session.jsonl');
+    const baseRoot = await mkdtemp(join(tmpdir(), 'caxri-transcript-watcher-'));
+    directories.push(baseRoot);
+    const root = join(baseRoot, 'project');
+    await mkdir(root);
+    const path = join(root, 'session.jsonl');
     await writeFile(path, '{"message":"initial"}\n');
     return path;
 }
@@ -205,15 +207,17 @@ describe('AgentTranscriptWatcher', () => {
 
     it('refuses to subscribe to a transcript symlink outside the provider root', async () => {
         const outsidePath = await transcriptFixture();
-        const root = await mkdtemp(join(tmpdir(), 'caxri-transcript-provider-root-'));
-        directories.push(root);
+        const baseRoot = await mkdtemp(join(tmpdir(), 'caxri-transcript-provider-root-'));
+        directories.push(baseRoot);
+        const root = join(baseRoot, 'project');
+        await mkdir(root);
         const path = join(root, 'session.jsonl');
         await symlink(outsidePath, path, 'file');
         const { subscribe } = nativeSubscribe();
         const watchHub = new WatchHub({ subscribe });
         const watcher = new AgentTranscriptWatcher({
             emit: vi.fn(),
-            locationForTerminal: () => transcriptLocation(path, root),
+            locationForTerminal: () => transcriptLocation(path, root, baseRoot),
             terminalIdsForSession: () => ['terminal-a'],
             watchHub,
         });
