@@ -16,7 +16,6 @@ import {
 } from './session-mru-switcher-state';
 import type { SessionNavigationDirection } from './session-navigation-history';
 import {
-    sessionNavigationSnapshot,
     sessionNavigationTarget,
     useSessionNavigationHistoryStore,
 } from './session-navigation-history';
@@ -288,15 +287,14 @@ export function switchMruSession(invocation?: SessionMruShortcutInvocation): voi
  * window's navigation, not persisted Session state, so a relaunch legitimately starts with an empty stack.
  */
 export function navigateSessionHistory(direction: SessionNavigationDirection): void {
-    const previous = sessionNavigationSnapshot();
     const target = useSessionNavigationHistoryStore.getState().request(direction);
     if (!target) return;
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`; the only thing left
-    // to do here is undo the stack move the request applied optimistically, so a failed step is not remembered as one
-    // the user already took.
+    // to do here is drop the queued step the Runtime refused, so a navigation that never happened is not remembered as
+    // one the user already took.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void didSelectSession(target).then((selected) => {
-        if (!selected) useSessionNavigationHistoryStore.getState().restore(previous, target);
+        if (!selected) useSessionNavigationHistoryStore.getState().abandon(target);
     });
 }
 
