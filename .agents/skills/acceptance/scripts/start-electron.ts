@@ -82,6 +82,38 @@ type OptionValue = string | true;
 // populated for flags actually present on argv, so an arbitrary key genuinely may be absent.
 type ParsedOptions = Partial<Record<string, OptionValue[]>>;
 
+interface ElectronLaunchSpecInput {
+    electronPath?: string;
+    environment?: NodeJS.ProcessEnv;
+    port: number;
+    projectRoot?: string;
+    testRootPath: string;
+    testRootPaths: string[];
+    userDataDir: string;
+}
+
+interface WaitForCdpDependencies {
+    fetch: typeof fetch;
+    now: () => number;
+    sleep: (milliseconds: number) => Promise<void>;
+}
+
+interface StopControllerDependencies {
+    isAlive: typeof isAlive;
+    scheduleForceStop: (callback: () => void, milliseconds: number) => { unref: () => void };
+}
+
+const defaultStopControllerDependencies: StopControllerDependencies = {
+    isAlive,
+    scheduleForceStop: (callback, milliseconds) => setTimeout(callback, milliseconds),
+};
+
+const defaultWaitForCdpDependencies: WaitForCdpDependencies = {
+    fetch,
+    now: Date.now,
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+};
+
 function parseOptions(argv: string[]): ParsedOptions {
     const options: ParsedOptions = {};
     for (let index = 0; index < argv.length; index += 1) {
@@ -128,6 +160,69 @@ Options:
   --cleanup-reused-user-data
                          Remove the validated reusable profile when this launch stops
   --help                 Show this message`;
+}
+
+/**
+ * Keeps the executable, structured argv, and isolated environment in one testable launch contract.
+ */
+export function createElectronLaunchSpec({
+    electronPath = ELECTRON_PATH,
+    environment = process.env,
+    port,
+    projectRoot = PROJECT_ROOT,
+    testRootPath,
+    testRootPaths,
+    userDataDir,
+}: ElectronLaunchSpecInput) {
+    return {
+        args: ['.', `--remote-debugging-port=${port}`],
+        command: electronPath,
+        options: {
+            cwd: projectRoot,
+            env: {
+                ...environment,
+                CAXRI_E2E: '1',
+                CAXRI_E2E_WINDOW_MODE: 'visible',
+                CAXRI_TEST_ROOT_PATH: testRootPath,
+                CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
+                CAXRI_USER_DATA_DIR: userDataDir,
+            },
+            stdio: 'inherit' as const,
+        },
+    };
+}
+
+export function createChildExitPromise(
+    child: ChildProcess,
+): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+    return new Promise((resolve, reject) => {
+        child.once('error', reject);
+        child.once('exit', (code, signal) => resolve({ code, signal }));
+    });
+}
+
+/**
+ * Makes shutdown idempotent and escalates only when the exact spawned process is still alive.
+ */
+export function createElectronStopController(
+    child: ChildProcess,
+    dependencies: StopControllerDependencies = defaultStopControllerDependencies,
+): { readonly isStopping: boolean; stop: () => void } {
+    let isStopping = false;
+    return {
+        get isStopping() {
+            return isStopping;
+        },
+        stop() {
+            if (isStopping) return;
+            isStopping = true;
+            if (dependencies.isAlive(child.pid)) child.kill('SIGTERM');
+            const forceTimer = dependencies.scheduleForceStop(() => {
+                if (dependencies.isAlive(child.pid)) child.kill('SIGKILL');
+            }, 5_000);
+            forceTimer.unref();
+        },
+    };
 }
 
 async function removeStaleRuntime(): Promise<void> {
@@ -184,23 +279,27 @@ async function writeRuntime(state: RuntimeState): Promise<void> {
     await rename(temporary, RUNTIME_PATH);
 }
 
-async function waitForCdp(port: number, child: ChildProcess): Promise<void> {
-    const deadline = Date.now() + 30_000;
+export async function waitForCdp(
+    port: number,
+    child: ChildProcess,
+    dependencies: WaitForCdpDependencies = defaultWaitForCdpDependencies,
+): Promise<void> {
+    const deadline = dependencies.now() + 30_000;
     // This is a poll loop: each iteration must await the previous probe and retry delay before
     // deciding whether to poll again, so the awaits below are intentionally sequential.
-    while (Date.now() < deadline) {
+    while (dependencies.now() < deadline) {
         if (child.exitCode !== null) {
             throw new Error(`Electron exited before CDP became ready (${child.exitCode})`);
         }
         try {
             // eslint-disable-next-line no-await-in-loop
-            const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+            const response = await dependencies.fetch(`http://127.0.0.1:${port}/json/version`);
             if (response.ok) return;
         } catch {
             // The listener is expected to reject connections while Electron starts.
         }
         // eslint-disable-next-line no-await-in-loop
-        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        await dependencies.sleep(250);
     }
     throw new Error(`Timed out waiting for CDP on port ${port}`);
 }
@@ -285,40 +384,22 @@ async function main(): Promise<void> {
 
         try {
             desktopLease = await beginDesktopLeaseHandoff(desktopLease);
-            const child = spawn(ELECTRON_PATH, ['.', `--remote-debugging-port=${port}`], {
-                cwd: PROJECT_ROOT,
-                env: {
-                    ...process.env,
-                    CAXRI_E2E: '1',
-                    CAXRI_E2E_WINDOW_MODE: 'visible',
-                    CAXRI_TEST_ROOT_PATH: testRootPath,
-                    CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
-                    CAXRI_USER_DATA_DIR: userDataDir,
-                },
-                stdio: 'inherit',
+            const launch = createElectronLaunchSpec({
+                port,
+                testRootPath,
+                testRootPaths,
+                userDataDir,
             });
-            const childExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-                (resolve, reject) => {
-                    child.once('error', reject);
-                    child.once('exit', (code, signal) => resolve({ code, signal }));
-                },
-            );
+            const child = spawn(launch.command, launch.args, launch.options);
+            const childExit = createChildExitPromise(child);
             async function rejectOnChildExit(): Promise<never> {
                 const { code, signal } = await childExit;
                 throw new Error(
                     `Electron exited before CDP was ready (${code ?? signal ?? 'unknown'})`,
                 );
             }
-            let isStopping = false;
-            const stop = (): void => {
-                if (isStopping) return;
-                isStopping = true;
-                if (isAlive(child.pid)) child.kill('SIGTERM');
-                const forceTimer = setTimeout(() => {
-                    if (isAlive(child.pid)) child.kill('SIGKILL');
-                }, 5_000);
-                forceTimer.unref();
-            };
+            const stopController = createElectronStopController(child);
+            const { stop } = stopController;
             process.on('SIGINT', stop);
             process.on('SIGTERM', stop);
             try {
@@ -355,7 +436,7 @@ async function main(): Promise<void> {
                 // control-flow analysis can't see that interruption, but a real shutdown must not
                 // be reported as an unexpected non-zero exit.
                 // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
-                if (!isStopping && code !== 0) {
+                if (code !== 0 && !stopController.isStopping) {
                     throw new Error(`Electron exited with code ${code} (${signal ?? 'no signal'})`);
                 }
             } finally {
@@ -397,9 +478,11 @@ async function main(): Promise<void> {
     }
 }
 
-try {
-    await main();
-} catch (error: unknown) {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = 1;
+if (import.meta.main) {
+    try {
+        await main();
+    } catch (error: unknown) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+    }
 }
