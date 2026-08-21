@@ -3,13 +3,13 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileEntry } from '@shared/types';
 
+import { dragPath } from '../../../../lib/file-drag';
 import { openFile } from '../../../editor/document-actions';
 import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from './file-actions';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
 import type { PendingFileOperation } from './file-operation-state';
 import { isPathBlockedByFileOperations } from './file-operation-state';
-import { dragPath } from './file-tree-drag';
 import type { EditRequest } from './file-tree-item-types';
 import { BUSY_DISABLED_REASON } from './file-tree-item-types';
 import {

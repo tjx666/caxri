@@ -21,6 +21,7 @@ import {
     e2eAgentShellShims,
     e2eFakeExecutableEnvironmentKeys,
 } from '../../src/shared/node/e2e-agent-policy.ts';
+import { armClipboardRestoreOnQuit, restoreClipboard, snapshotClipboard } from './clipboard.ts';
 import { registerE2ELaunch } from './error-gate.ts';
 import { resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
@@ -335,22 +336,75 @@ export async function launchCaxriApp(
             cwd: projectRoot,
             env: launchEnvironment,
         });
+        let clipboardRestoreFailure: Error | undefined;
         let cleanupPromise: Promise<void> | undefined;
         const cleanup = (): Promise<void> =>
             (cleanupPromise ??= (async () => {
                 if (!preserveHostOnClose) await stopE2EHost(userDataDir);
                 await releaseLease();
+                /**
+                 * Specs intentionally ignore direct close failures in `finally`; the shared error gate awaits this
+                 * cleanup promise too, so carrying a clipboard failure here keeps it observable after Electron closes.
+                 */
+                if (clipboardRestoreFailure) throw clipboardRestoreFailure;
             })());
+        let clipboardSnapshot: Awaited<ReturnType<typeof snapshotClipboard>>;
+        try {
+            clipboardSnapshot = await snapshotClipboard(app);
+            await armClipboardRestoreOnQuit(app, clipboardSnapshot);
+        } catch (error) {
+            let failure: unknown = error;
+            try {
+                await app.close();
+            } catch (closeError) {
+                failure ??= closeError;
+            }
+            try {
+                await cleanup();
+            } catch (cleanupError) {
+                failure ??= cleanupError;
+            }
+            throw failure instanceof Error
+                ? failure
+                : new Error('E2E clipboard setup failed with a non-Error value');
+        }
+        const electronProcess = app.process();
         const close = app.close.bind(app);
         Object.defineProperty(app, 'close', {
             configurable: true,
             value: async () => {
-                await close();
-                await cleanup();
+                if (electronProcess.exitCode !== null || electronProcess.signalCode !== null) {
+                    await cleanup();
+                    return;
+                }
+                let failure: unknown;
+                try {
+                    await restoreClipboard(app, clipboardSnapshot);
+                } catch (error) {
+                    clipboardRestoreFailure =
+                        error instanceof Error
+                            ? error
+                            : new Error('E2E clipboard restoration failed with a non-Error value');
+                    failure = clipboardRestoreFailure;
+                }
+                try {
+                    await close();
+                } catch (error) {
+                    failure ??= error;
+                }
+                try {
+                    await cleanup();
+                } catch (error) {
+                    failure ??= error;
+                }
+                if (failure)
+                    throw failure instanceof Error
+                        ? failure
+                        : new Error('E2E application cleanup failed with a non-Error value');
             },
         });
         registerE2ELaunch(app, userDataDir, cleanup);
-        const electronPid = app.process().pid;
+        const electronPid = electronProcess.pid;
         if (!electronPid) throw new Error('Could not establish the Electron process identity');
         lease = await transferDesktopLease(lease, electronPid);
     } catch (error) {

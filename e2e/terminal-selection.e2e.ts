@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { readSystemClipboardText } from './support/clipboard.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -108,7 +109,7 @@ async function terminalIds(page: Page): Promise<string[]> {
     return bootstrap.terminals.map((terminal) => terminal.id);
 }
 
-test('Terminal selection copies exact text and stays isolated across split panes', async () => {
+test('Cmd+C copies the focused Editor or Terminal selection across split panes', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-selection-e2e-'));
     const isCiParity = process.env.CAXRI_CI_PARITY_CASE === 'long-path-wrapped-terminal';
     const longPath = isCiParity
@@ -123,16 +124,24 @@ test('Terminal selection copies exact text and stays isolated across split panes
     const multilineOutput = join(testDirectory, 'multiline-output.sh');
     const splitOutput = join(testDirectory, 'split-output.sh');
     const splitText = 'PANE_TWO';
+    const editorCopyText = 'EDITOR_COPY_TARGET';
+    const originalClipboardText = await readSystemClipboardText();
     const firstLine = isCiParity ? `FIRST Ω 中 ${'wrapped-content-'.repeat(16)}END` : 'FIRST Ω 中';
     const lastLine = 'SECOND  spaced text';
     await mkdir(root, { recursive: true });
     await Promise.all([
         writeFile(multilineOutput, `#!/bin/sh\nprintf '${firstLine}\\n${lastLine}\\n'\n`),
         writeFile(splitOutput, `#!/bin/sh\nprintf '${splitText}\\n'\n`),
+        writeFile(join(root, 'editor-copy.ts'), editorCopyText),
     ]);
     await Promise.all([chmod(multilineOutput, 0o700), chmod(splitOutput, 0o700)]);
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        windowMode: 'visible',
+    });
+    let isClosed = false;
     try {
         if (isCiParity) {
             await running.app.evaluate(({ BrowserWindow }) =>
@@ -167,6 +176,11 @@ test('Terminal selection copies exact text and stays isolated across split panes
             firstBounds.start.x + 2,
             firstBounds.start.y + firstBounds.start.height / 2,
         );
+        const firstInput = running.page.locator(
+            `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-helper-textarea`,
+        );
+        await firstInput.focus();
+        await firstInput.press('Meta+C');
         await expect
             .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
             .toBe('KEEP_ON_EMPTY');
@@ -203,23 +217,45 @@ test('Terminal selection copies exact text and stays isolated across split panes
         expect(await running.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(
             'COPY_COMMAND_SENTINEL',
         );
+        await secondInput.focus();
+        await expect(secondInput).toBeFocused();
         await secondInput.press('Meta+C');
         await expect
             .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
             .toBe(splitText);
 
+        await running.page.getByRole('treeitem', { name: 'editor-copy.ts', exact: true }).click();
+        const editor = running.page.locator('.monaco-editor').first();
+        await expect(editor).toBeVisible();
+        await editor.click({ position: { x: 120, y: 24 } });
+        await running.app.evaluate(({ clipboard }) => clipboard.writeText('EDITOR_COPY_SENTINEL'));
+        await running.page.keyboard.press('Meta+A');
+        await running.page.keyboard.press('Meta+C');
+        await expect
+            .poll(() => running.app.evaluate(({ clipboard }) => clipboard.readText()))
+            .toBe(editorCopyText);
+
         await running.app.evaluate(({ clipboard }) =>
             clipboard.writeText(String.raw`printf 'PASTE_STILL_WORKS\n'`),
         );
+        await running.page
+            .locator(`.work-tab[data-terminal-id="${secondTerminalId}"] [role="tab"]`)
+            .click();
         await secondInput.focus();
         await secondInput.press('Meta+V');
         await secondInput.press('Enter');
         await expect(secondRows).toContainText('PASTE_STILL_WORKS');
+
+        await running.app.close();
+        isClosed = true;
+        expect(await readSystemClipboardText()).toBe(originalClipboardText);
     } finally {
-        try {
-            await running.app.close();
-        } catch {
-            // Ignore close failures during cleanup.
+        if (!isClosed) {
+            try {
+                await running.app.close();
+            } catch {
+                // Ignore close failures during cleanup.
+            }
         }
         await rm(testDirectory, { recursive: true, force: true });
     }

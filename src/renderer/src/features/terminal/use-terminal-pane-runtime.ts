@@ -27,11 +27,7 @@ import {
 } from './terminal-commands';
 import { loadTerminalFonts } from './terminal-fonts';
 import { createTerminalImageAddon, registerTerminalImageAddon } from './terminal-images';
-import {
-    CODEX_IMAGE_PASTE_INPUT,
-    isClipboardContainingImage,
-    terminalKeyboardInput,
-} from './terminal-keyboard';
+import { registerTerminalClipboardHandlers, terminalKeyboardInput } from './terminal-keyboard';
 import { ControlledOsc52Clipboard } from './terminal-osc52-clipboard';
 import {
     detachTerminalQuietly,
@@ -39,6 +35,7 @@ import {
     onError,
     opaqueSearchColor,
     OSC52_BLOCK_MESSAGES,
+    registerTerminalInputHandlers,
     registerTerminalPaneLinks,
     RENDERER_FALLBACK_MESSAGES,
 } from './terminal-pane-support';
@@ -310,21 +307,13 @@ export function useTerminalPaneRuntime({
             xterm.input(input);
             return false;
         });
-        const handlePaste = (event: ClipboardEvent): void => {
-            if (
-                !latestReference.current.isCodex ||
-                !event.clipboardData ||
-                !isClipboardContainingImage(event.clipboardData)
-            )
-                return;
-            /**
-             * Codex owns image encoding and temp-file lifecycle; it only needs its Ctrl+V binding.
-             */
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            xterm.input(CODEX_IMAGE_PASTE_INPUT);
-        };
-        container.addEventListener('paste', handlePaste, { capture: true });
+        const unregisterClipboardHandlers = registerTerminalClipboardHandlers({
+            container,
+            document,
+            getSelection: () => xterm.getSelection(),
+            isCodex: () => latestReference.current.isCodex,
+            pasteCodexImage: (input) => xterm.input(input),
+        });
         xtermReference.current = xterm;
         let isDisposed = false;
         let lastSentSize: TerminalSize | undefined;
@@ -389,19 +378,11 @@ export function useTerminalPaneRuntime({
         rendererReference.current = renderer;
         renderer.setPreference(latest.gpuAcceleration);
 
-        const sendInput = async (data: string): Promise<void> => {
-            try {
-                await caxri.request('terminal.input', { terminalId, data });
-            } catch (error) {
-                onError(errorMessage(error, 'Terminal input failed'));
-            }
-        };
-        const dataDisposable = xterm.onData((data) => {
-            if (latestReference.current.processState !== 'running') return;
-            // xterm's onData callback cannot be async; sendInput already reports its own failure.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void sendInput(data);
-        });
+        const unregisterInputHandlers = registerTerminalInputHandlers(
+            xterm,
+            terminalId,
+            () => latestReference.current.processState === 'running',
+        );
         let isClipboardFailureReported = false;
         const selectionClipboard = new TerminalSelectionClipboard(
             (value) => navigator.clipboard.writeText(value),
@@ -559,14 +540,14 @@ export function useTerminalPaneRuntime({
             document.removeEventListener('focusin', trackNewerFocus);
             document.removeEventListener('keydown', trackExplicitInteraction, true);
             document.removeEventListener('pointerdown', trackExplicitInteraction, true);
-            container.removeEventListener('paste', handlePaste, true);
+            unregisterClipboardHandlers();
             unsubscribe();
             progressDisposable.dispose();
             searchResultsDisposable.dispose();
             selectionDisposable.dispose();
             unregisterSelectionHandlers();
+            unregisterInputHandlers();
             if (pasteReference.current === pasteFromClipboard) pasteReference.current = undefined;
-            dataDisposable.dispose();
             unregisterLinks();
             unregisterCommandNavigation();
             commandTracker.dispose();

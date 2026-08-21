@@ -7,12 +7,12 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ContextMenu, ContextMenuTrigger } from '../../../../components/ui/context-menu';
 import { Input } from '../../../../components/ui/input';
 import { FileTypeIcon } from '../../../../icons/files/file-type-icon';
+import { FILE_TREE_DRAG_TYPE, hasDraggedPath } from '../../../../lib/file-drag';
 import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { describeFailure } from '../../../../stores/toasts';
 import { openFile } from '../../../editor/document-actions';
 import { createItem, rememberFile, renameFile } from './file-actions';
 import type { PendingFileOperation } from './file-operation-state';
-import { FILE_TREE_DRAG_TYPE, hasDraggedPath } from './file-tree-drag';
 import { FileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
@@ -358,11 +358,15 @@ function FileTreeItem({
                 setIsDropTarget(false);
             }}
             onDragOver={(event) => {
-                if (!pasteBlocked && entry.kind === 'directory' && hasDraggedPath(event))
-                    event.preventDefault();
+                if (pasteBlocked || entry.kind !== 'directory' || !hasDraggedPath(event)) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
             }}
             onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.effectAllowed = 'copyMove';
                 event.dataTransfer.setData(FILE_TREE_DRAG_TYPE, entry.path);
             }}
             onDrop={dropIntoDirectory}
