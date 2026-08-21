@@ -650,11 +650,11 @@ export function StatusBar() {
                         {workbenchProject.displayTitle}
                     </StatusItem>
                 )}
-                {!workbenchProject && (
-                    <span className="statusbar-empty overflow-hidden text-ellipsis whitespace-nowrap">
-                        No Project selected
-                    </span>
-                )}
+                {/*
+                 * No "No Project selected" placeholder: the only way to reach this state is an empty Workbench, where
+                 * the Sidebar already offers "Add your first Project" at full size. Restating it in the status bar
+                 * says nothing new and gives the emptiest screen its most prominent line of prose.
+                 */}
                 {sessionId && <WorkbenchRootPicker branch={repo?.branch} sessionId={sessionId} />}
                 {repo && sessionId && (
                     <BranchPicker
