@@ -25,7 +25,7 @@ import {
     ContextMenuSeparator,
 } from '../../components/ui/context-menu';
 import { Spinner } from '../../components/ui/spinner';
-import { CommandTooltip } from '../../components/ui/tooltip';
+import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { usePanelLayoutStore } from '../../stores/panel-layout';
 import {
@@ -81,13 +81,26 @@ function TerminalWorkTab({
     terminal: TerminalRecord;
 }) {
     const progress = useTerminalProgress(terminal.id);
+    const isCompacting = terminal.agentOperation === 'compacting';
     const ProgressIcon =
         progress?.kind === 'error' ? CircleAlert : progress?.kind === 'paused' ? Pause : undefined;
     return (
         <WorkTab
             active={active}
             accessory={
-                progress && (
+                isCompacting ? (
+                    <Tooltip content="Codex is summarizing earlier context before continuing.">
+                        <span
+                            aria-label="Compacting context"
+                            aria-live="polite"
+                            className="terminal-agent-operation inline-flex flex-none items-center text-muted"
+                            data-agent-operation="compacting"
+                            role="status"
+                        >
+                            Compacting
+                        </span>
+                    </Tooltip>
+                ) : progress ? (
                     <span
                         aria-label={terminalProgressAriaLabel(progress)}
                         className={cn(
@@ -111,7 +124,7 @@ function TerminalWorkTab({
                         )}
                         {progress.kind !== 'indeterminate' && terminalProgressLabel(progress)}
                     </span>
-                )
+                ) : undefined
             }
             closeLabel="Close Terminal"
             icon={terminal.kind}

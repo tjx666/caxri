@@ -1,5 +1,5 @@
 import { relativeTime } from '@caxri/utils';
-import type { AgentActivityState } from '@shared/types';
+import type { AgentActivityState, AgentOperation } from '@shared/types';
 
 export interface SessionActivityPresentation {
     ariaLabel: string;
@@ -37,6 +37,13 @@ const PRESENTATIONS: Record<AgentActivityState, SessionActivityPresentation> = {
         'text-warning',
     ),
 };
+
+const COMPACTION_PRESENTATION = presentation(
+    'Compacting',
+    'Codex is summarizing earlier context before continuing.',
+    'success',
+    'text-success',
+);
 
 function presentation(
     label: string,
@@ -124,6 +131,8 @@ export function formatSessionRelativeTime(timestamp: number, now = Date.now()): 
  */
 export function sessionActivityPresentation(
     state: AgentActivityState,
+    operation?: AgentOperation,
 ): SessionActivityPresentation {
+    if (operation === 'compacting') return COMPACTION_PRESENTATION;
     return PRESENTATIONS[state];
 }

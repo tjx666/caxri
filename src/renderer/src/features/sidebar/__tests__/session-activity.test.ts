@@ -45,6 +45,16 @@ describe('Session activity presentation', () => {
         });
     });
 
+    it('presents compaction as a successful Working subphase', () => {
+        expect(sessionActivityPresentation('running', 'compacting')).toEqual({
+            ariaLabel: 'Compacting. Codex is summarizing earlier context before continuing.',
+            description: 'Codex is summarizing earlier context before continuing.',
+            indicatorClassName: 'text-success',
+            label: 'Compacting',
+            tone: 'success',
+        });
+    });
+
     it.each<[AgentActivityState, 'danger' | 'warning']>([
         ['waiting', 'warning'],
         ['completed', 'warning'],

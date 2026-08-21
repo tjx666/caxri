@@ -48,7 +48,10 @@ export function SessionActivityCard({
     const accessibleDescriptionId = useId();
     const [open, setOpen] = useState(false);
     const now = useNow(30_000);
-    const activity = sessionActivityPresentation(session.lastActivityState);
+    const activity = sessionActivityPresentation(
+        session.lastActivityState,
+        terminal?.agentOperation,
+    );
     const agent = terminal?.kind ?? 'shell';
     const agentLabel = resolveAgentIcon(agent).label;
     const lastOpened = formatSessionRelativeTime(session.lastOpenedAt, now);

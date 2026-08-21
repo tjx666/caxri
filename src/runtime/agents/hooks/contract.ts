@@ -6,6 +6,8 @@ export const agentLifecyclePhases = [
     'attentionRequested',
     'turnFinished',
     'shellToolFinished',
+    'compactionStarted',
+    'compactionFinished',
 ] as const;
 
 export type AgentLifecyclePhase = (typeof agentLifecyclePhases)[number];

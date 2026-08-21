@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 describe('Runtime Agent hook integration', () => {
-    it('marks a background Session unread when its authenticated Codex turn finishes', async () => {
+    it('projects authenticated Codex compaction without turning it into Session attention', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-hook-unread-'));
         temporaryDirectories.push(directory);
         const projectRoot = join(directory, 'project');
@@ -75,8 +75,65 @@ describe('Runtime Agent hook integration', () => {
             expect(environment).toMatchObject({
                 CAXRI_HOOK_TERMINAL_ID: background.terminal!.id,
             });
+            const bridge = join(directory, 'shared-hooks', 'bin', 'caxri-agent-hook-bridge');
+            await execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'codex',
+                    '--phase',
+                    'compactionStarted',
+                    '--schema',
+                    '3',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            await expect
+                .poll(async () => {
+                    const records = await runtime.handlers['app.records']({
+                        sessionIds: [background.session.id],
+                        terminalIds: [background.terminal!.id],
+                    });
+                    return { session: records.sessions[0], terminal: records.terminals[0] };
+                })
+                .toMatchObject({
+                    session: { attentionEpoch: 0, hasUnread: false },
+                    terminal: { agentOperation: 'compacting' },
+                });
+            expect(
+                (await runtime.handlers['app.bootstrap']({})).terminals.find(
+                    (terminal) => terminal.id === background.terminal!.id,
+                ),
+            ).toMatchObject({ agentOperation: 'compacting' });
+
+            await execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'codex',
+                    '--phase',
+                    'compactionFinished',
+                    '--schema',
+                    '3',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            await expect
+                .poll(async () => {
+                    const records = await runtime.handlers['app.records']({
+                        sessionIds: [],
+                        terminalIds: [background.terminal!.id],
+                    });
+                    return records.terminals[0]?.agentOperation;
+                })
+                .toBeUndefined();
+
             const result = await execFileAsync(
-                join(directory, 'shared-hooks', 'bin', 'caxri-agent-hook-bridge'),
+                bridge,
                 [
                     '--source',
                     'caxri',
@@ -85,7 +142,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '2',
+                    '3',
                     '--reply',
                     'empty-json',
                 ],

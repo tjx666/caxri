@@ -32,6 +32,7 @@ const agentActivityStateSchema = z.enum([
     'unknown',
 ]);
 const sessionAttentionKindSchema = z.enum(['waiting', 'completed', 'failed']);
+const agentOperationSchema = z.enum(['compacting']);
 const sessionTitleModeSchema = z.enum(['automatic', 'manual']);
 export const newWorktreeBehaviorSchema = z.enum(['ask', 'continueWhenAuthorized', 'ignore']);
 export const terminalKindSchema = z.enum([...agentProviderIds, 'shell']);
@@ -55,6 +56,7 @@ const terminalFailureReasonSchema = z.enum([
 ]);
 
 export type AgentActivityState = z.infer<typeof agentActivityStateSchema>;
+export type AgentOperation = z.infer<typeof agentOperationSchema>;
 export type SessionAttentionKind = z.infer<typeof sessionAttentionKindSchema>;
 export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
 export type TerminalKind = z.infer<typeof terminalKindSchema>;
@@ -128,6 +130,10 @@ export const terminalRecordSchema = z.object({
     orderIndex: z.number(),
     layoutNodeId: z.string(),
     agentSessionId: z.string().optional(),
+    /**
+     * Live Runtime-only Agent subphase. It is projected with Terminal records and is never persisted.
+     */
+    agentOperation: agentOperationSchema.optional(),
     lastProcessState: processStateSchema,
     /**
      * Present only when `lastProcessState` is `failed`; see `TerminalFailureReason`.
