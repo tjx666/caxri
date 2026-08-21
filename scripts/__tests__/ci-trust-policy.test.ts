@@ -21,6 +21,9 @@ interface TrustPolicy {
 
 interface WorkflowStep {
     env?: Record<string, string>;
+    id?: string;
+    name?: string;
+    run?: string;
     uses?: string;
     with?: Record<string, string>;
 }
@@ -56,6 +59,7 @@ const ciVerifierInputs = {
     'event-name': '${{ github.event_name }}',
     'event-ref': '${{ github.ref }}',
     'event-repository': '${{ github.event.pull_request.head.repo.full_name || github.repository }}',
+    'policy-domain': 'ci',
     'pull-request-author': '${{ github.event.pull_request.user.login || github.actor }}',
     'triggering-actor': '${{ github.triggering_actor }}',
 };
@@ -64,6 +68,7 @@ const releaseVerifierInputs = {
     'event-name': '${{ github.event.workflow_run.event }}',
     'event-ref': 'refs/heads/${{ github.event.workflow_run.head_branch }}',
     'event-repository': '${{ github.event.workflow_run.head_repository.full_name }}',
+    'policy-domain': 'release',
     'pull-request-author': '${{ github.event.workflow_run.actor.login }}',
     'triggering-actor': '${{ github.event.workflow_run.triggering_actor.login }}',
 };
@@ -219,6 +224,7 @@ describe('CI trust policy', () => {
             EVENT_NAME: '${{ inputs.event-name }}',
             EVENT_REF: '${{ inputs.event-ref }}',
             EVENT_REPOSITORY: '${{ inputs.event-repository }}',
+            POLICY_DOMAIN: '${{ inputs.policy-domain }}',
             PR_AUTHOR: '${{ inputs.pull-request-author }}',
             TRIGGERING_ACTOR: '${{ inputs.triggering-actor }}',
         });
@@ -227,8 +233,10 @@ describe('CI trust policy', () => {
             'test "$EVENT_ACTOR" = "$trusted_actor"',
             'test "$TRIGGERING_ACTOR" = "$trusted_actor"',
             'test "$EVENT_REPOSITORY" = "$GITHUB_REPOSITORY"',
+            'test "$POLICY_DOMAIN" = ci || test "$POLICY_DOMAIN" = release',
             'test "$PR_AUTHOR" = "$trusted_actor"',
             'test "$EVENT_REF" = "$push_ref"',
+            'test "$EVENT_REF" = "refs/heads/$release_branch"',
             'test "$EVENT_NAME" = "$workflow_dispatch_event"',
             'test "$RUNNER_ENVIRONMENT" = self-hosted',
             'test "$RUNNER_OS" = macOS',
@@ -249,5 +257,27 @@ describe('CI trust policy', () => {
         expect(expression).not.toContain('github.actor');
         expect(expression).not.toContain('github.triggering_actor');
         expect(expression).not.toContain('github.event.pull_request.user.login');
+    });
+
+    it('verifies the runner platform before checkout on privileged desktop jobs', () => {
+        const cases = [
+            { job: ciWorkflow.jobs.e2e, location: 'ci.jobs.e2e' },
+            { job: releaseWorkflow.jobs.release, location: 'release.jobs.release' },
+        ];
+
+        for (const { job, location } of cases) {
+            const steps = job.steps ?? [];
+            const guardIndex = steps.findIndex(
+                (step) => step.name === 'Verify runner boundary before checkout',
+            );
+            const checkoutIndex = steps.findIndex((step) => step.uses === 'actions/checkout@v7');
+            const guard = steps[guardIndex]?.run ?? '';
+
+            expect(guardIndex, `${location} pre-checkout runner guard`).toBeGreaterThanOrEqual(0);
+            expect(guardIndex, `${location} guard ordering`).toBeLessThan(checkoutIndex);
+            expect(guard).toContain('test "$RUNNER_ENVIRONMENT" = self-hosted');
+            expect(guard).toContain('test "$RUNNER_OS" = macOS');
+            expect(guard).toContain('test "$RUNNER_ARCH" = ARM64');
+        }
     });
 });
