@@ -8,7 +8,13 @@ import { z } from 'zod';
 import { inspectorModeSchema } from '../../../shared/inspector';
 import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { CaxriError } from '../../../shared/ipc/errors';
-import { createPaneLayout, openResource, remapPaneLayoutPaths } from '../../../shared/pane-layout';
+import {
+    addPaneTerminalSilently,
+    createPaneLayout,
+    openResource,
+    remapPaneLayoutPaths,
+    removePaneTerminal,
+} from '../../../shared/pane-layout';
 import type {
     AgentActivityState,
     SessionAttentionKind,
@@ -258,6 +264,42 @@ export class SessionsModel {
             reason: parsed.reason,
         });
         return repaired;
+    }
+
+    /**
+     * Applies a Terminal placement change to every Root the Session has already arranged. Terminal ownership is
+     * Session-global, not Root-scoped — see {@link defaultPaneLayout} — so a create or close must stay visible no matter
+     * which Root the Session displays next, not just the one selected right now. A Root with no stored snapshot yet is
+     * left alone: its first visit builds a layout straight from `terminals`, so it can never drift out of sync in the
+     * first place.
+     */
+    private mutateTerminalAcrossRootStates(
+        sessionId: string,
+        mutate: (paneLayout: SessionState['paneLayout']) => SessionState['paneLayout'],
+    ): void {
+        const row = this.database
+            .select({ workbenchStateJson: sessionStateTable.workbenchStateJson })
+            .from(sessionStateTable)
+            .where(eq(sessionStateTable.sessionId, sessionId))
+            .get();
+        if (!row) return;
+        const states = parseWorkbenchEditorStates(row.workbenchStateJson);
+        if (!states) return;
+        let isChanged = false;
+        const nextStates: WorkbenchEditorStates = {};
+        for (const [workbenchProjectId, rootState] of Object.entries(states)) {
+            if (!rootState) continue;
+            const paneLayout = mutate(rootState.paneLayout);
+            if (paneLayout !== rootState.paneLayout) isChanged = true;
+            nextStates[workbenchProjectId] =
+                paneLayout === rootState.paneLayout ? rootState : { ...rootState, paneLayout };
+        }
+        if (!isChanged) return;
+        this.database
+            .update(sessionStateTable)
+            .set({ workbenchStateJson: JSON.stringify(nextStates) })
+            .where(eq(sessionStateTable.sessionId, sessionId))
+            .run();
     }
 
     list(projectId?: string): SessionRecord[] {
@@ -605,6 +647,26 @@ export class SessionsModel {
                 },
             })
             .run();
+    }
+
+    /**
+     * Adds a newly created Terminal into every Root the Session has already arranged, so the next visit to any of them
+     * shows it instead of only the Root that was active at creation time.
+     */
+    addTerminalToAllRootStates(sessionId: string, terminalId: string): void {
+        this.mutateTerminalAcrossRootStates(sessionId, (paneLayout) =>
+            addPaneTerminalSilently(paneLayout, terminalId),
+        );
+    }
+
+    /**
+     * Drops a closed or moved-away Terminal from every Root the Session has already arranged, so no stored snapshot
+     * keeps a tab pointing at a PTY it no longer owns.
+     */
+    removeTerminalFromAllRootStates(sessionId: string, terminalId: string): void {
+        this.mutateTerminalAcrossRootStates(sessionId, (paneLayout) =>
+            removePaneTerminal(paneLayout, terminalId),
+        );
     }
 
     /**

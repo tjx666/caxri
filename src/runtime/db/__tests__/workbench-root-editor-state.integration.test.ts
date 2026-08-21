@@ -97,6 +97,11 @@ describe('CaxriDatabase Workbench Root editor state', () => {
         expect(restoredOwnerState.workbenchProjectId).toBe(owner.id);
         expect(filePaths(restoredOwnerState.paneLayout)).toEqual([join(ownerRoot, 'owner.ts')]);
         expect(activeFilePath(restoredOwnerState.paneLayout)).toBe(join(ownerRoot, 'owner.ts'));
+        // The owner root was already arranged when `laterTerminal` was created on the worktree root, so it
+        // must still surface here — Terminal placement is Session-global, not scoped to one Root.
+        expect(listPaneTerminalIds(restoredOwnerState.paneLayout)).toEqual(
+            expect.arrayContaining([created.terminal!.id, laterTerminal.id]),
+        );
         expect(() => database.updateSessionState(worktreeState)).toThrow(/stale Workbench Root/);
 
         database.selectWorkbenchProject(created.session.id, worktree.id, {
@@ -111,9 +116,10 @@ describe('CaxriDatabase Workbench Root editor state', () => {
         expect(activeFilePath(restoredWorktreeState.paneLayout)).toBe(
             join(worktreeRoot, 'worktree.ts'),
         );
-        expect(listPaneTerminalIds(restoredWorktreeState.paneLayout)).toEqual([
-            created.terminal!.id,
-        ]);
+        // `laterTerminal` was created on this very Root, so it stays alongside the Session's original Terminal.
+        expect(listPaneTerminalIds(restoredWorktreeState.paneLayout)).toEqual(
+            expect.arrayContaining([created.terminal!.id, laterTerminal.id]),
+        );
 
         database.deleteProject(worktree.id);
         expect(database.getSession(created.session.id)).toMatchObject({
@@ -125,6 +131,61 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             cwd: ownerRoot,
             id: created.terminal!.id,
         });
+        database.close();
+    });
+
+    it('keeps Terminal placement in sync across every already-arranged Workbench Root', async () => {
+        const directory = await temporaryDirectory('caxri-db-terminal-cross-root-');
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const identity = await lstat(worktreeRoot, { bigint: true });
+
+        // Arrange the owner root so it gets its own stored snapshot, then do the same for the
+        // worktree root — both Roots are now "already arranged" and stop refreshing from `terminals`.
+        const ownerState = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...ownerState,
+            paneLayout: openResource(ownerState.paneLayout, {
+                kind: 'file',
+                path: join(ownerRoot, 'owner.ts'),
+            }),
+        });
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        const worktreeState = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...worktreeState,
+            paneLayout: openResource(worktreeState.paneLayout, {
+                kind: 'file',
+                path: join(worktreeRoot, 'worktree.ts'),
+            }),
+        });
+
+        // Creating a Terminal while the worktree root is selected must still surface it once the
+        // owner root's stored snapshot is revisited, not only in the Root that was active at creation.
+        const secondTerminal = database.createTerminal(created.session.id, 'shell');
+        database.selectWorkbenchProject(created.session.id, owner.id);
+        const ownerAfterCreate = database.getSessionState(created.session.id);
+        expect(listPaneTerminalIds(ownerAfterCreate.paneLayout)).toEqual(
+            expect.arrayContaining([created.terminal!.id, secondTerminal.id]),
+        );
+
+        // Closing a Terminal from the owner root must drop it from the worktree root's stored
+        // snapshot too, instead of leaving a ghost tab pointing at a PTY that no longer exists.
+        database.closeTerminal(secondTerminal.id);
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        const worktreeAfterClose = database.getSessionState(created.session.id);
+        expect(listPaneTerminalIds(worktreeAfterClose.paneLayout)).toEqual([created.terminal!.id]);
         database.close();
     });
 
