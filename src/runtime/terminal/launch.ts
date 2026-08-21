@@ -5,7 +5,11 @@ import type { AgentLaunchSettings } from '../../shared/agents';
 import { agentProviderCatalog } from '../../shared/agents';
 import { CaxriError } from '../../shared/ipc/errors';
 import type { TerminalKind } from '../../shared/types';
-import { discoverExecutable } from '../agents/discovery';
+/**
+ * Runtime domain boundaries require cross-domain dependencies to enter through the owning domain root.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
+import { discoverExecutable } from '../agents';
 import type { TerminalManagerOptions, TerminalWorkingDirectoryIdentity } from './manager-types';
 
 export async function resolveTerminalExecutable(
