@@ -13,6 +13,7 @@ import {
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
+import { writeJsonAtomic as writeSharedJsonAtomic } from '../../../../scripts/atomic-json';
 import { CommandError, getProcessIdentity, isProcessIdentityAlive, runCapture } from './process';
 
 export interface RepoContext {
@@ -287,17 +288,11 @@ export async function withRepoLock<T>(
     }
 }
 
-export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
-    await mkdir(dirname(path), { recursive: true });
-    const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-    const handle = await open(temporary, 'r');
-    try {
-        await handle.sync();
-    } finally {
-        await handle.close();
-    }
-    await rename(temporary, path);
+/**
+ * Preserves switch-worktree's parent-creation contract while sharing publication semantics.
+ */
+export function writeJsonAtomic(path: string, value: unknown): Promise<void> {
+    return writeSharedJsonAtomic(path, value, { ensureParent: true });
 }
 
 /**

@@ -6,6 +6,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import process from 'node:process';
 
+import { waitForChildExit } from './exec';
 import type { E2EPoolReceipt } from './reporters/e2e-receipt-reporter';
 import { assertE2EPoolCensusComplete } from './reporters/e2e-receipt-reporter';
 import { mergeCensusReceipts } from './run-e2e-pools';
@@ -47,10 +48,7 @@ async function run(
     child.stderr.on('data', (chunk: Buffer) => {
         chunks.push(chunk);
     });
-    const exitCode = await new Promise<number>((resolve, reject) => {
-        child.once('error', reject);
-        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
-    });
+    const exitCode = await waitForChildExit(child);
     const output = Buffer.concat(chunks).toString('utf8');
     await writeFile(`${receiptPath}.log`, output, 'utf8');
     return { exitCode, output };

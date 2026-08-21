@@ -1,13 +1,11 @@
 import { lstat, readFile, realpath } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { z } from 'zod';
 
 import { captureCommand } from './command-runner';
+import { PROJECT_ROOT, RECORDS_ROOT } from './paths';
 
-const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
 const MAX_CLI_OUTPUT_BYTES = 5 * 1024 * 1024;
 const CLI_TIMEOUT_MS = 60_000;
 const ACCEPTANCE_INGEST_TIMEOUT_MS = 10 * 60_000;
