@@ -29,9 +29,17 @@ export function useSessionNavigationHistory(): void {
         [sessions],
     );
 
+    /**
+     * The history ignores the Workbench snapshot while a selection it dispatched is still settling, because that
+     * snapshot is that selection's own echo. Re-running once the last one settles is what reconciles a switch the
+     * Runtime made on its own during that window — otherwise the effect would never fire again for a Session it already
+     * saw, and the history would stay pointed at a Session the Workbench left.
+     */
+    const isSettlingSelection = useSessionNavigationHistoryStore((state) => state.inFlight > 0);
     useEffect(() => {
-        useSessionNavigationHistoryStore.getState().observe(selectedSessionId);
-    }, [selectedSessionId]);
+        if (!isSettlingSelection)
+            useSessionNavigationHistoryStore.getState().observe(selectedSessionId);
+    }, [isSettlingSelection, selectedSessionId]);
 
     useEffect(() => {
         useSessionNavigationHistoryStore.getState().prune(activeSessionIds);
