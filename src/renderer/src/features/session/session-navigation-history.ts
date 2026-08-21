@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 
+import { selectSelectedSession } from '../../stores/selectors';
+import { useWorkbenchStore } from '../../stores/workbench';
+
 /**
  * Upper bound on remembered visits. VS Code caps its editor navigation history for the same reason: an unbounded stack
  * turns a long-running window into a list nobody can walk back through anyway.
@@ -261,6 +264,18 @@ function recordLiveVisit(
 }
 
 /**
+ * Where the Workbench actually ended up, folded in once nothing is left in flight.
+ *
+ * Snapshots taken while a selection is settling are ignored as that selection's own echo, but the Runtime can switch
+ * Sessions on its own in that window — the current Session gets archived, or a Terminal moves to a new Session. Nothing
+ * else would ever record it: the Session id does not change again, so no later snapshot arrives to observe.
+ */
+function reconcileWithWorkbench(timeline: SessionHistoryTimeline): SessionHistoryTimeline {
+    const selected = selectSelectedSession(useWorkbenchStore.getState().bootstrap);
+    return selected ? recordSessionVisit(timeline, selected.id) : timeline;
+}
+
+/**
  * `outstanding` is every dispatched-but-unsettled selection, not just the queued navigations: an ordinary selection
  * drops the navigations from `pending` without cancelling their IPCs, so counting `pending` alone would let each click
  * reopen the whole queue.
@@ -280,6 +295,19 @@ function view(
         pending,
         timeline,
     };
+}
+
+/**
+ * The state after one dispatched selection settles. The last one out of flight also reconciles with the Workbench, and
+ * a queued navigation whose position that rewrote falls back to an ordinary visit.
+ */
+function settledView(
+    timeline: SessionHistoryTimeline,
+    pending: SessionNavigationRequest[],
+    inFlight: number,
+) {
+    const reconciled = inFlight === 0 ? reconcileWithWorkbench(timeline) : timeline;
+    return { ...view(reconciled, retainValidRequests(reconciled, pending), inFlight), inFlight };
 }
 
 export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryState>(
@@ -317,18 +345,15 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
         settleSelection: (sessionId, isSelected) =>
             set((state) => {
                 const inFlight = Math.max(0, state.inFlight - 1);
-                // Even a refused selection has to refresh the view: it frees a slot, which can lift the saturation cap.
-                if (!isSelected)
-                    return { ...view(state.timeline, state.pending, inFlight), inFlight };
-                const timeline = recordLiveVisit(state, sessionId);
-                return {
-                    ...view(timeline, retainValidRequests(timeline, state.pending), inFlight),
-                    inFlight,
-                };
+                // Even a refused selection settles: it frees a slot, and it can be the one that reconciles.
+                const timeline = isSelected ? recordLiveVisit(state, sessionId) : state.timeline;
+                return settledView(timeline, state.pending, inFlight);
             }),
         request: (direction) => {
             const state = get();
-            if (state.pending.length >= MAX_PENDING_NAVIGATIONS) return;
+            // Measured against everything outstanding, not just the queue, so an ordinary selection that drops the
+            // queue without cancelling its IPCs cannot reopen the cap.
+            if (state.inFlight >= MAX_PENDING_NAVIGATIONS) return;
             const index = sessionHistoryTarget(
                 projectSessionHistory(state.timeline, state.pending),
                 direction,
@@ -354,28 +379,25 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
                 if (position === -1) {
                     // Pruning or a newer selection already dropped this request, yet the Session did reach the screen,
                     // so it counts as an ordinary visit.
-                    const timeline = recordLiveVisit(state, request.target);
-                    return {
-                        ...view(timeline, retainValidRequests(timeline, state.pending), inFlight),
+                    return settledView(
+                        recordLiveVisit(state, request.target),
+                        state.pending,
                         inFlight,
-                    };
+                    );
                 }
                 // Requests settle in dispatch order, so anything still queued ahead of this one was folded into the
                 // same Workbench snapshot and is already accounted for by landing here.
-                return {
-                    ...view(
-                        selectSessionHistoryIndex(state.timeline, request.index),
-                        state.pending.slice(position + 1),
-                        inFlight,
-                    ),
+                return settledView(
+                    selectSessionHistoryIndex(state.timeline, request.index),
+                    state.pending.slice(position + 1),
                     inFlight,
-                };
+                );
             }),
         abandon: (request) =>
             set((state) => {
                 const inFlight = Math.max(0, state.inFlight - 1);
                 const pending = state.pending.filter((step) => step.id !== request.id);
-                return { ...view(state.timeline, pending, inFlight), inFlight };
+                return settledView(state.timeline, pending, inFlight);
             }),
         // `liveSessionIds` belongs to the Workbench that is going away, so keeping it would judge the next Workbench's
         // Sessions against a Session set they were never part of, and every visit would be discarded as archived.

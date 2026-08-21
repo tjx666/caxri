@@ -106,7 +106,10 @@ function SessionMruRow({
              */
             onMouseMove={() => useSessionMruSwitcherStore.getState().select(index)}
         >
-            <SessionActivityDot state={session.lastActivityState} />
+            <SessionActivityDot
+                agentOperation={terminal?.agentOperation}
+                state={session.lastActivityState}
+            />
             <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={16} />
             <span className="min-w-0 flex-1">
                 <strong
