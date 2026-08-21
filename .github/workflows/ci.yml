@@ -46,6 +46,8 @@ jobs:
       ${{ github.event_name == 'pull_request'
         && format('retry-policy / pr-{0} / base-{1}', github.event.pull_request.number, github.event.pull_request.base.sha)
         || format('retry-policy / {0}', github.ref_name) }}
+    # GitHub evaluates job conditions before checkout, so this unavoidable literal expression is
+    # bound to .github/ci-trust-policy.json by the structural trust-policy contract test.
     if: >-
       (
         github.event_name == 'pull_request' &&
@@ -91,6 +93,16 @@ jobs:
           # the immutable retry trailers or exact validated tree from the pushed head.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify self-hosted trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
       - id: setup
         uses: ./.github/actions/setup-caxri-job
       - id: policy
@@ -122,6 +134,16 @@ jobs:
           # existing issue (https://www.react.doctor/docs/ci-and-prs/github-actions-setup).
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify self-hosted trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
       - id: setup
         uses: ./.github/actions/setup-caxri-job
         with:
@@ -185,24 +207,6 @@ jobs:
           (needs.retry-policy.outputs.mode == 'e2e-only' || needs.retry-policy.outputs.mode == 'e2e-repair') &&
           needs.checks.result == 'skipped'
         )
-      ) &&
-      (
-        (
-          github.event_name == 'pull_request' &&
-          github.actor == 'tjx666' &&
-          github.triggering_actor == 'tjx666' &&
-          github.event.pull_request.user.login == 'tjx666' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        ) || (
-          github.event_name == 'workflow_dispatch' &&
-          github.actor == 'tjx666' &&
-          github.triggering_actor == 'tjx666'
-        ) || (
-          github.event_name == 'push' &&
-          github.ref == 'refs/heads/main' &&
-          github.actor == 'tjx666' &&
-          github.triggering_actor == 'tjx666'
-        )
       )
     runs-on: [self-hosted, macOS, ARM64, caxri-e2e]
     env:
@@ -211,33 +215,18 @@ jobs:
       CAXRI_E2E_RUNNER_KIND: self-hosted
       CAXRI_E2E_RUNNER_REASON: >-
         ${{ github.event_name == 'pull_request'
-          && 'trusted same-repository tjx666 PR head'
+          && 'trusted same-repository owner PR head'
           || github.event_name == 'workflow_dispatch'
-          && 'trusted tjx666 validation dispatch'
+          && 'trusted owner validation dispatch'
           || github.event_name == 'push'
-          && 'trusted tjx666 main push'
+          && 'trusted owner main push'
           || 'unreachable untrusted event' }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
     steps:
-      - name: Verify self-hosted trust boundary
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+      - name: Verify runner boundary before checkout
         run: |
-          test "$GITHUB_ACTOR" = tjx666
-          test "$TRIGGERING_ACTOR" = tjx666
-          test "$EVENT_REPOSITORY" = "$GITHUB_REPOSITORY"
-          if [[ "$EVENT_NAME" == pull_request ]]; then
-            test "$PR_AUTHOR" = tjx666
-          elif [[ "$EVENT_NAME" == push ]]; then
-            test "$GITHUB_REF" = refs/heads/main
-          else
-            test "$EVENT_NAME" = workflow_dispatch
-          fi
           test "$RUNNER_ENVIRONMENT" = self-hosted
           test "$RUNNER_OS" = macOS
           test "$RUNNER_ARCH" = ARM64
@@ -248,6 +237,16 @@ jobs:
           # validated by retry-policy. The PR base identity is checked separately by that policy.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify self-hosted trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
       - id: setup
         uses: ./.github/actions/setup-caxri-job
         with:
@@ -394,6 +393,8 @@ jobs:
           MODE: ${{ needs.retry-policy.outputs.mode }}
           RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
           SHOULD_RUN_E2E: ${{ needs.retry-policy.outputs.run_e2e }}
+          # The stable gate runs without checkout even for rejected events, so it repeats only the
+          # pre-checkout expression that the trust-policy contract keeps structurally identical.
           TRUSTED_EVENT: >-
             ${{ (
               github.event_name == 'pull_request' &&

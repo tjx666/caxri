@@ -117,21 +117,18 @@ describe('Go local CI fallback', () => {
         const workflow = await readFile(resolve(projectRoot, '.github/workflows/ci.yml'), 'utf8');
         const steps = parse(workflow) as ActionsWorkflow;
         const checkSteps = steps.jobs?.checks?.steps ?? [];
-        const nonSetupActions = checkSteps
-            .flatMap((step) => (step.uses ? [step.uses] : []))
-            .filter(
-                (action) =>
-                    !/^(?:actions\/(?:cache|checkout|setup-node)|oven-sh\/setup-bun|pnpm\/setup)@/.test(
-                        action,
-                    ) && action !== './.github/actions/setup-caxri-job',
-            );
+        const nonCommandActions = checkSteps.flatMap((step) => (step.uses ? [step.uses] : []));
         const commands = checkSteps
             .filter((step) => step.if === fullChecksCondition && step.run)
             .map((step) =>
                 step.run!.includes('-- bun run lint --concurrency') ? 'bun run lint' : step.run!,
             );
 
-        expect(nonSetupActions).toEqual([]);
+        expect(nonCommandActions).toEqual([
+            'actions/checkout@v7',
+            './.github/actions/verify-trust-boundary',
+            './.github/actions/setup-caxri-job',
+        ]);
         expect(commands).toEqual(PLATFORM_NEUTRAL_CI_COMMANDS);
         expect(commands).toContain('bun run doctor:changed');
         expect(workflow).toContain(

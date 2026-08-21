@@ -14,6 +14,8 @@ jobs:
   release:
     # CI already owns every quality gate and the full macOS E2E suite. Wait for that workflow so
     # release commits consume one E2E runner instead of executing the same suite twice.
+    # GitHub evaluates this condition before checkout; the trust-policy contract binds its literals
+    # to .github/ci-trust-policy.json and the shared action rechecks them after checkout.
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -33,15 +35,8 @@ jobs:
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-release
     steps:
-      - name: Verify self-hosted release boundary
-        env:
-          RELEASE_ACTOR: ${{ github.event.workflow_run.actor.login }}
-          RELEASE_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
-          RELEASE_TRIGGERING_ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
+      - name: Verify runner boundary before checkout
         run: |
-          test "$RELEASE_ACTOR" = tjx666
-          test "$RELEASE_TRIGGERING_ACTOR" = tjx666
-          test "$RELEASE_REPOSITORY" = "$GITHUB_REPOSITORY"
           test "$RUNNER_ENVIRONMENT" = self-hosted
           test "$RUNNER_OS" = macOS
           test "$RUNNER_ARCH" = ARM64
@@ -51,6 +46,16 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
+      - name: Verify self-hosted release boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: release
+          event-name: ${{ github.event.workflow_run.event }}
+          actor: ${{ github.event.workflow_run.actor.login }}
+          triggering-actor: ${{ github.event.workflow_run.triggering_actor.login }}
+          event-repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          event-ref: refs/heads/${{ github.event.workflow_run.head_branch }}
+          pull-request-author: ${{ github.event.workflow_run.actor.login }}
       - name: Validate release commit
         id: release
         env:
