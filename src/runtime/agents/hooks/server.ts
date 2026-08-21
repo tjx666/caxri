@@ -13,7 +13,15 @@ import { agentLifecyclePhases } from './contract';
 
 const MAX_SIGNAL_BYTES = 4_096;
 const MAX_AGENT_SESSION_ID_LENGTH = 256;
-const MAX_SOCKET_DIRECTORY_ENTRIES = 4_096;
+/**
+ * Bounds the sweep by profile-owned candidates rather than by position in the directory. The previous bound counted
+ * every entry in the temp directory and stopped at 4096, which made reclamation depend on where the socket happened to
+ * land among unrelated files — a routine macOS `$TMPDIR` already holds several thousand entries, so a crashed Runtime's
+ * socket could survive indefinitely while the sweep reported success. Matching the profile prefix is a cheap string
+ * compare, and only the profile itself can grow the matching set, so capping that set keeps the expensive `lstat`/`rm`
+ * work bounded without letting foreign churn starve the sweep.
+ */
+const MAX_PROFILE_SOCKET_CANDIDATES = 512;
 const MAX_STALE_SOCKET_REMOVALS = 64;
 
 interface RegisteredLaunch {
@@ -59,15 +67,20 @@ export async function pruneStaleAgentHookSockets(
     directoryPath: string,
     profileId: string,
     currentProcessId = process.pid,
+    /**
+     * Overrides the candidate cap so a test can prove the bound counts profile-owned sockets rather than directory
+     * position. Production always uses {@link MAX_PROFILE_SOCKET_CANDIDATES}.
+     */
+    maxCandidates = MAX_PROFILE_SOCKET_CANDIDATES,
 ): Promise<void> {
     const prefix = `caxri-hooks-${profileId}-`;
-    let scanned = 0;
+    let candidates = 0;
     let removed = 0;
     const directory = await opendir(directoryPath);
     for await (const entry of directory) {
-        scanned += 1;
-        if (scanned > MAX_SOCKET_DIRECTORY_ENTRIES || removed >= MAX_STALE_SOCKET_REMOVALS) break;
+        if (candidates >= maxCandidates || removed >= MAX_STALE_SOCKET_REMOVALS) break;
         if (!entry.name.startsWith(prefix) || !entry.name.endsWith('.sock')) continue;
+        candidates += 1;
         const encodedProcessId = entry.name.slice(prefix.length, -'.sock'.length);
         if (!/^\d+$/.test(encodedProcessId)) continue;
         const processId = Number(encodedProcessId);

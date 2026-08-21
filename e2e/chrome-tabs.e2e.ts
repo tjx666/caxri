@@ -11,17 +11,34 @@ import {
     pageRequest,
 } from './support/helpers.ts';
 
+/**
+ * Mirrors `INDICATOR_INSET` in `components/chrome-tabs.tsx`. Duplicated rather than imported so this spec stays a plain
+ * Playwright module instead of pulling React into the test runner.
+ */
+const INDICATOR_INSET = 8;
+
+/**
+ * Mirrors the `indicatorMaxWidth` the Inspector passes in `features/inspector/inspector.tsx`.
+ */
+const INDICATOR_MAX_WIDTH = 72;
+
+/**
+ * The indicator is derived from the tab slot, not the label inside it: inset from both slot edges and centred in it.
+ */
 async function expectIndicatorAligned(tablist: Locator, tab: Locator): Promise<void> {
     await expect
         .poll(async () => {
             const indicator = await tablist
                 .locator('[data-slot="chrome-tab-indicator"]')
                 .boundingBox();
-            const content = await tab.locator('[data-slot="chrome-tab-content"]').boundingBox();
-            if (!indicator || !content) return false;
+            const slot = await tab.boundingBox();
+            if (!indicator || !slot) return false;
+            const isCentered =
+                Math.abs(indicator.x + indicator.width / 2 - (slot.x + slot.width / 2)) <= 1;
             return (
-                Math.abs(indicator.x - content.x) <= 1 &&
-                Math.abs(indicator.width - content.width) <= 1
+                isCentered &&
+                indicator.width > 0 &&
+                indicator.width <= slot.width - INDICATOR_INSET * 2 + 1
             );
         })
         .toBe(true);
@@ -43,7 +60,7 @@ async function expectPanelAssociation(page: Page, tab: Locator, isVisible: boole
 
 /**
  * The Settings dialog opens with a `zoom-in-95` keyframe, so a width measured while it plays is scaled down by up to
- * 5%. `expectIndicatorAligned` cannot catch that on its own: the indicator and the tab content it tracks are scaled
+ * 5%. `expectIndicatorAligned` cannot catch that on its own: the indicator and the tab slot it tracks are scaled
  * together and stay aligned throughout the animation. Poll for two consecutive equal readings before pinning an
  * absolute pixel baseline.
  */
@@ -137,23 +154,30 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
 
         await running.page.keyboard.press('Meta+2');
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
+        /**
+         * The rail divides evenly and each mark is capped, so the indicator is the same size on every tab and stays put
+         * when a responsive tab drops its label. A label-width indicator used to jump between an icon-plus-word and a
+         * bare icon, and on a wide rail a slot-width one would stretch into a filled segment.
+         */
+        const indicatorWidth = async (): Promise<number> =>
+            inspectorTabs
+                .locator('[data-slot="chrome-tab-indicator"]')
+                .evaluate((element) => element.getBoundingClientRect().width);
+        const cappedWidth = await indicatorWidth();
+        expect(cappedWidth).toBe(INDICATOR_MAX_WIDTH);
+        await filesTab.click();
+        await expectIndicatorAligned(inspectorTabs, filesTab);
+        await expect.poll(indicatorWidth).toBe(cappedWidth);
+        await gitTab.click();
+
         const originalViewport = running.page.viewportSize() ?? { width: 1280, height: 720 };
         await running.page.setViewportSize({ width: 1200, height: originalViewport.height });
         await expect(gitTab.locator('[data-slot="chrome-tab-label"]')).toBeVisible();
         await expectIndicatorAligned(inspectorTabs, gitTab);
-        const wideIndicatorWidth = await inspectorTabs
-            .locator('[data-slot="chrome-tab-indicator"]')
-            .evaluate((element) => element.getBoundingClientRect().width);
         await running.page.setViewportSize({ width: 1000, height: originalViewport.height });
         await expect(gitTab.locator('[data-slot="chrome-tab-label"]')).toBeHidden();
         await expectIndicatorAligned(inspectorTabs, gitTab);
-        await expect
-            .poll(() =>
-                inspectorTabs
-                    .locator('[data-slot="chrome-tab-indicator"]')
-                    .evaluate((element) => element.getBoundingClientRect().width),
-            )
-            .toBeLessThan(wideIndicatorWidth);
+        await expect.poll(indicatorWidth).toBe(cappedWidth);
         await running.page.setViewportSize(originalViewport);
 
         const firstSession = running.page.locator('.session-card').first();
