@@ -353,6 +353,15 @@ export async function removeStaleRuntime(
     return [];
 }
 
+/**
+ * A reused profile stays protected from cleanup while any verified inherited process receipt exists.
+ */
+export function shouldPreserveInheritedRuntimeState(
+    inheritedOwnedProcesses: RuntimeState['ownedProcesses'],
+): boolean {
+    return inheritedOwnedProcesses.length > 0;
+}
+
 export async function waitForOwnedProcesses(
     runtime: Pick<RuntimeState, 'projectRoot' | 'userDataDir'>,
     expectedProjectRoot: string,
@@ -491,7 +500,8 @@ async function main(): Promise<void> {
         });
         let lifecycleLaunchId: string;
         let hasVerifiedOwnedProcesses = false;
-        let isPreserveOwnedRuntimeState = false;
+        let isPreserveOwnedRuntimeState =
+            shouldPreserveInheritedRuntimeState(inheritedOwnedProcesses);
         let runtime: RuntimeState | undefined;
         try {
             lifecycleLaunchId = await beginCaseLifecycle(plannedCase.directory, {
@@ -500,7 +510,9 @@ async function main(): Promise<void> {
                 stateIsolation: plannedCase.item.stateIsolation,
             });
         } catch (error: unknown) {
-            await removeOwnedUserData({ ownedUserData, userDataDir });
+            if (!isPreserveOwnedRuntimeState) {
+                await removeOwnedUserData({ ownedUserData, userDataDir });
+            }
             throw error;
         }
 
