@@ -96,6 +96,7 @@ jobs:
       - name: Verify self-hosted trust boundary
         uses: ./.github/actions/verify-trust-boundary
         with:
+          policy-domain: ci
           event-name: ${{ github.event_name }}
           actor: ${{ github.actor }}
           triggering-actor: ${{ github.triggering_actor }}
@@ -136,6 +137,7 @@ jobs:
       - name: Verify self-hosted trust boundary
         uses: ./.github/actions/verify-trust-boundary
         with:
+          policy-domain: ci
           event-name: ${{ github.event_name }}
           actor: ${{ github.actor }}
           triggering-actor: ${{ github.triggering_actor }}
@@ -223,6 +225,11 @@ jobs:
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
     steps:
+      - name: Verify runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = self-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
       - id: checkout
         uses: actions/checkout@v7
         with:
@@ -233,6 +240,7 @@ jobs:
       - name: Verify self-hosted trust boundary
         uses: ./.github/actions/verify-trust-boundary
         with:
+          policy-domain: ci
           event-name: ${{ github.event_name }}
           actor: ${{ github.actor }}
           triggering-actor: ${{ github.triggering_actor }}
