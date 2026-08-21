@@ -40,6 +40,7 @@ import {
     registerTerminalClearHandler,
     registerTerminalSelectionHandlers,
     restartTerminal,
+    sendTerminalSequence,
     startNewAgentSession,
 } from '../terminal-actions';
 
@@ -78,6 +79,24 @@ beforeEach(() => {
     mocks.pushToast.mockClear();
     mocks.refreshWorkbench.mockClear();
     mocks.tryCommand.mockClear();
+});
+
+describe('sendTerminalSequence', () => {
+    it('sends the exact configured text through the typed Terminal input request', async () => {
+        const sequence = '\u{1B}[1;3B';
+
+        sendTerminalSequence('terminal-1', sequence);
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.tryCommand).toHaveBeenCalledWith(
+            'Terminal input failed',
+            expect.any(Function),
+        );
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.input', {
+            terminalId: 'terminal-1',
+            data: sequence,
+        });
+    });
 });
 
 describe('restartTerminal (requestTerminalRestart reattach gate)', () => {

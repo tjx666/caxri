@@ -114,9 +114,11 @@ export function CommandPalette() {
                             })}
                         </CommandGroup>
                         <CommandGroup heading="Commands">
-                            {commandDefinitions.map((command) => (
-                                <CommandRow key={command.id} command={command} />
-                            ))}
+                            {commandDefinitions.map((command) =>
+                                command.requiresArguments ? null : (
+                                    <CommandRow key={command.id} command={command} />
+                                ),
+                            )}
                         </CommandGroup>
                     </CommandList>
                 </Command>

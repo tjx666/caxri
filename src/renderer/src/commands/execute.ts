@@ -29,6 +29,7 @@ import {
     hasActiveTerminalSelection,
     navigateActiveTerminalCommand,
     restartActiveTerminal,
+    sendTerminalSequence,
     startNewAgentSession,
 } from '../features/terminal/terminal-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
@@ -148,6 +149,10 @@ const commandContext: CommandContext = {
             const terminalId = activeTerminalId();
             if (terminalId)
                 navigateActiveTerminalCommand(terminalId, direction === -1 ? 'previous' : 'next');
+        },
+        sendSequence: (text) => {
+            const terminalId = activeTerminalId();
+            if (terminalId) sendTerminalSequence(terminalId, text);
         },
         restartActive: () => {
             const terminalId = activeTerminalId();

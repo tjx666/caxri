@@ -69,7 +69,7 @@ export function buildKeybindingRows(keybindings: readonly Keybinding[]): Keybind
         };
     });
     for (const definition of commandDefinitions) {
-        if (boundCommands.has(definition.id)) continue;
+        if (boundCommands.has(definition.id) || definition.requiresArguments) continue;
         rows.push({
             category: definition.category,
             command: definition.id,

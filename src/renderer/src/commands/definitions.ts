@@ -39,6 +39,11 @@ function projectIdArgument(arguments_: unknown): string | undefined {
     return typeof arguments_.projectId === 'string' ? arguments_.projectId : undefined;
 }
 
+function terminalSequenceArgument(arguments_: unknown): string | undefined {
+    if (!arguments_ || typeof arguments_ !== 'object' || !('text' in arguments_)) return;
+    return typeof arguments_.text === 'string' ? arguments_.text : undefined;
+}
+
 /**
  * The command table. Populated once as a module side effect; `commands/execute.ts` imports this module so every id in
  * the shared catalog has a matching registry entry before the app runs.
@@ -104,6 +109,17 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
         when: (context) => context.terminal.hasActive(),
     }),
+    fromCatalog(
+        'workbench.action.terminal.sendSequence',
+        (context, arguments_) => {
+            const text = terminalSequenceArgument(arguments_);
+            if (text !== undefined) context.terminal.sendSequence(text);
+        },
+        {
+            allowInEditable: true,
+            when: (context) => context.terminal.hasActive(),
+        },
+    ),
     fromCatalog('terminal.restart', (context) => context.terminal.restartActive()),
     fromCatalog('terminal.startNewAgentSession', (context) =>
         context.terminal.startNewAgentSession(),
