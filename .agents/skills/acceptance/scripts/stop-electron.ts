@@ -116,11 +116,24 @@ export async function stopElectron(
     for (const ownedProcess of runtime.ownedProcesses) {
         capturedProcesses.set(processKey(ownedProcess), ownedProcess);
     }
+    const acceptedHostKeys = new Set(
+        runtime.ownedProcesses
+            .filter(({ role }) => role === 'host')
+            .map((ownedProcess) => processKey(ownedProcess)),
+    );
     const captureCurrentProcesses = async (): Promise<void> => {
         const discoveredProcesses = await dependencies.discoverOwnedProcesses(
             runtime,
             dependencies.projectRoot,
         );
+        const discoveredHost = discoveredProcesses.find(({ role }) => role === 'host');
+        if (discoveredHost) {
+            const discoveredHostKey = processKey(discoveredHost);
+            if (acceptedHostKeys.size > 0 && !acceptedHostKeys.has(discoveredHostKey)) {
+                throw new Error('Acceptance profile owner changed process identity');
+            }
+            acceptedHostKeys.add(discoveredHostKey);
+        }
         for (const ownedProcess of discoveredProcesses) {
             capturedProcesses.set(processKey(ownedProcess), ownedProcess);
         }
