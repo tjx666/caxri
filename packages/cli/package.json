@@ -1,6 +1,6 @@
 {
     "name": "@caxri/cli",
-    "version": "0.0.16",
+    "version": "0.0.17",
     "private": true,
     "description": "Scriptable client for the local Caxri Host.",
     "type": "module",
