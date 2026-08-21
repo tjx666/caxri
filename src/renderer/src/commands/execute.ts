@@ -17,6 +17,7 @@ import {
     deleteSelectedSession,
     openSelectedProjectInExternalEditor,
     selectAdjacentSession,
+    switchMruSession,
 } from '../features/session/session-actions';
 import { cycleActiveWork } from '../features/tabs/tab-navigation';
 import {
@@ -102,6 +103,12 @@ const commandContext: CommandContext = {
     project: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void chooseProjectDirectory(),
+        customizeIcon: (projectId) => {
+            const target =
+                getBootstrap()?.projects.find((project) => project.id === projectId) ??
+                selectSelectedProject(getBootstrap());
+            if (target) useDialogStore.getState().openProjectIcon(target.id);
+        },
         openInExternalEditor: openSelectedProjectInExternalEditor,
         removeSelected: deleteSelectedProject,
     },
@@ -114,6 +121,7 @@ const commandContext: CommandContext = {
         },
         deleteSelected: deleteSelectedSession,
         selectAdjacent: selectAdjacentSession,
+        switchMru: switchMruSession,
     },
     terminal: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

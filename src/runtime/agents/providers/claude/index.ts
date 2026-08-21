@@ -10,7 +10,8 @@ import type {
     AgentSnapshotContext,
     LocalAgentState,
 } from '../../contract';
-import { canonicalPath } from '../../contract';
+import { canonicalPath, isOpaqueAgentSessionId } from '../../contract';
+import { openSafeAgentTranscript } from '../../transcript-security';
 import { claudeHookAdapter } from './hooks';
 
 interface ClaudeSessionMetadata {
@@ -58,7 +59,15 @@ function claudeProjectDirectoryName(cwd: string): string {
  * must never derive it independently.
  */
 function claudeTranscriptPath(configDirectory: string, cwd: string, sessionId: string): string {
-    return join(configDirectory, 'projects', claudeProjectDirectoryName(cwd), `${sessionId}.jsonl`);
+    return join(claudeTranscriptRoot(configDirectory, cwd), `${sessionId}.jsonl`);
+}
+
+function claudeTranscriptRoot(configDirectory: string, cwd: string): string {
+    return join(claudeTranscriptBaseRoot(configDirectory), claudeProjectDirectoryName(cwd));
+}
+
+function claudeTranscriptBaseRoot(configDirectory: string): string {
+    return join(configDirectory, 'projects');
 }
 
 /**
@@ -126,10 +135,16 @@ async function readTranscriptTitles(
             if (oldest !== undefined) transcriptTitleCaches.delete(oldest);
         }
     }
+    if (!isOpaqueAgentSessionId(sessionId)) return cache;
     try {
-        const handle = await open(path, 'r');
+        const opened = await openSafeAgentTranscript({
+            baseRoot: claudeTranscriptBaseRoot(configDirectory),
+            path,
+            root: claudeTranscriptRoot(configDirectory, cwd),
+        });
+        if (!opened) return cache;
+        const { handle, stats } = opened;
         try {
-            const stats = await handle.stat();
             if (stats.size < cache.offset)
                 Object.assign(cache, { lastPrompt: undefined, offset: 0, title: undefined });
             const chunk = Buffer.allocUnsafe(TRANSCRIPT_READ_CHUNK_BYTES);
@@ -315,6 +330,10 @@ export const claudeProvider: AgentProviderDescriptor = {
     id: 'claude',
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),
+    transcriptBaseRoot: (environment) =>
+        claudeTranscriptBaseRoot(resolveClaudeConfigDirectory(environment)),
     transcriptPath: ({ agentSessionId, cwd }, environment) =>
         claudeTranscriptPath(resolveClaudeConfigDirectory(environment), cwd, agentSessionId),
+    transcriptRoot: ({ cwd }, environment) =>
+        claudeTranscriptRoot(resolveClaudeConfigDirectory(environment), cwd),
 };

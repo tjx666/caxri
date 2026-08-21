@@ -3,9 +3,22 @@ import { basename } from 'node:path';
 
 import { asc, eq, sql } from 'drizzle-orm';
 
+import type { ProjectIcon } from '../../../shared/project-customization';
+import { projectIconSchema } from '../../../shared/project-customization';
 import type { ProjectRecord } from '../../../shared/types';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { projects } from '../schema';
+
+function projectRecord(row: typeof projects.$inferSelect): ProjectRecord {
+    const { iconColor, iconName, ...project } = row;
+    const icon = iconName
+        ? projectIconSchema.parse({ name: iconName, ...(iconColor && { color: iconColor }) })
+        : undefined;
+    return {
+        ...project,
+        ...(icon && { icon }),
+    };
+}
 
 /**
  * Pure CRUD over the `projects` table. Deletion-fallback selection and every other cross-record decision live in
@@ -19,15 +32,22 @@ export class ProjectsModel {
             .select()
             .from(projects)
             .orderBy(asc(projects.orderIndex), asc(projects.createdAt), asc(projects.id))
-            .all();
+            .all()
+            .map(projectRecord);
     }
 
     get(id: string): ProjectRecord | undefined {
-        return this.database.select().from(projects).where(eq(projects.id, id)).get();
+        const row = this.database.select().from(projects).where(eq(projects.id, id)).get();
+        return row ? projectRecord(row) : undefined;
     }
 
     findByRootPath(rootPath: string): ProjectRecord | undefined {
-        return this.database.select().from(projects).where(eq(projects.rootPath, rootPath)).get();
+        const row = this.database
+            .select()
+            .from(projects)
+            .where(eq(projects.rootPath, rootPath))
+            .get();
+        return row ? projectRecord(row) : undefined;
     }
 
     /**
@@ -59,6 +79,16 @@ export class ProjectsModel {
     reorder(projectIds: readonly string[]): void {
         for (const [orderIndex, id] of projectIds.entries())
             this.database.update(projects).set({ orderIndex }).where(eq(projects.id, id)).run();
+    }
+
+    setIcon(id: string, icon: ProjectIcon | null): boolean {
+        return (
+            this.database
+                .update(projects)
+                .set({ iconName: icon?.name ?? null, iconColor: icon?.color ?? null })
+                .where(eq(projects.id, id))
+                .run().changes === 1
+        );
     }
 
     /**

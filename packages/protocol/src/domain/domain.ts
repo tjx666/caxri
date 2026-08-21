@@ -9,6 +9,7 @@ import { editorLayoutSchema } from './editor-layout.js';
 import { gitCommitSchema } from './git.js';
 import { inspectorModeSchema } from './inspector.js';
 import { terminalLayoutSchema } from './layout.js';
+import { projectIconSchema } from './project-customization.js';
 import { workItemSchema } from './work-item.js';
 
 export * from './git.js';
@@ -67,6 +68,7 @@ export const projectRecordSchema = z.object({
     orderIndex: z.number().int().nonnegative(),
     createdAt: z.number(),
     lastOpenedAt: z.number(),
+    icon: projectIconSchema.optional(),
 });
 
 export const sessionRecordSchema = z.object({

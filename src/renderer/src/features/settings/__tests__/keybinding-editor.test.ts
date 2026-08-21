@@ -59,10 +59,21 @@ describe('keybinding rows', () => {
 });
 
 describe('recording key classification', () => {
-    it('treats Tab as a focus-navigation key that must never be captured', () => {
-        expect(isFocusNavigationKey('Tab')).toBe(true);
-        expect(isFocusNavigationKey('a')).toBe(false);
-        expect(isFocusNavigationKey('Enter')).toBe(false);
+    it('keeps bare Tab as focus navigation while allowing modified Tab shortcuts', () => {
+        const event = (
+            key: string,
+            modifiers: Partial<Record<'altKey' | 'ctrlKey' | 'metaKey', boolean>> = {},
+        ) => ({
+            altKey: false,
+            ctrlKey: false,
+            key,
+            metaKey: false,
+            ...modifiers,
+        });
+        expect(isFocusNavigationKey(event('Tab'))).toBe(true);
+        expect(isFocusNavigationKey(event('Tab', { altKey: true, ctrlKey: true }))).toBe(false);
+        expect(isFocusNavigationKey(event('a'))).toBe(false);
+        expect(isFocusNavigationKey(event('Enter'))).toBe(false);
     });
 
     it('identifies lone modifier presses that only arm further recording', () => {

@@ -44,6 +44,7 @@ export const hostForwardedMethods = [
     'logs.query',
     'project.list',
     'project.reorder',
+    'project.setIcon',
     'projectStatus.overview',
     'projectStatus.summary',
     'session.archive',

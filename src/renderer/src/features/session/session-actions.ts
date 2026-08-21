@@ -1,5 +1,6 @@
 import type { TerminalKind } from '@shared/types';
 
+import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { caxri } from '../../lib/caxri';
 import { queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/invalidation';
@@ -8,14 +9,51 @@ import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../s
 import { useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
+import type { PendingSessionMruSelection } from './session-mru-switcher-state';
+import {
+    resolveSessionMruNavigation,
+    useSessionMruSwitcherStore,
+} from './session-mru-switcher-state';
 
-export async function didSelectSession(sessionId: string): Promise<boolean> {
+const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {};
+
+async function didRequestSessionSelection(sessionId: string): Promise<boolean> {
     const selected = await tryCommand(
         'Session selection failed',
         () => caxri.request('session.select', { sessionId }),
         { refresh: true },
     );
     return selected !== undefined;
+}
+
+export async function didSelectSession(sessionId: string): Promise<boolean> {
+    delete mruNavigationState.pendingSelection;
+    return didRequestSessionSelection(sessionId);
+}
+
+/**
+ * Records the logical selection synchronously so another quick-toggle can reverse direction before Runtime's full
+ * snapshot refresh completes. Runtime remains authoritative: the pending link disappears when its refreshed selected
+ * Session arrives, and a failed request or any ordinary Session selection clears it.
+ */
+function selectMruSession(sessionId: string): void {
+    const bootstrap = getBootstrap();
+    if (!bootstrap) return;
+    const navigation = resolveSessionMruNavigation(
+        bootstrap.sessions,
+        bootstrap.selectedSessionId,
+        mruNavigationState.pendingSelection,
+    );
+    const previousSessionId = navigation.selectedSessionId;
+    if (!previousSessionId || previousSessionId === sessionId) return;
+    mruNavigationState.pendingSelection = { currentSessionId: sessionId, previousSessionId };
+    // Fire-and-forget: the request funnels failures into a toast and completion only reconciles optimistic MRU data.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void didRequestSessionSelection(sessionId).then((selected) => {
+        if (mruNavigationState.pendingSelection?.currentSessionId !== sessionId) return;
+        if (!selected || getBootstrap()?.selectedSessionId === sessionId)
+            delete mruNavigationState.pendingSelection;
+    });
 }
 
 async function createSession(projectId: string, defaultAgent: TerminalKind | null): Promise<void> {
@@ -221,4 +259,30 @@ export function selectAdjacentSession(delta: 1 | -1): void {
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void didSelectSession(next.id);
+}
+
+export function switchMruSession(invocation?: SessionMruShortcutInvocation): void {
+    const bootstrap = getBootstrap();
+    if (!bootstrap) return;
+    const navigation = resolveSessionMruNavigation(
+        bootstrap.sessions,
+        bootstrap.selectedSessionId,
+        mruNavigationState.pendingSelection,
+    );
+    mruNavigationState.pendingSelection = navigation.pendingSelection;
+    const immediateSessionId = useSessionMruSwitcherStore
+        .getState()
+        .beginOrCycle(navigation.candidateIds, invocation);
+    // A command-palette invocation, or a binding with no held modifier, is a one-shot jump to the previous Session.
+    if (immediateSessionId) selectMruSession(immediateSessionId);
+}
+
+export function commitMruSession(): void {
+    const state = useSessionMruSwitcherStore.getState();
+    const sessions = getBootstrap()?.sessions ?? [];
+    const availableCandidateIds = state.candidateIds.filter((id) =>
+        sessions.some((session) => session.id === id && session.archivedAt === undefined),
+    );
+    const sessionId = state.commit(availableCandidateIds);
+    if (sessionId) selectMruSession(sessionId);
 }

@@ -3,10 +3,12 @@ import type { AgentTranscriptTab } from '@shared/agent-transcript';
 
 import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
 
+import { Button } from '../../components/ui/button';
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { useCaxriQuery } from '../../queries/client';
 import { useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
+import { useAgentTranscriptFollow } from './use-agent-transcript-follow';
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
@@ -14,10 +16,10 @@ const emptyWorkDangerClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-danger';
 
 /**
- * Read-only viewer for an Agent Terminal's provider transcript (`caxri-agent-transcript://` tabs). Content is fetched
- * fresh on mount through `terminal.agentTranscript`, whose path the Runtime derives itself — this surface never submits
- * a filesystem path. Rendered as plain text: each jsonl line is an independent JSON record, which Monaco's `json` mode
- * would cover in bogus multi-root diagnostics.
+ * Read-only viewer for an Agent Terminal's provider transcript (`caxri-agent-transcript://` tabs). Runtime/WatchHub
+ * invalidation keeps the query fresh after its initial `terminal.agentTranscript` read; the Runtime derives the path,
+ * so this surface never submits a filesystem path. Rendered as plain text: each jsonl line is an independent JSON
+ * record, which Monaco's `json` mode would cover in bogus multi-root diagnostics.
  */
 export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
     const theme = useTheme();
@@ -26,6 +28,7 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
         terminalId: tab.terminalId,
         withContent: true,
     });
+    const follow = useAgentTranscriptFollow(query.data?.path ?? tab.terminalId);
     if (!theme) return null;
     if (query.isPending) return <div className={emptyWorkClassName}>Loading transcript…</div>;
     if (query.isError)
@@ -60,13 +63,18 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
                     </span>
                 )}
             </div>
-            <div className="min-h-0 flex-1">
+            <div
+                className="relative min-h-0 flex-1"
+                data-transcript-content-length={query.data.content?.length ?? 0}
+                data-transcript-following={follow.isFollowing}
+            >
                 <Editor
                     className="h-full w-full"
                     path={`caxri://agent-transcript/${encodeURIComponent(tab.terminalId)}.jsonl`}
                     value={query.data.content ?? ''}
                     theme="caxri-active"
                     beforeMount={() => applyEditorTheme(theme)}
+                    onMount={follow.onMount}
                     options={{
                         automaticLayout: true,
                         ...(fontFamily && { fontFamily }),
@@ -77,6 +85,16 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
                         wordWrap: 'on',
                     }}
                 />
+                {!follow.isFollowing && (
+                    <Button
+                        className="absolute right-4 bottom-4 z-10 shadow-[0_4px_16px_var(--shadow)]"
+                        size="sm"
+                        variant="secondary"
+                        onClick={follow.jumpToLatest}
+                    >
+                        Jump to Latest
+                    </Button>
+                )}
             </div>
         </div>
     );

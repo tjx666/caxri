@@ -101,7 +101,7 @@ export function EditorSurface({ path }: { path: string }) {
     if (transcriptTab)
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading transcript…</div>}>
-                <AgentTranscriptEditor tab={transcriptTab} />
+                <AgentTranscriptEditor key={transcriptTab.terminalId} tab={transcriptTab} />
             </Suspense>
         );
     return <FileEditorSurface path={path} />;

@@ -37,8 +37,13 @@ export function isModifierKey(key: string): boolean {
  * them as part of a shortcut. Without this, Tab would get trapped on the recording button and the browser's normal
  * focus order would break.
  */
-export function isFocusNavigationKey(key: string): boolean {
-    return key === 'Tab';
+export function isFocusNavigationKey(event: {
+    altKey: boolean;
+    ctrlKey: boolean;
+    key: string;
+    metaKey: boolean;
+}): boolean {
+    return event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey;
 }
 
 /**

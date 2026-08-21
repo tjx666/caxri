@@ -55,6 +55,13 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'project', group: 1, order: 0 },
     },
     {
+        id: 'project.customizeIcon',
+        title: 'Customize Project Icon…',
+        category: 'Project',
+        description: 'Choose a controlled icon and color for the selected Project',
+        nativeMenu: { menu: 'project', group: 1, order: 1 },
+    },
+    {
         id: 'session.create',
         title: 'New Session',
         category: 'Session',
@@ -81,6 +88,12 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Session',
         description: 'Select the previous active Session',
         nativeMenu: { menu: 'session', group: 1, order: 0 },
+    },
+    {
+        id: 'session.switchMru',
+        title: 'Switch to Recently Used Session',
+        category: 'Session',
+        description: 'Switch between active Sessions in recently used order',
     },
     {
         id: 'terminal.new',
@@ -359,6 +372,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+f', command: 'terminal.find' },
     { key: 'ctrl+tab', command: 'workbench.nextTab' },
     { key: 'ctrl+shift+tab', command: 'workbench.previousTab' },
+    { key: 'ctrl+alt+tab', command: 'session.switchMru' },
     { key: 'cmd+shift+arrowup', command: 'terminal.previousCommand' },
     { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },

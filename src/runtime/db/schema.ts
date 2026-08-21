@@ -16,6 +16,8 @@ export const projects = sqliteTable(
         orderIndex: integer('order_index').notNull().default(0),
         createdAt: integer('created_at').notNull(),
         lastOpenedAt: integer('last_opened_at').notNull(),
+        iconName: text('icon_name'),
+        iconColor: text('icon_color'),
     },
     (table) => [
         unique().on(table.rootPath),

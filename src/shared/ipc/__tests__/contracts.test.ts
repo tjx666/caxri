@@ -527,6 +527,29 @@ describe('Project and Session contracts', () => {
             }).success,
         ).toBe(false);
     });
+
+    it('accepts only controlled Project icons and semantic colors', () => {
+        const valid = { projectId: 'project-1', icon: { name: 'code-2', color: 'success' } };
+        expect(methods['project.setIcon'].params.safeParse(valid).success).toBe(true);
+        expect(methods['project.setIcon'].params.safeParse({ ...valid, icon: null }).success).toBe(
+            true,
+        );
+        expect(
+            methods['project.setIcon'].params.safeParse({
+                ...valid,
+                icon: { name: 'user-supplied-icon', color: 'success' },
+            }).success,
+        ).toBe(false);
+        expect(
+            methods['project.setIcon'].params.safeParse({
+                ...valid,
+                icon: { name: 'code-2', color: '#ff00ff' },
+            }).success,
+        ).toBe(false);
+        expect(
+            methods['project.setIcon'].params.safeParse({ ...valid, rootPath: '/other' }).success,
+        ).toBe(false);
+    });
 });
 
 describe('Terminal creation contract', () => {

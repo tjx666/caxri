@@ -95,6 +95,23 @@ function invalidateProjectStatusQuery(queryClient: QueryClient, sessionId: strin
     });
 }
 
+function invalidateAgentTranscriptQuery(queryClient: QueryClient, terminalId?: string): void {
+    // Fire-and-forget: an active transcript viewer renders the refetch result through its query state.
+    // eslint-disable-next-line no-void -- targeted query invalidation owns its own error state
+    void queryClient.invalidateQueries({
+        predicate: (query) => {
+            const [method, parameters] = query.queryKey as [
+                CaxriMethod,
+                { terminalId?: string } | undefined,
+            ];
+            return (
+                method === 'terminal.agentTranscript' &&
+                (terminalId === undefined || parameters?.terminalId === terminalId)
+            );
+        },
+    });
+}
+
 /**
  * Drops every cached query keyed to one of `sessionIds` from the React Query cache. Called once a Session (or, with
  * every Session of a Project, a Project) is deleted — otherwise the cached reads (Git status, diffs, blame, file
@@ -150,6 +167,23 @@ export function useRuntimeQueryInvalidation(): void {
 export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () => void {
     const pendingTimers = new Map<string, number>();
     const unsubscribe = caxri.onEvent((event) => {
+        if (event.event === 'state.changed') {
+            if (event.payload.kind === 'full') invalidateAgentTranscriptQuery(queryClient);
+            else {
+                for (const terminalId of event.payload.terminalIds)
+                    invalidateAgentTranscriptQuery(queryClient, terminalId);
+            }
+            return;
+        }
+        if (event.event === 'host.connectionChanged') {
+            /**
+             * A recovery snapshot can replace an overrun durable-event window. Refetch every mounted transcript after
+             * reconnect so a changed file still converges even when its targeted invalidation fell outside the
+             * journal.
+             */
+            invalidateAgentTranscriptQuery(queryClient);
+            return;
+        }
         if (event.event === 'workbench.changed') {
             removeSessionQueries(queryClient, [event.payload.sessionId]);
             return;
@@ -164,6 +198,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (event.event === 'projectStatus.changed') {
             invalidateProjectStatusQuery(queryClient, event.payload.sessionId);
+            return;
+        }
+        if (event.event === 'agentTranscript.changed') {
+            invalidateAgentTranscriptQuery(queryClient, event.payload.terminalId);
             return;
         }
         if (event.event !== 'files.changed') return;

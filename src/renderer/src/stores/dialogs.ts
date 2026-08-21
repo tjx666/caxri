@@ -10,6 +10,7 @@ interface DialogState {
     pathBrowserOpen: boolean;
     bugReportOpen: boolean;
     bugReportRequestId: number;
+    projectIconProjectId?: string;
     /**
      * Directory granted by the native picker, awaiting the default-Agent choice.
      */
@@ -35,6 +36,8 @@ interface DialogState {
     setPathBrowserOpen(isOpen: boolean): void;
     openBugReport(): void;
     setBugReportOpen(isOpen: boolean): void;
+    openProjectIcon(projectId: string): void;
+    closeProjectIcon(): void;
     askAgentForRoot(rootPath: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
@@ -60,6 +63,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     pathBrowserOpen: false,
     bugReportOpen: false,
     bugReportRequestId: 0,
+    projectIconProjectId: undefined,
     pendingRoot: undefined,
     pendingProjectId: undefined,
     openModalIds: new Set(),
@@ -78,6 +82,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
             bugReportRequestId: state.bugReportRequestId + 1,
         })),
     setBugReportOpen: (bugReportOpen) => set({ bugReportOpen }),
+    openProjectIcon: (projectIconProjectId) => set({ projectIconProjectId }),
+    closeProjectIcon: () => set({ projectIconProjectId: undefined }),
     askAgentForRoot: (rootPath) => set({ pendingRoot: rootPath, pendingProjectId: undefined }),
     askAgentForProject: (projectId) => set({ pendingProjectId: projectId, pendingRoot: undefined }),
     clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
@@ -110,4 +116,5 @@ export const setPathBrowserOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setPathBrowserOpen(isOpen);
 export const setBugReportOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setBugReportOpen(isOpen);
+export const closeProjectIconDialog = (): void => useDialogStore.getState().closeProjectIcon();
 export const clearPendingSession = (): void => useDialogStore.getState().clearPending();

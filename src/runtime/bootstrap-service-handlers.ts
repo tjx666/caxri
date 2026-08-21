@@ -1,6 +1,7 @@
 import { agentSkillHealthReader } from './agent-skills';
-import type { AgentEnvironment, AgentHookManager } from './agents';
+import type { AgentEnvironment, AgentHookManager, AgentTranscriptWatcher } from './agents';
 import { readAgentTranscript } from './agents';
+import type { RuntimeDependencies } from './bootstrap-types';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DiagnosticsService } from './diagnostics';
@@ -27,6 +28,7 @@ type ServiceHandlerMethods =
     | 'files.write'
     | 'files.search'
     | 'terminal.agentTranscript'
+    | 'project.setIcon'
     | 'git.summary'
     | 'git.overview'
     | 'git.branches'
@@ -71,11 +73,13 @@ export function createServiceHandlers(services: {
     awaitAgentSettingsReconcile: () => Promise<void>;
     configuration: ConfigService;
     database: CaxriDatabase;
+    emit: RuntimeDependencies['send'];
     diagnostics: DiagnosticsService;
     files: FileService;
     git: GitService;
     introspection: ReturnType<typeof createIntrospectionServices>;
     projectStatus: ProjectStatusService;
+    transcripts: AgentTranscriptWatcher;
     userDataPath: string;
 }): Pick<RuntimeHandlers, ServiceHandlerMethods> {
     const {
@@ -85,11 +89,13 @@ export function createServiceHandlers(services: {
         awaitAgentSettingsReconcile,
         configuration,
         database,
+        emit,
         diagnostics,
         files,
         git,
         introspection,
         projectStatus,
+        transcripts,
         userDataPath,
     } = services;
     return {
@@ -112,8 +118,15 @@ export function createServiceHandlers(services: {
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'files.search': (parameters) => files.search(parameters),
-        'terminal.agentTranscript': ({ terminalId, withContent }) =>
-            readAgentTranscript(database, terminalId, withContent, agentEnvironment),
+        'terminal.agentTranscript': async ({ terminalId, withContent }) => {
+            if (withContent) await transcripts.watch(terminalId);
+            return readAgentTranscript(database, terminalId, withContent, agentEnvironment);
+        },
+        'project.setIcon': ({ projectId, icon }) => {
+            const project = database.setProjectIcon(projectId, icon);
+            emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.setIcon' } });
+            return project;
+        },
         'git.summary': ({ sessionId, refresh }) => git.summary(sessionId, refresh),
         'git.overview': ({ sessionId }) => git.overview(sessionId),
         'git.branches': (parameters) => git.branches(parameters),

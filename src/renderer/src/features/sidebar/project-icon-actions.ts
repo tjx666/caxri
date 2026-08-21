@@ -1,0 +1,16 @@
+import type { ProjectIcon } from '@shared/project-customization';
+
+import { caxri } from '../../lib/caxri';
+import { tryCommand } from '../../stores/toasts';
+
+export async function didSaveProjectIcon(
+    projectId: string,
+    icon: ProjectIcon | null,
+): Promise<boolean> {
+    const updated = await tryCommand(
+        'Project icon update failed',
+        () => caxri.request('project.setIcon', { projectId, icon }),
+        { refresh: true },
+    );
+    return updated !== undefined;
+}

@@ -48,6 +48,7 @@ import {
     updateStateSchema,
 } from '../domain/domain.js';
 import { gitMethods } from '../domain/git-contract.js';
+import { projectIconSchema } from '../domain/project-customization.js';
 import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-contract.js';
 import { eventRecoverySchema } from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
@@ -279,6 +280,14 @@ export const methods = {
             targetIndex: z.number().int().nonnegative(),
         }),
         result: z.array(projectRecordSchema),
+    },
+    'project.setIcon': {
+        ...hostWrite,
+        params: z.strictObject({
+            projectId: identifierSchema,
+            icon: projectIconSchema.nullable(),
+        }),
+        result: projectRecordSchema,
     },
     'session.create': {
         ...hostWrite,

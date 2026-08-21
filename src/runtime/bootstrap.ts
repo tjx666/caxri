@@ -32,6 +32,7 @@ import { createIntrospectionServices } from './introspection';
 import { assertInsideRoot } from './path-security';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
+import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
 import { createTerminalMoveHandler } from './terminal-move';
@@ -48,21 +49,19 @@ function mainOwned(method: RuntimeMethod): never {
 }
 
 /**
- * Composition root: constructs every Runtime service, wires the event flow between them, and returns the typed handler
- * table plus one disposal path. Nothing is constructed at module scope, so a test can create several isolated Runtimes
- * in one process.
+ * Owns Runtime service construction, event wiring, handler composition, and the single disposal path.
  */
 export async function createRuntime(dependencies: RuntimeDependencies): Promise<Runtime> {
     const { logger, send, userDataPath } = dependencies;
     const startedAt = dependencies.startedAt ?? Date.now();
     const pid = dependencies.pid ?? process.pid;
-
     const {
         acknowledgeFileMutation,
         configuration,
         database,
         files,
         git,
+        transcripts,
         watchHub,
         workbenchRoots,
     } = await createRootServices(dependencies);
@@ -422,6 +421,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     });
     agentDispatchState.service = dispatchService;
     dispatchService.initialize();
+    const sessionSelections = new SessionSelectionQueue();
 
     let isClosed = false;
     async function close(): Promise<void> {
@@ -439,6 +439,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         await files.close();
         await configuration.close();
         await git.close();
+        await transcripts.close();
         await watchHub.close();
         database.close();
     }
@@ -584,6 +585,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             for (const session of ownedSessions) {
                 terminalRestores.cancel(session.id);
                 coordinator.forgetSession(session.id);
+                transcripts.forgetSession(session.id);
                 terminals.terminateSession(session.id);
             }
             git.evictSessions(affectedSessionIds);
@@ -626,15 +628,19 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                 terminal: created.terminal ? database.getTerminal(created.terminal.id)! : null,
             };
         },
-        'session.select': async ({ sessionId }) => {
-            await workbenchRoots.validateSession(sessionId);
-            database.selectSession(sessionId);
-            watchSessionInBackground(sessionId);
-            restoreInterruptedTerminalsInBackground(sessionId);
-            coordinator.probeSessionPrimaryAgent(sessionId);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.select' } });
-            return database.getSession(sessionId)!;
-        },
+        'session.select': ({ sessionId }) =>
+            sessionSelections.run(async () => {
+                await workbenchRoots.validateSession(sessionId);
+                database.selectSession(sessionId);
+                watchSessionInBackground(sessionId);
+                restoreInterruptedTerminalsInBackground(sessionId);
+                coordinator.probeSessionPrimaryAgent(sessionId);
+                send({
+                    event: 'state.changed',
+                    payload: { kind: 'full', reason: 'session.select' },
+                });
+                return database.getSession(sessionId)!;
+            }),
         'session.markRead': ({ sessionId, attentionEpoch }) => {
             const result = database.markSessionAttentionRead(sessionId, attentionEpoch);
             if (result.acknowledged)
@@ -670,6 +676,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         'session.delete': ({ sessionId }) => {
             terminalRestores.cancel(sessionId);
             coordinator.forgetSession(sessionId);
+            transcripts.forgetSession(sessionId);
             terminals.terminateSession(sessionId);
             git.evictSessions([sessionId]);
             projectStatus.evictSessions([sessionId]);
@@ -704,6 +711,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         'terminal.close': ({ terminalId }) => {
             const sessionId = database.getTerminal(terminalId)?.sessionId;
             coordinator.forgetTerminal(terminalId);
+            transcripts.forgetTerminal(terminalId);
             terminals.close(terminalId);
             /**
              * Closing the primary Agent Terminal promotes another one, whose metadata must catch up.
@@ -763,11 +771,13 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             awaitAgentSettingsReconcile: () => agentSettingsReconcile,
             configuration,
             database,
+            emit: send,
             diagnostics,
             files,
             git,
             introspection,
             projectStatus,
+            transcripts,
             userDataPath,
         }),
         'runtime.shutdown': async () => {

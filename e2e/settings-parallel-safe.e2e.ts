@@ -56,6 +56,14 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         await expect(inspectorRow).toContainText('inspector.toggle');
         await expect(inspectorRow.locator('[data-shortcut="cmd+]"] kbd')).toHaveCount(2);
 
+        // The chord already belongs to Session MRU globally. Recording must receive it before
+        // the capture-phase dispatcher consumes the command behind the Settings modal.
+        await inspectorEdit.click();
+        await inspectorEdit.press('Control+Alt+Tab');
+        await expect(inspectorEdit).toContainText('⌃⌥⇥');
+        await inspectorEdit.press('Escape');
+        await expect(inspectorRow.locator('[data-shortcut="cmd+]"]')).toBeVisible();
+
         await inspectorEdit.click();
         await inspectorEdit.press('Meta+Alt+O');
         await expect(inspectorEdit).toContainText('⌥⌘O');

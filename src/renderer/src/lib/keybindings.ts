@@ -52,6 +52,7 @@ export function buildShortcutMap(keybindings: Keybinding[]): Map<string, string>
 }
 
 const EDITABLE_SELECTOR = 'input, textarea, [contenteditable], .monaco-editor, .xterm';
+const KEYBINDING_RECORDING_SELECTOR = '[data-keybinding-recording="true"]';
 
 /**
  * True when the event target is (or is nested inside) an editable surface: a form control, a `contenteditable` region,
@@ -60,6 +61,18 @@ const EDITABLE_SELECTOR = 'input, textarea, [contenteditable], .monaco-editor, .
  */
 export function isEditableEventTarget(target: EventTarget | null): boolean {
     return target instanceof Element && target.closest(EDITABLE_SELECTOR) !== null;
+}
+
+/**
+ * Keybinding recording intentionally receives a chord already assigned to an app command. The global capture listener
+ * normally consumes such chords before a target handler can see them, so the active recorder carries a narrow marker
+ * that lets only that control bypass app-wide dispatch while modal safety remains intact everywhere else.
+ */
+export function isKeybindingRecordingEventTarget(target: EventTarget | null): boolean {
+    if (!target) return false;
+    const closest = (target as unknown as { closest?: unknown }).closest;
+    if (typeof closest !== 'function') return false;
+    return Reflect.apply(closest, target, [KEYBINDING_RECORDING_SELECTOR]) !== null;
 }
 
 const MODIFIER_SYMBOLS: Record<string, string> = {
