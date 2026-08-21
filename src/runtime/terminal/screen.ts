@@ -12,6 +12,12 @@ type ScreenOperation =
     | { cols: number; rows: number; type: 'resize' }
     | { droppedBytes: number; type: 'reset' }
     | {
+          maximumCharacters: number;
+          reject: (error: unknown) => void;
+          resolve: (tail: TerminalTextTail) => void;
+          type: 'text-tail';
+      }
+    | {
           options: TerminalScreenSnapshotOptions;
           reject: (error: unknown) => void;
           resolve: (snapshot: TerminalScreenSnapshot) => void;
@@ -22,6 +28,12 @@ export type TerminalScreenSnapshot = ReturnType<typeof boundSnapshot> & {
     cols: number;
     rows: number;
 };
+
+export interface TerminalTextTail {
+    beforeCursorLine: string;
+    cursorLine: string;
+    full: string;
+}
 
 export interface TerminalScreenSnapshotOptions {
     /**
@@ -164,6 +176,14 @@ export class TerminalScreenState {
                 await new Promise<void>((resolve) => this.terminal.write(warning, resolve));
                 return this.drain();
             }
+            if (operation.type === 'text-tail') {
+                try {
+                    operation.resolve(this.serializeTextTail(operation.maximumCharacters));
+                } catch (error) {
+                    operation.reject(error);
+                }
+                continue;
+            }
             try {
                 operation.resolve(this.serializeBounded(operation.options));
             } catch (error) {
@@ -183,6 +203,35 @@ export class TerminalScreenState {
             ...boundSnapshot(payload),
             cols: this.terminal.cols,
             rows: this.terminal.rows,
+        };
+    }
+
+    /**
+     * Reads displayed text from the parsed buffer instead of raw PTY bytes. Wrapped physical rows are rejoined so a
+     * user-authored suffix is independent of the receiving Terminal width.
+     */
+    private serializeTextTail(maximumCharacters: number): TerminalTextTail {
+        const buffer = this.terminal.buffer.active;
+        const logicalLines: string[] = [];
+        let cursorLogicalLine = -1;
+        const cursorPhysicalLine = buffer.baseY + buffer.cursorY;
+        for (let index = 0; index < buffer.length; index += 1) {
+            const line = buffer.getLine(index);
+            if (!line) continue;
+            const text = line.translateToString(true);
+            if (line.isWrapped && logicalLines.length > 0)
+                logicalLines[logicalLines.length - 1] += text;
+            else logicalLines.push(text);
+            if (index === cursorPhysicalLine) cursorLogicalLine = logicalLines.length - 1;
+        }
+        const bounded = (lines: readonly string[]): string =>
+            lines.join('\n').trimEnd().slice(-maximumCharacters);
+        return {
+            beforeCursorLine: bounded(
+                logicalLines.filter((_, index) => index !== cursorLogicalLine),
+            ),
+            cursorLine: cursorLogicalLine < 0 ? '' : (logicalLines[cursorLogicalLine] ?? ''),
+            full: bounded(logicalLines),
         };
     }
 
@@ -229,6 +278,20 @@ export class TerminalScreenState {
         });
     }
 
+    /**
+     * Inserts an ordering barrier and returns a bounded, control-sequence-free tail for in-memory behavior matching.
+     */
+    textTail(maximumCharacters: number): Promise<TerminalTextTail> {
+        if (!Number.isSafeInteger(maximumCharacters) || maximumCharacters < 1)
+            return Promise.reject(new RangeError('Terminal text tail limit must be positive'));
+        if (this.disposed)
+            return Promise.resolve({ beforeCursorLine: '', cursorLine: '', full: '' });
+        return new Promise((resolve, reject) => {
+            this.operations.push({ maximumCharacters, reject, resolve, type: 'text-tail' });
+            this.startDrain();
+        });
+    }
+
     dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
@@ -236,7 +299,7 @@ export class TerminalScreenState {
         const pendingOperations = [...this.operations];
         this.operations.length = 0;
         for (const operation of pendingOperations) {
-            if (operation.type === 'snapshot')
+            if (operation.type === 'snapshot' || operation.type === 'text-tail')
                 operation.reject(new Error('Terminal screen was disposed before serialization'));
         }
         this.terminal.dispose();

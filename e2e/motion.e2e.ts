@@ -190,6 +190,10 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
+        /**
+         * This case verifies the normal-motion contract independently from the macOS runner's accessibility setting.
+         */
+        await running.page.emulateMedia({ reducedMotion: 'no-preference' });
         await createProjectSession(running.page);
         const enterMs = await motionTokenMs(running.page, '--motion-overlay-enter');
         const exitMs = await motionTokenMs(running.page, '--motion-overlay-exit');

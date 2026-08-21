@@ -47,7 +47,9 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await dialog.getByRole('button', { name: 'Source' }).click();
         const settingsEditor = configSource(dialog, 'settings');
-        await expect(settingsEditor.locator('.view-lines')).toContainText('terminal.fontSize');
+        // Monaco virtualizes lines outside the viewport. Assert against the first stable setting so
+        // adding schema fields above `terminal.fontSize` cannot turn source rendering into a false failure.
+        await expect(settingsEditor.locator('.view-lines')).toContainText('session.defaultAgent');
         // The accessible name has to sit on Monaco's own textarea, the surface a screen reader
         // focuses. On the role-less wrapper `<div>` it announces nothing, which is why the
         // container above is located by `data-config-source` instead of by label.
@@ -150,22 +152,38 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 return settings.value['terminal.fontSize'];
             })
             .toBe(14);
-        const providerSettings = await pageRequest<{
-            value: {
-                'agents.providers': {
-                    claude: {
-                        hooks: { enabled: boolean };
-                        launch: { executable: string };
-                        messaging: { enabled: boolean };
+        await expect
+            .poll(async () => {
+                const providerSettings = await pageRequest<{
+                    value: {
+                        'agents.providers': {
+                            claude: {
+                                hooks: { enabled: boolean };
+                                launch: { executable: string };
+                                messaging: { enabled: boolean };
+                                recovery: {
+                                    enabled: boolean;
+                                    patterns: string[];
+                                    settleDelayMs: number;
+                                    continueDelayMs: number;
+                                };
+                            };
+                        };
                     };
-                };
-            };
-        }>(running.page, 'settings.get');
-        expect(providerSettings.value['agents.providers'].claude).toEqual({
-            hooks: { enabled: true },
-            launch: { executable: 'claude', args: [] },
-            messaging: { enabled: true },
-        });
+                }>(running.page, 'settings.get');
+                return providerSettings.value['agents.providers'].claude;
+            })
+            .toEqual({
+                hooks: { enabled: true },
+                launch: { executable: 'claude', args: [] },
+                messaging: { enabled: true },
+                recovery: {
+                    enabled: false,
+                    patterns: [],
+                    settleDelayMs: 1_000,
+                    continueDelayMs: 1_000,
+                },
+            });
 
         // Settings search: AND-token filtering narrows the virtual list and the TOC shows
         // per-category match counts; clearing restores the full list.

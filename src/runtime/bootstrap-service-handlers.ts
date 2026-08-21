@@ -1,3 +1,5 @@
+import { CaxriError } from '../shared/ipc/errors';
+import type { RuntimeMethod } from '../shared/ipc/methods';
 import { agentSkillHealthReader } from './agent-skills';
 import type { AgentEnvironment, AgentHookManager, AgentTranscriptWatcher } from './agents';
 import { readAgentTranscript } from './agents';
@@ -61,6 +63,13 @@ type ServiceHandlerMethods =
     | 'diagnostics.exportPath'
     | 'diagnostics.snapshot'
     | 'logs.query';
+
+/**
+ * Methods the Renderer may call but that only Electron Main can satisfy.
+ */
+export function mainOwned(method: RuntimeMethod): never {
+    throw new CaxriError('CONFLICT', `${method} must be handled by Electron Main`);
+}
 
 /**
  * Handlers that only delegate to an already-constructed Runtime service, with no dependency on the composition root's

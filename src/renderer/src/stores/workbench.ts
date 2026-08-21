@@ -1,3 +1,4 @@
+import { agentProviderCatalog } from '@shared/agents';
 import { reconcileEditorTabDirtiness, withoutEditorTabDirtiness } from '@shared/editor-state';
 import { assertNever } from '@shared/ipc';
 import type { RuntimeEvent } from '@shared/ipc/events';
@@ -15,6 +16,7 @@ import {
     showWorkbenchRootCandidate,
 } from '../features/workbench/workbench-root-prompt-store';
 import { caxri } from '../lib/caxri';
+import { openSettings } from './dialogs';
 import { mergeStructurally } from './structural-sharing';
 import { describeFailure, pushToast } from './toasts';
 
@@ -473,6 +475,22 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'window.fullScreen':
                 useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
                 return;
+            case 'terminal.outputRecovery': {
+                const providerName = agentProviderCatalog[event.payload.provider].displayName;
+                if (event.payload.status === 'recovered')
+                    pushToast(
+                        'success',
+                        `Sent Esc and continue to ${providerName} after a matched recovery rule.`,
+                        { action: { label: 'Open Settings', onSelect: openSettings } },
+                    );
+                else
+                    pushToast(
+                        'error',
+                        `Automatic recovery paused for ${providerName} after 3 attempts in 10 minutes.`,
+                        { action: { label: 'Open Settings', onSelect: openSettings } },
+                    );
+                return;
+            }
             case 'agent.dispatch.changed':
             case 'agent.message.held':
             case 'agent.message.receipt':
