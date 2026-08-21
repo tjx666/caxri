@@ -30,6 +30,9 @@ Check ownership over time: creation, attachment, switching, failure, restart, de
   validation succeed
 - File watcher fallback runs beside a healthy native watcher, watches stale roots, or fails to reset
   on identity changes
+- An async operation captures an owner, Session, Project, focus target, generation, or principal,
+  awaits work, then commits its result without re-reading current authority and comparing it to the
+  initiating identity
 
 ## How to check
 
@@ -38,6 +41,9 @@ Check ownership over time: creation, attachment, switching, failure, restart, de
 3. Check late async completions against current durable identity before they mutate state.
 4. For persistence changes, inspect generated SQL, old readers/writers, startup migration loading,
    and rollback behavior.
+5. For every changed await boundary, list owner, generation, principal, and target identity at
+   initiation and completion. Show the post-await revalidation that prevents a stale completion
+   from mutating the replacement owner.
 
 ## Rule sources
 

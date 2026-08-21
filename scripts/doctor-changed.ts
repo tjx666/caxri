@@ -1,5 +1,6 @@
-import { spawn } from 'node:child_process';
 import process from 'node:process';
+
+import { runChildProcess } from './exec';
 
 const ZERO_SHA = /^0+$/;
 
@@ -19,11 +20,12 @@ export function createDoctorCommand(environment: NodeJS.ProcessEnv): string[] {
 }
 
 async function runDoctor(): Promise<number> {
-    return new Promise((resolve, reject) => {
-        const child = spawn('bun', createDoctorCommand(process.env), { stdio: 'inherit' });
-        child.once('error', reject);
-        child.once('exit', (code) => resolve(code ?? 1));
-    });
+    return runChildProcess(
+        'bun',
+        createDoctorCommand(process.env),
+        { stdio: 'inherit' },
+        { nullExitCode: 1 },
+    );
 }
 
 if (import.meta.main) process.exitCode = await runDoctor();

@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 
-import { spawn } from 'node:child_process';
 import { appendFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
+
+import { runChildProcess } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -49,14 +50,10 @@ function run(
     arguments_: string[],
     environment: NodeJS.ProcessEnv,
 ): Promise<number> {
-    const child = spawn(command, arguments_, {
+    return runChildProcess(command, arguments_, {
         cwd: projectRoot,
         env: environment,
         stdio: 'inherit',
-    });
-    return new Promise<number>((resolve, reject) => {
-        child.once('error', reject);
-        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
     });
 }
 

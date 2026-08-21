@@ -10,7 +10,7 @@ Load only the reference needed for the current decision:
 - Read [references/architecture.md](references/architecture.md) for product ownership, process boundaries, IPC, persistence, PTY, files, Git, Agent, security, performance, diagnostics, and recovery contracts.
 - Read [references/stack-baseline.md](references/stack-baseline.md) when selecting or upgrading dependencies.
 - Read [references/electron-toolchain.md](references/electron-toolchain.md) for the Electron, Vite, packaging, native-module, and TypeScript toolchain decision.
-- Use the separate `competitors` skill to survey how competing agent workbenches solved a design problem before inventing a new approach.
-- Use the separate `source-layout` skill to place, split, or rename source files.
+- Call the Skill tool with "competitors" to survey how competing agent workbenches solved a design problem before inventing a new approach.
+- Call the Skill tool with "source-layout" to place, split, or rename source files.
 
 Before changing a contract, identify the owning process and verify the current implementation. Update the matching reference in the same change when the architecture or toolchain contract changes. Root `DESIGN.md` is reserved for frontend and UI design.

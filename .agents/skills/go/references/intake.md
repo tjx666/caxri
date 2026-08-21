@@ -50,7 +50,7 @@ desktop app merely to approve the plan.
 
 ## Research before proposing solutions
 
-Invoke the `competitors` skill after requirements are normalized and before an
+Call the Skill tool with "competitors" after requirements are normalized and before an
 issue solution or Acceptance matrix is frozen. Inspect current source or dated
 research notes for products that already solve the same problem; do not rely on
 screenshots, product memory, or an issue author's proposed implementation alone.
@@ -97,8 +97,8 @@ Resolve these before the Goal:
 
 A destructive action or release mentioned inside the same `$go` request still
 needs an exact target and its own explicit authorization. Keep release execution
-outside the product-delivery queue and invoke the project `release` skill only
-after that boundary is resolved.
+outside the product-delivery queue. After that boundary is resolved, record it as
+a separate explicit `$release` workflow instead of calling it from Go.
 
 For an ambiguous visual or asset request, resolve its exact macOS Electron
 location, dimensions or platform variants, reference or intended difference,
@@ -133,7 +133,7 @@ For each selected issue, record:
   required evidence constraints;
 - whether the check is visual, temporal, or non-visual.
 
-Reuse live issues when their current scope matches. Invoke `file-issue` for new
+Reuse live issues when their current scope matches. Call the Skill tool with "file-issue" for new
 issues so repository issue conventions are preserved. Update a reused issue
 before admission when either its `UX 设计` or `Acceptance 方案` is missing or no
 longer matches the selected scope. Do not file a speculative issue before

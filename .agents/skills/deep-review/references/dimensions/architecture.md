@@ -25,6 +25,12 @@ nearest same-kind implementation before accepting a new route or helper.
 - A caller-specific special case pollutes a shared layer despite an existing extension seam
 - New helper, registry, reducer, catalog, or cross-layer route duplicates an established same-kind
   implementation
+- Adding one same-kind implementation requires edits outside a canonical registry, catalog,
+  dispatcher, or composition root at multiple sibling sites
+- A new abstraction, seam, or extension point has no second production consumer and is neither
+  explicitly experimental nor backed by conformance evidence that proves the intended variation
+- Generic derivation replaces a security, authorization, capability, or policy map whose entries
+  must remain explicit and independently auditable
 - An architecture or toolchain contract changes without updating the matching
   `project-architecture` reference
 
@@ -35,6 +41,10 @@ nearest same-kind implementation before accepting a new route or helper.
    error encoding, and event/reply path.
 3. Search for the nearest analogous feature and compare structure and lifecycle, not names.
 4. For a proposed duplicate, cite the existing implementation and show behavioral equivalence.
+5. Search for every sibling edit site needed to add the next same-kind implementation. Identify the
+   canonical registry or justify why explicit policy entries must not be derived.
+6. For a new seam, name its production consumers. With only one consumer, require an explicit
+   experimental boundary and conformance evidence instead of claiming proven extensibility.
 
 ## Rule sources
 

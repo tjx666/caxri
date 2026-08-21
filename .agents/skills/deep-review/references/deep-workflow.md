@@ -14,6 +14,10 @@ agent has three active subagent slots.
 If spawning or context isolation is unavailable, stop and offer light mode. Completion releases an
 active slot; no explicit close operation is required.
 
+When a change strengthens reviewer proof obligations, record its historical pre-fix/fixed replay in
+[harness-replay.md](harness-replay.md) with exact ranges and validator results. Replay evidence is a
+change-time acceptance artifact, not a recurring gate for ordinary reviews.
+
 ## Review groups
 
 Prune dimensions first, then remove empty groups:

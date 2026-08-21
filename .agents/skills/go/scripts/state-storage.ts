@@ -1,20 +1,18 @@
-import { randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { constants } from 'node:fs';
-import { lstat, mkdir, open, realpath, rename, rm, rmdir } from 'node:fs/promises';
+import { lstat, mkdir, open, realpath, rm, rmdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
 
+import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 import { wasFinalizationArtifactRecovered } from './finalization';
 import { verifyHandoffReportArtifact } from './handoff-report';
 import { applyLedgerRetention, verifyLedgerRetention } from './ledger-retention';
+import { PROJECT_ROOT, RECORDS_ROOT } from './paths';
 import type { GoState } from './state-model';
 import { now, validateState } from './state-model';
 
-const SCRIPT_PATH = fileURLToPath(import.meta.url);
-export const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
-const RECORDS_ROOT = join(PROJECT_ROOT, '.records');
+export { PROJECT_ROOT };
 const STATE_ROOT = join(RECORDS_ROOT, 'go');
 const RUN_DIRECTORIES = [
     'reviews',
@@ -231,23 +229,26 @@ export async function writeState(path: string, state: GoState): Promise<void> {
     validateState(state);
     assertSameFile(await inspectDirectFile(path), target);
 
-    const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
-    try {
-        const replacement = await writeExclusiveFile(
-            temporary,
-            `${JSON.stringify(state, null, 2)}\n`,
-        );
-        assertSameFile(await inspectDirectFile(path), target);
-        assertSameDirectory(replacement.parent, target.parent);
-        await rename(temporary, path);
-        const written = await inspectDirectFile(path);
-        assertSameDirectory(written.parent, target.parent);
-        if (!hasSameIdentity(written, replacement)) {
-            throw new Error('Go state replacement did not preserve the exclusive temporary file');
-        }
-    } finally {
-        await rm(temporary, { force: true });
-    }
+    await writeJsonAtomic(path, state, {
+        afterRename: async (_, identity) => {
+            const written = await inspectDirectFile(path);
+            assertSameDirectory(written.parent, target.parent);
+            if (!hasSameIdentity(written, identity)) {
+                throw new Error(
+                    'Go state replacement did not preserve the exclusive temporary file',
+                );
+            }
+        },
+        beforeRename: async (temporary, identity) => {
+            const replacement = await inspectDirectFile(temporary);
+            assertSameFile(await inspectDirectFile(path), target);
+            assertSameDirectory(replacement.parent, target.parent);
+            if (!hasSameIdentity(replacement, identity)) {
+                throw new Error('Go state temporary file changed while it was open');
+            }
+        },
+        mode: 0o600,
+    });
     if (previousArchive) {
         await rm(join(dirname(path), previousArchive), { force: true });
     }

@@ -12,6 +12,7 @@ import {
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
 import type { E2EPoolInvocation } from '../e2e/support/pools';
 import { createE2EPoolPlan } from '../e2e/support/pools';
+import { waitForChildExit } from './exec';
 import type { E2EPoolReceipt } from './reporters/e2e-receipt-reporter';
 import {
     assertE2EPoolCensusComplete,
@@ -74,10 +75,7 @@ async function runInvocation(
             stdio: 'inherit',
         },
     );
-    return new Promise<number>((resolve, reject) => {
-        child.once('error', reject);
-        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
-    });
+    return waitForChildExit(child);
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
