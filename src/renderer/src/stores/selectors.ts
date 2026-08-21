@@ -102,10 +102,6 @@ export function getSessionState(): SessionState | undefined {
     return selectSessionState(getBootstrap());
 }
 
-export function getSessionTerminals(): TerminalRecord[] {
-    return selectSessionTerminals(getBootstrap());
-}
-
 export function useSelectedSession(): SessionRecord | undefined {
     return useWorkbenchStore((state) => selectSelectedSession(state.bootstrap));
 }
@@ -146,15 +142,6 @@ export function useProjects(): ProjectRecord[] | undefined {
 
 export function useSessions(): SessionRecord[] | undefined {
     return useWorkbenchStore((state) => state.bootstrap?.sessions);
-}
-
-/**
- * Stable shallow ID list for caches that must discard state after Session deletion.
- */
-export function useSessionIds(): string[] {
-    return useWorkbenchStore(
-        useShallow((state) => state.bootstrap?.sessions.map((session) => session.id) ?? []),
-    );
 }
 
 export function useTerminals(): TerminalRecord[] {
