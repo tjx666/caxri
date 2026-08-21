@@ -43,7 +43,11 @@ import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
-import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
+import {
+    useSelectedSession,
+    useSelectedWorkbenchProject,
+    useTerminal,
+} from '../../stores/selectors';
 import { sessionViewScope, useActiveWork } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
@@ -81,12 +85,14 @@ const statusInfoClassName =
  * easy-to-miss tooltip.
  */
 function StatusInfo({
+    announce,
     ariaLabel,
     children,
     className,
     icon: Icon,
     title,
 }: {
+    announce?: boolean;
     ariaLabel: string;
     children: ReactNode;
     className?: string;
@@ -95,7 +101,12 @@ function StatusInfo({
 }) {
     return (
         <Tooltip content={title}>
-            <span className={cn(statusInfoClassName, className)} aria-label={ariaLabel}>
+            <span
+                aria-label={ariaLabel}
+                aria-live={announce ? 'polite' : undefined}
+                className={cn(statusInfoClassName, className)}
+                role={announce ? 'status' : undefined}
+            >
                 {Icon && <Icon size={12} />}
                 <span>{children}</span>
             </span>
@@ -178,13 +189,15 @@ function ActiveFileStatus({
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
 
 function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
+    const terminal = useTerminal(terminalId);
+    const isCompacting = terminal?.agentOperation === 'compacting';
     const progress = useTerminalProgress(terminalId);
     const usage = usePolledQuery(
         'terminal.resources',
         { terminalId },
         { label: 'terminal.resources', intervalMs: 2_000, staleTime: 1_000, retry: false },
     ).data;
-    if (!usage && !progress) return null;
+    if (!usage && !progress && !isCompacting) return null;
     const childLabel = usage
         ? `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`
         : undefined;
@@ -198,7 +211,17 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
                 : Gauge;
     return (
         <>
-            {progress && (
+            {isCompacting && (
+                <StatusInfo
+                    announce
+                    ariaLabel="Codex is compacting context"
+                    className="statusbar-agent-operation text-muted"
+                    title="Codex is summarizing earlier context before continuing."
+                >
+                    Compacting
+                </StatusInfo>
+            )}
+            {progress && !isCompacting && (
                 <StatusInfo
                     ariaLabel={terminalProgressAriaLabel(progress)}
                     className={cn(

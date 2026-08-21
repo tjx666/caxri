@@ -11,6 +11,7 @@ export {
     type AgentActivityState,
     type AgentHookHealth,
     type AgentHookHealthMap,
+    type AgentOperation,
     type AgentProvider,
     type AgentSnapshot,
     type AgentTranscript,

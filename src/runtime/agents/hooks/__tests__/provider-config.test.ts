@@ -85,45 +85,58 @@ describe('Agent provider hook configuration adapters', () => {
 
     it('updates only stale Caxri entries and leaves a newer Codex schema untouched', () => {
         const current = install(codexHookAdapter, 'hooks', '{}\n', 'codex');
-        const stale = current.replaceAll('--schema 2', '--schema 1');
+        const stale = current.replaceAll('--schema 3', '--schema 2');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', stale],
                     ['config', undefined],
                 ]),
-                desired('codex'),
+                desired('codex', 3),
             ).status,
-        ).toEqual({ kind: 'stale', installedSchema: 1 });
+        ).toEqual({ kind: 'stale', installedSchema: 2 });
 
         const updated = codexHookAdapter.render(
             new Map([
                 ['hooks', stale],
                 ['config', undefined],
             ]),
-            desired('codex'),
+            desired('codex', 3),
         )[0].source;
-        expect(updated).not.toContain('--schema 1');
+        expect(updated).not.toContain('--schema 2');
 
-        const newer = updated.replaceAll('--schema 2', '--schema 3');
+        const newer = updated.replaceAll('--schema 3', '--schema 4');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex'),
+                desired('codex', 3),
             ).status,
-        ).toEqual({ kind: 'newer', installedSchema: 3 });
+        ).toEqual({ kind: 'newer', installedSchema: 4 });
         expect(
             codexHookAdapter.remove(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex'),
+                desired('codex', 3),
             ),
         ).toHaveLength(0);
+    });
+
+    it('installs Codex compaction lifecycle hooks', () => {
+        const installed = JSON.parse(install(codexHookAdapter, 'hooks', '{}\n', 'codex')) as {
+            hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+        };
+
+        expect(installed.hooks.PreCompact[0].hooks[0].command).toContain(
+            '--phase compactionStarted',
+        );
+        expect(installed.hooks.PostCompact[0].hooks[0].command).toContain(
+            '--phase compactionFinished',
+        );
     });
 
     it('refuses to merge Codex hooks.json with inline config.toml hooks', () => {

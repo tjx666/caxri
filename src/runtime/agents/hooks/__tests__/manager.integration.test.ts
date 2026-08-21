@@ -298,6 +298,8 @@ describe('AgentHookManager', () => {
             expect(hooks.PermissionRequest).toHaveLength(1);
             expect(hooks.Stop).toHaveLength(1);
             expect(hooks.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
+            expect(hooks.PreCompact).toHaveLength(1);
+            expect(hooks.PostCompact).toHaveLength(1);
 
             const environment = manager.terminalEnvironment('terminal-1', 'codex');
             expect(launches).toHaveBeenCalledWith('terminal-1', environment.CAXRI_HOOK_LAUNCH_ID);
@@ -312,7 +314,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '2',
+                    '3',
                 ],
                 { env: { ...process.env, ...environment, CAXRI_HOOK_TOKEN: 'invalid' } },
             );
@@ -327,7 +329,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '2',
+                    '3',
                     '--reply',
                     'empty-json',
                 ],
@@ -350,7 +352,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '2',
+                    '3',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -381,7 +383,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'shellToolFinished',
                     '--schema',
-                    '2',
+                    '3',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -422,7 +424,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '2',
+                    '3',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -564,7 +566,7 @@ describe('AgentHookManager', () => {
                                 {
                                     type: 'command',
                                     command:
-                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 3",
+                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 4",
                                     timeout: 1,
                                 },
                             ],

@@ -3,7 +3,7 @@ import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
 import { errorMessage } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
-import type { TerminalRecord } from '../../shared/types';
+import type { AgentOperation, TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
 import type { AgentLifecycleSignal } from './hooks/contract';
@@ -11,6 +11,7 @@ import { detectForegroundAgentProvider } from './process-detection';
 import type { AgentService } from './service';
 
 const AGENT_METADATA_REFRESH_DELAY_MS = 2_000;
+const AGENT_COMPACTION_TIMEOUT_MS = 5 * 60_000;
 const MAX_SHELL_COMMAND_LENGTH = 4_096;
 const MAX_SHELL_PROCESS_PROBES = 5;
 const MAX_SHELL_PROMOTION_PROBES = 3;
@@ -66,6 +67,10 @@ export interface AgentCoordinatorOptions {
      */
     refreshDelayMs?: number;
     /**
+     * Safety bound for a lost `PostCompact` signal. Production uses five minutes; tests may shorten it.
+     */
+    compactionTimeoutMs?: number;
+    /**
      * Test seam for the bounded foreground-process probe used to resolve shell aliases.
      */
     detectForegroundAgent?: (shellPid: number) => Promise<AgentProvider | undefined>;
@@ -77,6 +82,9 @@ export interface AgentCoordinatorOptions {
  * no other module needs to track Agent Terminal identity.
  */
 export class AgentCoordinator {
+    private readonly agentOperations = new Map<string, AgentOperation>();
+    private readonly agentOperationTimeouts = new Map<string, NodeJS.Timeout>();
+    private readonly compactionTimeoutMs: number;
     private readonly excludedAgentSessionIdsByTerminal = new Map<string, Set<string>>();
     private readonly detectForegroundAgent: (
         shellPid: number,
@@ -97,6 +105,7 @@ export class AgentCoordinator {
         private readonly logger: StructuredLogger,
         options: AgentCoordinatorOptions = {},
     ) {
+        this.compactionTimeoutMs = options.compactionTimeoutMs ?? AGENT_COMPACTION_TIMEOUT_MS;
         this.detectForegroundAgent = options.detectForegroundAgent ?? detectForegroundAgentProvider;
         this.refreshes = new CoalescedScheduler(
             options.refreshDelayMs ?? AGENT_METADATA_REFRESH_DELAY_MS,
@@ -115,6 +124,29 @@ export class AgentCoordinator {
                 terminalIds: [terminal.id],
             },
         });
+    }
+
+    private clearAgentOperation(terminalId: string, shouldEmitChange = true): void {
+        const timeout = this.agentOperationTimeouts.get(terminalId);
+        if (timeout) clearTimeout(timeout);
+        this.agentOperationTimeouts.delete(terminalId);
+        const hadOperation = this.agentOperations.delete(terminalId);
+        if (!shouldEmitChange || !hadOperation) return;
+        this.emitAgentMetadataChange(terminalId);
+    }
+
+    private startCompaction(terminalId: string): void {
+        const existingTimeout = this.agentOperationTimeouts.get(terminalId);
+        if (existingTimeout) clearTimeout(existingTimeout);
+        const wasCompacting = this.agentOperations.get(terminalId) === 'compacting';
+        this.agentOperations.set(terminalId, 'compacting');
+        const timeout = setTimeout(
+            () => this.clearAgentOperation(terminalId),
+            this.compactionTimeoutMs,
+        );
+        timeout.unref();
+        this.agentOperationTimeouts.set(terminalId, timeout);
+        if (!wasCompacting) this.emitAgentMetadataChange(terminalId);
     }
 
     /**
@@ -411,6 +443,13 @@ export class AgentCoordinator {
     }
 
     /**
+     * Returns the current Runtime-only Agent subphase projected onto a Terminal read model.
+     */
+    agentOperation(terminalId: string): AgentOperation | undefined {
+        return this.agentOperations.get(terminalId);
+    }
+
+    /**
      * Tracks only the current unpublished input line and never logs or persists it. Detection is intentionally
      * conservative: a direct `claude` or `codex` command creates a short-lived candidate, while shell editing escape
      * sequences disable detection until the next submission. Provider metadata must still confirm the launch before
@@ -479,6 +518,7 @@ export class AgentCoordinator {
      * Establishes the opaque PTY generation that every accepted hook signal must match.
      */
     beginTerminalLaunch(terminalId: string, launchId: string): void {
+        this.clearAgentOperation(terminalId);
         this.launchIdsByTerminal.set(terminalId, launchId);
         this.hookAuthoritativeLaunchIds.delete(terminalId);
     }
@@ -487,6 +527,7 @@ export class AgentCoordinator {
      * Ends lifecycle authority for a retired PTY before a replacement generation can start.
      */
     endTerminalLaunch(terminalId: string): void {
+        this.clearAgentOperation(terminalId);
         this.launchIdsByTerminal.delete(terminalId);
         this.hookAuthoritativeLaunchIds.delete(terminalId);
     }
@@ -530,9 +571,12 @@ export class AgentCoordinator {
             }
             return false;
         }
+        if (signal.phase === 'compactionStarted') this.startCompaction(signal.terminalId);
+        else this.clearAgentOperation(signal.terminalId);
         if (signal.phase === 'turnStarted')
             this.hookAuthoritativeLaunchIds.delete(signal.terminalId);
-        else this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
+        else if (signal.phase === 'attentionRequested' || signal.phase === 'turnFinished')
+            this.hookAuthoritativeLaunchIds.set(signal.terminalId, signal.launchId);
         /**
          * A signal naming a different provider session proves the user resumed inside the running Terminal (a path no
          * Caxri-managed launch reset ever sees), so identity is rebound here and the scheduled probe republishes the
@@ -567,7 +611,10 @@ export class AgentCoordinator {
      */
     resetHookAuthority(provider: AgentProvider): void {
         for (const terminal of this.database.listTerminals())
-            if (terminal.provider === provider) this.hookAuthoritativeLaunchIds.delete(terminal.id);
+            if (terminal.provider === provider) {
+                this.hookAuthoritativeLaunchIds.delete(terminal.id);
+                this.clearAgentOperation(terminal.id);
+            }
     }
 
     /**
@@ -627,6 +674,7 @@ export class AgentCoordinator {
      * Drops a pending refresh for a Terminal whose durable record is about to disappear.
      */
     forgetTerminal(terminalId: string): void {
+        this.clearAgentOperation(terminalId, false);
         this.refreshes.cancel(terminalId);
         this.excludedAgentSessionIdsByTerminal.delete(terminalId);
         this.shellInputs.delete(terminalId);
@@ -640,6 +688,7 @@ export class AgentCoordinator {
 
     forgetSession(sessionId: string): void {
         for (const terminal of this.database.listTerminals(sessionId)) {
+            this.clearAgentOperation(terminal.id, false);
             this.refreshes.cancel(terminal.id);
             this.excludedAgentSessionIdsByTerminal.delete(terminal.id);
             this.shellInputs.delete(terminal.id);
@@ -660,5 +709,8 @@ export class AgentCoordinator {
         this.probeGenerations.clear();
         this.launchIdsByTerminal.clear();
         this.hookAuthoritativeLaunchIds.clear();
+        for (const timeout of this.agentOperationTimeouts.values()) clearTimeout(timeout);
+        this.agentOperationTimeouts.clear();
+        this.agentOperations.clear();
     }
 }
