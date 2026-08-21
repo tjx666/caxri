@@ -35,6 +35,7 @@ const setupActionDocument = parse(setupAction) as ActionDocument;
 const packageManifest = JSON.parse(
     await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
 ) as PackageManifest;
+const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
 function miseVersion(tool: 'node' | 'pnpm'): string {
     const match = mise.match(new RegExp(`^${tool} = "([^"]+)"$`, 'mu'));
@@ -129,7 +130,7 @@ describe('toolchain contract', () => {
     });
 
     it('keeps the TypeScript 7 CLI and TypeScript 6 JavaScript API wired side by side', async () => {
-        const tscPath = fileURLToPath(new URL('../../node_modules/.bin/tsc', import.meta.url));
+        const tscPath = join(repoRoot, 'node_modules', '.bin', 'tsc');
         const { stdout } = await execFileAsync(tscPath, ['--version']);
         const typescript = (await import('typescript')) as { version: string };
 
