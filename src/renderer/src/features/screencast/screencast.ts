@@ -2,7 +2,11 @@ import { commandDefinitions } from '@shared/commands';
 import type { Keybinding } from '@shared/types';
 import { create } from 'zustand';
 
-import { buildShortcutMap, keyboardEventShortcut } from '../../lib/keybindings';
+import {
+    buildShortcutMap,
+    keyboardEventShortcut,
+    resolveShortcutBinding,
+} from '../../lib/keybindings';
 import { pushToast } from '../../stores/toasts';
 
 export interface ScreencastKeyboardInput {
@@ -17,6 +21,7 @@ export interface ScreencastKeyboardInput {
 interface ScreencastKeyOptions {
     commandAllowsEditable(commandId: string): boolean;
     editable: boolean;
+    terminalFocus: boolean;
 }
 
 export interface ScreencastKeyDescription {
@@ -61,8 +66,11 @@ export function describeScreencastKey(
         return undefined;
 
     const shortcut = keyboardEventShortcut(event as KeyboardEvent);
-    const commandId = buildShortcutMap([...keybindings]).get(shortcut);
-    if (commandId) {
+    const binding = resolveShortcutBinding(buildShortcutMap(keybindings), shortcut, {
+        terminalFocus: options.terminalFocus,
+    });
+    if (binding) {
+        const commandId = binding.command;
         const command = commandDefinitions.find((definition) => definition.id === commandId);
         if (!command || (options.editable && !options.commandAllowsEditable(commandId)))
             return undefined;

@@ -11,6 +11,7 @@ import { defaultKeybindings } from '../../shared/commands';
 import { findKeybindingConflicts } from '../../shared/config';
 import { MAX_CONFIGURATION_SOURCE_BYTES } from '../../shared/config-contract';
 import type { RuntimeEvent } from '../../shared/ipc';
+import { MAX_TERMINAL_INPUT_LENGTH } from '../../shared/ipc';
 import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
 import { ConfigService, previousDefaultKeybindingSets } from '../config';
 
@@ -299,6 +300,63 @@ describe('ConfigurationService', () => {
         await service.initialize();
 
         expect(service.getKeybindings().value).toEqual(customized);
+        await service.close();
+    });
+
+    it('preserves contextual Terminal sequence arguments and rejects an invalid sequence binding', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-terminal-sequence-'));
+        temporaryDirectories.push(directory);
+        const service = new ConfigService(directory, () => {});
+        await service.initialize();
+        const source = String.raw`[
+  {
+    "key": "cmd+enter",
+    "command": "workbench.action.terminal.sendSequence",
+    "when": "terminalFocus",
+    "args": { "text": "\u001b[1;3B" },
+  },
+]
+`;
+
+        await service.updateKeybindings(source);
+
+        expect(service.getKeybindings()).toMatchObject({
+            source,
+            value: [
+                {
+                    args: { text: '\u{1B}[1;3B' },
+                    command: 'workbench.action.terminal.sendSequence',
+                    key: 'cmd+enter',
+                    when: 'terminalFocus',
+                },
+            ],
+        });
+        const before = service.getKeybindings();
+        await expect(
+            service.updateKeybindings(
+                JSON.stringify([
+                    {
+                        args: {},
+                        command: 'workbench.action.terminal.sendSequence',
+                        key: 'cmd+enter',
+                    },
+                ]),
+            ),
+        ).rejects.toThrow('requires args.text');
+        expect(service.getKeybindings()).toEqual(before);
+        const oversizedText = 'x'.repeat(MAX_TERMINAL_INPUT_LENGTH + 1);
+        await expect(
+            service.updateKeybindings(
+                JSON.stringify([
+                    {
+                        args: { text: oversizedText },
+                        command: 'workbench.action.terminal.sendSequence',
+                        key: 'cmd+enter',
+                    },
+                ]),
+            ),
+        ).rejects.toThrow(`at most ${MAX_TERMINAL_INPUT_LENGTH} characters`);
+        expect(service.getKeybindings()).toEqual(before);
         await service.close();
     });
 
