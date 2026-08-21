@@ -5,11 +5,17 @@ import { inspectJsonHooks, removeJsonHooks, renderJsonHooks } from '../../hooks/
 
 const HOOKS_TARGET = 'hooks';
 const CONFIG_TARGET = 'config';
+/**
+ * Codex documents `PreCompact` and `PostCompact` as the exact boundaries around automatic or manual context compaction:
+ * https://learn.chatgpt.com/docs/hooks#precompact and https://learn.chatgpt.com/docs/hooks#postcompact
+ */
 const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'PermissionRequest', phase: 'attentionRequested' },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
     { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
+    { event: 'PreCompact', phase: 'compactionStarted' },
+    { event: 'PostCompact', phase: 'compactionFinished' },
 ] as const;
 
 function codexHome(homeDirectory: string, configured: string | undefined): string {
@@ -57,7 +63,7 @@ function hooksSource(documents: AgentHookDocuments): string | undefined {
 
 export const codexHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 2,
+    schemaVersion: 3,
     configTargets: (environment) => {
         const home = codexHome(environment.homeDirectory, environment.variables.CODEX_HOME);
         return [

@@ -193,6 +193,11 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         () => watchHub.snapshot(),
     );
     const introspection = createIntrospectionServices(database, logger);
+    const liveTerminalRecord = (terminal: TerminalRecord): TerminalRecord => ({
+        ...terminal,
+        agentOperation: coordinator.agentOperation(terminal.id),
+        processId: terminals.processId(terminal.id),
+    });
 
     function bootstrapState(): BootstrapState {
         const settings = configuration.getSettings();
@@ -201,9 +206,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         return {
             projects: database.listProjects(),
             sessions: database.listSessions(),
-            terminals: database
-                .listTerminals()
-                .map((terminal) => ({ ...terminal, processId: terminals.processId(terminal.id) })),
+            terminals: database.listTerminals().map(liveTerminalRecord),
             selectedProjectId: database.getAppState('lastSelectedProjectId') ?? undefined,
             selectedSessionId: database.getAppState('lastSelectedSessionId') ?? undefined,
             sessionStates: database.listSessionStates(),
@@ -224,13 +227,10 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             }),
             terminals: [...new Set(terminalIds)].flatMap((terminalId) => {
                 const terminal = database.getTerminal(terminalId);
-                return terminal
-                    ? [{ ...terminal, processId: terminals.processId(terminalId) }]
-                    : [];
+                return terminal ? [liveTerminalRecord(terminal)] : [];
             }),
         };
     }
-
     function selectedSessionId(): string | undefined {
         return database.getAppState('lastSelectedSessionId') ?? undefined;
     }

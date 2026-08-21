@@ -181,6 +181,12 @@ export interface AgentLifecycleDecision {
     lastActivityState: AgentActivityState;
 }
 
+const NON_SESSION_ACTIVITY_PHASES = new Set<AgentLifecyclePhase>([
+    'shellToolFinished',
+    'compactionStarted',
+    'compactionFinished',
+]);
+
 /**
  * Converts one validated provider lifecycle signal into a Session-only patch. The result cannot carry `agentSessionId`,
  * so a hook event can never clear a Terminal's resume binding.
@@ -194,7 +200,7 @@ export function decideAgentLifecycleUpdate(
     provider: TerminalRecord['provider'],
     phase: AgentLifecyclePhase,
 ): AgentLifecycleDecision | undefined {
-    if (phase === 'shellToolFinished') return undefined;
+    if (NON_SESSION_ACTIVITY_PHASES.has(phase)) return undefined;
     if (
         !provider ||
         terminal.provider !== provider ||

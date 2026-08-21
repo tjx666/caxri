@@ -107,7 +107,10 @@ function ActiveSessionRow({
     session,
     terminal,
 }: ActiveSessionRowProperties) {
-    const activity = sessionActivityPresentation(session.lastActivityState);
+    const activity = sessionActivityPresentation(
+        session.lastActivityState,
+        terminal?.agentOperation,
+    );
     const renameErrorId = `session-rename-error-${session.id}`;
     const sessionCard = (
         <div
@@ -149,6 +152,7 @@ function ActiveSessionRow({
                     'flex flex-none items-center',
                     activity.indicatorClassName,
                 )}
+                data-agent-operation={terminal?.agentOperation}
             >
                 <Circle size={7} fill="currentColor" />
             </span>

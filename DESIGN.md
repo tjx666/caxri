@@ -117,8 +117,8 @@ The collapsed Sidebar preserves the same 44px-tall drag region beneath the traff
 
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context. The right side follows the active tab: a normal file shows current-line
-blame, selection, cursor position, and language; a Terminal shows its process-tree memory and child
-count. Diff tabs show neither file nor Terminal details. Runtime state appears ONLY when degraded
+blame, selection, cursor position, and language; a Terminal shows its transient Agent operation,
+process-tree memory, and child count. Diff tabs show neither file nor Terminal details. Runtime state appears ONLY when degraded
 (`Reconnecting…` / `Backend stopped`) as a `--warning`/`--danger` chip; healthy state shows nothing.
 The chip is informational — recovery lives in the native Relaunch dialog, so the chip never fakes
 an action it cannot perform.
@@ -155,6 +155,8 @@ transient, Session-scoped
 motion identity: replacing its path updates the same DOM tab instantly, pinning preserves that
 identity, and only the next real tab receives the existing enter animation. Session bootstrap and
 switching still mount without structural motion; actual close keeps the exit animation.
+Transient Agent operations may temporarily use the existing text accessory before the Terminal's
+process-state tail; they stay neutral, replace generic progress text while active, and never animate.
 
 **Motion** — motion explains structure; it never decorates state. Motion is a layered stack;
 pick the least-powerful layer that covers the scenario, and one element is only ever driven by
