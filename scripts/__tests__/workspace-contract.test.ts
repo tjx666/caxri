@@ -91,7 +91,6 @@ describe('pnpm workspace contract', () => {
     const workspace = parse(
         readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'),
     ) as PnpmWorkspace;
-    const mise = readFileSync(join(root, 'mise.toml'), 'utf8');
 
     it('keeps one private pnpm workspace root and one lockfile without manifest pinning', () => {
         expect(rootManifest.private).toBe(true);
@@ -125,8 +124,6 @@ describe('pnpm workspace contract', () => {
                 .map((path) => basename(path))
                 .toSorted((left, right) => left.localeCompare(right)),
         ).toEqual(['pnpm-lock.yaml']);
-        expect(mise).toContain('node = "24.19.0"');
-        expect(mise).toContain('pnpm = "12.0.0-rc.5"');
     });
 
     it('keeps tests, Electron support, protocol, and CLI domains in predictable directories', () => {

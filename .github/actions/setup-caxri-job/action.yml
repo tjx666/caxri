@@ -27,20 +27,39 @@ outputs:
 runs:
   using: composite
   steps:
+    - id: tool_versions
+      name: Read mise tool versions
+      if: inputs.setup-toolchain == 'true'
+      shell: bash
+      run: |
+        read_tool_version() {
+          sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"([^\"]+)\"[[:space:]]*$/\1/p" mise.toml
+        }
+
+        node_version="$(read_tool_version node)"
+        pnpm_version="$(read_tool_version pnpm)"
+        [[ "$node_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+        [[ "$pnpm_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+        echo "node=$node_version" >> "$GITHUB_OUTPUT"
+        echo "pnpm=$pnpm_version" >> "$GITHUB_OUTPUT"
+
     - name: Setup exact Node.js
       if: inputs.setup-toolchain == 'true'
       uses: actions/setup-node@v7
       with:
-        node-version: 24.19.0
+        node-version: ${{ steps.tool_versions.outputs.node }}
         package-manager-cache: false
 
     - id: pnpm_toolchain
       name: Reuse runner-cached pnpm
       if: inputs.setup-toolchain == 'true'
       shell: bash
+      env:
+        CAXRI_NODE_VERSION: ${{ steps.tool_versions.outputs.node }}
+        CAXRI_PNPM_VERSION: ${{ steps.tool_versions.outputs.pnpm }}
       run: |
-        pnpm_directory="$RUNNER_TOOL_CACHE/caxri/pnpm/12.0.0-rc.5-node-24.19.0"
-        if [[ -x "$pnpm_directory/pnpm" ]] && [[ "$("$pnpm_directory/pnpm" --version)" == "12.0.0-rc.5" ]]; then
+        pnpm_directory="$RUNNER_TOOL_CACHE/caxri/pnpm/${CAXRI_PNPM_VERSION}-node-${CAXRI_NODE_VERSION}"
+        if [[ -x "$pnpm_directory/pnpm" ]] && [[ "$("$pnpm_directory/pnpm" --version)" == "$CAXRI_PNPM_VERSION" ]]; then
           echo "cached=true" >> "$GITHUB_OUTPUT"
           echo "PNPM_HOME=$pnpm_directory" >> "$GITHUB_ENV"
           echo "$pnpm_directory" >> "$GITHUB_PATH"
@@ -52,17 +71,20 @@ runs:
       if: inputs.setup-toolchain == 'true' && steps.pnpm_toolchain.outputs.cached != 'true'
       uses: pnpm/setup@v2
       with:
-        version: 12.0.0-rc.5
-        dest: ${{ runner.tool_cache }}/caxri/pnpm/12.0.0-rc.5-node-24.19.0
+        version: ${{ steps.tool_versions.outputs.pnpm }}
+        dest: ${{ runner.tool_cache }}/caxri/pnpm/${{ steps.tool_versions.outputs.pnpm }}-node-${{ steps.tool_versions.outputs.node }}
         install: false
         cache: false
 
     - name: Verify exact Node.js and pnpm
       if: inputs.setup-toolchain == 'true'
       shell: bash
+      env:
+        CAXRI_NODE_VERSION: ${{ steps.tool_versions.outputs.node }}
+        CAXRI_PNPM_VERSION: ${{ steps.tool_versions.outputs.pnpm }}
       run: |
-        test "$(node --version)" = "v24.19.0"
-        test "$(pnpm --version)" = "12.0.0-rc.5"
+        test "$(node --version)" = "v$CAXRI_NODE_VERSION"
+        test "$(pnpm --version)" = "$CAXRI_PNPM_VERSION"
 
     - name: Use runner-pinned Bun
       shell: bash
