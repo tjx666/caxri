@@ -189,6 +189,10 @@ const commandContext: CommandContext = {
         activateMode: activateInspectorMode,
         toggle: () => usePanelLayoutStore.getState().toggleInspector(),
     },
+    bottomPanel: {
+        activateView: (view) => usePanelLayoutStore.getState().activateBottomPanelView(view),
+        toggle: () => usePanelLayoutStore.getState().toggleBottomPanel(),
+    },
     sidebar: { toggle: () => usePanelLayoutStore.getState().toggleSidebar() },
     dialogs: {
         openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),

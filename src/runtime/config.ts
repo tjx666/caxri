@@ -63,10 +63,25 @@ const originalDefaultKeybindings: Keybinding[] = [
     { key: 'cmd+,', command: 'theme.openSettings' },
 ];
 /**
+ * The defaults shipped while Info was still an Inspector tab on `Cmd+4`, before Info and Logs moved to the Bottom
+ * Panel.
+ *
+ * Every other historical set is derived by _removing_ commands from the current catalog, which works only while ids
+ * survive. `inspector.showInfo` was retired by that move, so this set has to reinstate it explicitly — otherwise no
+ * untouched pre-move file matches any known default set and every existing profile silently keeps a keybinding table
+ * that has no `Cmd+J` and still names a command that no longer exists.
+ */
+const preBottomPanelDefaultKeybindings: Keybinding[] = defaultKeybindings.flatMap((binding) => {
+    if (binding.command.startsWith('bottomPanel.')) return [];
+    return binding.command === 'inspector.showStatus'
+        ? [binding, { key: 'cmd+4', command: 'inspector.showInfo' }]
+        : [binding];
+});
+/**
  * The defaults shipped while "Add Project" was still bound to `Cmd+N`, before it moved to the macOS-conventional
  * `Cmd+O`.
  */
-const preProjectOpenDefaultKeybindings = defaultKeybindings.map((binding) =>
+const preProjectOpenDefaultKeybindings = preBottomPanelDefaultKeybindings.map((binding) =>
     binding.command === 'project.create' ? { ...binding, key: 'cmd+n' } : binding,
 );
 /**
@@ -106,6 +121,7 @@ const newlyAddedDefaultCommands = new Set([
  * that release never shipped.
  */
 export const previousDefaultKeybindingSets = [
+    preBottomPanelDefaultKeybindings,
     preProjectOpenDefaultKeybindings,
     preTerminalCopyDefaultKeybindings,
     preCommandNavigationDefaultKeybindings,

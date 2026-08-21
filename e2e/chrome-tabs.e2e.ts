@@ -87,15 +87,14 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         const filesTab = inspectorTabs.getByRole('tab', { name: 'Files', exact: true });
         const gitTab = inspectorTabs.getByRole('tab', { name: 'Git', exact: true });
         const statusTab = inspectorTabs.getByRole('tab', { name: 'Status', exact: true });
-        const infoTab = inspectorTabs.getByRole('tab', { name: 'Info', exact: true });
-        const logsTab = inspectorTabs.getByRole('tab', { name: 'Logs', exact: true });
+        // Info and Logs are Bottom Panel views, not Inspector tabs; the Inspector rail is the
+        // narrow tree/list surface only.
+        await expect(inspectorTabs.getByRole('tab')).toHaveCount(3);
         await expect(filesTab).toHaveAttribute('aria-selected', 'true');
         await expect(filesTab).toHaveAttribute('tabindex', '0');
         await expectPanelAssociation(running.page, filesTab, true);
         await expectPanelAssociation(running.page, gitTab, false);
         await expectPanelAssociation(running.page, statusTab, false);
-        await expectPanelAssociation(running.page, infoTab, false);
-        await expectPanelAssociation(running.page, logsTab, false);
         await expectIndicatorAligned(inspectorTabs, filesTab);
 
         await inspectorTabs.locator('[data-slot="chrome-tab-indicator"]').evaluate((indicator) => {
@@ -127,12 +126,14 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         await gitTab.press('ArrowRight');
         await expect(statusTab).toBeFocused();
         await expect(statusTab).toHaveAttribute('aria-selected', 'true');
-        await statusTab.press('End');
-        await expect(logsTab).toBeFocused();
-        await logsTab.press('Home');
+        await statusTab.press('Home');
+        await expect(filesTab).toBeFocused();
+        await filesTab.press('End');
+        await expect(statusTab).toBeFocused();
+        await statusTab.press('ArrowRight');
         await expect(filesTab).toBeFocused();
         await filesTab.press('ArrowLeft');
-        await expect(logsTab).toBeFocused();
+        await expect(statusTab).toBeFocused();
 
         await running.page.keyboard.press('Meta+2');
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
@@ -162,6 +163,26 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
         await firstSession.click();
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
         await expectIndicatorAligned(inspectorTabs, gitTab);
+
+        // The Bottom Panel hosts a second, independently collapsible ChromeTabs strip. It must
+        // carry the same roles, panel wiring, and moving indicator as the Inspector's, and its
+        // selection must stay independent of the Inspector's.
+        const bottomTabs = running.page.getByRole('tablist', { name: 'Bottom Panel' });
+        await expect(bottomTabs).toHaveCount(0);
+        await running.page.keyboard.press('Meta+j');
+        const logsTab = bottomTabs.getByRole('tab', { name: 'Logs', exact: true });
+        const infoTab = bottomTabs.getByRole('tab', { name: 'Info', exact: true });
+        await expect(logsTab).toHaveAttribute('aria-selected', 'true');
+        await expectPanelAssociation(running.page, logsTab, true);
+        await expectPanelAssociation(running.page, infoTab, false);
+        await expectIndicatorAligned(bottomTabs, logsTab);
+        await infoTab.click();
+        await expect(infoTab).toHaveAttribute('aria-selected', 'true');
+        await expectPanelAssociation(running.page, logsTab, false);
+        await expectIndicatorAligned(bottomTabs, infoTab);
+        await expect(gitTab).toHaveAttribute('aria-selected', 'true');
+        await infoTab.press('Meta+j');
+        await expect(bottomTabs).toHaveCount(0);
 
         await running.page.keyboard.press('Meta+,');
         const dialog = running.page.getByRole('dialog');

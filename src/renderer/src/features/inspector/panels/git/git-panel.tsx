@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { parseGitDiffTab } from '@shared/git-diff';
-import { GitBranch, GitCommitHorizontal, GitPullRequest, RefreshCw } from 'lucide-react';
+import { FileDiff, GitCommitHorizontal, GitPullRequest, RefreshCw } from 'lucide-react';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
+import { PanelHeader } from '../../../../components/panel-header';
 import { Button } from '../../../../components/ui/button';
 import { Empty } from '../../../../components/ui/empty';
 import { Tooltip } from '../../../../components/ui/tooltip';
@@ -137,71 +138,81 @@ export function GitPanel() {
     };
     return (
         <div className="inspector-content git-panel flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="git-heading flex items-center gap-2 border-b border-border p-2">
-                <span className="flex items-center gap-2">
-                    <GitBranch size={13} /> Source Control
-                </span>
-                <div
-                    className="git-mode-switch ml-auto flex h-7 items-center rounded-md bg-elevated p-0.5"
-                    role="group"
-                    aria-label="Source control mode"
-                >
-                    <Tooltip content="Working Tree Changes">
-                        <button
-                            type="button"
-                            className={cn(
-                                'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
-                                mode === 'working' && 'bg-surface text-foreground',
-                            )}
-                            aria-label="Working Tree Changes"
-                            aria-pressed={mode === 'working'}
-                            onClick={() => setMode('working')}
+            <PanelHeader
+                className="git-heading"
+                title="Source Control"
+                actions={
+                    <>
+                        <div
+                            className="git-mode-switch flex h-7 items-center rounded-md bg-elevated p-0.5"
+                            role="group"
+                            aria-label="Source control mode"
                         >
-                            <GitBranch size={13} />
-                        </button>
-                    </Tooltip>
-                    <Tooltip content="Last Commit Changes">
-                        <button
-                            type="button"
-                            className={cn(
-                                'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
-                                mode === 'commit' && 'bg-surface text-foreground',
-                            )}
-                            aria-label="Last Commit Changes"
-                            aria-pressed={mode === 'commit'}
-                            onClick={() => setMode('commit')}
+                            <Tooltip content="Working Tree Changes">
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
+                                        mode === 'working' && 'bg-surface text-foreground',
+                                    )}
+                                    aria-label="Working Tree Changes"
+                                    aria-pressed={mode === 'working'}
+                                    onClick={() => setMode('working')}
+                                >
+                                    {/* A working-tree change set is a diff, not a branch: the branch mark already
+                                labels the Git tab and every repository row, and a third copy here made the
+                                three modes read as one repeated glyph. */}
+                                    <FileDiff size={13} />
+                                </button>
+                            </Tooltip>
+                            <Tooltip content="Last Commit Changes">
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
+                                        mode === 'commit' && 'bg-surface text-foreground',
+                                    )}
+                                    aria-label="Last Commit Changes"
+                                    aria-pressed={mode === 'commit'}
+                                    onClick={() => setMode('commit')}
+                                >
+                                    <GitCommitHorizontal size={13} />
+                                </button>
+                            </Tooltip>
+                            <Tooltip content="Pull Request Changes">
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
+                                        mode === 'pull-request' && 'bg-surface text-foreground',
+                                    )}
+                                    aria-label="Pull Request Changes"
+                                    aria-pressed={mode === 'pull-request'}
+                                    onClick={() => setMode('pull-request')}
+                                >
+                                    <GitPullRequest size={13} />
+                                </button>
+                            </Tooltip>
+                        </div>
+                        <Tooltip
+                            content={
+                                mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git'
+                            }
                         >
-                            <GitCommitHorizontal size={13} />
-                        </button>
-                    </Tooltip>
-                    <Tooltip content="Pull Request Changes">
-                        <button
-                            type="button"
-                            className={cn(
-                                'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
-                                mode === 'pull-request' && 'bg-surface text-foreground',
-                            )}
-                            aria-label="Pull Request Changes"
-                            aria-pressed={mode === 'pull-request'}
-                            onClick={() => setMode('pull-request')}
-                        >
-                            <GitPullRequest size={13} />
-                        </button>
-                    </Tooltip>
-                </div>
-                <Tooltip content={mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git'}>
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label={
-                            mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git'
-                        }
-                        onClick={refresh}
-                    >
-                        <RefreshCw size={13} />
-                    </Button>
-                </Tooltip>
-            </div>
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label={
+                                    mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git'
+                                }
+                                onClick={refresh}
+                            >
+                                <RefreshCw size={13} />
+                            </Button>
+                        </Tooltip>
+                    </>
+                }
+            />
             <div
                 ref={repositoriesReference}
                 className="git-repositories min-h-0 flex-1 overflow-auto border-b border-border"

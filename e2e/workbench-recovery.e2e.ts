@@ -9,6 +9,7 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
+    openBottomPanelView,
     pageRequest,
     runtimeStatus,
     selectedSessionId,
@@ -87,8 +88,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(
             running.page.locator('.git-files .git-row', { hasText: 'note.txt' }),
         ).toBeVisible();
-        const infoTab = running.page.getByRole('tab', { name: 'Info', exact: true });
-        await infoTab.click();
+        const infoTab = await openBottomPanelView(running.page, 'Info');
         await expect(infoTab).toHaveClass(/active/);
         await expect(running.page.locator('.terminal-info-card')).not.toHaveCount(0);
 

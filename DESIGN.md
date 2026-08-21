@@ -82,8 +82,10 @@ tracking. No other arbitrary typography values are allowed.
 - 4px grid: primary gaps/paddings are 4, 8, 12, 16, 24. Optical half-steps (2, 6, 10px) are
   allowed inside compact control chrome when a glyph or label does not center on the primary grid.
   Two grandfathered measurements predate the grid and are kept only to avoid chrome churn — the
-  Status Bar's 5px item inset/gap and the Files caption's 3px top/bottom inset (preserving its
-  34px rail); do not imitate them in new work. The macOS traffic-light clearance is the only
+  Status Bar's 5px item inset/gap and the shared panel caption's 3px top/bottom inset (preserving
+  its 34px rail); do not imitate them in new work. The panel divider's revealed hairline is 3px on
+  whichever axis the seam runs — `w-[3px]` between columns, `h-[3px]` between rows — so the two
+  orientations are the same seam, not two thicknesses. The macOS traffic-light clearance is the only
   platform spacing exception: 84px expanded-header and 78px collapsed-header/tab-strip left
   padding. Both are horizontal clearance for the window controls; the 44px figure under Window
   chrome is rail height, a different axis.
@@ -200,6 +202,29 @@ from the shared `usePrefersReducedMotion` hook
 (`lib/motion.ts`, the only sanctioned way to read the preference in JS) — without changing
 focus, selection, command, query, or lifecycle behavior.
 
+**Panel captions** — every Inspector panel wears the same caption row: 34px tall, bottom
+hairline, and a small bold uppercase title with `tracking-[0.04em]` in `--foreground` (VS Code's
+section caption). One shared `PanelHeader` owns it, so a workspace name, `Source Control`, and
+`Project Status` read as one system rather than three. The caption title carries no icon — the
+owning tab already shows one two pixels above, and repeating it there is the duplication this rule
+exists to prevent. Trailing toolbar actions may be hover-revealed, but only where the caption row
+has free space; an action that would sit on top of live text takes its own slot instead.
+
+**Content placement** — the Inspector holds hierarchical, navigable surfaces that read well in a
+narrow vertical rail (Files, Source Control, Project Status). Stream- and record-shaped surfaces
+that want horizontal room live in the Bottom Panel instead (Logs, Info), which docks under the
+work surface inside the centre column so the Sidebar and Inspector keep full height — VS Code's
+Sidebar-vs-Panel split. The Bottom Panel is closed at rest, its tabs sit left at their natural
+width, and a trailing close button dismisses it. `Command+J` toggles it. A new surface picks its
+region by content shape, not by which region has room left.
+
+**Iconography** — an icon names what a thing _is_, never which mode a surrounding control is in.
+A glyph reused for two meanings on one screen is a bug: the Git tab keeps the branch mark, so the
+Source Control caption drops it, repository rows take a repository mark (`FolderGit2`, or the
+vendored `file-submodule` codicon for a submodule) regardless of panel mode, and the mode switch's
+working-tree segment takes a diff mark. Where lucide has no equivalent glyph, vendor the VS Code
+codicon inline (`src/renderer/src/icons/codicons`) rather than bending a lucide icon to fit.
+
 **Git inspector** — every discovered repository is an independent disclosure node, with
 its changed files grouped by directory. Selecting a file opens a read-only Monaco diff in
 the center pane; the Inspector never embeds a patch preview. The panel's mode switch
@@ -257,9 +282,11 @@ not touched.").
   Monaco, xterm) unless the binding explicitly opts in (e.g. save).
 - Every interactive element is keyboard-reachable; status conveyed by color always has
   a text/aria twin.
-- Sidebar and inspector get min/max-constrained drag resize; double-click a divider resets to
-  default. `Command+[` toggles the Sidebar and `Command+]` toggles the Inspector; the Status Bar
-  contains no panel-collapse controls.
+- Sidebar, Inspector, and Bottom Panel get min/max-constrained drag resize; double-click a divider
+  resets to default. `Command+[` toggles the Sidebar, `Command+]` toggles the Inspector, and
+  `Command+J` toggles the Bottom Panel; the Status Bar contains no panel-collapse controls.
+- Panel sizes and visibility are device-local (`localStorage`), never Session state, so a layout
+  never travels between machines with a Project.
 
 ## Known gaps
 

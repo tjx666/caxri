@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { deriveDefaultEditorLayout, remapEditorLayoutPaths } from '../../../shared/editor-layout';
 import { withoutEditorTabDirtiness } from '../../../shared/editor-state';
+import { inspectorModeSchema } from '../../../shared/inspector';
 import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { CaxriError } from '../../../shared/ipc/errors';
 import { createTerminalLayout } from '../../../shared/terminal-layout';
@@ -156,6 +157,17 @@ export interface SessionStateRepair {
     stateVersion: number;
 }
 
+/**
+ * `inspector_mode` is a free-form text column whose accepted values narrow whenever a surface moves off the Inspector —
+ * Info and Logs became Bottom Panel views, retiring those two ids. A row still holding a retired id would fail
+ * `sessionStateSchema` and take the whole persisted Session down the `invalid_shape` repair path, discarding its open
+ * tabs and split layout over one presentation field. Falling back to the default mode keeps the rest of the row intact;
+ * the retired value carries nothing worth a full-state reset.
+ */
+function normalizeInspectorMode(value: string): string {
+    return inspectorModeSchema.safeParse(value).success ? value : 'files';
+}
+
 function parseSessionState(
     row: SessionStateRow,
 ): { state: SessionState } | { reason: SessionStateRepair['reason'] } {
@@ -192,6 +204,7 @@ function parseSessionState(
         ((isLegacyOwnerState && activeTab?.kind === 'editor') || activeTab?.kind === 'terminal'
             ? activeTab
             : undefined);
+    // See `normalizeInspectorMode`: a retired Inspector mode must not cost the Session its tabs and layout.
     // `editorLayout` is additive state introduced after `openTabs`/`activeTab` already existed, so a row
     // persisted before this feature (or a Workbench Root that never wrote one) has no stored tree yet. Derive a
     // single-group default from the legacy tab list instead of bumping `CURRENT_SESSION_STATE_VERSION`, which
@@ -210,7 +223,7 @@ function parseSessionState(
         editorRemapOperationId:
             rootState?.editorRemapOperationId ??
             (isLegacyOwnerState ? (row.editorRemapOperationId ?? undefined) : undefined),
-        inspectorMode: row.inspectorMode,
+        inspectorMode: normalizeInspectorMode(row.inspectorMode),
         layout,
         editorLayout,
     };

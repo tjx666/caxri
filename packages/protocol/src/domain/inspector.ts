@@ -3,6 +3,9 @@ import { z } from 'zod';
 /**
  * Single registration point for Inspector modes and their commands. Renderer panel components are exhaustively keyed by
  * this list, while the command catalog, registry, schema, and defaults derive from it.
+ *
+ * The Inspector holds hierarchical, navigable surfaces that read well in a narrow vertical rail. Wide, stream- or
+ * record-shaped surfaces belong to the Bottom Panel instead (`bottom-panel.ts`).
  */
 export const inspectorModeRegistrations = [
     {
@@ -25,20 +28,6 @@ export const inspectorModeRegistrations = [
         commandTitle: 'Show Project Status',
         commandDescription: 'Show Project Status in the Inspector',
         defaultKeybinding: 'cmd+3',
-    },
-    {
-        mode: 'info',
-        commandId: 'inspector.showInfo',
-        commandTitle: 'Show Terminal Info',
-        commandDescription: 'Show Terminal information in the Inspector',
-        defaultKeybinding: 'cmd+4',
-    },
-    {
-        mode: 'logs',
-        commandId: 'inspector.showLogs',
-        commandTitle: 'Show Logs',
-        commandDescription: 'Show structured process logs in the Inspector',
-        defaultKeybinding: 'cmd+5',
     },
 ] as const;
 

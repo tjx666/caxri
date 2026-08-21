@@ -5,6 +5,7 @@ import { pathBasename } from '@caxri/utils';
 import { FilePlus, FolderPlus, Search, SquareMinus } from 'lucide-react';
 
 import { executeCommand } from '../../../../commands/execute';
+import { PanelHeader } from '../../../../components/panel-header';
 import { Button } from '../../../../components/ui/button';
 import {
     ContextMenu,
@@ -206,89 +207,89 @@ export function FileTreePanel() {
             aria-busy={Boolean(pendingOperation)}
             className="inspector-content flex min-h-0 flex-1 flex-col overflow-hidden"
         >
-            <div
+            <PanelHeader
                 ref={fileCaptionReference}
-                className="panel-caption group/file-caption flex min-h-[34px] items-center justify-between gap-1 border-b border-border pt-[3px] pr-1 pb-[3px] pl-2 text-[11px] text-muted"
-            >
-                <span className="truncate" title={session.rootPath}>
-                    {project?.displayTitle ?? rootPathCaption}
-                </span>
-                <span className="flex items-center gap-0.5">
-                    <Tooltip content="New File">
-                        <Button
-                            className={captionActionClassName}
-                            size="icon"
-                            variant="ghost"
-                            aria-label="New File"
-                            onClick={() =>
-                                setEditing({
-                                    kind: 'create',
-                                    directory: session.rootPath,
-                                    itemKind: 'file',
-                                    returnFocus: { kind: 'caption', itemKind: 'file' },
-                                })
-                            }
-                        >
-                            <FilePlus size={13} />
-                        </Button>
-                    </Tooltip>
-                    <Tooltip content="New Folder">
-                        <Button
-                            className={captionActionClassName}
-                            size="icon"
-                            variant="ghost"
-                            aria-label="New Folder"
-                            onClick={() =>
-                                setEditing({
-                                    kind: 'create',
-                                    directory: session.rootPath,
-                                    itemKind: 'directory',
-                                    returnFocus: { kind: 'caption', itemKind: 'directory' },
-                                })
-                            }
-                        >
-                            <FolderPlus size={13} />
-                        </Button>
-                    </Tooltip>
-                    <CommandTooltip commandId="inspector.searchFiles">
-                        <Button
-                            className={cn(
-                                isSearchVisible
-                                    ? 'pointer-events-auto shrink-0 bg-elevated text-foreground opacity-100'
-                                    : captionActionClassName,
-                            )}
-                            size="icon"
-                            variant="ghost"
-                            aria-label="Search Files"
-                            aria-pressed={isSearchVisible}
-                            onClick={() => {
-                                if (isSearchVisible) closeFileSearch(session.id);
-                                else executeCommand('inspector.searchFiles');
-                            }}
-                        >
-                            <Search size={13} />
-                        </Button>
-                    </CommandTooltip>
-                    <Tooltip content="Collapse Folders">
-                        <Button
-                            className={captionActionClassName}
-                            size="icon"
-                            variant="ghost"
-                            aria-label="Collapse Folders"
-                            onClick={() => {
-                                if (scopeId)
-                                    setExpandedByScope((current) => ({
-                                        ...current,
-                                        [scopeId]: [],
-                                    }));
-                                setCollapseRevision((value) => value + 1);
-                            }}
-                        >
-                            <SquareMinus size={13} />
-                        </Button>
-                    </Tooltip>
-                </span>
-            </div>
+                className="group/file-caption"
+                title={project?.displayTitle ?? rootPathCaption}
+                titleAttribute={session.rootPath}
+                actions={
+                    <>
+                        <Tooltip content="New File">
+                            <Button
+                                className={captionActionClassName}
+                                size="icon"
+                                variant="ghost"
+                                aria-label="New File"
+                                onClick={() =>
+                                    setEditing({
+                                        kind: 'create',
+                                        directory: session.rootPath,
+                                        itemKind: 'file',
+                                        returnFocus: { kind: 'caption', itemKind: 'file' },
+                                    })
+                                }
+                            >
+                                <FilePlus size={13} />
+                            </Button>
+                        </Tooltip>
+                        <Tooltip content="New Folder">
+                            <Button
+                                className={captionActionClassName}
+                                size="icon"
+                                variant="ghost"
+                                aria-label="New Folder"
+                                onClick={() =>
+                                    setEditing({
+                                        kind: 'create',
+                                        directory: session.rootPath,
+                                        itemKind: 'directory',
+                                        returnFocus: { kind: 'caption', itemKind: 'directory' },
+                                    })
+                                }
+                            >
+                                <FolderPlus size={13} />
+                            </Button>
+                        </Tooltip>
+                        <CommandTooltip commandId="inspector.searchFiles">
+                            <Button
+                                className={cn(
+                                    isSearchVisible
+                                        ? 'pointer-events-auto shrink-0 bg-elevated text-foreground opacity-100'
+                                        : captionActionClassName,
+                                )}
+                                size="icon"
+                                variant="ghost"
+                                aria-label="Search Files"
+                                aria-pressed={isSearchVisible}
+                                onClick={() => {
+                                    if (isSearchVisible) closeFileSearch(session.id);
+                                    else executeCommand('inspector.searchFiles');
+                                }}
+                            >
+                                <Search size={13} />
+                            </Button>
+                        </CommandTooltip>
+                        <Tooltip content="Collapse Folders">
+                            <Button
+                                className={captionActionClassName}
+                                size="icon"
+                                variant="ghost"
+                                aria-label="Collapse Folders"
+                                onClick={() => {
+                                    if (scopeId)
+                                        setExpandedByScope((current) => ({
+                                            ...current,
+                                            [scopeId]: [],
+                                        }));
+                                    setCollapseRevision((value) => value + 1);
+                                }}
+                            >
+                                <SquareMinus size={13} />
+                            </Button>
+                        </Tooltip>
+                    </>
+                }
+            />
             {pendingOperation && (
                 <div
                     role="status"

@@ -1,11 +1,12 @@
 import { z } from 'zod';
 
+import type { BottomPanelCommandId } from './bottom-panel.js';
 import type { InspectorCommandId } from './inspector.js';
 
 /**
- * Catalog IDs for palette, shortcuts, native menus, and command-backed buttons. Inspector mode commands stay listed
- * here so {@link commandIdSchema} remains a closed enum; a type check below fails if a registration is added without an
- * ID here.
+ * Catalog IDs for palette, shortcuts, native menus, and command-backed buttons. Inspector mode and Bottom Panel view
+ * commands stay listed here so {@link commandIdSchema} remains a closed enum; a type check below fails if a registration
+ * is added without an ID here.
  */
 export const commandIds = [
     'project.create',
@@ -35,10 +36,11 @@ export const commandIds = [
     'inspector.showFiles',
     'inspector.showGit',
     'inspector.showStatus',
-    'inspector.showInfo',
-    'inspector.showLogs',
     'inspector.searchFiles',
     'inspector.toggle',
+    'bottomPanel.showLogs',
+    'bottomPanel.showInfo',
+    'bottomPanel.toggle',
     'sidebar.toggle',
     'settings.open',
     'settings.openSource',
@@ -59,6 +61,13 @@ export type CommandId = (typeof commandIds)[number];
  * Keeps Inspector mode command IDs inside the catalog enum.
  */
 export function inspectorCommandId(id: InspectorCommandId): CommandId {
+    return id;
+}
+
+/**
+ * Keeps Bottom Panel view command IDs inside the catalog enum.
+ */
+export function bottomPanelCommandId(id: BottomPanelCommandId): CommandId {
     return id;
 }
 

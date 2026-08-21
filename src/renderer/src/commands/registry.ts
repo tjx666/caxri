@@ -1,4 +1,4 @@
-import type { CommandId, InspectorMode } from '@shared/types';
+import type { BottomPanelView, CommandId, InspectorMode } from '@shared/types';
 
 import type { SettingsView } from '../stores/dialogs';
 
@@ -35,6 +35,7 @@ export interface CommandContext {
         splitActive(direction: 'left' | 'right' | 'up' | 'down'): void;
     };
     inspector: { searchFiles(): void; activateMode(mode: InspectorMode): void; toggle(): void };
+    bottomPanel: { activateView(view: BottomPanelView): void; toggle(): void };
     sidebar: { toggle(): void };
     dialogs: {
         openSettings(view?: SettingsView): void;

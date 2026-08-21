@@ -67,6 +67,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 activateMode: record('inspector.activateMode'),
                 toggle: record('inspector.toggle'),
             },
+            bottomPanel: {
+                activateView: record('bottomPanel.activateView'),
+                toggle: record('bottomPanel.toggle'),
+            },
             sidebar: { toggle: record('sidebar.toggle') },
             dialogs: {
                 openSettings: record('dialogs.openSettings'),

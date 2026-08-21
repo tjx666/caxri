@@ -28,7 +28,7 @@ import { ToastOutlet } from './features/toasts/toast-outlet';
 import { UpdateDialog } from './features/updates/update-dialog';
 import { LoadingScreen } from './features/workbench/loading-screen';
 import { PanelDivider } from './features/workbench/panel-divider';
-import { Workbench } from './features/workbench/workbench';
+import { WorkbenchColumn } from './features/workbench/workbench-column';
 import { WorkbenchRootPrompt } from './features/workbench/workbench-root-prompt';
 import { applyCssTheme } from './lib/theme-css';
 import { cn } from './lib/utilities';
@@ -155,25 +155,27 @@ export function App() {
                 {isSidebarVisible && (
                     <PanelDivider
                         ariaLabel="Resize Sidebar"
-                        width={sidebarWidth}
+                        size={sidebarWidth}
                         min={SIDEBAR_MIN_WIDTH}
                         max={SIDEBAR_MAX_WIDTH}
-                        defaultWidth={SIDEBAR_DEFAULT_WIDTH}
+                        defaultSize={SIDEBAR_DEFAULT_WIDTH}
                         cssVariable="--sidebar-width"
                         growDirection={1}
+                        orientation="vertical"
                         onCommit={(width) => usePanelLayoutStore.getState().setSidebarWidth(width)}
                     />
                 )}
-                <Workbench />
+                <WorkbenchColumn />
                 {isInspectorVisible && (
                     <PanelDivider
                         ariaLabel="Resize Inspector"
-                        width={inspectorWidth}
+                        size={inspectorWidth}
                         min={INSPECTOR_MIN_WIDTH}
                         max={INSPECTOR_MAX_WIDTH}
-                        defaultWidth={INSPECTOR_DEFAULT_WIDTH}
+                        defaultSize={INSPECTOR_DEFAULT_WIDTH}
                         cssVariable="--inspector-width"
                         growDirection={-1}
+                        orientation="vertical"
                         onCommit={(width) =>
                             usePanelLayoutStore.getState().setInspectorWidth(width)
                         }

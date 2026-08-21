@@ -1,3 +1,4 @@
+export * from './bottom-panel.js';
 export * from './business-contract.js';
 export * from './commands.js';
 export * from './domain.js';
