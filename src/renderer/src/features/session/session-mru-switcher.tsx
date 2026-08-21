@@ -197,11 +197,17 @@ export function SessionMruSwitcher() {
     }, [selected, view.isOpen]);
     if (!selected || !isPanelVisible) return null;
     return (
-        <div className="pointer-events-none fixed inset-0 z-[60] grid place-items-center">
-            {/* Same scrim redline as a Dialog: the switcher is a modal moment, just one that ends on key release. */}
+        <div className="fixed inset-0 z-[60] grid place-items-center">
+            {/*
+             * Same scrim redline as a Dialog: the switcher is a modal moment, just one that ends on key release. The
+             * scrim takes pointer events so a click outside the panel cannot reach the workbench underneath — without
+             * that, clicking a Sidebar Session while the chord is held switches the Session and the switcher then
+             * commits a second, stale one on release. Clicking the scrim cancels, matching Escape.
+             */}
             <div
                 aria-hidden="true"
                 className="motion-safe:animate-in fade-in-0 absolute inset-0 bg-overlay backdrop-blur-[2px] duration-(--motion-overlay-enter)"
+                onMouseDown={() => useSessionMruSwitcherStore.getState().cancel()}
             />
             <p className="sr-only" aria-atomic="true" role="status">
                 {`Selected ${selected.displayTitle}, ${selectedIndex + 1} of ${candidates.length}`}
