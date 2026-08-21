@@ -1,4 +1,4 @@
-export type DesktopReadiness = 'pending' | 'announced';
+type DesktopReadiness = 'pending' | 'announced';
 
 interface ReconnectContext {
     attempt: number;
