@@ -64,7 +64,7 @@ interface ProjectCollapsePolicyInput {
     collapsedProjects: Readonly<ProjectCollapseState>;
     manuallyExpandedProjectIds: ReadonlySet<string>;
     now: number;
-    projects: readonly ProjectRecord[];
+    projects: readonly ProjectRecord[] | undefined;
     selectedSessionId: string | undefined;
     sessions: readonly SessionRecord[];
     shouldAutoCollapse: boolean;
@@ -77,6 +77,11 @@ interface ProjectCollapsePolicyInput {
 export function projectCollapseAfterPolicy(
     input: ProjectCollapsePolicyInput,
 ): ProjectCollapseState {
+    /**
+     * The Sidebar mounts before `app.bootstrap` resolves. Treating that loading state as an authoritative empty catalog
+     * would erase persisted disclosure before the Projects arrive.
+     */
+    if (!input.projects) return { ...input.collapsedProjects };
     const projectIds = new Set(input.projects.map((project) => project.id));
     const protectedIds = protectedProjectIds(input.sessions, input.selectedSessionId);
     const next: ProjectCollapseState = {};
