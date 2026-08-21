@@ -265,4 +265,30 @@ describe('Renderer design contract', () => {
             'arbitrary classes missing from the DESIGN.md allowlist',
         ).toEqual([]);
     });
+
+    it('gates every hover affordance on Button and its disabled-capable consumers behind :enabled', async () => {
+        // A disabled button still matches `:hover` in CSS even though Chromium dispatches no pointer events to it, so
+        // an ungated `hover:` utility paints a hover fill under a cursor whose click does nothing. Consumers that pass
+        // `disabled` carry the same obligation for the hover utilities they add on top of the variant recipe.
+        const paths = [
+            join(rendererRoot, 'components/ui/button.tsx'),
+            join(rendererRoot, 'features/sidebar/session-history-navigation.tsx'),
+        ];
+        const violationsByFile = await Promise.all(
+            paths.map(async (path): Promise<string[]> => {
+                const source = await readFile(path, 'utf8');
+                const sourceFile = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
+                return source
+                    .matchAll(/([\w-]*:?)hover:/g)
+                    .filter((match) => !['enabled:', 'group-', 'peer-'].includes(match[1]))
+                    .map((match) => sourceLocation(path, sourceFile, match.index))
+                    .toArray();
+            }),
+        );
+
+        expect(
+            violationsByFile.flat(),
+            'use `enabled:hover:` so a disabled control never renders a hover affordance',
+        ).toEqual([]);
+    });
 });
