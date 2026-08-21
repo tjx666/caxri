@@ -78,6 +78,7 @@ const WATCHED_BUILD_INPUT_EXTENSIONS = new Set([
     '.woff',
     '.woff2',
 ]);
+const OWNED_PROCESS_DISCOVERY_TIMEOUT_MS = 10_000;
 
 type OptionValue = string | true;
 // Partial (not Record<string, OptionValue[]>): the object starts empty and keys are only
@@ -99,6 +100,29 @@ interface WaitForCdpDependencies {
     now: () => number;
     sleep: (milliseconds: number) => Promise<void>;
 }
+
+export interface StaleRuntimeDependencies {
+    discoverOwnedProcesses: typeof discoverOwnedProcesses;
+    isOwnedProcess: typeof isOwnedProcess;
+    isOwnedRuntime: typeof isOwnedRuntime;
+    projectRoot: string;
+    readRuntime: () => Promise<string>;
+    removeOwnedUserData: typeof removeOwnedUserData;
+    runtimePath: string;
+    unlinkRuntime: () => Promise<void>;
+}
+
+export interface WaitForOwnedProcessesDependencies {
+    discoverOwnedProcesses: typeof discoverOwnedProcesses;
+    now: () => number;
+    sleep: (milliseconds: number) => Promise<void>;
+}
+
+const defaultWaitForOwnedProcessesDependencies: WaitForOwnedProcessesDependencies = {
+    discoverOwnedProcesses,
+    now: Date.now,
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+};
 
 interface StopControllerDependencies {
     isAlive: typeof isAlive;
@@ -227,10 +251,23 @@ export function createElectronStopController(
     };
 }
 
-async function removeStaleRuntime(): Promise<void> {
+const defaultStaleRuntimeDependencies: StaleRuntimeDependencies = {
+    discoverOwnedProcesses,
+    isOwnedProcess,
+    isOwnedRuntime,
+    projectRoot: PROJECT_ROOT,
+    readRuntime: () => readFile(RUNTIME_PATH, 'utf8'),
+    removeOwnedUserData,
+    runtimePath: RUNTIME_PATH,
+    unlinkRuntime: () => unlink(RUNTIME_PATH),
+};
+
+export async function removeStaleRuntime(
+    dependencies: StaleRuntimeDependencies = defaultStaleRuntimeDependencies,
+): Promise<void> {
     let rawText: string;
     try {
-        rawText = await readFile(RUNTIME_PATH, 'utf8');
+        rawText = await dependencies.readRuntime();
     } catch (error: unknown) {
         if (errorCode(error) === 'ENOENT') return;
         throw error;
@@ -242,18 +279,49 @@ async function removeStaleRuntime(): Promise<void> {
         current = runtimeStateSchema.parse(raw);
     } catch {
         throw new Error(
-            `Invalid ${relative(PROJECT_ROOT, RUNTIME_PATH)}; inspect it before removing stale state`,
+            `Invalid ${relative(dependencies.projectRoot, dependencies.runtimePath)}; inspect it before removing stale state`,
         );
     }
 
     /**
      * Preserve a verified live owner; only stale identity can release its state.
      */
-    if (await isOwnedRuntime(current)) {
+    if (await dependencies.isOwnedRuntime(current)) {
         throw new Error('Acceptance instance already running with a live owned process');
     }
-    await unlink(RUNTIME_PATH);
-    await removeOwnedUserData(current);
+    const persistedLiveness = await Promise.all(
+        current.ownedProcesses.map((ownedProcess) => dependencies.isOwnedProcess(ownedProcess)),
+    );
+    const discoveredProcesses = await dependencies.discoverOwnedProcesses(
+        current,
+        dependencies.projectRoot,
+    );
+    if (persistedLiveness.some(Boolean) || discoveredProcesses.length > 0) {
+        throw new Error(
+            'Acceptance detached processes are still running; run stop-electron before starting another instance',
+        );
+    }
+    await dependencies.unlinkRuntime();
+    await dependencies.removeOwnedUserData(current);
+}
+
+export async function waitForOwnedProcesses(
+    runtime: Pick<RuntimeState, 'projectRoot' | 'userDataDir'>,
+    expectedProjectRoot: string,
+    dependencies: WaitForOwnedProcessesDependencies = defaultWaitForOwnedProcessesDependencies,
+): Promise<RuntimeState['ownedProcesses']> {
+    const deadline = dependencies.now() + OWNED_PROCESS_DISCOVERY_TIMEOUT_MS;
+    while (true) {
+        // eslint-disable-next-line no-await-in-loop -- readiness must observe one ordered Host/Runtime ownership snapshot
+        const processes = await dependencies.discoverOwnedProcesses(runtime, expectedProjectRoot);
+        const roles = new Set(processes.map(({ role }) => role));
+        if (roles.has('host') && roles.has('runtime')) return processes;
+        if (dependencies.now() >= deadline) {
+            throw new Error('Timed out waiting for owned Acceptance Host and Runtime processes');
+        }
+        // eslint-disable-next-line no-await-in-loop -- poll cadence is intentionally sequential
+        await dependencies.sleep(100);
+    }
 }
 
 async function assertPortAvailable(port: number): Promise<void> {
@@ -373,6 +441,7 @@ async function main(): Promise<void> {
             reuseUserDataDir: reuseUserDataDirectory,
         });
         let lifecycleLaunchId: string;
+        let hasVerifiedOwnedProcesses = false;
         let isPreserveOwnedRuntimeState = false;
         let runtime: RuntimeState | undefined;
         try {
@@ -432,7 +501,8 @@ async function main(): Promise<void> {
                 isPreserveOwnedRuntimeState = true;
                 await writeRuntime(runtime);
                 await Promise.race([waitForCdp(port, child), rejectOnChildExit()]);
-                runtime.ownedProcesses = await discoverOwnedProcesses(runtime, PROJECT_ROOT);
+                runtime.ownedProcesses = await waitForOwnedProcesses(runtime, PROJECT_ROOT);
+                hasVerifiedOwnedProcesses = true;
                 await writeRuntime(runtime);
                 await markCaseLifecycleReady(plannedCase.directory, {
                     caseId,
@@ -485,7 +555,11 @@ async function main(): Promise<void> {
                           )
                       ).some(Boolean)
                     : false;
-                if (!hasRecordedProcess && detachedProcesses.length === 0) {
+                if (
+                    hasVerifiedOwnedProcesses &&
+                    !hasRecordedProcess &&
+                    detachedProcesses.length === 0
+                ) {
                     try {
                         await unlink(RUNTIME_PATH);
                         isPreserveOwnedRuntimeState = false;

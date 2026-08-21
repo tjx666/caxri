@@ -150,6 +150,36 @@ describe('Acceptance Electron stopper', () => {
         expect(orphan.removeOwnedUserData).toHaveBeenCalledOnce();
     });
 
+    it('fails closed when a replacement Host owns the recorded profile', async () => {
+        const recordedHost = {
+            identity: 'recorded host identity',
+            pid: 333,
+            role: 'host',
+        } as const;
+        const replacementProcesses = [
+            { identity: 'replacement host identity', pid: 555, role: 'host' },
+            { identity: 'replacement runtime identity', pid: 666, role: 'runtime' },
+        ] as const;
+        const timestamps = [0, 0, 10_000];
+        const replacement = dependencies({
+            discoverOwnedProcesses: vi.fn().mockResolvedValue(replacementProcesses),
+            isOwnedLauncher: vi.fn().mockResolvedValue(false),
+            isOwnedProcess: vi.fn().mockResolvedValue(true),
+            isOwnedRuntime: vi.fn().mockResolvedValue(false),
+            now: () => timestamps.shift() ?? 10_000,
+            readRuntime: vi
+                .fn()
+                .mockResolvedValue(JSON.stringify({ ...runtime, ownedProcesses: [recordedHost] })),
+        });
+
+        await expect(stopElectron(replacement)).rejects.toThrow(
+            'Acceptance profile owner changed process identity',
+        );
+        expect(replacement.kill).not.toHaveBeenCalled();
+        expect(replacement.unlinkRuntime).not.toHaveBeenCalled();
+        expect(replacement.removeOwnedUserData).not.toHaveBeenCalled();
+    });
+
     it('fails closed on timeout and retains runtime state and user data', async () => {
         const timestamps = [0, 0, 10_000];
         const live = dependencies({

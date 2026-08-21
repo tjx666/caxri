@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { execFileAsync } from '../../../../src/shared/node/exec';
 
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
+const PROCESS_PROBE_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
+const PROCESS_PROBE_TIMEOUT_MS = 2_000;
 const acceptanceCaseModeSchema = z.enum(['isolated', 'restart']);
 const acceptanceCaseSchema = z.object({
     id: z.string().min(1),
@@ -158,33 +160,40 @@ export function isAlive(pid: number | null | undefined): boolean {
  */
 export async function getProcessIdentity(pid: number): Promise<string | null> {
     try {
-        const { stdout } = await execFileAsync('ps', [
-            '-ww',
-            '-p',
-            String(pid),
-            '-o',
-            'lstart=',
-            '-o',
-            'command=',
-        ]);
+        const { stdout } = await execFileAsync(
+            'ps',
+            ['-ww', '-p', String(pid), '-o', 'lstart=', '-o', 'command='],
+            {
+                maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
+                timeout: PROCESS_PROBE_TIMEOUT_MS,
+            },
+        );
         return stdout.trim() || null;
-    } catch {
-        return null;
+    } catch (error: unknown) {
+        if (errorCode(error) === '1' || errorCode(error) === 'ENOENT') return null;
+        throw error;
     }
 }
 
 async function getProcessCommand(pid: number): Promise<string | null> {
     try {
-        const { stdout } = await execFileAsync('ps', ['-ww', '-p', String(pid), '-o', 'command=']);
+        const { stdout } = await execFileAsync('ps', ['-ww', '-p', String(pid), '-o', 'command='], {
+            maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
+            timeout: PROCESS_PROBE_TIMEOUT_MS,
+        });
         return stdout.trim() || null;
-    } catch {
-        return null;
+    } catch (error: unknown) {
+        if (errorCode(error) === '1' || errorCode(error) === 'ENOENT') return null;
+        throw error;
     }
 }
 
 async function inspectPathOwner(path: string): Promise<number | undefined> {
     try {
-        const { stdout } = await execFileAsync('/usr/sbin/lsof', ['-F', 'p', '--', path]);
+        const { stdout } = await execFileAsync('/usr/sbin/lsof', ['-F', 'p', '--', path], {
+            maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
+            timeout: PROCESS_PROBE_TIMEOUT_MS,
+        });
         const processIds = new Set(
             stdout
                 .split(/\r?\n/u)
@@ -203,25 +212,20 @@ async function inspectPathOwner(path: string): Promise<number | undefined> {
 async function listChildProcesses(
     parentPid: number,
 ): Promise<Array<{ command: string; pid: number }>> {
-    try {
-        const { stdout } = await execFileAsync('ps', [
-            '-ww',
-            '-axo',
-            'pid=',
-            '-o',
-            'ppid=',
-            '-o',
-            'command=',
-        ]);
-        return stdout.split(/\r?\n/u).flatMap((line) => {
-            const trimmed = line.trimStart();
-            const match = /^(\d+)\s+(\d+)\s+/u.exec(trimmed);
-            if (!match || Number(match[2]) !== parentPid) return [];
-            return [{ command: trimmed.slice(match[0].length), pid: Number(match[1]) }];
-        });
-    } catch {
-        return [];
-    }
+    const { stdout } = await execFileAsync(
+        'ps',
+        ['-ww', '-axo', 'pid=', '-o', 'ppid=', '-o', 'command='],
+        {
+            maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
+            timeout: PROCESS_PROBE_TIMEOUT_MS,
+        },
+    );
+    return stdout.split(/\r?\n/u).flatMap((line) => {
+        const trimmed = line.trimStart();
+        const match = /^(\d+)\s+(\d+)\s+/u.exec(trimmed);
+        if (!match || Number(match[2]) !== parentPid) return [];
+        return [{ command: trimmed.slice(match[0].length), pid: Number(match[1]) }];
+    });
 }
 
 const defaultProcessDiscoveryDependencies: ProcessDiscoveryDependencies = {
