@@ -13,6 +13,7 @@ export type SettingRowBinding =
     | { type: 'provider-toggle'; provider: AgentProvider; field: 'hooks' | 'messaging' }
     | { type: 'provider-recovery'; provider: AgentProvider }
     | { type: 'provider-launch'; provider: AgentProvider; field: 'executable' | 'args' }
+    | { type: 'provider-actions'; provider: AgentProvider }
     | { type: 'provider-skill-health'; provider: AgentProvider }
     | { type: 'trusted-domains' }
     | { type: 'files-exclude' }
@@ -79,6 +80,22 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
     const shared = { category: 'agents' as const, subcategory: providerName };
     const providerTerms = [provider, providerName, 'agent', 'provider'];
     return [
+        {
+            ...shared,
+            id: `agents.${provider}.actions`,
+            title: 'Agent actions',
+            description:
+                'Customize slash commands and skill invocations shown in the Agent Actions picker. ' +
+                'Project and user skills are discovered automatically.',
+            binding: { type: 'provider-actions', provider },
+            haystack: lower([
+                'agent actions',
+                'slash commands',
+                'skills',
+                'picker',
+                ...providerTerms,
+            ]),
+        },
         {
             ...shared,
             id: `agents.${provider}.hooks`,

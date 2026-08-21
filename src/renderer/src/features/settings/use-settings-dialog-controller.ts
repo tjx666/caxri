@@ -332,6 +332,11 @@ export function useSettingsDialogController() {
                 setView('ui');
                 return;
             }
+            if (request.view === 'agent-actions') {
+                setTab('settings');
+                setView('ui');
+                return;
+            }
             if (request.view === 'keybindings') {
                 setTab('keybindings');
                 setView('ui');
@@ -491,6 +496,10 @@ export function useSettingsDialogController() {
         addBinding,
         agentHookHealth,
         agentSkillHealth,
+        agentActionsFocusRequest:
+            request.view === 'agent-actions' && request.provider
+                ? { id: request.id, provider: request.provider }
+                : undefined,
         argvConfig,
         changeTab,
         commitSource,

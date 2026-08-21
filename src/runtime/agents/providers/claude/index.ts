@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { open, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { mapWithConcurrency } from '../../../../shared/node/concurrency';
 import type { AgentActivityState } from '../../../../shared/types';
@@ -10,7 +10,7 @@ import type {
     AgentSnapshotContext,
     LocalAgentState,
 } from '../../contract';
-import { canonicalPath, isOpaqueAgentSessionId } from '../../contract';
+import { canonicalPath, isOpaqueAgentSessionId, projectDirectories } from '../../contract';
 import { openSafeAgentTranscript } from '../../transcript-security';
 import { claudeHookAdapter } from './hooks';
 
@@ -326,6 +326,36 @@ function resolveClaudeConfigDirectory(environment: AgentEnvironment): string {
 }
 
 export const claudeProvider: AgentProviderDescriptor = {
+    actions: {
+        roots: (context, environment) => {
+            const configuredDirectory = environment.variables.CLAUDE_CONFIG_DIR;
+            const configDirectory = resolve(
+                configuredDirectory === undefined || configuredDirectory === ''
+                    ? join(environment.homeDirectory, '.claude')
+                    : configuredDirectory,
+            );
+            return [
+                { directory: join(configDirectory, 'commands'), kind: 'commands', scope: 'global' },
+                { directory: join(configDirectory, 'skills'), kind: 'skills', scope: 'global' },
+                ...projectDirectories(context).flatMap((directory) => [
+                    {
+                        boundaryDirectory: context.projectRoot,
+                        directory: join(directory, '.claude', 'commands'),
+                        kind: 'commands' as const,
+                        scope: 'project' as const,
+                    },
+                    {
+                        boundaryDirectory: context.projectRoot,
+                        directory: join(directory, '.claude', 'skills'),
+                        kind: 'skills' as const,
+                        scope: 'project' as const,
+                    },
+                ]),
+            ];
+        },
+        commandInvocation: (relativeName) => `/${relativeName.replaceAll('/', ':')}`,
+        skillInvocation: (name) => `/${name}`,
+    },
     hooks: claudeHookAdapter,
     id: 'claude',
     readState: (context, environment) =>

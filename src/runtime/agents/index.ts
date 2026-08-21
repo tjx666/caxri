@@ -1,3 +1,4 @@
+export { listAgentActions } from './actions';
 export { type AgentEnvironment, defaultAgentEnvironment } from './contract';
 export { AgentCoordinator } from './coordinator';
 export { discoverExecutable, readVersion } from './discovery';

@@ -57,6 +57,13 @@ function activeTerminalId(): string | undefined {
     return active?.kind === 'terminal' ? active.terminalId : undefined;
 }
 
+function activeAgentTerminal() {
+    const terminalId = activeTerminalId();
+    if (!terminalId) return;
+    const terminal = getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);
+    return terminal?.provider && terminal.lastProcessState === 'running' ? terminal : undefined;
+}
+
 /**
  * Resolves the active Editor tab's path together with the split-layout group that currently owns it. Both the
  * `editor.split*` commands' `when` gate and their `run` handler need this pair, so it is computed once here rather than
@@ -103,6 +110,13 @@ function isTerminalSurfaceFocused(): boolean {
 // registry's `run(context, arguments_)` contract (see `./registry`) is synchronous, so none of
 // these can be awaited by their caller anyway.
 const commandContext: CommandContext = {
+    agentActions: {
+        canOpen: () => Boolean(activeAgentTerminal()),
+        open: () => {
+            const terminal = activeAgentTerminal();
+            if (terminal) useDialogStore.getState().openAgentActions(terminal.id);
+        },
+    },
     project: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void chooseProjectDirectory(),

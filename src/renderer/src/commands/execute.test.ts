@@ -31,6 +31,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
     return {
         calls,
         context: {
+            agentActions: {
+                canOpen: () => true,
+                open: record('agentActions.open'),
+            },
             project: {
                 create: record('project.create'),
                 customizeIcon: record('project.customizeIcon'),
@@ -116,6 +120,17 @@ describe('executeCommand', () => {
             expect(registeredIds, `registry is missing ${id}`).toContain(id);
         for (const id of registeredIds)
             expect(sharedIds, `shared catalog is missing ${id}`).toContain(id);
+    });
+
+    it('runs Agent Actions only when the active Terminal is a running Agent', () => {
+        const { calls, context } = recordingContext();
+        context.agentActions.canOpen = () => false;
+        executeCommand('agentActions.open', undefined, context);
+        expect(calls).toEqual([]);
+
+        context.agentActions.canOpen = () => true;
+        executeCommand('agentActions.open', undefined, context);
+        expect(calls).toEqual(['agentActions.open']);
     });
 
     it('keeps registry titles and categories in sync with the shared catalog', () => {
