@@ -13,6 +13,12 @@ const acceptanceCaseSchema = z.object({
     id: z.string().min(1),
     mode: acceptanceCaseModeSchema,
 });
+const ownedProcessRoleSchema = z.enum(['host', 'runtime']);
+const ownedProcessSchema = z.object({
+    identity: z.string().min(1),
+    pid: z.number().int().positive(),
+    role: ownedProcessRoleSchema,
+});
 
 export const runtimeStateSchema = z.object({
     acceptanceCase: acceptanceCaseSchema.nullable().optional(),
@@ -21,8 +27,10 @@ export const runtimeStateSchema = z.object({
     electronPid: z.number().int().positive().nullable(),
     launcherIdentity: z.string().min(1),
     launcherPid: z.number().int().positive(),
+    ownedProcesses: z.array(ownedProcessSchema),
     ownedUserData: z.boolean(),
     port: z.number().int().min(1024).max(65_535),
+    projectRoot: z.string().min(1),
     startedAt: z.string(),
     testRootPath: z.string(),
     testRootPaths: z.array(z.string()).min(1).optional(),
@@ -30,6 +38,15 @@ export const runtimeStateSchema = z.object({
 });
 
 export type RuntimeState = z.infer<typeof runtimeStateSchema>;
+export type OwnedProcess = z.infer<typeof ownedProcessSchema>;
+
+export interface ProcessDiscoveryDependencies {
+    canonicalPath: (path: string) => Promise<string>;
+    getProcessCommand: (pid: number) => Promise<string | null>;
+    getProcessIdentity: typeof getProcessIdentity;
+    inspectPathOwner: (path: string) => Promise<number | undefined>;
+    listChildProcesses: (parentPid: number) => Promise<Array<{ command: string; pid: number }>>;
+}
 
 interface PrepareUserDataOptions {
     caseId?: string;
@@ -118,7 +135,9 @@ export async function prepareAcceptanceUserData({
 
 export function errorCode(error: unknown): string | undefined {
     if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
-    return typeof error.code === 'string' ? error.code : undefined;
+    return typeof error.code === 'string' || typeof error.code === 'number'
+        ? String(error.code)
+        : undefined;
 }
 
 export function isAlive(pid: number | null | undefined): boolean {
@@ -152,6 +171,130 @@ export async function getProcessIdentity(pid: number): Promise<string | null> {
     } catch {
         return null;
     }
+}
+
+async function getProcessCommand(pid: number): Promise<string | null> {
+    try {
+        const { stdout } = await execFileAsync('ps', ['-ww', '-p', String(pid), '-o', 'command=']);
+        return stdout.trim() || null;
+    } catch {
+        return null;
+    }
+}
+
+async function inspectPathOwner(path: string): Promise<number | undefined> {
+    try {
+        const { stdout } = await execFileAsync('/usr/sbin/lsof', ['-F', 'p', '--', path]);
+        const processIds = new Set(
+            stdout
+                .split(/\r?\n/u)
+                .filter((line) => /^p\d+$/u.test(line))
+                .map((line) => Number(line.slice(1))),
+        );
+        if (processIds.size > 1)
+            throw new Error('Multiple processes own the Acceptance Host profile lock');
+        return processIds.values().next().value;
+    } catch (error: unknown) {
+        if (errorCode(error) === '1' || errorCode(error) === 'ENOENT') return undefined;
+        throw error;
+    }
+}
+
+async function listChildProcesses(
+    parentPid: number,
+): Promise<Array<{ command: string; pid: number }>> {
+    try {
+        const { stdout } = await execFileAsync('ps', [
+            '-ww',
+            '-axo',
+            'pid=',
+            '-o',
+            'ppid=',
+            '-o',
+            'command=',
+        ]);
+        return stdout.split(/\r?\n/u).flatMap((line) => {
+            const trimmed = line.trimStart();
+            const match = /^(\d+)\s+(\d+)\s+/u.exec(trimmed);
+            if (!match || Number(match[2]) !== parentPid) return [];
+            return [{ command: trimmed.slice(match[0].length), pid: Number(match[1]) }];
+        });
+    } catch {
+        return [];
+    }
+}
+
+const defaultProcessDiscoveryDependencies: ProcessDiscoveryDependencies = {
+    canonicalPath: realpath,
+    getProcessCommand,
+    getProcessIdentity,
+    inspectPathOwner,
+    listChildProcesses,
+};
+
+function isCommandForEntry(command: string, entryPath: string): boolean {
+    return command === entryPath || command.endsWith(` ${entryPath}`);
+}
+
+/**
+ * Binds cleanup to the selected profile's live kernel lock owner and then to the exact worktree's Host/Runtime
+ * entrypoints. PID metadata alone is never enough, and Runtime ownership derives from the verified Host parent before
+ * either process is signaled.
+ */
+export async function discoverOwnedProcesses(
+    runtime: Pick<RuntimeState, 'projectRoot' | 'userDataDir'>,
+    expectedProjectRoot: string,
+    dependencies: ProcessDiscoveryDependencies = defaultProcessDiscoveryDependencies,
+): Promise<OwnedProcess[]> {
+    const [recordedProjectRoot, currentProjectRoot] = await Promise.all([
+        dependencies.canonicalPath(runtime.projectRoot),
+        dependencies.canonicalPath(expectedProjectRoot),
+    ]);
+    if (recordedProjectRoot !== currentProjectRoot) {
+        throw new Error('Acceptance runtime belongs to a different worktree');
+    }
+
+    let userDataDirectory: string;
+    try {
+        userDataDirectory = await dependencies.canonicalPath(runtime.userDataDir);
+    } catch (error: unknown) {
+        if (errorCode(error) === 'ENOENT') return [];
+        throw error;
+    }
+    const hostPid = await dependencies.inspectPathOwner(
+        join(userDataDirectory, 'host', 'owner.lock'),
+    );
+    if (!hostPid) return [];
+
+    const hostEntryPath = join(recordedProjectRoot, 'out', 'main', 'host.js');
+    const hostCommand = await dependencies.getProcessCommand(hostPid);
+    if (!hostCommand || !isCommandForEntry(hostCommand, hostEntryPath)) {
+        throw new Error('Acceptance profile lock owner is outside the recorded worktree');
+    }
+    const hostIdentity = await dependencies.getProcessIdentity(hostPid);
+    if (!hostIdentity) return [];
+
+    const runtimeEntryPath = join(recordedProjectRoot, 'out', 'main', 'runtime.js');
+    const runtimeProcesses = await Promise.all(
+        (await dependencies.listChildProcesses(hostPid))
+            .filter(({ command }) => isCommandForEntry(command, runtimeEntryPath))
+            .map(async ({ pid }) => {
+                const identity = await dependencies.getProcessIdentity(pid);
+                return identity
+                    ? ownedProcessSchema.parse({ identity, pid, role: 'runtime' })
+                    : null;
+            }),
+    );
+    return [
+        ownedProcessSchema.parse({ identity: hostIdentity, pid: hostPid, role: 'host' }),
+        ...runtimeProcesses.filter((item): item is OwnedProcess => item !== null),
+    ];
+}
+
+export async function isOwnedProcess(
+    ownedProcess: Pick<OwnedProcess, 'identity' | 'pid'>,
+): Promise<boolean> {
+    return (await getProcessIdentity(ownedProcess.pid)) === ownedProcess.identity;
 }
 
 export async function isOwnedLauncher(

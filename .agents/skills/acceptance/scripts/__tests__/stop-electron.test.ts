@@ -11,8 +11,10 @@ const runtime: RuntimeState = {
     electronPid: 222,
     launcherIdentity: 'launcher identity',
     launcherPid: 111,
+    ownedProcesses: [],
     ownedUserData: true,
     port: 9222,
+    projectRoot: '/repo',
     startedAt: '2026-08-21T00:00:00.000Z',
     testRootPath: '/tmp/project',
     testRootPaths: ['/tmp/project'],
@@ -21,11 +23,15 @@ const runtime: RuntimeState = {
 
 function dependencies(overrides: Partial<StopElectronDependencies> = {}): StopElectronDependencies {
     return {
+        discoverOwnedProcesses: vi.fn().mockResolvedValue([]),
+        isCdpReachable: vi.fn().mockResolvedValue(false),
         isOwnedLauncher: vi.fn().mockResolvedValue(true),
+        isOwnedProcess: vi.fn().mockResolvedValue(true),
         isOwnedRuntime: vi.fn().mockResolvedValue(false),
         kill: vi.fn(),
         log: vi.fn(),
         now: () => 0,
+        projectRoot: '/repo',
         readRuntime: vi.fn().mockResolvedValue(JSON.stringify(runtime)),
         removeOwnedUserData: vi.fn().mockResolvedValue(undefined),
         runtimePath: '/repo/.records/acceptance/runtime.json',
@@ -90,6 +96,60 @@ describe('Acceptance Electron stopper', () => {
         expect(live.kill).toHaveBeenCalledWith(222, 'SIGTERM');
     });
 
+    it('recovers detached owned Host and Runtime processes after the window exits', async () => {
+        const liveProcessIds = new Set([333, 444]);
+        const detachedProcesses = [
+            { identity: 'host identity', pid: 333, role: 'host' },
+            { identity: 'runtime identity', pid: 444, role: 'runtime' },
+        ] as const;
+        const kill = vi.fn((pid: number) => {
+            liveProcessIds.delete(pid);
+        });
+        const detached = dependencies({
+            isOwnedLauncher: vi.fn().mockResolvedValue(false),
+            isOwnedRuntime: vi.fn().mockResolvedValue(false),
+            kill,
+        });
+        Object.assign(detached, {
+            discoverOwnedProcesses: vi.fn().mockResolvedValue(detachedProcesses),
+            isOwnedProcess: vi.fn(({ pid }: (typeof detachedProcesses)[number]) =>
+                Promise.resolve(liveProcessIds.has(pid)),
+            ),
+        });
+
+        await stopElectron(detached);
+
+        expect(liveProcessIds).toHaveLength(0);
+        expect(kill).toHaveBeenCalledWith(333, 'SIGTERM');
+        expect(kill).toHaveBeenCalledWith(444, 'SIGTERM');
+    });
+
+    it('recovers a recorded Runtime after its Host and profile lock are gone', async () => {
+        const orphanRuntime = { identity: 'orphan runtime identity', pid: 444, role: 'runtime' };
+        let isRuntimeAlive = true;
+        const kill = vi.fn((pid: number) => {
+            if (pid === orphanRuntime.pid) isRuntimeAlive = false;
+        });
+        const orphan = dependencies({
+            discoverOwnedProcesses: vi.fn().mockResolvedValue([]),
+            isOwnedLauncher: vi.fn().mockResolvedValue(false),
+            isOwnedProcess: vi.fn(({ pid }: { pid: number }) =>
+                Promise.resolve(pid === orphanRuntime.pid && isRuntimeAlive),
+            ),
+            isOwnedRuntime: vi.fn().mockResolvedValue(false),
+            kill,
+            readRuntime: vi
+                .fn()
+                .mockResolvedValue(JSON.stringify({ ...runtime, ownedProcesses: [orphanRuntime] })),
+        });
+
+        await stopElectron(orphan);
+
+        expect(kill).toHaveBeenCalledWith(444, 'SIGTERM');
+        expect(orphan.unlinkRuntime).toHaveBeenCalledOnce();
+        expect(orphan.removeOwnedUserData).toHaveBeenCalledOnce();
+    });
+
     it('fails closed on timeout and retains runtime state and user data', async () => {
         const timestamps = [0, 0, 10_000];
         const live = dependencies({
@@ -97,7 +157,9 @@ describe('Acceptance Electron stopper', () => {
             now: () => timestamps.shift() ?? 10_000,
         });
 
-        await expect(stopElectron(live)).rejects.toThrow('Acceptance owner PID 111 did not stop');
+        await expect(stopElectron(live)).rejects.toThrow(
+            'Owned Acceptance processes or CDP did not stop',
+        );
         expect(live.unlinkRuntime).not.toHaveBeenCalled();
         expect(live.removeOwnedUserData).not.toHaveBeenCalled();
     });
