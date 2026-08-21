@@ -222,7 +222,8 @@ describe('Session navigation requests', () => {
         const stale = history().request('back');
 
         // A Session created and selected from the Sidebar overtakes the navigation and clears the queue.
-        visit('session-d');
+        history().beginSelection();
+        history().settleSelection('session-d', true);
         const toC = history().request('back');
         const toB = history().request('back');
         expect([toC?.target, toB?.target]).toEqual(['session-c', 'session-b']);
@@ -259,7 +260,8 @@ describe('Session navigation requests', () => {
         visit('session-a', 'session-b');
         const toA = history().request('back');
 
-        visit('session-c');
+        history().beginSelection();
+        history().settleSelection('session-c', true);
         expect(visible()).toEqual(
             snapshot({ back: ['session-a', 'session-b'], current: 'session-c' }),
         );
@@ -295,6 +297,76 @@ describe('Session navigation requests', () => {
         expect(history().pending).toHaveLength(16);
         expect(history().canGoBack).toBe(false);
         expect(history().canGoForward).toBe(false);
+    });
+
+    /**
+     * The Sidebar click is dispatched after two Backs, so the Runtime applies `C → B → C` and the Workbench ends on the
+     * Session the user clicked. Attribution is what makes that recoverable: the folded snapshot only ever reports `C`,
+     * and without it the two confirmations would leave the cursor on `B` while the screen shows `C`.
+     */
+    it('ends where the newest selection landed when one races two navigations', () => {
+        visit('session-a', 'session-b', 'session-c', 'session-d');
+        const toC = history().request('back');
+        const toB = history().request('back');
+
+        history().beginSelection();
+        history().observe('session-c');
+        history().confirm(toC!);
+        history().confirm(toB!);
+        history().settleSelection('session-c', true);
+
+        expect(visible().current).toBe('session-c');
+        expect(history().inFlight).toBe(0);
+    });
+
+    /**
+     * The Runtime can apply a selection just before the Session is archived. Recording it afterwards would put an
+     * archived Session back into a history that was already pruned, and nothing would prune it again.
+     */
+    it('does not write back a Session archived while its navigation was in flight', () => {
+        visit('session-a', 'session-b', 'session-c');
+        const toB = history().request('back');
+
+        history().prune(['session-a', 'session-c']);
+        history().confirm(toB!);
+        expect(history().timeline.entries).toEqual(['session-a', 'session-c']);
+        expect(visible().current).toBe('session-c');
+    });
+
+    /**
+     * A settled selection rewrites the entries after the cursor, so a queued `Forward` can end up pointing at the
+     * Session that replaced its target. It has to land as an ordinary visit rather than move the cursor onto a Session
+     * the user never navigated to.
+     */
+    it('drops a queued navigation whose position was overwritten', () => {
+        visit('session-a', 'session-b', 'session-c');
+        const toB = history().request('back');
+        history().confirm(toB!);
+
+        history().beginSelection();
+        const toC = history().request('forward');
+        history().settleSelection('session-d', true);
+        expect(history().pending).toEqual([]);
+
+        history().confirm(toC!);
+        expect(history().timeline.entries).toEqual([
+            'session-a',
+            'session-b',
+            'session-d',
+            'session-c',
+        ]);
+        expect(visible().current).toBe('session-c');
+    });
+
+    it('ignores the Workbench snapshot while a selection is still in flight', () => {
+        visit('session-a', 'session-b');
+        history().beginSelection();
+        history().observe('session-a');
+        expect(visible().current).toBe('session-b');
+
+        history().settleSelection('session-a', false);
+        expect(history().inFlight).toBe(0);
+        expect(visible().current).toBe('session-b');
     });
 
     it('reports both directions as unavailable on an empty history', () => {
