@@ -14,6 +14,11 @@ import {
     resolveSessionMruNavigation,
     useSessionMruSwitcherStore,
 } from './session-mru-switcher-state';
+import type { SessionNavigationDirection } from './session-navigation-history';
+import {
+    sessionNavigationTarget,
+    useSessionNavigationHistoryStore,
+} from './session-navigation-history';
 
 const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {};
 
@@ -275,6 +280,24 @@ export function switchMruSession(invocation?: SessionMruShortcutInvocation): voi
         .beginOrCycle(navigation.candidateIds, invocation);
     // A command-palette invocation, or a binding with no held modifier, is a one-shot jump to the previous Session.
     if (immediateSessionId) selectMruSession(immediateSessionId);
+}
+
+/**
+ * Walks the Session visit history, browser-style. The history stack is device-local and in-memory: it describes this
+ * window's navigation, not persisted Session state, so a relaunch legitimately starts with an empty stack.
+ */
+export function navigateSessionHistory(direction: SessionNavigationDirection): void {
+    const target = useSessionNavigationHistoryStore.getState().request(direction);
+    // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    if (target) void didSelectSession(target);
+}
+
+export function canNavigateSessionHistory(direction: SessionNavigationDirection): boolean {
+    return (
+        sessionNavigationTarget(useSessionNavigationHistoryStore.getState(), direction) !==
+        undefined
+    );
 }
 
 export function commitMruSession(): void {
