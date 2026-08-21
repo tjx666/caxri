@@ -246,21 +246,15 @@ describe('CI workflow contract', () => {
         expect(workflow).not.toContain('github-hosted');
     });
 
-    it('executes repository source only for trusted owner events and fails other PRs closed', () => {
+    it('executes repository source only after the shared trusted-owner gate', () => {
         const retryPolicyJob = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1];
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
         const gateJob = workflow.match(/\n {2}ci:\n([\s\S]*)$/u)?.[1];
 
-        for (const job of [retryPolicyJob, e2eJob]) {
-            expect(job).toContain("github.actor == 'tjx666'");
-            expect(job).toContain("github.triggering_actor == 'tjx666'");
-            expect(job).toContain("github.event.pull_request.user.login == 'tjx666'");
-            expect(job).toContain(
-                'github.event.pull_request.head.repo.full_name == github.repository',
-            );
-        }
-        expect(e2eJob).toContain("github.ref == 'refs/heads/main'");
-        expect(e2eJob).toContain("'trusted tjx666 main push'");
+        expect(retryPolicyJob).toContain('uses: ./.github/actions/verify-trust-boundary');
+        expect(e2eJob).toContain("needs.retry-policy.result == 'success'");
+        expect(e2eJob).toContain('uses: ./.github/actions/verify-trust-boundary');
+        expect(e2eJob).toContain("'trusted owner main push'");
         expect(e2eJob).toContain('persist-credentials: false');
         expect(gateJob).toContain('test "$TRUSTED_EVENT" = true');
         expect(gateJob).not.toContain('actions/checkout');
