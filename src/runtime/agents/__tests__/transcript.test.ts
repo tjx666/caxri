@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { link, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -68,6 +68,72 @@ describe('readAgentTranscript', () => {
         await expect(
             readAgentTranscript(missing, 'missing', true, environment()),
         ).resolves.toBeNull();
+    });
+
+    it('rejects a provider session identifier that contains path segments', async () => {
+        const transcript = await readAgentTranscript(
+            databaseWith(agentTerminal('../../outside')),
+            't1',
+            true,
+            environment(),
+        );
+
+        expect(transcript).toBeNull();
+    });
+
+    it('rejects a transcript symlink that leaves the canonical provider root', async () => {
+        const outside = join(home, 'secret.jsonl');
+        await writeFile(outside, '{"secret":true}\n');
+        const encodedCwd = cwd.replaceAll(/[^a-z0-9]/gi, '-');
+        const directory = join(home, '.claude', 'projects', encodedCwd);
+        await mkdir(directory, { recursive: true });
+        await symlink(outside, join(directory, 'linked.jsonl'), 'file');
+
+        const transcript = await readAgentTranscript(
+            databaseWith(agentTerminal('linked')),
+            't1',
+            true,
+            environment(),
+        );
+
+        expect(transcript).toBeNull();
+    });
+
+    it('rejects a transcript hardlink to another file', async () => {
+        const outside = join(home, 'secret.jsonl');
+        await writeFile(outside, '{"secret":true}\n');
+        const encodedCwd = cwd.replaceAll(/[^a-z0-9]/gi, '-');
+        const directory = join(home, '.claude', 'projects', encodedCwd);
+        await mkdir(directory, { recursive: true });
+        await link(outside, join(directory, 'linked.jsonl'));
+
+        const transcript = await readAgentTranscript(
+            databaseWith(agentTerminal('linked')),
+            't1',
+            true,
+            environment(),
+        );
+
+        expect(transcript).toBeNull();
+    });
+
+    it('rejects a symlinked per-Project transcript root', async () => {
+        const encodedCwd = cwd.replaceAll(/[^a-z0-9]/gi, '-');
+        const baseRoot = join(home, '.claude', 'projects');
+        const outsideRoot = join(home, 'outside-root');
+        await mkdir(baseRoot, { recursive: true });
+        await mkdir(outsideRoot);
+        await writeFile(join(outsideRoot, 'linked.jsonl'), '{"secret":true}\n');
+        await symlink(outsideRoot, join(baseRoot, encodedCwd), 'dir');
+
+        const transcript = await readAgentTranscript(
+            databaseWith(agentTerminal('linked')),
+            't1',
+            true,
+            environment(),
+        );
+
+        expect(transcript).toBeNull();
     });
 
     it('reports the derived path without content when content is not requested', async () => {

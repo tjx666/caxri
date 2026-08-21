@@ -27,6 +27,7 @@ const fullStateChangeReasonSchema = z.enum([
     'project.create',
     'project.delete',
     'project.reorder',
+    'project.setIcon',
     'session.create',
     'session.select',
     'session.archive',
@@ -79,6 +80,7 @@ export const runtimeEventPayloads = {
         restartCount: z.number(),
     }),
     'state.changed': stateChangedPayloadSchema,
+    'agentTranscript.changed': z.object({ terminalId: identifierSchema }),
     'terminal.output': z.object({
         terminalId: identifierSchema,
         data: z.string(),

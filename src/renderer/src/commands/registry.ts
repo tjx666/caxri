@@ -7,8 +7,18 @@ import type { SettingsView } from '../stores/dialogs';
  * feature actions, so a test can drive the registry with fakes.
  */
 export interface CommandContext {
-    project: { create(): void; openInExternalEditor(): void; removeSelected(): void };
-    session: { create(): void; deleteSelected(): void; selectAdjacent(delta: 1 | -1): void };
+    project: {
+        create(): void;
+        customizeIcon(projectId?: string): void;
+        openInExternalEditor(): void;
+        removeSelected(): void;
+    };
+    session: {
+        create(): void;
+        deleteSelected(): void;
+        selectAdjacent(delta: 1 | -1): void;
+        switchMru(invocation?: SessionMruShortcutInvocation): void;
+    };
     terminal: {
         create(): void;
         clearActive(): void;
@@ -46,6 +56,11 @@ export interface CommandContext {
     developer: { reportBug(): void; toggleScreencastMode(): void };
     diagnostics: { export(): void };
     updates: { check(): void };
+}
+
+export interface SessionMruShortcutInvocation {
+    heldModifiers: Array<'Alt' | 'Control' | 'Meta' | 'Shift'>;
+    triggerCode: string;
 }
 
 export interface CommandDefinition {

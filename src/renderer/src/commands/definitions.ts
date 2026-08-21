@@ -3,8 +3,10 @@ import type { CommandId } from '@shared/commands';
 import { getCommandDefinition } from '@shared/commands';
 import { inspectorModeRegistrations } from '@shared/inspector';
 
-import type { CommandContext, CommandDefinition } from './registry';
+import type { CommandContext, CommandDefinition, SessionMruShortcutInvocation } from './registry';
 import { defineCommand, registerCommand } from './registry';
+
+const SESSION_MRU_MODIFIERS: ReadonlySet<unknown> = new Set(['Alt', 'Control', 'Meta', 'Shift']);
 
 /**
  * Builds a registry entry whose title/category are read from the shared catalog, so the catalog stays the single source
@@ -17,6 +19,24 @@ function fromCatalog(
 ): CommandDefinition {
     const catalog = getCommandDefinition(id);
     return defineCommand({ id, title: catalog.title, category: catalog.category, run, ...extra });
+}
+
+function sessionMruInvocation(arguments_: unknown): SessionMruShortcutInvocation | undefined {
+    if (!arguments_ || typeof arguments_ !== 'object' || !('shortcut' in arguments_)) return;
+    const shortcut = arguments_.shortcut;
+    if (!shortcut || typeof shortcut !== 'object') return;
+    if (!('triggerCode' in shortcut) || typeof shortcut.triggerCode !== 'string') return;
+    if (!('heldModifiers' in shortcut) || !Array.isArray(shortcut.heldModifiers)) return;
+    const heldModifiers = shortcut.heldModifiers.filter(
+        (modifier): modifier is SessionMruShortcutInvocation['heldModifiers'][number] =>
+            SESSION_MRU_MODIFIERS.has(modifier),
+    );
+    return { heldModifiers, triggerCode: shortcut.triggerCode };
+}
+
+function projectIdArgument(arguments_: unknown): string | undefined {
+    if (!arguments_ || typeof arguments_ !== 'object' || !('projectId' in arguments_)) return;
+    return typeof arguments_.projectId === 'string' ? arguments_.projectId : undefined;
 }
 
 /**
@@ -41,6 +61,9 @@ export const commandDefinitions: CommandDefinition[] = [
         { confirm: true },
     ),
     fromCatalog('project.openInEditor', (context) => context.project.openInExternalEditor()),
+    fromCatalog('project.customizeIcon', (context, arguments_) =>
+        context.project.customizeIcon(projectIdArgument(arguments_)),
+    ),
     fromCatalog('session.create', (context) => context.session.create()),
     fromCatalog(
         'session.delete',
@@ -52,6 +75,11 @@ export const commandDefinitions: CommandDefinition[] = [
     ),
     fromCatalog('session.selectNext', (context) => context.session.selectAdjacent(1)),
     fromCatalog('session.selectPrevious', (context) => context.session.selectAdjacent(-1)),
+    fromCatalog(
+        'session.switchMru',
+        (context, arguments_) => context.session.switchMru(sessionMruInvocation(arguments_)),
+        { allowInEditable: true },
+    ),
     fromCatalog('terminal.new', (context) => context.terminal.create(), { allowInEditable: true }),
     fromCatalog('terminal.clear', (context) => context.terminal.clearActive(), {
         allowInEditable: true,

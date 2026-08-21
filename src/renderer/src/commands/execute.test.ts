@@ -33,6 +33,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
         context: {
             project: {
                 create: record('project.create'),
+                customizeIcon: record('project.customizeIcon'),
                 openInExternalEditor: record('project.openInEditor'),
                 removeSelected: record('project.remove'),
             },
@@ -40,6 +41,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 create: record('session.create'),
                 deleteSelected: record('session.delete'),
                 selectAdjacent: record('session.selectAdjacent'),
+                switchMru: record('session.switchMru'),
             },
             terminal: {
                 create: record('terminal.create'),
@@ -124,6 +126,27 @@ describe('executeCommand', () => {
         executeCommand('session.selectPrevious', undefined, context);
 
         expect(calls).toEqual(['session.selectAdjacent(1)', 'session.selectAdjacent(-1)']);
+    });
+
+    it('passes the shortcut lifecycle metadata to Session MRU switching', () => {
+        const { context } = recordingContext();
+        const switchMru = vi.fn();
+        context.session.switchMru = switchMru;
+        executeCommand(
+            'session.switchMru',
+            {
+                shortcut: {
+                    heldModifiers: ['Control', 'Alt'],
+                    triggerCode: 'Tab',
+                },
+            },
+            context,
+        );
+
+        expect(switchMru).toHaveBeenCalledWith({
+            heldModifiers: ['Control', 'Alt'],
+            triggerCode: 'Tab',
+        });
     });
 
     it('keeps Terminal Find contextual so Monaco can own the same shortcut in an editor', () => {

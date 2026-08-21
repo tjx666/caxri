@@ -1,13 +1,13 @@
 import { Buffer } from 'node:buffer';
-import { constants } from 'node:fs';
-import type { FileHandle } from 'node:fs/promises';
-import { open, stat } from 'node:fs/promises';
+import { lstat } from 'node:fs/promises';
 
 import type { AgentTranscript } from '../../shared/types';
 import type { CaxriDatabase } from '../db';
 import type { AgentEnvironment } from './contract';
-import { defaultAgentEnvironment } from './contract';
+import { defaultAgentEnvironment, isOpaqueAgentSessionId } from './contract';
 import { agentProviders } from './providers';
+import type { AgentTranscriptLocation } from './transcript-security';
+import { openSafeAgentTranscript, resolveSafeAgentTranscriptPath } from './transcript-security';
 
 /**
  * Transport cap for one transcript read. Oversized transcripts keep their tail — the newest turns are what a live
@@ -15,18 +15,35 @@ import { agentProviders } from './providers';
  */
 export const MAX_AGENT_TRANSCRIPT_BYTES = 4 * 1024 * 1024;
 
+export function resolveAgentTranscriptLocation(
+    database: CaxriDatabase,
+    terminalId: string,
+    environment: AgentEnvironment = defaultAgentEnvironment(),
+): AgentTranscriptLocation | undefined {
+    const terminal = database.getTerminal(terminalId);
+    if (
+        !terminal?.provider ||
+        !terminal.agentSessionId ||
+        !isOpaqueAgentSessionId(terminal.agentSessionId)
+    )
+        return;
+    const provider = agentProviders[terminal.provider];
+    const path = provider.transcriptPath?.(
+        { agentSessionId: terminal.agentSessionId, cwd: terminal.cwd },
+        environment,
+    );
+    const baseRoot = provider.transcriptBaseRoot?.(environment);
+    const root = provider.transcriptRoot?.({ cwd: terminal.cwd }, environment);
+    return path && root && baseRoot ? { baseRoot, path, root } : undefined;
+}
+
 async function readTranscriptTail(
-    path: string,
+    location: AgentTranscriptLocation,
 ): Promise<{ content: string; truncated: boolean } | undefined> {
-    let handle: FileHandle;
+    const opened = await openSafeAgentTranscript(location);
+    if (!opened) return;
+    const { handle, stats } = opened;
     try {
-        handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
-    } catch {
-        return undefined;
-    }
-    try {
-        const stats = await handle.stat();
-        if (!stats.isFile()) return undefined;
         const isTruncated = stats.size > MAX_AGENT_TRANSCRIPT_BYTES;
         const readBytes = isTruncated ? MAX_AGENT_TRANSCRIPT_BYTES : stats.size;
         const offset = stats.size - readBytes;
@@ -53,6 +70,8 @@ async function readTranscriptTail(
             if (firstNewline !== -1) content = content.slice(firstNewline + 1);
         }
         return { content, truncated: isTruncated };
+    } catch {
+        return undefined;
     } finally {
         await handle.close();
     }
@@ -69,22 +88,22 @@ export async function readAgentTranscript(
     shouldIncludeContent: boolean,
     environment: AgentEnvironment = defaultAgentEnvironment(),
 ): Promise<AgentTranscript | null> {
-    const terminal = database.getTerminal(terminalId);
-    if (!terminal?.provider || !terminal.agentSessionId) return null;
-    const path = agentProviders[terminal.provider].transcriptPath?.(
-        { agentSessionId: terminal.agentSessionId, cwd: terminal.cwd },
-        environment,
-    );
-    if (path === undefined) return null;
-    if (!shouldIncludeContent) {
+    const location = resolveAgentTranscriptLocation(database, terminalId, environment);
+    if (!location) return null;
+    const safe = await resolveSafeAgentTranscriptPath(location);
+    if (!safe) {
         try {
-            const stats = await stat(path);
-            return { path, exists: stats.isFile(), truncated: false };
+            await lstat(location.path);
+            return null;
         } catch {
-            return { path, exists: false, truncated: false };
+            return { path: location.path, exists: false, truncated: false };
         }
     }
-    const tail = await readTranscriptTail(path);
-    if (!tail) return { path, exists: false, truncated: false };
-    return { path, exists: true, content: tail.content, truncated: tail.truncated };
+    if (!shouldIncludeContent) {
+        return { path: location.path, exists: safe.exists, truncated: false };
+    }
+    if (!safe.exists) return { path: location.path, exists: false, truncated: false };
+    const tail = await readTranscriptTail(location);
+    if (!tail) return { path: location.path, exists: false, truncated: false };
+    return { path: location.path, exists: true, content: tail.content, truncated: tail.truncated };
 }

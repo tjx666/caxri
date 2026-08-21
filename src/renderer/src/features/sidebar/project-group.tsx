@@ -1,8 +1,9 @@
 import type { DragEvent } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
-import { Archive, Circle, FolderClosed, FolderOpen, SquarePen } from 'lucide-react';
+import { Archive, Circle, Paintbrush, SquarePen } from 'lucide-react';
 
+import { executeCommand } from '../../commands/execute';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -10,6 +11,7 @@ import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { archiveSession, didSelectSession } from '../session/session-actions';
+import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType, resolveProjectHeadingClick } from './project-order';
 import {
@@ -349,21 +351,7 @@ export function ProjectGroup({
                         tabIndex={-1}
                         onClick={onToggle}
                     >
-                        {expanded ? (
-                            <FolderOpen
-                                aria-hidden="true"
-                                className="project-folder-icon"
-                                size={15}
-                                strokeWidth={1.7}
-                            />
-                        ) : (
-                            <FolderClosed
-                                aria-hidden="true"
-                                className="project-folder-icon"
-                                size={15}
-                                strokeWidth={1.7}
-                            />
-                        )}
+                        <ProjectIcon expanded={expanded} icon={project.icon} />
                     </button>
                 </Tooltip>
                 <button
@@ -395,6 +383,20 @@ export function ProjectGroup({
                         {project.displayTitle}
                     </strong>
                 </button>
+                <CommandTooltip commandId="project.customizeIcon">
+                    <Button
+                        className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Customize Project Icon for ${project.displayTitle}`}
+                        tabIndex={-1}
+                        onClick={() =>
+                            executeCommand('project.customizeIcon', { projectId: project.id })
+                        }
+                    >
+                        <Paintbrush size={13} />
+                    </Button>
+                </CommandTooltip>
                 <CommandTooltip commandId="session.create">
                     <Button
                         className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
@@ -412,7 +414,7 @@ export function ProjectGroup({
                 aria-hidden="true"
                 className="project-drag-preview pointer-events-none fixed -top-[1000px] left-0 flex h-7 items-center gap-2 rounded-md bg-elevated px-2 text-foreground shadow-[0_8px_24px_var(--shadow)]"
             >
-                <FolderClosed aria-hidden="true" size={15} strokeWidth={1.7} />
+                <ProjectIcon icon={project.icon} />
                 <span className="max-w-48 truncate text-sm font-medium">
                     {project.displayTitle}
                 </span>
