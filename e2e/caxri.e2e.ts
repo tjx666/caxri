@@ -563,10 +563,6 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
 });
 
 test('removing a Project deletes only Caxri metadata', async () => {
-    allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 2 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 2 },
-    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-remove-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
