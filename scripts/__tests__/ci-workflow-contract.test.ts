@@ -42,17 +42,17 @@ describe('CI workflow contract', () => {
         expect(workflow.match(/uses: \.\/\.github\/actions\/setup-caxri-job/gu)).toHaveLength(3);
         expect(workflow).not.toContain('actions/cache@');
         expect(setupAction).toContain('uses: actions/setup-node@v7');
-        expect(setupAction).toContain('node-version: 24.19.0');
+        expect(setupAction).toContain('name: Read mise tool versions');
+        expect(setupAction).toContain('node-version: ${{ steps.tool_versions.outputs.node }}');
         expect(setupAction).toContain('package-manager-cache: false');
         expect(setupAction).toContain('uses: pnpm/setup@v2');
-        expect(setupAction).toContain('version: 12.0.0-rc.5');
-        expect(setupAction).not.toContain('runtime: node@24.19.0');
+        expect(setupAction).toContain('version: ${{ steps.tool_versions.outputs.pnpm }}');
         expect(setupAction).toContain("steps.pnpm_toolchain.outputs.cached != 'true'");
         expect(setupAction).toContain(
-            'dest: ${{ runner.tool_cache }}/caxri/pnpm/12.0.0-rc.5-node-24.19.0',
+            'dest: ${{ runner.tool_cache }}/caxri/pnpm/${{ steps.tool_versions.outputs.pnpm }}-node-${{ steps.tool_versions.outputs.node }}',
         );
-        expect(setupAction).toContain('test "$(node --version)" = "v24.19.0"');
-        expect(setupAction).toContain('test "$(pnpm --version)" = "12.0.0-rc.5"');
+        expect(setupAction).toContain('test "$(node --version)" = "v$CAXRI_NODE_VERSION"');
+        expect(setupAction).toContain('test "$(pnpm --version)" = "$CAXRI_PNPM_VERSION"');
         expect(setupAction).not.toContain('github.run_id');
         expect(setupAction).toContain('install: false');
         expect(setupAction).toContain('cache: false');
@@ -246,21 +246,15 @@ describe('CI workflow contract', () => {
         expect(workflow).not.toContain('github-hosted');
     });
 
-    it('executes repository source only for trusted owner events and fails other PRs closed', () => {
+    it('executes repository source only after the shared trusted-owner gate', () => {
         const retryPolicyJob = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1];
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
         const gateJob = workflow.match(/\n {2}ci:\n([\s\S]*)$/u)?.[1];
 
-        for (const job of [retryPolicyJob, e2eJob]) {
-            expect(job).toContain("github.actor == 'tjx666'");
-            expect(job).toContain("github.triggering_actor == 'tjx666'");
-            expect(job).toContain("github.event.pull_request.user.login == 'tjx666'");
-            expect(job).toContain(
-                'github.event.pull_request.head.repo.full_name == github.repository',
-            );
-        }
-        expect(e2eJob).toContain("github.ref == 'refs/heads/main'");
-        expect(e2eJob).toContain("'trusted tjx666 main push'");
+        expect(retryPolicyJob).toContain('uses: ./.github/actions/verify-trust-boundary');
+        expect(e2eJob).toContain("needs.retry-policy.result == 'success'");
+        expect(e2eJob).toContain('uses: ./.github/actions/verify-trust-boundary');
+        expect(e2eJob).toContain("'trusted owner main push'");
         expect(e2eJob).toContain('persist-credentials: false');
         expect(gateJob).toContain('test "$TRUSTED_EVENT" = true');
         expect(gateJob).not.toContain('actions/checkout');
