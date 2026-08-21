@@ -175,7 +175,7 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
     canGoBack: boolean;
     canGoForward: boolean;
     /**
-     * The timeline the Workbench has actually shown. Only a confirmed selection moves it, so no failed, overtaken, or
+     * The timeline the Workbench has actually shown. Only a settled selection moves it, so no failed, overtaken, or
      * out-of-order request can corrupt it.
      */
     timeline: SessionHistoryTimeline;
@@ -183,14 +183,31 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
      * Requested navigations still waiting for the Runtime, oldest first.
      */
     pending: SessionNavigationRequest[];
+    /**
+     * Selections dispatched to the Runtime and not yet settled, from every source. While any is outstanding the
+     * Workbench snapshot is an echo of a selection that reports its own outcome, so observing it would apply the same
+     * move twice — and, because `refreshWorkbench` folds a burst of refreshes into one snapshot, it would apply the
+     * wrong one of several.
+     */
+    inFlight: number;
+    /**
+     * The Sessions the Workbench last reported as live, or nothing before the first report. A navigation that succeeds
+     * only after its Session was archived must not write that Session back into a history it was just pruned out of.
+     */
+    liveSessionIds?: ReadonlySet<string>;
     nextRequestId: number;
     /**
-     * Records the Session the Workbench actually shows. Every selection path (Sidebar, palette, MRU switcher, Session
-     * creation, a Runtime-driven switch) funnels through the observed selection rather than through each call site, so
-     * no navigation source can forget to write history.
+     * Records a Session the Workbench shows that no dispatched selection accounts for — a Runtime-driven switch, or the
+     * reconciliation after everything settles. Selections the Renderer issued report themselves instead.
      */
     observe(sessionId?: string): void;
     prune(activeSessionIds: readonly string[]): void;
+    /**
+     * Registers a Session selection made by any other means. It is newer than every navigation still in flight, so
+     * those stop projecting a destination the Workbench will never settle on.
+     */
+    beginSelection(): void;
+    settleSelection(sessionId: string, isSelected: boolean): void;
     /**
      * Claims the next position in `direction`, or returns nothing when that direction is empty or too many navigations
      * are already unconfirmed. The caller reports the outcome back through `confirm` or `abandon`.
@@ -217,6 +234,19 @@ function projectSessionHistory(
     return last ? { ...timeline, hasCurrent: true, index: last.index } : timeline;
 }
 
+/**
+ * Drops requests whose claimed position no longer holds the Session they were issued for. Recording a visit rewrites
+ * the entries after the cursor, so a queued `Forward` can end up pointing at a Session that replaced its target; such a
+ * request has to fall back to an ordinary visit instead of moving the cursor somewhere the user never went.
+ */
+function retainValidRequests(
+    timeline: SessionHistoryTimeline,
+    pending: SessionNavigationRequest[],
+): SessionNavigationRequest[] {
+    const valid = pending.filter((step) => timeline.entries[step.index] === step.target);
+    return valid.length === pending.length ? pending : valid;
+}
+
 function view(timeline: SessionHistoryTimeline, pending: SessionNavigationRequest[]) {
     const visible = projectSessionHistory(timeline, pending);
     // At the cap the controls have to report themselves as unavailable, or the button stays lit and does nothing.
@@ -233,21 +263,13 @@ function view(timeline: SessionHistoryTimeline, pending: SessionNavigationReques
 export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryState>(
     (set, get) => ({
         ...view(EMPTY_SESSION_HISTORY, []),
+        inFlight: 0,
         nextRequestId: 1,
         observe: (sessionId) =>
             set((state) => {
-                // A Session a pending navigation is already heading to belongs to that request, which confirms itself
-                // with the position it claimed. Recording it here would rewrite the timeline the request points into.
-                if (
-                    sessionId !== undefined &&
-                    state.pending.some((step) => step.target === sessionId)
-                )
-                    return state;
+                if (state.inFlight > 0) return state;
                 const timeline = recordSessionVisit(state.timeline, sessionId);
-                if (timeline === state.timeline) return state;
-                // Losing the current Session is not a selection taking over, so queued navigations survive it; an
-                // ordinary selection of a different Session does supersede them.
-                return view(timeline, sessionId === undefined ? state.pending : []);
+                return timeline === state.timeline ? state : view(timeline, state.pending);
             }),
         prune: (activeSessionIds) =>
             set((state) => {
@@ -258,9 +280,22 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
                 const pending = state.pending
                     .map((step) => ({ ...step, index: positions[step.index] }))
                     .filter((step) => step.index >= 0 && step.index < timeline.entries.length);
+                const liveSessionIds = new Set(activeSessionIds);
                 if (timeline === state.timeline && pending.length === state.pending.length)
-                    return state;
-                return view(timeline, pending);
+                    return { ...state, liveSessionIds };
+                return { ...view(timeline, pending), liveSessionIds };
+            }),
+        beginSelection: () =>
+            set((state) => ({ ...view(state.timeline, []), inFlight: state.inFlight + 1 })),
+        settleSelection: (sessionId, isSelected) =>
+            set((state) => {
+                const inFlight = Math.max(0, state.inFlight - 1);
+                if (!isSelected) return { ...state, inFlight };
+                const timeline = recordSessionVisit(state.timeline, sessionId);
+                return {
+                    ...view(timeline, retainValidRequests(timeline, state.pending)),
+                    inFlight,
+                };
             }),
         request: (direction) => {
             const state = get();
@@ -277,34 +312,47 @@ export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryS
             };
             set({
                 ...view(state.timeline, [...state.pending, request]),
+                inFlight: state.inFlight + 1,
                 nextRequestId: state.nextRequestId + 1,
             });
             return request;
         },
         confirm: (request) =>
             set((state) => {
+                const inFlight = Math.max(0, state.inFlight - 1);
                 const position = state.pending.findIndex((step) => step.id === request.id);
                 if (position === -1) {
-                    // Pruning or an overtaking selection already dropped this request, yet the Session did reach the
-                    // screen — so it counts as an ordinary visit from wherever the Workbench actually ended up. Any
-                    // remaining requests were computed against the timeline this rewrites and take the same path.
-                    const timeline = recordSessionVisit(state.timeline, request.target);
-                    return timeline === state.timeline ? state : view(timeline, []);
+                    // Pruning or a newer selection already dropped this request, yet the Session did reach the screen,
+                    // so it counts as an ordinary visit — unless it was archived while in flight, which is how it would
+                    // otherwise reappear in a history it was just pruned out of.
+                    const isLive = state.liveSessionIds?.has(request.target) ?? true;
+                    const timeline = isLive
+                        ? recordSessionVisit(state.timeline, request.target)
+                        : state.timeline;
+                    if (timeline === state.timeline) return { ...state, inFlight };
+                    return {
+                        ...view(timeline, retainValidRequests(timeline, state.pending)),
+                        inFlight,
+                    };
                 }
-                // Requests resolve in dispatch order, so anything still queued ahead of this one was folded into the
+                // Requests settle in dispatch order, so anything still queued ahead of this one was folded into the
                 // same Workbench snapshot and is already accounted for by landing here.
-                return view(
-                    selectSessionHistoryIndex(state.timeline, request.index),
-                    state.pending.slice(position + 1),
-                );
+                return {
+                    ...view(
+                        selectSessionHistoryIndex(state.timeline, request.index),
+                        state.pending.slice(position + 1),
+                    ),
+                    inFlight,
+                };
             }),
         abandon: (request) =>
             set((state) => {
+                const inFlight = Math.max(0, state.inFlight - 1);
                 const pending = state.pending.filter((step) => step.id !== request.id);
                 return pending.length === state.pending.length
-                    ? state
-                    : view(state.timeline, pending);
+                    ? { ...state, inFlight }
+                    : { ...view(state.timeline, pending), inFlight };
             }),
-        reset: () => set(view(EMPTY_SESSION_HISTORY, [])),
+        reset: () => set({ ...view(EMPTY_SESSION_HISTORY, []), inFlight: 0 }),
     }),
 );
