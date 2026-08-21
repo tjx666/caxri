@@ -10,7 +10,7 @@ import type {
     AgentSnapshotContext,
     LocalAgentState,
 } from '../../contract';
-import { canonicalPath } from '../../contract';
+import { canonicalPath, projectDirectories } from '../../contract';
 import { codexHookAdapter } from './hooks';
 
 interface SqliteColumn {
@@ -139,7 +139,42 @@ function resolveCodexStateDirectories(environment: AgentEnvironment): string[] {
     return [...(sqliteHome ? [resolve(sqliteHome)] : []), join(codexHome, 'sqlite'), codexHome];
 }
 
+function resolveCodexHome(environment: AgentEnvironment): string {
+    // `||` is deliberate: an empty override is not a usable configuration root.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid override path either
+    return resolve(environment.variables.CODEX_HOME || join(environment.homeDirectory, '.codex'));
+}
+
 export const codexProvider: AgentProviderDescriptor = {
+    actions: {
+        roots: (context, environment) => [
+            {
+                directory: join(resolveCodexHome(environment), 'skills'),
+                kind: 'skills',
+                scope: 'legacy',
+            },
+            {
+                directory: join(environment.homeDirectory, '.agents', 'skills'),
+                kind: 'skills',
+                scope: 'global',
+            },
+            ...projectDirectories(context).flatMap((directory) => [
+                {
+                    boundaryDirectory: context.projectRoot,
+                    directory: join(directory, '.codex', 'skills'),
+                    kind: 'skills' as const,
+                    scope: 'legacy' as const,
+                },
+                {
+                    boundaryDirectory: context.projectRoot,
+                    directory: join(directory, '.agents', 'skills'),
+                    kind: 'skills' as const,
+                    scope: 'project' as const,
+                },
+            ]),
+        ],
+        skillInvocation: (name) => `$${name}`,
+    },
     hooks: codexHookAdapter,
     id: 'codex',
     readState: (context, environment) =>

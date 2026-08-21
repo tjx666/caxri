@@ -115,6 +115,12 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'session', group: 2, order: 1 },
     },
     {
+        id: 'agentActions.open',
+        title: 'Run Agent Action…',
+        category: 'Agent',
+        description: 'Search skills and slash commands for the active Agent Terminal',
+    },
+    {
         id: 'terminal.new',
         title: 'New Terminal',
         category: 'Terminal',
@@ -388,6 +394,7 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'alt+p', command: 'pathBrowser.open' },
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
+    { key: 'cmd+shift+a', command: 'agentActions.open' },
     /**
      * `Cmd+O` matches the macOS/VS Code "Open…" convention: adding a Project is opening a local folder.
      */

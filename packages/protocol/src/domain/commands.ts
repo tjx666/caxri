@@ -20,6 +20,7 @@ export const commandIds = [
     'session.switchMru',
     'session.navigateBack',
     'session.navigateForward',
+    'agentActions.open',
     'terminal.new',
     'terminal.clear',
     'terminal.copy',

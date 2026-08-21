@@ -89,6 +89,7 @@ watching, bundle budgets, and the repository's architecture guardrails.
 | [AGENTS.md](AGENTS.md)                                                                 | Contributor guide for coding agents                    |
 | [docs/cli.md](docs/cli.md)                                                             | The `caxri` CLI manual                                 |
 | [docs/agent-command-authority.md](docs/agent-command-authority.md)                     | Agent capability and audit boundaries                  |
+| [docs/agent-actions.md](docs/agent-actions.md)                                         | Unified Agent skills and slash-command picker          |
 | [docs/bundle-size.md](docs/bundle-size.md)                                             | Bundle baseline and the CI budget gate                 |
 | [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                  |
 | [Project architecture](.agents/skills/project-architecture/references/architecture.md) | Process model, recovery contracts, dependency baseline |

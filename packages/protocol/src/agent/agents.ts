@@ -1,3 +1,5 @@
+import type { AgentActionsSettings } from './agent-action-settings.js';
+
 /**
  * Single source of truth for the Agent provider family Caxri hosts (Claude Code, Codex). Both the IPC domain schema and
  * the Runtime Agent adapters derive from this catalog instead of hand-syncing provider identifiers across the
@@ -64,6 +66,7 @@ interface AgentMessagingSettings {
 }
 
 export interface AgentProviderSettings {
+    actions: AgentActionsSettings;
     hooks: AgentHookSettings;
     launch: AgentLaunchSettings;
     messaging: AgentMessagingSettings;
@@ -119,6 +122,7 @@ export const defaultAgentProviderSettings = Object.fromEntries(
     agentProviderIds.map((provider) => [
         provider,
         {
+            actions: { items: {} },
             hooks: { enabled: false },
             messaging: { enabled: true },
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },

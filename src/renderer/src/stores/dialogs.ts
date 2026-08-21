@@ -1,12 +1,15 @@
+import type { AgentProvider } from '@shared/types';
 import { create } from 'zustand';
 
-export type SettingsView = 'ui' | 'source' | 'keybindings' | 'trusted-domains';
+export type SettingsView = 'ui' | 'source' | 'keybindings' | 'trusted-domains' | 'agent-actions';
 
 interface DialogState {
     archivedSessionsOpen: boolean;
     settingsOpen: boolean;
-    settingsRequest: { id: number; view: SettingsView };
+    settingsRequest: { id: number; view: SettingsView; provider?: AgentProvider };
     paletteOpen: boolean;
+    agentActionsOpen: boolean;
+    agentActionsTerminalId?: string;
     pathBrowserOpen: boolean;
     bugReportOpen: boolean;
     bugReportRequestId: number;
@@ -30,9 +33,11 @@ interface DialogState {
      */
     openModalIds: Set<string>;
     setArchivedSessionsOpen(isOpen: boolean): void;
-    openSettings(view?: SettingsView): void;
+    openSettings(view?: SettingsView, provider?: AgentProvider): void;
     setSettingsOpen(isOpen: boolean): void;
     setPaletteOpen(isOpen: boolean): void;
+    openAgentActions(terminalId: string): void;
+    setAgentActionsOpen(isOpen: boolean): void;
     setPathBrowserOpen(isOpen: boolean): void;
     openBugReport(): void;
     setBugReportOpen(isOpen: boolean): void;
@@ -60,6 +65,8 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     settingsOpen: false,
     settingsRequest: { id: 0, view: 'ui' },
     paletteOpen: false,
+    agentActionsOpen: false,
+    agentActionsTerminalId: undefined,
     pathBrowserOpen: false,
     bugReportOpen: false,
     bugReportRequestId: 0,
@@ -68,13 +75,16 @@ export const useDialogStore = create<DialogState>((set, get) => ({
     pendingProjectId: undefined,
     openModalIds: new Set(),
     setArchivedSessionsOpen: (archivedSessionsOpen) => set({ archivedSessionsOpen }),
-    openSettings: (view = 'ui') =>
+    openSettings: (view = 'ui', provider) =>
         set((state) => ({
             settingsOpen: true,
-            settingsRequest: { id: state.settingsRequest.id + 1, view },
+            settingsRequest: { id: state.settingsRequest.id + 1, view, provider },
         })),
     setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+    openAgentActions: (agentActionsTerminalId) =>
+        set({ agentActionsOpen: true, agentActionsTerminalId }),
+    setAgentActionsOpen: (agentActionsOpen) => set({ agentActionsOpen }),
     setPathBrowserOpen: (pathBrowserOpen) => set({ pathBrowserOpen }),
     openBugReport: () =>
         set((state) => ({
@@ -114,6 +124,8 @@ export const setArchivedSessionsOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setArchivedSessionsOpen(isOpen);
 export const setPaletteOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setPaletteOpen(isOpen);
+export const setAgentActionsOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setAgentActionsOpen(isOpen);
 export const setPathBrowserOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setPathBrowserOpen(isOpen);
 export const setBugReportOpen = (isOpen: boolean): void =>

@@ -158,8 +158,9 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                     value: {
                         'agents.providers': {
                             claude: {
+                                actions: { items: Record<string, unknown> };
                                 hooks: { enabled: boolean };
-                                launch: { executable: string };
+                                launch: { executable: string; args: string[] };
                                 messaging: { enabled: boolean };
                                 recovery: {
                                     enabled: boolean;
@@ -174,6 +175,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 return providerSettings.value['agents.providers'].claude;
             })
             .toEqual({
+                actions: { items: {} },
                 hooks: { enabled: true },
                 launch: { executable: 'claude', args: [] },
                 messaging: { enabled: true },

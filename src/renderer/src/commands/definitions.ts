@@ -49,6 +49,10 @@ function terminalSequenceArgument(arguments_: unknown): string | undefined {
  * the shared catalog has a matching registry entry before the app runs.
  */
 export const commandDefinitions: CommandDefinition[] = [
+    fromCatalog('agentActions.open', (context) => context.agentActions.open(), {
+        allowInEditable: true,
+        when: (context) => context.agentActions.canOpen(),
+    }),
     /**
      * `Cmd+O` must work from anywhere, including a focused Terminal or editor — it opens a native folder dialog and
      * types nothing into the editable surface.
