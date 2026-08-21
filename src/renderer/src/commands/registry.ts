@@ -1,5 +1,6 @@
 import type { BottomPanelView, CommandId, InspectorMode } from '@shared/types';
 
+import type { SessionNavigationDirection } from '../features/session/session-navigation-history';
 import type { SettingsView } from '../stores/dialogs';
 
 /**
@@ -14,8 +15,10 @@ export interface CommandContext {
         removeSelected(): void;
     };
     session: {
+        canNavigateHistory(direction: SessionNavigationDirection): boolean;
         create(): void;
         deleteSelected(): void;
+        navigateHistory(direction: SessionNavigationDirection): void;
         selectAdjacent(delta: 1 | -1): void;
         switchMru(invocation?: SessionMruShortcutInvocation): void;
     };

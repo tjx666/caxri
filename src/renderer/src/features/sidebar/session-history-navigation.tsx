@@ -1,0 +1,51 @@
+import type { CSSProperties } from 'react';
+
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+
+import { Button } from '../../components/ui/button';
+import { CommandTooltip } from '../../components/ui/tooltip';
+import { navigateSessionHistory } from '../session/session-actions';
+import type { SessionNavigationDirection } from '../session/session-navigation-history';
+import { useSessionNavigationHistoryStore } from '../session/session-navigation-history';
+
+const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
+
+function SessionHistoryButton({ direction }: { direction: SessionNavigationDirection }) {
+    const enabled = useSessionNavigationHistoryStore(
+        (state) => (direction === 'back' ? state.back : state.forward).length > 0,
+    );
+    const Icon = direction === 'back' ? ArrowLeft : ArrowRight;
+    return (
+        <CommandTooltip
+            commandId={direction === 'back' ? 'session.navigateBack' : 'session.navigateForward'}
+        >
+            <Button
+                className="text-muted enabled:hover:text-foreground"
+                size="icon"
+                variant="ghost"
+                aria-label={direction === 'back' ? 'Go Back' : 'Go Forward'}
+                data-session-history={direction}
+                disabled={!enabled}
+                onClick={() => navigateSessionHistory(direction)}
+            >
+                <Icon size={14} />
+            </Button>
+        </CommandTooltip>
+    );
+}
+
+/**
+ * Browser-style Session history controls in the Sidebar header.
+ *
+ * The header is the window's drag region, so the pair opts out of `-webkit-app-region: drag`; without that the buttons
+ * would move the window instead of navigating. They sit immediately after the traffic-light clearance because that is
+ * where every browser and Waku, the product this mirrors, put them.
+ */
+export function SessionHistoryNavigation() {
+    return (
+        <div className="session-history-navigation flex items-center gap-0.5" style={NO_DRAG}>
+            <SessionHistoryButton direction="back" />
+            <SessionHistoryButton direction="forward" />
+        </div>
+    );
+}

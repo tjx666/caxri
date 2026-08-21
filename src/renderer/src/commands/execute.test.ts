@@ -38,8 +38,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 removeSelected: record('project.remove'),
             },
             session: {
+                canNavigateHistory: () => true,
                 create: record('session.create'),
                 deleteSelected: record('session.delete'),
+                navigateHistory: record('session.navigateHistory'),
                 selectAdjacent: record('session.selectAdjacent'),
                 switchMru: record('session.switchMru'),
             },
