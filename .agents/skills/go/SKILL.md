@@ -159,9 +159,9 @@ and repair routing.
 
 Read [references/acceptance-loop.md](references/acceptance-loop.md) before the
 first round. After the PR head is review-clean and required checks are green, or
-an authorized exact-head local fallback has passed, a fresh context-isolated
-tester independently authors the final plan. Then Call the Skill tool with
-"acceptance". Its only product surface is isolated macOS Electron.
+an authorized exact-head local fallback has passed, proceed to planning. A fresh context-isolated tester
+authors the final plan independently. Do not give it a builder-authored plan or expected verdicts.
+Then Call the Skill tool with "acceptance". Its only product surface is isolated macOS Electron.
 Hidden ordering uses the observable desktop result plus an owning focused test or
 log receipt; desktop timing alone is not proof. Builders never accept or reject
 their own delivery, and any later code change invalidates the accepted head.
