@@ -25,6 +25,7 @@ import {
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState, useWorkbenchStore } from '../../stores/workbench';
+import { closeTerminal } from '../terminal/terminal-actions';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 
@@ -342,9 +343,12 @@ async function didConfirmDirtyEditorCloses(
 }
 
 /**
- * Closing a dirty tab must never silently destroy work: every dirty path about to close is confirmed (Save/Don't
- * Save/Cancel) before anything is evicted. The layout is re-read after the confirmation round trip in case a concurrent
- * operation (rename, Trash) changed it meanwhile.
+ * Closes a pane-local family of tabs (Close, Close Others, Close to the Right, Close All) regardless of what each tab
+ * holds — the family is resolved against the pane, never against one kind. A dirty document is confirmed (Save/Don't
+ * Save/Cancel) before anything is evicted, and the layout is re-read after that round trip in case a concurrent
+ * operation (rename, Trash) changed it meanwhile. A Terminal among the closed tabs must give up its PTY through the
+ * Runtime lifecycle in the same pass — merely dropping its tab from the layout would leave the process running with
+ * nothing left to show or close it.
  */
 export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void> {
     const session = getSelectedSession();
@@ -353,14 +357,20 @@ export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void
     if (!(await didConfirmDirtyEditorCloses(session.id, initial.paneLayout, tabIds))) return;
     const current = getSessionState();
     if (!current) return;
-    const remainingIds = tabIds.filter((tabId) => findTab(current.paneLayout, tabId));
-    if (remainingIds.length === 0) return;
+    const remaining = tabIds.flatMap((tabId) => {
+        const found = findTab(current.paneLayout, tabId);
+        return found ? [found.tab] : [];
+    });
+    if (remaining.length === 0) return;
+    const remainingIds = remaining.map((tab) => tab.id);
     const next = closeTabs(current.paneLayout, remainingIds);
     const survivingPaths = new Set(layoutDocumentPaths(next));
     for (const path of layoutDocumentPaths(current.paneLayout))
         if (!survivingPaths.has(path))
             useSessionViewStore.getState().evictDocument(session.id, path);
     patchSessionState({ ...current, paneLayout: next });
+    for (const tab of remaining)
+        if (tab.resource.kind === 'terminal') closeTerminal(tab.resource.terminalId);
 }
 
 /**

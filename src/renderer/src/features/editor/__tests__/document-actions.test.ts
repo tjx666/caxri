@@ -549,6 +549,50 @@ describe('closing a dirty editor tab', () => {
     });
 });
 
+describe('closing a mixed pane of Terminal and document tabs', () => {
+    it('closes the Terminal PTY instead of only dropping its tab when Close All spans both kinds', async () => {
+        installEmptySession();
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessionStates: [
+                          {
+                              ...state.bootstrap.sessionStates[0],
+                              paneLayout: {
+                                  root: {
+                                      type: 'pane',
+                                      id: 'pane-1',
+                                      tabs: [
+                                          {
+                                              id: 'tab-file',
+                                              resource: { kind: 'file', path: '/project/a.ts' },
+                                          },
+                                          {
+                                              id: 'tab-terminal',
+                                              resource: {
+                                                  kind: 'terminal',
+                                                  terminalId: 'terminal-1',
+                                              },
+                                          },
+                                      ],
+                                      activeTabId: 'tab-file',
+                                  },
+                                  activePaneId: 'pane-1',
+                              },
+                          },
+                      ],
+                  }
+                : undefined,
+        }));
+
+        await closeDocumentTabFamily('tab-file', 'all');
+
+        expect(mocks.request).toHaveBeenCalledWith('terminal.close', { terminalId: 'terminal-1' });
+        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([]);
+    });
+});
+
 describe('editing the pane tree through document actions', () => {
     it('opening a new tab adds it to the pane as the active tab', () => {
         installEmptySession();
