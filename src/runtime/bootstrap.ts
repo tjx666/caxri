@@ -327,7 +327,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
 
     /**
      * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18). A Terminal
-     * with a bound Agent conversation (`terminal.provider` set) resumes it via `resumeArguments`, so
+     * with a bound Agent conversation (`terminal.provider` set) resumes it via its Runtime provider descriptor, so
      * `coordinator.prepareTerminalStart` — which clears the Agent session binding through `resetAgentMetadataForStart`
      * — must be skipped for that Terminal; that clearing is exactly what a normal (non-resuming) start wants. A
      * Terminal without a bound conversation (a shell, or an Agent Terminal that never reached a capability-detected

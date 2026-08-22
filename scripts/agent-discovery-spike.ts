@@ -2,6 +2,8 @@ import { access } from 'node:fs/promises';
 import { delimiter } from 'node:path';
 import process from 'node:process';
 
+import type { AgentProvider } from '../src/shared/agents';
+import { agentProviderCatalog, agentProviderIds } from '../src/shared/agents';
 import { execFileAsync } from './exec';
 
 async function findExecutable(name: string): Promise<string | undefined> {
@@ -33,7 +35,8 @@ async function findExecutable(name: string): Promise<string | undefined> {
     }
 }
 
-async function reportAgent(name: string): Promise<void> {
+async function reportAgent(provider: AgentProvider): Promise<void> {
+    const name = agentProviderCatalog[provider].executableName;
     const executable = await findExecutable(name);
     if (!executable) {
         console.log(JSON.stringify({ available: false, name }));
@@ -44,4 +47,4 @@ async function reportAgent(name: string): Promise<void> {
     console.log(JSON.stringify({ available: true, executable, name, version: stdout.trim() }));
 }
 
-await Promise.all(['claude', 'codex'].map((name) => reportAgent(name)));
+await Promise.all(agentProviderIds.map((provider) => reportAgent(provider)));

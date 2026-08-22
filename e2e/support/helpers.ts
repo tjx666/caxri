@@ -15,12 +15,18 @@ import {
     transferDesktopLease,
 } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
 import type { AgentProvider } from '../../src/shared/agents.ts';
+import { agentProviderCatalog } from '../../src/shared/agents.ts';
 import { createBuildFreshnessGuard } from '../../src/shared/node/build-freshness.ts';
 import {
     e2eAgentPolicyEnvironment,
     e2eAgentShellShims,
     e2eFakeExecutableEnvironmentKeys,
 } from '../../src/shared/node/e2e-agent-policy.ts';
+import {
+    createE2EAgentIsolationEnvironment,
+    e2eAgentStateEnvironmentKeys,
+    selectE2ERealAgentStateEnvironment,
+} from './agent-environment.ts';
 import type { ClipboardFixture, ClipboardSnapshot } from './clipboard.ts';
 import {
     armClipboardRestoreOnQuit,
@@ -76,6 +82,7 @@ const e2eAgentEnvironmentKeys = [
     'CAXRI_E2E_AGENT_MODE',
     'CAXRI_E2E_AGENT_PROVIDER',
     ...e2eFakeExecutableEnvironmentKeys(),
+    ...e2eAgentStateEnvironmentKeys,
 ] as const;
 
 /**
@@ -156,31 +163,14 @@ async function e2eAgentEnvironment(
     sourceEnvironment: NodeJS.ProcessEnv,
 ): Promise<NodeJS.ProcessEnv> {
     if (agentMode.mode === 'real') {
-        return e2eAgentPolicyEnvironment({
-            mode: 'real',
-            provider: agentMode.provider ?? 'codex',
-        });
+        const provider = agentMode.provider ?? 'codex';
+        return {
+            ...selectE2ERealAgentStateEnvironment(provider, sourceEnvironment),
+            ...e2eAgentPolicyEnvironment({ mode: 'real', provider }),
+        };
     }
     const fixtureRoot = join(userDataDirectory, 'e2e-agents');
-    const home = join(fixtureRoot, 'home');
-    const codexState = join(fixtureRoot, 'codex');
-    const claudeState = join(fixtureRoot, 'claude');
-    const xdg = join(fixtureRoot, 'xdg');
-    const isolatedEnvironment: NodeJS.ProcessEnv = {
-        HOME: home,
-        CODEX_HOME: codexState,
-        CODEX_SQLITE_HOME: codexState,
-        CLAUDE_CONFIG_DIR: claudeState,
-        XDG_CACHE_HOME: join(xdg, 'cache'),
-        XDG_CONFIG_HOME: join(xdg, 'config'),
-        XDG_DATA_HOME: join(xdg, 'data'),
-    };
-    await Promise.all([
-        mkdir(home, { recursive: true }),
-        mkdir(codexState, { recursive: true }),
-        mkdir(claudeState, { recursive: true }),
-        mkdir(xdg, { recursive: true }),
-    ]);
+    const isolatedEnvironment = await createE2EAgentIsolationEnvironment(fixtureRoot);
 
     const fakeExecutables = agentMode.mode === 'fake' ? agentMode.executables : {};
     if (agentMode.mode === 'fake') {
@@ -556,7 +546,7 @@ export async function waitForCreatedSession(
  */
 export async function createProjectSession(
     page: Page,
-    kind: 'shell' | 'claude' | 'codex' = 'shell',
+    kind: 'shell' | AgentProvider = 'shell',
 ): Promise<string> {
     const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
     await openAddProjectDialog(page);
@@ -564,7 +554,7 @@ export async function createProjectSession(
     await page
         .getByRole('dialog')
         .getByRole('button', {
-            name: kind === 'shell' ? 'Shell' : kind === 'claude' ? 'Claude Code' : 'Codex',
+            name: kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName,
             exact: true,
         })
         .click();

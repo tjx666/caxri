@@ -5,6 +5,8 @@
  * hand-written sub-schema.
  */
 
+import { agentProviderCatalog, agentProviderIds } from '../agent/agents.js';
+
 export const settingCategories = [
     { id: 'general', title: 'General' },
     { id: 'terminal', title: 'Terminal' },
@@ -97,10 +99,12 @@ export const settingsSpec = [
         key: 'session.defaultAgent',
         title: 'Default agent for new sessions',
         category: 'general',
-        keywords: ['claude', 'codex', 'shell', 'provider'],
+        keywords: [...agentProviderIds, 'shell', 'provider'],
         options: [
-            { value: 'claude', label: 'Claude Code' },
-            { value: 'codex', label: 'Codex' },
+            ...agentProviderIds.map((provider) => ({
+                value: provider,
+                label: agentProviderCatalog[provider].displayName,
+            })),
             { value: 'shell', label: 'Shell' },
         ],
         nullLabel: 'Ask each time',
@@ -298,8 +302,7 @@ export const settingsSpec = [
             'Launch commands, lifecycle hooks, peer messaging, and output recovery per Agent provider',
         category: 'agents',
         keywords: [
-            'claude',
-            'codex',
+            ...agentProviderIds,
             'executable',
             'launch',
             'hooks',

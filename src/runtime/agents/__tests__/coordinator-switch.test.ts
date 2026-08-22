@@ -5,15 +5,15 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
+import { createTestAgentService } from '../../__tests__/create-test-runtime';
 import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
 import type { AgentAdapter } from '../service';
-import { AgentService } from '../service';
 
 const temporaryDirectories: string[] = [];
 
-function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
-    return new AgentService(undefined, {
+function createAgents(snapshot: AgentAdapter['snapshot']) {
+    return createTestAgentService({
         claude: { provider: 'claude', snapshot },
         codex: { provider: 'codex', snapshot },
     });
@@ -56,7 +56,7 @@ describe('AgentCoordinator provider switch', () => {
         );
         const coordinator = new AgentCoordinator(
             database,
-            new AgentService(undefined, {
+            createTestAgentService({
                 claude: { provider: 'claude', snapshot: claudeSnapshot },
                 codex: { provider: 'codex', snapshot: codexSnapshot },
             }),
@@ -99,7 +99,7 @@ describe('AgentCoordinator provider switch', () => {
         const detectForegroundAgent = vi.fn(() => Promise.resolve('claude' as const));
         const coordinator = new AgentCoordinator(
             database,
-            new AgentService(undefined, {
+            createTestAgentService({
                 claude: {
                     provider: 'claude',
                     snapshot: () =>
@@ -171,7 +171,7 @@ describe('AgentCoordinator provider switch', () => {
         );
         const coordinator = new AgentCoordinator(
             database,
-            new AgentService(undefined, {
+            createTestAgentService({
                 claude: { provider: 'claude', snapshot: claudeSnapshot },
                 codex: { provider: 'codex', snapshot: codexSnapshot },
             }),
@@ -266,7 +266,7 @@ describe('AgentCoordinator provider switch', () => {
         );
         const coordinator = new AgentCoordinator(
             database,
-            new AgentService(undefined, {
+            createTestAgentService({
                 claude: { provider: 'claude', snapshot: claudeSnapshot },
                 codex: { provider: 'codex', snapshot: codexSnapshot },
             }),

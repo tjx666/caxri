@@ -5,15 +5,15 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
+import { createTestAgentService } from '../../__tests__/create-test-runtime';
 import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
 import type { AgentAdapter } from '../service';
-import { AgentService } from '../service';
 
 const temporaryDirectories: string[] = [];
 
-function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
-    return new AgentService(undefined, {
+function createAgents(snapshot: AgentAdapter['snapshot']) {
+    return createTestAgentService({
         claude: { provider: 'claude', snapshot },
         codex: { provider: 'codex', snapshot },
     });

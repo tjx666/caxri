@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
+import { createTestAgentService } from '../../__tests__/create-test-runtime';
 import { clearExecutableCache, discoverExecutable } from '../discovery';
 import type { AgentAdapter } from '../service';
 import { AgentService } from '../service';
@@ -89,10 +90,13 @@ describe('Agent adapter fallback', () => {
             }),
         );
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const service = new AgentService(logger, {
-            claude: { provider: 'claude', snapshot },
-            codex: { provider: 'codex', snapshot },
-        });
+        const service = createTestAgentService(
+            {
+                claude: { provider: 'claude', snapshot },
+                codex: { provider: 'codex', snapshot },
+            },
+            logger,
+        );
 
         await expect(
             Promise.all([service.snapshot('codex'), service.snapshot('codex')]),
@@ -119,7 +123,7 @@ describe('Agent adapter fallback', () => {
         const snapshot = vi.fn<AgentAdapter['snapshot']>((context) =>
             context.startedAt === 1 ? first.promise : second.promise,
         );
-        const service = new AgentService(undefined, {
+        const service = createTestAgentService({
             claude: { provider: 'claude', snapshot },
             codex: { provider: 'codex', snapshot },
         });
@@ -175,7 +179,7 @@ describe('Agent adapter fallback', () => {
                 sessionId: 'codex-session-1',
             }),
         );
-        const service = new AgentService(undefined, {
+        const service = createTestAgentService({
             claude: { provider: 'claude', snapshot: claudeSnapshot },
             codex: { provider: 'codex', snapshot: codexSnapshot },
         });

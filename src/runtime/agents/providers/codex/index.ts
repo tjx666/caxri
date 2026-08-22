@@ -179,4 +179,5 @@ export const codexProvider: AgentProviderDescriptor = {
     id: 'codex',
     readState: (context, environment) =>
         readCodexState(context, resolveCodexStateDirectories(environment)),
+    resumeArguments: (agentSessionId) => ['resume', agentSessionId],
 };
