@@ -1,5 +1,5 @@
 import type { DragEvent, KeyboardEvent, ReactElement, ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { ProcessState } from '@shared/types';
 import { X } from 'lucide-react';
@@ -53,12 +53,23 @@ interface WorkTabProperties {
     closeLabel: string;
     dirty?: boolean;
     fileIconName?: string;
+    /**
+     * Whether this tab grows to fill its pane's bar alongside its siblings (a Terminal) or is sized to its own content
+     * up to a fixed cap (a document). The one place a tab's kind is allowed to reach past its own content into layout —
+     * see `TERMINAL_TAB_MAX_WIDTH` / `DOCUMENT_TAB_MAX_WIDTH`.
+     */
+    fill: boolean;
     icon: 'file' | AgentIconIdentity;
     label: string;
     /**
-     * Untruncated title behind an abbreviated `label`; see `terminalTabLabel`.
+     * Hover/focus detail shown alongside `label`. For a Terminal this is the untruncated title behind an abbreviated
+     * `label` (see `terminalTabLabel`), so it also replaces `label` in the accessible tree — the compression is a real
+     * loss of information a screen reader user needs back. A Document tab's `labelTooltip` is its full path, a
+     * different (not fuller) representation of the same file, so `keepLabelAsAccessibleName` stops it from overriding
+     * the filename a screen reader announces.
      */
     labelTooltip?: string;
+    keepLabelAsAccessibleName?: boolean;
     motionIdentity?: string;
     preview?: boolean;
     status?: ProcessState;
@@ -69,6 +80,11 @@ interface WorkTabProperties {
      */
     statusActivity?: { className: string; description: string };
     tabId: string;
+    /**
+     * Raw pane-tab occurrence id, distinct from {@link tabId} (its DOM-safe, prefixed form): read back off
+     * `data-pane-tab-id` at drop time to resolve where in the tab order a drag landed.
+     */
+    paneTabId: string;
     terminalId?: string;
     contextMenu?: ReactNode;
     onClose: () => void;
@@ -79,21 +95,26 @@ interface WorkTabProperties {
 }
 
 /**
- * Every tab divides its own pane's bar equally, with no maximum width. VS Code caps tabs at 160px because a pane there
- * holds many files; Caxri is terminal-first — most Sessions never open an editor — and a Terminal tab's title is the
- * only thing that tells two Agents apart, so the room goes to the title. This bound only has to exceed any realistic
- * pane width, since it exists to give the enter/exit width animation something to travel to.
+ * A Terminal tab divides its pane's bar equally with its Terminal siblings, with no maximum width: Caxri is
+ * terminal-first — most Sessions never open an editor — and a Terminal tab's title is the only thing that tells two
+ * Agents apart, so the room goes to the title. This bound only has to exceed any realistic pane width, since it exists
+ * to give the enter/exit width animation something to travel to.
  */
-const TAB_ANIMATION_MAX_WIDTH = 2000;
+const TERMINAL_TAB_MAX_WIDTH = 2000;
 
 /**
- * Floor for an evenly divided tab. Once enough tabs are open to push past it, flex stops shrinking and the bar's
- * `overflow-x-auto` takes over — even division degrades to scrolling rather than to unreadable slivers.
- *
- * It is animated from 0 alongside `maxWidth` because CSS resolves `min-width` above `max-width`: a static floor would
- * override the `maxWidth: 0` keyframe and the enter/exit width animation would never play.
+ * Floor for an evenly divided Terminal tab. Once enough Terminal tabs are open to push past it, flex stops shrinking
+ * and the bar's `overflow-x-auto` takes over — even division degrades to scrolling rather than to unreadable slivers.
  */
-const TAB_MIN_WIDTH = 80;
+const TERMINAL_TAB_MIN_WIDTH = 80;
+
+/**
+ * An Editor tab never competes with Terminal tabs for the bar's width: it is sized to its filename, capped so one long
+ * path cannot crowd out every Terminal tab next to it. Mirrors VS Code's `workbench.editor.tabSizingFixedMaxWidth` /
+ * `tabSizingFixedMinWidth` defaults (`competitors/vscode/.../workbench.contribution.ts`).
+ */
+const DOCUMENT_TAB_MAX_WIDTH = 160;
+const DOCUMENT_TAB_MIN_WIDTH = 50;
 
 export function WorkTab({
     active,
@@ -101,14 +122,17 @@ export function WorkTab({
     closeLabel,
     dirty = false,
     fileIconName,
+    fill,
     icon,
     label,
     labelTooltip,
+    keepLabelAsAccessibleName = false,
     motionIdentity,
     preview = false,
     status,
     statusActivity,
     tabId,
+    paneTabId,
     terminalId,
     contextMenu,
     onClose,
@@ -139,26 +163,53 @@ export function WorkTab({
     /**
      * `terminalTabLabel` compresses a PTY title to fit the tab, and CSS truncates whatever still overflows. Both losses
      * are visual only: the untouched title stays the tab's accessible name (below) and its tooltip, so a keyboard user
-     * reaches it the same way a pointer user does.
+     * reaches it the same way a pointer user does. `keepLabelAsAccessibleName` opts a caller like a Document tab out of
+     * this swap — see the property's own doc comment.
      */
-    const isLabelAbbreviated = Boolean(labelTooltip) && labelTooltip !== label;
+    const isLabelAbbreviated =
+        Boolean(labelTooltip) && labelTooltip !== label && !keepLabelAsAccessibleName;
     /**
      * Spread rather than written inline because the key has to be _absent_, not `undefined`, whenever the tooltip owns
      * it: Base UI merges the rendered element's own props last, so `id={undefined}` erases the trigger id it writes and
      * leaves the tab with no id for `aria-controls`/roving focus to target. See `Tooltip`'s `triggerId`.
      */
     const tabIdProperty = labelTooltip || !isPresent ? {} : { id: tabId };
+    const targetMinWidth = fill ? TERMINAL_TAB_MIN_WIDTH : DOCUMENT_TAB_MIN_WIDTH;
+    // Motion keeps re-applying whatever value it last resolved for a key present in `initial`/`animate`/`exit` on
+    // every re-render of the component, even to a plain DOM mutation made outside Motion — so `minWidth` and
+    // `overflow` cannot be Motion-managed keys landed via `transitionEnd` or an animation-complete callback: when
+    // several tabs mount together (e.g. opening many Terminals back to back), a later sibling's mount re-renders
+    // every already-mounted tab, and Motion stomps an already-landed floor back to its stale `initial` value of 0.
+    // Tracking "has this tab's enter animation finished" as plain React state instead keeps the floor entirely
+    // outside Motion's reach.
+    const [hasSettled, setHasSettled] = useState(false);
+    useEffect(() => {
+        const timer = setTimeout(() => setHasSettled(true), enterDuration * 1_000);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once for this tab's own enter animation; enterDuration is fixed for its lifetime
+    }, []);
+    const isSettled = isPresent && hasSettled;
     const tab = (
         <m.div
+            style={{
+                minWidth: isSettled ? targetMinWidth : 0,
+                overflow: isSettled ? 'visible' : 'hidden',
+            }}
             className={cn(
                 'work-tab group relative flex items-center border-r border-border bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
-                // `basis-0` is what makes the division even: without it flex distributes only the
-                // leftover space, so a long label would still win a wider slot than a short one.
-                'min-w-0 flex-1 basis-0',
+                'min-w-0',
+                fill
+                    ? // `basis-0` is what makes the division even: without it flex distributes only the
+                      // leftover space, so a long label would still win a wider slot than a short one.
+                      'flex-1 basis-0'
+                    : // A document tab never grows or shrinks with its siblings; `min-w-0` above still lets its own
+                      // label ellipsis-truncate once the animated `maxWidth` below clamps it.
+                      'flex-none',
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
                     "active bg-background text-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
             )}
+            data-pane-tab-id={paneTabId}
             data-terminal-id={terminalId}
             data-motion-identity={motionIdentity}
             data-preview={preview || undefined}
@@ -180,19 +231,19 @@ export function WorkTab({
             onAuxClick={(event) => {
                 if (event.button === 1) onClose();
             }}
-            initial={{ maxWidth: 0, minWidth: 0, opacity: 0, overflow: 'hidden' }}
+            // `maxWidth` is animated from 0 (rather than set as static CSS) because CSS resolves `min-width` above
+            // `max-width`: a static floor would override the `maxWidth: 0` enter keyframe and the enter/exit width
+            // animation would never play. `minWidth`/`overflow` are deliberately absent here — see the `style` prop
+            // above and the comment on `hasSettled`.
+            initial={{ maxWidth: 0, opacity: 0 }}
             animate={{
-                maxWidth: TAB_ANIMATION_MAX_WIDTH,
-                minWidth: TAB_MIN_WIDTH,
+                maxWidth: fill ? TERMINAL_TAB_MAX_WIDTH : DOCUMENT_TAB_MAX_WIDTH,
                 opacity: 1,
-                transitionEnd: { overflow: 'visible' },
                 transition: { duration: enterDuration, ease: 'easeOut' },
             }}
             exit={{
                 maxWidth: 0,
-                minWidth: 0,
                 opacity: 0,
-                overflow: 'hidden',
                 transition: { duration: exitDuration, ease: 'easeIn' },
             }}
         >

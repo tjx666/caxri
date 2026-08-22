@@ -46,3 +46,16 @@ export function resolvePaneDropZone(
     );
     return distance > EDGE_DROP_THRESHOLD ? 'center' : zone;
 }
+
+/**
+ * Geometry only, mirroring {@link resolvePaneDropZone}: given the left edges/widths of a pane bar's tabs — the dragged
+ * tab itself already excluded — and the drop point's x, resolves which array index a reorder or cross-pane move-in drop
+ * should insert at. `undefined` means "past every tab," i.e. append to the end.
+ */
+export function resolveTabDropIndex(
+    tabRects: ReadonlyArray<{ left: number; width: number }>,
+    clientX: number,
+): number | undefined {
+    const index = tabRects.findIndex((rect) => clientX < rect.left + rect.width / 2);
+    return index === -1 ? undefined : index;
+}
