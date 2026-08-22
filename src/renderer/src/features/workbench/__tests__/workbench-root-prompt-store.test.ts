@@ -4,7 +4,7 @@ import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
     useWorkbenchRootPromptStore,
-} from './workbench-root-prompt-store';
+} from '../workbench-root-prompt-store';
 
 describe('workbench root prompt store', () => {
     beforeEach(() => {
