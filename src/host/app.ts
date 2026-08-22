@@ -256,6 +256,18 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     return agentEndpoints.context(context);
                 case 'agent.list':
                     return { agents: agentEndpoints.list(context) };
+                case 'agent.worktree.created': {
+                    if (context.principal.kind !== 'agent')
+                        throw new CaxriError(
+                            'FORBIDDEN',
+                            'Worktree provenance requires an Agent Endpoint principal',
+                        );
+                    const endpoint = agentEndpoints.context(context).endpoint;
+                    return forwardRuntime({
+                        method: 'session.workbenchRoot.reportCreated',
+                        params: { endpoint, rootPath: request.params.rootPath },
+                    });
+                }
                 case 'agent.grants':
                     return { grants: agentEndpoints.grants(request.params.endpoint) };
                 case 'agent.grant':

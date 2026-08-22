@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { AgentEndpointSummary } from '../../shared/ipc/agent-endpoint-contract';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import { StructuredLogger } from '../../shared/node/logger';
 import type { NewWorktreeBehavior } from '../../shared/types';
@@ -12,8 +13,12 @@ import type { GitService, GitWorktreeTopology } from '../git';
 import { WorkbenchRootService } from '../workbench-roots';
 
 const temporaryDirectories: string[] = [];
+const loggers: StructuredLogger[] = [];
 
 afterEach(async () => {
+    const pendingLoggers = loggers.slice();
+    loggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
     const pendingDirectories = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
@@ -41,6 +46,8 @@ async function fixture(
         worktrees: [{ branch: 'main', rootPath: ownerRoot }],
     };
     const worktreeTopology = vi.fn(() => Promise.resolve(topology));
+    const logger = new StructuredLogger(join(directory, 'logs'));
+    loggers.push(logger);
     const service = new WorkbenchRootService({
         behavior: () => behavior,
         database,
@@ -48,10 +55,9 @@ async function fixture(
             events.push(event);
         },
         git: { worktreeTopology } as unknown as GitService,
-        logger: new StructuredLogger(join(directory, 'logs')),
+        logger,
         ...options,
     });
-    await service.listOptions(sessions[0].session.id);
     return {
         database,
         directory,
@@ -72,16 +78,54 @@ async function fixture(
     };
 }
 
-function shellFinished(terminalId: string) {
+function endpoint(
+    context: Awaited<ReturnType<typeof fixture>>,
+    generation = 1,
+): AgentEndpointSummary {
+    const created = context.sessions[0];
     return {
-        launchId: `launch-${terminalId}`,
-        phase: 'shellToolFinished' as const,
-        provider: 'codex' as const,
-        terminalId,
+        ref: { hostId: 'host-1', endpointId: 'endpoint-1', generation },
+        projectId: context.owner.id,
+        sessionId: created.session.id,
+        terminalId: created.terminal!.id,
+        provider: 'codex',
+        name: 'Codex',
+        permissionClass: 'standard',
+        messaging: {
+            deliveryMode: 'pull',
+            health: 'ready',
+            reason: 'pull_ready',
+            checkedAt: Date.now(),
+            nextAction: 'use_pull',
+        },
+        expiresAt: Date.now() + 60_000,
     };
 }
 
-describe('WorkbenchRootService topology attribution', () => {
+function prime(
+    context: Awaited<ReturnType<typeof fixture>>,
+    agentEndpoint = endpoint(context),
+): Promise<boolean> {
+    return context.service.primeAgentEndpoint({
+        projectId: agentEndpoint.projectId,
+        provider: agentEndpoint.provider,
+        ref: agentEndpoint.ref,
+        sessionId: agentEndpoint.sessionId,
+        terminalId: agentEndpoint.terminalId,
+    });
+}
+
+function shellFinished(context: Awaited<ReturnType<typeof fixture>>) {
+    const terminal = context.sessions[0].terminal!;
+    return {
+        launchId: 'launch-1',
+        phase: 'shellToolFinished' as const,
+        provider: 'codex' as const,
+        terminalId: terminal.id,
+    };
+}
+
+describe('WorkbenchRootService', () => {
     it('coalesces concurrent topology reads for the same owning Project', async () => {
         const context = await fixture();
         const pending = Promise.withResolvers<GitWorktreeTopology>();
@@ -91,11 +135,11 @@ describe('WorkbenchRootService topology attribution', () => {
             context.service.listOptions(context.sessions[0].session.id),
             context.service.listOptions(context.sessions[0].session.id),
         ]);
-        await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
+        await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(1));
         pending.resolve(context.getTopology());
 
         await expect(reads).resolves.toHaveLength(2);
-        expect(context.worktreeTopology).toHaveBeenCalledTimes(2);
+        expect(context.worktreeTopology).toHaveBeenCalledTimes(1);
         await context.service.close();
         context.database.close();
     });
@@ -174,29 +218,6 @@ describe('WorkbenchRootService topology attribution', () => {
         context.database.close();
     });
 
-    it('bounds startup topology priming to the most recent owner Projects', async () => {
-        const context = await fixture();
-        for (let index = 0; index < 40; index += 1) {
-            const rootPath = join(context.directory, `owner-${index}`);
-            // eslint-disable-next-line no-await-in-loop -- Project creation order determines recency, which this test asserts on; concurrent creation would make ordering nondeterministic.
-            await mkdir(rootPath);
-            const created = context.database.createSession(
-                context.database.createProject(rootPath).id,
-                'shell',
-            );
-            context.database.closeTerminal(created.terminal!.id);
-        }
-        context.worktreeTopology.mockClear();
-        const internals = context.service as unknown as { queue: Promise<void> };
-
-        context.service.primeAll();
-        await internals.queue;
-
-        expect(context.worktreeTopology).toHaveBeenCalledTimes(32);
-        await context.service.close();
-        context.database.close();
-    });
-
     it('rejects a root replaced between its identity read and canonicalization', async () => {
         let swapRoot: (() => Promise<void>) | undefined;
         const context = await fixture(1, {
@@ -224,16 +245,16 @@ describe('WorkbenchRootService topology attribution', () => {
         context.database.close();
     });
 
-    it('waits for an in-flight topology prime before closing persistence', async () => {
+    it('waits for an in-flight Endpoint baseline before closing persistence', async () => {
         const context = await fixture();
         const pending = Promise.withResolvers<GitWorktreeTopology>();
         context.worktreeTopology.mockImplementationOnce(() => pending.promise);
 
-        context.service.primeAll();
-        await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
+        const priming = prime(context);
+        await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(1));
         const closing = context.service.close();
         let isClosed = false;
-        // eslint-disable-next-line no-void -- intentionally not awaited here: the test observes `isClosed` before `closing` settles, which requires the tracking callback to run in the background.
+        // eslint-disable-next-line no-void -- the test must observe close before the queued read settles.
         void closing.then(() => {
             isClosed = true;
         });
@@ -241,79 +262,191 @@ describe('WorkbenchRootService topology attribution', () => {
         expect(isClosed).toBe(false);
 
         pending.resolve(context.getTopology());
+        await priming;
         await closing;
         context.database.close();
     });
 
-    it('emits one content-free candidate for one uniquely added worktree', async () => {
+    it('does not attribute a uniquely added worktree from topology alone', async () => {
+        const context = await fixture();
+        await context.service.listOptions(context.sessions[0].session.id);
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/external', rootPath: context.worktreeRoot },
+        ]);
+
+        await context.service.listOptions(context.sessions[0].session.id);
+        expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
+
+        expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
+        await context.service.close();
+        context.database.close();
+    });
+
+    it('bounds and coalesces shell deletion validation while structured Git is slow', async () => {
         const context = await fixture();
         context.setWorktrees([
             { branch: 'main', rootPath: context.ownerRoot },
-            { branch: 'feature/one', rootPath: context.worktreeRoot },
+            { branch: 'feature/selected', rootPath: context.worktreeRoot },
         ]);
-
-        expect(
-            context.service.observeShellToolFinished(
-                shellFinished(context.sessions[0].terminal!.id),
-            ),
-        ).toBe(true);
-
-        await vi.waitFor(() =>
-            expect(
-                context.events.filter((event) => event.event === 'workbench.candidate'),
-            ).toHaveLength(1),
+        await context.service.authorizeSelection(
+            context.sessions[0].session.id,
+            context.worktreeRoot,
         );
-        const candidate = context.events.find((event) => event.event === 'workbench.candidate');
-        expect(candidate).toMatchObject({
-            event: 'workbench.candidate',
-            payload: { sessionId: context.sessions[0].session.id },
-        });
-        if (candidate?.event === 'workbench.candidate')
-            expect(
-                context.service.claimCandidate(
-                    context.sessions[0].session.id,
-                    candidate.payload.candidateId,
-                ),
-            ).toMatchObject({ rootPath: context.worktreeRoot });
+        const callsBeforeSignals = context.worktreeTopology.mock.calls.length;
+        const pending = Promise.withResolvers<GitWorktreeTopology>();
+        context.worktreeTopology.mockImplementationOnce(() => pending.promise);
+        vi.useFakeTimers();
+        try {
+            for (let index = 0; index < 1_000; index += 1)
+                expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
+            await vi.advanceTimersByTimeAsync(100);
+            expect(context.worktreeTopology).toHaveBeenCalledTimes(callsBeforeSignals + 1);
+
+            for (let index = 0; index < 1_000; index += 1)
+                expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
+            await vi.advanceTimersByTimeAsync(10_000);
+            expect(context.worktreeTopology).toHaveBeenCalledTimes(callsBeforeSignals + 1);
+
+            pending.resolve(context.getTopology());
+            await vi.waitFor(() =>
+                expect(context.worktreeTopology).toHaveBeenCalledTimes(callsBeforeSignals + 2),
+            );
+        } finally {
+            vi.useRealTimers();
+        }
         await context.service.close();
         context.database.close();
     });
 
-    it('fails closed when two Sessions signal for the same repository batch', async () => {
-        const context = await fixture(2);
-        context.setWorktrees([
-            { branch: 'main', rootPath: context.ownerRoot },
-            { branch: 'feature/shared', rootPath: context.worktreeRoot },
-        ]);
-
-        for (const created of context.sessions)
-            context.service.observeShellToolFinished(shellFinished(created.terminal!.id));
-
-        await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
-        expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
-        await context.service.close();
-        context.database.close();
-    });
-
-    it('fails closed when one topology refresh contains multiple additions', async () => {
+    it('does not let deletion validation absorb another added path into the launch baseline', async () => {
         const context = await fixture();
-        const secondRoot = join(temporaryDirectories[0], 'second-worktree');
-        await mkdir(secondRoot);
+        const secondWorktreeRoot = join(context.directory, 'second-worktree');
+        await mkdir(secondWorktreeRoot);
         context.setWorktrees([
             { branch: 'main', rootPath: context.ownerRoot },
-            { branch: 'feature/one', rootPath: context.worktreeRoot },
-            { branch: 'feature/two', rootPath: secondRoot },
+            { branch: 'feature/selected', rootPath: context.worktreeRoot },
+        ]);
+        await context.service.authorizeSelection(
+            context.sessions[0].session.id,
+            context.worktreeRoot,
+        );
+        const agentEndpoint = endpoint(context);
+        await prime(context, agentEndpoint);
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/selected', rootPath: context.worktreeRoot },
+            { branch: 'feature/reported', rootPath: secondWorktreeRoot },
         ]);
 
-        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal!.id));
+        expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
+        await expect(
+            context.service.reportCreatedWorktree(agentEndpoint, secondWorktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'accepted', action: 'candidate' });
+        expect(
+            context.events.filter((event) => event.event === 'workbench.candidate'),
+        ).toHaveLength(1);
+        await context.service.close();
+        context.database.close();
+    });
 
-        await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
+    it('fails closed when an Endpoint report has no pre-launch baseline', async () => {
+        const context = await fixture();
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/unproven', rootPath: context.worktreeRoot },
+        ]);
+
+        await expect(
+            context.service.reportCreatedWorktree(
+                endpoint(context),
+                context.worktreeRoot,
+                () => true,
+            ),
+        ).resolves.toEqual({ status: 'ignored', reason: 'baseline_missing' });
+        expect(context.worktreeTopology).not.toHaveBeenCalled();
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
         await context.service.close();
         context.database.close();
     });
 
-    it('supports explicit authorization without hooks and rejects unrelated directories', async () => {
+    it('emits one candidate only for a newly linked path reported by the exact generation', async () => {
+        const context = await fixture();
+        const agentEndpoint = endpoint(context);
+        await expect(prime(context, agentEndpoint)).resolves.toBe(true);
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/proven', rootPath: context.worktreeRoot },
+        ]);
+
+        await expect(
+            context.service.reportCreatedWorktree(agentEndpoint, context.worktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'accepted', action: 'candidate' });
+        expect(
+            context.events.filter((event) => event.event === 'workbench.candidate'),
+        ).toHaveLength(1);
+        await expect(
+            context.service.reportCreatedWorktree(agentEndpoint, context.worktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'ignored', reason: 'path_preexisting' });
+        expect(
+            context.events.filter((event) => event.event === 'workbench.candidate'),
+        ).toHaveLength(1);
+        await context.service.close();
+        context.database.close();
+    });
+
+    it('fences stale, mismatched, and retired Endpoint generations', async () => {
+        const context = await fixture();
+        const first = endpoint(context, 1);
+        await prime(context, first);
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/fenced', rootPath: context.worktreeRoot },
+        ]);
+
+        await expect(
+            context.service.reportCreatedWorktree(first, context.worktreeRoot, () => false),
+        ).resolves.toEqual({ status: 'ignored', reason: 'endpoint_unavailable' });
+        await expect(
+            context.service.reportCreatedWorktree(
+                { ...first, sessionId: 'wrong-session' },
+                context.worktreeRoot,
+                () => true,
+            ),
+        ).resolves.toEqual({ status: 'ignored', reason: 'scope_mismatch' });
+
+        context.setWorktrees([{ branch: 'main', rootPath: context.ownerRoot }]);
+        const second = endpoint(context, 2);
+        await prime(context, second);
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/fenced', rootPath: context.worktreeRoot },
+        ]);
+        await expect(
+            context.service.reportCreatedWorktree(first, context.worktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'ignored', reason: 'baseline_missing' });
+        await expect(
+            context.service.reportCreatedWorktree(second, context.worktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'accepted', action: 'candidate' });
+        await context.service.close();
+        context.database.close();
+    });
+
+    it('fails closed when current structured Git topology cannot prove the report', async () => {
+        const context = await fixture();
+        const agentEndpoint = endpoint(context);
+        await prime(context, agentEndpoint);
+        context.worktreeTopology.mockRejectedValueOnce(new Error('git unavailable'));
+
+        await expect(
+            context.service.reportCreatedWorktree(agentEndpoint, context.worktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'ignored', reason: 'topology_unavailable' });
+        expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
+        await context.service.close();
+        context.database.close();
+    });
+
+    it('supports explicit authorization without provenance and rejects unrelated directories', async () => {
         const context = await fixture();
         const unrelatedRoot = join(context.directory, 'unrelated');
         await mkdir(unrelatedRoot);
@@ -336,35 +469,67 @@ describe('WorkbenchRootService topology attribution', () => {
             rootPath: context.worktreeRoot,
         });
         expect(typeof selected.workbenchProjectId).toBe('string');
-        expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
-            projectId: context.owner.id,
-            rootPath: context.worktreeRoot,
-        });
         await context.service.close();
         context.database.close();
     });
 
-    it('automatically selects a uniquely added worktree only when it is already authorized', async () => {
+    it('automatically selects a reported worktree only when it is already authorized', async () => {
         const context = await fixture();
         const worktreeProject = context.database.createProject(context.worktreeRoot);
+        const agentEndpoint = endpoint(context);
         context.setBehavior('continueWhenAuthorized');
+        await prime(context, agentEndpoint);
         context.setWorktrees([
             { branch: 'main', rootPath: context.ownerRoot },
             { branch: 'feature/authorized', rootPath: context.worktreeRoot },
         ]);
 
-        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal!.id));
+        await expect(
+            context.service.reportCreatedWorktree(agentEndpoint, context.worktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'accepted', action: 'selected' });
+        expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
+            workbenchProjectId: worktreeProject.id,
+            rootPath: context.worktreeRoot,
+        });
+        expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
+        await context.service.close();
+        context.database.close();
+    });
 
+    it('accepts a recreated path only after validation proves its prior removal', async () => {
+        const context = await fixture();
+        const worktreeProject = context.database.createProject(context.worktreeRoot);
+        const agentEndpoint = endpoint(context);
+        context.setBehavior('continueWhenAuthorized');
+        await prime(context, agentEndpoint);
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/recreated', rootPath: context.worktreeRoot },
+        ]);
+        await expect(
+            context.service.reportCreatedWorktree(agentEndpoint, context.worktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'accepted', action: 'selected' });
+
+        context.setWorktrees([{ branch: 'main', rootPath: context.ownerRoot }]);
+        expect(context.service.observeShellToolFinished(shellFinished(context))).toBe(true);
         await vi.waitFor(() =>
             expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
-                workbenchProjectId: worktreeProject.id,
-                rootPath: context.worktreeRoot,
+                workbenchProjectId: context.owner.id,
             }),
         );
-        expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
-        expect(context.database.getTerminal(context.sessions[0].terminal!.id)).toMatchObject({
-            cwd: context.ownerRoot,
-            id: context.sessions[0].terminal!.id,
+        expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
+            workbenchProjectId: context.owner.id,
+        });
+
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/recreated', rootPath: context.worktreeRoot },
+        ]);
+        await expect(
+            context.service.reportCreatedWorktree(agentEndpoint, context.worktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'accepted', action: 'selected' });
+        expect(context.database.getSession(context.sessions[0].session.id)).toMatchObject({
+            workbenchProjectId: worktreeProject.id,
         });
         await context.service.close();
         context.database.close();
@@ -372,18 +537,18 @@ describe('WorkbenchRootService topology attribution', () => {
 
     it('rejects a stale candidate and falls back when an active worktree disappears', async () => {
         const context = await fixture();
+        const agentEndpoint = endpoint(context);
+        await prime(context, agentEndpoint);
         context.setWorktrees([
             { branch: 'main', rootPath: context.ownerRoot },
             { branch: 'feature/stale', rootPath: context.worktreeRoot },
         ]);
-        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal!.id));
-        await vi.waitFor(() =>
-            expect(context.events.some((event) => event.event === 'workbench.candidate')).toBe(
-                true,
-            ),
+        await context.service.reportCreatedWorktree(
+            agentEndpoint,
+            context.worktreeRoot,
+            () => true,
         );
         const candidate = context.events.find((event) => event.event === 'workbench.candidate');
-        expect(candidate?.event).toBe('workbench.candidate');
         if (candidate?.event !== 'workbench.candidate') throw new Error('Candidate not emitted');
         context.service.claimCandidate(
             context.sessions[0].session.id,
@@ -426,17 +591,19 @@ describe('WorkbenchRootService topology attribution', () => {
         context.database.close();
     });
 
-    it('ignores a unique addition when the configured behavior is Ignore', async () => {
+    it('ignores a proven addition when configured to ignore new worktrees', async () => {
         const context = await fixture();
+        const agentEndpoint = endpoint(context);
         context.setBehavior('ignore');
+        await prime(context, agentEndpoint);
         context.setWorktrees([
             { branch: 'main', rootPath: context.ownerRoot },
             { branch: 'feature/ignored', rootPath: context.worktreeRoot },
         ]);
 
-        context.service.observeShellToolFinished(shellFinished(context.sessions[0].terminal!.id));
-
-        await vi.waitFor(() => expect(context.worktreeTopology).toHaveBeenCalledTimes(2));
+        await expect(
+            context.service.reportCreatedWorktree(agentEndpoint, context.worktreeRoot, () => true),
+        ).resolves.toEqual({ status: 'ignored', reason: 'behavior_ignored' });
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
         await context.service.close();
         context.database.close();

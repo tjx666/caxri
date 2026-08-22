@@ -35,6 +35,7 @@ import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
 import { createTerminalMoveHandler } from './terminal-move';
+import * as provenance from './workbench-provenance';
 import { createWorkbenchRootHandlers } from './workbench-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
@@ -85,14 +86,10 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         logger,
         onAuthorityLost: (provider) => coordinator.resetHookAuthority(provider),
         onLaunchEnded: (terminalId) => coordinator.endTerminalLaunch(terminalId),
-        onLaunchStarted: (terminalId, launchId) => {
-            coordinator.beginTerminalLaunch(terminalId, launchId);
-            workbenchRoots.primeTerminal(terminalId);
-        },
+        onLaunchStarted: (terminalId, launchId) =>
+            coordinator.beginTerminalLaunch(terminalId, launchId),
         onSignal: (signal) =>
-            signal.phase === 'shellToolFinished'
-                ? workbenchRoots.observeShellToolFinished(signal)
-                : coordinator.observeLifecycleSignal(signal),
+            provenance.didHandleAgentLifecycleSignal(coordinator, workbenchRoots, signal),
         runtimeExecutable: dependencies.runtimeExecutable ?? process.execPath,
         send,
         sharedPath: dependencies.agentHooksPath,
@@ -142,13 +139,16 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                 return hookEnvironment;
             const session = database.getSession(terminal.sessionId);
             if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
+            const endpointEnvironment = await provenance.prepareAgentWorkbenchProvenance({
+                endpoints: dependencies.agentEndpoints,
+                projectId: session.projectId,
+                settings: configuration.getSettings().value['agents.providers'][terminal.kind],
+                terminal,
+                workbenchRoots,
+            });
             return {
                 ...hookEnvironment,
-                ...(await dependencies.agentEndpoints.environment(
-                    terminal,
-                    session.projectId,
-                    configuration.getSettings().value['agents.providers'][terminal.kind],
-                )),
+                ...endpointEnvironment,
             };
         },
         onLifecycleStarted: (terminal) =>
@@ -157,16 +157,12 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                 : dependencies.agentEndpoints?.activate(terminal.id),
         onLifecycleRetired: async (terminalId) => {
             agentHooks.endTerminalLaunch(terminalId);
-            try {
-                await dependencies.agentEndpoints?.retire(terminalId);
-            } catch (error: unknown) {
-                logger.write('warn', 'agent_endpoint.retire_failed', {
-                    fields: {
-                        terminalId,
-                        error: error instanceof Error ? error.message : String(error),
-                    },
-                });
-            }
+            await provenance.retireAgentWorkbenchProvenance({
+                endpoints: dependencies.agentEndpoints,
+                logger,
+                terminalId,
+                workbenchRoots,
+            });
         },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
@@ -451,6 +447,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     const handlers: RuntimeHandlers = {
         'agent.context': () => mainOwned('agent.context'),
         'agent.list': () => mainOwned('agent.list'),
+        'agent.worktree.created': () => mainOwned('agent.worktree.created'),
         'agent.grants': () => mainOwned('agent.grants'),
         'agent.grant': () => mainOwned('agent.grant'),
         'agent.revoke': () => mainOwned('agent.revoke'),
@@ -509,7 +506,9 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         'argv.update': () => mainOwned('argv.update'),
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
-        ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
+        ...createWorkbenchRootHandlers(workbenchRoots, mainOwned, (endpoint) =>
+            provenance.isCurrentAgentWorkbenchEndpoint(dependencies.agentEndpoints, endpoint),
+        ),
         ...createTerminalMoveHandler(terminalMoveDependencies),
         'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
         'diagnostics.export': () => mainOwned('diagnostics.export'),
@@ -784,7 +783,6 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         },
     };
     watchSessionInBackground(selectedSessionId());
-    workbenchRoots.primeAll();
     /**
      * Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected Session's
      * interrupted Terminals must never delay Runtime startup past the 3s large-Project gate.

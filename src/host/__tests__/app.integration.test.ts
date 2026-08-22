@@ -172,6 +172,18 @@ process.on('message', async (message) => {
         process.send?.({ id: message.id, ok: true, result: null });
         return;
     }
+    if (message.method === 'session.workbenchRoot.reportCreated') {
+        await writeFile(
+            process.env.CAXRI_WORKTREE_REPORT_FIXTURE_PATH,
+            JSON.stringify(message.params),
+        );
+        process.send?.({
+            id: message.id,
+            ok: true,
+            result: { status: 'accepted', action: 'candidate' },
+        });
+        return;
+    }
     if (message.method === 'agent.dispatch.startInternal') {
         process.send?.({
             id: message.id,
@@ -385,11 +397,15 @@ describe('Headless Host application', () => {
         directories.push(userDataPath);
         const runtimePath = join(userDataPath, 'runtime-child.mjs');
         const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
+        const worktreeReportFixturePath = join(userDataPath, 'worktree-report.json');
         await writeFile(runtimePath, agentEndpointRuntimeFixture);
         const app = await startHostApp({
             commit: 'test',
             executable: process.execPath,
-            runtimeEnvironment: { CAXRI_ENDPOINT_FIXTURE_PATH: endpointFixturePath },
+            runtimeEnvironment: {
+                CAXRI_ENDPOINT_FIXTURE_PATH: endpointFixturePath,
+                CAXRI_WORKTREE_REPORT_FIXTURE_PATH: worktreeReportFixturePath,
+            },
             runtimePath,
             socketDirectory: process.platform === 'darwin' ? '/private/tmp' : '/tmp',
             userDataPath,
@@ -416,6 +432,18 @@ describe('Headless Host application', () => {
         });
         await expect(agent.request('agent.list')).resolves.toMatchObject({
             agents: [expect.objectContaining({ ref: endpoint.ref })],
+        });
+        await expect(
+            agent.request('agent.worktree.created', { rootPath: '/projects/created-worktree' }),
+        ).resolves.toEqual({ status: 'accepted', action: 'candidate' });
+        expect(JSON.parse(await readFile(worktreeReportFixturePath, 'utf8'))).toMatchObject({
+            endpoint: {
+                ref: endpoint.ref,
+                projectId: 'project-1',
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+            },
+            rootPath: '/projects/created-worktree',
         });
         expect(agent.welcome.commands).toContain('agent.dispatch.status');
         expect(agent.welcome.commands).not.toContain('agent.dispatch.start');

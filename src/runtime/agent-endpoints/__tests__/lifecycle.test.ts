@@ -97,6 +97,11 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             deliveryMode: 'unavailable',
             reason: 'probe_pending',
         });
+        expect(lifecycle.preparedEndpointForTerminal('terminal-1')).toMatchObject({
+            ref: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+            terminalId: 'terminal-1',
+        });
+        expect(lifecycle.endpointForTerminal('terminal-1')).toBeUndefined();
         expect(messaging).not.toHaveBeenCalled();
         await lifecycle.activate('terminal-1');
         expect(activationInput).toMatchObject({
@@ -197,6 +202,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
 
         const retiring = lifecycle.retire('terminal-1');
         await vi.waitFor(() => expect(lifecycle.endpointForTerminal('terminal-1')).toBeUndefined());
+        expect(lifecycle.preparedEndpointForTerminal('terminal-1')).toBeUndefined();
         expect(() => lifecycle.controlTarget(target!.ref)).toThrow(
             expect.objectContaining({ code: 'UNAVAILABLE' }) as Error,
         );

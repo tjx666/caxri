@@ -61,14 +61,14 @@ describe('AgentEndpointRegistry', () => {
         activate(registry, endpoint);
 
         expect(JSON.stringify(registry)).not.toContain(TOKEN);
-        expect(
-            registry.authenticate({
-                hostId: 'host-1',
-                endpointId: endpoint.ref.endpointId,
-                generation: endpoint.ref.generation,
-                token: TOKEN,
-            }),
-        ).toMatchObject({
+        const authenticated = registry.authenticate({
+            hostId: 'host-1',
+            endpointId: endpoint.ref.endpointId,
+            generation: endpoint.ref.generation,
+            token: TOKEN,
+        });
+        expect(authenticated.capabilities).toContain('worktrees.report');
+        expect(authenticated).toMatchObject({
             principal: {
                 kind: 'agent',
                 endpointId: endpoint.ref.endpointId,

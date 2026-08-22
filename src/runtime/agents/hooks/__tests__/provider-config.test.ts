@@ -73,55 +73,56 @@ describe('Agent provider hook configuration adapters', () => {
         const installed = install(claudeHookAdapter, 'settings', source, 'claude');
 
         expect(
-            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude')).status,
+            claudeHookAdapter.inspect(new Map([['settings', installed]]), desired('claude', 3))
+                .status,
         ).toEqual({ kind: 'current' });
 
         const removed = claudeHookAdapter.remove(
             new Map([['settings', installed]]),
-            desired('claude'),
+            desired('claude', 3),
         )[0].source;
         expect(JSON.parse(removed)).toEqual(foreign);
     });
 
     it('updates only stale Caxri entries and leaves a newer Codex schema untouched', () => {
         const current = install(codexHookAdapter, 'hooks', '{}\n', 'codex');
-        const stale = current.replaceAll('--schema 3', '--schema 2');
+        const stale = current.replaceAll('--schema 4', '--schema 3');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', stale],
                     ['config', undefined],
                 ]),
-                desired('codex', 3),
+                desired('codex', 4),
             ).status,
-        ).toEqual({ kind: 'stale', installedSchema: 2 });
+        ).toEqual({ kind: 'stale', installedSchema: 3 });
 
         const updated = codexHookAdapter.render(
             new Map([
                 ['hooks', stale],
                 ['config', undefined],
             ]),
-            desired('codex', 3),
+            desired('codex', 4),
         )[0].source;
-        expect(updated).not.toContain('--schema 2');
+        expect(updated).not.toContain('--schema 3');
 
-        const newer = updated.replaceAll('--schema 3', '--schema 4');
+        const newer = updated.replaceAll('--schema 4', '--schema 5');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 3),
+                desired('codex', 4),
             ).status,
-        ).toEqual({ kind: 'newer', installedSchema: 4 });
+        ).toEqual({ kind: 'newer', installedSchema: 5 });
         expect(
             codexHookAdapter.remove(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 3),
+                desired('codex', 4),
             ),
         ).toHaveLength(0);
     });
