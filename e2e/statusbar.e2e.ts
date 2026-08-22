@@ -135,7 +135,12 @@ exec /bin/zsh -l
         await running.page.keyboard.press('Meta+]');
         await changes.click();
         await expect(running.page.locator('.secondary-sidebar')).toBeVisible();
-        await expect(running.page.getByText('Source Control', { exact: true })).toBeVisible();
+        /**
+         * The View chrome intentionally repeats the title in the tab and panel caption.
+         */
+        await expect(
+            running.page.getByRole('tab', { name: 'Source Control', exact: true }),
+        ).toHaveAttribute('aria-selected', 'true');
 
         await writeFile(join(root, 'untracked.txt'), 'new\n', 'utf8');
         await expect(
