@@ -37,9 +37,9 @@ ni
 bun run dev
 ```
 
-Development logs are written to `logs/host.jsonl`, `logs/main.jsonl`, and `logs/runtime.jsonl` in
-the repository root. Unsigned development packages are written beneath `release/`; tagged releases
-publish an unsigned Apple Silicon DMG. Install or upgrade the released app with
+Main, Host, and Runtime logs are written beneath the active runtime profile's `<userData>/logs/`
+directory. Unsigned development packages are written beneath `release/`; tagged releases publish
+an unsigned Apple Silicon DMG. Install or upgrade the released app with
 `bun run install:caxri` — terminal downloads skip the Gatekeeper quarantine that makes
 browser-downloaded unsigned apps report as "damaged" (see [RELEASING.md](RELEASING.md)).
 

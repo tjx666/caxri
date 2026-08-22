@@ -84,7 +84,7 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   proxy-variable workaround for `agent-browser connect` and the raw-CDP fallback.
 - Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Host, SQLite,
   and logs) so they never contend with the installed production app; `CAXRI_USER_DATA_DIR`
-  overrides it (`src/main/user-data.ts`).
+  overrides it (`src/main/runtime-profile.ts`).
 - Stop every dev instance you started before reporting a request complete, and verify it actually
   died. One launch leaves four separate processes: the `electron-vite dev` launcher, the Electron
   window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached

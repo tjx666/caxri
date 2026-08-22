@@ -26,18 +26,20 @@ import { DesktopHostConnection, resolveDesktopLaunch } from './host-connection';
 import { shouldContinueStartup } from './host-startup';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { resolveLogLevel } from './log-level';
-import { resolveLogDirectory } from './log-path';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
 import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
-import { enableRemoteDebugging } from './remote-debugging';
 import { loadRendererEntry } from './renderer-entry';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
+import {
+    configureRuntimeProfile,
+    hasProfileSingleInstanceLock,
+    installSecondInstanceFocus,
+} from './runtime-profile';
 import { createTestRootPathResolver } from './test-root';
 import { shouldStartAutomaticUpdateCheck, UpdateService, updateStateLogFields } from './updates';
-import { resolveUserDataPath } from './user-data';
 import { createWindowCloseHandler } from './window-close';
 import { resolveE2EWindowMode } from './window-mode';
 import { installWorkbenchIpc } from './workbench-ipc';
@@ -60,27 +62,18 @@ process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_CO
  * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
  */
 if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
-// Must run before anything reads `app.getPath('userData')` (once a path is read, `setPath` no
-// longer affects the consumers that captured it); see `resolveUserDataPath` for why dev launches
-// get their own profile.
-{
-    const userDataPath = resolveUserDataPath({
-        appDataPath: app.getPath('appData'),
-        environmentOverride: process.env.CAXRI_USER_DATA_DIR,
-        isPackaged: app.isPackaged,
-    });
-    if (userDataPath) app.setPath('userData', userDataPath);
-}
-// After the userData override so the packaged remote-debugging gate reads the active profile's settings.
-enableRemoteDebugging(app, process.env);
+// Must settle before Chromium, logging, Host attachment, or the single-instance lock captures launch identity.
+const runtimeProfile = configureRuntimeProfile(app, process.env);
 // Chromium switches must be appended before `app.whenReady()`.
 applyGpuStabilityWorkarounds(app.commandLine, process.platform);
+const ownsProfileInstance = hasProfileSingleInstanceLock(app, runtimeProfile);
+if (!ownsProfileInstance) app.quit();
 
 // Scoped in a bare block (rather than left at module top level) so the mutable Desktop bootstrap
 // state below is a block-scoped variable, not a Program-scope one: the lifecycle callbacks that
 // mutate it genuinely need module-lifetime shared state, and this keeps each variable's storage
 // out of `unicorn/no-top-level-assignment-in-function`'s reach without changing any read/write site.
-{
+if (ownsProfileInstance) {
     let mainWindow: BrowserWindow | undefined;
     let mainRenderer: WebContents | undefined;
     let supervisor: DesktopHostConnection;
@@ -122,12 +115,7 @@ applyGpuStabilityWorkarounds(app.commandLine, process.platform);
     });
     function createMainLogger(): StructuredLogger {
         return new StructuredLogger(
-            resolveLogDirectory({
-                currentDirectory,
-                isPackaged: app.isPackaged,
-                rendererUrl: process.env.ELECTRON_RENDERER_URL,
-                userDataPath: app.getPath('userData'),
-            }),
+            runtimeProfile.logDirectory,
             'main',
             resolveLogLevel({ isPackaged: app.isPackaged }),
         );
@@ -415,6 +403,20 @@ applyGpuStabilityWorkarounds(app.commandLine, process.platform);
         return window;
     }
 
+    const secondInstanceFocus = installSecondInstanceFocus(
+        app,
+        async () => {
+            await focusMainWindow();
+            mainLogger?.write('info', 'app.second_instance_focused', {
+                fields: { profileId: runtimeProfile.id },
+            });
+        },
+        (error) =>
+            mainLogger?.write('error', 'app.second_instance_focus_failed', {
+                fields: { error: errorMessage(error, 'unknown') },
+            }),
+    );
+
     const handleHostDesktopOperation = createDesktopOperationHandler({
         focus: async () => {
             await focusMainWindow();
@@ -438,7 +440,7 @@ applyGpuStabilityWorkarounds(app.commandLine, process.platform);
 
     const handleMainMethod = createMainMethodHandler({
         getProcessExplorer: () => processExplorer,
-        getUserDataPath: () => app.getPath('userData'),
+        getUserDataPath: () => runtimeProfile.userDataPath,
         getSupervisor: () => supervisor,
         getUpdateService: () => updateService,
         getWindow: () => mainWindow,
@@ -521,18 +523,21 @@ applyGpuStabilityWorkarounds(app.commandLine, process.platform);
                 isPackaged: app.isPackaged,
             });
             if (developmentDockIconPath && app.dock) app.dock.setIcon(developmentDockIconPath);
-            const userDataPath = app.getPath('userData');
-            const logDirectory = resolveLogDirectory({
-                currentDirectory,
-                isPackaged: app.isPackaged,
-                rendererUrl: process.env.ELECTRON_RENDERER_URL,
-                userDataPath,
-            });
+            const { userDataPath, logDirectory } = runtimeProfile;
             const logLevel = resolveLogLevel({ isPackaged: app.isPackaged });
             mainLogger ??= new StructuredLogger(logDirectory, 'main', logLevel);
             processErrorMonitor.attach(mainLogger);
             mainLogger.write('info', 'app.ready', {
                 durationMs: performance.now() - bootStartedAt,
+                fields: {
+                    profileId: runtimeProfile.id,
+                    profileKind: runtimeProfile.kind,
+                    remoteDebuggingPort:
+                        runtimeProfile.remoteDebugging.transport === 'port'
+                            ? runtimeProfile.remoteDebugging.port
+                            : null,
+                    remoteDebuggingTransport: runtimeProfile.remoteDebugging.transport,
+                },
             });
             if (process.env.CAXRI_E2E === '1') {
                 mainLogger.write('info', 'e2e.launch', {
@@ -645,6 +650,7 @@ applyGpuStabilityWorkarounds(app.commandLine, process.platform);
             processExplorer.installIpc();
             await installMenu();
             await openMainWindow();
+            secondInstanceFocus.ready();
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .catch(() => {});

@@ -39,7 +39,12 @@ Runtime child process
   -> better-sqlite3 through Drizzle ORM
 ```
 
-The Host is the profile authority and sole Runtime/SQLite owner. Electron Main is a replaceable
+Electron Main resolves one canonical runtime profile before Chromium startup. That authority supplies userData, the
+profile-scoped single-instance lock, the Main/Host/Runtime log directory, CDP transport identity, and the userData path
+passed to Host; Host derives its socket/manifest/lock identity from the same canonical path and remains the sole
+Runtime/SQLite owner. A second same-profile Desktop exits before Host attachment and asks the existing Desktop to
+restore/focus its window. The typed Host lease replacement remains defense in depth for non-Electron clients and stale
+build recovery. Electron Main is otherwise a replaceable
 Desktop client: closing a window or quitting Desktop revokes its lease and detaches views without
 stopping Host, Runtime, or PTYs. A renderer reload attaches to the same Runtime state and bounded
 snapshots. A Runtime crash invalidates every in-memory PTY; the Host restarts it with capped
@@ -346,7 +351,9 @@ Structured logs carry timestamp, process, level, event, correlation ID, duration
 
 The application version and short commit hash are injected at build time and read once by Main, which stamps its own logs and forwards them to the Runtime's environment so both processes' logs and the diagnostics export can be correlated to the exact build.
 
-Development launches write Host, Main, and Runtime JSONL files to the repository `logs/` directory for direct inspection. Packaged and test launches keep logs beneath the active Electron user-data directory so application data remains self-contained.
+Main, Host, and Runtime JSONL files live together beneath the active runtime profile's `logs/` directory. Development,
+worktree, E2E, Acceptance, and packaged launches therefore keep diagnostics attached to the same isolated userData
+identity as SQLite and Host state.
 
 CLI `logs follow` resets to a 250 ms poll after output and exponentially backs off idle polling to a
 two-second ceiling, avoiding repeated suffix reads and parsing when no new records exist.
