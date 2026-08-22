@@ -225,6 +225,9 @@ function DocumentPaneTab({
                       ? agentTranscriptTabLabel(transcriptTerminal?.title)
                       : path
             }
+            // The full path is a different detail than the filename, not a fuller version of it, so it must not
+            // replace the filename a screen reader announces the way a Terminal's untruncated title does.
+            keepLabelAsAccessibleName
             motionIdentity={tab.id}
             tabId={workTabId(tab.id)}
             paneTabId={tab.id}

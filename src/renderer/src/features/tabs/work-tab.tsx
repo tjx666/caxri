@@ -62,9 +62,14 @@ interface WorkTabProperties {
     icon: 'file' | AgentIconIdentity;
     label: string;
     /**
-     * Untruncated title behind an abbreviated `label`; see `terminalTabLabel`.
+     * Hover/focus detail shown alongside `label`. For a Terminal this is the untruncated title behind an abbreviated
+     * `label` (see `terminalTabLabel`), so it also replaces `label` in the accessible tree — the compression is a real
+     * loss of information a screen reader user needs back. A Document tab's `labelTooltip` is its full path, a
+     * different (not fuller) representation of the same file, so `keepLabelAsAccessibleName` stops it from overriding
+     * the filename a screen reader announces.
      */
     labelTooltip?: string;
+    keepLabelAsAccessibleName?: boolean;
     motionIdentity?: string;
     preview?: boolean;
     status?: ProcessState;
@@ -121,6 +126,7 @@ export function WorkTab({
     icon,
     label,
     labelTooltip,
+    keepLabelAsAccessibleName = false,
     motionIdentity,
     preview = false,
     status,
@@ -157,9 +163,11 @@ export function WorkTab({
     /**
      * `terminalTabLabel` compresses a PTY title to fit the tab, and CSS truncates whatever still overflows. Both losses
      * are visual only: the untouched title stays the tab's accessible name (below) and its tooltip, so a keyboard user
-     * reaches it the same way a pointer user does.
+     * reaches it the same way a pointer user does. `keepLabelAsAccessibleName` opts a caller like a Document tab out of
+     * this swap — see the property's own doc comment.
      */
-    const isLabelAbbreviated = Boolean(labelTooltip) && labelTooltip !== label;
+    const isLabelAbbreviated =
+        Boolean(labelTooltip) && labelTooltip !== label && !keepLabelAsAccessibleName;
     /**
      * Spread rather than written inline because the key has to be _absent_, not `undefined`, whenever the tooltip owns
      * it: Base UI merges the rendered element's own props last, so `id={undefined}` erases the trigger id it writes and
