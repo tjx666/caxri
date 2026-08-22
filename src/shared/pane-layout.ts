@@ -260,6 +260,26 @@ const splitDirections: Record<PaneSplitSide, PaneSplitNode['direction']> = {
 };
 
 /**
+ * Why splitting `tabId` into `targetPaneId` would change nothing, or `undefined` when it would take effect.
+ *
+ * `splitTabIntoPane` returns the identical layout in both blocked cases, which a menu cannot tell apart from a
+ * successful edit. A caller that offers Split as a command has to ask first, or it renders an enabled item that looks
+ * broken when clicked instead of one that explains why it is unavailable.
+ */
+export function paneSplitBlockedReason(
+    layout: PaneLayout,
+    tabId: string,
+    targetPaneId: string,
+): 'missing' | 'only-tab' | 'pane-limit' | undefined {
+    const found = findTab(layout, tabId);
+    if (!found || !findPane(layout, targetPaneId)) return 'missing';
+    // Splitting a pane's only tab off itself would just move the pane sideways.
+    if (found.pane.id === targetPaneId && found.pane.tabs.length === 1) return 'only-tab';
+    if (listPanes(layout).length >= MAX_PANE_LAYOUT_PANES) return 'pane-limit';
+    return undefined;
+}
+
+/**
  * Splits `targetPaneId` and moves the occurrence into the new pane. Dropping a tab on a pane edge is this operation for
  * every kind; `openResource` with `duplicate` is how a document instead gains a second occurrence.
  */
@@ -270,12 +290,9 @@ export function splitTabIntoPane(
     side: PaneSplitSide,
     id: PaneIdFactory = createId,
 ): PaneLayout {
+    if (paneSplitBlockedReason(layout, tabId, targetPaneId)) return layout;
     const found = findTab(layout, tabId);
-    const target = findPane(layout, targetPaneId);
-    if (!found || !target) return layout;
-    // Splitting a pane's only tab off itself would just move the pane sideways.
-    if (found.pane.id === targetPaneId && found.pane.tabs.length === 1) return layout;
-    if (listPanes(layout).length >= MAX_PANE_LAYOUT_PANES) return layout;
+    if (!found) return layout;
     const removed = removeTabFromNode(layout.root, tabId) ?? layout.root;
     if (listPanes({ root: removed }).every((pane) => pane.id !== targetPaneId)) return layout;
     const pane: PaneNode = { type: 'pane', id: id(), tabs: [found.tab], activeTabId: found.tab.id };

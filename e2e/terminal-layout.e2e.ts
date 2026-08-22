@@ -452,6 +452,13 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
         const terminalPanes = running.page.locator('.terminal-pane');
         await expect(terminalPanes).toHaveCount(2);
 
+        /**
+         * Reports `null` for a pane whose xterm has not re-attached its scrollbar yet, rather than throwing.
+         * Playwright's `expect.poll` retries a _failed assertion_ but propagates an exception out of the callback
+         * (`const value = await actual()` sits outside its try), so throwing here ends the poll below on its first tick
+         * — turning "the resize has not settled" into a hard failure whenever the runner is loaded enough that xterm
+         * rebuilds its scrollable element between the resize and the first sample.
+         */
         const readGeometry = () =>
             terminalPanes.evaluateAll((panes) => {
                 return panes.map((pane) => {
@@ -462,11 +469,12 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                             ':scope .xterm-scrollable-element > .xterm-scrollbar.xterm-vertical',
                         )
                         ?.getBoundingClientRect();
-                    if (!screen || !scrollbar) throw new Error('Terminal geometry is unavailable');
-                    return {
-                        edgeGap: paneBounds.right - scrollbar.right,
-                        textGutter: scrollbar.left - screen.right,
-                    };
+                    return screen && scrollbar
+                        ? {
+                              edgeGap: paneBounds.right - scrollbar.right,
+                              textGutter: scrollbar.left - screen.right,
+                          }
+                        : null;
                 });
             });
 
@@ -481,7 +489,8 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                 .poll(async () => {
                     const geometry = await readGeometry();
                     return geometry.every(
-                        ({ edgeGap, textGutter }) => Math.abs(edgeGap) <= 1 && textGutter >= 4,
+                        (pane) =>
+                            pane !== null && Math.abs(pane.edgeGap) <= 1 && pane.textGutter >= 4,
                     );
                 })
                 .toBe(true);
@@ -489,12 +498,14 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
             const geometry = await readGeometry();
 
             for (const [index, pane] of geometry.entries()) {
+                // The poll above only converges once every pane reported geometry, so a gap here is a real defect.
+                expect(pane, `viewport width ${width}px, pane ${index}`).not.toBeNull();
                 expect(
-                    Math.abs(pane.edgeGap),
+                    Math.abs(pane?.edgeGap ?? NaN),
                     `viewport width ${width}px, pane ${index}`,
                 ).toBeLessThanOrEqual(1);
                 expect(
-                    pane.textGutter,
+                    pane?.textGutter ?? NaN,
                     `viewport width ${width}px, pane ${index}`,
                 ).toBeGreaterThanOrEqual(4);
             }
