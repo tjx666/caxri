@@ -6,7 +6,11 @@ import process from 'node:process';
 
 import { once } from 'es-toolkit';
 
+import type { LogEventName } from '../ipc/logging';
+import { logEventCatalog } from '../ipc/logging';
 import { isSecretKey, redactLogValue } from './redaction';
+
+export { logEventCatalog };
 
 /**
  * Node-only structured JSONL logger; never import from src/renderer.
@@ -15,7 +19,7 @@ export interface LogRecord {
     timestamp: string;
     process: 'host' | 'main' | 'runtime';
     level: 'debug' | 'info' | 'warn' | 'error';
-    event: string;
+    event: LogEventName;
     correlationId?: string;
     durationMs?: number;
     /**
@@ -222,7 +226,7 @@ export class StructuredLogger {
                 timestamp: new Date().toISOString(),
                 process: this.processName,
                 level: 'warn',
-                event: 'log.records_dropped',
+                event: logEventCatalog.log.recordsDropped,
                 fields: { droppedRecords: this.droppedRecords },
                 appVersion: this.appVersion,
                 commit: this.commit,
@@ -261,7 +265,7 @@ export class StructuredLogger {
 
     write(
         level: LogRecord['level'],
-        event: string,
+        event: LogEventName,
         options: Pick<LogRecord, 'correlationId' | 'durationMs' | 'fields'> = {},
     ): void {
         if (LOG_LEVELS[level] < LOG_LEVELS[this.minimumLevel]) return;

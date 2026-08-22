@@ -5,6 +5,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 
 import { CaxriError } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type { ProcessExplorerSnapshot } from '../shared/process-explorer';
 import { processExplorerSnapshotSchema } from '../shared/process-explorer';
 import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
@@ -65,8 +66,8 @@ export class ProcessExplorerWindowController {
             this.options.logger.write(
                 'error',
                 kind === 'page-exception'
-                    ? 'process_explorer.page_exception'
-                    : 'process_explorer.unhandled_rejection',
+                    ? logEventCatalog.processExplorer.pageException
+                    : logEventCatalog.processExplorer.unhandledRejection,
                 {
                     fields: {
                         code: kind === 'page-exception' ? 'PAGE_EXCEPTION' : 'UNHANDLED_REJECTION',
@@ -82,7 +83,7 @@ export class ProcessExplorerWindowController {
                 const snapshot = processExplorerSnapshotSchema.parse(
                     await this.options.sampler.snapshot(),
                 );
-                this.options.logger.write('debug', 'process_explorer.sample', {
+                this.options.logger.write('debug', logEventCatalog.processExplorer.sample, {
                     durationMs: performance.now() - startedAt,
                     fields: { processes: snapshot.processes.length },
                 });
@@ -147,12 +148,12 @@ export class ProcessExplorerWindowController {
         });
         window.webContents.on('console-message', (details) => {
             if (details.level !== 'error') return;
-            this.options.logger.write('error', 'process_explorer.console_error', {
+            this.options.logger.write('error', logEventCatalog.processExplorer.consoleError, {
                 fields: consoleErrorLogFields(details),
             });
         });
         window.webContents.on('preload-error', () => {
-            this.options.logger.write('error', 'process_explorer.preload_error', {
+            this.options.logger.write('error', logEventCatalog.processExplorer.preloadError, {
                 fields: { code: 'PRELOAD_ERROR' },
             });
         });
@@ -165,14 +166,18 @@ export class ProcessExplorerWindowController {
             );
             this.rendererCrashTimestampsMs = crashTimestampsMs;
             if (decision.action === 'reload') {
-                this.options.logger.write('warn', 'process_explorer.render_process_gone', {
-                    fields: {
-                        code: 'RENDER_PROCESS_GONE',
-                        reason: details.reason,
-                        crashCount: decision.crashCount,
-                        delayMs: decision.delayMs ?? 0,
+                this.options.logger.write(
+                    'warn',
+                    logEventCatalog.processExplorer.renderProcessGone,
+                    {
+                        fields: {
+                            code: 'RENDER_PROCESS_GONE',
+                            reason: details.reason,
+                            crashCount: decision.crashCount,
+                            delayMs: decision.delayMs ?? 0,
+                        },
                     },
-                });
+                );
                 setTimeout(() => {
                     if (this.window === window && !window.isDestroyed())
                         // `render-process-gone` recovery reload is best-effort: a failed reload
@@ -183,13 +188,17 @@ export class ProcessExplorerWindowController {
                 }, decision.delayMs);
                 return;
             }
-            this.options.logger.write('error', 'process_explorer.render_process_crash_loop', {
-                fields: {
-                    code: 'RENDER_PROCESS_CRASH_LOOP',
-                    reason: details.reason,
-                    crashCount: decision.crashCount,
+            this.options.logger.write(
+                'error',
+                logEventCatalog.processExplorer.renderProcessCrashLoop,
+                {
+                    fields: {
+                        code: 'RENDER_PROCESS_CRASH_LOOP',
+                        reason: details.reason,
+                        crashCount: decision.crashCount,
+                    },
                 },
-            });
+            );
             /**
              * Process Explorer is optional diagnostics, so stop only its failed window. Creating the next window resets
              * crash history and leaves the healthy workbench untouched.

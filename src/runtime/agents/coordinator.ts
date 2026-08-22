@@ -3,6 +3,7 @@ import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
 import { errorMessage } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { AgentOperation, TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
@@ -214,7 +215,7 @@ export class AgentCoordinator {
             /**
              * Process inspection is a recoverable capability miss; direct metadata probing remains available.
              */
-            this.logger.write('warn', 'agent.process_probe_failed', {
+            this.logger.write('warn', logEventCatalog.agent.processProbeFailed, {
                 fields: { terminalId, error: errorMessage(error, 'unknown') },
             });
         } finally {
@@ -274,7 +275,7 @@ export class AgentCoordinator {
             /**
              * A failed probe degrades Agent metadata to unknown; it never interrupts the Runtime.
              */
-            this.logger.write('warn', 'agent.probe_failed', {
+            this.logger.write('warn', logEventCatalog.agent.probeFailed, {
                 fields: {
                     terminalId,
                     error: errorMessage(error, 'unknown'),

@@ -1,5 +1,6 @@
 import type { AgentOutputRecoverySettings, AgentProvider } from '../../shared/agents';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { TerminalTextTail } from './screen';
 
 const MAXIMUM_TAIL_CHARACTERS = 4_096;
@@ -121,12 +122,16 @@ export class AgentOutputRecovery {
             try {
                 await this.evaluate(revision, signature);
             } catch {
-                this.options.logger.write('warn', 'pty.output_recovery_evaluate_failed', {
-                    fields: {
-                        terminalId: this.options.terminalId,
-                        provider: this.options.provider,
+                this.options.logger.write(
+                    'warn',
+                    logEventCatalog.pty.outputRecoveryEvaluateFailed,
+                    {
+                        fields: {
+                            terminalId: this.options.terminalId,
+                            provider: this.options.provider,
+                        },
                     },
-                });
+                );
             }
         }, settings.settleDelayMs);
         this.timer.unref();
@@ -144,7 +149,7 @@ export class AgentOutputRecovery {
             tail = await this.options.readTail(MAXIMUM_TAIL_CHARACTERS);
         } catch {
             this.phase = 'idle';
-            this.options.logger.write('warn', 'pty.output_recovery_tail_failed', {
+            this.options.logger.write('warn', logEventCatalog.pty.outputRecoveryTailFailed, {
                 fields: { terminalId: this.options.terminalId, provider: this.options.provider },
             });
             return;
@@ -168,7 +173,7 @@ export class AgentOutputRecovery {
         );
         if (this.attemptTimes.length >= MAXIMUM_RECOVERIES_PER_WINDOW) {
             this.phase = 'idle';
-            this.options.logger.write('warn', 'pty.output_recovery_rate_limited', {
+            this.options.logger.write('warn', logEventCatalog.pty.outputRecoveryRateLimited, {
                 fields: {
                     terminalId: this.options.terminalId,
                     provider: this.options.provider,
@@ -204,7 +209,7 @@ export class AgentOutputRecovery {
         this.rearmFromOutputAfterEscape(signature);
         this.phase = 'idle';
         if (!this.options.write(CONTINUE)) return;
-        this.options.logger.write('info', 'pty.output_recovery_completed', {
+        this.options.logger.write('info', logEventCatalog.pty.outputRecoveryCompleted, {
             fields: {
                 terminalId: this.options.terminalId,
                 provider: this.options.provider,
@@ -234,12 +239,16 @@ export class AgentOutputRecovery {
                 if (this.handledPattern === handledPattern) this.handledPattern = undefined;
             })
             .catch(() => {
-                this.options.logger.write('warn', 'pty.output_recovery_rearm_tail_failed', {
-                    fields: {
-                        terminalId: this.options.terminalId,
-                        provider: this.options.provider,
+                this.options.logger.write(
+                    'warn',
+                    logEventCatalog.pty.outputRecoveryRearmTailFailed,
+                    {
+                        fields: {
+                            terminalId: this.options.terminalId,
+                            provider: this.options.provider,
+                        },
                     },
-                });
+                );
             });
     }
 
@@ -248,7 +257,7 @@ export class AgentOutputRecovery {
         this.clearTimer();
         this.phase = 'idle';
         if (previousPhase === 'idle' || reason === 'disposed') return;
-        this.options.logger.write('info', 'pty.output_recovery_cancelled', {
+        this.options.logger.write('info', logEventCatalog.pty.outputRecoveryCancelled, {
             fields: {
                 terminalId: this.options.terminalId,
                 provider: this.options.provider,

@@ -9,6 +9,7 @@ import type {
     RuntimeMethodResult,
 } from '../../shared/ipc/methods';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { FileDocument, FileSearchMatch } from '../../shared/types';
 import type { ResolveSessionPath } from './documents';
 import { isTraversalExcludedName } from './ignore-rules';
@@ -263,7 +264,7 @@ export class SearchService {
             truncated: isCanceled ? false : accumulator.truncated,
             canceled: isCanceled,
         };
-        this.logger.write('info', 'file.search', {
+        this.logger.write('info', logEventCatalog.file.search, {
             durationMs: performance.now() - startedAt,
             fields: {
                 sessionId: parameters.sessionId,
@@ -407,7 +408,7 @@ export class SearchService {
     }
 
     private logSkipped(path: string, error: unknown): void {
-        this.logger.write('debug', 'file.search_entry_skipped', {
+        this.logger.write('debug', logEventCatalog.file.searchEntrySkipped, {
             fields: { path, error: errorMessage(error, 'unknown') },
         });
     }

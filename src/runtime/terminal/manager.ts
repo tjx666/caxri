@@ -12,15 +12,14 @@ import {
     readE2EAgentPolicy,
 } from '../../shared/node/e2e-agent-policy';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type {
     TerminalFailureReason,
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '../../shared/types';
-/**
- * Runtime domains expose public root barrels by architecture contract; structure tests reject deep provider imports.
- */
+// Runtime providers use the public domain barrel by architecture contract.
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -52,9 +51,10 @@ import { terminalEnvironment } from './terminal-environment';
 import { createTerminalTitleListener } from './terminal-title';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
+const ptyLogEvents = logEventCatalog.pty;
 
 /**
- * Clears a possibly-unset timer and returns the `undefined` it should be replaced with.
+ * Clears an optional timer and returns its replacement.
  */
 function clearScheduledTimer(timer: NodeJS.Timeout | undefined): undefined {
     if (timer) clearTimeout(timer);
@@ -189,7 +189,7 @@ export class TerminalManager {
                      * Shell integration is optional decoration metadata; startup must retain the ordinary login-shell
                      * path if its resolver becomes unavailable.
                      */
-                    this.logger.write('warn', 'pty.shell_integration_unavailable', {
+                    this.logger.write('warn', ptyLogEvents.shellIntegrationUnavailable, {
                         fields: {
                             terminalId: record.id,
                             error: errorMessage(error, 'unknown'),
@@ -242,7 +242,7 @@ export class TerminalManager {
                     initialSize.rows,
                     {
                         onOverflow: (droppedBytes) =>
-                            this.logger.write('warn', 'pty.screen_backpressure', {
+                            this.logger.write('warn', ptyLogEvents.screenBackpressure, {
                                 fields: { terminalId: record.id, droppedBytes },
                             }),
                         onTitleChange: createTerminalTitleListener(
@@ -266,7 +266,7 @@ export class TerminalManager {
                 await this.onExit(startedLive, exitCode, signal);
             });
             await this.onLifecycleStarted?.(record);
-            this.logger.write('info', 'pty.spawned', {
+            this.logger.write('info', ptyLogEvents.spawned, {
                 durationMs: performance.now() - startedAt,
                 fields: { terminalId: record.id, kind: record.kind },
             });
@@ -284,7 +284,7 @@ export class TerminalManager {
             try {
                 await this.retireLifecycle(record.id);
             } catch (retirementError) {
-                this.logger.write('warn', 'pty.lifecycle_retire_failed', {
+                this.logger.write('warn', ptyLogEvents.lifecycleRetireFailed, {
                     fields: {
                         terminalId: record.id,
                         error: errorMessage(retirementError, 'unknown'),
@@ -293,7 +293,7 @@ export class TerminalManager {
             }
             if (this.database.getTerminal(record.id))
                 this.database.updateTerminalState(record.id, 'failed', failureReason);
-            this.logger.write('error', 'pty.spawn_failed', {
+            this.logger.write('error', ptyLogEvents.spawnFailed, {
                 durationMs: performance.now() - startedAt,
                 fields: {
                     code: wire.code,
@@ -371,7 +371,7 @@ export class TerminalManager {
             live.metricDroppedBytes === 0
         )
             return;
-        this.logger.write(live.metricDroppedBytes > 0 ? 'warn' : 'info', 'pty.throughput', {
+        this.logger.write(live.metricDroppedBytes > 0 ? 'warn' : 'info', ptyLogEvents.throughput, {
             fields: {
                 terminalId: live.record.id,
                 inputBytes: live.metricInputBytes,
@@ -412,11 +412,11 @@ export class TerminalManager {
                 event: 'state.changed',
                 payload: { kind: 'records', sessionIds: [], terminalIds: [live.record.id] },
             });
-            this.logger.write('info', 'pty.exited', {
+            this.logger.write('info', ptyLogEvents.exited, {
                 fields: { terminalId: live.record.id, exitCode, signal: signal ?? null },
             });
         } catch (error) {
-            this.logger.write('warn', 'pty.exit_finalize_failed', {
+            this.logger.write('warn', ptyLogEvents.exitFinalizeFailed, {
                 fields: { terminalId: live.record.id, error: errorMessage(error, 'unknown') },
             });
         }
@@ -516,7 +516,7 @@ export class TerminalManager {
     private retireLifecycleSoon(terminalId: string): void {
         // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget from a synchronous caller, see comment above
         this.retireLifecycle(terminalId).catch((error: unknown) =>
-            this.logger.write('warn', 'pty.lifecycle_retire_failed', {
+            this.logger.write('warn', ptyLogEvents.lifecycleRetireFailed, {
                 fields: { terminalId, error: errorMessage(error, 'unknown') },
             }),
         );
@@ -625,7 +625,7 @@ export class TerminalManager {
         const wasAttached = this.attached.has(terminalId);
         this.attached.add(terminalId);
         const logAttach = (source: 'live' | 'persisted', payloadBytes: number): void =>
-            this.logger.write('info', 'pty.attach', {
+            this.logger.write('info', ptyLogEvents.attach, {
                 fields: attachLogFields({ payloadBytes, size, source, terminalId, wasAttached }),
             });
         if (!live) {

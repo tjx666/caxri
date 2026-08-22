@@ -13,6 +13,7 @@ import {
     sessionRecordSchema,
     terminalRecordSchema,
 } from './domain.js';
+import { logEventNameSchema } from './logging.js';
 
 const noParameters = z.object({}).default({});
 const principalViewSchema = z.enum(['desktop', 'human-cli', 'agent', 'paired-device']);
@@ -162,7 +163,7 @@ export const logQueryParametersSchema = z
     .object({
         afterCursor: z.string().min(1).max(512).optional(),
         correlationId: z.string().min(1).max(200).optional(),
-        event: z.string().min(1).max(200).optional(),
+        event: logEventNameSchema.optional(),
         level: logLevelSchema.optional(),
         limit: z.number().int().min(1).max(100).default(50),
         process: logProcessSchema.optional(),

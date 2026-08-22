@@ -7,6 +7,7 @@ import { errorMessage } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { FileChange } from '../../shared/types';
 import { NATIVE_WATCHER_BACKEND } from '../native-watcher';
 import { isOutsideRoot } from '../path-security';
@@ -164,7 +165,7 @@ export class WatcherService {
         // eslint-disable-next-line unicorn/prefer-await -- see class member docstring above
         const handled = attempt.catch((error: unknown) => {
             if (scope) this.onRootUnavailable?.(scope.sessionId);
-            this.logger.write('warn', 'watcher.setup_failed', {
+            this.logger.write('warn', logEventCatalog.watcher.setupFailed, {
                 fields: {
                     sessionId: scope?.sessionId ?? 'none',
                     error: errorMessage(error, 'unknown watcher error'),
@@ -222,7 +223,7 @@ export class WatcherService {
                 const eventScope = this.watchedScope;
                 if (!eventScope) return;
                 this.onRootUnavailable?.(eventScope.sessionId);
-                this.logger.write('warn', 'watcher.fallback', {
+                this.logger.write('warn', logEventCatalog.watcher.fallback, {
                     fields: {
                         sessionId: eventScope.sessionId,
                         error: errorMessage(error, 'unknown watcher error'),
@@ -257,7 +258,7 @@ export class WatcherService {
             return;
         }
         this.watchHandle = handle;
-        this.logger.write('info', 'watcher.ready', {
+        this.logger.write('info', logEventCatalog.watcher.ready, {
             durationMs: performance.now() - startedAt,
             fields: {
                 sessionId: scope.sessionId,
@@ -397,15 +398,19 @@ export class WatcherService {
                 ...(this.gitIgnoreRulesChanged && { gitIgnoreRulesChanged: true as const }),
             },
         });
-        this.logger.write(this.droppedEvents > 0 ? 'warn' : 'debug', 'watcher.batch', {
-            fields: {
-                sessionId: scope.sessionId,
-                workbenchProjectId: scope.workbenchProjectId,
-                count: this.pendingEvents.size,
-                droppedEvents: this.droppedEvents,
-                gitIgnoreRulesChanged: this.gitIgnoreRulesChanged,
+        this.logger.write(
+            this.droppedEvents > 0 ? 'warn' : 'debug',
+            logEventCatalog.watcher.batch,
+            {
+                fields: {
+                    sessionId: scope.sessionId,
+                    workbenchProjectId: scope.workbenchProjectId,
+                    count: this.pendingEvents.size,
+                    droppedEvents: this.droppedEvents,
+                    gitIgnoreRulesChanged: this.gitIgnoreRulesChanged,
+                },
             },
-        });
+        );
         this.pendingEvents.clear();
         this.droppedEvents = 0;
         this.gitIgnoreRulesChanged = false;
@@ -482,7 +487,7 @@ export class WatcherService {
                     signatures.set(path, fileSignature(await lstat(path)));
                 } catch (error) {
                     if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
-                        this.logger.write('debug', 'watcher.signature_entry_skipped', {
+                        this.logger.write('debug', logEventCatalog.watcher.signatureEntrySkipped, {
                             fields: {
                                 path,
                                 error: errorMessage(error, 'unknown'),

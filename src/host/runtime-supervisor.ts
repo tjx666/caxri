@@ -16,6 +16,7 @@ import { isNonExpiringRuntimeMethod } from '../shared/ipc/request-lifetime';
 import type { RuntimeMessage } from '../shared/ipc/transport';
 import { parseRuntimeMessage, parseRuntimeResult } from '../shared/ipc/transport';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 
 interface PendingRequest {
@@ -119,7 +120,7 @@ export class HostRuntimeSupervisor extends EventTarget {
         try {
             message = parseRuntimeMessage(raw);
         } catch {
-            this.options.logger.write('error', 'host.runtime_message_invalid', {
+            this.options.logger.write('error', logEventCatalog.host.runtimeMessageInvalid, {
                 fields: { code: 'INVALID_RUNTIME_MESSAGE' },
             });
             return;
@@ -197,7 +198,7 @@ export class HostRuntimeSupervisor extends EventTarget {
         }
         this.pending.clear();
         if (this.intentionalStop || this.terminalFailure) return;
-        this.options.logger.write('error', 'host.runtime_exit', {
+        this.options.logger.write('error', logEventCatalog.host.runtimeExit, {
             fields: { code: 'RUNTIME_EXIT', exitCode: code, restartCount: this.restartCount },
         });
         if (this.restartCount >= 3) {
@@ -326,7 +327,7 @@ export class HostRuntimeSupervisor extends EventTarget {
             if (this.child === child) this.onExit(code ?? -1);
         });
         child.on('error', (error) => {
-            this.options.logger.write('error', 'host.runtime_child_error', {
+            this.options.logger.write('error', logEventCatalog.host.runtimeChildError, {
                 fields: { code: 'RUNTIME_CHILD_ERROR', error: error.message },
             });
         });

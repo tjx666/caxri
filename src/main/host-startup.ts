@@ -1,6 +1,7 @@
 import { errorMessage, isCaxriError } from '../shared/ipc/errors';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type { DesktopHostConnection } from './host-connection';
 
 interface HostStartupDialog {
@@ -41,12 +42,12 @@ export async function shouldContinueStartup(options: HostStartupOptions): Promis
     const startedAt = performance.now();
     try {
         await options.supervisor.start();
-        options.logger?.write('info', 'host.attached', {
+        options.logger?.write('info', logEventCatalog.host.attached, {
             durationMs: performance.now() - startedAt,
         });
         return true;
     } catch (error) {
-        options.logger?.write('error', 'host.attach_failed', {
+        options.logger?.write('error', logEventCatalog.host.attachFailed, {
             durationMs: performance.now() - startedAt,
             fields: { error: errorMessage(error, 'unknown') },
         });

@@ -1,5 +1,6 @@
 import { errorMessage } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type { FileService } from './files';
 
 /**
@@ -23,7 +24,7 @@ export function createBackgroundTasks(
         // `project.delete` can call it without becoming `async`; it cannot `await` its own promise.
         // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget helper, see comment above
         files.watchSession(sessionId).catch((error: unknown) =>
-            logger.write('error', 'files.watch_session_failed', {
+            logger.write('error', logEventCatalog.files.watchSessionFailed, {
                 fields: { sessionId: sessionId ?? 'none', error: errorMessage(error, 'unknown') },
             }),
         );
@@ -37,7 +38,7 @@ export function createBackgroundTasks(
         // Same fire-and-forget rationale as `watchSessionInBackground` above.
         // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget helper, see comment above
         restoreInterruptedTerminals(sessionId).catch((error: unknown) =>
-            logger.write('error', 'terminal.restore_interrupted_failed', {
+            logger.write('error', logEventCatalog.terminal.restoreInterruptedFailed, {
                 fields: { sessionId, error: errorMessage(error, 'unknown') },
             }),
         );

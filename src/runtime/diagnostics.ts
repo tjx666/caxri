@@ -8,6 +8,7 @@ import { ZipArchive } from 'archiver';
 
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import { redactLogValue, redactSecrets } from '../shared/node/redaction';
 import type { AppSettings } from '../shared/types';
 import type { CaxriDatabase } from './db';
@@ -319,7 +320,7 @@ export class DiagnosticsService {
             // eslint-disable-next-line unicorn/prefer-await -- sync Promise-executor callback, see comment above
             archive.finalize().catch(() => {});
         });
-        this.logger.write('info', 'diagnostics.exported');
+        this.logger.write('info', logEventCatalog.diagnostics.exported);
         return { path: destination };
     }
 }
