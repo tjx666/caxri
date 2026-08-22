@@ -69,6 +69,12 @@ done
         userDataDir: userData,
         testRootPath: root,
     });
+    page.on('console', (message) => {
+        console.log(`CONSOLE[${message.type()}]:`, message.text());
+    });
+    page.on('pageerror', (error) => {
+        console.log('PAGEERROR:', error.message);
+    });
     try {
         await openAddProjectDialog(page);
         await page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
