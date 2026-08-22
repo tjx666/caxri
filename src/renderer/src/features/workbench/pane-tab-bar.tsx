@@ -397,12 +397,13 @@ export function PaneTabBar({
                 const tabId = event.dataTransfer.getData(PANE_TAB_DRAG_TYPE);
                 if (!tabId) return;
                 event.preventDefault();
-                const tabRects = [
-                    ...(barReference.current?.querySelectorAll<HTMLElement>('[data-pane-tab-id]') ??
-                        []),
-                ]
-                    .filter((element) => element.dataset.paneTabId !== tabId)
-                    .map((element) => element.getBoundingClientRect());
+                const tabElements =
+                    barReference.current?.querySelectorAll<HTMLElement>('[data-pane-tab-id]') ?? [];
+                const tabRects: DOMRect[] = [];
+                for (const element of tabElements) {
+                    if (element.dataset.paneTabId !== tabId)
+                        tabRects.push(element.getBoundingClientRect());
+                }
                 movePaneTab(tabId, pane.id, resolveTabDropIndex(tabRects, event.clientX));
             }}
         >
