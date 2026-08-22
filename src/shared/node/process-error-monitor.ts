@@ -1,5 +1,7 @@
 import process from 'node:process';
 
+import type { LogEventName } from '../ipc/logging';
+import { logEventCatalog } from '../ipc/logging';
 import type { StructuredLogger } from './logger';
 
 export type ProcessErrorWriter = Pick<StructuredLogger, 'write'>;
@@ -22,7 +24,7 @@ interface ProcessErrorMonitorOptions {
 }
 
 interface BufferedProcessError {
-    event: string;
+    event: LogEventName;
     fields: {
         code: string;
         errorType: string;
@@ -31,6 +33,23 @@ interface BufferedProcessError {
 }
 
 const MAX_BUFFERED_PROCESS_ERRORS = 8;
+const processErrorEvents = {
+    host: {
+        uncaughtException: logEventCatalog.host.uncaughtException,
+        unhandledRejection: logEventCatalog.host.unhandledRejection,
+    },
+    main: {
+        uncaughtException: logEventCatalog.main.uncaughtException,
+        unhandledRejection: logEventCatalog.main.unhandledRejection,
+    },
+    runtime: {
+        uncaughtException: logEventCatalog.runtime.uncaughtException,
+        unhandledRejection: logEventCatalog.runtime.unhandledRejection,
+    },
+} as const satisfies Record<
+    ProcessErrorMonitorOptions['processName'],
+    Record<'uncaughtException' | 'unhandledRejection', LogEventName>
+>;
 function errorType(error: unknown): string {
     return error instanceof Error ? error.name : typeof error;
 }
@@ -64,7 +83,9 @@ export function installProcessErrorMonitor(options: ProcessErrorMonitorOptions):
     const listener = (error: unknown, origin: NodeJS.UncaughtExceptionOrigin): void => {
         const isRejection = origin === 'unhandledRejection';
         const record: BufferedProcessError = {
-            event: `${options.processName}.${isRejection ? 'unhandled_rejection' : 'uncaught_exception'}`,
+            event: isRejection
+                ? processErrorEvents[options.processName].unhandledRejection
+                : processErrorEvents[options.processName].uncaughtException,
             fields: {
                 code: isRejection ? 'UNHANDLED_REJECTION' : 'UNCAUGHT_EXCEPTION',
                 errorType: errorType(error),

@@ -22,6 +22,7 @@ import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import { redactLogValue } from '../shared/node/redaction';
 import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '../shared/trusted-domains';
 import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '../shared/types';
@@ -298,7 +299,7 @@ export class ConfigService {
         const detail = errorMessage(error, 'Configuration load failed');
         const message = detail.startsWith(`${fileName}:`) ? detail : `${fileName}: ${detail}`;
         this.errors.set(kind, message);
-        this.logger?.write('warn', 'configuration.load_failed', {
+        this.logger?.write('warn', logEventCatalog.configuration.loadFailed, {
             fields: { kind, error: message },
         });
         this.emitChange(kind, this.sourceFor(kind), message);
@@ -411,7 +412,7 @@ export class ConfigService {
                 // fallback-poll callback above for why `.catch()` is used instead.
                 // eslint-disable-next-line unicorn/prefer-await -- sync timer callback, see comment above
                 this.onExternalChange(path).catch((error: unknown) =>
-                    this.logger?.write('error', 'configuration.watch_change_failed', {
+                    this.logger?.write('error', logEventCatalog.configuration.watchChangeFailed, {
                         fields: { path, error: errorMessage(error, 'unknown') },
                     }),
                 );
@@ -445,7 +446,7 @@ export class ConfigService {
 
     private emitWatcherError(error: Error): void {
         const message = `Configuration watcher failed: ${error.message}`;
-        this.logger?.write('warn', 'configuration.watcher.error', {
+        this.logger?.write('warn', logEventCatalog.configuration.watcherError, {
             fields: { error: error.message },
         });
         for (const kind of ['settings', 'keybindings', 'theme'] satisfies ConfigKind[]) {
@@ -502,7 +503,7 @@ export class ConfigService {
                 try {
                     await this.onExternalChange(path);
                 } catch (error) {
-                    this.logger?.write('error', 'configuration.poll_change_failed', {
+                    this.logger?.write('error', logEventCatalog.configuration.pollChangeFailed, {
                         fields: { path, error: errorMessage(error, 'unknown') },
                     });
                 }
@@ -543,7 +544,7 @@ export class ConfigService {
                 pollOnce: () => this.pollConfigSourcesOnce(),
             },
         });
-        this.logger?.write('info', 'configuration.watcher.ready', {
+        this.logger?.write('info', logEventCatalog.configuration.watcherReady, {
             durationMs: performance.now() - startedAt,
             fields: { backend: this.watchHandle.mode },
         });

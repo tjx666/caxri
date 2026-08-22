@@ -4,7 +4,7 @@ import process from 'node:process';
 
 import type { RuntimeEvent } from '../shared/ipc/events';
 import { startEventLoopMonitor } from '../shared/node/event-loop-monitor';
-import { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 /**
  * Runtime domains expose public root barrels by architecture contract; deep imports are rejected by
@@ -106,7 +106,7 @@ parentPort.onMessage((message) => {
     })().catch(() => {});
 });
 
-logger.write('info', 'runtime.ready', {
+logger.write('info', logEventCatalog.runtime.ready, {
     durationMs: performance.now() - bootStartedAt,
     fields: { pid: process.pid },
 });

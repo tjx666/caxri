@@ -2,6 +2,7 @@ import parcelWatcher from '@parcel/watcher';
 
 import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';
 
 /**
@@ -186,7 +187,7 @@ export class WatchHub {
         }
         if (this.nativePressureWarned) return;
         this.nativePressureWarned = true;
-        this.logger?.write('warn', 'watch_hub.native_pressure', {
+        this.logger?.write('warn', logEventCatalog.watchHub.nativePressure, {
             fields: { native: count, maximum: this.maxNativeSubscriptions },
         });
     }
@@ -221,7 +222,7 @@ export class WatchHub {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see method docstring
         void Promise.resolve(entry.fallback.pollOnce())
             .catch((error: unknown) => {
-                this.logger?.write('warn', 'watch_hub.poll_failed', {
+                this.logger?.write('warn', logEventCatalog.watchHub.pollFailed, {
                     fields: { label: entry.label, error: errorMessage(error, 'unknown') },
                 });
             })
@@ -253,7 +254,7 @@ export class WatchHub {
         this.registrations.add(entry);
         if (this.nativeCount() >= this.maxNativeSubscriptions) {
             this.gateTrips += 1;
-            this.logger?.write('warn', 'watch_hub.native_gate', {
+            this.logger?.write('warn', logEventCatalog.watchHub.nativeGate, {
                 fields: { label: entry.label, maximum: this.maxNativeSubscriptions },
             });
             if (!options.fallback) {
@@ -270,7 +271,7 @@ export class WatchHub {
                 (error, events) => {
                     if (entry.mode === 'disposed') return;
                     if (error) {
-                        this.logger?.write('warn', 'watch_hub.watcher_error', {
+                        this.logger?.write('warn', logEventCatalog.watchHub.watcherError, {
                             fields: {
                                 label: entry.label,
                                 error: errorMessage(error, 'unknown'),
@@ -299,7 +300,7 @@ export class WatchHub {
             this.warnOnNativePressure();
         } catch (error) {
             if (entry.mode === 'disposed' || !this.registrations.has(entry)) return entry;
-            this.logger?.write('warn', 'watch_hub.subscribe_failed', {
+            this.logger?.write('warn', logEventCatalog.watchHub.subscribeFailed, {
                 fields: { label: entry.label, error: errorMessage(error, 'unknown') },
             });
             if (!options.fallback) {
@@ -346,7 +347,7 @@ export class WatchHub {
         entry.fallbackActive = true;
         entry.mode = 'polling';
         if (error !== undefined)
-            this.logger?.write('warn', 'watch_hub.fallback', {
+            this.logger?.write('warn', logEventCatalog.watchHub.fallback, {
                 fields: { label: entry.label, error: errorMessage(error, 'unknown') },
             });
         const subscription = entry.subscription;
@@ -358,7 +359,7 @@ export class WatchHub {
         try {
             await entry.fallback.activate?.();
         } catch (activationError) {
-            this.logger?.write('warn', 'watch_hub.fallback_activation_failed', {
+            this.logger?.write('warn', logEventCatalog.watchHub.fallbackActivationFailed, {
                 fields: {
                     label: entry.label,
                     error: errorMessage(activationError, 'unknown'),

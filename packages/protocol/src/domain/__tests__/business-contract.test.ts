@@ -5,6 +5,7 @@ import {
     businessInternalMethods,
     businessMethods,
     logQueryParametersSchema,
+    logQueryRecordSchema,
     projectQuerySchema,
     settingsPatchChangeSchema,
     settingsPatchParametersSchema,
@@ -107,6 +108,23 @@ describe('logQueryParametersSchema', () => {
     it('rejects a limit outside the allowed range', () => {
         expect(logQueryParametersSchema.safeParse({ limit: 0 }).success).toBe(false);
         expect(logQueryParametersSchema.safeParse({ limit: 101 }).success).toBe(false);
+    });
+
+    it('accepts registered event filters and rejects unknown events', () => {
+        expect(logQueryParametersSchema.safeParse({ event: 'runtime.ready' }).success).toBe(true);
+        expect(logQueryParametersSchema.safeParse({ event: 'runtime.typo' }).success).toBe(false);
+    });
+
+    it('keeps returned event names open for legacy and external JSONL records', () => {
+        expect(
+            logQueryRecordSchema.safeParse({
+                id: 'record-1',
+                timestamp: '2026-08-22T00:00:00.000Z',
+                process: 'runtime',
+                level: 'info',
+                event: 'external.legacy_event',
+            }).success,
+        ).toBe(true);
     });
 });
 

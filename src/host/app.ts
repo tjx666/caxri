@@ -18,7 +18,7 @@ import type { CommandExecutionContext } from '../shared/ipc/principal';
 import { hasRequiredCapabilities } from '../shared/ipc/principal';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import { startEventLoopMonitor } from '../shared/node/event-loop-monitor';
-import { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
 import { HostDesktopRouter } from './desktop-router';
@@ -212,12 +212,16 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         if (event.event === 'terminal.exit')
             agentEndpoints.retireTerminal(event.payload.terminalId);
         else if (event.event === 'runtime.status')
-            logger.write(event.payload.status === 'failed' ? 'error' : 'info', 'runtime.status', {
-                fields: {
-                    status: event.payload.status,
-                    restartCount: event.payload.restartCount,
+            logger.write(
+                event.payload.status === 'failed' ? 'error' : 'info',
+                logEventCatalog.runtime.status,
+                {
+                    fields: {
+                        status: event.payload.status,
+                        restartCount: event.payload.restartCount,
+                    },
                 },
-            });
+            );
         server?.broadcast(isTransientRuntimeEvent(event) ? event : journal.publish(event));
     };
     supervisor.onEvent(deliver);
@@ -226,14 +230,14 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     const stop = (reason = 'requested'): Promise<void> => {
         isMutationAdmissionClosed = true;
         stopPromise ??= (async () => {
-            logger.write('info', 'host.stopping', { fields: { reason } });
+            logger.write('info', logEventCatalog.host.stopping, { fields: { reason } });
             stopEventLoopMonitor();
             await server?.close();
             agentInbox.close();
             await providerMessaging.close();
             await supervisor.shutdown();
             await lease.release();
-            logger.write('info', 'host.stopped', { fields: { reason } });
+            logger.write('info', logEventCatalog.host.stopped, { fields: { reason } });
         })();
         return stopPromise;
     };
@@ -354,7 +358,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                         method: 'terminal.sendInternal',
                         params: request.params,
                     });
-                    logger.write('info', 'terminal.human_steer', {
+                    logger.write('info', logEventCatalog.terminal.humanSteer, {
                         fields: {
                             terminalId: request.params.terminalId,
                             byteLength: Buffer.byteLength(request.params.text, 'utf8'),
@@ -527,7 +531,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                             try {
                                 await stop('command');
                             } catch (error) {
-                                logger.write('error', 'host.stop_failed', {
+                                logger.write('error', logEventCatalog.host.stopFailed, {
                                     fields: {
                                         message:
                                             error instanceof Error ? error.message : String(error),
@@ -596,7 +600,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             logger,
             manifest: lease.manifest,
             onClientCountChanged: (clientCount) =>
-                logger.write('info', 'host.client_count', { fields: { clientCount } }),
+                logger.write('info', logEventCatalog.host.clientCount, { fields: { clientCount } }),
             onDesktopUnavailable: async () => {
                 try {
                     await supervisor.request('terminal.detachAll');
@@ -618,7 +622,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     try {
                         await stop('command');
                     } catch (error) {
-                        logger.write('error', 'host.stop_failed', {
+                        logger.write('error', logEventCatalog.host.stopFailed, {
                             fields: {
                                 message: error instanceof Error ? error.message : String(error),
                             },
@@ -657,7 +661,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         });
         await server.start();
         await lease.publish();
-        logger.write('info', 'host.ready', {
+        logger.write('info', logEventCatalog.host.ready, {
             durationMs: Date.now() - startedAt,
             fields: { pid: process.pid, profileId: lease.manifest.profileId },
         });

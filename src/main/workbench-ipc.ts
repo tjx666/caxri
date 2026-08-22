@@ -6,6 +6,7 @@ import { CaxriError, toWireError } from '../shared/ipc/errors';
 import type { CaxriReply } from '../shared/ipc/transport';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '../shared/renderer-error';
 import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 
@@ -33,8 +34,8 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             ?.write(
                 'error',
                 rawKind === 'page-exception'
-                    ? 'renderer.page_exception'
-                    : 'renderer.unhandled_rejection',
+                    ? logEventCatalog.renderer.pageException
+                    : logEventCatalog.renderer.unhandledRejection,
                 {
                     fields: {
                         code:
@@ -67,7 +68,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
              * In-flight reads can outlive the window once quit closes the Host; the consumer is already gone.
              */
             if (!reply.ok && !options.isQuitting())
-                options.logger()?.write('error', 'ipc.request_failed', {
+                options.logger()?.write('error', logEventCatalog.ipc.requestFailed, {
                     fields: { code: reply.error.code, error: reply.error.message },
                 });
             return reply;
@@ -77,7 +78,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
              */
             const wire = toWireError(error);
             if (!isTrustedRenderer || !options.isQuitting())
-                options.logger()?.write('error', 'ipc.request_failed', {
+                options.logger()?.write('error', logEventCatalog.ipc.requestFailed, {
                     fields: { code: wire.code, error: wire.message },
                 });
             return {

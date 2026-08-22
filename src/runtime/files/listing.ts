@@ -9,6 +9,7 @@ import type {
 import { MAX_FILE_BROWSE_ENTRIES } from '../../shared/ipc/methods';
 import { AsyncSemaphore, mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { FileEntry } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import type { ResolveSessionPath } from './documents';
@@ -145,7 +146,7 @@ export class ListingService {
                 a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
             )
             .slice(0, MAX_FILE_BROWSE_ENTRIES);
-        this.logger.write('info', 'file.browse', {
+        this.logger.write('info', logEventCatalog.file.browse, {
             durationMs: performance.now() - startedAt,
             fields: {
                 sessionId,
@@ -207,7 +208,7 @@ export class ListingService {
         const sorted = result.toSorted((a, b) =>
             a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
         );
-        this.logger.write('info', 'file.list', {
+        this.logger.write('info', logEventCatalog.file.list, {
             durationMs: performance.now() - startedAt,
             fields: { sessionId, path: relative(root, path) || '.', entryCount: sorted.length },
         });
@@ -227,7 +228,7 @@ export class ListingService {
         try {
             return await this.decorateGitIgnored(sessionId, directory, names);
         } catch (error) {
-            this.logger.write('debug', 'file.git_ignore_unavailable', {
+            this.logger.write('debug', logEventCatalog.file.gitIgnoreUnavailable, {
                 fields: { directory, error: errorMessage(error, 'unknown') },
             });
             return { ignoredNames: new Set(), rulePaths: [] };
@@ -246,7 +247,7 @@ export class ListingService {
             stats = await lstat(entryPath);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
-                this.logger.write('debug', 'file.list_entry_skipped', {
+                this.logger.write('debug', logEventCatalog.file.listEntrySkipped, {
                     fields: {
                         path: entryPath,
                         error: errorMessage(error, 'unknown'),

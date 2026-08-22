@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 
 import { errorMessage } from '../shared/ipc/errors';
+import { logEventCatalog } from '../shared/node/logger';
 /**
  * Runtime domain boundaries require cross-domain dependencies to enter through the owning domain root.
  */
@@ -49,7 +50,7 @@ export async function createRootServices({
 }: RuntimeDependencies) {
     const database = new CaxriDatabase(join(userDataPath, 'caxri.db'), {
         onSessionStateRepair: ({ reason, sessionId, stateVersion }) =>
-            logger.write('warn', 'db.session_state_repaired', {
+            logger.write('warn', logEventCatalog.database.sessionStateRepaired, {
                 fields: { reason, sessionId, stateVersion },
             }),
     });
@@ -103,7 +104,7 @@ export async function createRootServices({
             onRootUnavailable: (sessionId) =>
                 // eslint-disable-next-line unicorn/prefer-await -- sync callback signature
                 workbenchRoots.validateSession(sessionId).catch((error: unknown) =>
-                    logger.write('error', 'workbench_roots.validate_session_failed', {
+                    logger.write('error', logEventCatalog.workbenchRoots.validateSessionFailed, {
                         fields: { sessionId, error: errorMessage(error, 'unknown') },
                     }),
                 ),
