@@ -6,6 +6,7 @@ import process from 'node:process';
 
 import { agentProviderCatalog } from '../shared/agents';
 import { CaxriError, errorMessage } from '../shared/ipc/errors';
+import { logEventCatalog } from '../shared/node/logger';
 import { visiblePaneTerminalIds } from '../shared/pane-layout';
 import type {
     AgentProvider,
@@ -63,7 +64,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             // `setRootChangedHandler` takes a synchronous callback, so this cannot become `await`.
             // eslint-disable-next-line unicorn/prefer-await -- sync callback signature; see comment above
             files.refreshWatchSession(sessionId).catch((error: unknown) =>
-                logger.write('error', 'files.refresh_watch_session_failed', {
+                logger.write('error', logEventCatalog.files.refreshWatchSessionFailed, {
                     fields: { sessionId, error: errorMessage(error, 'unknown') },
                 }),
             );
@@ -106,7 +107,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             try {
                 await agentSettingsReconcile;
             } catch (error: unknown) {
-                logger.write('warn', 'agent.integration_reconcile_failed', {
+                logger.write('warn', logEventCatalog.agent.integrationReconcileFailed, {
                     fields: { error: errorMessage(error, 'unknown') },
                 });
             }
@@ -120,7 +121,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     try {
         shellIntegration = await ShellIntegrationService.create(userDataPath);
     } catch (error: unknown) {
-        logger.write('warn', 'pty.shell_integration_unavailable', {
+        logger.write('warn', logEventCatalog.pty.shellIntegrationUnavailable, {
             fields: { error: error instanceof Error ? error.message : String(error) },
         });
     }
@@ -370,7 +371,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                             'failed',
                             'working_directory_unavailable',
                         );
-                        logger.write('warn', 'terminal.restore_cwd_rejected', {
+                        logger.write('warn', logEventCatalog.terminal.restoreCwdRejected, {
                             fields: { terminalId: terminal.id },
                         });
                     }

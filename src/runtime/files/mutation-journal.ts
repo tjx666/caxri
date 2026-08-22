@@ -6,6 +6,7 @@ import { fileMutationOperationSchema } from '../../shared/ipc/domain';
 import { CaxriError, errorMessage, isCaxriError } from '../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { FileMutationOperation, MovedFileEntry, MutableFileEntry } from '../../shared/types';
 import { atomicWrite } from '../atomic-file';
 
@@ -184,7 +185,7 @@ export class FileMutationJournal {
             isRecovered = true;
         }
         if (isRecovered && finalPhases.has(operation.phase))
-            this.logger.write('info', 'file.operation_recovered', {
+            this.logger.write('info', logEventCatalog.file.operationRecovered, {
                 durationMs: operation.updatedAt - operation.startedAt,
                 fields: {
                     operationId: operation.id,
@@ -447,9 +448,13 @@ export class FileMutationJournal {
                 // so the rejection is deliberately observed through `.catch()` instead.
                 // eslint-disable-next-line unicorn/prefer-await -- see comment above
                 retryReference.current?.().catch((error: unknown) => {
-                    this.logger.write('error', 'file.operation_completion_retry_failed', {
-                        fields: { operationId, error: errorMessage(error, 'unknown') },
-                    });
+                    this.logger.write(
+                        'error',
+                        logEventCatalog.file.operationCompletionRetryFailed,
+                        {
+                            fields: { operationId, error: errorMessage(error, 'unknown') },
+                        },
+                    );
                 });
             }, delay);
         };
@@ -503,7 +508,7 @@ export class FileMutationJournal {
                     return;
                 }
                 pending.attempt += 1;
-                this.logger.write('warn', 'file.operation_completion_retry', {
+                this.logger.write('warn', logEventCatalog.file.operationCompletionRetry, {
                     fields: {
                         operationId,
                         attempt: pending.attempt,
@@ -525,7 +530,7 @@ export class FileMutationJournal {
         this.emit({ event: 'files.operationChanged', payload: snapshot });
         this.logger.write(
             snapshot.phase === 'failed' || snapshot.phase === 'canceled' ? 'warn' : 'info',
-            'file.operation_phase',
+            logEventCatalog.file.operationPhase,
             {
                 durationMs: snapshot.updatedAt - snapshot.startedAt,
                 fields: {
@@ -565,7 +570,7 @@ export class FileMutationJournal {
                 )
                     // eslint-disable-next-line unicorn/prefer-await -- see comment above
                     .catch((error: unknown) => {
-                        this.logger.write('error', 'file.operation_cancel_failed', {
+                        this.logger.write('error', logEventCatalog.file.operationCancelFailed, {
                             fields: {
                                 operationId: operation.id,
                                 error: errorMessage(error, 'unknown'),
@@ -589,7 +594,7 @@ export class FileMutationJournal {
                         path: error.expectedResult.path,
                     };
                     this.scheduleCompletionRetry(operation.id, result, error.expectedResult);
-                    this.logger.write('error', 'file.operation_completion_pending', {
+                    this.logger.write('error', logEventCatalog.file.operationCompletionPending, {
                         durationMs: this.now() - operation.startedAt,
                         fields: {
                             operationId: operation.id,
@@ -623,7 +628,7 @@ export class FileMutationJournal {
                  */
                 if (current?.phase === 'staged') this.scheduleCompletionRetry(operation.id, result);
                 else await this.fail(operation.id, error);
-                this.logger.write('error', 'file.operation_completion_pending', {
+                this.logger.write('error', logEventCatalog.file.operationCompletionPending, {
                     durationMs: this.now() - operation.startedAt,
                     fields: {
                         operationId: operation.id,

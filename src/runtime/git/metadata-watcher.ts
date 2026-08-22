@@ -4,6 +4,7 @@ import { basename, dirname, relative, resolve, sep } from 'node:path';
 import type parcelWatcher from '@parcel/watcher';
 
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import { isOutsideRoot } from '../path-security';
 import type { WatchHandle } from '../watch-hub';
 import { WatchHub } from '../watch-hub';
@@ -255,7 +256,7 @@ export class GitMetadataWatcher {
         }
         entry.handle = handle;
         if (handle.mode === 'native')
-            this.options.logger.write('debug', 'git.metadata_watcher_ready', {
+            this.options.logger.write('debug', logEventCatalog.git.metadataWatcherReady, {
                 fields: { repositories: this.repositories.size, worktreeRoots: roots.length },
             });
     }

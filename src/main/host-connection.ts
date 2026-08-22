@@ -27,6 +27,7 @@ import { computeBuildFingerprint } from '../shared/node/build-fingerprint';
 import type { E2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { e2eAgentPolicyEnvironment } from '../shared/node/e2e-agent-policy';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type { HostConnectionState } from './host-connection-state';
 import { initialHostConnectionState, transitionHostConnection } from './host-connection-state';
 import type { HostBuildIdentity } from './host-staleness';
@@ -148,7 +149,7 @@ export class DesktopHostConnection extends EventTarget {
                     this.dispatchEvent(new CustomEvent<RuntimeEvent>('event', { detail: event }));
                 },
                 onError: (error) =>
-                    this.options.logger.write('error', 'host.event_recovery_failed', {
+                    this.options.logger.write('error', logEventCatalog.host.eventRecoveryFailed, {
                         fields: {
                             error:
                                 error instanceof Error ? error.message : 'Unknown recovery error',
@@ -245,7 +246,7 @@ export class DesktopHostConnection extends EventTarget {
             };
             if (isHostBuildStale(buildIdentity, status)) {
                 if (isFinalAttempt || this.hasReplacedStaleHost) {
-                    this.options.logger.write('warn', 'host.version_mismatch', {
+                    this.options.logger.write('warn', logEventCatalog.host.versionMismatch, {
                         fields: skewFields,
                     });
                 } else {
@@ -253,7 +254,7 @@ export class DesktopHostConnection extends EventTarget {
                      * Live PTYs die with the stale Host, which is the intended trade: silently serving Terminals from
                      * an older build is the failure mode this replaces.
                      */
-                    this.options.logger.write('warn', 'host.stale_build_replaced', {
+                    this.options.logger.write('warn', logEventCatalog.host.staleBuildReplaced, {
                         fields: skewFields,
                     });
                     this.hasReplacedStaleHost = true;
@@ -284,7 +285,7 @@ export class DesktopHostConnection extends EventTarget {
             reason: reason === 'replaced' ? 'replaced' : 'transport',
         });
         if (reason === 'replaced') {
-            this.options.logger.write('warn', 'host.desktop_lease_replaced', {});
+            this.options.logger.write('warn', logEventCatalog.host.desktopLeaseReplaced, {});
             this.dispatchEvent(
                 new CustomEvent<RuntimeEvent>('event', {
                     detail: {
@@ -295,7 +296,7 @@ export class DesktopHostConnection extends EventTarget {
             );
             return;
         }
-        this.options.logger.write('warn', 'host.connection_lost', {});
+        this.options.logger.write('warn', logEventCatalog.host.connectionLost, {});
         this.ensureReconnectLoop();
     }
 
@@ -329,7 +330,7 @@ export class DesktopHostConnection extends EventTarget {
                 // eslint-disable-next-line no-await-in-loop -- each attempt must settle before the next backoff.
                 await this.start();
             } catch (error) {
-                this.options.logger.write('warn', 'host.reconnect_failed', {
+                this.options.logger.write('warn', logEventCatalog.host.reconnectFailed, {
                     fields: { attempt, error: errorMessage(error, 'unknown') },
                 });
                 continue;
@@ -341,7 +342,7 @@ export class DesktopHostConnection extends EventTarget {
             const recovering = this.lifecycle;
             const downtimeMs = Date.now() - outageStartedAtMs;
             const isHostReplaced = recovering.hostContinuity === 'replaced';
-            this.options.logger.write('info', 'host.reconnected', {
+            this.options.logger.write('info', logEventCatalog.host.reconnected, {
                 fields: { attempt, downtimeMs, isHostReplaced },
             });
             // Re-announce Renderer readiness so the replacement Host resumes delivering
@@ -358,7 +359,7 @@ export class DesktopHostConnection extends EventTarget {
                     // eslint-disable-next-line no-await-in-loop -- ordered readiness barrier for this attempt.
                     await this.events?.start();
                 } catch (error) {
-                    this.options.logger.write('error', 'host.desktop_ready_failed', {
+                    this.options.logger.write('error', logEventCatalog.host.desktopReadyFailed, {
                         fields: { error: errorMessage(error, 'unknown') },
                     });
                 }

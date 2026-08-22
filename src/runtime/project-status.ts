@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { CaxriError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type {
     GitRepositorySummary as GitRepoSummary,
     ProjectStatusCheck,
@@ -303,7 +304,7 @@ export class ProjectStatusService {
         const operation = projectStatusCommandOperation(command, arguments_);
         try {
             const result = await this.runner(command, arguments_, cwd);
-            this.logger.write('debug', 'project_status.cli', {
+            this.logger.write('debug', logEventCatalog.projectStatus.cli, {
                 durationMs: performance.now() - startedAt,
                 fields: { command, operation, result: 'success' },
             });
@@ -311,10 +312,14 @@ export class ProjectStatusService {
         } catch (error) {
             const failureKind =
                 error instanceof ProjectStatusCliError ? error.kind : ('other' as const);
-            this.logger.write(isNoPullRequest(error) ? 'debug' : 'warn', 'project_status.cli', {
-                durationMs: performance.now() - startedAt,
-                fields: { command, operation, result: 'failure', failureKind },
-            });
+            this.logger.write(
+                isNoPullRequest(error) ? 'debug' : 'warn',
+                logEventCatalog.projectStatus.cli,
+                {
+                    durationMs: performance.now() - startedAt,
+                    fields: { command, operation, result: 'failure', failureKind },
+                },
+            );
             throw error;
         }
     }
@@ -359,7 +364,10 @@ export class ProjectStatusService {
                 }
             } catch (error) {
                 if (!isNoPullRequest(error)) {
-                    this.logger.write('debug', 'project_status.overview_github_unavailable');
+                    this.logger.write(
+                        'debug',
+                        logEventCatalog.projectStatus.overviewGithubUnavailable,
+                    );
                 }
             }
         }
@@ -408,7 +416,7 @@ export class ProjectStatusService {
                 context.repo,
             ]),
         );
-        this.logger.write('debug', 'project_status.local', {
+        this.logger.write('debug', logEventCatalog.projectStatus.local, {
             durationMs: performance.now() - startedAt,
             fields: { repositories: repositories.length },
         });
@@ -686,17 +694,21 @@ export class ProjectStatusService {
                     refreshToken: this.summaries.get(sessionId)?.refreshToken,
                     value,
                 });
-                this.logger.write(hasFailures ? 'warn' : 'info', 'project_status.refresh', {
-                    durationMs: performance.now() - startedAt,
-                    fields: {
-                        repositories: repositories.length,
-                        result: hasFailures ? 'failure' : 'success',
+                this.logger.write(
+                    hasFailures ? 'warn' : 'info',
+                    logEventCatalog.projectStatus.refresh,
+                    {
+                        durationMs: performance.now() - startedAt,
+                        fields: {
+                            repositories: repositories.length,
+                            result: hasFailures ? 'failure' : 'success',
+                        },
                     },
-                });
+                );
                 this.options.emit?.({ event: 'projectStatus.changed', payload: { sessionId } });
             });
         } catch (error) {
-            this.logger.write('error', 'project_status.refresh_failed', {
+            this.logger.write('error', logEventCatalog.projectStatus.refreshFailed, {
                 fields: { code: error instanceof CaxriError ? error.code : 'INTERNAL' },
             });
         }
@@ -727,7 +739,7 @@ export class ProjectStatusService {
             // eslint-disable-next-line no-void -- background refresh logs its own failure
             void this.refreshSummary(sessionId, prepared);
         }
-        this.logger.write('info', 'project_status.summary', {
+        this.logger.write('info', logEventCatalog.projectStatus.summary, {
             durationMs: performance.now() - startedAt,
             fields: { repositories: prepared.repositories.length, source },
         });

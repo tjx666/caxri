@@ -10,6 +10,7 @@ import type {
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import { isExistingPath } from '../../shared/node/fs';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import { isSameOrInside } from '../path-security';
 import type { ResolveSessionPath } from './documents';
 import { isStagedCreatePersistenceError } from './mutation-journal';
@@ -245,7 +246,7 @@ export class FileMutationService {
                      */
                     // eslint-disable-next-line no-await-in-loop -- see comment above the loop
                     await rename(source.path, targetPath);
-                    this.logger.write('info', 'file.moved', {
+                    this.logger.write('info', logEventCatalog.file.moved, {
                         fields: {
                             sessionId,
                             from: relative(source.root.path, source.path),
@@ -402,7 +403,7 @@ export class FileMutationService {
             } finally {
                 release();
             }
-            this.logger.write('info', 'file.created', {
+            this.logger.write('info', logEventCatalog.file.created, {
                 fields: {
                     sessionId: parameters.sessionId,
                     kind: parameters.kind,
@@ -497,7 +498,7 @@ export class FileMutationService {
                             },
                         );
                         this.copyTree.assertCopyDeadline(startedAt, controller.signal);
-                        this.logger.write('info', 'file.copied', {
+                        this.logger.write('info', logEventCatalog.file.copied, {
                             durationMs: performance.now() - observedAt,
                             fields: {
                                 sessionId: parameters.sessionId,
@@ -516,7 +517,7 @@ export class FileMutationService {
                             continue;
                         if (createdTargets.length > 0) {
                             isPartialCopyPreserved = true;
-                            this.logger.write('warn', 'file.copy_partial_preserved', {
+                            this.logger.write('warn', logEventCatalog.file.copyPartialPreserved, {
                                 fields: { entryCount: createdTargets.length },
                             });
                         }
@@ -534,7 +535,7 @@ export class FileMutationService {
                 clearTimeout(deadline);
             }
         } catch (error) {
-            this.logger.write('warn', 'file.copy_failed', {
+            this.logger.write('warn', logEventCatalog.file.copyFailed, {
                 durationMs: performance.now() - observedAt,
                 fields: {
                     sessionId: parameters.sessionId,

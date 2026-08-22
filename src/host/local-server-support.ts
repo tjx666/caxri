@@ -13,12 +13,14 @@ import type {
     LocalServerReply,
 } from '../shared/ipc/local-transport';
 import { localServerDesktopLeaseRevokedSchema } from '../shared/ipc/local-transport';
+import type { LogEventName } from '../shared/ipc/logging';
 import type { RuntimeRequest } from '../shared/ipc/methods';
 import { getMethodSpec } from '../shared/ipc/methods';
 import type { CommandExecutionContext } from '../shared/ipc/principal';
 import type { CommandReplyEnvelope } from '../shared/ipc/transport';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { LogRecord } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 
 export const MAX_IN_FLIGHT_REQUESTS = 64;
 /**
@@ -68,7 +70,7 @@ const REQUEST_TOTAL_WARN_MS = 5_000;
 interface HostRequestLogSink {
     write(
         level: LogRecord['level'],
-        event: string,
+        event: LogEventName,
         options?: Pick<LogRecord, 'correlationId' | 'durationMs' | 'fields'>,
     ): void;
 }
@@ -100,7 +102,7 @@ export function logHostRequestOutcome(
         ...(timing && { queueDepth: timing.queueDepth }),
     };
     if (reply.ok) {
-        logger.write(isSlow ? 'warn' : 'debug', 'ipc.request', {
+        logger.write(isSlow ? 'warn' : 'debug', logEventCatalog.ipc.request, {
             correlationId: request.id,
             durationMs,
             fields,
@@ -111,7 +113,7 @@ export function logHostRequestOutcome(
      * `warn`, not `error`: forwarded failures are already error-logged where they fault (Runtime/Desktop); this entry
      * adds the Host-side relay view (queue wait, principal) without duplicating the error beacon.
      */
-    logger.write('warn', 'ipc.request_failed', {
+    logger.write('warn', logEventCatalog.ipc.requestFailed, {
         correlationId: request.id,
         durationMs,
         fields: { ...fields, code: reply.error.code, error: reply.error.message },

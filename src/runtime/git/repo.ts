@@ -6,6 +6,7 @@ import { MAX_GIT_STATUS_FILES } from '../../shared/ipc/domain';
 import { CaxriError } from '../../shared/ipc/errors';
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type {
     GitFileStatus,
     GitRepositorySummary as GitRepoSummary,
@@ -377,7 +378,7 @@ export class GitRepoService {
         const summary = await this.produceSummary(sessionId, trace, {
             force: reason === 'refresh',
         });
-        this.options.logger.write('info', 'git.summary', {
+        this.options.logger.write('info', logEventCatalog.git.summary, {
             durationMs: performance.now() - startedAt,
             fields: {
                 ...trace,
@@ -647,7 +648,7 @@ export class GitRepoService {
         if (isForce) this.refreshNonces.set(sessionId, refresh);
         const key = `${sessionId}#${refresh}`;
         if (this.summaries.has(key))
-            this.options.logger.write('debug', 'git.summary', {
+            this.options.logger.write('debug', logEventCatalog.git.summary, {
                 fields: { outcome: 'joined', reason: isForce ? 'refresh' : 'request' },
             });
         return this.summaries.run(key, () =>

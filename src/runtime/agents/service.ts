@@ -3,6 +3,7 @@ import process from 'node:process';
 import type { AgentLaunchSettings, AgentProvider } from '../../shared/agents';
 import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { AgentActivityState, AgentSnapshot, SessionAttentionKind } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import type { AgentEnvironment, AgentSnapshotContext } from './contract';
@@ -103,7 +104,7 @@ export class AgentService {
         return this.requests.run(snapshotRequestKey(provider, resolvedContext), async () => {
             const startedAt = performance.now();
             const snapshot = await this.adapters[provider].snapshot(resolvedContext);
-            this.logger?.write('info', 'agent.probe', {
+            this.logger?.write('info', logEventCatalog.agent.probe, {
                 durationMs: performance.now() - startedAt,
                 fields: { provider, available: snapshot.available },
             });

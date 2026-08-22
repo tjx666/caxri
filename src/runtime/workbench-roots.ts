@@ -9,6 +9,7 @@ import type {
 import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type {
     AgentProvider,
     NewWorktreeBehavior,
@@ -27,6 +28,7 @@ const MAX_CANDIDATES = 256;
 const MAX_PENDING_DELETION_VALIDATIONS = 256;
 const MAX_PROVENANCE_BASELINES = 256;
 const SHELL_VALIDATION_SETTLE_MS = 100;
+const workbenchRootLogEvents = logEventCatalog.workbenchRoot;
 
 interface WorkbenchCandidate {
     candidateId: string;
@@ -101,7 +103,7 @@ export class WorkbenchRootService {
             capacity: MAX_PENDING_DELETION_VALIDATIONS,
             delayMs: SHELL_VALIDATION_SETTLE_MS,
             onCapacity: () =>
-                this.options.logger.write('warn', 'workbench_root.validation_dropped', {
+                this.options.logger.write('warn', workbenchRootLogEvents.validationDropped, {
                     fields: { reason: 'capacity' },
                 }),
             run: (sessionIds) => this.runQueued(() => this.validateSessions(sessionIds)),
@@ -188,7 +190,7 @@ export class WorkbenchRootService {
             .then(() => {})
             .catch((error: unknown) => {
                 if (!this.closed)
-                    this.options.logger.write('warn', 'workbench_root.topology_failed', {
+                    this.options.logger.write('warn', workbenchRootLogEvents.topologyFailed, {
                         fields: { error: errorMessage(error, 'unknown') },
                     });
             });
@@ -276,7 +278,7 @@ export class WorkbenchRootService {
             },
         });
         if (fallbackReason)
-            this.options.logger.write('warn', 'workbench_root.fallback', {
+            this.options.logger.write('warn', workbenchRootLogEvents.fallback, {
                 fields: { reason: fallbackReason, sessionId: session.id },
             });
     }
@@ -370,7 +372,7 @@ export class WorkbenchRootService {
                     repositoryKey: topology.repositoryKey,
                     rootPaths: new Set(topology.worktrees.map(({ rootPath }) => rootPath)),
                 });
-                this.options.logger.write('debug', 'workbench_root.provenance_primed', {
+                this.options.logger.write('debug', workbenchRootLogEvents.provenancePrimed, {
                     durationMs: performance.now() - startedAt,
                     fields: {
                         generation: scope.ref.generation,
@@ -380,9 +382,12 @@ export class WorkbenchRootService {
                 });
                 return true;
             } catch (error) {
-                this.options.logger.write('debug', 'workbench_root.provenance_unavailable', {
+                this.options.logger.write('debug', workbenchRootLogEvents.provenanceUnavailable, {
                     durationMs: performance.now() - startedAt,
-                    fields: { error: errorMessage(error, 'unknown'), terminalId: scope.terminalId },
+                    fields: {
+                        error: errorMessage(error, 'unknown'),
+                        terminalId: scope.terminalId,
+                    },
                 });
                 return false;
             }
@@ -580,7 +585,7 @@ export class WorkbenchRootService {
             identity,
         );
         this.publishChange(selected, reason);
-        this.options.logger.write('info', 'workbench_root.selected', {
+        this.options.logger.write('info', workbenchRootLogEvents.selected, {
             durationMs: performance.now() - startedAt,
             fields: { reason, sessionId, projectId },
         });

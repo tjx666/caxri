@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { appendFile, mkdtemp, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { RuntimeEvent } from '../../../shared/ipc';
 import type { CommandAdapter } from '../../../shared/ipc/dispatcher';
 import { createCommandDispatcher } from '../../../shared/ipc/dispatcher';
-import { StructuredLogger } from '../../../shared/node/logger';
+import { logEventCatalog, StructuredLogger } from '../../../shared/node/logger';
 import { createFakePty } from '../../__tests__/create-test-runtime';
 import { createRuntime } from '../../bootstrap';
 
@@ -97,7 +97,7 @@ describe('Runtime business introspection', () => {
                 'terminal.fontSize': 18,
             });
 
-            logger.write('error', 'runtime.private_failure', {
+            logger.write('error', logEventCatalog.runtime.uncaughtException, {
                 correlationId: 'safe-error-id',
                 fields: {
                     error: 'operation failed',
@@ -105,19 +105,36 @@ describe('Runtime business introspection', () => {
                     source: homeDirectory,
                 },
             });
+            const externalEvent = 'runtime.external_failure';
+            await appendFile(
+                logger.path,
+                `${JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    process: 'runtime',
+                    level: 'warn',
+                    event: externalEvent,
+                    correlationId: 'external-error-id',
+                })}\n`,
+            );
             const logs = await runtime.handlers['logs.query']({ limit: 100 });
             const snapshot = await runtime.handlers['diagnostics.snapshot']({});
             // Structured fields surface for the log viewer, but secret-keyed values stay redacted and home paths stay
             // substituted end to end.
             expect(logs.records).toContainEqual(
                 expect.objectContaining({
-                    event: 'runtime.private_failure',
+                    event: logEventCatalog.runtime.uncaughtException,
                     correlationId: 'safe-error-id',
                     fields: {
                         error: 'operation failed',
                         token: '[REDACTED]',
                         source: `$HOME/${basename(homeDirectory)}`,
                     },
+                }),
+            );
+            expect(logs.records).toContainEqual(
+                expect.objectContaining({
+                    event: externalEvent,
+                    correlationId: 'external-error-id',
                 }),
             );
             expect(snapshot).toMatchObject({

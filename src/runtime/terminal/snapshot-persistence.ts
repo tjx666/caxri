@@ -1,6 +1,7 @@
 import { terminalSnapshotSchema } from '../../shared/ipc/domain';
 import { errorMessage } from '../../shared/ipc/errors';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { TerminalSnapshot } from '../../shared/types';
 import type { CaxriDatabase } from '../db';
 import type { LiveTerminal } from './manager-types';
@@ -32,7 +33,7 @@ export class TerminalSnapshotPersistence {
             /**
              * Snapshot persistence is recoverable and must never terminate the shared Runtime.
              */
-            this.logger.write('warn', 'pty.snapshot_failed', {
+            this.logger.write('warn', logEventCatalog.pty.snapshotFailed, {
                 fields: { terminalId, error: errorMessage(error, 'unknown') },
             });
         } finally {

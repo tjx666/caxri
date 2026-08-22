@@ -7,6 +7,7 @@ import { basename, dirname, join, relative } from 'node:path';
 
 import { CaxriError } from '../../shared/ipc/errors';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { FileDocument } from '../../shared/types';
 import { isOutsideRoot } from '../path-security';
 import type { ResolvedSessionPath } from '../project-roots';
@@ -202,7 +203,7 @@ export class DocumentService {
             await file.close();
             await removeTrustedTemporaryFile(temporaryPath, openedReplacementStats);
         }
-        this.logger.write('info', 'file.saved', {
+        this.logger.write('info', logEventCatalog.file.saved, {
             fields: { sessionId, path: relative(resolved.root, resolved.path) },
         });
         return this.read(sessionId, resolved.path);
