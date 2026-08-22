@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     MAX_TERMINAL_TITLE_LENGTH,
     normalizeTerminalTitle,
+    terminalDisplayTitle,
     terminalTabLabel,
 } from '../terminal-title';
 
@@ -87,5 +88,33 @@ describe('normalizeTerminalTitle', () => {
     it('never ends a bounded title on a dangling separator', () => {
         const normalized = normalizeTerminalTitle(`${'x'.repeat(MAX_TERMINAL_TITLE_LENGTH)} tail`);
         expect(normalized).toBe('x'.repeat(MAX_TERMINAL_TITLE_LENGTH));
+    });
+});
+
+describe('terminalDisplayTitle', () => {
+    it('lets a Shell be named by whatever its process last announced', () => {
+        expect(
+            terminalDisplayTitle({ provider: undefined, ptyTitle: '~/code/caxri', title: 'Shell' }),
+        ).toBe('~/code/caxri');
+    });
+
+    it('falls back to the stable title while a Shell has announced nothing', () => {
+        expect(
+            terminalDisplayTitle({ provider: undefined, ptyTitle: undefined, title: 'Shell' }),
+        ).toBe('Shell');
+    });
+
+    /**
+     * An Agent CLI paints its own status string into the window title, which must not displace the conversation the tab
+     * identifies.
+     */
+    it('keeps an Agent Terminal named by its conversation, not by the CLI window title', () => {
+        expect(
+            terminalDisplayTitle({
+                provider: 'claude',
+                ptyTitle: '✳ claude',
+                title: 'Ship the release notes',
+            }),
+        ).toBe('Ship the release notes');
     });
 });

@@ -1,3 +1,5 @@
+import type { TerminalRecord } from './types';
+
 /**
  * Upper bound on a persisted Terminal title, whichever source produced it. Long enough for a path plus a command, short
  * enough that a runaway program cannot push kilobytes through `state.changed` on every prompt.
@@ -107,4 +109,17 @@ export function terminalTabLabel(title: string): string {
     const segments = label.replace(/\/$/u, '').split('/');
     if (segments.length < MINIMUM_COMPRESSED_SEGMENTS) return label;
     return [segments[0], '…', ...segments.slice(-KEPT_TRAILING_SEGMENTS)].join('/');
+}
+
+/**
+ * The title a Terminal's tab shows.
+ *
+ * A Shell has no identity beyond what its process announces, so its OSC 0/2 title outranks the generic stable one. An
+ * Agent Terminal does have one: `title` carries the Agent conversation name, which is what the tab must keep showing
+ * even while the Agent CLI paints its own status string into the window title.
+ */
+export function terminalDisplayTitle(
+    terminal: Pick<TerminalRecord, 'provider' | 'ptyTitle' | 'title'>,
+): string {
+    return terminal.provider ? terminal.title : (terminal.ptyTitle ?? terminal.title);
 }

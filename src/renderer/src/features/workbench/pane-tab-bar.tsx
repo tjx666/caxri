@@ -5,7 +5,7 @@ import { pathBasename } from '@caxri/utils';
 import { agentTranscriptTabLabel, parseAgentTranscriptTab } from '@shared/agent-transcript';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
 import { paneTabIdsToClose } from '@shared/pane-layout';
-import { terminalTabLabel } from '@shared/terminal-title';
+import { terminalDisplayTitle, terminalTabLabel } from '@shared/terminal-title';
 import type { PaneNode, PaneTab, TerminalRecord } from '@shared/types';
 import { CircleAlert, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
@@ -94,7 +94,7 @@ function TerminalPaneTab({
     const ProgressIcon =
         progress?.kind === 'error' ? CircleAlert : progress?.kind === 'paused' ? Pause : undefined;
     const activity = useAgentTabActivity(terminal.id);
-    const displayTitle = terminal.ptyTitle ?? terminal.title;
+    const displayTitle = terminalDisplayTitle(terminal);
     return (
         <WorkTab
             active={active}

@@ -506,15 +506,18 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
-    it('lets an Agent conversation title beat OSC 0/2 and clears it for a fresh start', async () => {
+    it('names an Agent Terminal by its conversation and clears it for a fresh start', async () => {
         const directory = await temporaryDirectory('caxri-db-agent-title-ownership-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, null);
         const terminal = database.createTerminal(created.session.id, 'shell');
 
-        // A plain Shell is titled by its own OSC 0/2 stream, exactly as before.
-        expect(database.setTerminalTitle(terminal.id, '~/project')).toBe(true);
-        expect(database.getTerminal(terminal.id)?.title).toBe('~/project');
+        // A plain Shell is titled by its own OSC 0/2 stream, which lands in the separate live column.
+        expect(database.setTerminalPtyTitle(terminal.id, '~/project')).toBe(true);
+        expect(database.getTerminal(terminal.id)).toMatchObject({
+            ptyTitle: '~/project',
+            title: 'Shell',
+        });
 
         database.promoteShellToAgent(terminal.id, 'codex', {
             provider: 'codex',
@@ -527,11 +530,11 @@ describe('CaxriDatabase', () => {
         expect(database.getTerminal(terminal.id)?.title).toBe('Ship the release notes');
 
         /**
-         * A promoted Shell keeps its `provider` after the Agent CLI exits, so its prompt keeps emitting OSC titles that
-         * every later metadata probe would overwrite right back. The Agent owns the row from promotion on, and the
-         * rejected write reports `false` so no `state.changed` broadcast goes out either.
+         * A promoted Shell keeps emitting OSC titles from its prompt, and an Agent CLI paints its own status line into
+         * the window title too. Both keep updating the live column; neither may touch the conversation name, which is
+         * what the tab shows for an Agent Terminal (`terminalDisplayTitle`).
          */
-        expect(database.setTerminalTitle(terminal.id, '~/project')).toBe(false);
+        expect(database.setTerminalPtyTitle(terminal.id, '~/project')).toBe(true);
         expect(database.getTerminal(terminal.id)?.title).toBe('Ship the release notes');
 
         // A restart binds a brand new conversation; inheriting the retired one's name would misname it indefinitely.
