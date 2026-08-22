@@ -13,7 +13,7 @@ import { MAX_CONFIGURATION_SOURCE_BYTES } from '../../shared/config-contract';
 import type { RuntimeEvent } from '../../shared/ipc';
 import { MAX_TERMINAL_INPUT_LENGTH } from '../../shared/ipc';
 import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
-import { ConfigService, previousDefaultKeybindingSets } from '../config';
+import { ConfigService } from '../config';
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => {
@@ -145,48 +145,6 @@ describe('ConfigurationService', () => {
         await service.close();
     });
 
-    it('upgrades the original untouched defaults instead of preserving retired commands', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-original-defaults-'));
-        temporaryDirectories.push(directory);
-        const configDirectory = join(directory, 'config');
-        await mkdir(configDirectory);
-        await writeFile(
-            join(configDirectory, 'keybindings.jsonc'),
-            `${JSON.stringify(
-                [
-                    { key: 'cmd+shift+p', command: 'commandPalette.open' },
-                    { key: 'cmd+n', command: 'session.create' },
-                    { key: 'cmd+t', command: 'terminal.new' },
-                    { key: 'cmd+shift+r', command: 'terminal.restart' },
-                    { key: 'cmd+w', command: 'terminal.close' },
-                    { key: 'cmd+s', command: 'editor.save' },
-                    { key: 'cmd+1', command: 'inspector.showFiles' },
-                    { key: 'cmd+2', command: 'inspector.showGit' },
-                    { key: 'cmd+3', command: 'inspector.showAgent' },
-                    { key: 'cmd+,', command: 'theme.openSettings' },
-                ],
-                null,
-                2,
-            )}\n`,
-            'utf8',
-        );
-        const service = new ConfigService(directory, () => {});
-
-        await service.initialize();
-
-        expect(service.getKeybindings().value).toEqual(defaultKeybindings);
-        expect(service.getKeybindings().value).toContainEqual({
-            command: 'inspector.searchFiles',
-            key: 'cmd+shift+f',
-        });
-        const keybindingsContent = await readFile(
-            join(configDirectory, 'keybindings.jsonc'),
-            'utf8',
-        );
-        expect(JSON.parse(keybindingsContent)).toEqual(defaultKeybindings);
-        await service.close();
-    });
-
     it('detects shortcut conflicts without flagging duplicate identical commands', () => {
         expect(
             findKeybindingConflicts([
@@ -197,97 +155,13 @@ describe('ConfigurationService', () => {
         ).toEqual([{ key: 'cmd+t', commands: ['terminal.new', 'session.create'] }]);
     });
 
-    /**
-     * Drives the migration from the production derivation chain instead of rebuilding a past release by filtering the
-     * current catalog. The old per-release fixtures did the latter, so every added or rebound default silently made
-     * them describe a release that never existed.
-     */
-    it.each(previousDefaultKeybindingSets.map((set, index) => [index, set] as const))(
-        'upgrades untouched historical default set %i to the current defaults',
-        async (index, historical) => {
-            const directory = await mkdtemp(join(tmpdir(), `caxri-config-legacy-${index}-`));
-            temporaryDirectories.push(directory);
-            const configDirectory = join(directory, 'config');
-            await mkdir(configDirectory);
-            await writeFile(
-                join(configDirectory, 'keybindings.jsonc'),
-                `${JSON.stringify(historical, null, 2)}\n`,
-                'utf8',
-            );
-            const service = new ConfigService(directory, () => {});
-
-            await service.initialize();
-
-            expect(service.getKeybindings().value).toEqual(defaultKeybindings);
-            /**
-             * The upgrade is written back, not just held in memory.
-             */
-            const keybindingsContent = await readFile(
-                join(configDirectory, 'keybindings.jsonc'),
-                'utf8',
-            );
-            expect(JSON.parse(keybindingsContent)).toEqual(defaultKeybindings);
-            await service.close();
-        },
-    );
-
-    /**
-     * The derivation chain above is self-consistent by construction, so it cannot prove the newest historical set
-     * matches what actually shipped. This pins the literal table every pre-Bottom-Panel profile holds on disk — Info on
-     * `Cmd+4`, no `bottomPanel.*` — because that is the file the migration has to recognize to hand out `Cmd+J`.
-     */
-    it('upgrades the literal pre-Bottom-Panel keybinding file that shipped Info on Cmd+4', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-pre-bottom-panel-'));
-        temporaryDirectories.push(directory);
-        const configDirectory = join(directory, 'config');
-        await mkdir(configDirectory);
-        const shipped = [
-            { key: 'alt+p', command: 'pathBrowser.open' },
-            { key: 'cmd+shift+p', command: 'commandPalette.open' },
-            { key: 'cmd+o', command: 'project.create' },
-            { key: 'cmd+t', command: 'terminal.new' },
-            { key: 'cmd+k', command: 'terminal.clear' },
-            { key: 'cmd+c', command: 'terminal.copy' },
-            { key: 'cmd+f', command: 'terminal.find' },
-            { key: 'ctrl+tab', command: 'workbench.nextTab' },
-            { key: 'ctrl+shift+tab', command: 'workbench.previousTab' },
-            { key: 'cmd+shift+arrowup', command: 'terminal.previousCommand' },
-            { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
-            { key: 'cmd+shift+r', command: 'terminal.restart' },
-            { key: 'cmd+w', command: 'workbench.closeActiveTab' },
-            { key: 'cmd+s', command: 'editor.save' },
-            { key: 'cmd+1', command: 'inspector.showFiles' },
-            { key: 'cmd+2', command: 'inspector.showGit' },
-            { key: 'cmd+3', command: 'inspector.showStatus' },
-            { key: 'cmd+4', command: 'inspector.showInfo' },
-            { key: 'cmd+shift+f', command: 'inspector.searchFiles' },
-            { key: 'cmd+[', command: 'sidebar.toggle' },
-            { key: 'cmd+]', command: 'inspector.toggle' },
-            { key: 'cmd+,', command: 'settings.open' },
-        ];
-        await writeFile(
-            join(configDirectory, 'keybindings.jsonc'),
-            `${JSON.stringify(shipped, null, 2)}\n`,
-            'utf8',
-        );
-        const service = new ConfigService(directory, () => {});
-
-        await service.initialize();
-
-        const upgraded = service.getKeybindings().value;
-        expect(upgraded).toEqual(defaultKeybindings);
-        expect(upgraded).toContainEqual({ key: 'cmd+j', command: 'bottomPanel.toggle' });
-        expect(upgraded.some((binding) => binding.command === 'inspector.showInfo')).toBe(false);
-        await service.close();
-    });
-
     it('leaves a customized keybinding file untouched', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-custom-keybindings-'));
         temporaryDirectories.push(directory);
         const configDirectory = join(directory, 'config');
         await mkdir(configDirectory);
         const customized = [
-            ...previousDefaultKeybindingSets[0],
+            ...defaultKeybindings,
             { key: 'cmd+shift+k', command: 'terminal.clear' },
         ];
         await writeFile(

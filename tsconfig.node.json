@@ -8,6 +8,7 @@
         "vitest.config.*",
         "playwright.config.*",
         "eslint.config.*",
+        "src/extension-host/**/*.ts",
         "src/host/**/*.ts",
         "src/main/**/*.ts",
         "src/preload/**/*.ts",

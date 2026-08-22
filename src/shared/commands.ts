@@ -1,6 +1,3 @@
-import { bottomPanelViewRegistrations } from './bottom-panel';
-import { inspectorModeRegistrations } from './inspector';
-import { bottomPanelCommandId, inspectorCommandId } from './ipc';
 import type { CommandId, Keybinding } from './types';
 
 export type { CommandId };
@@ -241,44 +238,56 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Workbench',
         description: 'Split the active tab into a new pane below',
     },
-    ...inspectorModeRegistrations.map(({ commandDescription, commandId, commandTitle }) => ({
-        id: inspectorCommandId(commandId),
-        title: commandTitle,
-        category: 'Inspector',
-        description: commandDescription,
-    })),
     {
-        id: 'inspector.searchFiles',
+        id: 'secondarySidebar.showFiles',
+        title: 'Show Files',
+        category: 'Secondary Side Bar',
+        description: 'Show Files in the Secondary Side Bar',
+    },
+    {
+        id: 'secondarySidebar.showGit',
+        title: 'Show Source Control',
+        category: 'Secondary Side Bar',
+        description: 'Show Source Control in the Secondary Side Bar',
+    },
+    {
+        id: 'secondarySidebar.searchFiles',
         title: 'Search Files',
-        category: 'Inspector',
+        category: 'Secondary Side Bar',
         description: 'Search files in the selected Project',
         nativeMenu: { menu: 'view', group: 0, order: 0 },
     },
     {
-        id: 'inspector.toggle',
-        title: 'Toggle Inspector',
-        category: 'Inspector',
-        description: 'Show or hide the Inspector',
+        id: 'secondarySidebar.toggle',
+        title: 'Toggle Secondary Side Bar',
+        category: 'Secondary Side Bar',
+        description: 'Show or hide the Secondary Side Bar',
         nativeMenu: { menu: 'view', group: 0, order: 2 },
     },
-    ...bottomPanelViewRegistrations.map(({ commandDescription, commandId, commandTitle }) => ({
-        id: bottomPanelCommandId(commandId),
-        title: commandTitle,
-        category: 'Bottom Panel',
-        description: commandDescription,
-    })),
     {
-        id: 'bottomPanel.toggle',
-        title: 'Toggle Bottom Panel',
-        category: 'Bottom Panel',
-        description: 'Show or hide the Bottom Panel',
+        id: 'panel.showLogs',
+        title: 'Show Logs',
+        category: 'Panel',
+        description: 'Show Logs in the Panel',
+    },
+    {
+        id: 'panel.showInfo',
+        title: 'Show Info',
+        category: 'Panel',
+        description: 'Show Info in the Panel',
+    },
+    {
+        id: 'panel.toggle',
+        title: 'Toggle Panel',
+        category: 'Panel',
+        description: 'Show or hide the Panel',
         nativeMenu: { menu: 'view', group: 0, order: 3 },
     },
     {
-        id: 'sidebar.toggle',
-        title: 'Toggle Primary Sidebar',
+        id: 'primarySidebar.toggle',
+        title: 'Toggle Primary Side Bar',
         category: 'View',
-        description: 'Show or hide the Project Sidebar',
+        description: 'Show or hide the Primary Side Bar',
         nativeMenu: { menu: 'view', group: 0, order: 1 },
     },
     {
@@ -418,20 +427,16 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+r', command: 'terminal.restart' },
     { key: 'cmd+w', command: 'workbench.closeActiveTab' },
     { key: 'cmd+s', command: 'editor.save' },
-    ...inspectorModeRegistrations.map(({ commandId, defaultKeybinding }) => ({
-        key: defaultKeybinding,
-        command: inspectorCommandId(commandId),
-    })),
-    ...bottomPanelViewRegistrations.map(({ commandId, defaultKeybinding }) => ({
-        key: defaultKeybinding,
-        command: bottomPanelCommandId(commandId),
-    })),
-    { key: 'cmd+shift+f', command: 'inspector.searchFiles' },
-    { key: 'cmd+[', command: 'sidebar.toggle' },
-    { key: 'cmd+]', command: 'inspector.toggle' },
+    { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
+    { key: 'cmd+2', command: 'secondarySidebar.showGit' },
+    { key: 'cmd+shift+1', command: 'panel.showLogs' },
+    { key: 'cmd+shift+2', command: 'panel.showInfo' },
+    { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },
+    { key: 'cmd+[', command: 'primarySidebar.toggle' },
+    { key: 'cmd+]', command: 'secondarySidebar.toggle' },
     /**
      * `Cmd+J` matches VS Code's Toggle Panel chord, which this region is modeled on.
      */
-    { key: 'cmd+j', command: 'bottomPanel.toggle' },
+    { key: 'cmd+j', command: 'panel.toggle' },
     { key: 'cmd+,', command: 'settings.open' },
 ];

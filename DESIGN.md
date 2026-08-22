@@ -5,7 +5,7 @@ reference this file; deviations require updating this spec first.
 
 ## Principles
 
-1. **The terminal is the hero.** Chrome (sidebar, tabs, inspector, status bar) stays
+1. **The terminal is the hero.** Chrome (primarySidebar, tabs, secondarySidebar, status bar) stays
    low-contrast and quiet; saturated color is reserved for content and live status.
 2. **One durable accent focus per screen.** `--accent` marks exactly one resting focus
    at a time: the focused pane together with its active workbench tab's 2px top border —
@@ -37,20 +37,20 @@ is immutable initialization metadata for the chosen shadcn style, not a live pal
 
 ### Color roles (semantic layer over theme colors)
 
-| Token                                  | Role                                                                      |
-| -------------------------------------- | ------------------------------------------------------------------------- |
-| `--background`                         | editor/terminal canvas                                                    |
-| `--surface`                            | chrome: sidebar, tab strip, inspector, status bar                         |
-| `--elevated`                           | hover states, cards, popovers                                             |
-| `--border`                             | 1px hairlines between regions                                             |
-| `--foreground`                         | primary text                                                              |
-| `--muted`                              | secondary text, inactive icons                                            |
-| `--accent`                             | the single focus indicator + primary buttons                              |
-| `--accent-foreground`                  | text/icons on accent fills (derived, not hardcoded)                       |
-| `--success` / `--warning` / `--danger` | status dots, exit banners, destructive buttons                            |
-| `--overlay`                            | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)` |
-| `--shadow`                             | elevation shadows: translucent black derived once                         |
-| `--indicator`                          | neutral (non-accent) selected-tab underline for inspector/settings tabs   |
+| Token                                  | Role                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| `--background`                         | editor/terminal canvas                                                         |
+| `--surface`                            | chrome: primarySidebar, tab strip, secondarySidebar, status bar                |
+| `--elevated`                           | hover states, cards, popovers                                                  |
+| `--border`                             | 1px hairlines between regions                                                  |
+| `--foreground`                         | primary text                                                                   |
+| `--muted`                              | secondary text, inactive icons                                                 |
+| `--accent`                             | the single focus indicator + primary buttons                                   |
+| `--accent-foreground`                  | text/icons on accent fills (derived, not hardcoded)                            |
+| `--success` / `--warning` / `--danger` | status dots, exit banners, destructive buttons                                 |
+| `--overlay`                            | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`      |
+| `--shadow`                             | elevation shadows: translucent black derived once                              |
+| `--indicator`                          | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs |
 
 Derive `--accent-foreground`, `--overlay`, `--shadow` in one place from theme colors.
 The status bar uses `--surface` + top hairline — never an accent fill.
@@ -107,13 +107,13 @@ new arbitrary value requires updating this spec first with a stated reason.
 
 ## Component redlines
 
-**Window chrome** — `titleBarStyle: 'hiddenInset'`; the 44px Sidebar, workbench, and Inspector
+**Window chrome** — `titleBarStyle: 'hiddenInset'`; the 44px PrimarySidebar, workbench, and SecondarySidebar
 top rails share one bottom edge. Workbench tabs fill the full 44px rail, VS Code style, so the
-active tab's `--background` fill reaches the rail's top edge; Sidebar and Inspector rail tabs
-remain 36px, vertically centered. The logo-free Sidebar
+active tab's `--background` fill reaches the rail's top edge; PrimarySidebar and SecondarySidebar rail tabs
+remain 36px, vertically centered. The logo-free PrimarySidebar
 header is the drag region (`-webkit-app-region: drag`, interactive children `no-drag`); Add Project
-is hidden at rest and revealed by hovering anywhere in the expanded Sidebar or by keyboard focus.
-The collapsed Sidebar preserves the same 44px-tall drag region beneath the traffic lights.
+is hidden at rest and revealed by hovering anywhere in the expanded PrimarySidebar or by keyboard focus.
+The collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the traffic lights.
 
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context. The right side follows the active tab: a normal file shows current-line
@@ -125,16 +125,16 @@ an action it cannot perform.
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips.
 
-**Sidebar** — flatten the double-box nesting: project groups are a disclosure row
+**PrimarySidebar** — flatten the double-box nesting: project groups are a disclosure row
 (Folder/FolderOpen icon + name + count, no border, no card), sessions are flat rows
 indented 16px. Selection = `--elevated` fill (radius 6), no border and no accent — the
-sidebar stays entirely neutral so the focused pane keeps the screen's one accent.
+primarySidebar stays entirely neutral so the focused pane keeps the screen's one accent.
 Activity dots and the Session hover/focus card share one color, short-label, explanation, and
 `aria-label` mapping. Unread attention is the one deliberate exception to that shared color: the
 unread ring and the card's unread chip collapse every attention kind but `failed` to `--warning`,
 because a `--muted` unread marker reads as inert chrome at glance distance — the activity dot on the
 same row still carries the full state, and both surfaces keep the exact kind in their label.
-The Portal card opens to the Sidebar's right after a short hover delay (or
+The Portal card opens to the PrimarySidebar's right after a short hover delay (or
 immediately on keyboard focus), collision-shifts within the viewport, and shows only the full title,
 Project, primary Agent, activity explanation, `Last opened`, and unread-attention metadata.
 All non-archived Project and Session names and navigation icons use `--foreground`, including
@@ -143,13 +143,13 @@ Project ordering uses the whole Project heading as its drag source. While draggi
 source group and show a 2px `--accent` insertion line with a circular leading cap between Project
 groups; Session rows are never drop targets. `Option+Up` / `Option+Down` on a focused Project name
 provides the keyboard-equivalent reorder and announces the resulting position.
-The Sidebar header carries the Session history pair — Back then Forward, ghost icon buttons in
+The PrimarySidebar header carries the Session history pair — Back then Forward, ghost icon buttons in
 `--muted` that lift to `--foreground` on hover, placed immediately after the traffic-light clearance
 because that is where every browser puts them. They are `no-drag` islands in the header's drag
 region. A direction with an empty stack renders disabled rather than hidden, so the pair never
 reflows and its position stays learnable; the shortcut and command name reach the user through the
 shared command tooltip instead of a bespoke label.
-Archived Sessions use one stable Sidebar footer entry with a global count. Search, filters,
+Archived Sessions use one stable PrimarySidebar footer entry with a global count. Search, filters,
 Project-grouped results, restore, and delete live in a full-width management dialog; Project
 disclosures contain active Sessions only, so low-frequency history never fragments navigation.
 
@@ -175,8 +175,8 @@ one layer:
    Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute variants are
    equivalent (see upstream debate in shadcn-ui/ui#10267).
 2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions) — every
-   user-triggered disclosure: Sidebar Project, Files search groups, Git
-   directory/repository/history, Project Status sections. The measured Inspector/Settings chrome
+   user-triggered disclosure: PrimarySidebar Project, Files search groups, Git
+   directory/repository/history, Project Status sections. The measured SecondarySidebar/Settings chrome
    tab indicator also uses a native transform/width transition. `components/disclosure-motion.tsx`
    is the thin presence wrapper: it mounts content in the commit that flips `data-expanded` and
    releases collapsed DOM once the height transition settles, so collapse never retains hidden
@@ -214,7 +214,7 @@ from the shared `usePrefersReducedMotion` hook
 (`lib/motion.ts`, the only sanctioned way to read the preference in JS) — without changing
 focus, selection, command, query, or lifecycle behavior.
 
-**Panel captions** — every Inspector panel wears the same caption row: 34px tall, bottom
+**Panel captions** — every SecondarySidebar panel wears the same caption row: 34px tall, bottom
 hairline, and a small bold uppercase title with `tracking-[0.04em]` in `--foreground` (VS Code's
 section caption). One shared `PanelHeader` owns it, so a workspace name, `Source Control`, and
 `Project Status` read as one system rather than three. The caption title carries no icon — the
@@ -222,16 +222,16 @@ owning tab already shows one two pixels above, and repeating it there is the dup
 exists to prevent. Trailing toolbar actions may be hover-revealed, but only where the caption row
 has free space; an action that would sit on top of live text takes its own slot instead.
 
-**Content placement** — the Inspector holds hierarchical, navigable surfaces that read well in a
+**Content placement** — the SecondarySidebar holds hierarchical, navigable surfaces that read well in a
 narrow vertical rail (Files, Source Control, Project Status). Stream- and record-shaped surfaces
-that want horizontal room live in the Bottom Panel instead (Logs, Info), which docks under the
-work surface inside the centre column so the Sidebar and Inspector keep full height — VS Code's
-Sidebar-vs-Panel split. The Bottom Panel is closed at rest, its tabs sit left at their natural
+that want horizontal room live in the Panel instead (Logs, Info), which docks under the
+work surface inside the centre column so the PrimarySidebar and SecondarySidebar keep full height — VS Code's
+PrimarySidebar-vs-Panel split. The Panel is closed at rest, its tabs sit left at their natural
 width, and a trailing close button dismisses it. `Command+J` toggles it. A new surface picks its
 region by content shape, not by which region has room left.
 
 **Chrome tabs** — the moving underline is derived from the tab slot, never from the label inside it:
-inset 8px on each side, capped, and centred in the slot. In the Inspector's evenly divided rail every
+inset 8px on each side, capped, and centred in the slot. In the SecondarySidebar's evenly divided rail every
 mark is therefore the same size, so it reads as "this region is selected" instead of tracking a word
 whose length is incidental, and a responsive tab that drops its label keeps its underline unchanged.
 The inset and the cap are what keep an even division from reading as a segmented control — a mark
@@ -244,9 +244,9 @@ vendored `file-submodule` codicon for a submodule) regardless of panel mode, and
 working-tree segment takes a diff mark. Where lucide has no equivalent glyph, vendor the VS Code
 codicon inline (`src/renderer/src/icons/codicons`) rather than bending a lucide icon to fit.
 
-**Git inspector** — every discovered repository is an independent disclosure node, with
+**Git secondarySidebar** — every discovered repository is an independent disclosure node, with
 its changed files grouped by directory. Selecting a file opens a read-only Monaco diff in
-the center pane; the Inspector never embeds a patch preview. The panel's mode switch
+the center pane; the SecondarySidebar never embeds a patch preview. The panel's mode switch
 offers Working Tree, Last Commit, and Pull Request views; Last Commit renders the HEAD
 commit's file list and hides `Open Changes` (no aggregated commit diff document exists).
 In the other modes each `Changes` heading exposes
@@ -271,7 +271,7 @@ from live keybindings, `badge` size, `--elevated` chips). Group headings stay. W
 ends on key release, so it wears the Dialog scrim (`--overlay` + `blur(2px)`) and the palette's 560px
 width, centred. It reads top to bottom as caption / list / hint: a panel-caption title with the live
 position on the right, Session rows (activity dot, Agent identity icon, title over Project, relative
-`Last opened`, unread ring — the same indicator components the Sidebar renders), and a footer of live
+`Last opened`, unread ring — the same indicator components the PrimarySidebar renders), and a footer of live
 `kbd` chips for cycle, reverse, cancel, and release-to-commit. The highlighted row is the one place a
 list selection may carry `--accent` (an inset ring over the `--elevated` fill): the surface exists only
 while its chord is held and its whole purpose is to show where the pending jump lands, which is the
@@ -322,9 +322,9 @@ not touched.").
   its running xterm).
 - Every interactive element is keyboard-reachable; status conveyed by color always has
   a text/aria twin.
-- Sidebar, Inspector, and Bottom Panel get min/max-constrained drag resize; double-click a divider
-  resets to default. `Command+[` toggles the Sidebar, `Command+]` toggles the Inspector, and
-  `Command+J` toggles the Bottom Panel; the Status Bar contains no panel-collapse controls.
+- PrimarySidebar, SecondarySidebar, and Panel get min/max-constrained drag resize; double-click a divider
+  resets to default. `Command+[` toggles the PrimarySidebar, `Command+]` toggles the SecondarySidebar, and
+  `Command+J` toggles the Panel; the Status Bar contains no panel-collapse controls.
 - Panel sizes and visibility are device-local (`localStorage`), never Session state, so a layout
   never travels between machines with a Project.
 - Session history navigation (`Control+Option+Left` / `Control+Option+Right`, and the mouse's
@@ -347,5 +347,5 @@ endorsement; resolving one requires updating the sections above in the same chan
   imports without warning.
 - **Panel toggle shortcuts** — `Command+[` / `Command+]` collide with editor indent/navigate
   muscle memory and, per the global-shortcut rule, cannot fire while focus is in Monaco or
-  xterm — where focus usually rests. Rebinding (e.g. `Command+B` for the Sidebar) is an open
+  xterm — where focus usually rests. Rebinding (e.g. `Command+B` for the PrimarySidebar) is an open
   product decision.

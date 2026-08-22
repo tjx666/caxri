@@ -1,0 +1,330 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { EventEmitter, TreeItem, TreeItemCollapsibleState } from 'caxri';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import type { ExtensionHostRegistration } from '../../shared/extension-host-protocol';
+import {
+    activateExtension,
+    cancelTreeRequest,
+    configureExtensions,
+    disposeAllExtensions,
+    extensionApiBinding,
+    getTreeChildren,
+    notifyActiveContextChanged,
+} from '../api-factory';
+
+const fixture = { extensionRoot: '' };
+
+beforeEach(async () => {
+    fixture.extensionRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-api-'));
+    await writeFile(join(fixture.extensionRoot, 'extension.mjs'), 'export function activate() {}');
+});
+
+afterEach(async () => {
+    disposeAllExtensions();
+    await rm(fixture.extensionRoot, { force: true, recursive: true });
+});
+
+function registration(generation = 1): ExtensionHostRegistration {
+    return {
+        extensionId: 'publisher.fixture',
+        generation,
+        apiToken: `fixture-token-${generation}`,
+        rootPath: fixture.extensionRoot,
+        entryPath: join(fixture.extensionRoot, 'extension.mjs'),
+        grants: ['projects.read'],
+        projectIds: ['project-1'],
+        manifest: {
+            name: 'publisher.fixture',
+            version: '1.0.0',
+            type: 'module',
+            main: './extension.mjs',
+            engines: { caxri: '^0.0.17' },
+            caxri: { capabilities: ['projects.read'] },
+            activationEvents: [],
+            contributes: {
+                viewsContainers: {
+                    secondarySidebar: [
+                        { id: 'publisher.fixture', title: 'Fixture', icon: 'fixture.svg' },
+                    ],
+                    panel: [],
+                },
+                views: {
+                    'publisher.fixture': [
+                        { id: 'publisher.fixture.tree', name: 'Fixture', type: 'tree' },
+                    ],
+                },
+                commands: [],
+            },
+        },
+    };
+}
+
+describe('Extension Host API factory', () => {
+    it('bounds tree RPC values and expires handles with the activation generation', async () => {
+        configureExtensions([registration()]);
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: (element: string | undefined) => (element ? ['child'] : ['root']),
+                getTreeItem: (element: string) =>
+                    new TreeItem(element, TreeItemCollapsibleState.Collapsed),
+            },
+        );
+
+        const root = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'root-request',
+        });
+        expect(root.items).toEqual([
+            expect.objectContaining({
+                accessibilityLabel: 'root',
+                collapsibleState: 'collapsed',
+                handle: '1:1',
+                label: 'root',
+            }),
+        ]);
+
+        configureExtensions([registration(2)]);
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                parentHandle: root.items[0].handle,
+                requestId: 'expired-request',
+            }),
+        ).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+    });
+
+    it('propagates cancellation and active-context changes only to the current runtime', async () => {
+        configureExtensions([registration()]);
+        const binding = extensionApiBinding('fixture-token-1');
+        let contextChanges = 0;
+        binding.api.workspace.onDidChangeActiveContext(() => contextChanges++);
+        let isCancellationObserved = false;
+        binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
+            getChildren: (_element: string | undefined, token) =>
+                new Promise<readonly string[]>((resolve) => {
+                    token.onCancellationRequested(() => {
+                        isCancellationObserved = true;
+                        resolve([]);
+                    });
+                }),
+            getTreeItem: (element: string) => new TreeItem(element),
+        });
+        await activateExtension('publisher.fixture', 1);
+
+        const pending = getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'cancel-request',
+        });
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(cancelTreeRequest('cancel-request')).toEqual({ cancelled: true });
+        await expect(pending).resolves.toEqual({ items: [] });
+        expect(isCancellationObserved).toBe(true);
+
+        expect(notifyActiveContextChanged()).toEqual({ notified: 1 });
+        expect(contextChanges).toBe(1);
+    });
+
+    it('rejects providers that exceed the item limit', async () => {
+        configureExtensions([registration()]);
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: () => Array.from({ length: 1_001 }, (_, index) => index),
+                getTreeItem: (element: number) => new TreeItem(String(element)),
+            },
+        );
+
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                requestId: 'overflow-request',
+            }),
+        ).rejects.toMatchObject({ code: 'PROVIDER_CAPACITY' });
+    });
+
+    it('normalizes provider failures and discards late results after cancellation', async () => {
+        configureExtensions([registration()]);
+        const binding = extensionApiBinding('fixture-token-1');
+        binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
+            getChildren: () => {
+                throw new Error('provider exploded');
+            },
+            getTreeItem: (element: string) => new TreeItem(element),
+        });
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                requestId: 'provider-error-request',
+            }),
+        ).rejects.toMatchObject({ code: 'PROVIDER_FAILED', message: 'provider exploded' });
+
+        configureExtensions([registration(2)]);
+        let resolveLate!: (children: readonly string[]) => void;
+        const started = Promise.withResolvers<void>();
+        let calls = 0;
+        extensionApiBinding('fixture-token-2').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: () => {
+                    calls += 1;
+                    if (calls === 1)
+                        return new Promise<readonly string[]>((resolve) => {
+                            resolveLate = resolve;
+                            started.resolve();
+                        });
+                    return ['fresh'];
+                },
+                getTreeItem: (element: string) => new TreeItem(element),
+            },
+        );
+        const late = getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 2,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'late-request',
+        });
+        await started.promise;
+        expect(cancelTreeRequest('late-request')).toEqual({ cancelled: true });
+        resolveLate(['stale']);
+        await expect(late).resolves.toEqual({ items: [] });
+
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 2,
+                viewId: 'publisher.fixture.tree',
+                requestId: 'fresh-request',
+            }),
+        ).resolves.toEqual({
+            items: [expect.objectContaining({ handle: '2:1', label: 'fresh' })],
+        });
+    });
+
+    it('bounds serialized payloads and generation-scoped tree depth', async () => {
+        configureExtensions([registration()]);
+        const binding = extensionApiBinding('fixture-token-1');
+        binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
+            getChildren: () => Array.from({ length: 300 }, (_, index) => index),
+            getTreeItem: () => new TreeItem('x'.repeat(1_000)),
+        });
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                requestId: 'payload-request',
+            }),
+        ).rejects.toMatchObject({ code: 'PAYLOAD_TOO_LARGE' });
+
+        configureExtensions([registration(2)]);
+        extensionApiBinding('fixture-token-2').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: (element: number | undefined) => [
+                    element === undefined ? 0 : element + 1,
+                ],
+                getTreeItem: (element: number) =>
+                    new TreeItem(String(element), TreeItemCollapsibleState.Collapsed),
+            },
+        );
+        let parentHandle: string | undefined;
+        for (let depth = 0; depth <= 64; depth++) {
+            // eslint-disable-next-line no-await-in-loop -- Each request depends on the handle returned by the preceding depth.
+            const result = await getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 2,
+                viewId: 'publisher.fixture.tree',
+                ...(parentHandle && { parentHandle }),
+                requestId: `depth-${depth}`,
+            });
+            parentHandle = result.items[0].handle;
+        }
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 2,
+                viewId: 'publisher.fixture.tree',
+                parentHandle,
+                requestId: 'depth-overflow',
+            }),
+        ).rejects.toMatchObject({ code: 'PROVIDER_CAPACITY' });
+    });
+
+    it('retires old API bindings, pending calls, tree results, and refresh events on reload', async () => {
+        configureExtensions([registration()]);
+        const oldBinding = extensionApiBinding('fixture-token-1');
+        // eslint-disable-next-line unicorn/prefer-event-target -- Verify the VS Code-compatible EventEmitter behavior exposed by the public API.
+        const oldChanges = new EventEmitter<string | readonly string[] | undefined>();
+        let resolveOldChildren!: (children: readonly string[]) => void;
+        const oldStarted = Promise.withResolvers<void>();
+        oldBinding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
+            onDidChangeTreeData: oldChanges.event,
+            getChildren: () =>
+                new Promise<readonly string[]>((resolve) => {
+                    resolveOldChildren = resolve;
+                    oldStarted.resolve();
+                }),
+            getTreeItem: (element: string) =>
+                new TreeItem(element, TreeItemCollapsibleState.Collapsed),
+        });
+        const oldTree = getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'old-tree',
+        });
+        await oldStarted.promise;
+        const oldApiCall = oldBinding.api.workspace.getProjectStatus();
+
+        configureExtensions([registration(2)]);
+        expect(() =>
+            oldBinding.api.commands.registerCommand('publisher.fixture.command', () => {}),
+        ).toThrow(expect.objectContaining({ code: 'GENERATION_EXPIRED' }));
+        await expect(oldApiCall).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+        resolveOldChildren(['stale']);
+        await expect(oldTree).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+
+        extensionApiBinding('fixture-token-2').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: (element: string | undefined) => (element ? ['child'] : ['current']),
+                getTreeItem: (element: string) =>
+                    new TreeItem(element, TreeItemCollapsibleState.Collapsed),
+            },
+        );
+        const current = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 2,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'current-root',
+        });
+        oldChanges.fire(undefined);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 2,
+                viewId: 'publisher.fixture.tree',
+                parentHandle: current.items[0].handle,
+                requestId: 'current-child',
+            }),
+        ).resolves.toEqual({
+            items: [expect.objectContaining({ label: 'child' })],
+        });
+    });
+});

@@ -36,10 +36,9 @@
                 "rules": ["react-doctor/async-await-in-loop"],
             },
             {
-                // The panel-layout key predates versioning; renaming it now would silently
-                // reset every user's saved layout. Versioning is deferred until a real
-                // schema change forces a migration.
-                "files": ["src/renderer/src/stores/panel-layout.ts"],
+                // The chrome-layout key is intentionally versioned because its fields define one
+                // device-local layout schema shared by all three chrome regions.
+                "files": ["src/renderer/src/stores/chrome-layout.ts"],
                 "rules": ["react-doctor/client-localstorage-no-version"],
             },
             {

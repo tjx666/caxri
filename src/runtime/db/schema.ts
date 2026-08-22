@@ -122,7 +122,9 @@ export const sessionState = sqliteTable('session_state', {
      * documents alike; Terminal processes themselves stay Session-global.
      */
     workbenchStateJson: text('workbench_state_json').notNull().default('{}'),
-    inspectorMode: text('inspector_mode').notNull(),
+    desiredSecondarySidebarViewContainerId: text(
+        'desired_secondary_sidebar_view_container_id',
+    ).notNull(),
 });
 
 export const appState = sqliteTable('app_state', {

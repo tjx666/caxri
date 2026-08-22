@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    apiTestFiles,
     cliTestFiles,
     desktopTestFiles,
     protocolTestFiles,
@@ -25,15 +26,17 @@ describe('Vitest project partition', () => {
         expect(desktopTestFiles).toContain('.agents/skills/**/scripts/__tests__/*.test.ts');
     });
 
-    it('owns Desktop and workspace tests in five named projects', () => {
+    it('owns Desktop and workspace tests in six named projects', () => {
         expect(testProjectNames).toEqual([
             'desktop-parallel',
             'desktop-serial-native',
             'protocol',
+            'api',
             'utils',
             'cli',
         ]);
         expect(protocolTestFiles).toEqual(['packages/protocol/src/**/*.test.ts']);
+        expect(apiTestFiles).toEqual(['packages/api/src/**/*.test.ts']);
         expect(utilitiesTestFiles).toEqual(['packages/utils/src/**/*.test.ts']);
         expect(cliTestFiles).toEqual(['packages/cli/{scripts,src}/**/*.test.ts']);
     });

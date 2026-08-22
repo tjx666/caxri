@@ -2,17 +2,18 @@
 
 ## Repository layout
 
-| Path        | Purpose                                                                    |
-| ----------- | -------------------------------------------------------------------------- |
-| `src/`      | Electron Host, Main, Preload, Renderer, Runtime, and shared Desktop source |
-| `packages/` | Browser-safe protocol, shared pure-utility, and standalone CLI workspaces  |
-| `e2e/`      | Playwright Electron workflows and shared desktop fixtures                  |
-| `scripts/`  | Repository-wide CI, validation, benchmark, and runner tooling              |
-| `.agents/`  | Canonical contributor skills; `.claude/skills` is a compatibility symlink  |
-| `skills/`   | Product skill embedded in and distributed with the Caxri CLI               |
-| `build/`    | Tracked packaging inputs, including icons and the CLI launcher             |
-| `docs/`     | Durable product, module, operator, and architecture-debt documentation     |
-| `licenses/` | Vendored third-party license texts                                         |
+| Path          | Purpose                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| `src/`        | Electron Extension Host, Host, Main, Preload, Renderer, Runtime, and shared Desktop source |
+| `packages/`   | Browser-safe protocol, shared pure-utility, and standalone CLI workspaces                  |
+| `extensions/` | Bundled native ESM extensions and their packaging inputs                                   |
+| `e2e/`        | Playwright Electron workflows and shared desktop fixtures                                  |
+| `scripts/`    | Repository-wide CI, validation, benchmark, and runner tooling                              |
+| `.agents/`    | Canonical contributor skills; `.claude/skills` is a compatibility symlink                  |
+| `skills/`     | Product skill embedded in and distributed with the Caxri CLI                               |
+| `build/`      | Tracked packaging inputs, including icons and the CLI launcher                             |
+| `docs/`       | Durable product, module, operator, and architecture-debt documentation                     |
+| `licenses/`   | Vendored third-party license texts                                                         |
 
 Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results/`, `.records/`,
 `competitors/`, and `node_modules/` are intentionally gitignored and are not source directories.
@@ -86,9 +87,9 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   and logs) so they never contend with the installed production app; `CAXRI_USER_DATA_DIR`
   overrides it (`src/main/runtime-profile.ts`).
 - Stop every dev instance you started before reporting a request complete, and verify it actually
-  died. One launch leaves four separate processes: the `electron-vite dev` launcher, the Electron
+  died. One launch leaves five separate processes: the `electron-vite dev` launcher, the Electron
   window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached
-  `<worktree>/out/main/host.js` and `runtime.js`. `pkill -f "Electron.app/Contents/MacOS/Electron"`
+  `<worktree>/out/main/host.js`, `extension-host.js`, and `runtime.js`. `pkill -f "Electron.app/Contents/MacOS/Electron"`
   silently misses the window process and the launcher can outlive the signal, so never trust
   `pkill`'s exit code: confirm with `ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`, and
   kill the surviving PIDs directly. Match on the absolute `<worktree>/out/` path so a sibling

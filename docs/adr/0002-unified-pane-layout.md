@@ -50,7 +50,7 @@ Three pieces of state replace the single global active item:
 - `layout.activePaneId` — the last active pane, used to restore and as the fallback target.
   Persisted.
 - `focusedPaneId` — the pane that actually owns the keyboard right now. Renderer-only, and empty
-  while a modal, the Sidebar, or the command palette holds focus.
+  while a modal, the PrimarySidebar, or the command palette holds focus.
 
 Close, save, find, clear, restart, and the Status Bar resolve their target from real DOM focus
 first and fall back to `activePaneId`. Without this, an asynchronous Terminal state change can steal

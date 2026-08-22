@@ -126,11 +126,11 @@ export const settingsSpec = [
     },
     {
         kind: 'enum',
-        key: 'sidebar.autoCollapseProjects',
+        key: 'primarySidebar.autoCollapseProjects',
         title: 'Auto-collapse inactive Projects',
         description: 'Keeps active, working, unread, and manually expanded Projects open',
         category: 'general',
-        keywords: ['sidebar', 'project', 'collapse', 'inactive', 'idle'],
+        keywords: ['primarySidebar', 'project', 'collapse', 'inactive', 'idle'],
         options: [
             { value: 'off', label: 'Off' },
             { value: '30m', label: 'After 30 minutes' },

@@ -11,12 +11,14 @@ export const desktopTestFiles = [
     'scripts/__tests__/*.test.ts',
 ];
 export const protocolTestFiles = ['packages/protocol/src/**/*.test.ts'];
+export const apiTestFiles = ['packages/api/src/**/*.test.ts'];
 export const utilitiesTestFiles = ['packages/utils/src/**/*.test.ts'];
 export const cliTestFiles = ['packages/cli/{scripts,src}/**/*.test.ts'];
 export const testProjectNames = [
     'desktop-parallel',
     'desktop-serial-native',
     'protocol',
+    'api',
     'utils',
     'cli',
 ];
@@ -108,6 +110,14 @@ export default defineConfig({
                 test: {
                     name: 'protocol',
                     include: protocolTestFiles,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'api',
+                    include: apiTestFiles,
                     maxWorkers: parallelMaxWorkers,
                 },
             },

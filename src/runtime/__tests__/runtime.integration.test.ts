@@ -760,7 +760,9 @@ describe('Session state recovery', () => {
             const repaired = bootstrap.sessionStates.find(
                 (state) => state.sessionId === created.session.id,
             );
-            expect(repaired).toMatchObject({ inspectorMode: 'files' });
+            expect(repaired).toMatchObject({
+                desiredSecondarySidebarViewContainerId: 'caxri.files',
+            });
             expect(repaired && listPaneTerminalIds(repaired.paneLayout)).toEqual([
                 created.terminal!.id,
             ]);

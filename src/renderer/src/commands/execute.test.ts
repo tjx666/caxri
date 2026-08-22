@@ -1,12 +1,11 @@
 import type { CommandId } from '@shared/commands';
 import { commandDefinitions as sharedCommandDefinitions } from '@shared/commands';
-import { inspectorModeRegistrations } from '@shared/inspector';
 import type { BootstrapState } from '@shared/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useFileSearchStore } from '../features/inspector/panels/files/file-search-state';
+import { useFileSearchStore } from '../features/secondary-sidebar/panels/files/file-search-state';
 import { isEditableEventTarget } from '../lib/keybindings';
-import { usePanelLayoutStore } from '../stores/panel-layout';
+import { useChromeLayoutStore } from '../stores/chrome-layout';
 import { useWorkbenchStore } from '../stores/workbench';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
 import type { CommandContext } from './execute';
@@ -20,6 +19,10 @@ import { registerCommand } from './registry';
  */
 vi.mock('../lib/keybindings', () => ({ isEditableEventTarget: vi.fn() }));
 const mockedIsEditableEventTarget = vi.mocked(isEditableEventTarget);
+const secondarySidebarViewCommands = [
+    { commandId: 'secondarySidebar.showFiles', viewContainerId: 'caxri.files' },
+    { commandId: 'secondarySidebar.showGit', viewContainerId: 'caxri.git' },
+] as const;
 
 function recordingContext(): { calls: string[]; context: CommandContext } {
     const calls: string[] = [];
@@ -69,16 +72,16 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 splitActive: record('workbench.splitActive'),
             },
             editor: { saveActive: record('editor.save') },
-            inspector: {
-                searchFiles: record('inspector.searchFiles'),
-                activateMode: record('inspector.activateMode'),
-                toggle: record('inspector.toggle'),
+            secondarySidebar: {
+                searchFiles: record('secondarySidebar.searchFiles'),
+                activateViewContainer: record('secondarySidebar.activateViewContainer'),
+                toggle: record('secondarySidebar.toggle'),
             },
-            bottomPanel: {
-                activateView: record('bottomPanel.activateView'),
-                toggle: record('bottomPanel.toggle'),
+            panel: {
+                activateViewContainer: record('panel.activateViewContainer'),
+                toggle: record('panel.toggle'),
             },
-            sidebar: { toggle: record('sidebar.toggle') },
+            primarySidebar: { toggle: record('primarySidebar.toggle') },
             dialogs: {
                 openSettings: record('dialogs.openSettings'),
                 openPalette: record('dialogs.openPalette'),
@@ -240,17 +243,20 @@ describe('executeCommand', () => {
         expect(calls).toEqual([]);
     });
 
-    it('maps each Inspector command to its mode', () => {
+    it('maps each SecondarySidebar command to its ViewContainer', () => {
         const { calls, context } = recordingContext();
-        for (const { commandId } of inspectorModeRegistrations)
+        for (const { commandId } of secondarySidebarViewCommands)
             executeCommand(commandId, undefined, context);
 
         expect(calls).toEqual(
-            inspectorModeRegistrations.map(({ mode }) => `inspector.activateMode(${mode})`),
+            secondarySidebarViewCommands.map(
+                ({ viewContainerId }) =>
+                    `secondarySidebar.activateViewContainer(${viewContainerId})`,
+            ),
         );
     });
 
-    describe('Inspector activation', () => {
+    describe('SecondarySidebar activation', () => {
         beforeEach(() => {
             vi.stubGlobal('window', {
                 caxri: {
@@ -274,7 +280,7 @@ describe('executeCommand', () => {
                             sessionId: 'session-1',
                             workbenchProjectId: 'project-1',
                             openTabs: [],
-                            inspectorMode: 'files',
+                            desiredSecondarySidebarViewContainerId: 'caxri.files',
                             layout: {},
                         },
                     ],
@@ -290,44 +296,47 @@ describe('executeCommand', () => {
             vi.unstubAllGlobals();
         });
 
-        it.each(inspectorModeRegistrations)(
-            'reveals the Inspector and selects $mode for $commandId',
-            ({ commandId, mode }) => {
-                usePanelLayoutStore.setState({ inspectorVisible: false });
+        it.each(secondarySidebarViewCommands)(
+            'reveals the Secondary Side Bar and selects $viewContainerId for $commandId',
+            ({ commandId, viewContainerId }) => {
+                useChromeLayoutStore.setState({ secondarySidebarVisible: false });
 
                 executeCommand(commandId);
 
-                expect(usePanelLayoutStore.getState().inspectorVisible).toBe(true);
+                expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(true);
                 expect(
-                    useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.inspectorMode,
-                ).toBe(mode);
+                    useWorkbenchStore.getState().bootstrap?.sessionStates[0]
+                        ?.desiredSecondarySidebarViewContainerId,
+                ).toBe(viewContainerId);
             },
         );
 
-        it('does not re-persist the panel layout while switching an already visible Inspector', () => {
-            usePanelLayoutStore.setState({ inspectorVisible: true });
-            const setInspectorVisible = vi.spyOn(
-                usePanelLayoutStore.getState(),
-                'setInspectorVisible',
+        it('does not re-persist the chrome layout while switching an already visible Secondary Side Bar', () => {
+            useChromeLayoutStore.setState({ secondarySidebarVisible: true });
+            const setSecondarySidebarVisible = vi.spyOn(
+                useChromeLayoutStore.getState(),
+                'setSecondarySidebarVisible',
             );
 
-            for (const { commandId } of inspectorModeRegistrations) executeCommand(commandId);
+            for (const { commandId } of secondarySidebarViewCommands) executeCommand(commandId);
 
-            expect(setInspectorVisible).not.toHaveBeenCalled();
-            expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.inspectorMode).toBe(
-                inspectorModeRegistrations.at(-1)?.mode,
-            );
+            expect(setSecondarySidebarVisible).not.toHaveBeenCalled();
+            expect(
+                useWorkbenchStore.getState().bootstrap?.sessionStates[0]
+                    ?.desiredSecondarySidebarViewContainerId,
+            ).toBe(secondarySidebarViewCommands.at(-1)?.viewContainerId);
         });
 
-        it('routes Search Files through the same Inspector activation before requesting focus', () => {
-            usePanelLayoutStore.setState({ inspectorVisible: false });
+        it('routes Search Files through the same Secondary Side Bar activation before requesting focus', () => {
+            useChromeLayoutStore.setState({ secondarySidebarVisible: false });
 
-            executeCommand('inspector.searchFiles');
+            executeCommand('secondarySidebar.searchFiles');
 
-            expect(usePanelLayoutStore.getState().inspectorVisible).toBe(true);
-            expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.inspectorMode).toBe(
-                'files',
-            );
+            expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(true);
+            expect(
+                useWorkbenchStore.getState().bootstrap?.sessionStates[0]
+                    ?.desiredSecondarySidebarViewContainerId,
+            ).toBe('caxri.files');
             expect(useFileSearchStore.getState()).toMatchObject({
                 activeSessionId: 'session-1',
                 focusRevision: 1,

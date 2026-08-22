@@ -99,6 +99,13 @@
             "when": 1787335592051,
             "tag": "0013_drop_terminal_layout_node_id",
             "breakpoints": true
+        },
+        {
+            "idx": 14,
+            "version": "6",
+            "when": 1787377020056,
+            "tag": "0014_wide_squadron_sinister",
+            "breakpoints": true
         }
     ]
 }

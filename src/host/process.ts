@@ -12,6 +12,7 @@ import { StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import { startHostApp } from './app';
 import { createDesktopLauncher } from './desktop-launcher';
+import { extensionRootsForHost } from './extensions/discovery';
 
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
 if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
@@ -51,6 +52,14 @@ const app = await startHostApp({
     commit,
     cliPath,
     executable: process.execPath,
+    extensionHostPath: join(hostOutputDirectory, 'extension-host.js'),
+    extensionRoots: extensionRootsForHost({
+        hostOutputDirectory,
+        userDataPath,
+        ...(hostOutputDirectory.includes('.asar') &&
+            process.resourcesPath && { resourcesPath: process.resourcesPath }),
+    }),
+    includeTestExtensions: process.env.CAXRI_E2E === '1',
     ...(desktopLaunch && {
         launchDesktop: createDesktopLauncher({
             launch: desktopLaunch,

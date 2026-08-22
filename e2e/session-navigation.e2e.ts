@@ -13,7 +13,7 @@ import {
     sessionCard,
 } from './support/helpers.ts';
 
-test('Session history navigates back and forward from the Sidebar header and the shortcut', async () => {
+test('Session history navigates back and forward from the PrimarySidebar header and the shortcut', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-navigation-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -109,7 +109,7 @@ test('Session history navigates back and forward from the Sidebar header and the
         await pageRequest(running.page, 'session.select', { sessionId: sessionC });
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionC);
         // The Runtime having applied the selection is not enough: the next Back is computed from the Renderer's own
-        // history, which only learns about this Session once the Sidebar has rendered it as the selected one.
+        // history, which only learns about this Session once the PrimarySidebar has rendered it as the selected one.
         await expect(
             running.page.locator(
                 `.session-row[aria-selected="true"] [data-session-id="${sessionC}"]`,

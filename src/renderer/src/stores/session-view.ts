@@ -1,6 +1,6 @@
 import type { EditorDocument, SessionDocuments } from '@shared/editor-state';
 import { setSessionDocument } from '@shared/editor-state';
-import type { InspectorMode } from '@shared/types';
+import type { ViewContainerId } from '@shared/views';
 import { omit, omitBy } from 'es-toolkit';
 import { create } from 'zustand';
 
@@ -43,7 +43,7 @@ interface SessionViewState {
         workbenchProjectId?: string,
     ): void;
     dropSessions(sessionIds: readonly string[]): void;
-    setInspectorMode(mode: InspectorMode): void;
+    setDesiredSecondarySidebarViewContainerId(id: ViewContainerId): void;
 }
 
 /**
@@ -299,11 +299,11 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
     },
 
     /**
-     * Inspector mode is persisted with the Session, so this writes through to the Runtime.
+     * The desired ViewContainer is Session-owned intent; catalog availability never rewrites it.
      */
-    setInspectorMode(mode) {
+    setDesiredSecondarySidebarViewContainerId(id) {
         const current = getSessionState();
-        if (current) patchSessionState({ ...current, inspectorMode: mode });
+        if (current) patchSessionState({ ...current, desiredSecondarySidebarViewContainerId: id });
     },
 }));
 

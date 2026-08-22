@@ -11,9 +11,14 @@ import {
     CommandList,
 } from '../../components/ui/command';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { caxri } from '../../lib/caxri';
 import { useCommandShortcut } from '../../lib/keybindings';
+import { useCaxriQuery } from '../../queries/client';
+import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSessions } from '../../stores/selectors';
+import { useSessionViewStore } from '../../stores/session-view';
+import { tryCommand } from '../../stores/toasts';
 import { didSelectSession, selectProject } from '../session/session-actions';
 
 const NO_RECORDS: never[] = [];
@@ -53,10 +58,54 @@ function CommandRow({ command }: { command: (typeof commandDefinitions)[number] 
     );
 }
 
+function DynamicCommandRow({
+    command,
+    container,
+}: {
+    command: { id: string; title: string; description?: string };
+    container?: { id: string; location: 'secondarySidebar' | 'panel' };
+}) {
+    return (
+        <CommandItem
+            value={`Extension ${command.title} ${command.id}`}
+            onSelect={() => {
+                setPaletteOpen(false);
+                if (container?.location === 'secondarySidebar') {
+                    useChromeLayoutStore.getState().setSecondarySidebarVisible(true);
+                    useSessionViewStore
+                        .getState()
+                        .setDesiredSecondarySidebarViewContainerId(container.id);
+                    return;
+                }
+                if (container?.location === 'panel') {
+                    useChromeLayoutStore.getState().activatePanelViewContainer(container.id);
+                    return;
+                }
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand() reports its own errors
+                void tryCommand(`Unable to run ${command.title}`, () =>
+                    caxri.request('viewContainers.executeCommand', {
+                        commandId: command.id,
+                        arguments: [],
+                    }),
+                );
+            }}
+        >
+            <span className="flex min-w-0 flex-col gap-0.5">
+                <span>{command.title}</span>
+                {command.description && (
+                    <span className="truncate text-[11px] text-muted">{command.description}</span>
+                )}
+            </span>
+            <small className={commandItemMetaClassName}>Extension</small>
+        </CommandItem>
+    );
+}
+
 export function CommandPalette() {
     const isOpen = useDialogStore((state) => state.paletteOpen);
     const onOpenChange = setPaletteOpen;
     const projects = useProjects() ?? NO_RECORDS;
+    const catalog = useCaxriQuery('viewContainers.catalog', {}, { enabled: isOpen }).data;
     const sessions = (useSessions() ?? NO_RECORDS).filter(
         (session) => session.archivedAt === undefined,
     );
@@ -118,6 +167,19 @@ export function CommandPalette() {
                                 command.requiresArguments ? null : (
                                     <CommandRow key={command.id} command={command} />
                                 ),
+                            )}
+                            {catalog?.commands.flatMap((command) =>
+                                command.source.kind === 'extension'
+                                    ? [
+                                          <DynamicCommandRow
+                                              key={command.id}
+                                              command={command}
+                                              container={catalog.containers.find(
+                                                  ({ commandId }) => commandId === command.id,
+                                              )}
+                                          />,
+                                      ]
+                                    : [],
                             )}
                         </CommandGroup>
                     </CommandList>

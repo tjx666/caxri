@@ -18,6 +18,7 @@ import {
     runtimeStatusSchema,
     updateStateSchema,
 } from '../domain/domain.js';
+import { extensionIdSchema, viewIdSchema } from '../domain/views.js';
 
 const configChangedSchema = z.object({
     source: configSourceSchema,
@@ -76,6 +77,14 @@ const stateChangedPayloadSchema = z.preprocess(
  * Every payload the Runtime may push to Main and the Renderer, keyed by its wire event name.
  */
 export const runtimeEventPayloads = {
+    'viewContainers.catalogChanged': z.object({
+        revision: z.number().int().nonnegative(),
+        extensionId: extensionIdSchema.optional(),
+    }),
+    'viewContainers.treeChanged': z.object({
+        viewId: viewIdSchema,
+        handles: z.array(z.string().min(1).max(512)).max(1_000).optional(),
+    }),
     'runtime.status': z.object({
         status: runtimeStatusSchema.exclude(['starting']),
         restartCount: z.number(),

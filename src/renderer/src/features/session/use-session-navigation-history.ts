@@ -14,9 +14,9 @@ const MOUSE_BUTTON_FORWARD = 4;
 /**
  * Feeds the Session visit history from the workbench's observed selection and binds the mouse navigation buttons.
  *
- * Recording here rather than inside each selection call site is deliberate: Sidebar clicks, the command palette, the
- * MRU switcher, Session creation, and Runtime-driven switches all converge on the selected Session, so history stays
- * correct without every future navigation source remembering to write it.
+ * Recording here rather than inside each selection call site is deliberate: PrimarySidebar clicks, the command palette,
+ * the MRU switcher, Session creation, and Runtime-driven switches all converge on the selected Session, so history
+ * stays correct without every future navigation source remembering to write it.
  */
 export function useSessionNavigationHistory(): void {
     const selectedSessionId = useSelectedSession()?.id;

@@ -90,7 +90,7 @@ async function closeAllEditors(path: string): Promise<void> {
 const sessionState = (sessionId: string, path: string): SessionState => ({
     sessionId,
     workbenchProjectId: 'project-1',
-    inspectorMode: 'files',
+    desiredSecondarySidebarViewContainerId: 'caxri.files',
     paneLayout: paneLayout([path]),
 });
 
@@ -153,7 +153,7 @@ function installEmptySession(): void {
                 {
                     sessionId: 'session-1',
                     workbenchProjectId: 'project-1',
-                    inspectorMode: 'files',
+                    desiredSecondarySidebarViewContainerId: 'caxri.files',
                     paneLayout: paneLayout([]),
                 },
             ],
@@ -229,7 +229,7 @@ describe('session-scoped file mutation completion', () => {
         const worktreeState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-2',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(['/worktree/keep.ts']),
         };
         useWorkbenchStore.setState((state) => ({
@@ -415,7 +415,7 @@ describe('session-scoped file mutation completion', () => {
         const worktreeState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-2',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(['/worktree/keep.ts']),
         };
         useWorkbenchStore.setState((state) => ({

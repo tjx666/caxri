@@ -24,6 +24,8 @@ export type TransientRuntimeEvent = Extract<
             | 'projectStatus.changed'
             | 'terminal.output'
             | 'terminal.outputRecovery'
+            | 'viewContainers.catalogChanged'
+            | 'viewContainers.treeChanged'
             | 'workbench.candidate'
             | 'workbench.changed';
     }
@@ -44,6 +46,8 @@ const TRANSIENT_RUNTIME_EVENT_NAMES = new Set<RuntimeEvent['event']>([
      */
     'host.connectionChanged',
     'projectStatus.changed',
+    'viewContainers.catalogChanged',
+    'viewContainers.treeChanged',
     'workbench.candidate',
     'workbench.changed',
 ]);

@@ -8,7 +8,7 @@ import { expect, test } from './support/fixtures.ts';
 import {
     launchCaxri,
     openAddProjectDialog,
-    openBottomPanelView,
+    openPanelView,
     pageRequest,
     waitForCreatedSession,
 } from './support/helpers.ts';
@@ -60,7 +60,7 @@ test('Agent identities stay consistent across every shared surface', async () =>
                 .locator('[data-agent-icon="codex"]'),
         ).toBeVisible();
 
-        const infoTab = await openBottomPanelView(running.page, 'Info');
+        const infoTab = await openPanelView(running.page, 'Info');
         await expect(
             running.page.locator('.terminal-info-card').locator('[data-agent-icon="claude"]'),
         ).toBeVisible();
