@@ -215,6 +215,16 @@ function DocumentPaneTab({
                       ? agentTranscriptTabLabel(transcriptTerminal?.title)
                       : pathBasename(path)
             }
+            // Document tabs cap at 160px (see ADR 0002 "Tab sizing") and truncate with an ellipsis, so a mouse
+            // user needs the hover path to recover a name that got cut off; a diff/transcript tab reuses its own
+            // label since it has no full path of its own.
+            labelTooltip={
+                gitDiffTab
+                    ? gitDiffTabLabel(gitDiffTab)
+                    : transcriptTab
+                      ? agentTranscriptTabLabel(transcriptTerminal?.title)
+                      : path
+            }
             motionIdentity={tab.id}
             tabId={workTabId(tab.id)}
             paneTabId={tab.id}
