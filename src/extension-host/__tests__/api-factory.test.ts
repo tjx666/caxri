@@ -105,6 +105,99 @@ describe('Extension Host API factory', () => {
         ).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
     });
 
+    it('uses explicit TreeItem ids as stable view-scoped identity and rejects duplicates', async () => {
+        configureExtensions([registration()]);
+        let children = [{ label: 'first' }];
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: () => children,
+                getTreeItem: (element: { label: string }) => {
+                    const item = new TreeItem(element.label);
+                    item.id = 'stable-item';
+                    return item;
+                },
+            },
+        );
+
+        const first = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'stable-first',
+        });
+        children = [{ label: 'replacement' }];
+        const replacement = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'stable-replacement',
+        });
+        expect(replacement.items[0]).toMatchObject({
+            handle: first.items[0].handle,
+            id: 'stable-item',
+            label: 'replacement',
+        });
+
+        children = [{ label: 'duplicate-a' }, { label: 'duplicate-b' }];
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                requestId: 'stable-duplicate',
+            }),
+        ).rejects.toMatchObject({ code: 'DUPLICATE_ID' });
+    });
+
+    it('retires removed child handles when a parent branch is replaced', async () => {
+        configureExtensions([registration()]);
+        let childLabel = 'old-child';
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: (element: { label: string } | undefined) =>
+                    element ? [{ label: childLabel }] : [{ label: 'parent' }],
+                getTreeItem: (element: { label: string }) => {
+                    const item = new TreeItem(element.label, TreeItemCollapsibleState.Collapsed);
+                    item.id = element.label;
+                    return item;
+                },
+            },
+        );
+        const root = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'retire-root',
+        });
+        const firstChildren = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            parentHandle: root.items[0].handle,
+            requestId: 'retire-old-child',
+        });
+        childLabel = 'new-child';
+        await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            parentHandle: root.items[0].handle,
+            requestId: 'retire-new-child',
+        });
+
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                parentHandle: firstChildren.items[0].handle,
+                requestId: 'retire-expired-child',
+            }),
+        ).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+    });
+
     it('propagates cancellation and active-context changes only to the current runtime', async () => {
         configureExtensions([registration()]);
         const binding = extensionApiBinding('fixture-token-1');

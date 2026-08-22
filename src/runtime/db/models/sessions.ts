@@ -121,6 +121,7 @@ interface SessionStateRow {
  */
 const workbenchEditorStateSchema = z.object({
     editorRemapOperationId: sessionStateSchema.shape.editorRemapOperationId,
+    extensionTreeViewStates: sessionStateSchema.shape.extensionTreeViewStates,
     paneLayout: sessionStateSchema.shape.paneLayout,
 });
 const workbenchEditorStatesSchema = z
@@ -188,6 +189,7 @@ function parseSessionState(
         editorRemapOperationId: rootState?.editorRemapOperationId,
         // Availability is presentation state. Keep the desired ID even while its extension is absent or crashed.
         desiredSecondarySidebarViewContainerId: row.desiredSecondarySidebarViewContainerId,
+        extensionTreeViewStates: rootState?.extensionTreeViewStates,
         paneLayout: rootState?.paneLayout ?? fallbackPaneLayout(),
     };
     const parsed = sessionStateSchema.safeParse(candidate);
@@ -639,6 +641,9 @@ export class SessionsModel {
             ...(existing && parseWorkbenchEditorStates(existing.workbenchStateJson)),
             [state.workbenchProjectId]: {
                 paneLayout,
+                ...(state.extensionTreeViewStates && {
+                    extensionTreeViewStates: state.extensionTreeViewStates,
+                }),
                 ...(state.editorRemapOperationId && {
                     editorRemapOperationId: state.editorRemapOperationId,
                 }),

@@ -56,6 +56,10 @@ interface ProviderRegistration {
     elements: Map<string, unknown>;
     handles: WeakMap<object, string>;
     depths: Map<string, number>;
+    children: Map<string, Set<string>>;
+    parents: Map<string, string>;
+    ids: Map<string, string>;
+    itemIds: Map<string, string>;
     nextHandle: number;
 }
 
@@ -88,6 +92,7 @@ const cancellations = new Map<string, CancellationTokenSource>();
 const pendingApi = new Map<string, PendingApiRequest>();
 const pendingRefreshes = new Map<string, { batch: TreeRefreshBatch; timer: NodeJS.Timeout }>();
 const HOST_API_TIMEOUT_MS = 15_000;
+const ROOT_TREE_PARENT = '';
 
 function cancelPendingRefresh(viewId: string): void {
     const pending = pendingRefreshes.get(viewId);
@@ -130,6 +135,10 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
     if (changed === undefined) {
         provider.elements.clear();
         provider.depths.clear();
+        provider.children.clear();
+        provider.parents.clear();
+        provider.ids.clear();
+        provider.itemIds.clear();
         provider.handles = new WeakMap();
         provider.nextHandle = 0;
     }
@@ -227,6 +236,10 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
                     elements: new Map(),
                     handles: new WeakMap(),
                     depths: new Map(),
+                    children: new Map(),
+                    parents: new Map(),
+                    ids: new Map(),
+                    itemIds: new Map(),
                     nextHandle: 0,
                 };
                 if (provider.onDidChangeTreeData)
@@ -396,6 +409,41 @@ function providerFailure(error: unknown): Error {
     );
 }
 
+function stableTreeHandle(id: string): string {
+    return `id:${id}`;
+}
+
+function collectDescendantHandles(
+    provider: ProviderRegistration,
+    parentHandle: string,
+): Set<string> {
+    const descendants = new Set<string>();
+    const visit = (parent: string): void => {
+        const childHandles = provider.children.get(parent) ?? [];
+        for (const child of childHandles) {
+            if (descendants.has(child)) continue;
+            descendants.add(child);
+            visit(child);
+        }
+    };
+    visit(parentHandle);
+    return descendants;
+}
+
+function retireTreeHandles(provider: ProviderRegistration, handles: ReadonlySet<string>): void {
+    for (const handle of handles) {
+        const element = provider.elements.get(handle);
+        if (typeof element === 'object' && element !== null) provider.handles.delete(element);
+        const id = provider.itemIds.get(handle);
+        if (id && provider.ids.get(id) === handle) provider.ids.delete(id);
+        provider.elements.delete(handle);
+        provider.depths.delete(handle);
+        provider.parents.delete(handle);
+        provider.itemIds.delete(handle);
+        provider.children.delete(handle);
+    }
+}
+
 function isRequestCancelled(cancellation: CancellationTokenSource): boolean {
     return cancellation.token.isCancellationRequested;
 }
@@ -435,6 +483,7 @@ export async function getTreeChildren(parameters: {
         throw Object.assign(new Error('Tree provider exceeded the depth limit'), {
             code: 'PROVIDER_CAPACITY',
         });
+    const parentKey = parameters.parentHandle ?? ROOT_TREE_PARENT;
     if (cancellations.has(parameters.requestId))
         throw Object.assign(new Error('Tree request id is already active'), {
             code: 'PROVIDER_CAPACITY',
@@ -454,10 +503,6 @@ export async function getTreeChildren(parameters: {
             throw Object.assign(new Error('Tree provider exceeded the item limit'), {
                 code: 'PROVIDER_CAPACITY',
             });
-        if (provider.elements.size + children.length > MAX_VIEW_TREE_HANDLES)
-            throw Object.assign(new Error('Tree provider exceeded the handle limit'), {
-                code: 'PROVIDER_CAPACITY',
-            });
         const stagedItems = await Promise.all(
             children.map(async (element) => {
                 let item: TreeItem | null | undefined;
@@ -470,23 +515,62 @@ export async function getTreeChildren(parameters: {
                     throw Object.assign(new Error('Tree provider returned an empty TreeItem'), {
                         code: 'PROVIDER_FAILED',
                     });
-                const existingHandle =
-                    typeof element === 'object' && element !== null
-                        ? provider.handles.get(element)
-                        : undefined;
-                return { element, existingHandle, item };
+                return { element, item };
             }),
         );
         assertRuntimeCurrent(runtime);
         if (isRequestCancelled(cancellation)) return { items: [] };
         assertRuntimeCurrent(runtime);
+        const retiredHandles = collectDescendantHandles(provider, parentKey);
+        if (provider.elements.size - retiredHandles.size + children.length > MAX_VIEW_TREE_HANDLES)
+            throw Object.assign(new Error('Tree provider exceeded the handle limit'), {
+                code: 'PROVIDER_CAPACITY',
+            });
         let nextHandle = provider.nextHandle;
-        const prepared = stagedItems.map(({ element, existingHandle, item }) => {
-            const handle = existingHandle ?? `${parameters.generation}:${++nextHandle}`;
+        const stagedIds = new Set<string>();
+        const stagedObjects = new WeakSet<object>();
+        const stagedHandles = new Set<string>();
+        const prepared = stagedItems.map(({ element, item }) => {
+            let handle: string;
+            if (item.id) {
+                if (stagedIds.has(item.id))
+                    throw Object.assign(new Error(`Duplicate TreeItem id: ${item.id}`), {
+                        code: 'DUPLICATE_ID',
+                    });
+                stagedIds.add(item.id);
+                const existingHandle = provider.ids.get(item.id);
+                if (existingHandle && !retiredHandles.has(existingHandle))
+                    throw Object.assign(new Error(`Duplicate TreeItem id: ${item.id}`), {
+                        code: 'DUPLICATE_ID',
+                    });
+                handle = stableTreeHandle(item.id);
+            } else {
+                const objectElement =
+                    typeof element === 'object' && element !== null ? element : undefined;
+                if (objectElement && stagedObjects.has(objectElement))
+                    throw Object.assign(new Error('Tree provider returned one element twice'), {
+                        code: 'DUPLICATE_ID',
+                    });
+                if (objectElement) stagedObjects.add(objectElement);
+                const existingHandle = objectElement
+                    ? provider.handles.get(objectElement)
+                    : undefined;
+                if (existingHandle && !retiredHandles.has(existingHandle))
+                    throw Object.assign(new Error('Tree element belongs to another parent'), {
+                        code: 'DUPLICATE_ID',
+                    });
+                handle = existingHandle ?? `${parameters.generation}:${++nextHandle}`;
+            }
+            if (stagedHandles.has(handle))
+                throw Object.assign(new Error('Tree provider returned duplicate identity'), {
+                    code: 'DUPLICATE_ID',
+                });
+            stagedHandles.add(handle);
             let dto: TreeItemDto;
             try {
                 dto = treeItemSchema.parse({
                     handle,
+                    ...(item.id && { id: item.id }),
                     label: item.label,
                     ...(item.description && { description: item.description }),
                     ...(item.tooltip && { tooltip: item.tooltip }),
@@ -515,9 +599,16 @@ export async function getTreeChildren(parameters: {
             });
         if (isRequestCancelled(cancellation)) return { items: [] };
         provider.nextHandle = nextHandle;
-        for (const { element, handle } of prepared) {
+        retireTreeHandles(provider, retiredHandles);
+        provider.children.set(parentKey, new Set(prepared.map(({ handle }) => handle)));
+        for (const { dto, element, handle } of prepared) {
             provider.elements.set(handle, element);
             provider.depths.set(handle, childDepth);
+            provider.parents.set(handle, parentKey);
+            if (dto.id) {
+                provider.ids.set(dto.id, handle);
+                provider.itemIds.set(handle, dto.id);
+            }
             if (typeof element === 'object' && element !== null)
                 provider.handles.set(element, handle);
         }

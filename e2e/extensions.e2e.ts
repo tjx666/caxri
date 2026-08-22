@@ -6,10 +6,12 @@ import process from 'node:process';
 import { execFileAsync } from '../src/shared/node/exec.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
+    createAdditionalShellSession,
     createShellSession,
     launchCaxri,
     openAddProjectDialog,
     pageRequest,
+    sessionCard,
     typeTerminal,
 } from './support/helpers.ts';
 import { stubPackagedProjectDialog } from './support/packaged-project-dialog.ts';
@@ -163,7 +165,7 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
-    const running = await launchCaxri({
+    let running = await launchCaxri({
         executablePath: packagedExecutable,
         userDataDir: userData,
         testRootPath: root,
@@ -184,6 +186,37 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         await expect(lazy).toBeVisible();
         expect(await tree.getByRole('treeitem').count()).toBeLessThan(80);
 
+        const providerExpanded = tree.getByRole('treeitem', {
+            name: 'Provider expanded',
+            exact: true,
+        });
+        await expect(providerExpanded).toHaveAttribute('aria-expanded', 'true');
+        await expect(
+            tree.getByRole('treeitem', { name: 'Expanded child', exact: true }),
+        ).toBeVisible();
+
+        const tooltipRow = tree.getByRole('treeitem', { name: 'Tooltip row', exact: true });
+        await tooltipRow.hover();
+        await expect(running.page.locator('.tooltip-popup')).toContainText('Full fixture tooltip');
+
+        await tree.getByRole('treeitem', { name: 'Command count: 0', exact: true }).click();
+        await expect(
+            tree.getByRole('treeitem', { name: 'Command count: 1', exact: true }),
+        ).toBeVisible();
+        await tree.getByRole('treeitem', { name: 'Command count: 1', exact: true }).dblclick();
+        await expect(
+            tree.getByRole('treeitem', { name: 'Command count: 2', exact: true }),
+        ).toBeVisible();
+        const keyboardCommand = tree.getByRole('treeitem', {
+            name: 'Command count: 2',
+            exact: true,
+        });
+        await keyboardCommand.focus();
+        await keyboardCommand.press('Enter');
+        await expect(
+            tree.getByRole('treeitem', { name: 'Command count: 3', exact: true }),
+        ).toBeVisible();
+
         await lazy.focus();
         await lazy.press('ArrowRight');
         await expect(lazy).toHaveAttribute('aria-expanded', 'true');
@@ -201,17 +234,85 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         await last.press('Home');
         await expect(lazy).toBeFocused();
 
+        await lazy.press('ArrowRight');
+        await expect(lazy).toHaveAttribute('aria-expanded', 'true');
+        await expect(alpha).toBeVisible();
+        await alpha.focus();
+        await expect(alpha).toHaveAttribute('aria-selected', 'true');
+
+        const targeted = tree.getByRole('treeitem', { name: 'Targeted refresh', exact: true });
+        await targeted.click();
+        await expect(targeted).toHaveAttribute('aria-expanded', 'true');
+        await expect(
+            tree.getByRole('treeitem', { name: 'Target child 0', exact: true }),
+        ).toBeVisible();
+        await running.page.keyboard.press('Meta+Shift+P');
+        await running.page.getByText('Refresh Extension Fixture Target', { exact: true }).click();
+        await expect(targeted).toHaveAttribute('aria-expanded', 'true');
+        await expect(
+            tree.getByRole('treeitem', { name: 'Target child 1', exact: true }),
+        ).toBeVisible();
+
+        const empty = tree.getByRole('treeitem', { name: 'Empty children', exact: true });
+        await empty.click();
+        await expect(
+            running.page.getByText('No items in this view.', { exact: true }),
+        ).toBeVisible();
+
+        await providerExpanded.click();
+        await expect(providerExpanded).toHaveAttribute('aria-expanded', 'false');
+        await alpha.focus();
+        await expect(alpha).toHaveAttribute('aria-selected', 'true');
+        await running.page.keyboard.press('Meta+Shift+P');
+        await running.page.getByText('Refresh Extension Fixture', { exact: true }).click();
+        await expect(lazy).toHaveAttribute('aria-expanded', 'true');
+        await expect(targeted).toHaveAttribute('aria-expanded', 'true');
+        await expect(providerExpanded).toHaveAttribute('aria-expanded', 'false');
+        await expect(alpha).toHaveAttribute('aria-selected', 'true');
+
         const providerError = tree.getByRole('treeitem', {
             name: 'Provider error',
             exact: true,
         });
         await providerError.click();
         await expect(
-            running.page.getByText('Fixture provider failure', { exact: true }),
+            running.page.getByText('Unable to load view: Fixture provider failure', {
+                exact: true,
+            }),
         ).toBeVisible();
         await expect(
             running.page.getByRole('button', { name: 'Retry', exact: true }),
         ).toBeVisible();
+        await providerError.click();
+        await expect(providerError).toHaveAttribute('aria-expanded', 'false');
+        await alpha.focus();
+        await expect(alpha).toHaveAttribute('aria-selected', 'true');
+
+        const firstSession = await pageRequest<{ selectedSessionId: string }>(
+            running.page,
+            'app.bootstrap',
+        );
+        await createAdditionalShellSession(running.page);
+        await fixtureTab.click();
+        await expect(lazy).toHaveAttribute('aria-expanded', 'false');
+        await sessionCard(running.page, firstSession.selectedSessionId).click();
+        await expect(fixtureTab).toHaveAttribute('aria-selected', 'true');
+        await expect(lazy).toHaveAttribute('aria-expanded', 'true');
+        await expect(alpha).toHaveAttribute('aria-selected', 'true');
+
+        await running.app.close();
+        running = await launchCaxri({
+            executablePath: packagedExecutable,
+            userDataDir: userData,
+            testRootPath: root,
+        });
+        const restoredTree = running.page.getByRole('tree', { name: 'Extension View' });
+        await expect(
+            restoredTree.getByRole('treeitem', { name: 'Lazy children', exact: true }),
+        ).toHaveAttribute('aria-expanded', 'true');
+        await expect(
+            restoredTree.getByRole('treeitem', { name: 'Alpha', exact: true }),
+        ).toHaveAttribute('aria-selected', 'true');
     } finally {
         try {
             await running.app.close();
@@ -252,6 +353,14 @@ test('Extension Host crash preserves Terminal state and desired ViewContainer ac
         await expect(
             running.page.getByRole('treeitem', { name: 'Lazy children', exact: true }),
         ).toBeVisible();
+        const lazy = running.page.getByRole('treeitem', {
+            name: 'Lazy children',
+            exact: true,
+        });
+        await lazy.click();
+        const alpha = running.page.getByRole('treeitem', { name: 'Alpha', exact: true });
+        await expect(alpha).toBeVisible();
+        await alpha.focus();
 
         await running.page.keyboard.press('Meta+Shift+P');
         await running.page.getByText('Crash Extension Host', { exact: true }).click();
@@ -264,9 +373,8 @@ test('Extension Host crash preserves Terminal state and desired ViewContainer ac
             })
             .toBeGreaterThan(1);
         await expect(fixtureTab).toHaveAttribute('aria-selected', 'true');
-        await expect(
-            running.page.getByRole('treeitem', { name: 'Lazy children', exact: true }),
-        ).toBeVisible();
+        await expect(lazy).toHaveAttribute('aria-expanded', 'true');
+        await expect(alpha).toHaveAttribute('aria-selected', 'true');
 
         await typeTerminal(running.page, String.raw`printf 'EXTENSION_HOST_RECOVERY_OK\n'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(

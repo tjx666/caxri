@@ -2,11 +2,43 @@ import { describe, expect, it } from 'vitest';
 
 import {
     extensionManifestSchema,
+    extensionTreeViewStatesSchema,
+    treeItemSchema,
     viewCatalogSnapshotSchema,
     viewContainerIdSchema,
 } from '../views';
 
 describe('extension view contracts', () => {
+    it('bounds stable tree identity and persisted per-view state', () => {
+        expect(
+            treeItemSchema.parse({
+                handle: 'id:repository',
+                id: 'repository',
+                label: 'Repository',
+                accessibilityLabel: 'Repository',
+                collapsibleState: 'expanded',
+            }),
+        ).toMatchObject({ id: 'repository' });
+        expect(
+            treeItemSchema.safeParse({
+                handle: 'id:oversized',
+                id: 'x'.repeat(481),
+                label: 'Oversized',
+                accessibilityLabel: 'Oversized',
+                collapsibleState: 'none',
+            }).success,
+        ).toBe(false);
+        expect(
+            extensionTreeViewStatesSchema.safeParse({
+                'publisher.fixture.tree': {
+                    expandedItemIds: ['repository'],
+                    initializedItemIds: ['repository'],
+                    focusedItemId: 'repository',
+                },
+            }).success,
+        ).toBe(true);
+    });
+
     it('keeps unknown namespaced ViewContainer ids as bounded strings', () => {
         expect(viewContainerIdSchema.parse('publisher.experimental-view')).toBe(
             'publisher.experimental-view',
