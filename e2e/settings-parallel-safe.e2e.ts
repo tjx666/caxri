@@ -45,7 +45,7 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
 
         const search = dialog.getByLabel('Search keyboard shortcuts');
-        await search.fill('toggle secondarySidebar');
+        await search.fill('secondarySidebar.toggle');
         // Filtered on the command id, not the title: a conflict is now reported on both colliding
         // rows, so each row's text contains the *other* command's title and a title filter would
         // match two rows once the conflict below exists. The id appears only on its own row.
