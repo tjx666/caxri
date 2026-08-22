@@ -259,7 +259,14 @@ describe('openTerminalFileLink', () => {
             'session.create',
             'desktop.openFile',
         ]);
-        expect(request).toHaveBeenCalledWith('project.create', { rootPath: selectedRoot });
+        expect(request).toHaveBeenCalledWith('project.create', {
+            rootPath: selectedRoot,
+            expectedRootIdentity: {
+                path: selectedRoot,
+                device: identity.root.device,
+                inode: identity.root.inode,
+            },
+        });
         expect(request).toHaveBeenCalledWith('session.create', {
             projectId: 'project-1',
             defaultAgent: null,

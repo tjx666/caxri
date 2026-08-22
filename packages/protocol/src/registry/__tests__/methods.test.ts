@@ -9,6 +9,26 @@ describe('noParameters default', () => {
     });
 });
 
+describe('project.create selected root identity', () => {
+    const schema = methods['project.create'].params;
+
+    it('accepts a numeric filesystem identity and rejects malformed identifiers', () => {
+        const rootPath = '/private/project';
+        expect(
+            schema.safeParse({
+                rootPath,
+                expectedRootIdentity: { path: rootPath, device: '1', inode: '10' },
+            }).success,
+        ).toBe(true);
+        expect(
+            schema.safeParse({
+                rootPath,
+                expectedRootIdentity: { path: rootPath, device: 'replaced', inode: '10' },
+            }).success,
+        ).toBe(false);
+    });
+});
+
 describe('files.create name refinement', () => {
     const schema = methods['files.create'].params;
     const base = { operationId: 'op-1', sessionId: 'session-1', directory: '/private/project' };

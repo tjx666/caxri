@@ -136,7 +136,10 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
              */
             try {
                 project = await options.grants.use(selected.rootPath, () =>
-                    host.request('project.create', { rootPath: selected.rootPath }),
+                    host.request('project.create', {
+                        rootPath: selected.rootPath,
+                        expectedRootIdentity: selected.identity.root,
+                    }),
                 );
             } catch (error) {
                 options.grants.revoke(selected.rootPath);
