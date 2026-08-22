@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { constants as fileConstants } from 'node:fs';
 import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,6 +16,7 @@ import {
     hostManifestSchema,
 } from '../shared/ipc/local-transport';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+import { profileIdForPath } from '../shared/node/profile-identity';
 
 const MAX_PRIVATE_FILE_BYTES = 16 * 1024;
 const MAX_UNIX_SOCKET_PATH_BYTES = 103;
@@ -50,10 +51,6 @@ function fileSystemCode(error: unknown): string | undefined {
         : undefined;
 }
 
-function profileIdFor(path: string): string {
-    return createHash('sha256').update(path).digest('hex').slice(0, 24);
-}
-
 function defaultSocketDirectory(): string {
     return process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 }
@@ -74,7 +71,7 @@ export async function resolveHostProfilePaths(
 ): Promise<HostProfilePaths> {
     await mkdir(userDataPath, { recursive: true });
     const canonicalUserDataPath = await realpath(userDataPath);
-    const profileId = profileIdFor(canonicalUserDataPath);
+    const profileId = profileIdForPath(canonicalUserDataPath);
     const endpoint = join(socketDirectory, `caxri-host-${profileId}.sock`);
     if (Buffer.byteLength(endpoint, 'utf8') > MAX_UNIX_SOCKET_PATH_BYTES)
         throw new CaxriError('VALIDATION', 'Host Unix socket path exceeds the platform limit');

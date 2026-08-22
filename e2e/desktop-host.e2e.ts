@@ -1,10 +1,20 @@
-import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { execFile, spawn } from 'node:child_process';
+import { once } from 'node:events';
+import {
+    access,
+    mkdir,
+    mkdtemp,
+    readFile,
+    realpath,
+    rm,
+    symlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectDesktopToHost, connectToHost } from '@caxri/cli';
+import { connectDesktopToHost, connectToHost, discoverHostManifest } from '@caxri/cli';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
@@ -18,6 +28,16 @@ import {
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');
+const electronPath = join(
+    projectRoot,
+    'node_modules',
+    'electron',
+    'dist',
+    'Electron.app',
+    'Contents',
+    'MacOS',
+    'Electron',
+);
 
 function runCli(
     arguments_: readonly string[],
@@ -246,6 +266,100 @@ test('queues concurrent Host open requests by their exact Session targets', asyn
         await expect(
             running.page.locator('.work-tab', { hasText: 'first-session.ts' }),
         ).toBeVisible();
+    } finally {
+        client.close();
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('keeps one focused Desktop and one process profile for a repeated same-profile launch', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-profile-instance-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        windowMode: 'visible',
+    });
+    const client = await connectToHost(userData, 2_000);
+    try {
+        const before = await client.request('host.status');
+        await running.app.evaluate(({ BrowserWindow }) => {
+            BrowserWindow.getAllWindows()[0]?.minimize();
+        });
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isMinimized() ?? false,
+                ),
+            )
+            .toBe(true);
+
+        const second = spawn(electronPath, ['.', '--disable-gpu'], {
+            cwd: projectRoot,
+            env: {
+                ...process.env,
+                CAXRI_E2E: '1',
+                CAXRI_E2E_AGENT_MODE: 'blocked',
+                CAXRI_E2E_WINDOW_MODE: 'visible',
+                CAXRI_TEST_ROOT_PATH: root,
+                CAXRI_USER_DATA_DIR: userData,
+            },
+            stdio: 'ignore',
+        });
+        const [code, signal] = (await once(second, 'exit', {
+            signal: AbortSignal.timeout(5_000),
+        })) as [number | null, NodeJS.Signals | null];
+        expect({ code, signal }).toEqual({ code: 0, signal: null });
+
+        await expect
+            .poll(() =>
+                running.app.evaluate(({ BrowserWindow }) => {
+                    const window = BrowserWindow.getAllWindows()[0];
+                    return { minimized: window.isMinimized(), visible: window.isVisible() };
+                }),
+            )
+            .toEqual({ minimized: false, visible: true });
+        await expect(
+            running.page.getByText(
+                'Another Caxri window took over this profile. Continue in the other window.',
+                { exact: true },
+            ),
+        ).toHaveCount(0);
+
+        const after = await client.request('host.status');
+        expect(after).toMatchObject({ pid: before.pid, runtimePid: before.runtimePid });
+        const manifest = await discoverHostManifest(userData);
+        expect(manifest.profileId).toBe(after.profileId);
+        await Promise.all(
+            ['caxri.db', 'logs/main.jsonl', 'logs/host.jsonl', 'logs/runtime.jsonl'].map((path) =>
+                access(join(userData, path)),
+            ),
+        );
+        const appReady = (await readFile(join(userData, 'logs', 'main.jsonl'), 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line) as { event?: string; fields?: Record<string, unknown> })
+            .find(({ event }) => event === 'app.ready');
+        expect(appReady?.fields).toMatchObject({
+            profileId: manifest.profileId,
+            profileKind: 'explicit',
+            remoteDebuggingPort: '0',
+            remoteDebuggingTransport: 'port',
+        });
+        await expect
+            .poll(async () =>
+                (await readFile(join(userData, 'logs', 'main.jsonl'), 'utf8')).includes(
+                    '"event":"app.second_instance_focused"',
+                ),
+            )
+            .toBe(true);
     } finally {
         client.close();
         try {
