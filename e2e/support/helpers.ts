@@ -42,6 +42,13 @@ const staleBuildMessage = 'Build output is stale — run "bun run build" before 
 const buildInputPaths = [
     join(projectRoot, 'src'),
     join(projectRoot, 'electron.vite.config.ts'),
+    join(projectRoot, 'extensions', 'fixture', 'package.json'),
+    join(projectRoot, 'extensions', 'fixture', 'src'),
+    join(projectRoot, 'extensions', 'fixture', 'tsconfig.json'),
+    join(projectRoot, 'extensions', 'status', 'package.json'),
+    join(projectRoot, 'extensions', 'status', 'src'),
+    join(projectRoot, 'extensions', 'status', 'tsconfig.json'),
+    join(projectRoot, 'extensions', 'tsconfig.base.json'),
     join(projectRoot, 'package.json'),
     join(projectRoot, 'packages', 'cli', 'package.json'),
     join(projectRoot, 'packages', 'cli', 'scripts'),
@@ -54,10 +61,14 @@ const buildInputPaths = [
     join(projectRoot, 'packages', 'protocol', 'tsconfig.json'),
     join(projectRoot, 'pnpm-lock.yaml'),
     join(projectRoot, 'pnpm-workspace.yaml'),
+    join(projectRoot, 'scripts', 'build-extension.ts'),
+    join(projectRoot, 'scripts', 'extension-bundle-contract.ts'),
     join(projectRoot, 'tsconfig.node.json'),
     join(projectRoot, 'tsconfig.web.json'),
 ];
 const buildOutputPaths = [
+    join(projectRoot, 'extensions', 'fixture', 'dist', 'extension.js'),
+    join(projectRoot, 'extensions', 'status', 'dist', 'extension.js'),
     join(projectRoot, 'out', 'main', 'index.js'),
     join(projectRoot, 'out', 'main', 'host.js'),
     join(projectRoot, 'out', 'main', 'runtime.js'),

@@ -119,12 +119,17 @@ contracts.
 
 `extensions/status` is the first product extension and imports only public `caxri` API plus ordinary
 dependencies. `extensions/fixture` is test-only and supplies deterministic lazy, cancellation,
-failure, timeout, capacity, deep-tree, virtualization, refresh, and crash paths.
+failure, timeout, capacity, deep-tree, virtualization, refresh, and crash paths. Each extension is
+an independent pnpm workspace package with a package-local TypeScript program and a development-only
+`caxri: workspace:*` dependency.
 
-`bun run build:extensions` emits ESM bundles with `caxri` externalized. `electron-builder` copies
-each reviewed manifest, bundle, icon, and media asset to `Contents/Resources/extensions`. Packaged
-Host discovery uses that resource root and starts the Extension Host entry from `app.asar`; installed
-extensions, when present, are discovered from `<userData>/extensions` after bundled identities.
+`bun run build:extensions` orchestrates package-local ESM builds with `caxri` externalized. The
+production `electron-builder` profile copies only reviewed product manifests, bundles, icons, and
+media assets to `Contents/Resources/extensions`; it does not carry Fixture or extension source maps.
+`package:e2e` writes a separate test artifact that adds Fixture explicitly. Runtime `testOnly`
+filtering remains defense in depth, not the release-artifact boundary. Packaged Host discovery uses
+the resource root and starts the Extension Host entry from `app.asar`; installed extensions, when
+present, are discovered from `<userData>/extensions` after bundled identities.
 
 Focused validation lives in the API, protocol, discovery, catalog, supervisor, API factory,
 persistence, bundle-contract, and Renderer resolution tests. `e2e/extensions.e2e.ts` exercises lazy
