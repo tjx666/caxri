@@ -92,12 +92,6 @@ export interface AgentProviderCatalogEntry {
         kind: 'systemClipboardPaste';
         terminalInput: string;
     };
-    /**
-     * Structured argv for resuming a previous provider conversation identified by `agentSessionId`. Used to
-     * auto-restore an Agent Terminal interrupted by an app shutdown (see GitHub issue #18) without losing its
-     * conversation history.
-     */
-    resumeArguments(agentSessionId: string): string[];
 }
 
 export const agentProviderCatalog = {
@@ -105,13 +99,11 @@ export const agentProviderCatalog = {
         displayName: 'Claude Code',
         executableName: 'claude',
         imageInput: undefined,
-        resumeArguments: (agentSessionId) => ['--resume', agentSessionId],
     },
     codex: {
         displayName: 'Codex',
         executableName: 'codex',
         imageInput: { kind: 'systemClipboardPaste', terminalInput: '\u{16}' },
-        resumeArguments: (agentSessionId) => ['resume', agentSessionId],
     },
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;
 

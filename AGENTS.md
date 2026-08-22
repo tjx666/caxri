@@ -216,6 +216,10 @@ Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results
   variants in Main, Runtime, and tooling code; test code is exempt. A deliberately synchronous
   production boundary needs a comment justifying it.
 - Prefer JSDoc for non-obvious lifecycle or security behavior and document why a workaround exists.
+- Derive generic Agent provider consumers from `agentProviderCatalog`, `agentProviderIds`, or catalog capabilities.
+  Provider-specific safety arguments, minimum versions, messaging support, CLI skill integration, Runtime launch/resume
+  behavior, assets, and other reviewed decisions must use exhaustive typed maps or descriptors keyed by
+  `AgentProvider`; never add a provider-name fallback that silently inherits another provider's policy.
 - Generic helpers come from `es-toolkit` first; never hand-roll a function it already ships. What
   it lacks goes to the shared layers instead of a feature-local copy: browser-safe dependency-free
   pure functions in `@caxri/utils` (`packages/utils`), cross-feature React hooks in

@@ -1,3 +1,4 @@
+import { agentProviderIds } from '@shared/agents';
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
@@ -124,7 +125,7 @@ describe('archived Session selector', () => {
         });
 
         expect(view.projectOptions.map((item) => item.id)).toEqual(['alpha', 'beta']);
-        expect(view.agentOptions).toEqual(['shell', 'claude', 'codex']);
+        expect(view.agentOptions).toEqual(['shell', ...agentProviderIds]);
 
         const afterRestore = deriveArchivedSessionView(
             projects,

@@ -360,6 +360,7 @@ export const claudeProvider: AgentProviderDescriptor = {
     id: 'claude',
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),
+    resumeArguments: (agentSessionId) => ['--resume', agentSessionId],
     transcriptBaseRoot: (environment) =>
         claudeTranscriptBaseRoot(resolveClaudeConfigDirectory(environment)),
     transcriptPath: ({ agentSessionId, cwd }, environment) =>

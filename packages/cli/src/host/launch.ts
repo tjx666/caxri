@@ -2,7 +2,13 @@ import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import process from 'node:process';
 
-import { CaxriError } from '@caxri/protocol';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds, CaxriError } from '@caxri/protocol';
+
+const AGENT_LAUNCH_ENVIRONMENT_KEYS: Record<AgentProvider, readonly string[]> = {
+    claude: ['CLAUDE_CONFIG_DIR'],
+    codex: ['CODEX_HOME', 'CODEX_SQLITE_HOME'],
+};
 
 const LAUNCH_ENVIRONMENT_KEYS = [
     'HOME',
@@ -18,9 +24,7 @@ const LAUNCH_ENVIRONMENT_KEYS = [
     'XDG_CONFIG_HOME',
     'XDG_CACHE_HOME',
     'XDG_DATA_HOME',
-    'CODEX_HOME',
-    'CODEX_SQLITE_HOME',
-    'CLAUDE_CONFIG_DIR',
+    ...agentProviderIds.flatMap((provider) => AGENT_LAUNCH_ENVIRONMENT_KEYS[provider]),
 ] as const;
 
 export interface HostLaunchOptions {

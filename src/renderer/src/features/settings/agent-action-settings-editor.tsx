@@ -21,6 +21,11 @@ interface AgentActionSettingsEditorProperties {
     onChange: (value: AgentActionsSettings) => void;
 }
 
+const AGENT_ACTION_INVOCATION_PLACEHOLDERS: Record<AgentProvider, string> = {
+    claude: '/deploy',
+    codex: '/goal or $commit',
+};
+
 export function AgentActionSettingsEditor({
     provider,
     value,
@@ -153,7 +158,7 @@ export function AgentActionSettingsEditor({
                 <Input
                     aria-label="New agent action invocation"
                     className="bg-background font-mono"
-                    placeholder={provider === 'codex' ? '/goal or $commit' : '/deploy'}
+                    placeholder={AGENT_ACTION_INVOCATION_PLACEHOLDERS[provider]}
                     size="dense"
                     value={invocationDraft}
                     onChange={(event) => setInvocationDraft(event.target.value)}

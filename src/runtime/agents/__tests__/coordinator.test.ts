@@ -5,6 +5,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { AgentProvider } from '../../../shared/agents';
+import { agentProviderCatalog, agentProviderIds } from '../../../shared/agents';
 import type { RuntimeEvent } from '../../../shared/ipc';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
@@ -15,10 +17,10 @@ import { AgentService } from '../service';
 const temporaryDirectories: string[] = [];
 
 function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
-    return new AgentService(undefined, {
-        claude: { provider: 'claude', snapshot },
-        codex: { provider: 'codex', snapshot },
-    });
+    const adapters = Object.fromEntries(
+        agentProviderIds.map((provider) => [provider, { provider, snapshot }]),
+    ) as Record<AgentProvider, AgentAdapter>;
+    return new AgentService(undefined, adapters);
 }
 
 afterEach(async () => {
@@ -64,7 +66,7 @@ describe('AgentCoordinator', () => {
         }
     });
 
-    it.each(['claude', 'codex'] as const)(
+    it.each(agentProviderIds)(
         'promotes a Shell Terminal after a direct %s command creates Agent metadata',
         async (provider) => {
             const directory = await mkdtemp(join(tmpdir(), `caxri-shell-${provider}-`));
@@ -106,7 +108,7 @@ describe('AgentCoordinator', () => {
                     agentSessionId: `${provider}-session`,
                     icon: provider,
                     kind: provider,
-                    title: provider === 'claude' ? 'Claude Code' : 'Codex',
+                    title: agentProviderCatalog[provider].displayName,
                 });
                 expect(database.getSession(created.session.id)).toMatchObject({
                     displayTitle: `${provider} from Shell`,

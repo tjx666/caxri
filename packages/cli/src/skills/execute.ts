@@ -4,6 +4,7 @@ import { realpath, rename } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import type {
+    AgentProvider,
     AgentSkillHealth,
     AgentSkillInstallationHealth,
     AgentSkillScope,
@@ -23,6 +24,7 @@ import {
     updateManagedSkill,
     withSkillMutationLock,
 } from './filesystem';
+import { agentSkillProviderIds, requireAgentSkillProviderIntegration } from './provider-policy';
 
 const CURRENT_MARKER_SCHEMA = 1;
 const MANAGED_BY = 'caxri';
@@ -34,7 +36,7 @@ const managedFileNames = Object.keys(CAXRI_SKILL_FILES).toSorted((left, right) =
 );
 
 type SkillInstallScope = AgentSkillScope;
-type SkillProvider = 'claude' | 'codex';
+type SkillProvider = AgentProvider;
 
 export interface SkillExecutionContext {
     cwd: string;
@@ -122,16 +124,14 @@ function managedBundle(): ManagedSkillBundle {
 }
 
 function providerRoot(context: SkillExecutionContext, provider: SkillProvider): string {
-    const configured =
-        provider === 'codex'
-            ? context.environment.CODEX_HOME
-            : context.environment.CLAUDE_CONFIG_DIR;
+    const integration = requireAgentSkillProviderIntegration(provider);
+    const configured = context.environment[integration.configEnvironmentVariable];
     if (configured && !isAbsolute(configured))
         throw new CaxriError(
             'VALIDATION',
-            `${provider === 'codex' ? 'CODEX_HOME' : 'CLAUDE_CONFIG_DIR'} must be absolute`,
+            `${integration.configEnvironmentVariable} must be absolute`,
         );
-    return resolve(configured ?? join(context.home, provider === 'codex' ? '.codex' : '.claude'));
+    return resolve(configured ?? join(context.home, integration.defaultConfigDirectory));
 }
 
 async function installationTarget(
@@ -140,9 +140,10 @@ async function installationTarget(
     scope: SkillInstallScope,
 ): Promise<string> {
     if (scope === 'global') return join(providerRoot(context, provider), 'skills', SKILL_NAME);
+    const integration = requireAgentSkillProviderIntegration(provider);
     return join(
         await realpath(resolve(context.cwd)),
-        provider === 'codex' ? '.agents' : '.claude',
+        integration.localSkillsDirectory,
         'skills',
         SKILL_NAME,
     );
@@ -546,7 +547,7 @@ export async function inspectBundledSkillHealth(
     context: SkillExecutionContext,
     selection: SkillHealthSelection = {},
 ): Promise<AgentSkillHealth> {
-    const providers = selection.providers ?? ['codex', 'claude'];
+    const providers = selection.providers ?? agentSkillProviderIds;
     const scopes = selection.scopes ?? ['local', 'global'];
     const installations = await Promise.all(
         providers.flatMap((provider) =>
@@ -589,7 +590,7 @@ export async function executeSkillCommand(
     if (action === 'status') {
         const providers: SkillProvider[] = input.provider
             ? [input.provider as SkillProvider]
-            : ['codex', 'claude'];
+            : [...agentSkillProviderIds];
         const scopes: SkillInstallScope[] = input.scope
             ? [input.scope as SkillInstallScope]
             : ['local', 'global'];

@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 
 import type { AgentLaunchSettings } from '../../shared/agents';
-import { agentProviderCatalog } from '../../shared/agents';
 import type {
     AgentDispatchFailure,
     AgentDispatchLaunch,
@@ -17,6 +16,11 @@ import type { Principal } from '../../shared/ipc/principal';
 import type { AgentProvider, ProcessState, TerminalRecord } from '../../shared/types';
 import type { RuntimeAgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
+/**
+ * Runtime domains expose public root barrels by architecture contract; structure tests reject deep provider imports.
+ */
+// oxlint-disable-next-line react-doctor/no-barrel-import
+import { agentProviders } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
 import type { TerminalManager, TerminalWorkingDirectoryIdentity } from '../terminal';
@@ -188,7 +192,7 @@ export class AgentDispatchService {
         )
             throw new CaxriError('CONFLICT', 'Agent Terminal is already running');
         const launch = this.options.launchSettings(terminal.provider);
-        const resumeArguments = agentProviderCatalog[terminal.provider].resumeArguments(
+        const resumeArguments = agentProviders[terminal.provider].resumeArguments(
             input.providerSessionId,
         );
         const requested = launchProjection(terminal.provider, launch, 'resume');

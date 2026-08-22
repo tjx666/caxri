@@ -1,5 +1,13 @@
 import process from 'node:process';
 
+import type { AgentProvider } from '../agents';
+import { agentProviderIds } from '../agents';
+
+const AGENT_ENVIRONMENT_KEYS: Record<AgentProvider, readonly string[]> = {
+    claude: ['CLAUDE_CONFIG_DIR'],
+    codex: ['CODEX_HOME', 'CODEX_SQLITE_HOME'],
+};
+
 const INHERITED_ENVIRONMENT_KEYS = [
     'HOME',
     'USER',
@@ -26,9 +34,7 @@ const INHERITED_ENVIRONMENT_KEYS = [
     'NODE_EXTRA_CA_CERTS',
     'SSL_CERT_FILE',
     'SSL_CERT_DIR',
-    'CODEX_HOME',
-    'CODEX_SQLITE_HOME',
-    'CLAUDE_CONFIG_DIR',
+    ...agentProviderIds.flatMap((provider) => AGENT_ENVIRONMENT_KEYS[provider]),
 ] as const;
 
 /**

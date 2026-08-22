@@ -62,8 +62,8 @@ interface TerminalPaneRuntimeOptions {
     fontFamily: string;
     fontSize: number;
     gpuAcceleration: TerminalGpuAcceleration;
+    imagePasteInput?: string;
     isAgent: boolean;
-    isCodex: boolean;
     osc52ClipboardWrite: boolean;
     processState: ProcessState;
     projectRoot: string;
@@ -84,8 +84,8 @@ export function useTerminalPaneRuntime({
     fontFamily,
     fontSize,
     gpuAcceleration,
+    imagePasteInput,
     isAgent,
-    isCodex,
     osc52ClipboardWrite,
     processState,
     projectRoot,
@@ -119,8 +119,8 @@ export function useTerminalPaneRuntime({
         fontFamily,
         fontSize,
         gpuAcceleration,
+        imagePasteInput,
         isAgent,
-        isCodex,
         osc52ClipboardWrite,
         processState,
         projectRoot,
@@ -138,8 +138,8 @@ export function useTerminalPaneRuntime({
             fontFamily,
             fontSize,
             gpuAcceleration,
+            imagePasteInput,
             isAgent,
-            isCodex,
             osc52ClipboardWrite,
             processState,
             projectRoot,
@@ -155,8 +155,8 @@ export function useTerminalPaneRuntime({
         fontFamily,
         fontSize,
         gpuAcceleration,
+        imagePasteInput,
         isAgent,
-        isCodex,
         osc52ClipboardWrite,
         processState,
         projectRoot,
@@ -311,8 +311,8 @@ export function useTerminalPaneRuntime({
             container,
             document,
             getSelection: () => xterm.getSelection(),
-            isCodex: () => latestReference.current.isCodex,
-            pasteCodexImage: (input) => xterm.input(input),
+            imagePasteInput: () => latestReference.current.imagePasteInput,
+            pasteImage: (input) => xterm.input(input),
         });
         xtermReference.current = xterm;
         let isDisposed = false;
