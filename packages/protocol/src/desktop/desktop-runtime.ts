@@ -18,6 +18,7 @@ export const desktopRuntimeMethodIds = [
     'diagnostics.exportPath',
     'files.authorizeTrash',
     'files.authorizeOpen',
+    'terminal.fileLink.resolve',
     'terminal.detachAll',
     'terminal.terminateAll',
     'theme.importPath',

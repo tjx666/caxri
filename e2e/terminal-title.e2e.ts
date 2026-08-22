@@ -23,12 +23,20 @@ test('a PTY window title reaches the tab label and survives a Renderer reload', 
     try {
         await createShellSession(running.page);
         const tabLabel = running.page.locator('.work-tab.active[data-terminal-id] .tab-label');
+        const tab = running.page.locator('.work-tab.active[data-terminal-id]').getByRole('tab');
+        const terminalRegion = running.page.getByRole('region', { name: 'Shell' });
         await expect(tabLabel).toHaveText('Shell');
+        await expect(tab).toHaveAccessibleName('Shell');
+        await expect(terminalRegion).toBeVisible();
 
         await typeTerminal(running.page, osc0('caxri-title-probe'));
         await expect(tabLabel).toHaveText('caxri-title-probe');
+        await expect(tab).toHaveAccessibleName('caxri-title-probe');
+        await tab.hover();
+        await expect(running.page.locator('.tooltip-popup')).toHaveText('caxri-title-probe');
+        await expect(terminalRegion).toBeVisible();
 
-        // Persisted in `terminals.title`, not held in Renderer state: a reload has to bring it back.
+        // Persisted in `terminals.pty_title`, not held in Renderer state: a reload has to bring it back.
         await running.page.reload();
         await expect(tabLabel).toHaveText('caxri-title-probe');
 

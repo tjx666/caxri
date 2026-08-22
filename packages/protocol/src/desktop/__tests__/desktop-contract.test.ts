@@ -41,6 +41,33 @@ describe('desktopOpenParametersSchema', () => {
             }),
         ).toMatchObject({ launchIfNeeded: false });
     });
+
+    it('accepts a numeric expected file/root identity and editor location', () => {
+        expect(
+            desktopOpenParametersSchema.parse({
+                expectedIdentity: {
+                    device: '2',
+                    inode: '20',
+                    root: { path: '/private/project', device: '1', inode: '10' },
+                },
+                location: { line: 12, column: 4 },
+                path: '/private/project/file.ts',
+            }),
+        ).toMatchObject({
+            expectedIdentity: { inode: '20', root: { inode: '10' } },
+            location: { line: 12, column: 4 },
+        });
+        expect(
+            desktopOpenParametersSchema.safeParse({
+                expectedIdentity: {
+                    device: '2',
+                    inode: 'replaced',
+                    root: { path: '/private/project', device: '1', inode: '10' },
+                },
+                path: '/private/project/file.ts',
+            }).success,
+        ).toBe(false);
+    });
 });
 
 describe('desktopHostMethods policy', () => {

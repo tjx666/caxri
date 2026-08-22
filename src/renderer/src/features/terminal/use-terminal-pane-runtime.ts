@@ -70,7 +70,6 @@ interface TerminalPaneRuntimeOptions {
     scrollback: number;
     terminalCwd: string;
     terminalId: string;
-    terminalSessionId: string;
     terminalTheme: ThemeTokens['terminal'] | undefined;
     wordSeparators: string;
 }
@@ -92,7 +91,6 @@ export function useTerminalPaneRuntime({
     scrollback,
     terminalCwd,
     terminalId,
-    terminalSessionId,
     terminalTheme,
     wordSeparators,
 }: TerminalPaneRuntimeOptions) {
@@ -126,7 +124,7 @@ export function useTerminalPaneRuntime({
         projectRoot,
         scrollback,
         terminalCwd,
-        terminalSessionId,
+        terminalId,
         terminalTheme,
         wordSeparators,
     });
@@ -145,7 +143,7 @@ export function useTerminalPaneRuntime({
             projectRoot,
             scrollback,
             terminalCwd,
-            terminalSessionId,
+            terminalId,
             terminalTheme,
             wordSeparators,
         };
@@ -162,7 +160,7 @@ export function useTerminalPaneRuntime({
         projectRoot,
         scrollback,
         terminalCwd,
-        terminalSessionId,
+        terminalId,
         terminalTheme,
         wordSeparators,
     ]);

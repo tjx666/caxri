@@ -1,4 +1,5 @@
 import { pathBasename } from '@caxri/utils';
+import { editorModelPath } from '@shared/editor-state';
 import type { PaneTabCloseMode } from '@shared/pane-layout';
 import {
     closeTabs,
@@ -22,12 +23,17 @@ import {
     getSessionProjectId,
     getSessionState,
 } from '../../stores/selectors';
-import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
+import {
+    getSessionDocuments,
+    sessionViewScope,
+    useSessionViewStore,
+} from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState, useWorkbenchStore } from '../../stores/workbench';
 import { closeTerminal } from '../terminal/terminal-actions';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
+import { queueEditorRevealLocation, revealEditorLocation } from './editor-reveal';
 
 const fileOpenIntentState = { current: 0 };
 
@@ -102,13 +108,19 @@ function isDocumentDirty(sessionId: string, path: string, workbenchProjectId?: s
 function openEditorTabForSession(
     sessionId: string,
     path: string,
-    options: { paneId?: string; preview?: boolean } = {},
+    options: {
+        location?: { column: number; line: number };
+        paneId?: string;
+        preview?: boolean;
+    } = {},
 ): void {
     const current = sessionStateOf(sessionId);
     if (!current) return;
     const workbenchProjectId = current.workbenchProjectId;
     const view = useSessionViewStore.getState();
-    const wasOpen = findResourceTabs(current.paneLayout, { kind: 'file', path }).length > 0;
+    const existing = findResourceTabs(current.paneLayout, { kind: 'file', path });
+    const wasOpen = existing.length > 0;
+    const wasMounted = existing.some(({ pane, tab }) => pane.activeTabId === tab.id);
     const opened = openResource(
         current.paneLayout,
         { kind: 'file', path },
@@ -126,6 +138,11 @@ function openEditorTabForSession(
         const document = getSessionDocuments(sessionId, workbenchProjectId)?.[replaced];
         return document ? [document] : [];
     });
+    if (options.location && (wasOpen || opened !== current.paneLayout)) {
+        const modelPath = editorModelPath(sessionViewScope(sessionId, workbenchProjectId), path);
+        if (wasMounted) revealEditorLocation(modelPath, options.location);
+        else queueEditorRevealLocation(modelPath, options.location);
+    }
     for (const replaced of replacedPaths)
         view.evictDocument(sessionId, replaced, workbenchProjectId);
     view.touchDocument(sessionId, path, workbenchProjectId);
@@ -173,7 +190,7 @@ export async function cacheDocument(sessionId: string, path: string): Promise<vo
 
 export async function openFile(
     path: string,
-    options: { preview?: boolean } = {},
+    options: { location?: { column: number; line: number }; preview?: boolean } = {},
 ): Promise<string | false> {
     const session = getSelectedSession();
     if (!session) return false;
@@ -186,7 +203,7 @@ export async function openFile(
 export async function openFileForSession(
     sessionId: string,
     path: string,
-    options: { preview?: boolean } = {},
+    options: { location?: { column: number; line: number }; preview?: boolean } = {},
 ): Promise<string | false> {
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
     if (!session) return false;

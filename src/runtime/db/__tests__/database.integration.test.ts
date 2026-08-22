@@ -63,6 +63,11 @@ describe('CaxriDatabaseConnection', () => {
                 }>
             ).map((column) => column.name),
         ).toContain('dispatch_id');
+        expect(
+            (database.database.pragma('table_info(terminals)') as Array<{ name: string }>).map(
+                (column) => column.name,
+            ),
+        ).toContain('pty_title');
         database.close();
     });
 
@@ -296,14 +301,33 @@ describe('CaxriDatabaseConnection', () => {
                 `INSERT INTO terminals
                  (id, session_id, kind, provider, cwd, title, icon, order_index,
                   agent_session_id, last_process_state, failure_reason, created_at, updated_at)
-                 VALUES ('terminal-preserved', 'session-preserved', 'shell', NULL, ?, 'Shell',
-                         'shell', 0, NULL, 'stopped', NULL, 1, 1)`,
+                 VALUES ('terminal-preserved', 'session-preserved', 'shell', NULL, ?,
+                         'zsh old-project', 'shell', 0, NULL, 'stopped', NULL, 1, 1)`,
+            )
+            .run(directory);
+        previous
+            .prepare(
+                `INSERT INTO terminals
+                 (id, session_id, kind, provider, cwd, title, icon, order_index,
+                  agent_session_id, last_process_state, failure_reason, created_at, updated_at)
+                 VALUES ('terminal-claude', 'session-preserved', 'claude', 'claude', ?,
+                         'claude working', 'claude', 1, NULL, 'stopped', NULL, 1, 1)`,
+            )
+            .run(directory);
+        previous
+            .prepare(
+                `INSERT INTO terminals
+                 (id, session_id, kind, provider, cwd, title, icon, order_index,
+                  agent_session_id, last_process_state, failure_reason, created_at, updated_at)
+                 VALUES ('terminal-codex', 'session-preserved', 'codex', 'codex', ?,
+                         'codex reviewing', 'codex', 2, NULL, 'stopped', NULL, 1, 1)`,
             )
             .run(directory);
         previous
             .prepare(
                 `INSERT INTO session_state
-                 (session_id, state_version, workbench_state_json, inspector_mode)
+                 (session_id, state_version, workbench_state_json,
+                  desired_secondary_sidebar_view_container_id)
                  VALUES ('session-preserved', 2, '{}', 'publisher.missing')`,
             )
             .run();
@@ -359,6 +383,16 @@ describe('CaxriDatabaseConnection', () => {
         expect(upgraded.terminals.get('terminal-preserved')).toMatchObject({
             id: 'terminal-preserved',
             failureReason: undefined,
+            ptyTitle: 'zsh old-project',
+            title: 'Shell',
+        });
+        expect(upgraded.terminals.get('terminal-claude')).toMatchObject({
+            ptyTitle: 'claude working',
+            title: 'Claude Code',
+        });
+        expect(upgraded.terminals.get('terminal-codex')).toMatchObject({
+            ptyTitle: 'codex reviewing',
+            title: 'Codex',
         });
         expect(upgraded.snapshots.get('terminal-preserved')).toBeUndefined();
         expect(
@@ -377,7 +411,11 @@ describe('CaxriDatabaseConnection', () => {
         const restoredState = upgraded.sessions.getState('session-preserved');
         expect(restoredState.workbenchProjectId).toBe(project.id);
         expect(restoredState.desiredSecondarySidebarViewContainerId).toBe('publisher.missing');
-        expect(listPaneTerminalIds(restoredState.paneLayout)).toEqual(['terminal-preserved']);
+        expect(listPaneTerminalIds(restoredState.paneLayout)).toEqual([
+            'terminal-preserved',
+            'terminal-claude',
+            'terminal-codex',
+        ]);
         upgraded.close();
     });
 

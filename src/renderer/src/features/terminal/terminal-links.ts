@@ -28,6 +28,7 @@ export interface TerminalLinkContext {
     projectRoot: string;
     wordSeparators: string;
     openFile(path: string, location?: { column: number; line: number }): void;
+    openHomeFile(target: string, location?: { column: number; line: number }): void;
     openUrl(url: string): void;
 }
 
@@ -97,15 +98,36 @@ function parseFileLocation(text: string): {
 }
 
 /**
- * Shell home shorthand needs OS user lookup and may resolve outside the authorized Project root. The Renderer has
- * neither authority, so presenting it as an openable file link would guarantee a wrong or denied target.
+ * Only the current user's exact `~/...` shorthand is actionable. Runtime owns OS user lookup and deliberately rejects
+ * other shell expansion forms so the Renderer never guesses at environment or account semantics.
  */
-function isShellHomeShorthand(path: string): boolean {
-    return /^~[^/]*\//.test(path);
+function isCurrentUserHomePath(path: string): boolean {
+    return /^~\/.+/.test(path);
+}
+
+function isUnsupportedHomePath(path: string): boolean {
+    return (
+        path === '~' ||
+        path === '~/' ||
+        /^~[^/]+(?:\/|$)/.test(path) ||
+        /^\$(?:HOME|\{HOME\})(?:\/|$)/.test(path)
+    );
+}
+
+/**
+ * Word separators can split unsupported Home syntax at any configured character and expose a suffix as a false file
+ * link. Preserve its original-line range so none of the fragments can become actionable.
+ */
+function unsupportedHomeRanges(text: string): Array<{ endIndex: number; startIndex: number }> {
+    return Array.from(text.matchAll(/(?:~[^/\s]+|\$(?:HOME|\{HOME\}))\/\S*/gu), (match) => ({
+        endIndex: match.index + match[0].length,
+        startIndex: match.index,
+    }));
 }
 
 function isLikelyFilePath(path: string): boolean {
-    if (isShellHomeShorthand(path)) return false;
+    if (isCurrentUserHomePath(path)) return true;
+    if (isUnsupportedHomePath(path)) return false;
     if (/^file:\/\//i.test(path)) return true;
     if (/^[a-z][a-z\d+.-]*:\/\//i.test(path)) return false;
     if (path.startsWith('/') || path.startsWith('./') || path.startsWith('../')) return true;
@@ -175,6 +197,7 @@ export function findTerminalLinks(
     wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
 ): TerminalLinkMatch[] {
     const links: TerminalLinkMatch[] = [];
+    const unsupportedHomes = unsupportedHomeRanges(text);
     for (const url of text.matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
         const raw = url[0];
         const rawStart = url.index;
@@ -197,6 +220,12 @@ export function findTerminalLinks(
         const startIndex = rawStart + trimmed.startOffset;
         const endIndex = rawStart + trimmed.endOffset;
         if (links.some((link) => startIndex < link.endIndex && endIndex > link.startIndex))
+            continue;
+        if (
+            unsupportedHomes.some(
+                (range) => startIndex < range.endIndex && endIndex > range.startIndex,
+            )
+        )
             continue;
         const location = parseFileLocation(trimmed.text);
         if (!isLikelyFilePath(location.target)) continue;
@@ -239,7 +268,7 @@ export function resolveTerminalFilePath(
     { cwd, projectRoot }: Pick<TerminalLinkContext, 'cwd' | 'projectRoot'>,
 ): string | undefined {
     const filePath = /^file:\/\//i.test(target) ? fileUrlPath(target) : target;
-    if (!filePath || isShellHomeShorthand(filePath)) return;
+    if (!filePath || isCurrentUserHomePath(filePath) || isUnsupportedHomePath(filePath)) return;
     if (filePath.startsWith('/')) return normalizeAbsolutePath(filePath);
     const base = filePath.startsWith('./') || filePath.startsWith('../') ? cwd : projectRoot;
     return normalizeAbsolutePath(`${base}/${filePath}`);
@@ -264,11 +293,15 @@ function activateLink(
         context.openUrl(match.target);
         return;
     }
-    const path = resolveTerminalFilePath(match.target, context);
-    if (!path) return;
     const location = match.line
         ? { line: Math.max(1, match.line), column: Math.max(1, match.column ?? 1) }
         : undefined;
+    if (isCurrentUserHomePath(match.target)) {
+        context.openHomeFile(match.target, location);
+        return;
+    }
+    const path = resolveTerminalFilePath(match.target, context);
+    if (!path) return;
     context.openFile(path, location);
 }
 

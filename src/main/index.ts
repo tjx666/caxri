@@ -428,6 +428,7 @@ if (ownsProfileInstance) {
                     sessionId: target.sessionId,
                     kind: target.kind,
                     ...(target.kind === 'file' && { path: target.path }),
+                    ...(target.location && { location: target.location }),
                 },
             }),
         openInEditor: async (path) => {

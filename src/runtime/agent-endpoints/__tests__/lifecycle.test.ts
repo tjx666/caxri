@@ -23,6 +23,7 @@ function terminal(kind: 'codex' | 'shell' = 'codex', id = 'terminal-1'): Termina
         ...(kind !== 'shell' && { provider: kind }),
         cwd: '/project',
         title: kind === 'shell' ? 'Shell' : 'Codex',
+        ptyTitle: 'dynamic PTY title',
         icon: 'terminal',
         orderIndex: 0,
         lastProcessState: 'starting',
@@ -90,6 +91,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                 terminalId: 'terminal-1',
                 projectId: 'project-1',
                 provider: 'codex',
+                name: 'Codex',
                 permissionClass: 'standard',
             }),
         );

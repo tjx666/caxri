@@ -16,9 +16,28 @@ export const desktopTargetResultSchema = z.object({
     sessionId: identifierSchema,
 });
 
+export const desktopRootIdentitySchema = z.object({
+    path: pathSchema,
+    device: z.string().regex(/^\d+$/),
+    inode: z.string().regex(/^\d+$/),
+});
+
+export const desktopOpenIdentitySchema = z.object({
+    device: z.string().regex(/^\d+$/),
+    inode: z.string().regex(/^\d+$/),
+    root: desktopRootIdentitySchema,
+});
+
 export const desktopOpenParametersSchema = z.object({
     path: pathSchema,
     sessionId: identifierSchema.optional(),
+    expectedIdentity: desktopOpenIdentitySchema.optional(),
+    location: z
+        .object({
+            line: z.number().int().positive(),
+            column: z.number().int().positive(),
+        })
+        .optional(),
     launchIfNeeded: z.boolean().default(true),
 });
 

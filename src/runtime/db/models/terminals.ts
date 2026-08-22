@@ -22,6 +22,7 @@ interface TerminalRow {
     provider: string | null;
     cwd: string;
     title: string;
+    ptyTitle: string | null;
     icon: string;
     orderIndex: number;
     agentSessionId: string | null;
@@ -39,6 +40,7 @@ function mapTerminal(row: TerminalRow): TerminalRecord {
         provider: (row.provider as AgentProvider | null) ?? undefined,
         cwd: row.cwd,
         title: row.title,
+        ptyTitle: row.ptyTitle ?? undefined,
         icon: row.icon,
         orderIndex: row.orderIndex,
         agentSessionId: row.agentSessionId ?? undefined,
@@ -168,7 +170,8 @@ export class TerminalsModel {
     /**
      * Reclassifies an existing Agent Terminal onto a different provider after the user launched another agent in the
      * same PTY. The provider-owned session binding is cleared so the coordinator's follow-up probe can adopt the new
-     * provider's session.
+     * provider's session. The prior process's PTY title is cleared atomically so display falls back to the new stable
+     * provider title until the replacement process reports its own.
      */
     switchAgentProvider(
         id: string,
@@ -183,6 +186,7 @@ export class TerminalsModel {
                     kind: provider,
                     provider,
                     title,
+                    ptyTitle: null,
                     icon: provider,
                     agentSessionId: null,
                     updatedAt: now,
@@ -199,16 +203,22 @@ export class TerminalsModel {
     }
 
     /**
-     * Records the live title a Terminal's own PTY reported through OSC 0/2. Returns `false` when the row is gone or
-     * already carries this title, which is the caller's signal to skip the Renderer broadcast — Shells re-report an
-     * unchanged title on every prompt.
+     * Records the live display title a Terminal's own PTY reported through OSC 0/2. The stable `title` remains the
+     * semantic identity used outside the tab strip. Returns `false` when the row is gone or already carries this PTY
+     * title, which is the caller's signal to skip the Renderer broadcast — Shells re-report an unchanged title on every
+     * prompt.
      */
-    setTitle(id: string, title: string, now = Date.now()): boolean {
+    setPtyTitle(id: string, ptyTitle: string, now = Date.now()): boolean {
         return (
             this.database
                 .update(terminals)
-                .set({ title, updatedAt: now })
-                .where(and(eq(terminals.id, id), sql`${terminals.title} != ${title}`))
+                .set({ ptyTitle, updatedAt: now })
+                .where(
+                    and(
+                        eq(terminals.id, id),
+                        sql`${terminals.ptyTitle} IS NULL OR ${terminals.ptyTitle} != ${ptyTitle}`,
+                    ),
+                )
                 .run().changes === 1
         );
     }
@@ -234,7 +244,14 @@ export class TerminalsModel {
         return (
             this.database
                 .update(terminals)
-                .set({ kind: provider, provider, title, icon: provider, updatedAt: now })
+                .set({
+                    kind: provider,
+                    provider,
+                    title,
+                    ptyTitle: null,
+                    icon: provider,
+                    updatedAt: now,
+                })
                 .where(
                     and(
                         eq(terminals.id, id),

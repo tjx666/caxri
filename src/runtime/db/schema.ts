@@ -72,6 +72,7 @@ export const terminals = sqliteTable(
         provider: text('provider'),
         cwd: text('cwd').notNull(),
         title: text('title').notNull(),
+        ptyTitle: text('pty_title'),
         icon: text('icon').notNull(),
         orderIndex: integer('order_index').notNull(),
         agentSessionId: text('agent_session_id'),
