@@ -1,5 +1,5 @@
 import type { CSSProperties, DragEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from '@shared/ipc/pane-layout';
 import { listPanes, listPaneTabs, listPaneTerminalIds } from '@shared/pane-layout';
@@ -21,6 +21,7 @@ import { focusPane, movePaneTab, resizePaneSplit, splitPaneTab } from './pane-ac
 import type { PaneDropZone } from './pane-drop-zone';
 import { hasPaneTabDragType, PANE_TAB_DRAG_TYPE, resolvePaneDropZone } from './pane-drop-zone';
 import { PaneTabBar } from './pane-tab-bar';
+import { useTabFocusRecovery } from './use-tab-focus-recovery';
 
 const fullBleedClassName = 'h-full w-full min-h-0 min-w-0';
 
@@ -109,6 +110,12 @@ function PaneBox({
 }) {
     const [activeDropZone, setActiveDropZone] = useState<PaneDropZone>();
     const isActivePane = layout.activePaneId === pane.id;
+    /**
+     * Whether the focus about to arrive is the default action of a pointer press, which the tab's own `onClick` will
+     * finish. Focus reaching a tab any other way — `Tab` traversal, a cancelled drag, the focus recovery below — has no
+     * click behind it, so only the pointer case may leave the pane activation to the click.
+     */
+    const isPointerPressed = useRef(false);
     const activeTab =
         pane.tabs.find((candidate) => candidate.id === pane.activeTabId) ?? pane.tabs.at(0);
     const terminalId =
@@ -163,14 +170,31 @@ function PaneBox({
                     'active shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_55%,transparent)]',
             )}
             data-pane-id={pane.id}
+            onPointerDownCapture={() => {
+                isPointerPressed.current = true;
+                // Focus is dispatched as the pointer press's default action, synchronously before this frame ends, so
+                // clearing on the next frame cannot swallow it and cannot leak into a press that never became a click.
+                requestAnimationFrame(() => {
+                    isPointerPressed.current = false;
+                });
+            }}
             onFocusCapture={(event) => {
                 /**
                  * Clicking a tab in an inactive pane focuses the tab first and selects it after, and `selectTab`
                  * already moves `activePaneId` onto the tab's own pane. Activating the pane from here as well wrote the
                  * entire SessionState twice for one click — two independent `session.updateState` round-trips — so a
-                 * focus that lands on a tab is left for the tab's own selection to finish.
+                 * pointer-driven focus that lands on a tab is left for the tab's own selection to finish.
+                 *
+                 * Every other way into a tab is a real focus change with no click behind it: each pane's active tab is
+                 * `tabIndex=0`, so `Tab` traversal alone can move focus into another pane, and leaving `activePaneId`
+                 * behind would point the focus ring, the Status Bar, and every layout-resolved command at the pane the
+                 * user just left.
                  */
-                if (event.target instanceof Element && event.target.closest('[data-pane-tab-id]'))
+                if (
+                    isPointerPressed.current &&
+                    event.target instanceof Element &&
+                    event.target.closest('[data-pane-tab-id]')
+                )
                     return;
                 focusPane(pane.id);
             }}
@@ -329,6 +353,7 @@ export function PaneView() {
     useEffect(() => {
         retainTerminalProgress(new Set(terminalKey ? terminalKey.split('\u{0}') : []));
     }, [terminalKey]);
+    useTabFocusRecovery(layout);
     if (!layout) return null;
     return (
         <PaneNodeView leadingPane={leadingPaneId(layout.root)} layout={layout} node={layout.root} />

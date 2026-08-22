@@ -1,6 +1,14 @@
 import type { CommandId } from '@shared/commands';
 import { commandDefinitions as sharedCommandDefinitions } from '@shared/commands';
-import type { BootstrapState } from '@shared/types';
+import { MAX_PANE_LAYOUT_PANES } from '@shared/ipc/pane-layout';
+import {
+    activePane,
+    createPaneLayout,
+    listPanes,
+    openResource,
+    splitTabIntoPane,
+} from '@shared/pane-layout';
+import type { BootstrapState, PaneLayout } from '@shared/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useFileSearchStore } from '../features/secondary-sidebar/panels/files/file-search-state';
@@ -23,6 +31,21 @@ const secondarySidebarViewCommands = [
     { commandId: 'secondarySidebar.showFiles', viewContainerId: 'caxri.files' },
     { commandId: 'secondarySidebar.showGit', viewContainerId: 'caxri.git' },
 ] as const;
+
+/**
+ * Puts a layout where the default command context reads it from, for the availability predicates that resolve their
+ * target from the Session rather than from the caller.
+ */
+function seedPaneLayout(paneLayout: PaneLayout): void {
+    useWorkbenchStore.setState({
+        bootstrap: {
+            selectedSessionId: 'session-1',
+            sessions: [{ id: 'session-1', projectId: 'project-1' }],
+            sessionStates: [{ sessionId: 'session-1', paneLayout }],
+        } as unknown as BootstrapState,
+        attachEpoch: 0,
+    });
+}
 
 function recordingContext(): { calls: string[]; context: CommandContext } {
     const calls: string[] = [];
@@ -99,6 +122,11 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
 }
 
 describe('executeCommand', () => {
+    // `seedPaneLayout` writes a module-level store, so a test that seeds one must not leave it standing for the next.
+    afterEach(() => {
+        useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
+    });
+
     it('dispatches every command in the shared catalog', () => {
         for (const definition of sharedCommandDefinitions) {
             const { calls, context } = recordingContext();
@@ -241,6 +269,35 @@ describe('executeCommand', () => {
         executeCommand('workbench.splitLeft', undefined, context);
 
         expect(calls).toEqual([]);
+    });
+
+    /**
+     * The Context Menu and the reducer share `paneSplitBlockedReason`; the Command Palette and the native menu reach
+     * `splitActive` through `canSplitActive` instead, and used to gate on tab count alone. At the pane ceiling that
+     * left the command looking available while the write path silently no-opped.
+     */
+    it('withdraws the split commands once the layout is at its pane ceiling', () => {
+        const id = (() => {
+            let next = 0;
+            return () => `id-${++next}`;
+        })();
+        let layout = createPaneLayout({ kind: 'file', path: 'a.ts' }, id);
+        while (listPanes(layout).length < MAX_PANE_LAYOUT_PANES) {
+            layout = openResource(
+                layout,
+                { kind: 'file', path: `p${listPanes(layout).length}.ts` },
+                {},
+                id,
+            );
+            const [head] = activePane(layout).tabs;
+            layout = splitTabIntoPane(layout, head.id, activePane(layout).id, 'right', id);
+        }
+        // A second tab in the active pane, so only the ceiling — never the tab count — can block the split.
+        layout = openResource(layout, { kind: 'file', path: 'extra.ts' }, {}, id);
+        expect(activePane(layout).tabs.length).toBeGreaterThan(1);
+
+        seedPaneLayout(layout);
+        expect(isCommandAvailable('workbench.splitRight')).toBe(false);
     });
 
     it('maps each SecondarySidebar command to its ViewContainer', () => {

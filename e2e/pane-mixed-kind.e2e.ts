@@ -152,6 +152,15 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         await expect.poll(() => activePaneId(running.page)).toBe(terminalPaneId);
 
         /**
+         * Every pane's active tab is `tabIndex=0`, so plain `Tab` traversal can put focus in a pane the user has not
+         * clicked. That is a real pane change: leaving `activePaneId` behind would point the focus ring, the Status
+         * Bar, and every layout-resolved command at the pane they just left. `focus()` is the same programmatic path
+         * traversal and a cancelled drag take — no click follows it to finish the job.
+         */
+        await fileTab.getByRole('tab').focus();
+        await expect.poll(() => activePaneId(running.page)).toBe(documentPaneId);
+
+        /**
          * Dragging a tab across panes previews where it would land; it must not activate the pane it merely passes
          * over. A held hover that changed the active pane would reorder Terminals under the user mid-drag, which is why
          * VS Code shows an insertion line and nothing else.
@@ -159,7 +168,7 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         await beginTabDragOverPane(running.page, fileTab, terminalPaneId!);
         await running.page.waitForTimeout(HELD_HOVER_MS);
         await expect(running.page.locator('.pane-drop-preview')).toBeVisible();
-        expect(await activePaneId(running.page)).toBe(terminalPaneId);
+        expect(await activePaneId(running.page)).toBe(documentPaneId);
         await expect(
             running.page.locator(`.workbench-pane[data-pane-id="${documentPaneId}"] .work-tab`),
         ).toHaveCount(1);
@@ -168,6 +177,17 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         // The document pane held only this tab, so the drop collapses it and leaves one pane holding both kinds again.
         await expect(panes).toHaveCount(1);
         await expect(running.page.locator('.work-tab')).toHaveCount(2);
+        /**
+         * The drag just did both of the things a single tab bar cannot repair on its own: it moved the focused tab into
+         * another pane — so `activePaneId` is no longer the bar that lost it — and it collapsed the source pane, which
+         * unmounts that bar outright. Focus must still land on the tab that survived, not on `document.body`.
+         *
+         * Waiting for the count first is what makes this a real check: until the exit animation ends, the leaving copy
+         * is still in the DOM and still matches `fileTab`, so asserting focus straight away can pass by catching the
+         * outgoing ghost rather than the tab that arrived.
+         */
+        await expect(fileTab).toHaveCount(1);
+        await expect(fileTab.getByRole('tab')).toBeFocused();
 
         /**
          * Closing the focused tab deletes the element holding keyboard focus, and the browser's fallback is

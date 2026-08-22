@@ -318,7 +318,6 @@ export function PaneTabBar({
     paneLabel: string;
 }) {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
-    const isActivePane = useSessionState()?.paneLayout.activePaneId === pane.id;
     const [isDropTarget, setIsDropTarget] = useState(false);
     const [dropIndicatorLeft, setDropIndicatorLeft] = useState<number | undefined>(undefined);
     const barReference = useRef<HTMLDivElement>(null);
@@ -353,23 +352,6 @@ export function PaneTabBar({
             ?.querySelector<HTMLElement>('[data-tab-active="true"]')
             ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }, [activeTabId]);
-    /**
-     * Closing the focused tab, or dragging it into another pane, takes the focused element away: `WorkTab` marks the
-     * leaving tab `inert` for its exit animation, which blurs whatever was focused inside it, and the browser's
-     * fallback is `document.body` — from which no arrow key, `Tab`, or tablist-scoped shortcut works any more. The
-     * surviving active tab takes focus back instead.
-     *
-     * Driven by the blur rather than by an effect on `activeTabId`: the `inert` blur happens after React has committed,
-     * so an effect still sees the leaving tab focused and would conclude nothing was lost.
-     */
-    const recoverTabFocus = (bar: HTMLElement): void => {
-        requestAnimationFrame(() => {
-            // Recovering only from `document.body` — the browser's "nothing is focused" state — means this can never
-            // pull focus out of a Terminal, an editor, or a dialog that legitimately took it.
-            if (!isActivePane || document.activeElement !== document.body) return;
-            bar.querySelector<HTMLElement>(':scope [data-tab-active="true"] [role="tab"]')?.focus();
-        });
-    };
     const navigate = (fromTabId: string, key: WorkTabNavigationKey): void => {
         const target = workTabNavigationTarget(
             pane.tabs.map((tab) => tab.id),
@@ -401,11 +383,6 @@ export function PaneTabBar({
                 isDropTarget && 'bg-elevated',
             )}
             data-pane-tab-bar={pane.id}
-            onBlurCapture={(event) => {
-                // Focus moving somewhere real is the user's own doing; only focus going nowhere is a loss to repair.
-                if (event.relatedTarget) return;
-                recoverTabFocus(event.currentTarget);
-            }}
             onDragStart={(event) => {
                 draggedTabIdReference.current = paneTabIdAt(event.target);
             }}
