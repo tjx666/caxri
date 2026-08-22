@@ -476,7 +476,7 @@ test('Project titles toggle disclosure when no active Session can be selected', 
     }
 });
 
-test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal outside the scroll rail', async () => {
+test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal against the sidebar', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -510,11 +510,12 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         expect(metrics[0].region).toBe('drag');
         expect(metrics[1].region).toBe('no-drag');
         expect(metrics[2].region).toBe('no-drag');
-        // New Terminal now trails the scroll rail rather than the last tab: evenly divided Terminal tabs
-        // consume the rail, so the button would otherwise scroll out of reach behind them.
-        expect(metrics[2].left).toBeGreaterThanOrEqual(metrics[1].right - 1);
-        // The gap between the button and the window edge is the frameless window's only draggable chrome.
-        expect(metrics[0].right - metrics[2].right).toBeGreaterThanOrEqual(64);
+        // New Terminal now sits flush against the sidebar rather than after a trailing drag gap: the reserved
+        // draggable chrome moved between the last tab and the button so the button itself stays reachable at the
+        // window edge instead of scrolling out of view behind evenly divided Terminal tabs.
+        expect(metrics[0].right - metrics[2].right).toBeLessThanOrEqual(1);
+        // The gap between the last tab and the button is the frameless window's only draggable chrome.
+        expect(metrics[2].left - metrics[1].right).toBeGreaterThanOrEqual(64);
         const isActionsOutsideScrollRail = await running.page
             .locator('.work-tab-scroll')
             .evaluate((element) => !element.contains(document.querySelector('.tab-actions')));
