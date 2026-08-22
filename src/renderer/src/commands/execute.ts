@@ -184,12 +184,6 @@ const commandContext: CommandContext = {
     workbench: {
         closeActiveTab: () => {
             const tab = getActivePaneTab();
-
-            console.log('DIAG_CLOSEACTIVETAB', {
-                tabId: tab?.id,
-                tabKind: tab?.resource.kind,
-                activePaneId: getActivePaneId(),
-            });
             if (tab?.resource.kind === 'terminal') closeTerminal(tab.resource.terminalId);
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else if (tab) void closeDocumentTabs([tab.id]);
@@ -311,15 +305,6 @@ export function runCommand(
     arguments_?: unknown,
     options?: { viaAccelerator?: boolean },
 ): void {
-    if (command === 'workbench.closeActiveTab') {
-        console.log('DIAG_RUNCOMMAND', {
-            command,
-            isModalOpen: useDialogStore.getState().isModalOpen(),
-            openModalIds: Array.from(useDialogStore.getState().openModalIds),
-            activeElement: document.activeElement?.tagName,
-            viaAccelerator: options?.viaAccelerator,
-        });
-    }
     if (useDialogStore.getState().isModalOpen()) return;
     if (options?.viaAccelerator) {
         const definition = getRegisteredCommand(command);

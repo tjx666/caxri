@@ -44,45 +44,19 @@ export function useCommandShortcuts(): void {
         let shortcutMap = new Map<string, Keybinding[]>();
 
         const onKeyDown = (event: KeyboardEvent): void => {
-            const isDiagTarget = event.metaKey && event.key.toLowerCase() === 'w';
-            const diag = (stage: string, extra?: Record<string, unknown>): void => {
-                if (!isDiagTarget) return;
-
-                console.log('DIAG_KEYDOWN', {
-                    stage,
-                    target:
-                        event.target instanceof Element
-                            ? event.target.tagName
-                            : typeof event.target,
-                    ...extra,
-                });
-            };
             /**
              * An IME composition keystroke (e.g. picking a Pinyin candidate) is not a shortcut.
              */
-            if (event.isComposing) {
-                diag('isComposing-return');
-                return;
-            }
-            if (isKeybindingRecordingEventTarget(event.target)) {
-                diag('isKeybindingRecordingEventTarget-return');
-                return;
-            }
+            if (event.isComposing) return;
+            if (isKeybindingRecordingEventTarget(event.target)) return;
             const bootstrap = useWorkbenchStore.getState().bootstrap;
-            if (!bootstrap) {
-                diag('no-bootstrap-return');
-                return;
-            }
+            if (!bootstrap) return;
             if (bootstrap.keybindings !== cachedKeybindings) {
                 cachedKeybindings = bootstrap.keybindings;
                 shortcutMap = buildShortcutMap(cachedKeybindings);
             }
             const binding = resolveShortcutBinding(shortcutMap, keyboardEventShortcut(event), {
                 terminalFocus: isTerminalEventTarget(event.target),
-            });
-            diag('resolved-binding', {
-                shortcut: keyboardEventShortcut(event),
-                bindingCommand: binding?.command,
             });
             if (!binding) return;
             const commandId = binding.command;
@@ -91,20 +65,13 @@ export function useCommandShortcuts(): void {
              * A contextual shortcut must fall through untouched so the owning editor can handle the same chord
              * (Terminal `Cmd+F` versus Monaco's native Find widget).
              */
-            if (!isCommandAvailable(commandId)) {
-                diag('not-command-available-return', { commandId });
-                return;
-            }
+            if (!isCommandAvailable(commandId)) return;
             /**
              * The terminal and the editor are editable surfaces too; only opted-in commands reach through.
              */
-            if (isEditableEventTarget(event.target) && !definition?.allowInEditable) {
-                diag('editable-target-return', { commandId });
-                return;
-            }
+            if (isEditableEventTarget(event.target) && !definition?.allowInEditable) return;
             event.preventDefault();
             event.stopPropagation();
-            diag('calling-runCommand', { commandId });
             runCommand(
                 commandId as CommandId,
                 commandId === 'session.switchMru'
