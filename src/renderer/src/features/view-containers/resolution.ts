@@ -6,12 +6,12 @@ import type {
 } from '@shared/views';
 
 function isResolvable(container: ViewContainerDescriptor): boolean {
-    return ['builtin', 'discovered', 'activating', 'active'].includes(container.lifecycle);
+    return ['builtin', 'discovered', 'activating', 'active', 'error'].includes(container.lifecycle);
 }
 
 /**
- * Resolves presentation without mutating durable intent. A missing, disabled, crashed, or failed extension falls back
- * only for the current catalog revision; when its descriptor becomes healthy again the same desired ID rebinds.
+ * Resolves presentation without mutating durable intent. Missing, disabled, and crashed extensions fall back only for
+ * the current catalog revision. Failed extensions remain selected because their error surface owns the Retry action.
  */
 export function resolveViewContainerId(
     desiredId: ViewContainerId,
