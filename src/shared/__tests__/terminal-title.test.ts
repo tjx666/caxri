@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { terminalTabLabel } from '../terminal-title';
+import {
+    MAX_TERMINAL_TITLE_LENGTH,
+    normalizeTerminalTitle,
+    terminalTabLabel,
+} from '../terminal-title';
+
+/**
+ * Constructed, never written literally: a raw control character in a source file makes Git classify the whole `.ts`
+ * file as binary, which silently turns every assertion here into an unreviewable patch.
+ */
+const NUL = String.fromCodePoint(0x00);
+const BELL = String.fromCodePoint(0x07);
+const ESCAPE = String.fromCodePoint(0x1b);
+const RIGHT_TO_LEFT_OVERRIDE = String.fromCodePoint(0x20_2e);
+const ZERO_WIDTH_SPACE = String.fromCodePoint(0x20_0b);
+const ZERO_WIDTH_JOINER = String.fromCodePoint(0x20_0d);
 
 describe('terminalTabLabel', () => {
     it('drops the prompt host prefix that is identical on every local tab', () => {
@@ -42,5 +57,35 @@ describe('terminalTabLabel', () => {
 
     it('passes through a plain title', () => {
         expect(terminalTabLabel('Shell')).toBe('Shell');
+    });
+});
+
+describe('normalizeTerminalTitle', () => {
+    it('flattens control characters and collapsed whitespace into a single line', () => {
+        expect(normalizeTerminalTitle(`  zsh${NUL}\r\n  \tcaxri ${BELL} `)).toBe('zsh caxri');
+    });
+
+    it('rejects a payload with nothing printable so the previous title survives', () => {
+        expect(normalizeTerminalTitle(`${NUL}${ESCAPE}   `)).toBeUndefined();
+        expect(normalizeTerminalTitle('')).toBeUndefined();
+    });
+
+    it('drops invisible formatting a process could use to disguise one Terminal as another', () => {
+        expect(normalizeTerminalTitle(`${RIGHT_TO_LEFT_OVERRIDE}gnp.eldnab`)).toBe('gnp.eldnab');
+        expect(normalizeTerminalTitle(`ca${ZERO_WIDTH_SPACE}xri`)).toBe('caxri');
+    });
+
+    it('keeps the joiners that legitimate emoji and script sequences depend on', () => {
+        expect(normalizeTerminalTitle(`a${ZERO_WIDTH_JOINER}b`)).toBe(`a${ZERO_WIDTH_JOINER}b`);
+    });
+
+    it('bounds an oversized payload without materialising it', () => {
+        const normalized = normalizeTerminalTitle('x'.repeat(10_000));
+        expect(normalized).toHaveLength(MAX_TERMINAL_TITLE_LENGTH);
+    });
+
+    it('never ends a bounded title on a dangling separator', () => {
+        const normalized = normalizeTerminalTitle(`${'x'.repeat(MAX_TERMINAL_TITLE_LENGTH)} tail`);
+        expect(normalized).toBe('x'.repeat(MAX_TERMINAL_TITLE_LENGTH));
     });
 });

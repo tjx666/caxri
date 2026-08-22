@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../../shared/ipc/events';
-import { MAX_TERMINAL_TITLE_LENGTH, normalizeTerminalTitle } from '../../../shared/terminal-title';
 import { TerminalScreenState } from '../screen';
 import { createTerminalTitleListener, TERMINAL_TITLE_THROTTLE_MS } from '../terminal-title';
 
@@ -12,9 +11,6 @@ import { createTerminalTitleListener, TERMINAL_TITLE_THROTTLE_MS } from '../term
 const NUL = String.fromCodePoint(0x00);
 const BELL = String.fromCodePoint(0x07);
 const ESCAPE = String.fromCodePoint(0x1b);
-const RIGHT_TO_LEFT_OVERRIDE = String.fromCodePoint(0x20_2e);
-const ZERO_WIDTH_SPACE = String.fromCodePoint(0x20_0b);
-const ZERO_WIDTH_JOINER = String.fromCodePoint(0x20_0d);
 
 function createStore() {
     const titles = new Map<string, string>();
@@ -27,36 +23,6 @@ function createStore() {
         },
     };
 }
-
-describe('normalizeTerminalTitle', () => {
-    it('flattens control characters and collapsed whitespace into a single line', () => {
-        expect(normalizeTerminalTitle(`  zsh${NUL}\r\n  \tcaxri ${BELL} `)).toBe('zsh caxri');
-    });
-
-    it('rejects a payload with nothing printable so the previous title survives', () => {
-        expect(normalizeTerminalTitle(`${NUL}${ESCAPE}   `)).toBeUndefined();
-        expect(normalizeTerminalTitle('')).toBeUndefined();
-    });
-
-    it('drops invisible formatting a process could use to disguise one Terminal as another', () => {
-        expect(normalizeTerminalTitle(`${RIGHT_TO_LEFT_OVERRIDE}gnp.eldnab`)).toBe('gnp.eldnab');
-        expect(normalizeTerminalTitle(`ca${ZERO_WIDTH_SPACE}xri`)).toBe('caxri');
-    });
-
-    it('keeps the joiners that legitimate emoji and script sequences depend on', () => {
-        expect(normalizeTerminalTitle(`a${ZERO_WIDTH_JOINER}b`)).toBe(`a${ZERO_WIDTH_JOINER}b`);
-    });
-
-    it('bounds an oversized payload without materialising it', () => {
-        const normalized = normalizeTerminalTitle('x'.repeat(10_000));
-        expect(normalized).toHaveLength(MAX_TERMINAL_TITLE_LENGTH);
-    });
-
-    it('never ends a bounded title on a dangling separator', () => {
-        const normalized = normalizeTerminalTitle(`${'x'.repeat(MAX_TERMINAL_TITLE_LENGTH)} tail`);
-        expect(normalized).toBe('x'.repeat(MAX_TERMINAL_TITLE_LENGTH));
-    });
-});
 
 describe('createTerminalTitleListener', () => {
     beforeEach(() => {
