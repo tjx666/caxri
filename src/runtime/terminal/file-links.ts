@@ -64,8 +64,10 @@ async function resolveRegularFile(rootPath: string, candidate: string) {
     const rootBefore = await lstatExisting(rootPath);
     if (rootBefore.isSymbolicLink() || !rootBefore.isDirectory())
         throw new CaxriError('PATH_DENIED', 'Selected Project root is not a directory');
-    const canonicalRoot = await realpathExisting(rootPath);
-    const canonicalTarget = await realpathExisting(candidate);
+    const [canonicalRoot, canonicalTarget] = await Promise.all([
+        realpathExisting(rootPath),
+        realpathExisting(candidate),
+    ]);
     const [rootAfter, target] = await Promise.all([
         lstatExisting(rootPath),
         lstatExisting(canonicalTarget),
