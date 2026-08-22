@@ -6,7 +6,13 @@ import type { ElectronApplication, Page } from 'playwright';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri, pressNewTerminal } from './support/helpers.ts';
+import {
+    createProjectSession,
+    launchCaxri,
+    pressNewTerminal,
+    splitTerminalToRight,
+    waitForNewTerminalId,
+} from './support/helpers.ts';
 
 /**
  * Closes the Electron app during teardown without letting an already-closed app fail the test.
@@ -141,7 +147,7 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
     }
 });
 
-test('the tab bar drops its active accent and "+" button while the Workbench holds a single tab', async () => {
+test('the tab bar drops its active accent and "+" button only while the whole Workbench holds a single tab', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-sole-tab-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -165,9 +171,17 @@ test('the tab bar drops its active accent and "+" button while the Workbench hol
             Number.parseFloat(getComputedStyle(element, '::before').height) || 0;
         expect(await tabs.first().evaluate(accentHeight)).toBe(0);
         await expect(newTerminal).toHaveCount(0);
+        // A lone pane still says which of how many it is, so the label stays parseable once a split arrives.
+        await expect(
+            running.page.getByRole('tablist', { name: 'Open tabs in pane 1 of 1', exact: true }),
+        ).toBeVisible();
 
         // A second tab restores both. `cmd+t` rather than the button, which is exactly what is missing right now.
+        const existingTerminalIds = await running.page
+            .locator('.work-tab[data-terminal-id]')
+            .evaluateAll((elements) => elements.map((element) => element.dataset.terminalId ?? ''));
         await pressNewTerminal(running.page);
+        const secondTerminalId = await waitForNewTerminalId(running.page, existingTerminalIds);
         await expect(tabs).toHaveCount(2);
         await waitForTabMotionToSettle(running.page);
         await expect(newTerminal).toBeVisible();
@@ -175,6 +189,28 @@ test('the tab bar drops its active accent and "+" button while the Workbench hol
             .locator('.work-tab[data-tab-active="true"]')
             .evaluate(accentHeight);
         expect(activeAccent).toBeGreaterThan(0);
+
+        /**
+         * Splitting leaves one tab in each pane. The rule is Workbench-wide, not per-pane: a pane holding its only tab
+         * still has a sibling pane to be distinguished from, so both affordances must survive the split.
+         */
+        await splitTerminalToRight(running.page, secondTerminalId);
+        await expect(running.page.locator('.work-tabs')).toHaveCount(2);
+        await expect(tabs).toHaveCount(2);
+        await waitForTabMotionToSettle(running.page);
+        await expect(newTerminal).toHaveCount(2);
+        expect(
+            await running.page
+                .locator('.work-tab[data-tab-active="true"]')
+                .first()
+                .evaluate(accentHeight),
+        ).toBeGreaterThan(0);
+        for (const label of ['Open tabs in pane 1 of 2', 'Open tabs in pane 2 of 2']) {
+            // eslint-disable-next-line no-await-in-loop -- two independent visibility assertions, sequencing is irrelevant
+            await expect(
+                running.page.getByRole('tablist', { exact: true, name: label }),
+            ).toBeVisible();
+        }
     } finally {
         await closeAppQuietly(running.app);
         await removeQuitTestDirectory(testDirectory);

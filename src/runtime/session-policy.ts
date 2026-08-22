@@ -1,5 +1,6 @@
 import { agentProviderCatalog } from '../shared/agents';
 import { removePaneTerminal } from '../shared/pane-layout';
+import { normalizeTerminalTitle } from '../shared/terminal-title';
 import type {
     AgentActivityState,
     AgentSnapshot,
@@ -264,8 +265,14 @@ export function decideAgentMetadataUpdate(
      * tab reads "Claude"/"Codex" forever. Falling back to the row's current title (rather than to the provider name)
      * means a probe carrying no title leaves an existing OSC- or provider-supplied title alone instead of resetting
      * it.
+     *
+     * Agent metadata is as untrusted as PTY output — it is whatever text a model wrote into a conversation store — and
+     * `Terminal.title` is re-sent as `agentEndpoint.begin.name` on the next launch, where the Host schema rejects
+     * anything past 200 characters and would fail the start. `normalizeTerminalTitle` is the same flatten/sanitize/cap
+     * pass OSC 0/2 titles already go through, so both title sources land in the tab under one bound.
      */
-    const terminalTitle = agentDisplayTitle(snapshot.title, terminal.title);
+    const terminalTitle =
+        normalizeTerminalTitle(agentDisplayTitle(snapshot.title, terminal.title)) ?? terminal.title;
     const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
     const attentionKind = isPrimaryAgent
         ? reliableAttentionTransition(session, snapshot.status, snapshot.attentionKind)

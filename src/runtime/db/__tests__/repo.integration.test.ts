@@ -11,6 +11,7 @@ import {
     openResource,
     splitTabIntoPane,
 } from '../../../shared/pane-layout';
+import { MAX_TERMINAL_TITLE_LENGTH } from '../../../shared/terminal-title';
 import type { PaneLayout } from '../../../shared/types';
 import { CaxriDatabase } from '../repository';
 
@@ -498,6 +499,70 @@ describe('CaxriDatabase', () => {
         expect(database.getSession(created.session.id)?.displayTitle).toBe(
             'Run the development server',
         );
+        // The Session title belongs to the primary Agent alone, but every Agent Terminal's own tab names its own
+        // conversation — a secondary Agent must not be left reading "Claude".
+        expect(database.getTerminal(claude.id)?.title).toBe('Do not replace the first Agent title');
+        expect(database.getTerminal(codex.id)?.title).toBe('Run the development server');
+        database.close();
+    });
+
+    it('lets an Agent conversation title beat OSC 0/2 and clears it for a fresh start', async () => {
+        const directory = await temporaryDirectory('caxri-db-agent-title-ownership-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, null);
+        const terminal = database.createTerminal(created.session.id, 'shell');
+
+        // A plain Shell is titled by its own OSC 0/2 stream, exactly as before.
+        expect(database.setTerminalTitle(terminal.id, '~/project')).toBe(true);
+        expect(database.getTerminal(terminal.id)?.title).toBe('~/project');
+
+        database.promoteShellToAgent(terminal.id, 'codex', {
+            provider: 'codex',
+            available: true,
+            observedAt: Date.now(),
+            sessionId: 'codex-session-1',
+            status: 'running',
+            title: 'Ship the release notes',
+        });
+        expect(database.getTerminal(terminal.id)?.title).toBe('Ship the release notes');
+
+        /**
+         * A promoted Shell keeps its `provider` after the Agent CLI exits, so its prompt keeps emitting OSC titles that
+         * every later metadata probe would overwrite right back. The Agent owns the row from promotion on, and the
+         * rejected write reports `false` so no `state.changed` broadcast goes out either.
+         */
+        expect(database.setTerminalTitle(terminal.id, '~/project')).toBe(false);
+        expect(database.getTerminal(terminal.id)?.title).toBe('Ship the release notes');
+
+        // A restart binds a brand new conversation; inheriting the retired one's name would misname it indefinitely.
+        database.resetAgentMetadataForStart(terminal.id);
+        expect(database.getTerminal(terminal.id)?.title).toBe('Codex');
+        database.close();
+    });
+
+    it('caps an Agent conversation title at the length the Host will accept back', async () => {
+        const directory = await temporaryDirectory('caxri-db-agent-title-length-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const terminal = created.terminal!;
+
+        database.updateAgentMetadata(terminal.id, {
+            provider: 'codex',
+            available: true,
+            observedAt: Date.now(),
+            sessionId: 'codex-session-1',
+            status: 'running',
+            title: 'x'.repeat(500),
+        });
+
+        /**
+         * `Terminal.title` is replayed as `agentEndpoint.begin.name` on the next launch, where the Host schema caps it
+         * at 200 characters and rejects the whole request otherwise — an over-long conversation name would fail the
+         * Agent's next start rather than just look wrong.
+         */
+        const title = database.getTerminal(terminal.id)?.title ?? '';
+        expect(title.length).toBeLessThanOrEqual(MAX_TERMINAL_TITLE_LENGTH);
+        expect(title).toBe('x'.repeat(MAX_TERMINAL_TITLE_LENGTH));
         database.close();
     });
 

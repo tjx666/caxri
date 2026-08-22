@@ -203,6 +203,20 @@ export class TerminalsModel {
     }
 
     /**
+     * Rewrites the stable semantic title — what the Terminal *is*, not what its process last announced. Only an
+     * Agent conversation name reaches this today; OSC 0/2 goes to {@link setPtyTitle} instead.
+     */
+    setTitle(id: string, title: string, now = Date.now()): boolean {
+        return (
+            this.database
+                .update(terminals)
+                .set({ title, updatedAt: now })
+                .where(and(eq(terminals.id, id), sql`${terminals.title} != ${title}`))
+                .run().changes === 1
+        );
+    }
+
+    /**
      * Records the live display title a Terminal's own PTY reported through OSC 0/2. The stable `title` remains the
      * semantic identity used outside the tab strip. Returns `false` when the row is gone or already carries this PTY
      * title, which is the caller's signal to skip the Renderer broadcast — Shells re-report an unchanged title on every

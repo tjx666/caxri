@@ -1,13 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../../shared/ipc/events';
+import { MAX_TERMINAL_TITLE_LENGTH, normalizeTerminalTitle } from '../../../shared/terminal-title';
 import { TerminalScreenState } from '../screen';
-import {
-    createTerminalTitleListener,
-    MAX_TERMINAL_TITLE_LENGTH,
-    normalizeTerminalTitle,
-    TERMINAL_TITLE_THROTTLE_MS,
-} from '../terminal-title';
+import { createTerminalTitleListener, TERMINAL_TITLE_THROTTLE_MS } from '../terminal-title';
 
 /**
  * Constructed, never written literally: a raw control character in a source file makes Git classify the whole `.ts`
