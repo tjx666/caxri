@@ -197,3 +197,90 @@ test('dragging a work tab within its pane bar drops it at the pointed-at positio
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('dragging a work tab over a sibling shows an insertion-line indicator and previews it after a hover delay', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-drag-preview-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const rootInput = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', rootInput]);
+    const root = await realpath(rootInput);
+    const fileNames = ['a.ts', 'b.ts', 'c.ts'];
+    for (const name of fileNames) {
+        // eslint-disable-next-line no-await-in-loop -- sequential fixture writes, order does not matter but simplicity does
+        await writeFile(join(root, name), '', 'utf8');
+    }
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        for (const name of fileNames) {
+            // eslint-disable-next-line no-await-in-loop -- each open depends on the file tree settling from the previous one
+            await running.page.getByRole('treeitem', { name, exact: true }).dblclick();
+        }
+        const documentTabs = running.page.locator('.work-tabs .work-tab:not([data-terminal-id])');
+        await expect(documentTabs).toHaveCount(3);
+        await waitForTabMotionToSettle(running.page);
+
+        // c.ts opened last, so it is the active tab; hovering a drag of it over a.ts is what should
+        // trigger both the insertion-line indicator and the delayed preview switch.
+        const source = documentTabs.filter({ hasText: 'c.ts' });
+        const target = documentTabs.filter({ hasText: 'a.ts' });
+        const sourceButtonId = await source.getByRole('tab').getAttribute('id');
+        const targetButtonId = await target.getByRole('tab').getAttribute('id');
+        const targetBounds = await target.evaluate((element) => element.getBoundingClientRect());
+        if (!sourceButtonId || !targetButtonId)
+            throw new Error('Work tab drag fixture is missing an id');
+
+        await running.page.evaluate(
+            ({ sourceButtonId: id, targetButtonId: targetId, dropX, dropY }) => {
+                const sourceButton = document.querySelector(`#${CSS.escape(id)}`);
+                const source = sourceButton?.closest('.work-tab');
+                const targetButton = document.querySelector(`#${CSS.escape(targetId)}`);
+                const target = targetButton?.closest('.work-tab');
+                const bar = document.querySelector('[data-pane-tab-bar]');
+                if (!source || !target || !bar)
+                    throw new Error('Work tab drag preview fixture not found');
+                const transfer = new DataTransfer();
+                const options = {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: dropX,
+                    clientY: dropY,
+                    dataTransfer: transfer,
+                };
+                source.dispatchEvent(new DragEvent('dragstart', options));
+                // Dispatched on the target tab itself (not the bar) so `event.target` matches what a
+                // real cursor-driven drag would report — the app's hover-preview switch reads it to
+                // resolve which tab is being hovered, mirroring `dropEdge` in `use-project-order.ts`.
+                target.dispatchEvent(new DragEvent('dragenter', options));
+                target.dispatchEvent(new DragEvent('dragover', options));
+            },
+            {
+                sourceButtonId,
+                targetButtonId,
+                dropX: targetBounds.x + targetBounds.width * 0.25,
+                dropY: targetBounds.y + targetBounds.height / 2,
+            },
+        );
+
+        const marker = running.page.locator('.work-tab-drop-marker');
+        await expect(marker).toBeVisible();
+        const markerLeft = await marker.evaluate((element) => element.getBoundingClientRect().left);
+        expect(Math.abs(markerLeft - targetBounds.x)).toBeLessThanOrEqual(2);
+
+        await expect(target.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
+        await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'false');
+
+        await running.page.evaluate(() => {
+            document
+                .querySelector('[data-pane-tab-bar]')
+                ?.dispatchEvent(
+                    new DragEvent('dragleave', { bubbles: true, relatedTarget: document.body }),
+                );
+        });
+        await expect(marker).toBeHidden();
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
