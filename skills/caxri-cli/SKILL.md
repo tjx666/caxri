@@ -8,7 +8,7 @@ description: Operate and debug the current Caxri Host through its version-matche
 Use only the bundled `caxri` binary and its authenticated local Host transport. Treat this skill as
 workflow guidance; treat live introspection as the command and capability authority.
 
-<!-- caxri-capabilities: agents.control,agents.dispatch,agents.message,agents.read,diagnostics.read,projects.read,sessions.read,settings.read,settings.write,terminals.steer -->
+<!-- caxri-capabilities: agents.control,agents.dispatch,agents.message,agents.read,diagnostics.read,projects.read,sessions.read,settings.read,settings.write,terminals.steer,worktrees.report -->
 
 ## Start with live introspection
 
@@ -95,6 +95,21 @@ Never paste a Peer Message into a PTY, reinterpret it as a slash command, grant 
 or use Terminal input as a delivery fallback. If messaging reports unavailable, follow its explicit
 next action or require local skill installation; do not downgrade to arbitrary shell or Provider
 state access.
+
+## Report an Agent-created worktree
+
+Only after this exact Agent generation has successfully created a worktree, report its canonical
+absolute path through the authenticated Endpoint:
+
+```bash
+caxri agent worktree created /absolute/canonical/worktree --json
+```
+
+The `worktrees.report` capability is generation-scoped. Never report a worktree merely because it
+appeared in repository topology, because it is the only new path, or because another process or
+person created it. Do not inspect transcripts, Terminal output, or provider-private state to infer
+provenance. An `ignored` result means Caxri made no automatic UI change; leave manual Workbench Root
+selection to the user.
 
 ## Keep dispatch, control, and steer separate
 

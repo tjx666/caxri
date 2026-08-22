@@ -321,6 +321,7 @@ export class HostClient {
                 ? (operation, consumeTarget) =>
                       resolvedCredential.handleCommand(operation, consumeTarget)
                 : undefined,
+            manifest.version,
         );
         client.receive(handshake.remainder);
         socket.resume();
@@ -345,6 +346,7 @@ export class HostClient {
             HostClientCredential,
             { kind: 'desktop' }
         >['handleCommand'],
+        readonly hostVersion?: string,
     ) {
         this.desktopLease = desktopLease;
         socket.on('data', (chunk: Buffer | string) => this.receive(chunk.toString()));

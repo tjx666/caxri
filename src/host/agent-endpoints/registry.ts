@@ -35,6 +35,7 @@ const BASELINE_CAPABILITIES = [
     'projects.read',
     'sessions.read',
     'terminals.read',
+    'worktrees.report',
 ] as const satisfies readonly Capability[];
 
 const GRANT_CAPABILITIES = {

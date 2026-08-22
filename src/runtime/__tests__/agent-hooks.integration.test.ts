@@ -86,7 +86,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'compactionStarted',
                     '--schema',
-                    '3',
+                    '4',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -118,7 +118,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'compactionFinished',
                     '--schema',
-                    '3',
+                    '4',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -142,7 +142,7 @@ describe('Runtime Agent hook integration', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '3',
+                    '4',
                     '--reply',
                     'empty-json',
                 ],

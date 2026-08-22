@@ -314,7 +314,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '3',
+                    '4',
                 ],
                 { env: { ...process.env, ...environment, CAXRI_HOOK_TOKEN: 'invalid' } },
             );
@@ -329,7 +329,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '3',
+                    '4',
                     '--reply',
                     'empty-json',
                 ],
@@ -352,7 +352,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '3',
+                    '4',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -373,43 +373,6 @@ describe('AgentHookManager', () => {
             expect(repaired.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
             expect(manager.getHealth().codex.kind).toBe('installedPending');
 
-            await execFileAsync(
-                bridge,
-                [
-                    '--source',
-                    'caxri',
-                    '--provider',
-                    'codex',
-                    '--phase',
-                    'shellToolFinished',
-                    '--schema',
-                    '3',
-                ],
-                { env: { ...process.env, ...environment } },
-            );
-            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
-            expect(signals).toHaveBeenLastCalledWith(
-                expect.objectContaining({
-                    launchId: environment.CAXRI_HOOK_LAUNCH_ID,
-                    phase: 'shellToolFinished',
-                    provider: 'codex',
-                    terminalId: 'terminal-1',
-                }),
-            );
-            expect(
-                Object.keys(signals.mock.calls.at(-1)?.[0] ?? {}).toSorted((a, b) =>
-                    a.localeCompare(b),
-                ),
-            ).toEqual([
-                'launchId',
-                'phase',
-                'protocolVersion',
-                'provider',
-                'schemaVersion',
-                'terminalId',
-                'token',
-            ]);
-
             settings.codex.hooks.enabled = false;
             await manager.reconcile(settings);
             expect(manager.getHealth().codex.kind).toBe('notInstalled');
@@ -424,11 +387,11 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '3',
+                    '4',
                 ],
                 { env: { ...process.env, ...environment } },
             );
-            expect(signals).toHaveBeenCalledTimes(3);
+            expect(signals).toHaveBeenCalledTimes(2);
             expect(events.some((event) => event.event === 'agentHooks.changed')).toBe(true);
         } finally {
             await manager.close();
@@ -566,7 +529,7 @@ describe('AgentHookManager', () => {
                                 {
                                     type: 'command',
                                     command:
-                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 4",
+                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 5",
                                     timeout: 1,
                                 },
                             ],

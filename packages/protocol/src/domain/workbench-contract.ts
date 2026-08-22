@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+import {
+    agentEndpointSummarySchema,
+    agentWorktreeCreatedResultSchema,
+} from '../agent/agent-endpoint-contract.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import {
@@ -46,6 +50,11 @@ export const workbenchMethods = {
  * Main-only authority handoff; paths never enter the public Renderer contract.
  */
 export const workbenchInternalMethods = {
+    'session.workbenchRoot.reportCreated': {
+        ...commandPolicy('host', 'write'),
+        params: z.object({ endpoint: agentEndpointSummarySchema, rootPath: pathSchema }),
+        result: agentWorktreeCreatedResultSchema,
+    },
     'session.workbenchCandidate.claim': {
         ...commandPolicy('host', 'write'),
         params: z.object({ sessionId: identifierSchema, candidateId: identifierSchema }),
