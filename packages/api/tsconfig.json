@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "declaration": true,
+        "declarationMap": true,
+        "lib": ["ES2025", "DOM"],
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "noEmit": true,
+        "strict": true,
+        "target": "ES2023"
+    },
+    "include": ["src/**/*.ts"]
+}

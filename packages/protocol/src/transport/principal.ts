@@ -42,6 +42,13 @@ export const principalSchema = z.discriminatedUnion('kind', [
     }),
     z.object({ kind: z.literal('human-cli'), id: principalIdSchema }),
     z.object({
+        kind: z.literal('extension'),
+        id: principalIdSchema,
+        extensionId: principalIdSchema,
+        generation: z.number().int().positive(),
+        projectIds: projectIdsSchema,
+    }),
+    z.object({
         kind: z.literal('agent'),
         id: principalIdSchema,
         endpointId: principalIdSchema,
@@ -64,7 +71,8 @@ export interface CommandExecutionContext {
 }
 
 /**
- * Desktop is the local owner principal; every other principal needs each declared capability.
+ * Desktop is the local owner principal; every other principal, including a bundled extension, needs each declared
+ * capability. An extension must never inherit the Desktop bypass merely because both execute on the same machine.
  */
 export function hasRequiredCapabilities(
     context: CommandExecutionContext,

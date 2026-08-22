@@ -236,7 +236,7 @@ describe('Session navigation requests', () => {
         visit('session-a', 'session-b', 'session-c');
         const stale = history().request('back');
 
-        // A Session created and selected from the Sidebar overtakes the navigation and clears the queue.
+        // A Session created and selected from the PrimarySidebar overtakes the navigation and clears the queue.
         history().beginSelection();
         history().settleSelection('session-d', true);
         const toC = history().request('back');
@@ -315,9 +315,9 @@ describe('Session navigation requests', () => {
     });
 
     /**
-     * The Sidebar click is dispatched after two Backs, so the Runtime applies `C → B → C` and the Workbench ends on the
-     * Session the user clicked. Attribution is what makes that recoverable: the folded snapshot only ever reports `C`,
-     * and without it the two confirmations would leave the cursor on `B` while the screen shows `C`.
+     * The PrimarySidebar click is dispatched after two Backs, so the Runtime applies `C → B → C` and the Workbench ends
+     * on the Session the user clicked. Attribution is what makes that recoverable: the folded snapshot only ever
+     * reports `C`, and without it the two confirmations would leave the cursor on `B` while the screen shows `C`.
      */
     it('ends where the newest selection landed when one races two navigations', () => {
         visit('session-a', 'session-b', 'session-c', 'session-d');

@@ -1,0 +1,1 @@
+ALTER TABLE `session_state` RENAME COLUMN "inspector_mode" TO "desired_secondary_sidebar_view_container_id";

@@ -18,7 +18,7 @@ interface PanelHeaderProperties {
 }
 
 /**
- * The one caption row every Inspector panel wears.
+ * The one caption row every SecondarySidebar panel wears.
  *
  * Each panel used to hand-roll its own: the Files caption was plain 11px muted text, Source Control inherited the
  * default size beside an icon, and Project Status was bold uppercase with tracking. Three treatments for one role read

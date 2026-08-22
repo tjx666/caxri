@@ -294,17 +294,17 @@ describe('CaxriDatabaseConnection', () => {
         previous
             .prepare(
                 `INSERT INTO terminals
-                 (id, session_id, kind, provider, cwd, title, icon, order_index, layout_node_id,
+                 (id, session_id, kind, provider, cwd, title, icon, order_index,
                   agent_session_id, last_process_state, failure_reason, created_at, updated_at)
                  VALUES ('terminal-preserved', 'session-preserved', 'shell', NULL, ?, 'Shell',
-                         'shell', 0, 'node-preserved', NULL, 'stopped', NULL, 1, 1)`,
+                         'shell', 0, NULL, 'stopped', NULL, 1, 1)`,
             )
             .run(directory);
         previous
             .prepare(
                 `INSERT INTO session_state
                  (session_id, state_version, workbench_state_json, inspector_mode)
-                 VALUES ('session-preserved', 2, '{}', 'files')`,
+                 VALUES ('session-preserved', 2, '{}', 'publisher.missing')`,
             )
             .run();
         previous
@@ -376,6 +376,7 @@ describe('CaxriDatabaseConnection', () => {
         });
         const restoredState = upgraded.sessions.getState('session-preserved');
         expect(restoredState.workbenchProjectId).toBe(project.id);
+        expect(restoredState.desiredSecondarySidebarViewContainerId).toBe('publisher.missing');
         expect(listPaneTerminalIds(restoredState.paneLayout)).toEqual(['terminal-preserved']);
         upgraded.close();
     });

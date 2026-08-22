@@ -79,7 +79,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             return performance.now() - sessionStartedAt;
         })();
         const filesReady = (async () => {
-            await page.locator('.inspector .tree-row').first().waitFor();
+            await page.locator('.secondary-sidebar .tree-row').first().waitFor();
             return performance.now() - sessionStartedAt;
         })();
         const [terminalReadyMs, filesReadyMs] = await Promise.all([terminalReady, filesReady]);
@@ -92,7 +92,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         );
 
         const gitStartedAt = performance.now();
-        await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await page.getByRole('tab', { name: 'Source Control', exact: true }).click();
         await page.locator('.git-heading').waitFor();
         const gitReadyMs = performance.now() - gitStartedAt;
 
@@ -119,7 +119,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
 
         const restoredFilesStartedAt = performance.now();
         await restoredPage.getByRole('tab', { name: 'Files', exact: true }).click();
-        await restoredPage.locator('.inspector .tree-row').first().waitFor();
+        await restoredPage.locator('.secondary-sidebar .tree-row').first().waitFor();
         const restoredFilesReadyMs = performance.now() - restoredFilesStartedAt;
 
         const host = await connectToHost(userData, 2_000);

@@ -19,7 +19,7 @@ import { monaco } from '../../lib/monaco';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
-import { GitFileStatusLetter } from '../inspector/panels/git/git-file-status-letter';
+import { GitFileStatusLetter } from '../secondary-sidebar/panels/git/git-file-status-letter';
 import { openFile } from './document-actions';
 import { resolveRegisteredEditorLanguage } from './editor-language';
 

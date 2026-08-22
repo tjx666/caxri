@@ -1,4 +1,5 @@
-import type { BottomPanelView, CommandId, InspectorMode } from '@shared/types';
+import type { CommandId } from '@shared/types';
+import type { ViewContainerId } from '@shared/views';
 
 import type { SessionNavigationDirection } from '../features/session/session-navigation-history';
 import type { SettingsView } from '../stores/dialogs';
@@ -53,9 +54,13 @@ export interface CommandContext {
         splitActive(side: 'down' | 'left' | 'right' | 'up'): void;
     };
     editor: { saveActive(): void };
-    inspector: { searchFiles(): void; activateMode(mode: InspectorMode): void; toggle(): void };
-    bottomPanel: { activateView(view: BottomPanelView): void; toggle(): void };
-    sidebar: { toggle(): void };
+    secondarySidebar: {
+        searchFiles(): void;
+        activateViewContainer(id: ViewContainerId): void;
+        toggle(): void;
+    };
+    panel: { activateViewContainer(id: ViewContainerId): void; toggle(): void };
+    primarySidebar: { toggle(): void };
     dialogs: {
         openSettings(view?: SettingsView): void;
         openPalette(): void;

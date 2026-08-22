@@ -29,7 +29,7 @@ export function selectSelectedProject(bootstrap?: BootstrapState): ProjectRecord
 }
 
 /**
- * Files, Editor, and Git follow this Project; Sidebar ownership still uses `selectSelectedProject`.
+ * Files, Editor, and Git follow this Project; PrimarySidebar ownership still uses `selectSelectedProject`.
  */
 function selectSelectedWorkbenchProject(bootstrap?: BootstrapState): ProjectRecord | undefined {
     if (!bootstrap) return undefined;

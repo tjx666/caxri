@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { CommandExecutionContext } from '../principal';
 import { hasRequiredCapabilities } from '../principal';
 
 describe('hasRequiredCapabilities', () => {
@@ -26,6 +27,21 @@ describe('hasRequiredCapabilities', () => {
         } as const;
         expect(hasRequiredCapabilities(context, ['projects.read'])).toBe(true);
         expect(hasRequiredCapabilities(context, ['projects.read', 'sessions.write'])).toBe(false);
+    });
+
+    it('does not give an extension principal the Desktop bypass', () => {
+        const context: CommandExecutionContext = {
+            capabilities: ['projects.read'],
+            principal: {
+                kind: 'extension',
+                id: 'extension:caxri.status',
+                extensionId: 'caxri.status',
+                generation: 3,
+                projectIds: ['project-1'],
+            },
+        };
+        expect(hasRequiredCapabilities(context, ['projects.read'])).toBe(true);
+        expect(hasRequiredCapabilities(context, ['sessions.read'])).toBe(false);
     });
 
     it('is trivially satisfied when no capability is required', () => {

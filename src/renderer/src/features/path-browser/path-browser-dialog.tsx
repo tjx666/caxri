@@ -16,7 +16,7 @@ import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
 import { useSelectedProject, useSelectedSession } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
-import { createItem } from '../inspector/panels/files/file-actions';
+import { createItem } from '../secondary-sidebar/panels/files/file-actions';
 import {
     completePathQuery,
     filterPathEntries,

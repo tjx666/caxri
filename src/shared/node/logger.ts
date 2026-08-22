@@ -24,7 +24,7 @@ export interface LogRecord {
     durationMs?: number;
     /**
      * Structured detail values. These surface verbatim (minus secret-key/secret-pattern redaction) through
-     * `logs.query`, the Inspector Logs panel, and `caxri logs` under the `diagnostics.read` capability, so the
+     * `logs.query`, the SecondarySidebar Logs panel, and `caxri logs` under the `diagnostics.read` capability, so the
      * diagnostics content boundary is enforced HERE, at the call site: never log source or file contents, Terminal
      * output, Agent prompts/transcripts, credentials, or environment values — log paths, counts, durations, error
      * codes, and identifiers instead.

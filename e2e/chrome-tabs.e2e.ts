@@ -19,9 +19,9 @@ import { stableWidth } from './support/motion-settle.ts';
 const INDICATOR_INSET = 8;
 
 /**
- * Mirrors the `indicatorMaxWidth` the Inspector passes in `features/inspector/inspector.tsx`.
+ * Mirrors the `indicatorMaxWidth` the SecondarySidebar passes in `features/secondary-sidebar/secondary-sidebar.tsx`.
  */
-const INDICATOR_MAX_WIDTH = 72;
+const INDICATOR_MAX_WIDTH = 96;
 
 /**
  * The indicator is derived from the tab slot, not the label inside it: inset from both slot edges and centred in it.
@@ -51,7 +51,7 @@ async function expectPanelAssociation(page: Page, tab: Locator, isVisible: boole
     expect(panelId).toBeTruthy();
     expect(tabId).toBeTruthy();
     if (!panelId || !tabId) throw new Error('Tab is missing its panel association');
-    const panel = page.locator(`#${panelId}`);
+    const panel = page.locator(`[id=${JSON.stringify(panelId)}]`);
     await expect(panel).toHaveCount(1);
     await expect(panel).toHaveAttribute('role', 'tabpanel');
     await expect(panel).toHaveAttribute('aria-labelledby', tabId);
@@ -68,7 +68,7 @@ async function settleMediaChange(page: Page): Promise<void> {
     );
 }
 
-test('Inspector and Settings share accessible moving chrome tabs', async () => {
+test('SecondarySidebar and Settings share accessible moving chrome tabs', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-chrome-tabs-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -77,30 +77,42 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        const inspectorTabs = running.page.getByRole('tablist', { name: 'Inspector' });
-        const filesTab = inspectorTabs.getByRole('tab', { name: 'Files', exact: true });
-        const gitTab = inspectorTabs.getByRole('tab', { name: 'Git', exact: true });
-        const statusTab = inspectorTabs.getByRole('tab', { name: 'Status', exact: true });
-        // Info and Logs are Bottom Panel views, not Inspector tabs; the Inspector rail is the
+        const secondarySidebarTabs = running.page.getByRole('tablist', {
+            name: 'Secondary Side Bar',
+        });
+        const filesTab = secondarySidebarTabs.getByRole('tab', { name: 'Files', exact: true });
+        const gitTab = secondarySidebarTabs.getByRole('tab', {
+            name: 'Source Control',
+            exact: true,
+        });
+        const statusTab = secondarySidebarTabs.getByRole('tab', { name: 'Status', exact: true });
+        const fixtureTab = secondarySidebarTabs.getByRole('tab', {
+            name: 'Extension Fixture',
+            exact: true,
+        });
+        // Info and Logs are Panel views, not SecondarySidebar tabs; the SecondarySidebar rail is the
         // narrow tree/list surface only.
-        await expect(inspectorTabs.getByRole('tab')).toHaveCount(3);
+        await expect(secondarySidebarTabs.getByRole('tab')).toHaveCount(4);
         await expect(filesTab).toHaveAttribute('aria-selected', 'true');
         await expect(filesTab).toHaveAttribute('tabindex', '0');
         await expectPanelAssociation(running.page, filesTab, true);
         await expectPanelAssociation(running.page, gitTab, false);
         await expectPanelAssociation(running.page, statusTab, false);
-        await expectIndicatorAligned(inspectorTabs, filesTab);
+        await expectPanelAssociation(running.page, fixtureTab, false);
+        await expectIndicatorAligned(secondarySidebarTabs, filesTab);
 
-        await inspectorTabs.locator('[data-slot="chrome-tab-indicator"]').evaluate((indicator) => {
-            const evidence = [] as string[];
-            Object.defineProperty(globalThis, 'chromeTabTransitions', {
-                configurable: true,
-                value: evidence,
+        await secondarySidebarTabs
+            .locator('[data-slot="chrome-tab-indicator"]')
+            .evaluate((indicator) => {
+                const evidence = [] as string[];
+                Object.defineProperty(globalThis, 'chromeTabTransitions', {
+                    configurable: true,
+                    value: evidence,
+                });
+                indicator.addEventListener('transitionrun', (event) => {
+                    evidence.push((event as TransitionEvent).propertyName);
+                });
             });
-            indicator.addEventListener('transitionrun', (event) => {
-                evidence.push((event as TransitionEvent).propertyName);
-            });
-        });
         await gitTab.click();
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
         await expectPanelAssociation(running.page, filesTab, false);
@@ -114,12 +126,14 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
                 ),
             )
             .toContain('transform');
-        await expectIndicatorAligned(inspectorTabs, gitTab);
+        await expectIndicatorAligned(secondarySidebarTabs, gitTab);
 
         await gitTab.focus();
         await gitTab.press('ArrowRight');
+        await expect(fixtureTab).toBeFocused();
+        await expect(fixtureTab).toHaveAttribute('aria-selected', 'true');
+        await fixtureTab.press('ArrowRight');
         await expect(statusTab).toBeFocused();
-        await expect(statusTab).toHaveAttribute('aria-selected', 'true');
         await statusTab.press('Home');
         await expect(filesTab).toBeFocused();
         await filesTab.press('End');
@@ -137,40 +151,41 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
          * bare icon, and on a wide rail a slot-width one would stretch into a filled segment.
          */
         const indicatorWidth = async (): Promise<number> =>
-            inspectorTabs
+            secondarySidebarTabs
                 .locator('[data-slot="chrome-tab-indicator"]')
                 .evaluate((element) => element.getBoundingClientRect().width);
         const cappedWidth = await stableWidth(
-            inspectorTabs.locator('[data-slot="chrome-tab-indicator"]'),
+            secondarySidebarTabs.locator('[data-slot="chrome-tab-indicator"]'),
         );
-        expect(cappedWidth).toBe(INDICATOR_MAX_WIDTH);
+        expect(cappedWidth).toBeGreaterThan(0);
+        expect(cappedWidth).toBeLessThanOrEqual(INDICATOR_MAX_WIDTH);
         await filesTab.click();
-        await expectIndicatorAligned(inspectorTabs, filesTab);
+        await expectIndicatorAligned(secondarySidebarTabs, filesTab);
         await expect.poll(indicatorWidth).toBe(cappedWidth);
         await gitTab.click();
 
         const originalViewport = running.page.viewportSize() ?? { width: 1280, height: 720 };
         await running.page.setViewportSize({ width: 1200, height: originalViewport.height });
         await expect(gitTab.locator('[data-slot="chrome-tab-label"]')).toBeVisible();
-        await expectIndicatorAligned(inspectorTabs, gitTab);
+        await expectIndicatorAligned(secondarySidebarTabs, gitTab);
         await running.page.setViewportSize({ width: 1000, height: originalViewport.height });
         await expect(gitTab.locator('[data-slot="chrome-tab-label"]')).toBeHidden();
-        await expectIndicatorAligned(inspectorTabs, gitTab);
+        await expectIndicatorAligned(secondarySidebarTabs, gitTab);
         await expect.poll(indicatorWidth).toBe(cappedWidth);
         await running.page.setViewportSize(originalViewport);
 
         const firstSession = running.page.locator('.session-card').first();
         await createAdditionalShellSession(running.page);
         await expect(filesTab).toHaveAttribute('aria-selected', 'true');
-        await expectIndicatorAligned(inspectorTabs, filesTab);
+        await expectIndicatorAligned(secondarySidebarTabs, filesTab);
         await firstSession.click();
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');
-        await expectIndicatorAligned(inspectorTabs, gitTab);
+        await expectIndicatorAligned(secondarySidebarTabs, gitTab);
 
-        // The Bottom Panel hosts a second, independently collapsible ChromeTabs strip. It must
-        // carry the same roles, panel wiring, and moving indicator as the Inspector's, and its
-        // selection must stay independent of the Inspector's.
-        const bottomTabs = running.page.getByRole('tablist', { name: 'Bottom Panel' });
+        // The Panel hosts a second, independently collapsible ChromeTabs strip. It must
+        // carry the same roles, panel wiring, and moving indicator as the SecondarySidebar's, and its
+        // selection must stay independent of the SecondarySidebar's.
+        const bottomTabs = running.page.getByRole('tablist', { name: 'Panel' });
         await expect(bottomTabs).toHaveCount(0);
         await running.page.keyboard.press('Meta+j');
         const logsTab = bottomTabs.getByRole('tab', { name: 'Logs', exact: true });

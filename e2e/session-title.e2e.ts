@@ -10,7 +10,7 @@ import {
     createShellSession,
     launchCaxri,
     openAddProjectDialog,
-    openBottomPanelView,
+    openPanelView,
     pageRequest,
     typeTerminal,
 } from './support/helpers.ts';
@@ -88,7 +88,7 @@ done
             )
             .toContain('hello');
         await expect(page.locator('.session-card strong')).toHaveText('hello');
-        await openBottomPanelView(page, 'Info');
+        await openPanelView(page, 'Info');
         const info = page.locator('.terminal-info-card');
         await expect(info).toHaveCount(1);
         await expect(info).toContainText('current-agent-session');

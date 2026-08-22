@@ -16,7 +16,7 @@ import {
 import { logEventNameSchema } from './logging.js';
 
 const noParameters = z.object({}).default({});
-const principalViewSchema = z.enum(['desktop', 'human-cli', 'agent', 'paired-device']);
+const principalViewSchema = z.enum(['desktop', 'human-cli', 'agent', 'extension', 'paired-device']);
 const listQuerySchema = z.object({ mode: z.literal('list') });
 const showQuerySchema = z.object({
     mode: z.literal('show'),
@@ -51,7 +51,7 @@ export const projectQueryResultSchema = z.union([
         projects: z.array(humanProjectSchema).max(1_024),
     }),
     z.object({
-        view: z.enum(['agent', 'paired-device']),
+        view: z.enum(['agent', 'extension', 'paired-device']),
         projects: z.array(scopedProjectSchema).max(128),
     }),
 ]);

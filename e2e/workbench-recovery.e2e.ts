@@ -9,7 +9,7 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
-    openBottomPanelView,
+    openPanelView,
     pageRequest,
     runtimeStatus,
     selectedSessionId,
@@ -91,13 +91,13 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(running.page.locator('.view-lines')).toContainText('external wins');
         await expect(editorTab).not.toHaveAttribute('aria-describedby');
 
-        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Source Control', exact: true }).click();
         const gitPanelText = running.page.locator('.git-panel').getByText('main', { exact: false });
         await expect(gitPanelText).toBeVisible();
         await expect(
             running.page.locator('.git-files .git-row', { hasText: 'note.txt' }),
         ).toBeVisible();
-        const infoTab = await openBottomPanelView(running.page, 'Info');
+        const infoTab = await openPanelView(running.page, 'Info');
         await expect(infoTab).toHaveClass(/active/);
         await expect(running.page.locator('.terminal-info-card')).not.toHaveCount(0);
 

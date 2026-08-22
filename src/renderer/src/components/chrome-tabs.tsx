@@ -60,9 +60,9 @@ export function ChromeTabs<Value extends string>({
 
     /**
      * The indicator is measured from the tab slot, not the label inside it, then inset and capped and centred in that
-     * slot. In the Inspector's `auto-cols-fr` strip that makes every mark the same size, so it reads as "this region is
-     * selected" rather than tracking a word whose length is incidental, and a responsive tab that drops its label keeps
-     * its mark unchanged. The inset and cap keep an even division from looking like a segmented control.
+     * slot. In the SecondarySidebar's `auto-cols-fr` strip that makes every mark the same size, so it reads as "this
+     * region is selected" rather than tracking a word whose length is incidental, and a responsive tab that drops its
+     * label keeps its mark unchanged. The inset and cap keep an even division from looking like a segmented control.
      */
     const measureIndicator = useCallback((): void => {
         const list = listReference.current;

@@ -1,0 +1,163 @@
+import { describe, expect, it } from 'vitest';
+
+import type { ChromeLayout } from './chrome-layout';
+import {
+    clampLayoutToViewport,
+    clampPanelHeight,
+    clampWidth,
+    MIN_MAIN_WIDTH,
+    MIN_WORK_SURFACE_HEIGHT,
+    PANEL_DEFAULT_HEIGHT,
+    PANEL_DIVIDER_WIDTH,
+    PANEL_MAX_HEIGHT,
+    PANEL_MIN_HEIGHT,
+    PRIMARY_SIDEBAR_DEFAULT_WIDTH,
+    PRIMARY_SIDEBAR_MIN_WIDTH,
+    SECONDARY_SIDEBAR_DEFAULT_WIDTH,
+    SECONDARY_SIDEBAR_MIN_WIDTH,
+} from './chrome-layout';
+
+describe('clampWidth', () => {
+    it('holds a value already within bounds', () => {
+        expect(clampWidth(300, 180, 480)).toBe(300);
+    });
+
+    it('floors a value below the minimum', () => {
+        expect(clampWidth(50, 180, 480)).toBe(180);
+    });
+
+    it('ceils a value above the maximum', () => {
+        expect(clampWidth(900, 180, 480)).toBe(480);
+    });
+
+    it('falls back to the minimum for a non-finite width', () => {
+        expect(clampWidth(NaN, 180, 480)).toBe(180);
+        expect(clampWidth(Infinity, 180, 480)).toBe(180);
+    });
+});
+
+describe('clampLayoutToViewport', () => {
+    const wideLayout: ChromeLayout = {
+        primarySidebarWidth: PRIMARY_SIDEBAR_DEFAULT_WIDTH,
+        secondarySidebarWidth: SECONDARY_SIDEBAR_DEFAULT_WIDTH,
+        panelHeight: PANEL_DEFAULT_HEIGHT,
+        primarySidebarVisible: true,
+        secondarySidebarVisible: true,
+        panelVisible: false,
+        desiredPanelViewContainerId: 'caxri.logs',
+    };
+
+    it('leaves widths untouched when the viewport has plenty of room', () => {
+        expect(clampLayoutToViewport(wideLayout, 1600)).toEqual(wideLayout);
+    });
+
+    it('shrinks the SecondarySidebar before the PrimarySidebar as the viewport narrows', () => {
+        const viewportWidth =
+            PRIMARY_SIDEBAR_DEFAULT_WIDTH +
+            SECONDARY_SIDEBAR_DEFAULT_WIDTH +
+            MIN_MAIN_WIDTH +
+            PANEL_DIVIDER_WIDTH * 2 -
+            40;
+
+        const next = clampLayoutToViewport(wideLayout, viewportWidth);
+
+        expect(next.primarySidebarWidth).toBe(PRIMARY_SIDEBAR_DEFAULT_WIDTH);
+        expect(next.secondarySidebarWidth).toBe(SECONDARY_SIDEBAR_DEFAULT_WIDTH - 40);
+    });
+
+    it('shrinks the PrimarySidebar once the SecondarySidebar has reached its minimum', () => {
+        const viewportWidth =
+            PRIMARY_SIDEBAR_DEFAULT_WIDTH +
+            SECONDARY_SIDEBAR_MIN_WIDTH +
+            MIN_MAIN_WIDTH +
+            PANEL_DIVIDER_WIDTH * 2 -
+            20;
+
+        const next = clampLayoutToViewport(wideLayout, viewportWidth);
+
+        expect(next.secondarySidebarWidth).toBe(SECONDARY_SIDEBAR_MIN_WIDTH);
+        expect(next.primarySidebarWidth).toBe(PRIMARY_SIDEBAR_DEFAULT_WIDTH - 20);
+    });
+
+    it('never shrinks either panel below its own minimum, even in a very narrow viewport', () => {
+        const next = clampLayoutToViewport(wideLayout, 200);
+
+        expect(next.primarySidebarWidth).toBe(PRIMARY_SIDEBAR_MIN_WIDTH);
+        expect(next.secondarySidebarWidth).toBe(SECONDARY_SIDEBAR_MIN_WIDTH);
+    });
+
+    it('ignores the SecondarySidebar width in the overflow budget once it is collapsed', () => {
+        const collapsed: ChromeLayout = { ...wideLayout, secondarySidebarVisible: false };
+        const viewportWidth =
+            PRIMARY_SIDEBAR_DEFAULT_WIDTH + MIN_MAIN_WIDTH + PANEL_DIVIDER_WIDTH + 10;
+
+        const next = clampLayoutToViewport(collapsed, viewportWidth);
+
+        expect(next.primarySidebarWidth).toBe(PRIMARY_SIDEBAR_DEFAULT_WIDTH);
+        expect(next.secondarySidebarVisible).toBe(false);
+    });
+
+    it('ignores the PrimarySidebar width in the overflow budget once it is collapsed', () => {
+        const collapsed: ChromeLayout = { ...wideLayout, primarySidebarVisible: false };
+        const viewportWidth =
+            SECONDARY_SIDEBAR_DEFAULT_WIDTH + MIN_MAIN_WIDTH + PANEL_DIVIDER_WIDTH + 10;
+
+        const next = clampLayoutToViewport(collapsed, viewportWidth);
+
+        expect(next.secondarySidebarWidth).toBe(SECONDARY_SIDEBAR_DEFAULT_WIDTH);
+        expect(next.primarySidebarVisible).toBe(false);
+    });
+
+    it('clamps an out-of-range persisted width even when the viewport is not the constraint', () => {
+        const stale: ChromeLayout = { ...wideLayout, primarySidebarWidth: 10_000 };
+
+        const next = clampLayoutToViewport(stale, 1600);
+
+        expect(next.primarySidebarWidth).toBeLessThanOrEqual(480);
+    });
+
+    it('carries the Panel fields through untouched — the vertical axis is clamped separately', () => {
+        const withPanel: ChromeLayout = {
+            ...wideLayout,
+            panelVisible: true,
+            desiredPanelViewContainerId: 'caxri.info',
+            panelHeight: 400,
+        };
+
+        const next = clampLayoutToViewport(withPanel, 200);
+
+        expect(next.panelVisible).toBe(true);
+        expect(next.desiredPanelViewContainerId).toBe('caxri.info');
+        expect(next.panelHeight).toBe(400);
+    });
+});
+
+describe('clampPanelHeight', () => {
+    it('holds a height that leaves the work surface enough room', () => {
+        expect(clampPanelHeight(300, 1000)).toBe(300);
+    });
+
+    it('shrinks a height that would crowd the work surface below its minimum', () => {
+        const viewportHeight = 600;
+
+        const height = clampPanelHeight(500, viewportHeight);
+
+        expect(height).toBe(viewportHeight - MIN_WORK_SURFACE_HEIGHT - PANEL_DIVIDER_WIDTH);
+        expect(height + MIN_WORK_SURFACE_HEIGHT + PANEL_DIVIDER_WIDTH).toBeLessThanOrEqual(
+            viewportHeight,
+        );
+    });
+
+    it('never shrinks below its own minimum, even in a viewport too short for both', () => {
+        expect(clampPanelHeight(PANEL_DEFAULT_HEIGHT, 200)).toBe(PANEL_MIN_HEIGHT);
+    });
+
+    it('clamps an out-of-range persisted height before the viewport is considered', () => {
+        expect(clampPanelHeight(10_000, 100_000)).toBe(PANEL_MAX_HEIGHT);
+        expect(clampPanelHeight(10, 100_000)).toBe(PANEL_MIN_HEIGHT);
+    });
+
+    it('falls back to the bounded height when the viewport height is not a finite number', () => {
+        expect(clampPanelHeight(300, NaN)).toBe(300);
+    });
+});

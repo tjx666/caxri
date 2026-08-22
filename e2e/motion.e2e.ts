@@ -326,7 +326,7 @@ test('Files directory tree expands instantly with no disclosure-motion wrapper',
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        const filesPanel = running.page.locator('.inspector');
+        const filesPanel = running.page.locator('.secondary-sidebar');
         await expect(filesPanel.locator('.file-list .tree-row')).toHaveCount(1);
         // Files is the one user-triggered disclosure DESIGN.md keeps intentionally instant
         // (lazy fetch, no spatial continuity to explain): confirm the tree never wraps its

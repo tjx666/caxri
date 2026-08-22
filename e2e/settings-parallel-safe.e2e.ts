@@ -45,36 +45,38 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
 
         const search = dialog.getByLabel('Search keyboard shortcuts');
-        await search.fill('toggle inspector');
+        await search.fill('secondarySidebar.toggle');
         // Filtered on the command id, not the title: a conflict is now reported on both colliding
         // rows, so each row's text contains the *other* command's title and a title filter would
         // match two rows once the conflict below exists. The id appears only on its own row.
-        const inspectorRow = dialog.getByRole('listitem').filter({ hasText: 'inspector.toggle' });
-        const inspectorEdit = inspectorRow.getByRole('button', {
-            name: 'Edit shortcut for Toggle Inspector',
+        const secondarySidebarRow = dialog
+            .getByRole('listitem')
+            .filter({ hasText: 'secondarySidebar.toggle' });
+        const secondarySidebarEdit = secondarySidebarRow.getByRole('button', {
+            name: 'Edit shortcut for Toggle Secondary Side Bar',
         });
-        await expect(inspectorRow).toContainText('inspector.toggle');
-        await expect(inspectorRow.locator('[data-shortcut="cmd+]"] kbd')).toHaveCount(2);
+        await expect(secondarySidebarRow).toContainText('secondarySidebar.toggle');
+        await expect(secondarySidebarRow.locator('[data-shortcut="cmd+]"] kbd')).toHaveCount(2);
 
         // The chord already belongs to Session MRU globally. Recording must receive it before
         // the capture-phase dispatcher consumes the command behind the Settings modal.
-        await inspectorEdit.click();
-        await inspectorEdit.press('Control+Alt+Tab');
-        await expect(inspectorEdit).toContainText('⌃⌥⇥');
-        await inspectorEdit.press('Escape');
-        await expect(inspectorRow.locator('[data-shortcut="cmd+]"]')).toBeVisible();
+        await secondarySidebarEdit.click();
+        await secondarySidebarEdit.press('Control+Alt+Tab');
+        await expect(secondarySidebarEdit).toContainText('⌃⌥⇥');
+        await secondarySidebarEdit.press('Escape');
+        await expect(secondarySidebarRow.locator('[data-shortcut="cmd+]"]')).toBeVisible();
 
-        await inspectorEdit.click();
-        await inspectorEdit.press('Meta+Alt+O');
-        await expect(inspectorEdit).toContainText('⌥⌘O');
-        await inspectorEdit.press('Escape');
-        await expect(inspectorEdit).toBeFocused();
-        await expect(inspectorRow.locator('[data-shortcut="cmd+]"]')).toBeVisible();
+        await secondarySidebarEdit.click();
+        await secondarySidebarEdit.press('Meta+Alt+O');
+        await expect(secondarySidebarEdit).toContainText('⌥⌘O');
+        await secondarySidebarEdit.press('Escape');
+        await expect(secondarySidebarEdit).toBeFocused();
+        await expect(secondarySidebarRow.locator('[data-shortcut="cmd+]"]')).toBeVisible();
 
-        await inspectorEdit.click();
-        await inspectorEdit.press('Meta+Alt+I');
-        await inspectorEdit.press('Enter');
-        await expect(inspectorRow.locator('[data-shortcut="cmd+alt+i"]')).toBeVisible();
+        await secondarySidebarEdit.click();
+        await secondarySidebarEdit.press('Meta+Alt+I');
+        await secondarySidebarEdit.press('Enter');
+        await expect(secondarySidebarRow.locator('[data-shortcut="cmd+alt+i"]')).toBeVisible();
         // Structured edits write immediately (debounced); wait for this one to land before layering
         // a conflicting edit on top of it.
         await expect
@@ -82,46 +84,51 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
                 const result = await pageRequest<{
                     value: Array<{ command: string; key: string }>;
                 }>(running.page, 'keybindings.get');
-                return result.value.find((binding) => binding.command === 'inspector.toggle')?.key;
+                return result.value.find((binding) => binding.command === 'secondarySidebar.toggle')
+                    ?.key;
             })
             .toBe('cmd+alt+i');
 
-        // Keep both rows visible (a narrower "toggle primary sidebar" search would hide Toggle
-        // Inspector) so the conflict this creates can be checked on both colliding rows.
+        // Keep both rows visible (a narrower "toggle primary primarySidebar" search would hide Toggle
+        // SecondarySidebar) so the conflict this creates can be checked on both colliding rows.
         await search.fill('toggle');
-        const sidebarRow = dialog.getByRole('listitem').filter({ hasText: 'sidebar.toggle' });
-        const sidebarEdit = sidebarRow.getByRole('button', {
-            name: 'Edit shortcut for Toggle Primary Sidebar',
+        const primarySidebarRow = dialog
+            .getByRole('listitem')
+            .filter({ hasText: 'primarySidebar.toggle' });
+        const primarySidebarEdit = primarySidebarRow.getByRole('button', {
+            name: 'Edit shortcut for Toggle Primary Side Bar',
         });
-        await sidebarEdit.click();
-        await sidebarEdit.press('Meta+Alt+I');
-        await sidebarEdit.press('Enter');
+        await primarySidebarEdit.click();
+        await primarySidebarEdit.press('Meta+Alt+I');
+        await primarySidebarEdit.press('Enter');
         // A conflict is reported inline on both rows and never blocks the write (there is no
         // `applyDisabled` gate anymore): both rows keep the colliding chord and it still persists.
-        await expect(sidebarRow.locator('[data-shortcut="cmd+alt+i"]')).toBeVisible();
-        await expect(sidebarRow).toContainText('Conflicts with Toggle Inspector');
-        await expect(inspectorRow).toContainText('Conflicts with Toggle Primary Sidebar');
+        await expect(primarySidebarRow.locator('[data-shortcut="cmd+alt+i"]')).toBeVisible();
+        await expect(primarySidebarRow).toContainText('Conflicts with Toggle Secondary Side Bar');
+        await expect(secondarySidebarRow).toContainText('Conflicts with Toggle Primary Side Bar');
         await expect
             .poll(async () => {
                 const result = await pageRequest<{
                     value: Array<{ command: string; key: string }>;
                 }>(running.page, 'keybindings.get');
-                return result.value.find((binding) => binding.command === 'sidebar.toggle')?.key;
+                return result.value.find((binding) => binding.command === 'primarySidebar.toggle')
+                    ?.key;
             })
             .toBe('cmd+alt+i');
 
-        await sidebarRow
-            .getByRole('button', { name: 'Reset shortcut for Toggle Primary Sidebar' })
+        await primarySidebarRow
+            .getByRole('button', { name: 'Reset shortcut for Toggle Primary Side Bar' })
             .click();
-        await expect(sidebarRow.locator('[data-shortcut="cmd+["]')).toBeVisible();
-        await expect(sidebarRow).not.toContainText('Conflicts with');
-        await expect(inspectorRow).not.toContainText('Conflicts with');
+        await expect(primarySidebarRow.locator('[data-shortcut="cmd+["]')).toBeVisible();
+        await expect(primarySidebarRow).not.toContainText('Conflicts with');
+        await expect(secondarySidebarRow).not.toContainText('Conflicts with');
         await expect
             .poll(async () => {
                 const result = await pageRequest<{
                     value: Array<{ command: string; key: string }>;
                 }>(running.page, 'keybindings.get');
-                return result.value.find((binding) => binding.command === 'sidebar.toggle')?.key;
+                return result.value.find((binding) => binding.command === 'primarySidebar.toggle')
+                    ?.key;
             })
             .toBe('cmd+[');
 
@@ -142,17 +149,18 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
                 const result = await pageRequest<{
                     value: Array<{ command: string; key: string }>;
                 }>(running.page, 'keybindings.get');
-                return result.value.find((binding) => binding.command === 'inspector.searchFiles')
-                    ?.key;
+                return result.value.find(
+                    (binding) => binding.command === 'secondarySidebar.searchFiles',
+                )?.key;
             })
             .toBe('cmd+shift+f');
 
         await running.page.keyboard.press('Escape');
-        await expect(running.page.locator('.inspector')).toBeVisible();
+        await expect(running.page.locator('.secondary-sidebar')).toBeVisible();
         await running.page.keyboard.press('Meta+Alt+I');
-        await expect(running.page.locator('.inspector')).toHaveCount(0);
+        await expect(running.page.locator('.secondary-sidebar')).toHaveCount(0);
         await running.page.keyboard.press('Meta+Alt+I');
-        await expect(running.page.locator('.inspector')).toBeVisible();
+        await expect(running.page.locator('.secondary-sidebar')).toBeVisible();
     } finally {
         try {
             await running.app.close();

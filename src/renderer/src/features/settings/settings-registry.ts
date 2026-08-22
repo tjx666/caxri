@@ -168,7 +168,7 @@ const categoryTitles = Object.fromEntries(
 
 const rows: SettingRowDescriptor[] = [
     specRow('session.defaultAgent'),
-    specRow('sidebar.autoCollapseProjects'),
+    specRow('primarySidebar.autoCollapseProjects'),
     specRow('workbench.newWorktreeBehavior'),
     specRow('workbench.fontFamily'),
     specRow('workbench.externalEditor'),

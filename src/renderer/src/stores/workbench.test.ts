@@ -242,7 +242,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
         const staleBootstrap = {
@@ -259,7 +259,10 @@ describe('workbench Session state', () => {
         useWorkbenchStore.setState({ bootstrap: staleBootstrap });
 
         const refresh = refreshWorkbench();
-        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        const statusState = {
+            ...filesState,
+            desiredSecondarySidebarViewContainerId: 'caxri.project-status' as const,
+        };
         patchSessionState(statusState);
         bootstrapRequest.resolve(staleBootstrap);
         await refresh;
@@ -272,7 +275,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
         const staleBootstrap = {
@@ -292,7 +295,10 @@ describe('workbench Session state', () => {
         // The snapshot read is issued first, then the patch persists fully before the read resolves
         // with a snapshot that predates the write.
         const refresh = refreshWorkbench();
-        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        const statusState = {
+            ...filesState,
+            desiredSecondarySidebarViewContainerId: 'caxri.project-status' as const,
+        };
         await useWorkbenchStore.getState().patchSessionState(statusState);
         bootstrapRequest.resolve(staleBootstrap);
         await refresh;
@@ -318,7 +324,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
         const bootstrap = {
@@ -333,7 +339,10 @@ describe('workbench Session state', () => {
             return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
         });
 
-        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        const statusState = {
+            ...filesState,
+            desiredSecondarySidebarViewContainerId: 'caxri.project-status' as const,
+        };
         patchSessionState(statusState);
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
 
@@ -347,7 +356,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
         const bootstrap = {
@@ -362,7 +371,10 @@ describe('workbench Session state', () => {
             return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
         });
 
-        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        const statusState = {
+            ...filesState,
+            desiredSecondarySidebarViewContainerId: 'caxri.project-status' as const,
+        };
         patchSessionState(statusState);
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
 
@@ -380,7 +392,7 @@ describe('workbench Session state', () => {
         const ownerState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-owner',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/owner/first.ts'),
         };
         useWorkbenchStore.setState({
@@ -394,11 +406,15 @@ describe('workbench Session state', () => {
         const rollback = vi.fn();
         const pending = useWorkbenchStore
             .getState()
-            .patchSessionState({ ...ownerState, inspectorMode: 'status' }, undefined, rollback);
+            .patchSessionState(
+                { ...ownerState, desiredSecondarySidebarViewContainerId: 'caxri.project-status' },
+                undefined,
+                rollback,
+            );
         const worktreeState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-worktree',
-            inspectorMode: 'git',
+            desiredSecondarySidebarViewContainerId: 'caxri.git',
             paneLayout: paneLayout('/worktree/second.ts'),
         };
         useWorkbenchStore.setState((current) => ({
@@ -418,7 +434,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/source.ts'),
         };
         const bootstrap = {
@@ -465,7 +481,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout('/project/a.ts', '/project/b.ts'),
         };
         const bootstrap = {
@@ -520,7 +536,7 @@ describe('workbench Session state', () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(),
         };
         const bootstrap = {
@@ -539,9 +555,15 @@ describe('workbench Session state', () => {
             return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
         });
 
-        const statusState = { ...filesState, inspectorMode: 'status' as const };
+        const statusState = {
+            ...filesState,
+            desiredSecondarySidebarViewContainerId: 'caxri.project-status' as const,
+        };
         patchSessionState(statusState);
-        const agentsState = { ...filesState, inspectorMode: 'git' as const };
+        const agentsState = {
+            ...filesState,
+            desiredSecondarySidebarViewContainerId: 'caxri.git' as const,
+        };
         patchSessionState(agentsState);
         expect(updateRequests).toHaveLength(2);
 
