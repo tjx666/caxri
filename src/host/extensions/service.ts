@@ -4,7 +4,7 @@ import type { ProjectStatusSummary } from '../../../packages/protocol/src/domain
 import type {
     ExtensionCapability,
     ExtensionError,
-    TreeItemDto,
+    TreeChildrenResult,
     ViewCatalogSnapshot,
 } from '../../../packages/protocol/src/domain/views';
 import type {
@@ -402,15 +402,31 @@ export class ExtensionService extends EventTarget {
         viewId: string;
         parentHandle?: string;
         requestId: string;
-    }): Promise<{ items: TreeItemDto[] }> {
+    }): Promise<TreeChildrenResult> {
         const extension = this.extensionForView(parameters.viewId);
         await this.activate(extension, `onView:${parameters.viewId}`);
         const generation = this.states.get(extension.extensionId)!.generation;
-        return (await this.supervisor?.request('treeChildren', {
-            extensionId: extension.extensionId,
-            generation,
-            ...parameters,
-        })) as { items: TreeItemDto[] };
+        try {
+            return (await this.supervisor?.request('treeChildren', {
+                extensionId: extension.extensionId,
+                generation,
+                ...parameters,
+            })) as TreeChildrenResult;
+        } catch (error) {
+            if (!parameters.parentHandle || extensionFailure(error).code !== 'GENERATION_EXPIRED')
+                throw error;
+            /**
+             * A root refresh retires handles before its debounced treeChanged event reaches the Renderer. Recover the
+             * narrow stale-branch race with a current root snapshot while preserving strict Extension Host rejection.
+             */
+            const root = (await this.supervisor?.request('treeChildren', {
+                extensionId: extension.extensionId,
+                generation,
+                viewId: parameters.viewId,
+                requestId: parameters.requestId,
+            })) as TreeChildrenResult;
+            return { ...root, reset: true };
+        }
     }
 
     async executeCommand(commandId: string, arguments_: unknown[]): Promise<{ executed: true }> {
