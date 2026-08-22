@@ -8,9 +8,12 @@ import { useEffect, useState } from 'react';
  * reveal the full text (a tooltip) can only tell by measuring. `scrollWidth`/`clientWidth` are both layout-rounded to
  * whole pixels, which is what keeps a sub-pixel flex width from reporting a permanent one-pixel overflow.
  *
+ * Re-measuring cannot ride on `ResizeObserver` alone, which is why `content` is a parameter rather than something the
+ * hook reads off the element: replacing the text inside a fixed-width box changes `scrollWidth` without changing the
+ * observed box, so the observer never fires.
+ *
  * @param reference Element to measure; measurement is skipped while it is unmounted.
- * @param content The rendered text. Re-measuring cannot ride on `ResizeObserver` alone: replacing the text inside a
- *   fixed-width box changes `scrollWidth` without changing the observed box, so the observer never fires.
+ * @param content The rendered text.
  */
 export function useIsOverflowing(
     reference: RefObject<HTMLElement | null>,
