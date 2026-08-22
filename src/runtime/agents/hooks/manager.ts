@@ -10,6 +10,7 @@ import { errorMessage } from '../../../shared/ipc/errors';
 import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { mapWithConcurrency } from '../../../shared/node/concurrency';
 import type { StructuredLogger } from '../../../shared/node/logger';
+import { logEventCatalog } from '../../../shared/node/logger';
 import type { AgentHookHealth, AgentHookHealthMap } from '../../../shared/types';
 import { atomicWrite } from '../../atomic-file';
 import { readBoundedRegularFileText } from '../../bounded-file-reader';
@@ -252,7 +253,7 @@ export class AgentHookManager {
             for (const provider of agentProviderIds)
                 if (settings[provider].hooks.enabled)
                     this.setHealth(provider, { kind: 'error', message });
-            this.options.logger.write('warn', 'agent_hooks.lock_failed', {
+            this.options.logger.write('warn', logEventCatalog.agentHooks.lockFailed, {
                 fields: { error: message },
             });
         }
@@ -313,7 +314,7 @@ export class AgentHookManager {
             const message = errorMessage(error, 'Lifecycle hook reconciliation failed');
             this.loseAuthority(provider);
             this.setHealth(provider, { kind: 'error', message });
-            this.options.logger.write('warn', 'agent_hooks.reconcile_failed', {
+            this.options.logger.write('warn', logEventCatalog.agentHooks.reconcileFailed, {
                 fields: { provider, error: message },
             });
         }
@@ -570,7 +571,7 @@ export class AgentHookManager {
                     if (isAccepted) this.markActive(signal.provider);
                     return isAccepted;
                 } catch (error) {
-                    this.options.logger.write('warn', 'agent_hooks.signal_failed', {
+                    this.options.logger.write('warn', logEventCatalog.agentHooks.signalFailed, {
                         fields: {
                             provider: signal.provider,
                             phase: signal.phase,
@@ -585,7 +586,7 @@ export class AgentHookManager {
             await this.reconcile(settings);
         } catch (error) {
             const message = errorMessage(error, 'Lifecycle hook initialization failed');
-            this.options.logger.write('warn', 'agent_hooks.initialize_failed', {
+            this.options.logger.write('warn', logEventCatalog.agentHooks.initializeFailed, {
                 fields: { error: message },
             });
             for (const provider of agentProviderIds)

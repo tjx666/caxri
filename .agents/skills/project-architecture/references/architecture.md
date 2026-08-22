@@ -351,6 +351,8 @@ Terminal input, resize, and output are high-frequency paths. Successful input an
 
 Structured logs carry timestamp, process, level, event, correlation ID, duration, and the build's application version and commit when known. Diagnostics contain application/runtime versions, redacted metadata/state, counts, and timing summaries. Home paths normalize to `$HOME`; secret-like keys, bearer/API tokens, GitHub tokens, and Slack tokens are redacted. Bundles never include file contents, terminal output/snapshots, environment values, prompts/responses, or agent transcripts.
 
+Structured event names are owned by the browser-safe protocol `logEventCatalog`; production log sinks accept only its derived `LogEventName`, and the `logs.query.event` filter uses the same schema. Query results deliberately keep a bounded string event so older or externally produced JSONL records remain readable without weakening production write-time typing.
+
 The application version and short commit hash are injected at build time and read once by Main, which stamps its own logs and forwards them to the Runtime's environment so both processes' logs and the diagnostics export can be correlated to the exact build.
 
 Main, Host, and Runtime JSONL files live together beneath the active runtime profile's `logs/` directory. Development,

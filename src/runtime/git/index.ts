@@ -9,6 +9,7 @@ import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../share
 import { AsyncSemaphore } from '../../shared/node/concurrency';
 import { execFileAsync } from '../../shared/node/exec';
 import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     GitCommit,
@@ -242,14 +243,14 @@ export class GitService {
                     execution.child.stdin?.end(options.input);
                 }
                 const { stdout } = await execution;
-                this.logger.write('info', 'git.command', {
+                this.logger.write('info', logEventCatalog.git.command, {
                     durationMs: performance.now() - queuedAt,
                     fields: { operation: classifyGitOperation(arguments_), ...timing() },
                 });
                 return stdout;
             } catch (error) {
                 if (options.allowFailure) return '';
-                this.logger.write('warn', 'git.command_failed', {
+                this.logger.write('warn', logEventCatalog.git.commandFailed, {
                     durationMs: performance.now() - queuedAt,
                     fields: {
                         operation: classifyGitOperation(arguments_),
@@ -287,7 +288,7 @@ export class GitService {
                         env: { LC_ALL: 'C' },
                     },
                 );
-                this.logger.write('info', 'git.github_command', {
+                this.logger.write('info', logEventCatalog.git.githubCommand, {
                     durationMs: performance.now() - startedAt,
                     fields: { operation: 'pr.view' },
                 });
@@ -299,7 +300,7 @@ export class GitService {
                 const failure = error as { code?: string; message?: string; stderr?: string };
                 const message = `${failure.message ?? ''}\n${failure.stderr ?? ''}`;
                 if (/no pull requests found|could not find pull request/i.test(message)) return '';
-                this.logger.write('warn', 'git.github_command_failed', {
+                this.logger.write('warn', logEventCatalog.git.githubCommandFailed, {
                     durationMs: performance.now() - startedAt,
                     fields: { operation: 'pr.view', error: errorMessage(error, 'unknown') },
                 });

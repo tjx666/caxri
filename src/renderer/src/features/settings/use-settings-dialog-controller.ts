@@ -21,6 +21,7 @@ import {
     updateKeybindingSource,
 } from './keybinding-editor';
 import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
+import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 
 const onApplied = (): void => {
     // Fire-and-forget: `refreshWorkbench` reports failures through its own request pipeline, so
@@ -30,13 +31,6 @@ const onApplied = (): void => {
 };
 const onSettingsError = (error: unknown, label: string): void =>
     pushToast('error', describeFailure(error, label));
-
-/**
- * Coalesces a burst of structured-control edits (rapid typing, a dragged color picker) into one persisted write per
- * kind instead of a request per keystroke. The visible value always updates instantly through the reducer; only the
- * network write is delayed.
- */
-const WRITE_DEBOUNCE_MS = 300;
 
 export function useSettingsDialogController() {
     const isOpen = useDialogStore((state) => state.settingsOpen);
@@ -64,66 +58,43 @@ export function useSettingsDialogController() {
         stateReference.current = state;
     }, [state]);
 
-    // Per-kind write coordination: `writeTimers` holds a pending debounced write, and
-    // `writeGeneration` lets an in-flight response detect it has been superseded by a newer edit
-    // (or an external disk change) so it can drop itself silently instead of clobbering newer text.
-    const writeTimers = useRef<Partial<Record<ConfigKind, number>>>({});
-    const writeGeneration = useRef<Record<ConfigKind, number>>({
-        settings: 0,
-        keybindings: 0,
-        theme: 0,
-    });
-
-    const persistNow = useCallback((kind: ConfigKind, source: string): void => {
-        const timer = writeTimers.current[kind];
-        if (timer !== undefined) clearTimeout(timer);
-        delete writeTimers.current[kind];
-        const generation = ++writeGeneration.current[kind];
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, the IIFE below reports its own errors via onSettingsError
-        void (async (): Promise<void> => {
-            try {
-                if (kind === 'settings') {
-                    const result = await caxri.request('settings.update', { source });
-                    if (writeGeneration.current.settings !== generation) return;
+    const writeCoordinatorReference = useRef<
+        ReturnType<typeof createSettingsWriteCoordinator> | undefined
+    >(undefined);
+    writeCoordinatorReference.current ??= createSettingsWriteCoordinator({
+        onApplied,
+        onError: (error, kind) => {
+            // Never applied to state on failure, so the field the user just changed stays exactly as they left it.
+            onSettingsError(error, CONFIG_FILE_NAMES[kind]);
+        },
+        persist: async (kind, source) => {
+            if (kind === 'settings') {
+                const result = await caxri.request('settings.update', { source });
+                return () =>
                     dispatch({
                         type: 'settings/applied',
                         value: result.value,
                         source: result.source,
                     });
-                } else if (kind === 'keybindings') {
-                    const result = await caxri.request('keybindings.update', { source });
-                    if (writeGeneration.current.keybindings !== generation) return;
+            }
+            if (kind === 'keybindings') {
+                const result = await caxri.request('keybindings.update', { source });
+                return () =>
                     dispatch({
                         type: 'keybindings/applied',
                         value: result.value,
                         source: result.source,
                         conflicts: result.conflicts,
                     });
-                } else {
-                    const result = await caxri.request('theme.update', { source });
-                    if (writeGeneration.current.theme !== generation) return;
-                    dispatch({ type: 'theme/applied', value: result.value, source: result.source });
-                }
-                onApplied();
-            } catch (error) {
-                // Never applied to state on failure, so the field the user just changed stays
-                // exactly as they left it — the "tell the user, do not revert" rule.
-                onSettingsError(error, CONFIG_FILE_NAMES[kind]);
             }
-        })();
-    }, []);
-
-    const schedulePersist = useCallback(
-        (kind: ConfigKind, source: string): void => {
-            const timer = writeTimers.current[kind];
-            if (timer !== undefined) clearTimeout(timer);
-            writeTimers.current[kind] = setTimeout(
-                () => persistNow(kind, source),
-                WRITE_DEBOUNCE_MS,
-            );
+            const result = await caxri.request('theme.update', { source });
+            return () =>
+                dispatch({ type: 'theme/applied', value: result.value, source: result.source });
         },
-        [persistNow],
-    );
+    });
+    const writeCoordinator = writeCoordinatorReference.current;
+    const persistNow = writeCoordinator.persistNow;
+    const schedulePersist = writeCoordinator.schedule;
 
     const load = useCallback((): void => {
         async function loadConfig(): Promise<void> {
@@ -237,10 +208,7 @@ export function useSettingsDialogController() {
             // Our own write's broadcast echoes back exactly the text we just persisted — skip the
             // redundant reparse/redispatch instead of treating it as a foreign change.
             if (payload.source === current.appliedSource) return;
-            const timer = writeTimers.current[kind];
-            if (timer !== undefined) clearTimeout(timer);
-            delete writeTimers.current[kind];
-            writeGeneration.current[kind] += 1;
+            writeCoordinator.supersede(kind);
             if (kind === 'settings') {
                 const parsed = parseConfigSource('settings', payload.source);
                 dispatch({
@@ -272,7 +240,7 @@ export function useSettingsDialogController() {
             });
             setSourceError('theme', payload.error ?? (parsed.ok ? undefined : parsed.error));
         },
-        [setSourceError],
+        [setSourceError, writeCoordinator],
     );
 
     useEffect(
@@ -480,10 +448,7 @@ export function useSettingsDialogController() {
             if (!imported) return;
             // The importer writes theme.json directly: drop any pending debounced write and bump
             // the generation so a stale response cannot clobber the just-imported theme afterward.
-            const timer = writeTimers.current.theme;
-            if (timer !== undefined) clearTimeout(timer);
-            delete writeTimers.current.theme;
-            writeGeneration.current.theme += 1;
+            writeCoordinator.supersede('theme');
             const result = await caxri.request('theme.get');
             dispatch({ type: 'theme/imported', value: result.value, source: result.source });
             onApplied();

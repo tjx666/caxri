@@ -1,13 +1,28 @@
 import { describe, expect, it } from 'vitest';
 
 import { CaxriError } from '../../shared/ipc/errors';
+import { logEventCatalog } from '../../shared/ipc/logging';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
+import type { LocalHostServerOptions } from '../local-server-support';
 import {
     executeReply,
     fileSystemCode,
     isTokenMatch,
     operatorContext,
 } from '../local-server-support';
+
+type HostRequestLogEvent = Parameters<NonNullable<LocalHostServerOptions['logger']>['write']>[1];
+
+describe('Host request log sink', () => {
+    it('accepts only registered event names', () => {
+        const registeredEvent: HostRequestLogEvent = logEventCatalog.ipc.request;
+        // @ts-expect-error -- Host log sinks must reject events outside the canonical registry.
+        const unregisteredEvent: HostRequestLogEvent = 'ipc.request_typo';
+
+        expect(registeredEvent).toBe('ipc.request');
+        expect(unregisteredEvent).toBe('ipc.request_typo');
+    });
+});
 
 describe('isTokenMatch', () => {
     it('accepts two equal tokens', () => {

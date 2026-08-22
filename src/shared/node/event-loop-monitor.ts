@@ -1,16 +1,18 @@
 import { performance } from 'node:perf_hooks';
 
+import type { LogEventName } from '../ipc/logging';
+import { logEventCatalog } from '../ipc/logging';
 import type { LogRecord } from './logger';
 
 export interface EventLoopMonitorSink {
     write(
         level: LogRecord['level'],
-        event: string,
+        event: LogEventName,
         options?: Pick<LogRecord, 'correlationId' | 'durationMs' | 'fields'>,
     ): void;
 }
 
-export const EVENT_LOOP_STALL_EVENT = 'process.event_loop_stall';
+export const EVENT_LOOP_STALL_EVENT = logEventCatalog.process.eventLoopStall;
 
 /**
  * Default probe cadence and reporting threshold: a stall is only interesting once it is long enough to make IPC feel

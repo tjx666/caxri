@@ -1,10 +1,9 @@
 import { join } from 'node:path';
 
-import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { CaxriError } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type { ProcessExplorerSnapshot } from '../shared/process-explorer';
 import { processExplorerSnapshotSchema } from '../shared/process-explorer';
 import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
@@ -14,7 +13,10 @@ import type { ThemeTokens } from '../shared/types';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import type { ProcessExplorerSampler } from './process-explorer';
-import { resolveRendererEntryUrl } from './renderer-entry';
+import {
+    assertTrustedProcessExplorerSender,
+    resolveProcessExplorerRendererUrl,
+} from './process-explorer-window-helpers';
 import type { E2EWindowMode } from './window-mode';
 
 interface ProcessExplorerWindowOptions {
@@ -37,26 +39,6 @@ export class ProcessExplorerWindowController {
 
     constructor(private readonly options: ProcessExplorerWindowOptions) {}
 
-    private resolveRendererUrl(): string {
-        const rendererUrl = new URL(
-            resolveRendererEntryUrl({
-                currentDirectory: this.options.currentDirectory,
-                isPackaged: this.options.isPackaged,
-                page: 'process-explorer.html',
-                rendererUrl: this.options.rendererUrl,
-            }),
-        );
-        if (this.options.forceRenderError)
-            rendererUrl.searchParams.set('caxri-test-render-error', '1');
-        return rendererUrl.href;
-    }
-
-    private assertSender(event: IpcMainInvokeEvent): void {
-        if (!this.window || event.sender !== this.window.webContents) {
-            throw new CaxriError('PATH_DENIED', 'Untrusted Process Explorer IPC sender');
-        }
-    }
-
     installIpc(): void {
         ipcMain.on(RENDERER_ERROR_CHANNELS.processExplorer, (event, rawKind: unknown) => {
             if (!this.window || event.sender !== this.window.webContents) return;
@@ -65,8 +47,8 @@ export class ProcessExplorerWindowController {
             this.options.logger.write(
                 'error',
                 kind === 'page-exception'
-                    ? 'process_explorer.page_exception'
-                    : 'process_explorer.unhandled_rejection',
+                    ? logEventCatalog.processExplorer.pageException
+                    : logEventCatalog.processExplorer.unhandledRejection,
                 {
                     fields: {
                         code: kind === 'page-exception' ? 'PAGE_EXCEPTION' : 'UNHANDLED_REJECTION',
@@ -77,12 +59,12 @@ export class ProcessExplorerWindowController {
         ipcMain.handle(
             PROCESS_EXPLORER_CHANNELS.snapshot,
             async (event): Promise<ProcessExplorerSnapshot> => {
-                this.assertSender(event);
+                assertTrustedProcessExplorerSender(this.window?.webContents, event.sender);
                 const startedAt = performance.now();
                 const snapshot = processExplorerSnapshotSchema.parse(
                     await this.options.sampler.snapshot(),
                 );
-                this.options.logger.write('debug', 'process_explorer.sample', {
+                this.options.logger.write('debug', logEventCatalog.processExplorer.sample, {
                     durationMs: performance.now() - startedAt,
                     fields: { processes: snapshot.processes.length },
                 });
@@ -90,7 +72,7 @@ export class ProcessExplorerWindowController {
             },
         );
         ipcMain.handle(PROCESS_EXPLORER_CHANNELS.theme, (event) => {
-            this.assertSender(event);
+            assertTrustedProcessExplorerSender(this.window?.webContents, event.sender);
             return this.options.theme();
         });
     }
@@ -114,7 +96,7 @@ export class ProcessExplorerWindowController {
             }
             return;
         }
-        const rendererUrl = this.resolveRendererUrl();
+        const rendererUrl = resolveProcessExplorerRendererUrl(this.options);
         const window = new BrowserWindow({
             width: 1_280,
             height: 760,
@@ -147,12 +129,12 @@ export class ProcessExplorerWindowController {
         });
         window.webContents.on('console-message', (details) => {
             if (details.level !== 'error') return;
-            this.options.logger.write('error', 'process_explorer.console_error', {
+            this.options.logger.write('error', logEventCatalog.processExplorer.consoleError, {
                 fields: consoleErrorLogFields(details),
             });
         });
         window.webContents.on('preload-error', () => {
-            this.options.logger.write('error', 'process_explorer.preload_error', {
+            this.options.logger.write('error', logEventCatalog.processExplorer.preloadError, {
                 fields: { code: 'PRELOAD_ERROR' },
             });
         });
@@ -165,14 +147,18 @@ export class ProcessExplorerWindowController {
             );
             this.rendererCrashTimestampsMs = crashTimestampsMs;
             if (decision.action === 'reload') {
-                this.options.logger.write('warn', 'process_explorer.render_process_gone', {
-                    fields: {
-                        code: 'RENDER_PROCESS_GONE',
-                        reason: details.reason,
-                        crashCount: decision.crashCount,
-                        delayMs: decision.delayMs ?? 0,
+                this.options.logger.write(
+                    'warn',
+                    logEventCatalog.processExplorer.renderProcessGone,
+                    {
+                        fields: {
+                            code: 'RENDER_PROCESS_GONE',
+                            reason: details.reason,
+                            crashCount: decision.crashCount,
+                            delayMs: decision.delayMs ?? 0,
+                        },
                     },
-                });
+                );
                 setTimeout(() => {
                     if (this.window === window && !window.isDestroyed())
                         // `render-process-gone` recovery reload is best-effort: a failed reload
@@ -183,13 +169,17 @@ export class ProcessExplorerWindowController {
                 }, decision.delayMs);
                 return;
             }
-            this.options.logger.write('error', 'process_explorer.render_process_crash_loop', {
-                fields: {
-                    code: 'RENDER_PROCESS_CRASH_LOOP',
-                    reason: details.reason,
-                    crashCount: decision.crashCount,
+            this.options.logger.write(
+                'error',
+                logEventCatalog.processExplorer.renderProcessCrashLoop,
+                {
+                    fields: {
+                        code: 'RENDER_PROCESS_CRASH_LOOP',
+                        reason: details.reason,
+                        crashCount: decision.crashCount,
+                    },
                 },
-            });
+            );
             /**
              * Process Explorer is optional diagnostics, so stop only its failed window. Creating the next window resets
              * crash history and leaves the healthy workbench untouched.

@@ -1,12 +1,14 @@
 import type { EventRecovery } from '../shared/ipc/event-journal';
 import { createEventJournal, isTransientRuntimeEvent } from '../shared/ipc/event-journal';
 import type { RuntimeEvent } from '../shared/ipc/events';
+import type { LogEventName } from '../shared/ipc/logging';
+import { logEventCatalog } from '../shared/ipc/logging';
 import type { BootstrapState } from '../shared/types';
 
 interface EventLogger {
     write(
         level: 'error' | 'info',
-        event: string,
+        event: LogEventName,
         fields: { fields: Record<string, boolean | null | number | string> },
     ): void;
 }
@@ -68,7 +70,7 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
                     .logger()
                     ?.write(
                         event.payload.status === 'failed' ? 'error' : 'info',
-                        'runtime.status',
+                        logEventCatalog.runtime.status,
                         {
                             fields: {
                                 status: event.payload.status,

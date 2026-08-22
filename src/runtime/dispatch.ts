@@ -7,6 +7,7 @@ import type {
 import type { RuntimeResponse } from '../shared/ipc/transport';
 import { parseRuntimeRequest } from '../shared/ipc/transport';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 
 /**
  * Every Runtime-reachable method paired with its implementation. The mapped type is exhaustive, so a method added to
@@ -53,7 +54,7 @@ export function createDispatcher(
             const handler = handlers[request.method] as (parameters: unknown) => Promise<unknown>;
             const result = await handler(request.params);
             if (!UNLOGGED_METHODS.has(envelope.method)) {
-                logger.write('debug', 'ipc.request', {
+                logger.write('debug', logEventCatalog.ipc.request, {
                     correlationId: envelope.id,
                     durationMs: performance.now() - started,
                     fields: { method: envelope.method },
@@ -65,7 +66,7 @@ export function createDispatcher(
              * Zod failures become VALIDATION, CaxriError keeps its code, everything else is INTERNAL.
              */
             const wire = toWireError(error);
-            logger.write('error', 'ipc.request_failed', {
+            logger.write('error', logEventCatalog.ipc.requestFailed, {
                 correlationId: envelope.id,
                 durationMs: performance.now() - started,
                 fields: {

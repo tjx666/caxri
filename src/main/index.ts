@@ -12,7 +12,7 @@ import type { RuntimeEvent } from '../shared/ipc/events';
 import type { CaxriRequest } from '../shared/ipc/methods';
 import { isMainRequest } from '../shared/ipc/methods';
 import { readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
-import { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import type { PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
@@ -201,10 +201,10 @@ if (ownsProfileInstance) {
          * one-shot restore event above.
          */
         if (initialState.isFullScreen) window.setFullScreen(true);
-        mainLogger?.write('info', 'window.created');
+        mainLogger?.write('info', logEventCatalog.window.created);
         window.webContents.on('did-finish-load', sendFullScreenState);
         window.once('ready-to-show', () => {
-            mainLogger?.write('info', 'window.ready_to_show', {
+            mainLogger?.write('info', logEventCatalog.window.readyToShow, {
                 durationMs: performance.now() - bootStartedAt,
             });
             if (e2eWindowMode === 'visible') window.show();
@@ -239,12 +239,12 @@ if (ownsProfileInstance) {
          */
         window.webContents.on('console-message', (details) => {
             if (details.level !== 'error') return;
-            mainLogger?.write('error', 'renderer.console_error', {
+            mainLogger?.write('error', logEventCatalog.renderer.consoleError, {
                 fields: consoleErrorLogFields(details),
             });
         });
         window.webContents.on('preload-error', () => {
-            mainLogger?.write('error', 'renderer.preload_error', {
+            mainLogger?.write('error', logEventCatalog.renderer.preloadError, {
                 fields: { code: 'PRELOAD_ERROR' },
             });
         });
@@ -256,7 +256,7 @@ if (ownsProfileInstance) {
             );
             rendererCrashTimestampsMs = crashTimestampsMs;
             if (decision.action === 'reload') {
-                mainLogger?.write('warn', 'window.render_process_gone', {
+                mainLogger?.write('warn', logEventCatalog.window.renderProcessGone, {
                     fields: {
                         code: 'RENDER_PROCESS_GONE',
                         reason: details.reason,
@@ -270,7 +270,7 @@ if (ownsProfileInstance) {
                 }, decision.delayMs);
                 return;
             }
-            mainLogger?.write('error', 'window.render_process_crash_loop', {
+            mainLogger?.write('error', logEventCatalog.window.renderProcessCrashLoop, {
                 fields: {
                     code: 'RENDER_PROCESS_CRASH_LOOP',
                     reason: details.reason,
@@ -309,7 +309,7 @@ if (ownsProfileInstance) {
                 isForceWindowClose = false;
             },
             confirm: async (count) => {
-                mainLogger?.write('info', 'window.close_confirmation', {
+                mainLogger?.write('info', logEventCatalog.window.closeConfirmation, {
                     fields: { runningTerminals: count },
                 });
                 const result = await dialog.showMessageBox(window, {
@@ -321,7 +321,7 @@ if (ownsProfileInstance) {
                     defaultId: 2,
                     cancelId: 2,
                 });
-                mainLogger?.write('info', 'window.close_decision', {
+                mainLogger?.write('info', logEventCatalog.window.closeDecision, {
                     fields: { response: result.response },
                 });
                 return result.response === 2
@@ -333,7 +333,7 @@ if (ownsProfileInstance) {
             countRunning: () => supervisor.request('terminal.runningCount'),
             detachAll: () => supervisor.request('terminal.detachAll'),
             logFailure: (message) =>
-                mainLogger?.write('error', 'window.close_failed', {
+                mainLogger?.write('error', logEventCatalog.window.closeFailed, {
                     fields: { error: message },
                 }),
             terminateAll: () => supervisor.request('terminal.terminateAll'),
@@ -359,7 +359,7 @@ if (ownsProfileInstance) {
                 mainWindow = undefined;
                 mainRenderer = undefined;
             }
-            mainLogger?.write('info', 'window.closed');
+            mainLogger?.write('info', logEventCatalog.window.closed);
         });
         loadRendererEntry(window, {
             currentDirectory,
@@ -407,12 +407,12 @@ if (ownsProfileInstance) {
         app,
         async () => {
             await focusMainWindow();
-            mainLogger?.write('info', 'app.second_instance_focused', {
+            mainLogger?.write('info', logEventCatalog.app.secondInstanceFocused, {
                 fields: { profileId: runtimeProfile.id },
             });
         },
         (error) =>
-            mainLogger?.write('error', 'app.second_instance_focus_failed', {
+            mainLogger?.write('error', logEventCatalog.app.secondInstanceFocusFailed, {
                 fields: { error: errorMessage(error, 'unknown') },
             }),
     );
@@ -477,7 +477,7 @@ if (ownsProfileInstance) {
                 // logged, so this is deliberately fire-and-forget rather than awaited.
                 // eslint-disable-next-line unicorn/prefer-await -- see comment above
                 supervisor.markDesktopReady().catch((error: unknown) =>
-                    mainLogger?.write('error', 'host.desktop_ready_failed', {
+                    mainLogger?.write('error', logEventCatalog.host.desktopReadyFailed, {
                         fields: { error: errorMessage(error, 'unknown') },
                     }),
                 );
@@ -527,7 +527,7 @@ if (ownsProfileInstance) {
             const logLevel = resolveLogLevel({ isPackaged: app.isPackaged });
             mainLogger ??= new StructuredLogger(logDirectory, 'main', logLevel);
             processErrorMonitor.attach(mainLogger);
-            mainLogger.write('info', 'app.ready', {
+            mainLogger.write('info', logEventCatalog.app.ready, {
                 durationMs: performance.now() - bootStartedAt,
                 fields: {
                     profileId: runtimeProfile.id,
@@ -540,7 +540,7 @@ if (ownsProfileInstance) {
                 },
             });
             if (process.env.CAXRI_E2E === '1') {
-                mainLogger.write('info', 'e2e.launch', {
+                mainLogger.write('info', logEventCatalog.e2e.launch, {
                     fields: {
                         agentMode: e2eAgentPolicy?.mode ?? 'blocked',
                         agentProvider:
@@ -564,7 +564,7 @@ if (ownsProfileInstance) {
                     if (state.status !== 'downloading')
                         mainLogger?.write(
                             state.status === 'error' ? 'error' : 'info',
-                            'updates.state',
+                            logEventCatalog.updates.state,
                             { fields: updateStateLogFields(state) },
                         );
                     sendEvent({ event: 'updates.state', payload: state });
@@ -658,7 +658,7 @@ if (ownsProfileInstance) {
     // (e.g. the Skia Graphite issue behind `applyGpuStabilityWorkarounds`) are diagnosable from logs.
     app.on('child-process-gone', (_event, details) => {
         if (details.reason === 'clean-exit') return;
-        mainLogger?.write('error', 'app.child_process_gone', {
+        mainLogger?.write('error', logEventCatalog.app.childProcessGone, {
             fields: {
                 code: 'CHILD_PROCESS_GONE',
                 type: details.type,
@@ -694,7 +694,7 @@ if (ownsProfileInstance) {
         if (isQuitStarted) return;
         event.preventDefault();
         isQuitStarted = true;
-        mainLogger?.write('info', 'app.quit_requested');
+        mainLogger?.write('info', logEventCatalog.app.quitRequested);
         // `before-quit` is a synchronous listener; the shutdown sequence below must not block it, so
         // it runs fire-and-forget and unconditionally exits the process once it settles.
         (async () => {
