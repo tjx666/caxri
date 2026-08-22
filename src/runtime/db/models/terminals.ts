@@ -203,8 +203,8 @@ export class TerminalsModel {
     }
 
     /**
-     * Rewrites the stable semantic title — what the Terminal *is*, not what its process last announced. Only an
-     * Agent conversation name reaches this today; OSC 0/2 goes to {@link setPtyTitle} instead.
+     * Rewrites the stable semantic title — what the Terminal _is_, not what its process last announced. Only an Agent
+     * conversation name reaches this today; OSC 0/2 goes to {@link setPtyTitle} instead.
      */
     setTitle(id: string, title: string, now = Date.now()): boolean {
         return (
