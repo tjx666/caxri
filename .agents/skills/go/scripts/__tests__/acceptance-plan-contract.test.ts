@@ -24,6 +24,17 @@ describe('Go Acceptance planning contract', () => {
         expect(fileIssueSkill).not.toContain('--field Status --value "Todo"');
     });
 
+    it('keeps every filed issue on the owner Project and honours a `Backlog` hold', () => {
+        expect(fileIssueSkill).toContain('gh project item-add 2 --owner tjx666');
+        expect(fileIssueSkill).toContain(
+            '**`Backlog` means the owner does not want this done yet.**',
+        );
+        // The `go` queue is populated by hand, so a held issue reaches intake unless the skill itself declines it.
+        expect(goSkill).toContain(
+            'An existing issue whose Caxri project Status is `Backlog` classifies as defer',
+        );
+    });
+
     it('keeps UX design and Acceptance planning explicit in every issue', () => {
         expect(fileIssueSkill).toContain('`UX 设计` and `Acceptance 方案` in every issue');
         expect(fileIssueSkill).toContain('**UX 设计**');

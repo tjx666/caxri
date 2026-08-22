@@ -1,6 +1,6 @@
 ---
 name: file-issue
-description: 'Draft and directly file a well-formed GitHub issue for this repository. Explicit invocation authorizes creation without a preview or confirmation. Use whenever creating an issue with gh — a bug report, an enhancement, or a follow-up task spun out of the current conversation — or when the user asks to 提 issue / file an issue.'
+description: 'Draft and directly file a well-formed GitHub issue for this repository, add it to the owner Caxri project, and keep its Status current as the work moves. Explicit invocation authorizes creation without a preview or confirmation. Use whenever creating an issue with gh — a bug report, an enhancement, or a follow-up task spun out of the current conversation — when the user asks to 提 issue / file an issue, or when starting, blocking, or finishing work tracked by an existing issue.'
 ---
 
 # File Issue
@@ -93,7 +93,9 @@ repeated `--label` flags and verify the complete label set after creation.
 
 ## Project tracking
 
-After creating the issue, always add it to the owner's Caxri project and set its fields explicitly:
+The Caxri project (<https://github.com/users/tjx666/projects/2>) is the owner's only work queue, so
+an issue that is not on it is invisible. **Every** issue this skill creates is added to it — no
+exceptions for small, obvious, or follow-up issues — and its fields are set explicitly:
 
 ```bash
 gh project item-add 2 --owner tjx666 --url "$issue_url"
@@ -102,10 +104,30 @@ gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Size --value "<
 gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Status --value "Next"
 ```
 
-- Use `In Progress` instead of `Next` only when implementation or verification is already underway.
 - Do not assign the sole maintainer or invent a milestone merely to fill metadata.
 - If a Project mutation fails, retry it once. Keep the successfully created issue, report the tracking failure, and never delete or recreate the issue to recover.
 - Fetch the Project item once and verify its URL, Status, Priority, and Size before reporting success.
+
+### Status lifecycle — keep it current, and honor `Backlog`
+
+`Status` is how the owner sees what is happening without asking, so it is updated as the work moves,
+not only at filing time. The options are `Backlog`, `Next`, `In Progress`, `Blocked`, and `Done`.
+
+| Moment                                               | Status        |
+| ---------------------------------------------------- | ------------- |
+| Filed, not started                                   | `Next`        |
+| Implementation or verification actually begins       | `In Progress` |
+| Waiting on a decision, an upstream fix, or the owner | `Blocked`     |
+| The PR that resolves it is merged                    | `Done`        |
+
+Use `In Progress` instead of `Next` only when implementation or verification is already underway.
+When work starts later, flip it in the same turn you start — before writing code, not after. Set
+`Done` only once the PR is merged; a PR that is merely open leaves the issue `In Progress`.
+
+**`Backlog` means the owner does not want this done yet.** Never start work on a `Backlog` issue,
+even when it is routed to you — including through the `go` skill's issue queue, which does not filter
+by Status. Skip it and say why. The only thing that overrides this is the owner explicitly asking for
+that issue by name in the current conversation; a general "clear the queue" does not.
 
 ### Priority (assess, never default)
 
