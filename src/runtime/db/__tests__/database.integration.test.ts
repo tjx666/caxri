@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createTerminalLayout } from '../../../shared/terminal-layout';
+import { listPaneTerminalIds } from '../../../shared/pane-layout';
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { CaxriDatabaseConnection as CaxriDatabase } from '../index';
 import { migrationManifest, PRESERVED_SCHEMA_VERSION } from '../migrations/manifest';
@@ -168,17 +168,17 @@ describe('CaxriDatabaseConnection', () => {
         database.database
             .prepare(
                 `INSERT INTO terminals
-                 (id, session_id, kind, provider, cwd, title, icon, order_index, layout_node_id,
+                 (id, session_id, kind, provider, cwd, title, icon, order_index,
                   last_process_state, created_at, updated_at)
-                 VALUES ('terminal-b', ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'layout-b', 'stopped', ?, ?)`,
+                 VALUES ('terminal-b', ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'stopped', ?, ?)`,
             )
             .run(session.id, root, now, now);
         database.database
             .prepare(
                 `INSERT INTO terminals
-                 (id, session_id, kind, provider, cwd, title, icon, order_index, layout_node_id,
+                 (id, session_id, kind, provider, cwd, title, icon, order_index,
                   last_process_state, created_at, updated_at)
-                 VALUES ('terminal-a', ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'layout-a', 'stopped', ?, ?)`,
+                 VALUES ('terminal-a', ?, 'shell', NULL, ?, 'Shell', 'shell', 0, 'stopped', ?, ?)`,
             )
             .run(session.id, root, now, now);
 
@@ -303,13 +303,10 @@ describe('CaxriDatabaseConnection', () => {
         previous
             .prepare(
                 `INSERT INTO session_state
-                 (session_id, open_tabs_json, active_tab_json, inspector_mode, layout_json,
-                  state_version, editor_remap_operation_id)
-                 VALUES ('session-preserved', '[]', NULL, 'files', ?, 1, NULL)`,
+                 (session_id, state_version, workbench_state_json, inspector_mode)
+                 VALUES ('session-preserved', 2, '{}', 'files')`,
             )
-            .run(
-                JSON.stringify(createTerminalLayout('terminal-preserved', () => 'group-preserved')),
-            );
+            .run();
         previous
             .prepare(
                 `INSERT INTO terminal_snapshots
@@ -379,7 +376,7 @@ describe('CaxriDatabaseConnection', () => {
         });
         const restoredState = upgraded.sessions.getState('session-preserved');
         expect(restoredState.workbenchProjectId).toBe(project.id);
-        expect(restoredState.layout).not.toEqual({});
+        expect(listPaneTerminalIds(restoredState.paneLayout)).toEqual(['terminal-preserved']);
         upgraded.close();
     });
 
@@ -462,8 +459,8 @@ describe('CaxriDatabaseConnection', () => {
         database.close();
     });
 
-    it('round-trips a valid structured active WorkItem', async () => {
-        const directory = await temporaryDirectory('caxri-db-active-tab-');
+    it('round-trips editorRemapOperationId together with the pane layout', async () => {
+        const directory = await temporaryDirectory('caxri-db-remap-operation-');
         const databasePath = join(directory, 'state.db');
         const database = new CaxriDatabase(databasePath);
         const project = database.projects.create(directory);
@@ -475,67 +472,15 @@ describe('CaxriDatabaseConnection', () => {
             title: 'Shell',
         });
         database.sessions.insertInitialState(session.id, terminal.id);
-        const structuredActiveTab = { kind: 'editor', path: '/a.ts' } as const;
 
         database.sessions.updateState({
             ...database.sessions.getState(session.id),
-            activeTab: structuredActiveTab,
             editorRemapOperationId: 'operation-1',
         });
 
-        expect(database.sessions.getState(session.id).activeTab).toEqual(structuredActiveTab);
-        expect(database.sessions.getState(session.id).editorRemapOperationId).toBe('operation-1');
-        database.close();
-    });
-
-    it('never persists dirty tabs without their Renderer-owned document bodies', async () => {
-        const directory = await temporaryDirectory('caxri-db-clean-tabs-');
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        const terminal = database.terminals.insert({
-            sessionId: session.id,
-            kind: 'shell',
-            cwd: directory,
-            title: 'Shell',
-        });
-        database.sessions.insertInitialState(session.id, terminal.id);
-
-        database.sessions.updateState({
-            ...database.sessions.getState(session.id),
-            openTabs: [{ path: '/project/unsaved.ts', dirty: true }],
-        });
-
-        expect(database.sessions.getState(session.id).openTabs).toEqual([
-            { path: '/project/unsaved.ts', dirty: false },
-        ]);
-        expect(
-            JSON.parse(
-                (
-                    database.database
-                        .prepare('SELECT open_tabs_json FROM session_state WHERE session_id = ?')
-                        .get(session.id) as { open_tabs_json: string }
-                ).open_tabs_json,
-            ),
-        ).toEqual([{ path: '/project/unsaved.ts', dirty: false }]);
-
-        database.database
-            .prepare(
-                "UPDATE session_state SET open_tabs_json = ?, workbench_state_json = '{}' WHERE session_id = ?",
-            )
-            .run(JSON.stringify([{ path: '/project/legacy.ts', dirty: true }]), session.id);
-        expect(database.sessions.getState(session.id).openTabs).toEqual([
-            { path: '/project/legacy.ts', dirty: false },
-        ]);
-        expect(
-            JSON.parse(
-                (
-                    database.database
-                        .prepare('SELECT open_tabs_json FROM session_state WHERE session_id = ?')
-                        .get(session.id) as { open_tabs_json: string }
-                ).open_tabs_json,
-            ),
-        ).toEqual([{ path: '/project/legacy.ts', dirty: false }]);
+        const restored = database.sessions.getState(session.id);
+        expect(restored.editorRemapOperationId).toBe('operation-1');
+        expect(listPaneTerminalIds(restored.paneLayout)).toEqual([terminal.id]);
         database.close();
     });
 

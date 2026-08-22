@@ -1,25 +1,17 @@
 import { pathBasename } from '@caxri/utils';
+import type { PaneTabCloseMode } from '@shared/pane-layout';
 import {
-    activeLayoutPath,
-    addEditorPath,
-    remapEditorLayoutPaths,
-    removeEditorPath,
-    removeEditorPathsUnder,
-    sessionEditorLayout,
-} from '@shared/editor-layout';
-import type { EditorTabCloseMode } from '@shared/editor-state';
-import {
-    editorTabPathsToClose,
-    openEditorTabState,
-    pinEditorTabState,
-    reconcileEditorTabDirtiness,
-    updateEditorTabState,
-} from '@shared/editor-state';
-import type { SessionState } from '@shared/types';
+    closeTabs,
+    findResourceTabs,
+    findTab,
+    listPaneTabs,
+    openResource,
+    paneTabIdsToClose,
+    pinPaneTab,
+    remapPaneLayoutPaths,
+} from '@shared/pane-layout';
+import type { PaneLayout, SessionState } from '@shared/types';
 import { isVirtualEditorTabPath } from '@shared/virtual-tabs';
-import type { WorkItem } from '@shared/work-item';
-import { activateWorkState, resolveActiveWork } from '@shared/work-item';
-import { clamp } from 'es-toolkit';
 
 import { caxri } from '../../lib/caxri';
 import { isPathAtOrBelow, remapPath } from '../../lib/file-path';
@@ -29,16 +21,12 @@ import {
     getSelectedSession,
     getSessionProjectId,
     getSessionState,
-    getSessionTerminals,
 } from '../../stores/selectors';
-import {
-    getResolvedActiveWork,
-    getSessionActiveWork,
-    getSessionDocuments,
-    useSessionViewStore,
-} from '../../stores/session-view';
+import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState, useWorkbenchStore } from '../../stores/workbench';
+import { closeTerminal } from '../terminal/terminal-actions';
+import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 
 const fileOpenIntentState = { current: 0 };
@@ -88,25 +76,24 @@ function discardPendingDocumentOperations(sessionId: string, path: string): void
     }
 }
 
-/**
- * Updates dirtiness and pins a preview as soon as it contains an edit.
- */
-function updateOpenTab(
-    sessionId: string,
-    path: string,
-    isDirty: boolean,
-    workbenchProjectId?: string,
-): void {
-    const current = useWorkbenchStore
+function sessionStateOf(sessionId: string): SessionState | undefined {
+    return useWorkbenchStore
         .getState()
-        .bootstrap?.sessionStates.find(
-            (state) =>
-                state.sessionId === sessionId &&
-                (!workbenchProjectId || state.workbenchProjectId === workbenchProjectId),
-        );
-    if (!current) return;
-    const next = updateEditorTabState(current, path, isDirty);
-    if (next !== current) patchSessionState(next);
+        .bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
+}
+
+/**
+ * Every document path currently occupying a tab in the given layout, in tree order. Repeated because the same document
+ * may be open in several panes.
+ */
+function layoutDocumentPaths(layout: PaneLayout): string[] {
+    return listPaneTabs(layout).flatMap(({ tab }) =>
+        tab.resource.kind === 'file' ? [tab.resource.path] : [],
+    );
+}
+
+function isDocumentDirty(sessionId: string, path: string, workbenchProjectId?: string): boolean {
+    return getSessionDocuments(sessionId, workbenchProjectId)?.[path]?.dirty === true;
 }
 
 /**
@@ -115,49 +102,40 @@ function updateOpenTab(
 function openEditorTabForSession(
     sessionId: string,
     path: string,
-    options: { preview?: boolean } = {},
+    options: { paneId?: string; preview?: boolean } = {},
 ): void {
-    const bootstrap = getBootstrap();
-    const session = bootstrap?.sessions.find((candidate) => candidate.id === sessionId);
-    const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
-    if (!session || !current) return;
+    const current = sessionStateOf(sessionId);
+    if (!current) return;
     const workbenchProjectId = current.workbenchProjectId;
     const view = useSessionViewStore.getState();
-    const previousActiveWork = getSessionActiveWork(session.id, workbenchProjectId);
-    const isPathWasOpen = current.openTabs.some((tab) => tab.path === path);
-    const reconciled = reconcileEditorTabDirtiness(
-        current,
-        getSessionDocuments(session.id, workbenchProjectId),
+    const wasOpen = findResourceTabs(current.paneLayout, { kind: 'file', path }).length > 0;
+    const opened = openResource(
+        current.paneLayout,
+        { kind: 'file', path },
+        { paneId: options.paneId, preview: options.preview === true },
     );
-    const opened = openEditorTabState(reconciled, path, options.preview === true);
-    const replacedDocument = opened.replacedPath
-        ? getSessionDocuments(session.id, workbenchProjectId)?.[opened.replacedPath]
-        : undefined;
-    if (opened.replacedPath)
-        view.evictDocument(session.id, opened.replacedPath, workbenchProjectId);
-    const item: WorkItem = { kind: 'editor', path };
-    view.setActiveWork(session.id, item, workbenchProjectId);
-    // A replaced preview tab leaves the layout tree in the same update; the opened path always
-    // lands in the active group so the tree mirrors `openTabs` exactly.
-    let editorLayout = sessionEditorLayout(opened.state);
-    if (opened.replacedPath) editorLayout = removeEditorPath(editorLayout, opened.replacedPath);
-    editorLayout = addEditorPath(editorLayout, path);
-    const layoutState =
-        editorLayout === opened.state.editorLayout
-            ? opened.state
-            : { ...opened.state, editorLayout };
-    const next = activateWorkState(layoutState, item);
     /**
-     * Session persistence rollback must also undo the Renderer-owned half of preview replacement.
+     * Opening into a preview slot replaces whatever preview was there. Its buffer is released in the same update, but
+     * only once no other pane still shows that document.
      */
-    if (next !== current)
-        patchSessionState(next, undefined, () => {
-            const currentView = useSessionViewStore.getState();
-            if (!isPathWasOpen) currentView.evictDocument(session.id, path, workbenchProjectId);
-            if (replacedDocument)
-                currentView.cacheDocument(session.id, replacedDocument, workbenchProjectId);
-            currentView.setActiveWork(session.id, previousActiveWork, workbenchProjectId);
-        });
+    const surviving = new Set(layoutDocumentPaths(opened));
+    const replacedPaths = [
+        ...new Set(layoutDocumentPaths(current.paneLayout).filter((path) => !surviving.has(path))),
+    ];
+    const replacedDocuments = replacedPaths.flatMap((replaced) => {
+        const document = getSessionDocuments(sessionId, workbenchProjectId)?.[replaced];
+        return document ? [document] : [];
+    });
+    for (const replaced of replacedPaths)
+        view.evictDocument(sessionId, replaced, workbenchProjectId);
+    view.touchDocument(sessionId, path, workbenchProjectId);
+    if (opened === current.paneLayout) return;
+    patchSessionState({ ...current, paneLayout: opened }, undefined, () => {
+        const currentView = useSessionViewStore.getState();
+        if (!wasOpen) currentView.evictDocument(sessionId, path, workbenchProjectId);
+        for (const document of replacedDocuments)
+            currentView.cacheDocument(sessionId, document, workbenchProjectId);
+    });
 }
 
 /**
@@ -170,7 +148,7 @@ export function openEditorTab(path: string, options: { preview?: boolean } = {})
 }
 
 /**
- * Reads a file into the Session document cache without changing the focused WorkItem.
+ * Reads a file into the Session document cache without opening a tab for it.
  */
 export async function cacheDocument(sessionId: string, path: string): Promise<void> {
     const operation = trackDocumentOperation(sessionId, path);
@@ -247,35 +225,29 @@ export async function openFileForSession(
     }
 }
 
-/**
- * Selecting an already open tab reuses the cached buffer; an evicted one is read again.
- */
-export function selectEditorTab(path: string): void {
-    const session = getSelectedSession();
-    if (!session) return;
-    const documents = getSessionDocuments(session.id);
-    if (isVirtualEditorTabPath(path) || (documents && Object.hasOwn(documents, path)))
-        useSessionViewStore.getState().activateWork({ kind: 'editor', path });
-    else {
-        // Fire-and-forget: `openFile` funnels its own failures into a toast via `tryCommand`, so
-        // there is nothing left for this handler to await or react to.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void openFile(path);
-    }
-}
-
 export function changeDocument(path: string, content: string): void {
     const session = getSelectedSession();
     if (!session) return;
     useSessionViewStore.getState().updateDocumentContent(session.id, path, content);
-    updateOpenTab(session.id, path, true, session.workbenchProjectId);
+    /**
+     * An edit pins the preview it was typed into. Only the edited occurrence is pinned: the same document previewed in
+     * another pane is a separate tab and keeps its own preview state.
+     */
+    const layout = getPaneLayout();
+    const previewTab = layout
+        ? findResourceTabs(layout, { kind: 'file', path }).find(({ tab }) => tab.preview)
+        : undefined;
+    if (previewTab) pinDocumentTab(previewTab.tab.id);
 }
 
-export function pinEditorTab(path: string): void {
+/**
+ * Turns a preview tab into a durable one, keyed by the tab occurrence rather than by its path.
+ */
+export function pinDocumentTab(tabId: string): void {
     const current = getSessionState();
     if (!current) return;
-    const next = pinEditorTabState(current, path);
-    if (next !== current) patchSessionState(next);
+    const next = pinPaneTab(current.paneLayout, tabId);
+    if (next !== current.paneLayout) patchSessionState({ ...current, paneLayout: next });
 }
 
 /**
@@ -309,12 +281,6 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
                         },
                         operation.workbenchProjectId,
                     );
-                    updateOpenTab(
-                        sessionId,
-                        operation.path,
-                        isChangedDuringSave,
-                        operation.workbenchProjectId,
-                    );
                 }
             }
             isSaved = true;
@@ -327,9 +293,9 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
 
 export async function saveActiveEditor(): Promise<void> {
     const session = getSelectedSession();
-    const active = getResolvedActiveWork();
-    if (!session || active?.kind !== 'editor') return;
-    const path = active.path;
+    const active = getActivePaneTab();
+    if (!session || active?.resource.kind !== 'file') return;
+    const path = active.resource.path;
     if (isVirtualEditorTabPath(path)) return;
     await didSaveDocumentAt(session.id, path);
 }
@@ -338,13 +304,28 @@ export async function saveActiveEditor(): Promise<void> {
  * Confirms discarding unsaved changes for each dirty tab about to close, one native "Do you want to save…" sheet at a
  * time (macOS only ever shows one modal sheet). Choosing Cancel on any of them aborts the whole close — a bulk Close
  * Others/Close All must never end up half applied, silently dropping some dirty buffers while leaving others open.
+ *
+ * A document open in several panes is only confirmed once, and only when the close would remove its last occurrence:
+ * closing one of two views of the same buffer discards nothing.
  */
 async function didConfirmDirtyEditorCloses(
     sessionId: string,
-    openTabs: SessionState['openTabs'],
-    paths: readonly string[],
+    layout: PaneLayout,
+    tabIds: readonly string[],
 ): Promise<boolean> {
-    const dirtyPaths = paths.filter((path) => openTabs.find((tab) => tab.path === path)?.dirty);
+    const closing = new Set(tabIds);
+    const remaining = new Set(layoutDocumentPaths(closeTabs(layout, [...closing])));
+    const dirtyPaths = [
+        ...new Set(
+            tabIds.flatMap((tabId) => {
+                const tab = findTab(layout, tabId)?.tab;
+                if (tab?.resource.kind !== 'file') return [];
+                const path = tab.resource.path;
+                if (remaining.has(path) || isVirtualEditorTabPath(path)) return [];
+                return isDocumentDirty(sessionId, path) ? [path] : [];
+            }),
+        ),
+    ];
     for (const path of dirtyPaths) {
         // Intentionally sequential: macOS only ever shows one modal "Do you want to save…" sheet, so
         // each confirmation must resolve before the next one is requested.
@@ -361,85 +342,43 @@ async function didConfirmDirtyEditorCloses(
     return true;
 }
 
-function applyEditorTabClose(
-    session: { id: string },
-    current: SessionState,
-    paths: readonly string[],
-    targetPath: string,
-): void {
-    const closing = new Set(paths);
-    for (const path of paths) useSessionViewStore.getState().evictDocument(session.id, path);
-    const openTabs = current.openTabs.filter((tab) => !closing.has(tab.path));
-    let editorLayout = sessionEditorLayout(current);
-    for (const path of paths) editorLayout = removeEditorPath(editorLayout, path);
-    const wasActive = current.activeTab?.kind === 'editor' && closing.has(current.activeTab.path);
-    if (!wasActive) {
-        patchSessionState({ ...current, openTabs, editorLayout });
-        return;
-    }
-    const targetIndex = current.openTabs.findIndex((tab) => tab.path === targetPath);
-    // The layout tree already tracks which tab the surviving active group shows, so it decides the
-    // fallback before the historical index heuristic.
-    const layoutFallbackPath = activeLayoutPath(editorLayout);
-    const fallbackPath =
-        openTabs.find((tab) => tab.path === targetPath)?.path ??
-        (layoutFallbackPath && openTabs.some((tab) => tab.path === layoutFallbackPath)
-            ? layoutFallbackPath
-            : undefined) ??
-        openTabs[clamp(targetIndex, 0, openTabs.length - 1)]?.path;
-    const sessionTerminals = getSessionTerminals();
-    const nextItem: WorkItem | undefined = fallbackPath
-        ? { kind: 'editor', path: fallbackPath }
-        : sessionTerminals[0]
-          ? { kind: 'terminal', terminalId: sessionTerminals[0].id }
-          : undefined;
-    useSessionViewStore.getState().setActiveWork(session.id, nextItem);
-    /**
-     * Reuses `activateWorkState` rather than `activateWork` so the openTabs removal and the fallback selection persist
-     * atomically instead of as two IPC round trips.
-     */
-    patchSessionState(
-        nextItem
-            ? activateWorkState({ ...current, openTabs, editorLayout }, nextItem)
-            : { ...current, openTabs, editorLayout, activeTab: undefined },
-    );
+/**
+ * Closes a pane-local family of tabs (Close, Close Others, Close to the Right, Close All) regardless of what each tab
+ * holds — the family is resolved against the pane, never against one kind. A dirty document is confirmed (Save/Don't
+ * Save/Cancel) before anything is evicted, and the layout is re-read after that round trip in case a concurrent
+ * operation (rename, Trash) changed it meanwhile. A Terminal among the closed tabs must give up its PTY through the
+ * Runtime lifecycle in the same pass — merely dropping its tab from the layout would leave the process running with
+ * nothing left to show or close it.
+ */
+export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void> {
+    const session = getSelectedSession();
+    const initial = getSessionState();
+    if (!session || !initial || tabIds.length === 0) return;
+    if (!(await didConfirmDirtyEditorCloses(session.id, initial.paneLayout, tabIds))) return;
+    const current = getSessionState();
+    if (!current) return;
+    const remaining = tabIds.flatMap((tabId) => {
+        const found = findTab(current.paneLayout, tabId);
+        return found ? [found.tab] : [];
+    });
+    if (remaining.length === 0) return;
+    const remainingIds = remaining.map((tab) => tab.id);
+    const next = closeTabs(current.paneLayout, remainingIds);
+    const survivingPaths = new Set(layoutDocumentPaths(next));
+    for (const path of layoutDocumentPaths(current.paneLayout))
+        if (!survivingPaths.has(path))
+            useSessionViewStore.getState().evictDocument(session.id, path);
+    patchSessionState({ ...current, paneLayout: next });
+    for (const tab of remaining)
+        if (tab.resource.kind === 'terminal') closeTerminal(tab.resource.terminalId);
 }
 
 /**
- * Closing a dirty tab must never silently destroy work: every dirty path about to close is confirmed (Save/Don't
- * Save/Cancel) before anything is evicted. The tab list is re-read after the confirmation round trip in case a
- * concurrent operation (rename, Trash) changed it meanwhile.
+ * Pane-local close families (Close, Close Others, Close to the Right, Close All), resolved against the tab's own pane.
  */
-async function closeEditors(targetPath: string, mode: EditorTabCloseMode): Promise<void> {
-    const session = getSelectedSession();
-    const initial = getSessionState();
-    if (!session || !initial) return;
-    const paths = editorTabPathsToClose(initial.openTabs, targetPath, mode);
-    if (paths.length === 0) return;
-    if (!(await didConfirmDirtyEditorCloses(session.id, initial.openTabs, paths))) return;
-    const current = getSessionState();
-    if (!current) return;
-    const remainingPaths = paths.filter((path) =>
-        current.openTabs.some((tab) => tab.path === path),
-    );
-    if (remainingPaths.length === 0) return;
-    applyEditorTabClose(session, current, remainingPaths, targetPath);
-}
-
-export function closeEditor(path: string): Promise<void> {
-    return closeEditors(path, 'one');
-}
-
-export function closeOtherEditors(path: string): Promise<void> {
-    return closeEditors(path, 'others');
-}
-
-export function closeEditorsToRight(path: string): Promise<void> {
-    return closeEditors(path, 'right');
-}
-
-export function closeAllEditors(path: string): Promise<void> {
-    return closeEditors(path, 'all');
+export function closeDocumentTabFamily(tabId: string, mode: PaneTabCloseMode): Promise<void> {
+    const layout = getPaneLayout();
+    return layout ? closeDocumentTabs(paneTabIdsToClose(layout, tabId, mode)) : Promise.resolve();
 }
 
 function remapOpenEditorsInSession(
@@ -450,8 +389,7 @@ function remapOpenEditorsInSession(
     isDurable = false,
     operationId?: string,
 ): Promise<boolean> | undefined {
-    const bootstrap = useWorkbenchStore.getState().bootstrap;
-    const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
+    const current = sessionStateOf(sessionId);
     const isRootIsCurrent = current?.workbenchProjectId === workbenchProjectId;
     if (
         isDurable &&
@@ -466,34 +404,15 @@ function remapOpenEditorsInSession(
         });
     remapPendingDocumentOperations(sessionId, workbenchProjectId, previousPath, nextPath);
     if (previousPath === nextPath) return isDurable ? Promise.resolve(true) : undefined;
-    const remapEditorPath = (path: string): string =>
-        isVirtualEditorTabPath(path) ? path : remapPath(path, previousPath, nextPath);
-    const activeWork = getSessionActiveWork(sessionId, workbenchProjectId);
     useSessionViewStore
         .getState()
         .remapDocuments(sessionId, previousPath, nextPath, workbenchProjectId);
-    if (activeWork?.kind === 'editor')
-        useSessionViewStore
-            .getState()
-            .setActiveWork(
-                sessionId,
-                { kind: 'editor', path: remapEditorPath(activeWork.path) },
-                workbenchProjectId,
-            );
     if (!current || !isRootIsCurrent) return isDurable ? Promise.resolve(true) : undefined;
-    const openTabs = current.openTabs.map((tab) => ({
-        ...tab,
-        path: remapEditorPath(tab.path),
-    }));
-    const activeTab =
-        current.activeTab?.kind === 'editor'
-            ? { kind: 'editor' as const, path: remapEditorPath(current.activeTab.path) }
-            : current.activeTab;
     const nextState = {
         ...current,
-        openTabs,
-        activeTab,
-        editorLayout: remapEditorLayoutPaths(sessionEditorLayout(current), previousPath, nextPath),
+        paneLayout: remapPaneLayoutPaths(current.paneLayout, (path) =>
+            isVirtualEditorTabPath(path) ? path : remapPath(path, previousPath, nextPath),
+        ),
         ...(operationId && { editorRemapOperationId: operationId }),
     };
     const failureLabel = 'Moved editor state could not be saved';
@@ -553,46 +472,19 @@ export async function remapOpenEditorsDurably(
 
 function closeOpenEditorsUnderPathInSession(sessionId: string, path: string): void {
     discardPendingDocumentOperations(sessionId, path);
-    const bootstrap = useWorkbenchStore.getState().bootstrap;
-    const current = bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
+    const current = sessionStateOf(sessionId);
     if (!current) return;
-    const closingPaths = current.openTabs.flatMap((tab) =>
-        !isVirtualEditorTabPath(tab.path) && isPathAtOrBelow(tab.path, path) ? [tab.path] : [],
+    const closingIds = listPaneTabs(current.paneLayout).flatMap(({ tab }) =>
+        tab.resource.kind === 'file' &&
+        !isVirtualEditorTabPath(tab.resource.path) &&
+        isPathAtOrBelow(tab.resource.path, path)
+            ? [tab.id]
+            : [],
     );
-    if (closingPaths.length === 0) return;
-    const closing = new Set(closingPaths);
-    const firstClosingIndex = current.openTabs.findIndex((tab) => closing.has(tab.path));
-    const openTabs = current.openTabs.filter((tab) => !closing.has(tab.path));
-    const editorLayout = removeEditorPathsUnder(sessionEditorLayout(current), path);
-    const sessionTerminals =
-        bootstrap?.terminals.filter((terminal) => terminal.sessionId === sessionId) ?? [];
-    const resolvedActive = resolveActiveWork({
-        activeWork: getSessionActiveWork(sessionId),
-        sessionState: current,
-        sessionTerminals,
-    });
-    const isActiveWasClosed =
-        (resolvedActive?.kind === 'editor' && closing.has(resolvedActive.path)) ||
-        (current.activeTab?.kind === 'editor' && closing.has(current.activeTab.path));
+    if (closingIds.length === 0) return;
     useSessionViewStore.getState().evictDocumentsUnderPath(sessionId, path);
-    if (!isActiveWasClosed) {
-        patchSessionState({ ...current, openTabs, editorLayout });
-        return;
-    }
-    const fallbackPath = openTabs[clamp(firstClosingIndex, openTabs.length - 1)]?.path;
-    // `.at(0)` (rather than `[0]`) keeps the possibly-empty array's `undefined` case in the type, since this project
-    // does not enable `noUncheckedIndexedAccess`.
-    const terminal = sessionTerminals.at(0);
-    const nextItem: WorkItem | undefined = fallbackPath
-        ? { kind: 'editor', path: fallbackPath }
-        : terminal
-          ? { kind: 'terminal', terminalId: terminal.id }
-          : undefined;
-    useSessionViewStore.getState().setActiveWork(sessionId, nextItem);
     patchSessionState(
-        nextItem
-            ? activateWorkState({ ...current, openTabs, editorLayout }, nextItem)
-            : { ...current, openTabs, editorLayout, activeTab: undefined },
+        { ...current, paneLayout: closeTabs(current.paneLayout, closingIds) },
         'Trashed editor state could not be saved',
     );
 }
@@ -610,12 +502,14 @@ export function closeOpenEditorsUnderPath(sessionId: string, path: string): void
  * stop promising full recoverability when it would actually discard a dirty buffer that was never written to disk.
  */
 export function hasUnsavedChangesUnderPath(sessionId: string, path: string): boolean {
-    const bootstrap = useWorkbenchStore.getState().bootstrap;
     return getProjectSessionIds(sessionId).some((projectSessionId) => {
-        const state = bootstrap?.sessionStates.find((item) => item.sessionId === projectSessionId);
-        return state?.openTabs.some(
-            (tab) =>
-                !isVirtualEditorTabPath(tab.path) && tab.dirty && isPathAtOrBelow(tab.path, path),
+        const state = sessionStateOf(projectSessionId);
+        if (!state) return false;
+        return layoutDocumentPaths(state.paneLayout).some(
+            (candidate) =>
+                !isVirtualEditorTabPath(candidate) &&
+                isPathAtOrBelow(candidate, path) &&
+                isDocumentDirty(projectSessionId, candidate, state.workbenchProjectId),
         );
     });
 }

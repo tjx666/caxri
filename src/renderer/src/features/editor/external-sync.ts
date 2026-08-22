@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 
 import { pathBasename } from '@caxri/utils';
-import { markTabsClean, replaceWithExternalDocument } from '@shared/editor-state';
+import { replaceWithExternalDocument } from '@shared/editor-state';
+import { listPaneTabs } from '@shared/pane-layout';
 import type { FileDocument } from '@shared/types';
 import { isVirtualEditorTabPath } from '@shared/virtual-tabs';
 import { uniq } from 'es-toolkit';
@@ -10,9 +11,23 @@ import { caxri } from '../../lib/caxri';
 import { getSelectedSession, getSessionState, selectSelectedSession } from '../../stores/selectors';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
-import { patchSessionState, useWorkbenchStore } from '../../stores/workbench';
+import { useWorkbenchStore } from '../../stores/workbench';
 import { useFileOperationStore } from '../inspector/panels/files/file-operation-state';
 import { ExternalSyncDeferral } from './external-sync-deferral';
+
+/**
+ * Every document path the selected Session currently has open, across all panes.
+ */
+function openDocumentPaths(): string[] {
+    const layout = getSessionState()?.paneLayout;
+    return layout
+        ? uniq(
+              listPaneTabs(layout).flatMap(({ tab }) =>
+                  tab.resource.kind === 'file' ? [tab.resource.path] : [],
+              ),
+          )
+        : [];
+}
 
 function isChangedOnDisk(cached: FileDocument, current: FileDocument): boolean {
     return cached.mtimeMs !== current.mtimeMs || cached.size !== current.size;
@@ -58,16 +73,6 @@ function applyExternalDocuments(
     useSessionViewStore
         .getState()
         .cacheDocuments(sessionId, reloaded.map(replaceWithExternalDocument), workbenchProjectId);
-    const latestState = getSessionState();
-    if (latestState?.sessionId === sessionId) {
-        patchSessionState(
-            markTabsClean(
-                latestState,
-                reloaded.map((document) => document.path),
-            ),
-            'External editor state could not be saved',
-        );
-    }
     if (discardedDirtyDocuments.length === 0) return;
     /**
      * A 4-second auto-dismiss would let this notice vanish while the user is away from the window, silently taking the
@@ -133,16 +138,15 @@ function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false
     if (selected?.id !== sessionId) return;
     const workbenchProjectId = selected.workbenchProjectId;
     const cached = getSessionDocuments(sessionId, workbenchProjectId) ?? {};
-    const openTabs = getSessionState()?.openTabs ?? [];
     const paths: string[] = [];
-    for (const tab of openTabs) {
-        const cachedTab = readCachedDocument(cached, tab.path);
+    for (const path of openDocumentPaths()) {
+        const cachedTab = readCachedDocument(cached, path);
         if (
             cachedTab &&
-            !isVirtualEditorTabPath(tab.path) &&
+            !isVirtualEditorTabPath(path) &&
             (!shouldPreserveDirty || !cachedTab.dirty)
         )
-            paths.push(tab.path);
+            paths.push(path);
     }
     if (paths.length === 0) return;
     // Fire-and-forget: reconciliation has no synchronous caller waiting on it — a failed read
@@ -175,9 +179,8 @@ export function subscribeExternalDocumentSync(): () => void {
         const cached = getSessionDocuments(sessionId, session.workbenchProjectId) ?? {};
         const changedPaths: string[] = [];
         if (event.payload.overflow) {
-            const openTabs = getSessionState()?.openTabs ?? [];
-            for (const tab of openTabs)
-                if (!isVirtualEditorTabPath(tab.path)) changedPaths.push(tab.path);
+            for (const path of openDocumentPaths())
+                if (!isVirtualEditorTabPath(path)) changedPaths.push(path);
         } else {
             const changes = event.payload.changes;
             for (const change of changes)

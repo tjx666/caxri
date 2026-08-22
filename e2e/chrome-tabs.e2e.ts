@@ -10,6 +10,7 @@ import {
     launchCaxri,
     pageRequest,
 } from './support/helpers.ts';
+import { stableWidth } from './support/motion-settle.ts';
 
 /**
  * Mirrors `INDICATOR_INSET` in `components/chrome-tabs.tsx`. Duplicated rather than imported so this spec stays a plain
@@ -56,30 +57,6 @@ async function expectPanelAssociation(page: Page, tab: Locator, isVisible: boole
     await expect(panel).toHaveAttribute('aria-labelledby', tabId);
     if (isVisible) await expect(panel).toBeVisible();
     else await expect(panel).toBeHidden();
-}
-
-/**
- * The Settings dialog opens with a `zoom-in-95` keyframe, so a width measured while it plays is scaled down by up to
- * 5%. `expectIndicatorAligned` cannot catch that on its own: the indicator and the tab slot it tracks are scaled
- * together and stay aligned throughout the animation. Poll for two consecutive equal readings before pinning an
- * absolute pixel baseline.
- */
-async function stableWidth(locator: Locator): Promise<number> {
-    let previous = NaN;
-    await expect
-        .poll(async () => {
-            const width = await locator.evaluate(
-                (element) =>
-                    new Promise<number>((resolve) =>
-                        requestAnimationFrame(() => resolve(element.getBoundingClientRect().width)),
-                    ),
-            );
-            const isStable = width === previous;
-            previous = width;
-            return isStable;
-        })
-        .toBe(true);
-    return previous;
 }
 
 async function settleMediaChange(page: Page): Promise<void> {
@@ -163,7 +140,9 @@ test('Inspector and Settings share accessible moving chrome tabs', async () => {
             inspectorTabs
                 .locator('[data-slot="chrome-tab-indicator"]')
                 .evaluate((element) => element.getBoundingClientRect().width);
-        const cappedWidth = await indicatorWidth();
+        const cappedWidth = await stableWidth(
+            inspectorTabs.locator('[data-slot="chrome-tab-indicator"]'),
+        );
         expect(cappedWidth).toBe(INDICATOR_MAX_WIDTH);
         await filesTab.click();
         await expectIndicatorAligned(inspectorTabs, filesTab);

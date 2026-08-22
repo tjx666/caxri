@@ -14,6 +14,8 @@ import agentDispatchReceiptsMigrationSql from './0008_loud_magus.sql?raw';
 import workbenchRootMigrationSql from './0009_mature_agent_zero.sql?raw';
 import terminalSnapshotGridMigrationSql from './0010_medical_luminals.sql?raw';
 import projectIconMigrationSql from './0011_past_blue_marvel.sql?raw';
+import unifiedPaneLayoutMigrationSql from './0012_unified_pane_layout.sql?raw';
+import dropTerminalLayoutNodeIdMigrationSql from './0013_drop_terminal_layout_node_id.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -62,6 +64,8 @@ export const migrationManifest = [
     { tag: '0009_mature_agent_zero', sql: workbenchRootMigrationSql },
     { tag: '0010_medical_luminals', sql: terminalSnapshotGridMigrationSql },
     { tag: '0011_past_blue_marvel', sql: projectIconMigrationSql },
+    { tag: '0012_unified_pane_layout', sql: unifiedPaneLayoutMigrationSql },
+    { tag: '0013_drop_terminal_layout_node_id', sql: dropTerminalLayoutNodeIdMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

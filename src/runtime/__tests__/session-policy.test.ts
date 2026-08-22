@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
-import { createTerminalLayout, splitTerminal } from '../../shared/terminal-layout';
+import { createPaneLayout, openResource } from '../../shared/pane-layout';
 import type { SessionRecord, SessionState, TerminalRecord } from '../../shared/types';
 import {
     choosePrimaryAgentForNewTerminal,
@@ -25,7 +25,6 @@ function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
         title: 'Shell',
         icon: 'shell',
         orderIndex: 0,
-        layoutNodeId: 'layout-1',
         agentSessionId: undefined,
         lastProcessState: 'running',
         createdAt: 0,
@@ -436,21 +435,19 @@ describe('selectFallbackAfterDeletion', () => {
 });
 
 describe('withTerminalRemovedFromLayout', () => {
-    it('composes the shared pure layout helper instead of editing layout JSON inline', () => {
-        const layout = createTerminalLayout('terminal-1');
-        const split = splitTerminal(layout, 'terminal-2', layout.activeGroupId!, 'vertical');
+    it('composes the shared pure pane layout reducer instead of editing the tree inline', () => {
+        const layout = createPaneLayout({ kind: 'terminal', terminalId: 'terminal-1' });
+        const paneLayout = openResource(layout, { kind: 'terminal', terminalId: 'terminal-2' });
         const state: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            openTabs: [],
             inspectorMode: 'files',
-            layout: split,
+            paneLayout,
         };
 
         const next = withTerminalRemovedFromLayout(state, 'terminal-2');
 
         expect(next).not.toBe(state);
-        expect(next.layout).not.toBe(state.layout);
-        expect(next.openTabs).toBe(state.openTabs);
+        expect(next.paneLayout).not.toBe(state.paneLayout);
     });
 });

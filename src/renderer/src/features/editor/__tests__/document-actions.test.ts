@@ -1,10 +1,3 @@
-import {
-    activeLayoutPath,
-    addEditorPath,
-    createEditorLayout,
-    listLayoutPaths,
-    splitEditorPath,
-} from '@shared/editor-layout';
 import type { BootstrapState, SessionState } from '@shared/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,17 +7,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
-import {
-    getResolvedActiveWork,
-    getSessionActiveWork,
-    getSessionDocuments,
-    useSessionViewStore,
-} from '../../../stores/session-view';
+import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
 import { useWorkbenchStore } from '../../../stores/workbench';
+import { findPaneTabId } from '../../workbench/pane-actions';
 import {
     changeDocument,
-    closeAllEditors,
-    closeEditor,
+    closeDocumentTabFamily,
+    closeDocumentTabs,
     closeOpenEditorsUnderPath,
     openEditorTab,
     openFile,
@@ -33,13 +22,76 @@ import {
     saveActiveEditor,
 } from '../document-actions';
 
+interface PaneLayoutTabSpec {
+    path: string;
+    preview?: boolean;
+}
+
+/**
+ * A single-pane layout with one document tab per entry; these tests only care that a document action rewrites the
+ * pane's tabs, not about the tree's shape.
+ */
+function paneLayout(
+    tabs: ReadonlyArray<string | PaneLayoutTabSpec>,
+    activeIndex = 0,
+): SessionState['paneLayout'] {
+    const specs = tabs.map((tab) => (typeof tab === 'string' ? { path: tab } : tab));
+    return {
+        root: {
+            type: 'pane',
+            id: 'pane-1',
+            tabs: specs.map((spec, index) => ({
+                id: `tab-${index}`,
+                resource: { kind: 'file', path: spec.path },
+                ...(spec.preview && { preview: true }),
+            })),
+            ...(specs.length > 0 && { activeTabId: `tab-${activeIndex}` }),
+        },
+        activePaneId: 'pane-1',
+    };
+}
+
+function paneTabs(state: SessionState): Array<{ id: string; path: string }> {
+    const pane = state.paneLayout.root;
+    if (pane.type !== 'pane') throw new Error('Expected a single-pane layout');
+    return pane.tabs.map((tab) => ({
+        id: tab.id,
+        path: tab.resource.kind === 'file' ? tab.resource.path : tab.resource.terminalId,
+    }));
+}
+
+function paneTabPaths(state: SessionState): string[] {
+    return paneTabs(state).map((tab) => tab.path);
+}
+
+function activePaneTabPath(state: SessionState): string | undefined {
+    const pane = state.paneLayout.root;
+    if (pane.type !== 'pane') throw new Error('Expected a single-pane layout');
+    return paneTabs(state).find((tab) => tab.id === pane.activeTabId)?.path;
+}
+
+/**
+ * Closes the given path's own tab in the currently selected Session, mirroring the single-tab close UI action (the
+ * tab's own close button, Cmd+W).
+ */
+async function closeEditor(path: string): Promise<void> {
+    const tabId = findPaneTabId({ kind: 'file', path });
+    if (tabId) await closeDocumentTabs([tabId]);
+}
+
+/**
+ * Closes every tab in the given path's own pane, mirroring the Close All context-menu action.
+ */
+async function closeAllEditors(path: string): Promise<void> {
+    const tabId = findPaneTabId({ kind: 'file', path });
+    if (tabId) await closeDocumentTabFamily(tabId, 'all');
+}
+
 const sessionState = (sessionId: string, path: string): SessionState => ({
     sessionId,
     workbenchProjectId: 'project-1',
-    openTabs: [{ path, dirty: true }],
-    activeTab: { kind: 'editor', path },
     inspectorMode: 'files',
-    layout: {},
+    paneLayout: paneLayout([path]),
 });
 
 function installSessions(
@@ -69,7 +121,7 @@ function installSessions(
             terminals: [],
         } as unknown as BootstrapState,
     });
-    useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
+    useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
     useSessionViewStore.getState().cacheDocument('session-1', {
         path: originPath,
         content: 'unsaved',
@@ -84,7 +136,6 @@ function installSessions(
         mtimeMs: 1,
         size: 13,
     });
-    useSessionViewStore.getState().setActiveWork('session-1', { kind: 'editor', path: originPath });
 }
 
 function installEmptySession(): void {
@@ -102,15 +153,14 @@ function installEmptySession(): void {
                 {
                     sessionId: 'session-1',
                     workbenchProjectId: 'project-1',
-                    openTabs: [],
                     inspectorMode: 'files',
-                    layout: {},
+                    paneLayout: paneLayout([]),
                 },
             ],
             terminals: [],
         } as unknown as BootstrapState,
     });
-    useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
+    useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
@@ -121,47 +171,10 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 afterEach(() => {
     mocks.request.mockClear();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
-    useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
+    useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
 });
 
 describe('session-scoped file mutation completion', () => {
-    it('does not replace a dirty cached preview when durable tab state is stale', () => {
-        installEmptySession();
-        useWorkbenchStore.setState((state) => ({
-            bootstrap: state.bootstrap
-                ? {
-                      ...state.bootstrap,
-                      sessionStates: [
-                          {
-                              ...state.bootstrap.sessionStates[0],
-                              openTabs: [
-                                  {
-                                      path: '/project/unsaved.ts',
-                                      dirty: false,
-                                      preview: true,
-                                  },
-                              ],
-                          },
-                      ],
-                  }
-                : undefined,
-        }));
-        useSessionViewStore.getState().cacheDocument('session-1', {
-            path: '/project/unsaved.ts',
-            content: 'unsaved body',
-            dirty: true,
-            mtimeMs: 1,
-            size: 12,
-        });
-
-        openEditorTab('/project/next.ts', { preview: true });
-
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
-            { path: '/project/unsaved.ts', dirty: true },
-            { path: '/project/next.ts', dirty: false, preview: true },
-        ]);
-    });
-
     it('restores preview cache and focus when tab persistence fails', async () => {
         installEmptySession();
         useWorkbenchStore.setState((state) => ({
@@ -171,10 +184,9 @@ describe('session-scoped file mutation completion', () => {
                       sessionStates: [
                           {
                               ...state.bootstrap.sessionStates[0],
-                              activeTab: { kind: 'editor', path: '/project/first.ts' },
-                              openTabs: [
-                                  { path: '/project/first.ts', dirty: false, preview: true },
-                              ],
+                              paneLayout: paneLayout([
+                                  { path: '/project/first.ts', preview: true },
+                              ]),
                           },
                       ],
                   }
@@ -194,26 +206,15 @@ describe('session-scoped file mutation completion', () => {
             mtimeMs: 1,
             size: 11,
         });
-        useSessionViewStore
-            .getState()
-            .setActiveWork('session-1', { kind: 'editor', path: '/project/first.ts' });
         mocks.request.mockRejectedValueOnce(new Error('persistence failed'));
 
         openEditorTab('/project/second.ts', { preview: true });
         await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
         await Promise.resolve();
 
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
-            { path: '/project/first.ts', dirty: false, preview: true },
-        ]);
-        expect(getResolvedActiveWork()).toEqual({
-            kind: 'editor',
-            path: '/project/first.ts',
-        });
-        expect(useSessionViewStore.getState().activeWork['session-1']).toEqual({
-            kind: 'editor',
-            path: '/project/first.ts',
-        });
+        const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
+        expect(paneTabPaths(state)).toEqual(['/project/first.ts']);
+        expect(activePaneTabPath(state)).toBe('/project/first.ts');
         const documents = useSessionViewStore.getState().documents['session-1'];
         expect(Object.keys(documents)).toEqual(['/project/first.ts']);
         expect(documents['/project/first.ts']).toMatchObject({ content: 'first body' });
@@ -221,10 +222,6 @@ describe('session-scoped file mutation completion', () => {
 
     it('does not roll preview state into a newly selected Workbench Root', async () => {
         installEmptySession();
-        useSessionViewStore.getState().setActiveWork('session-1', {
-            kind: 'editor',
-            path: '/owner/first.ts',
-        });
         const updateRequest = Promise.withResolvers<unknown>();
         mocks.request.mockReturnValueOnce(updateRequest.promise);
 
@@ -232,10 +229,8 @@ describe('session-scoped file mutation completion', () => {
         const worktreeState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-2',
-            openTabs: [{ path: '/worktree/keep.ts', dirty: false }],
-            activeTab: { kind: 'editor', path: '/worktree/keep.ts' },
             inspectorMode: 'files',
-            layout: {},
+            paneLayout: paneLayout(['/worktree/keep.ts']),
         };
         useWorkbenchStore.setState((state) => ({
             bootstrap: state.bootstrap
@@ -249,9 +244,6 @@ describe('session-scoped file mutation completion', () => {
                   }
                 : undefined,
         }));
-        useSessionViewStore
-            .getState()
-            .setActiveWork('session-1', { kind: 'editor', path: '/worktree/keep.ts' }, 'project-2');
 
         updateRequest.reject(new Error('stale Workbench Root'));
         try {
@@ -262,10 +254,6 @@ describe('session-scoped file mutation completion', () => {
         await Promise.resolve();
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([worktreeState]);
-        expect(getSessionActiveWork('session-1', 'project-2')).toEqual({
-            kind: 'editor',
-            path: '/worktree/keep.ts',
-        });
     });
 
     it('remaps the origin Session after the user selected another Session', () => {
@@ -274,13 +262,11 @@ describe('session-scoped file mutation completion', () => {
         remapOpenEditors('session-1', '/project/source.ts', '/project/renamed.ts');
 
         const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
-        expect(states.find((state) => state.sessionId === 'session-1')).toMatchObject({
-            activeTab: { kind: 'editor', path: '/project/renamed.ts' },
-            openTabs: [{ path: '/project/renamed.ts', dirty: true }],
-        });
-        expect(states.find((state) => state.sessionId === 'session-2')?.openTabs).toEqual([
-            { path: '/other/session.ts', dirty: true },
-        ]);
+        const session1 = states.find((state) => state.sessionId === 'session-1')!;
+        expect(paneTabPaths(session1)).toEqual(['/project/renamed.ts']);
+        expect(activePaneTabPath(session1)).toBe('/project/renamed.ts');
+        const session2 = states.find((state) => state.sessionId === 'session-2')!;
+        expect(paneTabPaths(session2)).toEqual(['/other/session.ts']);
         expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
             '/project/renamed.ts': { content: 'unsaved', dirty: true },
         });
@@ -292,13 +278,10 @@ describe('session-scoped file mutation completion', () => {
         closeOpenEditorsUnderPath('session-1', '/project/trashed.ts');
 
         const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
-        expect(states.find((state) => state.sessionId === 'session-1')).toMatchObject({
-            activeTab: undefined,
-            openTabs: [],
-        });
-        expect(states.find((state) => state.sessionId === 'session-2')?.openTabs).toEqual([
-            { path: '/other/session.ts', dirty: true },
-        ]);
+        const session1 = states.find((state) => state.sessionId === 'session-1')!;
+        expect(paneTabPaths(session1)).toEqual([]);
+        const session2 = states.find((state) => state.sessionId === 'session-2')!;
+        expect(paneTabPaths(session2)).toEqual(['/other/session.ts']);
         expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
     });
 
@@ -308,7 +291,7 @@ describe('session-scoped file mutation completion', () => {
         remapOpenEditors('session-1', '/project/source.ts', '/project/renamed.ts');
 
         const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
-        expect(states.map((state) => state.openTabs[0]?.path)).toEqual([
+        expect(states.map((state) => paneTabPaths(state)[0])).toEqual([
             '/project/renamed.ts',
             '/project/renamed.ts',
         ]);
@@ -326,7 +309,7 @@ describe('session-scoped file mutation completion', () => {
         closeOpenEditorsUnderPath('session-1', '/project/trashed.ts');
 
         const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
-        expect(states.map((state) => state.openTabs)).toEqual([[], []]);
+        expect(states.map((state) => paneTabPaths(state))).toEqual([[], []]);
         expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
         expect(useSessionViewStore.getState().documents['session-2']).toEqual({});
     });
@@ -344,8 +327,8 @@ describe('session-scoped file mutation completion', () => {
         const documents = getSessionDocuments('session-1');
         expect(Object.keys(documents ?? {})).toEqual(['/project/renamed.ts']);
         expect(documents?.['/project/renamed.ts']).toMatchObject({ content: 'disk', dirty: false });
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
-            expect.objectContaining({ path: '/project/renamed.ts' }),
+        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([
+            '/project/renamed.ts',
         ]);
     });
 
@@ -360,7 +343,7 @@ describe('session-scoped file mutation completion', () => {
 
         await expect(opening).resolves.toBe(false);
         expect(useSessionViewStore.getState().documents['session-1']).toBeUndefined();
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([]);
+        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([]);
     });
 
     it('keeps a Host-routed file bound to its target Session after selection changes', async () => {
@@ -385,13 +368,13 @@ describe('session-scoped file mutation completion', () => {
 
         await expect(opening).resolves.toBe('/project/host-target.ts');
         const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
-        expect(states.find((state) => state.sessionId === 'session-1')?.openTabs).toEqual([
-            { path: '/project/first-existing.ts', dirty: true },
-            { path: '/project/host-target.ts', dirty: false },
+        const session1 = states.find((state) => state.sessionId === 'session-1')!;
+        expect(paneTabPaths(session1)).toEqual([
+            '/project/first-existing.ts',
+            '/project/host-target.ts',
         ]);
-        expect(states.find((state) => state.sessionId === 'session-2')?.openTabs).toEqual([
-            { path: '/project/second-existing.ts', dirty: true },
-        ]);
+        const session2 = states.find((state) => state.sessionId === 'session-2')!;
+        expect(paneTabPaths(session2)).toEqual(['/project/second-existing.ts']);
         expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
             '/project/host-target.ts': { content: 'host target', dirty: false },
         });
@@ -418,8 +401,8 @@ describe('session-scoped file mutation completion', () => {
             dirty: true,
             mtimeMs: 2,
         });
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
-            { path: '/project/renamed.ts', dirty: true },
+        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([
+            '/project/renamed.ts',
         ]);
     });
 
@@ -432,10 +415,8 @@ describe('session-scoped file mutation completion', () => {
         const worktreeState: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-2',
-            openTabs: [{ path: '/worktree/keep.ts', dirty: true }],
-            activeTab: { kind: 'editor', path: '/worktree/keep.ts' },
             inspectorMode: 'files',
-            layout: {},
+            paneLayout: paneLayout(['/worktree/keep.ts']),
         };
         useWorkbenchStore.setState((state) => ({
             bootstrap: state.bootstrap
@@ -470,10 +451,9 @@ describe('closing a dirty editor tab', () => {
 
         expect(mocks.request).toHaveBeenCalledWith('editor.confirmDiscard', { name: 'dirty.ts' });
         expect(mocks.request).not.toHaveBeenCalledWith('files.write', expect.anything());
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]).toMatchObject({
-            openTabs: [{ path: '/project/dirty.ts', dirty: true }],
-            activeTab: { kind: 'editor', path: '/project/dirty.ts' },
-        });
+        const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
+        expect(paneTabPaths(state)).toEqual(['/project/dirty.ts']);
+        expect(activePaneTabPath(state)).toBe('/project/dirty.ts');
         expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
             '/project/dirty.ts': { dirty: true },
         });
@@ -490,7 +470,7 @@ describe('closing a dirty editor tab', () => {
         await closeEditor('/project/dirty.ts');
 
         expect(mocks.request).not.toHaveBeenCalledWith('files.write', expect.anything());
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([]);
+        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([]);
         expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
     });
 
@@ -514,7 +494,7 @@ describe('closing a dirty editor tab', () => {
             'files.write',
             expect.objectContaining({ sessionId: 'session-1', path: '/project/dirty.ts' }),
         );
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([]);
+        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([]);
         expect(useSessionViewStore.getState().documents['session-1']).toEqual({});
     });
 
@@ -527,11 +507,7 @@ describe('closing a dirty editor tab', () => {
                       sessionStates: [
                           {
                               ...state.bootstrap.sessionStates[0],
-                              openTabs: [
-                                  { path: '/project/a.ts', dirty: true },
-                                  { path: '/project/b.ts', dirty: true },
-                              ],
-                              activeTab: { kind: 'editor', path: '/project/a.ts' },
+                              paneLayout: paneLayout(['/project/a.ts', '/project/b.ts']),
                           },
                       ],
                   }
@@ -551,9 +527,6 @@ describe('closing a dirty editor tab', () => {
             mtimeMs: 1,
             size: 1,
         });
-        useSessionViewStore
-            .getState()
-            .setActiveWork('session-1', { kind: 'editor', path: '/project/a.ts' });
         let confirmCalls = 0;
         mocks.request.mockImplementation((method) => {
             if (method === 'editor.confirmDiscard') {
@@ -565,9 +538,9 @@ describe('closing a dirty editor tab', () => {
 
         await closeAllEditors('/project/a.ts');
 
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0].openTabs).toEqual([
-            { path: '/project/a.ts', dirty: true },
-            { path: '/project/b.ts', dirty: true },
+        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([
+            '/project/a.ts',
+            '/project/b.ts',
         ]);
         expect(useSessionViewStore.getState().documents['session-1']).toMatchObject({
             '/project/a.ts': { dirty: true },
@@ -576,17 +549,59 @@ describe('closing a dirty editor tab', () => {
     });
 });
 
-describe('persisted Editor split tree wiring', () => {
-    it('opening a new tab adds it to the active group as the active path', () => {
+describe('closing a mixed pane of Terminal and document tabs', () => {
+    it('closes the Terminal PTY instead of only dropping its tab when Close All spans both kinds', async () => {
+        installEmptySession();
+        useWorkbenchStore.setState((state) => ({
+            bootstrap: state.bootstrap
+                ? {
+                      ...state.bootstrap,
+                      sessionStates: [
+                          {
+                              ...state.bootstrap.sessionStates[0],
+                              paneLayout: {
+                                  root: {
+                                      type: 'pane',
+                                      id: 'pane-1',
+                                      tabs: [
+                                          {
+                                              id: 'tab-file',
+                                              resource: { kind: 'file', path: '/project/a.ts' },
+                                          },
+                                          {
+                                              id: 'tab-terminal',
+                                              resource: {
+                                                  kind: 'terminal',
+                                                  terminalId: 'terminal-1',
+                                              },
+                                          },
+                                      ],
+                                      activeTabId: 'tab-file',
+                                  },
+                                  activePaneId: 'pane-1',
+                              },
+                          },
+                      ],
+                  }
+                : undefined,
+        }));
+
+        await closeDocumentTabFamily('tab-file', 'all');
+
+        expect(mocks.request).toHaveBeenCalledWith('terminal.close', { terminalId: 'terminal-1' });
+        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([]);
+    });
+});
+
+describe('editing the pane tree through document actions', () => {
+    it('opening a new tab adds it to the pane as the active tab', () => {
         installEmptySession();
 
         openEditorTab('/project/new.ts');
 
-        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
-        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
-            '/project/new.ts',
-        ]);
-        expect(state?.editorLayout && activeLayoutPath(state.editorLayout)).toBe('/project/new.ts');
+        const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
+        expect(paneTabPaths(state)).toEqual(['/project/new.ts']);
+        expect(activePaneTabPath(state)).toBe('/project/new.ts');
     });
 
     it('replacing a preview tab removes the replaced path from the tree', () => {
@@ -598,10 +613,9 @@ describe('persisted Editor split tree wiring', () => {
                       sessionStates: [
                           {
                               ...state.bootstrap.sessionStates[0],
-                              activeTab: { kind: 'editor', path: '/project/preview-a.ts' },
-                              openTabs: [
-                                  { path: '/project/preview-a.ts', dirty: false, preview: true },
-                              ],
+                              paneLayout: paneLayout([
+                                  { path: '/project/preview-a.ts', preview: true },
+                              ]),
                           },
                       ],
                   }
@@ -617,13 +631,11 @@ describe('persisted Editor split tree wiring', () => {
 
         openEditorTab('/project/preview-b.ts', { preview: true });
 
-        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
-        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
-            '/project/preview-b.ts',
-        ]);
+        const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
+        expect(paneTabPaths(state)).toEqual(['/project/preview-b.ts']);
     });
 
-    it('closing the active tab removes it from the tree and falls back to the tree active group', async () => {
+    it('closing the active tab removes it and activates its neighbor', async () => {
         installEmptySession();
         useWorkbenchStore.setState((state) => ({
             bootstrap: state.bootstrap
@@ -632,11 +644,7 @@ describe('persisted Editor split tree wiring', () => {
                       sessionStates: [
                           {
                               ...state.bootstrap.sessionStates[0],
-                              activeTab: { kind: 'editor', path: '/project/a.ts' },
-                              openTabs: [
-                                  { path: '/project/a.ts', dirty: false },
-                                  { path: '/project/b.ts', dirty: false },
-                              ],
+                              paneLayout: paneLayout(['/project/a.ts', '/project/b.ts']),
                           },
                       ],
                   }
@@ -645,59 +653,9 @@ describe('persisted Editor split tree wiring', () => {
 
         await closeEditor('/project/a.ts');
 
-        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
-        expect(state?.openTabs).toEqual([{ path: '/project/b.ts', dirty: false }]);
-        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
-            '/project/b.ts',
-        ]);
-        expect(state?.activeTab).toEqual({ kind: 'editor', path: '/project/b.ts' });
-        expect(state?.editorLayout && activeLayoutPath(state.editorLayout)).toBe('/project/b.ts');
-    });
-
-    it('closing a path split open in two groups removes it from both', async () => {
-        installEmptySession();
-        let editorLayout = createEditorLayout('/project/dup.ts');
-        const firstGroupId = editorLayout.activeGroupId!;
-        editorLayout = addEditorPath(editorLayout, '/project/other.ts', firstGroupId);
-        editorLayout = splitEditorPath(editorLayout, '/project/dup.ts', firstGroupId, 'right');
-        useWorkbenchStore.setState((state) => ({
-            bootstrap: state.bootstrap
-                ? {
-                      ...state.bootstrap,
-                      sessionStates: [
-                          {
-                              ...state.bootstrap.sessionStates[0],
-                              activeTab: { kind: 'editor', path: '/project/dup.ts' },
-                              openTabs: [
-                                  { path: '/project/dup.ts', dirty: false },
-                                  { path: '/project/other.ts', dirty: false },
-                              ],
-                              editorLayout,
-                          },
-                      ],
-                  }
-                : undefined,
-        }));
-
-        await closeEditor('/project/dup.ts');
-
-        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
-        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
-            '/project/other.ts',
-        ]);
-    });
-
-    it('rename rewrites the path in the persisted tree', () => {
-        installSessions('/project/source.ts');
-
-        remapOpenEditors('session-1', '/project/source.ts', '/project/renamed.ts');
-
-        const state = useWorkbenchStore
-            .getState()
-            .bootstrap?.sessionStates.find((candidate) => candidate.sessionId === 'session-1');
-        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
-            '/project/renamed.ts',
-        ]);
+        const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
+        expect(paneTabPaths(state)).toEqual(['/project/b.ts']);
+        expect(activePaneTabPath(state)).toBe('/project/b.ts');
     });
 
     it('trashing a directory removes every descendant path from the tree', () => {
@@ -709,12 +667,11 @@ describe('persisted Editor split tree wiring', () => {
                       sessionStates: [
                           {
                               ...state.bootstrap.sessionStates[0],
-                              activeTab: { kind: 'editor', path: '/project/dir/a.ts' },
-                              openTabs: [
-                                  { path: '/project/dir/a.ts', dirty: false },
-                                  { path: '/project/dir/b.ts', dirty: false },
-                                  { path: '/project/keep.ts', dirty: false },
-                              ],
+                              paneLayout: paneLayout([
+                                  '/project/dir/a.ts',
+                                  '/project/dir/b.ts',
+                                  '/project/keep.ts',
+                              ]),
                           },
                       ],
                   }
@@ -723,10 +680,7 @@ describe('persisted Editor split tree wiring', () => {
 
         closeOpenEditorsUnderPath('session-1', '/project/dir');
 
-        const state = useWorkbenchStore.getState().bootstrap?.sessionStates[0];
-        expect(state?.openTabs).toEqual([{ path: '/project/keep.ts', dirty: false }]);
-        expect(state?.editorLayout && listLayoutPaths(state.editorLayout)).toEqual([
-            '/project/keep.ts',
-        ]);
+        const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
+        expect(paneTabPaths(state)).toEqual(['/project/keep.ts']);
     });
 });

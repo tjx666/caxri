@@ -249,8 +249,9 @@ test('editor previews pin and expose the standard close actions', async () => {
         await expect(cTab).toContainText('●');
         await cTab.click({ button: 'right' });
         await running.page.getByRole('menuitem', { name: 'Close All' }).click();
-        await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
-        await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
+        // A pane's "Close All" is pane-wide, not kind-scoped: it closes every tab sharing c.js's
+        // pane, including the default Terminal that was never split into a pane of its own.
+        await expect(running.page.locator('.work-tab')).toHaveCount(0);
         // c.js was still dirty (typed a space above, never saved): "Close All" must route it
         // through the native discard confirmation rather than silently dropping unsaved work, so
         // the stubbed `dialog.showMessageBox` must have actually been invoked once.
@@ -288,7 +289,7 @@ test('Open Work tabs provide roving keyboard navigation and accessible state', a
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        const strip = running.page.getByRole('tablist', { name: 'Open work' });
+        const strip = running.page.getByRole('tablist', { name: 'Open tabs in pane 1' });
         const tabs = strip.getByRole('tab');
         await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
         await expect(tabs).toHaveCount(2);

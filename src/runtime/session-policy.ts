@@ -1,5 +1,5 @@
 import { agentProviderCatalog } from '../shared/agents';
-import { removeTerminal as removeTerminalFromLayout } from '../shared/terminal-layout';
+import { removePaneTerminal } from '../shared/pane-layout';
 import type {
     AgentActivityState,
     AgentSnapshot,
@@ -297,13 +297,12 @@ export function selectFallbackAfterDeletion(
 }
 
 /**
- * Removes a closed Terminal from the persisted split layout. Composes the pure layout helpers in
- * `../shared/terminal-layout.ts` instead of letting the persistence layer perform its own JSON surgery on UI layout
- * state.
+ * Removes a closed Terminal's occurrence from the persisted Workbench tree. Composes the pure reducer in
+ * `../shared/pane-layout.ts` instead of letting the persistence layer perform its own JSON surgery on layout state.
  */
 export function withTerminalRemovedFromLayout(
     state: SessionState,
     terminalId: string,
 ): SessionState {
-    return { ...state, layout: removeTerminalFromLayout(state.layout, terminalId) };
+    return { ...state, paneLayout: removePaneTerminal(state.paneLayout, terminalId) };
 }

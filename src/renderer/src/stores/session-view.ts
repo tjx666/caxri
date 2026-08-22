@@ -1,46 +1,32 @@
-import { useMemo } from 'react';
-
 import type { EditorDocument, SessionDocuments } from '@shared/editor-state';
 import { setSessionDocument } from '@shared/editor-state';
 import type { InspectorMode } from '@shared/types';
-import type { WorkItem } from '@shared/work-item';
-import { activateWorkState, resolveActiveWork } from '@shared/work-item';
 import { omit, omitBy } from 'es-toolkit';
 import { create } from 'zustand';
 
 import { isPathAtOrBelow, remapPath } from '../lib/file-path';
-import {
-    getBootstrap,
-    getSelectedSession,
-    getSessionState,
-    getSessionTerminals,
-    useSelectedSession,
-    useSessionState,
-    useSessionTerminals,
-} from './selectors';
+import { getBootstrap, getSessionState } from './selectors';
 import { patchSessionState } from './workbench';
 
 /**
  * Upper bound on cached file contents per Session. Closing a tab evicts its document immediately, so this cap only
- * matters for a Session with an unusually large open-tab set (`openTabs` allows 100). Twenty documents keep every
- * realistically reachable tab warm while bounding renderer memory; the evicted tab stays open and re-reads from disk
- * when it is selected again.
+ * matters for a Session with an unusually large open-tab set. Twenty documents keep every realistically reachable tab
+ * warm while bounding renderer memory; the evicted tab stays open and re-reads from disk when it is selected again.
  */
 export const MAX_CACHED_DOCUMENTS_PER_SESSION = 20;
 export const MAX_CACHED_DOCUMENT_BYTES_GLOBAL = 32 * 1024 * 1024;
 
 interface SessionViewState {
-    /**
-     * Locally focused WorkItem per Session; the persisted `activeTab` is the durable fallback.
-     */
-    activeWork: Record<string, WorkItem | undefined>;
     documents: SessionDocuments;
     /**
      * Least-recently-used order per Session, most recent last. Drives {@link evictExcess}.
      */
     recentDocuments: Record<string, string[]>;
-    activateWork(item: WorkItem, options?: { editorGroupId?: string }): void;
-    setActiveWork(sessionId: string, item?: WorkItem, workbenchProjectId?: string): void;
+    /**
+     * Records a document as most recently used without caching content, so selecting an already open tab keeps its
+     * buffer ahead of the eviction line.
+     */
+    touchDocument(sessionId: string, path: string, workbenchProjectId?: string): void;
     cacheDocument(sessionId: string, document: EditorDocument, workbenchProjectId?: string): void;
     cacheDocuments(
         sessionId: string,
@@ -176,33 +162,15 @@ function withDocuments(
 }
 
 export const useSessionViewStore = create<SessionViewState>((set, get) => ({
-    activeWork: {},
     documents: {},
     recentDocuments: {},
 
-    /**
-     * The single write path for "what is focused in the center pane": updates the Session-scoped `activeWork` plus the
-     * persisted `sessionState.activeTab` (and, for a Terminal, the layout's active group) in one update.
-     * `resolveActiveWork` is the corresponding single read path.
-     */
-    activateWork(item, options) {
-        const sessionId = getSelectedSession()?.id;
-        if (!sessionId) return;
-        get().setActiveWork(sessionId, item);
-        const current = getSessionState();
-        if (!current) return;
-        const next = activateWorkState(current, item, options?.editorGroupId);
-        if (next !== current) patchSessionState(next);
-    },
-
-    setActiveWork(sessionId, item, workbenchProjectId) {
+    touchDocument(sessionId, path, workbenchProjectId) {
         const scope = sessionViewScope(sessionId, workbenchProjectId);
-        set((state) => ({ activeWork: { ...state.activeWork, [scope]: item } }));
-        if (item?.kind !== 'editor') return;
         set((state) => ({
             recentDocuments: {
                 ...state.recentDocuments,
-                [scope]: touch(state.recentDocuments[scope], item.path),
+                [scope]: touch(state.recentDocuments[scope], path),
             },
         }));
     },
@@ -325,7 +293,6 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
                 ),
             ) as Record<string, T>;
         set((state) => ({
-            activeWork: without(state.activeWork),
             documents: without(state.documents),
             recentDocuments: without(state.recentDocuments),
         }));
@@ -347,48 +314,6 @@ export function getSessionDocuments(
     return useSessionViewStore.getState().documents[
         sessionViewScope(sessionId, workbenchProjectId)
     ];
-}
-
-export function getSessionActiveWork(
-    sessionId: string,
-    workbenchProjectId?: string,
-): WorkItem | undefined {
-    return useSessionViewStore.getState().activeWork[
-        sessionViewScope(sessionId, workbenchProjectId)
-    ];
-}
-
-/**
- * Non-React counterpart of {@link useActiveWork}, for command handlers and event listeners.
- */
-export function getResolvedActiveWork(): WorkItem | undefined {
-    const sessionId = getSelectedSession()?.id;
-    return resolveActiveWork({
-        activeWork: sessionId ? getSessionActiveWork(sessionId) : undefined,
-        sessionTerminals: getSessionTerminals(),
-        sessionState: getSessionState(),
-    });
-}
-
-/**
- * Reads the focused WorkItem through the single `resolveActiveWork` fallback ladder.
- */
-export function useActiveWork(): WorkItem | undefined {
-    const session = useSelectedSession();
-    const sessionTerminals = useSessionTerminals();
-    const sessionState = useSessionState();
-    /**
-     * Keep the Workbench Project in the reactive input set. React Compiler cannot observe the store read hidden inside
-     * `sessionViewScope(sessionId)` when the Session ID itself is stable.
-     */
-    const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
-    const activeWork = useSessionViewStore((state) =>
-        scope ? state.activeWork[scope] : undefined,
-    );
-    return useMemo(
-        () => resolveActiveWork({ activeWork, sessionTerminals, sessionState }),
-        [activeWork, sessionTerminals, sessionState],
-    );
 }
 
 export function useDocument(

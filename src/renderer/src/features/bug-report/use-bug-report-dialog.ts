@@ -7,9 +7,9 @@ import { errorMessage } from '@shared/ipc';
 import { caxri } from '../../lib/caxri';
 import { setBugReportOpen } from '../../stores/dialogs';
 import { getBootstrap } from '../../stores/selectors';
-import { getResolvedActiveWork } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { getActivePaneTab } from '../workbench/pane-actions';
 import type { BugReportContext, BugReportDraft } from './bug-report';
 import {
     bugReportImageFallback,
@@ -31,13 +31,13 @@ const EMPTY_DRAFT: BugReportDraft = { actual: '', expected: '', steps: '' };
 
 function visibleWorkContext(): BugReportContext['visibleWork'] {
     const bootstrap = getBootstrap();
-    const activeWork = getResolvedActiveWork();
-    if (!activeWork) return { kind: 'none' };
-    if (activeWork.kind === 'editor')
+    const resource = getActivePaneTab()?.resource;
+    if (!resource) return { kind: 'none' };
+    if (resource.kind === 'file')
         // `pathBasename` falls back to its raw input (not 'file') when no non-empty segment exists,
         // e.g. an empty string; keep the original 'file' fallback for that case at this call site.
-        return { kind: 'editor', fileName: pathBasename(activeWork.path) || 'file' };
-    const terminal = bootstrap?.terminals.find((item) => item.id === activeWork.terminalId);
+        return { kind: 'editor', fileName: pathBasename(resource.path) || 'file' };
+    const terminal = bootstrap?.terminals.find((item) => item.id === resource.terminalId);
     if (!terminal) return { kind: 'none' };
     return { kind: 'terminal', provider: terminal.provider, terminalId: terminal.id };
 }
@@ -62,7 +62,7 @@ function initialReportState(): {
         selectedTargetId: chooseBugReportTarget(
             snapshot.terminals,
             session.id,
-            getResolvedActiveWork(),
+            getActivePaneTab()?.resource,
         ),
         source: {
             project: { id: project.id },

@@ -96,10 +96,9 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
 
         await running.page.keyboard.press('Meta+T');
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(3);
-        await expect(running.page.locator('.work-tab.active')).toHaveAttribute(
-            'data-terminal-id',
-            /.+/,
-        );
+        await expect(
+            running.page.locator('.workbench-pane.active .work-tab.active'),
+        ).toHaveAttribute('data-terminal-id', /.+/);
         await running.page.keyboard.press('Meta+W');
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
 

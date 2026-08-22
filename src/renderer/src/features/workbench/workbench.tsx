@@ -1,60 +1,9 @@
-import { Code2, Plus, TerminalSquare } from 'lucide-react';
+import { Code2, Plus } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
-import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
-import { useSelectedSession, useSessionState } from '../../stores/selectors';
-import { useActiveWork } from '../../stores/session-view';
-import { EditorLayoutView } from '../editor/editor-layout-view';
+import { useSelectedSession } from '../../stores/selectors';
 import { chooseProjectDirectory } from '../session/session-actions';
-import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
-import { WorkTabStrip } from '../tabs/work-tab-strip';
-import { createTerminal } from '../terminal/terminal-actions';
-import { TerminalLayoutView } from '../terminal/terminal-layout-view';
-
-function WorkSurface({ sessionId }: { sessionId: string }) {
-    const activeWork = useActiveWork();
-    const hasLayout = Boolean(useSessionState()?.layout.root);
-    const tabPanelProperties = activeWork
-        ? {
-              'aria-labelledby': workTabId(sessionId, activeWork),
-              'id': workPanelId(sessionId, activeWork),
-              'role': 'tabpanel' as const,
-          }
-        : undefined;
-    /**
-     * One selected tab owns the work surface even when a Terminal layout splits that surface into multiple panes. The
-     * individual panes are not tabs, so only the active work item labels this panel; no panel is exposed before there
-     * is an active item.
-     */
-    if (activeWork?.kind === 'editor')
-        return (
-            <div className="work-surface relative min-h-0 flex-1" {...tabPanelProperties}>
-                <EditorLayoutView />
-            </div>
-        );
-    return (
-        <div className="work-surface relative min-h-0 flex-1" {...tabPanelProperties}>
-            {hasLayout ? (
-                <TerminalLayoutView />
-            ) : (
-                <Empty className="empty-work h-full flex-1">
-                    <EmptyMedia>
-                        <TerminalSquare size={30} />
-                    </EmptyMedia>
-                    <EmptyTitle>No Terminal in this Session.</EmptyTitle>
-                    <Button
-                        onClick={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
-                            void createTerminal('shell');
-                        }}
-                    >
-                        New Terminal
-                    </Button>
-                </Empty>
-            )}
-        </div>
-    );
-}
+import { PaneView } from './pane-view';
 
 function Welcome() {
     return (
@@ -79,18 +28,15 @@ function Welcome() {
     );
 }
 
+/**
+ * The Workbench is now nothing but the pane tree: there is no Workbench-level tab strip and no Terminal-versus-Editor
+ * surface switch, because every tab lives in the bar of the pane that holds it.
+ */
 export function Workbench() {
     const session = useSelectedSession();
     return (
         <section className="workbench flex min-h-0 min-w-0 flex-col bg-background">
-            {session ? (
-                <>
-                    <WorkTabStrip />
-                    <WorkSurface sessionId={session.id} />
-                </>
-            ) : (
-                <Welcome />
-            )}
+            {session ? <PaneView /> : <Welcome />}
         </section>
     );
 }

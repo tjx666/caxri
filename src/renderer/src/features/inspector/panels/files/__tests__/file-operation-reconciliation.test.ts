@@ -1,4 +1,4 @@
-import type { BootstrapState, FileMutationOperation } from '@shared/types';
+import type { BootstrapState, FileMutationOperation, SessionState } from '@shared/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -18,6 +18,48 @@ function session(id: string, workbenchProjectId = 'project-1', projectId = 'proj
     return { id, projectId, workbenchProjectId };
 }
 
+/**
+ * A single-pane layout holding one document tab per path; these tests only care that a move rewrites the tabs' paths,
+ * not about the tree's shape.
+ */
+function paneLayout(paths: string[], activeIndex = 0): SessionState['paneLayout'] {
+    return {
+        root: {
+            type: 'pane',
+            id: 'pane-1',
+            tabs: paths.map((path, index) => ({
+                id: `tab-${index}`,
+                resource: { kind: 'file', path },
+            })),
+            ...(paths.length > 0 && { activeTabId: `tab-${activeIndex}` }),
+        },
+        activePaneId: 'pane-1',
+    };
+}
+
+function paneTabs(state: SessionState): Array<{ id: string; path: string }> {
+    const pane = state.paneLayout.root;
+    if (pane.type !== 'pane') throw new Error('Expected a single-pane layout');
+    return pane.tabs.map((tab) => ({
+        id: tab.id,
+        path: tab.resource.kind === 'file' ? tab.resource.path : tab.resource.terminalId,
+    }));
+}
+
+function paneTabPaths(state: SessionState): string[] {
+    return paneTabs(state).map((tab) => tab.path);
+}
+
+function activePaneTabPath(state: SessionState): string | undefined {
+    const pane = state.paneLayout.root;
+    if (pane.type !== 'pane') throw new Error('Expected a single-pane layout');
+    return paneTabs(state).find((tab) => tab.id === pane.activeTabId)?.path;
+}
+
+function sessionStates(): SessionState[] {
+    return useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
+}
+
 beforeEach(() => vi.stubGlobal('window', globalThis));
 
 afterEach(() => {
@@ -25,7 +67,7 @@ afterEach(() => {
     mocks.request.mockClear();
     queryClient.clear();
     useFileOperationStore.getState().clear();
-    useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
+    useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
     dismissToast();
     vi.unstubAllGlobals();
@@ -46,10 +88,8 @@ describe('file mutation reconciliation', () => {
                     {
                         sessionId: 'session-a',
                         workbenchProjectId: currentProjectId,
-                        openTabs: [{ path: currentPath, dirty: true }],
-                        activeTab: { kind: 'editor' as const, path: currentPath },
                         inspectorMode: 'files' as const,
-                        layout: {},
+                        paneLayout: paneLayout([currentPath]),
                     },
                 ],
                 terminals: [],
@@ -111,11 +151,9 @@ describe('file mutation reconciliation', () => {
             content: 'root B draft',
             dirty: true,
         });
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]).toMatchObject({
-            workbenchProjectId: currentProjectId,
-            openTabs: [{ path: currentPath, dirty: true }],
-            activeTab: { kind: 'editor', path: currentPath },
-        });
+        expect(sessionStates()[0]?.workbenchProjectId).toBe(currentProjectId);
+        expect(paneTabPaths(sessionStates()[0])).toEqual([currentPath]);
+        expect(activePaneTabPath(sessionStates()[0])).toBe(currentPath);
         expect(mocks.request).not.toHaveBeenCalledWith('session.updateState', expect.anything());
         expect(mocks.request).toHaveBeenCalledWith('files.operation.acknowledge', {
             operationId: operation.id,
@@ -135,10 +173,8 @@ describe('file mutation reconciliation', () => {
                 sessionStates: ['session-a', 'session-b'].map((sessionId) => ({
                     sessionId,
                     workbenchProjectId: 'project-1',
-                    openTabs: [{ path: previousPath, dirty: true }],
-                    activeTab: { kind: 'editor' as const, path: previousPath },
                     inspectorMode: 'files' as const,
-                    layout: {},
+                    paneLayout: paneLayout([previousPath]),
                 })),
                 terminals: [],
             } as unknown as BootstrapState,
@@ -212,9 +248,10 @@ describe('file mutation reconciliation', () => {
         sessionStateSaved.resolve(null);
         await reconciliation;
 
-        expect(
-            useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
-        ).toEqual([[{ path: nextPath, dirty: true }], [{ path: nextPath, dirty: true }]]);
+        expect(sessionStates().map((state) => paneTabPaths(state))).toEqual([
+            [nextPath],
+            [nextPath],
+        ]);
         expect(
             Object.values(useSessionViewStore.getState().documents).flatMap((documents) =>
                 Object.keys(documents),
@@ -255,10 +292,8 @@ describe('file mutation reconciliation', () => {
                 sessionStates: ['session-a', 'session-b'].map((sessionId) => ({
                     sessionId,
                     workbenchProjectId: 'project-1',
-                    openTabs: [{ path: previousPath, dirty: true }],
-                    activeTab: { kind: 'editor' as const, path: previousPath },
                     inspectorMode: 'files' as const,
-                    layout: {},
+                    paneLayout: paneLayout([previousPath]),
                 })),
                 terminals: [],
             } as unknown as BootstrapState,
@@ -271,9 +306,6 @@ describe('file mutation reconciliation', () => {
                 mtimeMs: 1,
                 size: 20,
             });
-            useSessionViewStore
-                .getState()
-                .setActiveWork(sessionId, { kind: 'editor', path: previousPath });
         }
         const operation: FileMutationOperation = {
             id: 'operation-retry-move',
@@ -313,13 +345,14 @@ describe('file mutation reconciliation', () => {
         expect(useToastStore.getState().toasts).not.toContainEqual(
             expect.objectContaining({ kind: 'error' }),
         );
-        expect(
-            useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
-        ).toEqual([[{ path: nextPath, dirty: true }], [{ path: nextPath, dirty: true }]]);
-        expect(useSessionViewStore.getState().activeWork).toEqual({
-            'session-a': { kind: 'editor', path: nextPath },
-            'session-b': { kind: 'editor', path: nextPath },
-        });
+        expect(sessionStates().map((state) => paneTabPaths(state))).toEqual([
+            [nextPath],
+            [nextPath],
+        ]);
+        expect(sessionStates().map((state) => activePaneTabPath(state))).toEqual([
+            nextPath,
+            nextPath,
+        ]);
         expect(useSessionViewStore.getState().documents).toMatchObject({
             'session-a': {
                 [nextPath]: { content: 'session-a dirty body', dirty: true, path: nextPath },
@@ -340,14 +373,10 @@ describe('file mutation reconciliation', () => {
             mtimeMs: 2,
             size: 15,
         });
-        useSessionViewStore
-            .getState()
-            .setActiveWork('session-b', { kind: 'editor', path: previousPath });
         await expect(
             useWorkbenchStore.getState().patchSessionState({
                 ...sessionB!,
-                openTabs: [...sessionB!.openTabs, { path: previousPath, dirty: true }],
-                activeTab: { kind: 'editor', path: previousPath },
+                paneLayout: paneLayout([nextPath, previousPath], 1),
             }),
         ).resolves.toBe(true);
 
@@ -357,19 +386,14 @@ describe('file mutation reconciliation', () => {
                 operationId: operation.id,
             });
         });
-        expect(
-            useWorkbenchStore.getState().bootstrap?.sessionStates.map((state) => state.openTabs),
-        ).toEqual([
-            [{ path: nextPath, dirty: true }],
-            [
-                { path: nextPath, dirty: true },
-                { path: previousPath, dirty: true },
-            ],
+        expect(sessionStates().map((state) => paneTabPaths(state))).toEqual([
+            [nextPath],
+            [nextPath, previousPath],
         ]);
-        expect(useSessionViewStore.getState().activeWork).toEqual({
-            'session-a': { kind: 'editor', path: nextPath },
-            'session-b': { kind: 'editor', path: previousPath },
-        });
+        expect(sessionStates().map((state) => activePaneTabPath(state))).toEqual([
+            nextPath,
+            previousPath,
+        ]);
         expect(useSessionViewStore.getState().documents).toMatchObject({
             'session-a': {
                 [nextPath]: { content: 'session-a dirty body', dirty: true, path: nextPath },
@@ -398,13 +422,8 @@ describe('file mutation reconciliation', () => {
                     {
                         sessionId: 'session-a',
                         workbenchProjectId: 'project-1',
-                        openTabs: [
-                            { path: nextPath, dirty: false },
-                            { path: previousPath, dirty: false },
-                        ],
-                        activeTab: { kind: 'editor', path: previousPath },
                         inspectorMode: 'files',
-                        layout: {},
+                        paneLayout: paneLayout([nextPath, previousPath], 1),
                         editorRemapOperationId: operationId,
                     },
                 ],
@@ -425,9 +444,6 @@ describe('file mutation reconciliation', () => {
             mtimeMs: 2,
             size: 15,
         });
-        useSessionViewStore
-            .getState()
-            .setActiveWork('session-a', { kind: 'editor', path: previousPath });
 
         await reconcileFileMutation({
             id: operationId,
@@ -457,14 +473,8 @@ describe('file mutation reconciliation', () => {
             updatedAt: 2,
         });
 
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.openTabs).toEqual([
-            { path: nextPath, dirty: false },
-            { path: previousPath, dirty: false },
-        ]);
-        expect(useSessionViewStore.getState().activeWork['session-a']).toEqual({
-            kind: 'editor',
-            path: previousPath,
-        });
+        expect(paneTabPaths(sessionStates()[0])).toEqual([nextPath, previousPath]);
+        expect(activePaneTabPath(sessionStates()[0])).toBe(previousPath);
         expect(useSessionViewStore.getState().documents['session-a']).toMatchObject({
             [nextPath]: { content: 'moved body', path: nextPath },
             [previousPath]: { content: 'new source body', path: previousPath },
@@ -519,9 +529,8 @@ describe('file mutation reconciliation', () => {
                     {
                         sessionId: 'session-a',
                         workbenchProjectId: 'project-1',
-                        openTabs: [],
                         inspectorMode: 'files',
-                        layout: {},
+                        paneLayout: paneLayout([]),
                     },
                 ],
                 terminals: [],

@@ -6,7 +6,6 @@ import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     createCaxriClient,
-    editorLayoutSchema,
     errorCodes,
     fromWireError,
     internalMethods,
@@ -19,7 +18,6 @@ import {
     requestEnvelopeSchema,
     runtimeEventPayloads,
     runtimeEventSchema,
-    terminalLayoutSchema,
     toWireError,
 } from '..';
 
@@ -571,196 +569,52 @@ describe('Terminal creation contract', () => {
     });
 });
 
-describe('Terminal layout contract', () => {
+describe('Pane layout contract', () => {
     const state = {
         sessionId: 'session-1',
         workbenchProjectId: 'project-1',
-        openTabs: [],
-        inspectorMode: 'files',
+        inspectorMode: 'files' as const,
     };
-    const group = {
-        type: 'group' as const,
-        id: 'group-1',
-        terminalIds: ['terminal-1'],
-        activeTerminalId: 'terminal-1',
-    };
-    const split = (overrides: Record<string, unknown> = {}) => ({
-        type: 'split',
-        id: 'split-1',
-        direction: 'horizontal',
-        ratio: 0.5,
-        first: group,
-        second: { ...group, id: 'group-2', terminalIds: ['terminal-2'] },
-        ...overrides,
+    const pane = (id: string, terminalId: string) => ({
+        type: 'pane' as const,
+        id,
+        tabs: [{ id: `tab-${id}`, resource: { kind: 'terminal' as const, terminalId } }],
+        activeTabId: `tab-${id}`,
     });
 
-    it('accepts bounded split trees and rejects duplicate Terminal attachments', () => {
+    it('wires session.updateState to the pane layout schema and rejects a duplicate Terminal attachment', () => {
         expect(
             methods['session.updateState'].params.safeParse({
                 ...state,
                 editorRemapOperationId: 'operation-1',
-                layout: {
-                    activeGroupId: 'group-1',
-                    root: split({
-                        second: {
-                            ...group,
-                            id: 'group-2',
-                            terminalIds: ['terminal-2'],
-                            activeTerminalId: 'terminal-2',
-                        },
-                    }),
+                paneLayout: {
+                    root: {
+                        type: 'split',
+                        id: 'split-1',
+                        direction: 'horizontal',
+                        ratio: 0.5,
+                        first: pane('pane-1', 'terminal-1'),
+                        second: pane('pane-2', 'terminal-2'),
+                    },
+                    activePaneId: 'pane-1',
                 },
             }).success,
         ).toBe(true);
         expect(
             methods['session.updateState'].params.safeParse({
                 ...state,
-                layout: { root: split({ second: { ...group, id: 'group-2' } }) },
-            }).success,
-        ).toBe(false);
-    });
-
-    it('keeps every invariant the imperative validator enforced', () => {
-        const isAccepted = (layout: unknown): boolean =>
-            terminalLayoutSchema.safeParse(layout).success;
-
-        expect(isAccepted({})).toBe(true);
-        expect(isAccepted({ activeGroupId: 'group-1' })).toBe(true);
-        expect(isAccepted({ activeGroupId: '', root: group })).toBe(false);
-        expect(isAccepted({ root: group, activeGroupId: 'group-1' })).toBe(true);
-        expect(isAccepted({ root: group, activeGroupId: 'missing-group' })).toBe(false);
-        expect(isAccepted({ root: { ...group, terminalIds: [] } })).toBe(false);
-        expect(isAccepted({ root: { ...group, activeTerminalId: 'terminal-9' } })).toBe(false);
-        expect(isAccepted({ root: split({ id: 'group-1' }) })).toBe(false);
-        expect(isAccepted({ root: split({ direction: 'diagonal' }) })).toBe(false);
-        expect(isAccepted({ root: split({ ratio: 0.05 }) })).toBe(false);
-        expect(isAccepted({ root: split({ ratio: 0.95 }) })).toBe(false);
-        expect(isAccepted({ root: split({ ratio: '0.5' }) })).toBe(false);
-        expect(isAccepted({ root: split({ second: undefined }) })).toBe(false);
-        expect(isAccepted({ root: { type: 'unknown', id: 'node-1' } })).toBe(false);
-        expect(isAccepted({ root: null })).toBe(false);
-    });
-
-    it('rejects layouts beyond the node and Terminal ceilings', () => {
-        const wideGroup = (index: number, size: number) => ({
-            type: 'group',
-            id: `group-${index}`,
-            terminalIds: Array.from({ length: size }, (_, item) => `terminal-${index}-${item}`),
-        });
-        expect(
-            terminalLayoutSchema.safeParse({
-                root: {
-                    type: 'split',
-                    id: 'split-1',
-                    direction: 'vertical',
-                    ratio: 0.5,
-                    first: wideGroup(1, 8),
-                    second: wideGroup(2, 8),
-                },
-            }).success,
-        ).toBe(true);
-        expect(
-            terminalLayoutSchema.safeParse({
-                root: {
-                    type: 'split',
-                    id: 'split-1',
-                    direction: 'vertical',
-                    ratio: 0.5,
-                    first: wideGroup(1, 9),
-                    second: wideGroup(2, 8),
+                paneLayout: {
+                    root: {
+                        type: 'split',
+                        id: 'split-1',
+                        direction: 'horizontal',
+                        ratio: 0.5,
+                        first: pane('pane-1', 'terminal-1'),
+                        second: pane('pane-2', 'terminal-1'),
+                    },
+                    activePaneId: 'pane-1',
                 },
             }).success,
         ).toBe(false);
-
-        let deep: unknown = wideGroup(0, 1);
-        for (let index = 1; index <= 16; index += 1) {
-            deep = {
-                type: 'split',
-                id: `split-${index}`,
-                direction: 'vertical',
-                ratio: 0.5,
-                first: deep,
-                second: wideGroup(index, 1),
-            };
-        }
-        expect(terminalLayoutSchema.safeParse({ root: deep }).success).toBe(false);
-    });
-});
-
-describe('Editor layout contract', () => {
-    const group = {
-        type: 'group' as const,
-        id: 'group-1',
-        paths: ['/repo/a.ts'],
-        activePath: '/repo/a.ts',
-    };
-    const split = (overrides: Record<string, unknown> = {}) => ({
-        type: 'split',
-        id: 'split-1',
-        direction: 'horizontal',
-        ratio: 0.5,
-        first: group,
-        second: { ...group, id: 'group-2', paths: ['/repo/b.ts'], activePath: '/repo/b.ts' },
-        ...overrides,
-    });
-
-    it('accepts the same path attached to two different groups, unlike a Terminal', () => {
-        const isAccepted = (layout: unknown): boolean =>
-            editorLayoutSchema.safeParse(layout).success;
-
-        expect(
-            isAccepted({
-                activeGroupId: 'group-2',
-                root: split({ second: { ...group, id: 'group-2' } }),
-            }),
-        ).toBe(true);
-    });
-
-    it('keeps every invariant the imperative validator enforced', () => {
-        const isAccepted = (layout: unknown): boolean =>
-            editorLayoutSchema.safeParse(layout).success;
-
-        expect(isAccepted({})).toBe(true);
-        // An empty layout cannot point at an active group that does not exist.
-        expect(isAccepted({ activeGroupId: 'group-1' })).toBe(false);
-        expect(isAccepted({ activeGroupId: '', root: group })).toBe(false);
-        expect(isAccepted({ root: group, activeGroupId: 'group-1' })).toBe(true);
-        expect(isAccepted({ root: group, activeGroupId: 'missing-group' })).toBe(false);
-        expect(isAccepted({ root: { ...group, paths: [] } })).toBe(false);
-        expect(isAccepted({ root: { ...group, paths: ['/repo/a.ts', '/repo/a.ts'] } })).toBe(false);
-        expect(isAccepted({ root: { ...group, activePath: '/repo/missing.ts' } })).toBe(false);
-        expect(isAccepted({ root: split({ id: 'group-1' }) })).toBe(false);
-        expect(isAccepted({ root: split({ direction: 'diagonal' }) })).toBe(false);
-        expect(isAccepted({ root: split({ ratio: 0.05 }) })).toBe(false);
-        expect(isAccepted({ root: split({ ratio: 0.95 }) })).toBe(false);
-        expect(isAccepted({ root: split({ ratio: '0.5' }) })).toBe(false);
-        expect(isAccepted({ root: split({ second: undefined }) })).toBe(false);
-        expect(isAccepted({ root: { type: 'unknown', id: 'node-1' } })).toBe(false);
-        expect(isAccepted({ root: null })).toBe(false);
-    });
-
-    it('rejects layouts beyond the group and node ceilings, well below the Terminal layout caps', () => {
-        const wideGroup = (index: number) => ({
-            type: 'group',
-            id: `group-${index}`,
-            paths: [`/repo/file-${index}.ts`],
-        });
-        const chain = (groups: number) => {
-            let node: unknown = wideGroup(0);
-            for (let index = 1; index < groups; index += 1) {
-                node = {
-                    type: 'split',
-                    id: `split-${index}`,
-                    direction: 'vertical',
-                    ratio: 0.5,
-                    first: node,
-                    second: wideGroup(index),
-                };
-            }
-            return node;
-        };
-
-        expect(editorLayoutSchema.safeParse({ root: chain(8) }).success).toBe(true);
-        expect(editorLayoutSchema.safeParse({ root: chain(9) }).success).toBe(false);
     });
 });

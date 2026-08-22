@@ -48,7 +48,7 @@ import {
     useSelectedWorkbenchProject,
     useTerminal,
 } from '../../stores/selectors';
-import { sessionViewScope, useActiveWork } from '../../stores/session-view';
+import { sessionViewScope } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import {
@@ -62,6 +62,7 @@ import {
     terminalProgressLabel,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
+import { useActivePaneTab } from '../workbench/pane-actions';
 
 /**
  * No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
@@ -648,7 +649,7 @@ export function StatusBar() {
     const repo = overview?.repository;
     const runtimeStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
     const degraded = runtimeStatus ? DEGRADED_STATES[runtimeStatus] : undefined;
-    const activeWork = useActiveWork();
+    const activeResource = useActivePaneTab()?.resource;
     return (
         /**
          * `data-runtime-status` is the stable readiness signal: it is present in every visual state, including the
@@ -725,16 +726,16 @@ export function StatusBar() {
                 )}
                 <ScreencastModeChip />
                 {sessionId &&
-                    activeWork?.kind === 'editor' &&
-                    !parseGitDiffTab(activeWork.path) && (
+                    activeResource?.kind === 'file' &&
+                    !parseGitDiffTab(activeResource.path) && (
                         <ActiveFileStatus
                             sessionId={sessionId}
-                            path={activeWork.path}
+                            path={activeResource.path}
                             workbenchProjectId={session.workbenchProjectId}
                         />
                     )}
-                {activeWork?.kind === 'terminal' && (
-                    <ActiveTerminalStatus terminalId={activeWork.terminalId} />
+                {activeResource?.kind === 'terminal' && (
+                    <ActiveTerminalStatus terminalId={activeResource.terminalId} />
                 )}
             </div>
         </footer>

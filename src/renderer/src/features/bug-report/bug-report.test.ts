@@ -18,7 +18,6 @@ function terminal(id: string, overrides: Partial<TerminalRecord> = {}): Terminal
         title: id,
         icon: 'terminal',
         orderIndex: 0,
-        layoutNodeId: 'root',
         lastProcessState: 'running',
         createdAt: 1,
         updatedAt: 1,
