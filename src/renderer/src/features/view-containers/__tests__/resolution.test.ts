@@ -50,4 +50,26 @@ describe('resolveViewContainerId', () => {
             'publisher.view',
         );
     });
+
+    it('keeps a failed desired container selected so its Retry action remains reachable', () => {
+        const failed: ViewCatalogSnapshot = {
+            ...catalog,
+            containers: catalog.containers.map((container) =>
+                container.id === 'publisher.view'
+                    ? {
+                          ...container,
+                          lifecycle: 'error' as const,
+                          error: {
+                              code: 'ACTIVATION_FAILED',
+                              message: 'Activation failed',
+                          },
+                      }
+                    : container,
+            ),
+        };
+
+        expect(resolveViewContainerId('publisher.view', 'secondarySidebar', failed)).toBe(
+            'publisher.view',
+        );
+    });
 });

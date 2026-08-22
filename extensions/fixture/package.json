@@ -38,6 +38,10 @@
                 "title": "Refresh Extension Fixture"
             },
             {
+                "command": "caxri.fixture.recordCommand",
+                "title": "Record Fixture Command Activation"
+            },
+            {
                 "command": "caxri.fixture.crashHost",
                 "title": "Crash Extension Host"
             }

@@ -1,42 +1,61 @@
+import type { MouseEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TreeItemDto } from '@shared/views';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import type { LucideIcon } from 'lucide-react';
 import {
     AlertTriangle,
     Check,
     ChevronDown,
     ChevronRight,
     Circle,
+    CircleCheck,
+    CircleDot,
+    CircleX,
     Cloud,
+    EyeOff,
     File,
     GitBranch,
+    GitPullRequest,
     LoaderCircle,
     MessageSquareWarning,
+    Monitor,
     Package,
+    Rocket,
 } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
 import { caxri } from '../../lib/caxri';
+import { cn } from '../../lib/utilities';
 import { tryCommand } from '../../stores/toasts';
 
 const ROOT_HANDLE = '__caxri_tree_root__';
-const themeIcons = {
-    'check': Check,
-    'cloud': Cloud,
-    'error': AlertTriangle,
-    'file': File,
-    'folder': Package,
-    'git-branch': GitBranch,
-    'issues': MessageSquareWarning,
-    'loading': LoaderCircle,
-    'pass': Check,
-    'question': Circle,
-    'repo': Package,
-    'symbol-string': File,
-    'warning': AlertTriangle,
-} as const;
+const themeIcons: Record<string, { Icon: LucideIcon; className?: string }> = {
+    'check': { Icon: Check },
+    'circle-check': { Icon: CircleCheck, className: 'text-success' },
+    'circle-dot': { Icon: CircleDot, className: 'text-muted' },
+    'circle-outline': { Icon: Circle, className: 'text-muted' },
+    'circle-x': { Icon: CircleX, className: 'text-danger' },
+    'cloud': { Icon: Cloud },
+    'error': { Icon: AlertTriangle, className: 'text-danger' },
+    'eye-off': { Icon: EyeOff },
+    'file': { Icon: File },
+    'folder': { Icon: Package },
+    'git-branch': { Icon: GitBranch },
+    'git-pull-request': { Icon: GitPullRequest },
+    'issues': { Icon: MessageSquareWarning },
+    'loading': { Icon: LoaderCircle, className: 'animate-spin text-warning' },
+    'monitor': { Icon: Monitor },
+    'package': { Icon: Package },
+    'pass': { Icon: Check, className: 'text-success' },
+    'question': { Icon: Circle, className: 'text-muted' },
+    'repo': { Icon: Package },
+    'rocket': { Icon: Rocket },
+    'symbol-string': { Icon: File },
+    'warning': { Icon: AlertTriangle, className: 'text-danger' },
+};
 
 interface VisibleItemRow {
     kind: 'item';
@@ -113,6 +132,10 @@ function flattenRows(
 export function ExtensionTreeView({ viewId }: { viewId: string }) {
     const scrollElement = useRef<HTMLDivElement>(null);
     const requests = useRef(new Map<string, string>());
+    const loadChildrenReference = useRef<(parentHandle: string) => Promise<void>>(() =>
+        Promise.resolve(),
+    );
+    const initializedExpanded = useRef(new Set<string>());
     const [children, setChildren] = useState<ReadonlyMap<string, readonly TreeItemDto[]>>(
         () => new Map(),
     );
@@ -146,6 +169,25 @@ export function ExtensionTreeView({ viewId }: { viewId: string }) {
                 });
                 if (requests.current.get(parentHandle) !== requestId) return;
                 setChildren((current) => new Map(current).set(parentHandle, result.items));
+                const newlyExpanded = result.items.filter(
+                    (item) =>
+                        item.collapsibleState === 'expanded' &&
+                        !initializedExpanded.current.has(item.handle),
+                );
+                for (const item of newlyExpanded) initializedExpanded.current.add(item.handle);
+                if (newlyExpanded.length > 0) {
+                    setExpanded((current) => {
+                        const next = new Set(current);
+                        for (const item of newlyExpanded) next.add(item.handle);
+                        return next;
+                    });
+                    queueMicrotask(() => {
+                        for (const item of newlyExpanded) {
+                            // eslint-disable-next-line no-void -- expanded provider items own their lazy child requests
+                            void loadChildrenReference.current(item.handle);
+                        }
+                    });
+                }
                 if (parentHandle === ROOT_HANDLE && result.items[0])
                     setActiveHandle((current) => current ?? result.items[0].handle);
             } catch (error) {
@@ -169,6 +211,7 @@ export function ExtensionTreeView({ viewId }: { viewId: string }) {
         },
         [viewId],
     );
+    loadChildrenReference.current = loadChildren;
 
     useEffect(() => {
         // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
@@ -179,6 +222,7 @@ export function ExtensionTreeView({ viewId }: { viewId: string }) {
             if (!event.payload.handles) {
                 setChildren(new Map());
                 setExpanded(new Set());
+                initializedExpanded.current.clear();
                 setActiveHandle(undefined);
                 // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
                 void loadChildren(ROOT_HANDLE);
@@ -273,16 +317,16 @@ export function ExtensionTreeView({ viewId }: { viewId: string }) {
                         >
                             {row.kind === 'loading' ? (
                                 <div
-                                    className="flex h-7 items-center gap-2 text-xs text-muted"
-                                    style={{ paddingLeft: `${8 + row.depth * 14}px` }}
+                                    className="flex h-7 items-center gap-1.5 text-xs text-muted"
+                                    style={{ paddingLeft: `${8 + row.depth * 16}px` }}
                                 >
                                     <LoaderCircle className="animate-spin" size={14} /> Loading
                                     view…
                                 </div>
                             ) : row.kind === 'error' ? (
                                 <div
-                                    className="flex h-7 items-center gap-2 text-xs text-danger"
-                                    style={{ paddingLeft: `${8 + row.depth * 14}px` }}
+                                    className="flex h-7 items-center gap-1.5 text-xs text-danger"
+                                    style={{ paddingLeft: `${8 + row.depth * 16}px` }}
                                 >
                                     <AlertTriangle size={14} />
                                     <span className="min-w-0 flex-1 truncate">{row.message}</span>
@@ -347,10 +391,18 @@ function TreeItemRow({
     );
     const positionInSet = siblings.findIndex(({ item }) => item.handle === row.item.handle) + 1;
     const themeIconId = row.item.icon?.kind === 'theme' ? row.item.icon.id : undefined;
-    const Icon =
-        themeIconId !== undefined && themeIconId in themeIcons
-            ? themeIcons[themeIconId as keyof typeof themeIcons]
-            : File;
+    const icon = (themeIconId === undefined ? undefined : themeIcons[themeIconId]) ?? {
+        Icon: File,
+    };
+    const Icon = icon.Icon;
+    /**
+     * Chromium dispatches click(detail=1), click(detail=2), then dblclick for one double-click. The first click owns
+     * the normal action; the second must not execute the same command again.
+     */
+    const handleClick = (event: MouseEvent<HTMLButtonElement>): void => {
+        if (event.detail > 1) return;
+        onToggle();
+    };
     return (
         <button
             aria-expanded={isCollapsible ? isExpanded : undefined}
@@ -358,13 +410,13 @@ function TreeItemRow({
             aria-level={row.depth + 1}
             aria-posinset={positionInSet}
             aria-setsize={siblings.length}
-            className="flex h-7 w-full min-w-0 items-center gap-1 border-0 bg-transparent pr-2 text-left text-xs text-foreground hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none"
+            className="flex h-7 w-full min-w-0 items-center gap-1.5 border-0 bg-transparent pr-2 text-left text-xs text-foreground hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none"
             data-tree-index={index}
             role="treeitem"
-            style={{ paddingLeft: `${8 + row.depth * 14}px` }}
+            style={{ paddingLeft: `${8 + row.depth * 16}px` }}
             tabIndex={active ? 0 : -1}
-            onClick={onToggle}
-            onDoubleClick={onActivate}
+            onClick={handleClick}
+            onDoubleClick={isCollapsible ? onActivate : undefined}
             onFocus={onFocus}
             onKeyDown={(event) => {
                 switch (event.key) {
@@ -415,17 +467,10 @@ function TreeItemRow({
             ) : (
                 <span className="w-[13px]" />
             )}
-            <Icon
-                className={
-                    row.item.icon?.kind === 'theme' && row.item.icon.id === 'loading'
-                        ? 'animate-spin'
-                        : ''
-                }
-                size={14}
-            />
-            <span className="min-w-0 truncate">{row.item.label}</span>
+            <Icon className={cn('flex-none', icon.className)} size={14} />
+            <span className="min-w-0 grow basis-auto truncate">{row.item.label}</span>
             {row.item.description && (
-                <span className="ml-auto min-w-0 truncate text-[11px] text-muted">
+                <span className="ml-auto min-w-0 flex-[0_999999_auto] truncate text-[11px] text-muted">
                     {row.item.description}
                 </span>
             )}

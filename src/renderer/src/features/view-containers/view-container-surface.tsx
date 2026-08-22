@@ -11,6 +11,7 @@ import { tryCommand } from '../../stores/toasts';
 import { getBuiltinViewComponent } from './builtin-components';
 import { ExtensionTreeView } from './extension-tree-view';
 import { resolveViewContainerId } from './resolution';
+import { isMonochromeSvgResource } from './resource-icon';
 
 const builtinIcons = {
     'files': Files,
@@ -20,6 +21,24 @@ const builtinIcons = {
 } as const;
 
 function CatalogIcon({ icon }: { icon: ViewIcon }) {
+    if (isMonochromeSvgResource(icon) && icon.kind === 'resource')
+        return (
+            <span
+                aria-hidden
+                className="size-4"
+                style={{
+                    backgroundColor: 'currentColor',
+                    maskImage: `url("${icon.dataUrl}")`,
+                    maskPosition: 'center',
+                    maskRepeat: 'no-repeat',
+                    maskSize: 'contain',
+                    WebkitMaskImage: `url("${icon.dataUrl}")`,
+                    WebkitMaskPosition: 'center',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskSize: 'contain',
+                }}
+            />
+        );
     if (icon.kind === 'resource') return <img alt="" className="size-4" src={icon.dataUrl} />;
     const builtinIconId = icon.kind === 'builtin' ? icon.id : undefined;
     const Icon =

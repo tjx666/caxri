@@ -67,6 +67,85 @@ export function activate(context) {
     );
 }
 
+async function writeFailingExtension(extensionRoot: string): Promise<void> {
+    await mkdir(join(extensionRoot, 'dist'), { recursive: true });
+    await mkdir(join(extensionRoot, 'media'), { recursive: true });
+    await writeFile(
+        join(extensionRoot, 'package.json'),
+        JSON.stringify({
+            name: 'e2e.failing',
+            version: '1.0.0',
+            type: 'module',
+            main: './dist/extension.js',
+            engines: { caxri: '^0.0.17' },
+            caxri: { capabilities: [] },
+            contributes: {
+                viewsContainers: {
+                    secondarySidebar: [
+                        {
+                            id: 'e2e.failing',
+                            title: 'Failing Fixture',
+                            icon: 'media/failing.svg',
+                        },
+                    ],
+                },
+                views: {
+                    'e2e.failing': [
+                        {
+                            id: 'e2e.failing.tree',
+                            name: 'Failing Fixture',
+                            type: 'tree',
+                        },
+                    ],
+                },
+            },
+        }),
+    );
+    await writeFile(
+        join(extensionRoot, 'dist', 'extension.js'),
+        `export function activate() {
+    throw new Error('Fixture activation failure');
+}
+`,
+    );
+    await writeFile(
+        join(extensionRoot, 'media', 'failing.svg'),
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="currentColor" d="M2 2h12v12H2z"/></svg>',
+    );
+}
+
+test('failed extension keeps its error surface and Retry action reachable', async () => {
+    allowE2EErrors([{ source: 'main', event: 'ipc.request_failed', code: 'INTERNAL', count: 2 }]);
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-extension-failure-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    await writeFailingExtension(join(userData, 'extensions', 'failing'));
+    const running = await launchCaxri({
+        executablePath: packagedExecutable,
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await stubPackagedProjectDialog(running, root, packagedExecutable);
+        await createShellSession(running.page);
+        await running.page.getByRole('tab', { name: 'Failing Fixture', exact: true }).click();
+
+        const retry = running.page.getByRole('button', { name: 'Retry', exact: true });
+        await expect(retry).toBeVisible();
+        await expect(running.page.getByText('Fixture activation failure')).toBeVisible();
+        await retry.click();
+        await expect(retry).toBeVisible();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('bundled Project Status extension renders and refreshes the current repository tree', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-status-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -118,15 +197,22 @@ printf '%s' '${JSON.stringify({
             // The Shell button may already have been dismissed by an earlier auto-selection.
         }
         await expect(running.page.locator('.session-card')).toHaveCount(1);
-        await running.page.getByRole('tab', { name: 'Status', exact: true }).click();
+        const statusTab = running.page.getByRole('tab', { name: 'Status', exact: true });
+        await statusTab.click();
+        const statusIcon = statusTab.locator('span[aria-hidden][style*="mask-image"]');
+        await expect(statusIcon).toBeVisible();
+        await expect
+            .poll(() => statusIcon.evaluate((element) => getComputedStyle(element).backgroundColor))
+            .not.toBe('rgba(0, 0, 0, 0)');
 
         const tree = running.page.getByRole('tree', { name: 'Extension View' });
-        const repo = tree.getByRole('treeitem', { name: 'project, feature/status' });
+        const repo = tree.getByRole('treeitem', { name: 'project', exact: true });
         await expect(repo).toBeVisible();
-        await expect(repo).toHaveAttribute('aria-expanded', 'false');
-        await repo.click();
         await expect(repo).toHaveAttribute('aria-expanded', 'true');
-        await expect(tree.getByRole('treeitem', { name: 'feature/status, Branch' })).toBeVisible();
+        await expect(repo.locator('.lucide-monitor')).toBeVisible();
+        const branch = tree.getByRole('treeitem', { name: 'feature/status', exact: true });
+        await expect(branch).toBeVisible();
+        await expect(branch.locator('.lucide-git-branch')).toBeVisible();
 
         await running.page.keyboard.press('Meta+Shift+P');
         await running.page.getByText('Refresh Project Status', { exact: true }).click();
@@ -183,6 +269,16 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         const lazy = tree.getByRole('treeitem', { name: 'Lazy children', exact: true });
         await expect(lazy).toBeVisible();
         expect(await tree.getByRole('treeitem').count()).toBeLessThan(80);
+
+        await tree
+            .getByRole('treeitem', { name: 'Command activations: 0', exact: true })
+            .dblclick();
+        await expect(
+            tree.getByRole('treeitem', { name: 'Command activations: 1', exact: true }),
+        ).toBeVisible();
+        await expect(
+            tree.getByRole('treeitem', { name: /Command activations: [2-9]/ }),
+        ).toHaveCount(0);
 
         await lazy.focus();
         await lazy.press('ArrowRight');
