@@ -44,6 +44,7 @@ import * as Tooltip from '@/components/ui/tooltip';
 import * as useDebouncedValue from '@/hooks/use-debounced-value';
 import * as useEditorFontFamily from '@/hooks/use-editor-font-family';
 import * as useFocusOnRevision from '@/hooks/use-focus-on-revision';
+import * as useIsOverflowing from '@/hooks/use-is-overflowing';
 import * as useNow from '@/hooks/use-now';
 import * as useOnVisible from '@/hooks/use-on-visible';
 import * as usePointerDragResize from '@/hooks/use-pointer-drag-resize';
@@ -91,6 +92,7 @@ export default {
     '@/hooks/use-debounced-value': useDebouncedValue,
     '@/hooks/use-editor-font-family': useEditorFontFamily,
     '@/hooks/use-focus-on-revision': useFocusOnRevision,
+    '@/hooks/use-is-overflowing': useIsOverflowing,
     '@/hooks/use-now': useNow,
     '@/hooks/use-on-visible': useOnVisible,
     '@/hooks/use-pointer-drag-resize': usePointerDragResize,
