@@ -529,14 +529,18 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
             expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(1);
         };
         assertAligned(
-            await alignedBottoms('.primary-sidebar-title', '.work-tabs', '.secondary-sidebar-tabs'),
+            await alignedBottoms(
+                '.primary-sidebar-title',
+                '.work-tabs',
+                '[role="tablist"][aria-label="Secondary Side Bar"]',
+            ),
         );
         await running.page.keyboard.press('Meta+[');
         assertAligned(
             await alignedBottoms(
                 '.collapsed-primary-sidebar-titlebar',
                 '.work-tabs',
-                '.secondary-sidebar-tabs',
+                '[role="tablist"][aria-label="Secondary Side Bar"]',
             ),
         );
         await running.page.keyboard.press('Meta+[');
@@ -760,11 +764,11 @@ test('primarySidebar omits Settings and Search while shortcuts and app menu keep
         const menuItems = await running.app.evaluate(({ Menu }) => {
             const menu = Menu.getApplicationMenu();
             return [
-                'command.primary-sidebar.toggle',
-                'command.secondary-sidebar.toggle',
+                'command.primarySidebar.toggle',
+                'command.secondarySidebar.toggle',
                 'command.settings.open',
                 'command.commandPalette.open',
-                'command.secondary-sidebar.searchFiles',
+                'command.secondarySidebar.searchFiles',
                 'command.workbench.closeActiveTab',
             ].map((id) => {
                 const item = menu?.getMenuItemById(id);
@@ -772,11 +776,11 @@ test('primarySidebar omits Settings and Search while shortcuts and app menu keep
             });
         });
         expect(menuItems).toEqual([
-            { accelerator: 'Command+[', id: 'command.primary-sidebar.toggle' },
-            { accelerator: 'Command+]', id: 'command.secondary-sidebar.toggle' },
+            { accelerator: 'Command+[', id: 'command.primarySidebar.toggle' },
+            { accelerator: 'Command+]', id: 'command.secondarySidebar.toggle' },
             { accelerator: 'Command+,', id: 'command.settings.open' },
             { accelerator: 'Command+Shift+P', id: 'command.commandPalette.open' },
-            { accelerator: 'Command+Shift+F', id: 'command.secondary-sidebar.searchFiles' },
+            { accelerator: 'Command+Shift+F', id: 'command.secondarySidebar.searchFiles' },
             { accelerator: 'Command+W', id: 'command.workbench.closeActiveTab' },
         ]);
     } finally {
