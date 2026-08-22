@@ -279,9 +279,11 @@ describe('executeCommand', () => {
                         {
                             sessionId: 'session-1',
                             workbenchProjectId: 'project-1',
-                            openTabs: [],
                             desiredSecondarySidebarViewContainerId: 'caxri.files',
-                            layout: {},
+                            paneLayout: {
+                                root: { type: 'pane', id: 'pane-1', tabs: [] },
+                                activePaneId: 'pane-1',
+                            },
                         },
                     ],
                 } as unknown as BootstrapState,

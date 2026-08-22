@@ -4,29 +4,20 @@ import { useEffect, useRef, useState } from 'react';
 import { pathBasename } from '@caxri/utils';
 import { agentTranscriptTabLabel, parseAgentTranscriptTab } from '@shared/agent-transcript';
 import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
-import { paneTabIdsToClose } from '@shared/pane-layout';
 import { terminalDisplayTitle, terminalTabLabel } from '@shared/terminal-title';
 import type { PaneNode, PaneTab, TerminalRecord } from '@shared/types';
 import { CircleAlert, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
 import { Button } from '../../components/ui/button';
-import {
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
-} from '../../components/ui/context-menu';
+import { ContextMenuItem } from '../../components/ui/context-menu';
 import { Spinner } from '../../components/ui/spinner';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSelectedSession, useSessionState, useTerminal } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
-import {
-    closeDocumentTabFamily,
-    closeDocumentTabs,
-    pinDocumentTab,
-} from '../editor/document-actions';
+import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
 import {
     sessionActivityPresentation,
     sessionToneBackgroundClassName,
@@ -41,8 +32,9 @@ import {
     terminalProgressLabel,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
-import { movePaneTab, selectPaneTab, splitPaneTab } from './pane-actions';
+import { movePaneTab, selectPaneTab } from './pane-actions';
 import { PANE_TAB_DRAG_TYPE, resolveTabDropIndex } from './pane-drop-zone';
+import { PaneTabMenu } from './pane-tab-menu';
 
 function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
     return event.dataTransfer.types.includes(PANE_TAB_DRAG_TYPE);
@@ -85,10 +77,12 @@ function TerminalPaneTab({
     active,
     isOnlySessionTerminal,
     onNavigate,
+    paneId,
     showActiveAccent,
     tab,
     terminal,
 }: PaneTabProperties & { isOnlySessionTerminal: boolean; terminal: TerminalRecord }) {
+    const paneLayout = useSessionState()?.paneLayout;
     const progress = useTerminalProgress(terminal.id);
     const isCompacting = terminal.agentOperation === 'compacting';
     const ProgressIcon =
@@ -160,19 +154,26 @@ function TerminalPaneTab({
             }}
             onSelect={() => selectPaneTab(tab.id)}
             contextMenu={
-                <ContextMenuContent>
-                    <ContextMenuItem
-                        disabledReason={
-                            isOnlySessionTerminal
-                                ? 'This is the only tab open in this session'
-                                : undefined
-                        }
-                        disabled={isOnlySessionTerminal}
-                        onClick={() => moveTerminalToNewSession(terminal.id, isOnlySessionTerminal)}
-                    >
-                        Move to New Session
-                    </ContextMenuItem>
-                </ContextMenuContent>
+                <PaneTabMenu
+                    paneId={paneId}
+                    paneLayout={paneLayout}
+                    tabId={tab.id}
+                    resourceItems={
+                        <ContextMenuItem
+                            disabledReason={
+                                isOnlySessionTerminal
+                                    ? 'This is the only tab open in this session'
+                                    : undefined
+                            }
+                            disabled={isOnlySessionTerminal}
+                            onClick={() =>
+                                moveTerminalToNewSession(terminal.id, isOnlySessionTerminal)
+                            }
+                        >
+                            Move to New Session
+                        </ContextMenuItem>
+                    }
+                />
             }
         />
     );
@@ -262,50 +263,7 @@ function DocumentPaneTab({
                 onNavigate(event.key as WorkTabNavigationKey);
             }}
             onSelect={() => selectPaneTab(tab.id)}
-            contextMenu={
-                <ContextMenuContent>
-                    {(['one', 'others', 'right', 'all'] as const).map((mode) => {
-                        const family = paneLayout
-                            ? paneTabIdsToClose(paneLayout, tab.id, mode)
-                            : [];
-                        return (
-                            <ContextMenuItem
-                                key={mode}
-                                disabled={family.length === 0}
-                                onClick={() => {
-                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, closeDocumentTabFamily() reports its own errors
-                                    void closeDocumentTabFamily(tab.id, mode);
-                                }}
-                            >
-                                {
-                                    {
-                                        one: 'Close',
-                                        others: 'Close Others',
-                                        right: 'Close to the Right',
-                                        all: 'Close All',
-                                    }[mode]
-                                }
-                            </ContextMenuItem>
-                        );
-                    })}
-                    <ContextMenuSeparator />
-                    {(['left', 'right', 'up', 'down'] as const).map((side) => (
-                        <ContextMenuItem
-                            key={side}
-                            onClick={() => splitPaneTab(tab.id, paneId, side)}
-                        >
-                            {
-                                {
-                                    left: 'Split Left',
-                                    right: 'Split Right',
-                                    up: 'Split Up',
-                                    down: 'Split Down',
-                                }[side]
-                            }
-                        </ContextMenuItem>
-                    ))}
-                </ContextMenuContent>
-            }
+            contextMenu={<PaneTabMenu paneId={paneId} paneLayout={paneLayout} tabId={tab.id} />}
             preview={tab.preview}
         />
     );
