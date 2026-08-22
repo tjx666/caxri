@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent } from '../../shared/ipc';
 import { StructuredLogger } from '../../shared/node/logger';
-import { listLayoutTerminalIds } from '../../shared/terminal-layout';
+import { listPaneTerminalIds } from '../../shared/pane-layout';
 import { createRuntime } from '../bootstrap';
 import { CaxriDatabase } from '../db/repository';
 import { GitService } from '../git';
@@ -735,7 +735,7 @@ describe('Session state recovery', () => {
 
         const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
         direct.database
-            .prepare('UPDATE session_state SET layout_json = ? WHERE session_id = ?')
+            .prepare('UPDATE session_state SET workbench_state_json = ? WHERE session_id = ?')
             .run('{', created.session.id);
         direct.close();
 
@@ -746,8 +746,10 @@ describe('Session state recovery', () => {
             const repaired = bootstrap.sessionStates.find(
                 (state) => state.sessionId === created.session.id,
             );
-            expect(repaired).toMatchObject({ openTabs: [], inspectorMode: 'files' });
-            expect(listLayoutTerminalIds(repaired?.layout ?? {})).toEqual([created.terminal!.id]);
+            expect(repaired).toMatchObject({ inspectorMode: 'files' });
+            expect(repaired && listPaneTerminalIds(repaired.paneLayout)).toEqual([
+                created.terminal!.id,
+            ]);
 
             const records = (await readFile(logger.path, 'utf8'))
                 .trim()

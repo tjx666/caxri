@@ -178,7 +178,7 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         await running.page.getByRole('button', { name: 'New Terminal' }).click();
         const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
-        await expect(running.page.locator('.terminal-group')).toHaveCount(2);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
         const secondSurface = running.page.locator(
             `.terminal-pane[data-terminal-id="${secondTerminalId}"] .terminal-surface`,
         );
@@ -205,7 +205,7 @@ test('inline images render real pixels, enforce budgets, and restore as content-
                 Number(await surface.getAttribute('data-terminal-image-global-storage-mb')),
             )
             .toBeLessThan(globalStorageBeforeClose);
-        await expect(running.page.locator('.terminal-group')).toHaveCount(1);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
 
         await createAdditionalShellSession(running.page);
         await sessionCard(running.page, firstSessionId).click();

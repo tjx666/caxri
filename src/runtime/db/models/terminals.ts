@@ -24,7 +24,6 @@ interface TerminalRow {
     title: string;
     icon: string;
     orderIndex: number;
-    layoutNodeId: string;
     agentSessionId: string | null;
     lastProcessState: string;
     failureReason: string | null;
@@ -42,7 +41,6 @@ function mapTerminal(row: TerminalRow): TerminalRecord {
         title: row.title,
         icon: row.icon,
         orderIndex: row.orderIndex,
-        layoutNodeId: row.layoutNodeId,
         agentSessionId: row.agentSessionId ?? undefined,
         lastProcessState: row.lastProcessState as ProcessState,
         failureReason: (row.failureReason as TerminalFailureReason | null) ?? undefined,
@@ -127,7 +125,6 @@ export class TerminalsModel {
                 title: input.title,
                 icon: input.kind,
                 orderIndex,
-                layoutNodeId: randomUUID(),
                 lastProcessState: 'starting',
                 createdAt: now,
                 updatedAt: now,

@@ -29,7 +29,6 @@ import {
     defaultTerminalTitle,
     processActivityState,
     selectFallbackAfterDeletion,
-    withTerminalRemovedFromLayout,
 } from '../session-policy';
 import type { CaxriDatabaseConnectionOptions as CaxriDatabaseOptions } from './index';
 import {
@@ -89,6 +88,7 @@ export class CaxriDatabase {
         });
         const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
         if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
+        this.db.sessions.addTerminalToAllRootStates(sessionId, terminal.id);
         return terminal;
     }
 
@@ -482,8 +482,7 @@ export class CaxriDatabase {
                 const succession = choosePrimaryAgentSuccessor(remaining, sourceSession);
                 this.db.sessions.setPrimaryAgent(sourceSession.id, succession);
             }
-            const sourceState = this.db.sessions.getState(sourceSession.id);
-            this.db.sessions.updateState(withTerminalRemovedFromLayout(sourceState, terminalId));
+            this.db.sessions.removeTerminalFromAllRootStates(sourceSession.id, terminalId);
 
             // New Session bootstrap, mirroring `createSession`.
             const assignment = choosePrimaryAgentForNewTerminal(newSession, movedTerminal);
@@ -674,8 +673,7 @@ export class CaxriDatabase {
                 const succession = choosePrimaryAgentSuccessor(remaining, session);
                 this.db.sessions.setPrimaryAgent(terminal.sessionId, succession);
             }
-            const state = this.db.sessions.getState(terminal.sessionId);
-            this.db.sessions.updateState(withTerminalRemovedFromLayout(state, id));
+            this.db.sessions.removeTerminalFromAllRootStates(terminal.sessionId, id);
         });
     }
 

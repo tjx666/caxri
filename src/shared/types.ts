@@ -83,14 +83,10 @@ export {
     type WorkbenchRootOption,
 } from './ipc';
 export type {
-    EditorGroupNode,
-    EditorLayout,
-    EditorLayoutNode,
-    EditorSplitNode,
-} from './ipc/editor-layout';
-export type {
-    TerminalGroupNode,
-    TerminalLayout,
-    TerminalLayoutNode,
-    TerminalSplitNode,
-} from './ipc/layout';
+    PaneLayout,
+    PaneLayoutNode,
+    PaneNode,
+    PaneResource,
+    PaneSplitNode,
+    PaneTab,
+} from './ipc/pane-layout';

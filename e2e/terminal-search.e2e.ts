@@ -44,7 +44,7 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         await expect(search).toContainText('1/4');
 
         const decorations = running.page.locator(
-            '.terminal-group.active .xterm-decoration-container .xterm-decoration:not(.terminal-command-decoration)',
+            '.workbench-pane.active .xterm-decoration-container .xterm-decoration:not(.terminal-command-decoration)',
         );
         /**
          * SearchAddon renders one decoration per match plus a top-layer active-match overlay; shell-integration status

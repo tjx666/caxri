@@ -1,10 +1,9 @@
 import './definitions';
 
 import type { CommandId } from '@shared/commands';
-import { canSplitEditorPath, findPathGroupId, sessionEditorLayout } from '@shared/editor-layout';
+import { listPanes } from '@shared/pane-layout';
 
-import { closeEditor, saveActiveEditor } from '../features/editor/document-actions';
-import { splitEditorTabTo } from '../features/editor/editor-layout-actions';
+import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
 import {
     closeFileSearch,
     requestFileSearchFocus,
@@ -21,7 +20,7 @@ import {
     selectAdjacentSession,
     switchMruSession,
 } from '../features/session/session-actions';
-import { cycleActiveWork } from '../features/tabs/tab-navigation';
+import { cycleActiveTab } from '../features/tabs/tab-navigation';
 import {
     clearActiveTerminal,
     closeTerminal,
@@ -35,17 +34,18 @@ import {
     startNewAgentSession,
 } from '../features/terminal/terminal-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
+import {
+    getActivePaneId,
+    getActivePaneTab,
+    getPaneLayout,
+    splitPaneTab,
+} from '../features/workbench/pane-actions';
 import { caxri } from '../lib/caxri';
 import { isEditableEventTarget } from '../lib/keybindings';
 import { useDialogStore } from '../stores/dialogs';
 import { usePanelLayoutStore } from '../stores/panel-layout';
-import {
-    getBootstrap,
-    getSelectedSession,
-    getSessionState,
-    selectSelectedProject,
-} from '../stores/selectors';
-import { getResolvedActiveWork, useSessionViewStore } from '../stores/session-view';
+import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';
+import { useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
 import type { CommandContext } from './registry';
 import { getRegisteredCommand } from './registry';
@@ -53,8 +53,8 @@ import { getRegisteredCommand } from './registry';
 export type { CommandContext } from './registry';
 
 function activeTerminalId(): string | undefined {
-    const active = getResolvedActiveWork();
-    return active?.kind === 'terminal' ? active.terminalId : undefined;
+    const resource = getActivePaneTab()?.resource;
+    return resource?.kind === 'terminal' ? resource.terminalId : undefined;
 }
 
 function activeAgentTerminal() {
@@ -65,17 +65,13 @@ function activeAgentTerminal() {
 }
 
 /**
- * Resolves the active Editor tab's path together with the split-layout group that currently owns it. Both the
- * `editor.split*` commands' `when` gate and their `run` handler need this pair, so it is computed once here rather than
- * duplicating the `sessionEditorLayout`/`findPathGroupId` lookup in each.
+ * The active pane's tab together with the pane holding it — the target of every command that splits or closes "the
+ * current tab", whatever kind it holds.
  */
-function activeEditorSplitTarget(): { groupId: string; path: string } | undefined {
-    const active = getResolvedActiveWork();
-    if (active?.kind !== 'editor') return undefined;
-    const session = getSessionState();
-    if (!session) return undefined;
-    const groupId = findPathGroupId(sessionEditorLayout(session), active.path);
-    return groupId ? { groupId, path: active.path } : undefined;
+function activePaneTarget(): { paneId: string; tabId: string } | undefined {
+    const paneId = getActivePaneId();
+    const tab = getActivePaneTab();
+    return paneId && tab ? { paneId, tabId: tab.id } : undefined;
 }
 
 /**
@@ -187,28 +183,31 @@ const commandContext: CommandContext = {
     },
     workbench: {
         closeActiveTab: () => {
-            const active = getResolvedActiveWork();
-            if (active?.kind === 'terminal') closeTerminal(active.terminalId);
+            const tab = getActivePaneTab();
+            if (tab?.resource.kind === 'terminal') closeTerminal(tab.resource.terminalId);
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            else if (active?.kind === 'editor') void closeEditor(active.path);
+            else if (tab) void closeDocumentTabs([tab.id]);
         },
-        cycleTab: cycleActiveWork,
+        cycleTab: cycleActiveTab,
+        /**
+         * Splitting is a pane operation, so it is offered for a Terminal tab exactly as it is for a document: the two
+         * differ only in what the new pane renders.
+         */
+        canSplitActive: () => {
+            const layout = getPaneLayout();
+            const target = activePaneTarget();
+            if (!layout || !target) return false;
+            const pane = listPanes(layout).find((candidate) => candidate.id === target.paneId);
+            return (pane?.tabs.length ?? 0) > 1;
+        },
+        splitActive: (direction) => {
+            const target = activePaneTarget();
+            if (target) splitPaneTab(target.tabId, target.paneId, direction);
+        },
     },
     editor: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         saveActive: () => void saveActiveEditor(),
-        canSplitActive: () => {
-            const target = activeEditorSplitTarget();
-            if (!target) return false;
-            const session = getSessionState();
-            return Boolean(
-                session && canSplitEditorPath(sessionEditorLayout(session), target.groupId),
-            );
-        },
-        splitActive: (direction) => {
-            const target = activeEditorSplitTarget();
-            if (target) splitEditorTabTo(target.path, target.groupId, direction);
-        },
     },
     inspector: {
         searchFiles: () => {

@@ -53,7 +53,6 @@ function terminal(
         title: kind,
         icon: kind,
         orderIndex,
-        layoutNodeId: `${id}-layout`,
         lastProcessState: 'stopped',
         createdAt: 1,
         updatedAt: 1,

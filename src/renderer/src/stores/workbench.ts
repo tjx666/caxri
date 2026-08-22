@@ -1,5 +1,4 @@
 import { agentProviderCatalog } from '@shared/agents';
-import { reconcileEditorTabDirtiness, withoutEditorTabDirtiness } from '@shared/editor-state';
 import { assertNever } from '@shared/ipc';
 import type { RuntimeEvent } from '@shared/ipc/events';
 import type {
@@ -66,19 +65,26 @@ const pendingSessionRecordIds = new Set<string>();
 const pendingTerminalRecordIds = new Set<string>();
 const configErrors = { reported: false };
 const sessionPatchRevision = { current: 0 };
-const pendingSessionPatches = new Map<string, { revision: number; state: SessionState }>();
 /**
- * Monotonic count of completed `session.updateState` writes. Each bootstrap read records the count before issuing the
- * request so `applyPendingSessionPatches` can tell whether the returned snapshot may predate a since-completed write.
+ * Monotonic count of `session.updateState` requests issued so far. Stamped on a write when it is _sent_, not when it
+ * resolves: over a single serialized Runtime connection, any read issued after that point is guaranteed to observe the
+ * write once it lands, regardless of which of the two responses comes back first. Comparing against resolution time
+ * instead (as this used to) made a read whose response simply arrived first look "older" than a write it actually
+ * postdated, so a `state.changed`-triggered refresh for an unrelated later mutation (e.g. closing a Terminal) could be
+ * discarded in favor of a stale pre-mutation snapshot that never actually raced it.
  */
-const sessionStateWrites = { completed: 0 };
+const sessionStateWrites = { sent: 0 };
+const pendingSessionPatches = new Map<
+    string,
+    { revision: number; retained?: boolean; sendStamp: number; state: SessionState }
+>();
 /**
- * The latest Session state whose `session.updateState` completed, kept until a bootstrap read that started after the
- * write proves the Runtime snapshot includes it. `pendingSessionPatches` only shields the in-flight window; without
- * this map a snapshot read issued before the write but resolved after it would silently roll the UI back (observed as a
- * Terminal split collapsing right after the drop persisted).
+ * The latest Session state whose `session.updateState` completed, kept until a bootstrap read issued after the write
+ * proves the Runtime snapshot includes it. `pendingSessionPatches` only shields the in-flight window; without this map
+ * a snapshot read issued before the write but resolved after it would silently roll the UI back (observed as a Terminal
+ * split collapsing right after the drop persisted).
  */
-const persistedSessionPatches = new Map<string, { writeStamp: number; state: SessionState }>();
+const persistedSessionPatches = new Map<string, { sendStamp: number; state: SessionState }>();
 
 function sessionPatchKey(state: Pick<SessionState, 'sessionId' | 'workbenchProjectId'>): string {
     return `${state.sessionId}\0${state.workbenchProjectId}`;
@@ -112,7 +118,13 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         sessionPatchRevision.current += 1;
         const revision = sessionPatchRevision.current;
         const patchKey = sessionPatchKey(next);
-        pendingSessionPatches.set(patchKey, { revision, state: next });
+        /**
+         * Stamped now, at send time, so a bootstrap read issued after this line — even one that resolves before this
+         * request does — is correctly recognized as observing (or postdating) this write once it lands.
+         */
+        sessionStateWrites.sent += 1;
+        const sendStamp = sessionStateWrites.sent;
+        pendingSessionPatches.set(patchKey, { revision, sendStamp, state: next });
         set({
             bootstrap: {
                 ...bootstrap,
@@ -129,13 +141,9 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 pendingSessionPatches.delete(patchKey);
         };
         try {
-            await caxri.request('session.updateState', withoutEditorTabDirtiness(next));
-            sessionStateWrites.completed += 1;
+            await caxri.request('session.updateState', next);
             if (pendingSessionPatches.get(patchKey)?.revision === revision)
-                persistedSessionPatches.set(patchKey, {
-                    writeStamp: sessionStateWrites.completed,
-                    state: next,
-                });
+                persistedSessionPatches.set(patchKey, { sendStamp, state: next });
             finish();
             return true;
         } catch (error: unknown) {
@@ -148,7 +156,12 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
              * shields it from stale bootstrap reads until retry replaces this revision and eventually persists it.
              */
             const isRetainLatest = isLatestRevision && failureMode === 'retain';
-            if (!isRetainLatest) finish();
+            if (isRetainLatest) {
+                const pending = pendingSessionPatches.get(patchKey);
+                if (pending) pending.retained = true;
+            } else {
+                finish();
+            }
             const visibleState = get().bootstrap?.sessionStates.find(
                 (state) => state.sessionId === next.sessionId,
             );
@@ -183,40 +196,29 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
  * jump backwards.
  */
 function applyPendingSessionPatches(state: BootstrapState, readStamp: number): BootstrapState {
-    // A read issued after a write completed observes it (Runtime serializes both), so the snapshot
-    // is authoritative for that Session again and the persisted overlay can retire.
+    // A read issued after a write was sent observes it once it lands (Runtime serializes requests in
+    // arrival order), so the snapshot is authoritative for that Session again and the persisted overlay
+    // can retire.
     for (const [key, entry] of persistedSessionPatches)
-        if (entry.writeStamp <= readStamp) persistedSessionPatches.delete(key);
+        if (entry.sendStamp <= readStamp) persistedSessionPatches.delete(key);
     if (pendingSessionPatches.size === 0 && persistedSessionPatches.size === 0) return state;
     const sessionStates = state.sessionStates.map((sessionState) => {
         const key = sessionPatchKey(sessionState);
-        return (
-            pendingSessionPatches.get(key)?.state ??
-            persistedSessionPatches.get(key)?.state ??
-            sessionState
-        );
+        const pending = pendingSessionPatches.get(key);
+        if (pending && (pending.retained || pending.sendStamp > readStamp)) return pending.state;
+        const persisted = persistedSessionPatches.get(key);
+        if (persisted && persisted.sendStamp > readStamp) return persisted.state;
+        return sessionState;
     });
     return { ...state, sessionStates };
 }
 
-async function applySnapshot(state: BootstrapState, readStamp: number): Promise<void> {
-    /**
-     * Dynamic import avoids a static store cycle: `session-view` uses this module to persist UI state.
-     */
-    const { sessionViewScope, useSessionViewStore } = await import('./session-view');
-    const documents = useSessionViewStore.getState().documents;
-    const pending = applyPendingSessionPatches(state, readStamp);
-    const current = {
-        ...pending,
-        sessionStates: pending.sessionStates.map((sessionState) =>
-            reconcileEditorTabDirtiness(
-                sessionState,
-                documents[
-                    sessionViewScope(sessionState.sessionId, sessionState.workbenchProjectId)
-                ],
-            ),
-        ),
-    };
+/**
+ * Dirtiness is no longer mirrored into the persisted Session state: an unsaved buffer lives only in the Renderer's
+ * document cache, so a Runtime snapshot can be applied as is.
+ */
+function applySnapshot(state: BootstrapState, readStamp: number): void {
+    const current = applyPendingSessionPatches(state, readStamp);
     useWorkbenchStore.setState((previous) => ({
         bootstrap: mergeStructurally(previous.bootstrap, current),
     }));
@@ -310,9 +312,9 @@ function applyStateChange(
 
 async function runLoadBootstrap(): Promise<void> {
     try {
-        const readStamp = sessionStateWrites.completed;
+        const readStamp = sessionStateWrites.sent;
         const state = await caxri.request('app.bootstrap');
-        await applySnapshot(state, readStamp);
+        applySnapshot(state, readStamp);
     } catch (error: unknown) {
         pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
     } finally {

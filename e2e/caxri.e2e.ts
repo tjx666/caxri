@@ -19,6 +19,7 @@ import {
     typeTerminal,
     waitForRuntimeReady,
 } from './support/helpers.ts';
+import { stableWidth } from './support/motion-settle.ts';
 
 test('bundles the default terminal typeface and Nerd Font symbols', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-font-e2e-'));
@@ -119,9 +120,10 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
 
         const firstTab = terminalTabs.first();
         const close = firstTab.getByRole('button', { name: 'Close Terminal' });
-        const widthBeforeHover = await firstTab.evaluate(
-            (element) => element.getBoundingClientRect().width,
-        );
+        // The second tab's Motion entrance transition (`initial: { maxWidth: 0 }` in `work-tab.tsx`) still shrinks the
+        // first tab's `flex-1 basis-0` share while it plays, so a bare read right after the tab count updates can pin
+        // a stale, mid-animation baseline. Wait for it to settle before comparing against the post-hover width.
+        const widthBeforeHover = await stableWidth(firstTab);
         await expect(close).toHaveCSS('opacity', '0');
         await firstTab.hover();
         await expect(close).toHaveCSS('opacity', '1');
@@ -563,10 +565,6 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
 });
 
 test('removing a Project deletes only Caxri metadata', async () => {
-    allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 2 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 2 },
-    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-remove-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');

@@ -158,18 +158,19 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     fromCatalog('editor.save', (context) => context.editor.saveActive(), { allowInEditable: true }),
-    fromCatalog('editor.splitLeft', (context) => context.editor.splitActive('left'), {
-        when: (context) => context.editor.canSplitActive(),
-    }),
-    fromCatalog('editor.splitRight', (context) => context.editor.splitActive('right'), {
-        when: (context) => context.editor.canSplitActive(),
-    }),
-    fromCatalog('editor.splitUp', (context) => context.editor.splitActive('up'), {
-        when: (context) => context.editor.canSplitActive(),
-    }),
-    fromCatalog('editor.splitDown', (context) => context.editor.splitActive('down'), {
-        when: (context) => context.editor.canSplitActive(),
-    }),
+    // A split is a pane operation, so the direction only chooses the split axis and which side the new pane takes.
+    ...(
+        [
+            ['workbench.splitLeft', 'left'],
+            ['workbench.splitRight', 'right'],
+            ['workbench.splitUp', 'up'],
+            ['workbench.splitDown', 'down'],
+        ] as const
+    ).map(([id, side]) =>
+        fromCatalog(id, (context) => context.workbench.splitActive(side), {
+            when: (context) => context.workbench.canSplitActive(),
+        }),
+    ),
     ...inspectorModeRegistrations.map(({ commandId, mode }) =>
         fromCatalog(commandId, (context) => context.inspector.activateMode(mode)),
     ),

@@ -6,6 +6,7 @@ import process from 'node:process';
 
 import { agentProviderCatalog } from '../shared/agents';
 import { CaxriError, errorMessage } from '../shared/ipc/errors';
+import { visiblePaneTerminalIds } from '../shared/pane-layout';
 import type {
     AgentProvider,
     BootstrapState,
@@ -13,7 +14,6 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '../shared/types';
-import { resolveActiveWork } from '../shared/work-item';
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import {
     AgentCoordinator,
@@ -337,12 +337,11 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
      */
     async function restoreInterruptedTerminals(sessionId: string): Promise<void> {
         const sessionTerminals = database.listTerminals(sessionId);
-        const activeWork = resolveActiveWork({
-            sessionState: database.getSessionState(sessionId),
-            sessionTerminals,
-        });
-        const visibleTerminalId =
-            activeWork?.kind === 'terminal' ? activeWork.terminalId : undefined;
+        // Every pane shows its own active tab, so more than one Terminal can be on screen at once; each of them waits
+        // for the attached grid size before replaying, which an off-screen Terminal has no reason to do.
+        const visibleTerminalIds = new Set(
+            visiblePaneTerminalIds(database.getSessionState(sessionId).paneLayout),
+        );
         const interrupted = sessionTerminals.filter(
             (terminal) => terminal.lastProcessState === 'interrupted',
         );
@@ -361,11 +360,10 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                         resumeAgentSessionId,
                         shouldStart: isCurrent,
                         abortSignal,
-                        waitForAttachedSizeMs:
-                            terminal.id === visibleTerminalId
-                                ? (dependencies.terminalRestoreGridWaitMs ??
-                                  VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS)
-                                : undefined,
+                        waitForAttachedSizeMs: visibleTerminalIds.has(terminal.id)
+                            ? (dependencies.terminalRestoreGridWaitMs ??
+                              VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS)
+                            : undefined,
                     });
                     if (restarted.lastProcessState !== 'running') return false;
                 } catch {

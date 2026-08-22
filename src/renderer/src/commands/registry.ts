@@ -42,16 +42,17 @@ export interface CommandContext {
         startNewAgentSession(): void;
         closeActive(): void;
     };
-    workbench: { closeActiveTab(): void; cycleTab(delta: 1 | -1): void };
-    editor: {
-        saveActive(): void;
+    workbench: {
+        closeActiveTab(): void;
+        cycleTab(delta: 1 | -1): void;
         /**
-         * True only when the active work item is an Editor tab whose owning split group can grow (not a single-tab
-         * group showing only that path). Matches the split commands' `when` gate.
+         * True only when the active pane holds more than one tab, since splitting the last tab out of a pane would
+         * leave that pane empty. Matches the split commands' `when` gate.
          */
         canSplitActive(): boolean;
-        splitActive(direction: 'left' | 'right' | 'up' | 'down'): void;
+        splitActive(side: 'down' | 'left' | 'right' | 'up'): void;
     };
+    editor: { saveActive(): void };
     inspector: { searchFiles(): void; activateMode(mode: InspectorMode): void; toggle(): void };
     bottomPanel: { activateView(view: BottomPanelView): void; toggle(): void };
     sidebar: { toggle(): void };

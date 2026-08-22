@@ -28,7 +28,7 @@ const cachedPaths = (sessionId: string): string[] =>
 
 describe('Session document cache', () => {
     beforeEach(() => {
-        useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
+        useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
         useWorkbenchStore.setState({ bootstrap: undefined });
     });
 

@@ -406,7 +406,7 @@ export function revealFile(sessionId: string, path: string): Promise<void | unde
 }
 
 export function openFileInTerminal(directory: string): Promise<void> {
-    return createTerminal('shell', false, directory);
+    return createTerminal('shell', { cwd: directory });
 }
 
 export function copyFilePath(path: string, projectRoot?: string): Promise<void | undefined> {

@@ -5,12 +5,16 @@ import { and, asc, eq, lt, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
-import { deriveDefaultEditorLayout, remapEditorLayoutPaths } from '../../../shared/editor-layout';
-import { withoutEditorTabDirtiness } from '../../../shared/editor-state';
 import { inspectorModeSchema } from '../../../shared/inspector';
 import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { CaxriError } from '../../../shared/ipc/errors';
-import { createTerminalLayout } from '../../../shared/terminal-layout';
+import {
+    addPaneTerminalSilently,
+    createPaneLayout,
+    openResource,
+    remapPaneLayoutPaths,
+    removePaneTerminal,
+} from '../../../shared/pane-layout';
 import type {
     AgentActivityState,
     SessionAttentionKind,
@@ -107,19 +111,17 @@ interface SessionStateRow {
     projectId: string;
     workbenchProjectId: string | null;
     stateVersion: number;
-    openTabsJson: string;
-    activeTabJson: string | null;
-    editorRemapOperationId: string | null;
     workbenchStateJson: string;
     inspectorMode: string;
-    layoutJson: string;
 }
 
+/**
+ * One Workbench Root's durable snapshot. Terminal processes are Session-global; only their placement lives here, so
+ * switching Root restores a different arrangement of the same Terminals without restarting anything.
+ */
 const workbenchEditorStateSchema = z.object({
-    openTabs: sessionStateSchema.shape.openTabs,
-    activeTab: sessionStateSchema.shape.activeTab,
     editorRemapOperationId: sessionStateSchema.shape.editorRemapOperationId,
-    editorLayout: sessionStateSchema.shape.editorLayout,
+    paneLayout: sessionStateSchema.shape.paneLayout,
 });
 const workbenchEditorStatesSchema = z
     .record(z.string().min(1).max(200), workbenchEditorStateSchema)
@@ -138,8 +140,8 @@ function parseWorkbenchEditorStates(source: string): WorkbenchEditorStates | und
 }
 
 /**
- * Remaps one stored editor path after a Project root move. Note the parallel implementation for the `editorLayout`
- * tree: `remapEditorLayoutPaths` in `src/shared/editor-layout.ts` does a pure string-prefix rewrite (browser-safe, no
+ * Remaps one stored editor path after a Project root move. Note the parallel implementation for the `paneLayout` tree:
+ * `remapPaneLayoutPaths` in `src/shared/pane-layout.ts` does a pure string-prefix rewrite (browser-safe, no
  * `node:path`), while this one uses `relative`/`resolve`. Both agree for Caxri's canonical absolute POSIX-style paths;
  * if either ever needs to handle non-canonical input, change both together.
  */
@@ -168,64 +170,36 @@ function normalizeInspectorMode(value: string): string {
     return inspectorModeSchema.safeParse(value).success ? value : 'files';
 }
 
+/**
+ * `fallbackPaneLayout` covers a Workbench Root the Session has never arranged: the row itself is healthy, so this is an
+ * ordinary first visit rather than a repair.
+ */
 function parseSessionState(
     row: SessionStateRow,
+    fallbackPaneLayout: () => SessionState['paneLayout'],
 ): { state: SessionState } | { reason: SessionStateRepair['reason'] } {
     if (row.stateVersion !== CURRENT_SESSION_STATE_VERSION)
         return { reason: 'unsupported_version' };
-    let layout: unknown;
-    let legacyOpenTabs: unknown;
-    let legacyActiveTab: unknown;
     let workbenchStatesSource: unknown;
     try {
-        layout = JSON.parse(row.layoutJson) as unknown;
-        legacyOpenTabs = JSON.parse(row.openTabsJson) as unknown;
-        legacyActiveTab = row.activeTabJson
-            ? (JSON.parse(row.activeTabJson) as unknown)
-            : undefined;
         workbenchStatesSource = JSON.parse(row.workbenchStateJson) as unknown;
     } catch {
         return { reason: 'invalid_json' };
     }
-    const workbenchStatesResult = workbenchEditorStatesSchema.safeParse(workbenchStatesSource);
-    const activeTabResult = sessionStateSchema.shape.activeTab.safeParse(legacyActiveTab);
-    if (!workbenchStatesResult.success || !activeTabResult.success)
-        return { reason: 'invalid_shape' };
+    const workbenchStates = workbenchEditorStatesSchema.safeParse(workbenchStatesSource);
+    if (!workbenchStates.success) return { reason: 'invalid_shape' };
     const workbenchProjectId = row.workbenchProjectId ?? row.projectId;
     // `z.record`'s inferred value type promises every key is present; cast through the `Partial`
     // alias so the lookup below is correctly typed as possibly missing.
-    const workbenchStates: WorkbenchEditorStates = workbenchStatesResult.data;
-    const rootState = workbenchStates[workbenchProjectId];
-    const isLegacyOwnerState = workbenchProjectId === row.projectId && !rootState;
-    const activeTab = activeTabResult.data;
-    const resolvedOpenTabs = rootState?.openTabs ?? (isLegacyOwnerState ? legacyOpenTabs : []);
-    const resolvedActiveTab =
-        rootState?.activeTab ??
-        ((isLegacyOwnerState && activeTab?.kind === 'editor') || activeTab?.kind === 'terminal'
-            ? activeTab
-            : undefined);
-    // See `normalizeInspectorMode`: a retired Inspector mode must not cost the Session its tabs and layout.
-    // `editorLayout` is additive state introduced after `openTabs`/`activeTab` already existed, so a row
-    // persisted before this feature (or a Workbench Root that never wrote one) has no stored tree yet. Derive a
-    // single-group default from the legacy tab list instead of bumping `CURRENT_SESSION_STATE_VERSION`, which
-    // would otherwise mark every pre-existing row `unsupported_version`.
-    const openTabsParsed = sessionStateSchema.shape.openTabs.safeParse(resolvedOpenTabs);
-    const editorLayout =
-        rootState?.editorLayout ??
-        (openTabsParsed.success
-            ? deriveDefaultEditorLayout(openTabsParsed.data, resolvedActiveTab)
-            : undefined);
+    const states: WorkbenchEditorStates = workbenchStates.data;
+    const rootState = states[workbenchProjectId];
     const candidate: unknown = {
         sessionId: row.sessionId,
         workbenchProjectId,
-        openTabs: resolvedOpenTabs,
-        activeTab: resolvedActiveTab,
-        editorRemapOperationId:
-            rootState?.editorRemapOperationId ??
-            (isLegacyOwnerState ? (row.editorRemapOperationId ?? undefined) : undefined),
+        editorRemapOperationId: rootState?.editorRemapOperationId,
+        // See `normalizeInspectorMode`: a retired Inspector mode must not cost the Session its whole Workbench layout.
         inspectorMode: normalizeInspectorMode(row.inspectorMode),
-        layout,
-        editorLayout,
+        paneLayout: rootState?.paneLayout ?? fallbackPaneLayout(),
     };
     const parsed = sessionStateSchema.safeParse(candidate);
     return parsed.success ? { state: parsed.data } : { reason: 'invalid_shape' };
@@ -243,6 +217,25 @@ export class SessionsModel {
         private readonly onStateRepair?: (repair: SessionStateRepair) => void,
     ) {}
 
+    /**
+     * Places every durable Terminal of the Session into a single pane, in creation order. This is what a Workbench Root
+     * that has never been arranged shows, and what a Session falls back to after an unreadable state row: no Terminal
+     * may be missing from a Root's snapshot, or its PTY would keep running with nothing showing it.
+     */
+    private defaultPaneLayout(sessionId: string): SessionState['paneLayout'] {
+        const sessionTerminals = this.database
+            .select({ id: terminals.id })
+            .from(terminals)
+            .where(eq(terminals.sessionId, sessionId))
+            .orderBy(asc(terminals.orderIndex), asc(terminals.id))
+            .all();
+        return sessionTerminals.reduce(
+            (layout, terminal) =>
+                openResource(layout, { kind: 'terminal', terminalId: terminal.id }),
+            createPaneLayout(),
+        );
+    }
+
     private defaultState(sessionId: string): SessionState {
         const session = this.database
             .select({
@@ -252,29 +245,17 @@ export class SessionsModel {
             .from(sessions)
             .where(eq(sessions.id, sessionId))
             .get();
-        const firstTerminal = this.database
-            .select({ id: terminals.id })
-            .from(terminals)
-            .where(eq(terminals.sessionId, sessionId))
-            .orderBy(asc(terminals.orderIndex), asc(terminals.id))
-            .get();
         return {
             sessionId,
             workbenchProjectId: session?.workbenchProjectId ?? session?.projectId ?? '',
-            openTabs: [],
             inspectorMode: 'files',
-            layout: firstTerminal ? createTerminalLayout(firstTerminal.id) : {},
-            editorLayout: {},
+            paneLayout: this.defaultPaneLayout(sessionId),
         };
     }
 
     private readState(row: SessionStateRow): SessionState {
-        const parsed = parseSessionState(row);
-        if ('state' in parsed) {
-            const normalized = withoutEditorTabDirtiness(parsed.state);
-            if (normalized !== parsed.state) this.updateState(normalized);
-            return normalized;
-        }
+        const parsed = parseSessionState(row, () => this.defaultPaneLayout(row.sessionId));
+        if ('state' in parsed) return parsed.state;
         const repaired = this.defaultState(row.sessionId);
         this.updateState(repaired);
         this.onStateRepair?.({
@@ -283,6 +264,42 @@ export class SessionsModel {
             reason: parsed.reason,
         });
         return repaired;
+    }
+
+    /**
+     * Applies a Terminal placement change to every Root the Session has already arranged. Terminal ownership is
+     * Session-global, not Root-scoped — see {@link defaultPaneLayout} — so a create or close must stay visible no matter
+     * which Root the Session displays next, not just the one selected right now. A Root with no stored snapshot yet is
+     * left alone: its first visit builds a layout straight from `terminals`, so it can never drift out of sync in the
+     * first place.
+     */
+    private mutateTerminalAcrossRootStates(
+        sessionId: string,
+        mutate: (paneLayout: SessionState['paneLayout']) => SessionState['paneLayout'],
+    ): void {
+        const row = this.database
+            .select({ workbenchStateJson: sessionStateTable.workbenchStateJson })
+            .from(sessionStateTable)
+            .where(eq(sessionStateTable.sessionId, sessionId))
+            .get();
+        if (!row) return;
+        const states = parseWorkbenchEditorStates(row.workbenchStateJson);
+        if (!states) return;
+        let isChanged = false;
+        const nextStates: WorkbenchEditorStates = {};
+        for (const [workbenchProjectId, rootState] of Object.entries(states)) {
+            if (!rootState) continue;
+            const paneLayout = mutate(rootState.paneLayout);
+            if (paneLayout !== rootState.paneLayout) isChanged = true;
+            nextStates[workbenchProjectId] =
+                paneLayout === rootState.paneLayout ? rootState : { ...rootState, paneLayout };
+        }
+        if (!isChanged) return;
+        this.database
+            .update(sessionStateTable)
+            .set({ workbenchStateJson: JSON.stringify(nextStates) })
+            .where(eq(sessionStateTable.sessionId, sessionId))
+            .run();
     }
 
     list(projectId?: string): SessionRecord[] {
@@ -543,12 +560,8 @@ export class SessionsModel {
                 projectId: sessions.projectId,
                 workbenchProjectId: sessions.workbenchProjectId,
                 stateVersion: sessionStateTable.stateVersion,
-                openTabsJson: sessionStateTable.openTabsJson,
-                activeTabJson: sessionStateTable.activeTabJson,
-                editorRemapOperationId: sessionStateTable.editorRemapOperationId,
                 workbenchStateJson: sessionStateTable.workbenchStateJson,
                 inspectorMode: sessionStateTable.inspectorMode,
-                layoutJson: sessionStateTable.layoutJson,
             })
             .from(sessionStateTable)
             .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
@@ -568,12 +581,8 @@ export class SessionsModel {
                 projectId: sessions.projectId,
                 workbenchProjectId: sessions.workbenchProjectId,
                 stateVersion: sessionStateTable.stateVersion,
-                openTabsJson: sessionStateTable.openTabsJson,
-                activeTabJson: sessionStateTable.activeTabJson,
-                editorRemapOperationId: sessionStateTable.editorRemapOperationId,
                 workbenchStateJson: sessionStateTable.workbenchStateJson,
                 inspectorMode: sessionStateTable.inspectorMode,
-                layoutJson: sessionStateTable.layoutJson,
             })
             .from(sessionStateTable)
             .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
@@ -583,78 +592,48 @@ export class SessionsModel {
     }
 
     insertInitialState(sessionId: string, terminalId?: string): void {
+        const binding = this.getWorkbenchBinding(sessionId);
+        const paneLayout = createPaneLayout(
+            terminalId ? { kind: 'terminal', terminalId } : undefined,
+        );
         this.database
             .insert(sessionStateTable)
             .values({
                 sessionId,
                 stateVersion: CURRENT_SESSION_STATE_VERSION,
-                openTabsJson: '[]',
-                activeTabJson: null,
                 inspectorMode: 'files',
-                layoutJson: JSON.stringify(terminalId ? createTerminalLayout(terminalId) : {}),
+                workbenchStateJson: JSON.stringify(
+                    binding ? { [binding.workbenchProjectId]: { paneLayout } } : {},
+                ),
             })
             .run();
     }
 
     updateState(state: SessionState): void {
-        const durableState = withoutEditorTabDirtiness(state);
         const binding = this.getWorkbenchBinding(state.sessionId);
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
         if (binding.workbenchProjectId !== state.workbenchProjectId)
             throw new CaxriError('CONFLICT', 'Session state belongs to a stale Workbench Root');
         const existing = this.database
-            .select()
+            .select({ workbenchStateJson: sessionStateTable.workbenchStateJson })
             .from(sessionStateTable)
             .where(eq(sessionStateTable.sessionId, state.sessionId))
             .get();
-        let workbenchStates: WorkbenchEditorStates = {};
-        if (existing) {
-            workbenchStates = parseWorkbenchEditorStates(existing.workbenchStateJson) ?? {};
-        }
-        const previousRootState = workbenchStates[state.workbenchProjectId];
-        const rootActiveTab = durableState.activeTab ?? previousRootState?.activeTab;
-        const rootEditorLayout = durableState.editorLayout ?? previousRootState?.editorLayout;
-        workbenchStates = {
-            ...workbenchStates,
+        // Only the selected Root's snapshot is rewritten; every other Root keeps the arrangement it was left in.
+        const workbenchStates: WorkbenchEditorStates = {
+            ...(existing && parseWorkbenchEditorStates(existing.workbenchStateJson)),
             [state.workbenchProjectId]: {
-                openTabs: durableState.openTabs,
-                ...(rootActiveTab && { activeTab: rootActiveTab }),
-                ...(durableState.editorRemapOperationId && {
-                    editorRemapOperationId: durableState.editorRemapOperationId,
+                paneLayout: state.paneLayout,
+                ...(state.editorRemapOperationId && {
+                    editorRemapOperationId: state.editorRemapOperationId,
                 }),
-                ...(rootEditorLayout && { editorLayout: rootEditorLayout }),
             },
         };
-        let existingTerminalActiveTab: SessionState['activeTab'];
-        if (existing?.activeTabJson) {
-            try {
-                const parsed = sessionStateSchema.shape.activeTab.safeParse(
-                    JSON.parse(existing.activeTabJson) as unknown,
-                );
-                if (parsed.success && parsed.data?.kind === 'terminal')
-                    existingTerminalActiveTab = parsed.data;
-            } catch {
-                // The next Terminal activation replaces this legacy/global fallback.
-            }
-        }
-        const terminalActiveTab =
-            durableState.activeTab?.kind === 'terminal'
-                ? durableState.activeTab
-                : existingTerminalActiveTab;
-        const isOwnerRoot = state.workbenchProjectId === binding.projectId;
         const values = {
-            sessionId: durableState.sessionId,
+            sessionId: state.sessionId,
             stateVersion: CURRENT_SESSION_STATE_VERSION,
-            openTabsJson: isOwnerRoot
-                ? JSON.stringify(durableState.openTabs)
-                : (existing?.openTabsJson ?? '[]'),
-            activeTabJson: terminalActiveTab ? JSON.stringify(terminalActiveTab) : null,
-            editorRemapOperationId: isOwnerRoot
-                ? (durableState.editorRemapOperationId ?? null)
-                : (existing?.editorRemapOperationId ?? null),
             workbenchStateJson: JSON.stringify(workbenchStates),
-            inspectorMode: durableState.inspectorMode,
-            layoutJson: JSON.stringify(durableState.layout),
+            inspectorMode: state.inspectorMode,
         };
         this.database
             .insert(sessionStateTable)
@@ -662,20 +641,37 @@ export class SessionsModel {
             .onConflictDoUpdate({
                 target: sessionStateTable.sessionId,
                 set: {
-                    openTabsJson: values.openTabsJson,
                     stateVersion: values.stateVersion,
-                    activeTabJson: values.activeTabJson,
-                    editorRemapOperationId: values.editorRemapOperationId,
                     workbenchStateJson: values.workbenchStateJson,
                     inspectorMode: values.inspectorMode,
-                    layoutJson: values.layoutJson,
                 },
             })
             .run();
     }
 
     /**
-     * Remaps one durable root snapshot even when its Session has since selected another root.
+     * Adds a newly created Terminal into every Root the Session has already arranged, so the next visit to any of them
+     * shows it instead of only the Root that was active at creation time.
+     */
+    addTerminalToAllRootStates(sessionId: string, terminalId: string): void {
+        this.mutateTerminalAcrossRootStates(sessionId, (paneLayout) =>
+            addPaneTerminalSilently(paneLayout, terminalId),
+        );
+    }
+
+    /**
+     * Drops a closed or moved-away Terminal from every Root the Session has already arranged, so no stored snapshot
+     * keeps a tab pointing at a PTY it no longer owns.
+     */
+    removeTerminalFromAllRootStates(sessionId: string, terminalId: string): void {
+        this.mutateTerminalAcrossRootStates(sessionId, (paneLayout) =>
+            removePaneTerminal(paneLayout, terminalId),
+        );
+    }
+
+    /**
+     * Remaps one durable root snapshot even when its Session has since selected another root. Terminal occurrences
+     * carry no path, so only document tabs move.
      */
     remapWorkbenchEditorState(
         workbenchProjectId: string,
@@ -686,90 +682,31 @@ export class SessionsModel {
         const rows = this.database
             .select({
                 sessionId: sessionStateTable.sessionId,
-                projectId: sessions.projectId,
-                workbenchProjectId: sessions.workbenchProjectId,
-                openTabsJson: sessionStateTable.openTabsJson,
-                activeTabJson: sessionStateTable.activeTabJson,
-                editorRemapOperationId: sessionStateTable.editorRemapOperationId,
                 workbenchStateJson: sessionStateTable.workbenchStateJson,
             })
             .from(sessionStateTable)
-            .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
             .all();
         let remappedCount = 0;
         for (const row of rows) {
             const workbenchStates = parseWorkbenchEditorStates(row.workbenchStateJson);
-            if (!workbenchStates) continue;
-            const isOwnerRoot = row.projectId === workbenchProjectId;
-            const isActiveRoot = (row.workbenchProjectId ?? row.projectId) === workbenchProjectId;
-            let rootState = workbenchStates[workbenchProjectId];
-            let legacyActiveTab: SessionState['activeTab'];
-            const isUsingLegacyOwnerState = isOwnerRoot && !rootState;
-            if (isUsingLegacyOwnerState) {
-                let legacyOpenTabs: unknown;
-                let legacyActiveWork: unknown;
-                try {
-                    legacyOpenTabs = JSON.parse(row.openTabsJson) as unknown;
-                    legacyActiveWork = row.activeTabJson
-                        ? (JSON.parse(row.activeTabJson) as unknown)
-                        : undefined;
-                } catch {
-                    continue;
-                }
-                const openTabs = sessionStateSchema.shape.openTabs.safeParse(legacyOpenTabs);
-                const activeTab = sessionStateSchema.shape.activeTab.safeParse(legacyActiveWork);
-                if (!openTabs.success || !activeTab.success) continue;
-                legacyActiveTab = activeTab.data;
-                rootState = {
-                    openTabs: openTabs.data,
-                    ...(activeTab.data && { activeTab: activeTab.data }),
-                    ...(row.editorRemapOperationId && {
-                        editorRemapOperationId: row.editorRemapOperationId,
-                    }),
-                };
-            }
-            if (!rootState && isActiveRoot) rootState = { openTabs: [] };
-            if (!rootState || rootState.editorRemapOperationId === operationId) continue;
-            const remapPath = (path: string) => remapStoredEditorPath(path, previousPath, nextPath);
+            const rootState = workbenchStates?.[workbenchProjectId];
+            if (!workbenchStates || !rootState) continue;
+            if (rootState.editorRemapOperationId === operationId) continue;
             const remappedState = {
                 ...rootState,
-                openTabs: rootState.openTabs.map((tab) => ({
-                    ...tab,
-                    path: remapPath(tab.path),
-                })),
-                activeTab:
-                    rootState.activeTab?.kind === 'editor'
-                        ? { kind: 'editor' as const, path: remapPath(rootState.activeTab.path) }
-                        : rootState.activeTab,
-                ...(rootState.editorLayout && {
-                    editorLayout: remapEditorLayoutPaths(
-                        rootState.editorLayout,
-                        previousPath,
-                        nextPath,
-                    ),
-                }),
+                paneLayout: remapPaneLayoutPaths(rootState.paneLayout, (path) =>
+                    remapStoredEditorPath(path, previousPath, nextPath),
+                ),
                 editorRemapOperationId: operationId,
             };
-            const values: {
-                activeTabJson?: string;
-                editorRemapOperationId?: string;
-                openTabsJson?: string;
-                workbenchStateJson: string;
-            } = {
-                workbenchStateJson: JSON.stringify({
-                    ...workbenchStates,
-                    [workbenchProjectId]: remappedState,
-                }),
-            };
-            if (isOwnerRoot) {
-                values.openTabsJson = JSON.stringify(remappedState.openTabs);
-                values.editorRemapOperationId = operationId;
-                if (isUsingLegacyOwnerState && legacyActiveTab?.kind === 'editor')
-                    values.activeTabJson = JSON.stringify(remappedState.activeTab);
-            }
             this.database
                 .update(sessionStateTable)
-                .set(values)
+                .set({
+                    workbenchStateJson: JSON.stringify({
+                        ...workbenchStates,
+                        [workbenchProjectId]: remappedState,
+                    }),
+                })
                 .where(eq(sessionStateTable.sessionId, row.sessionId))
                 .run();
             remappedCount += 1;

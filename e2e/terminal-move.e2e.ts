@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { listLayoutTerminalIds } from '../src/shared/terminal-layout.ts';
+import { listPaneTerminalIds } from '../src/shared/pane-layout.ts';
 import type { BootstrapState } from '../src/shared/types.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -130,8 +130,8 @@ test('Move to New Session keeps the live Terminal and disables the only-tab acti
         });
         expect(sourceState).toBeDefined();
         expect(movedState).toBeDefined();
-        expect(listLayoutTerminalIds(sourceState!.layout)).toEqual([firstTerminalId]);
-        expect(listLayoutTerminalIds(movedState!.layout)).toEqual([movedTerminalId]);
+        expect(listPaneTerminalIds(sourceState!.paneLayout)).toEqual([firstTerminalId]);
+        expect(listPaneTerminalIds(movedState!.paneLayout)).toEqual([movedTerminalId]);
         await expect(sessionCard(running.page, movedSessionId)).toHaveClass(/active/);
         await expect(terminalTab(running.page, movedTerminalId).getByRole('tab')).toHaveAttribute(
             'aria-selected',

@@ -1,12 +1,17 @@
-import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import process from 'node:process';
 
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { listLayoutTerminalIds, splitTerminal } from '../../../shared/terminal-layout';
+import {
+    findResourceTabs,
+    listPaneTerminalIds,
+    openResource,
+    splitTabIntoPane,
+} from '../../../shared/pane-layout';
+import type { PaneLayout } from '../../../shared/types';
 import { CaxriDatabase } from '../repository';
 
 const temporaryDirectories: string[] = [];
@@ -23,6 +28,15 @@ async function temporaryDirectory(prefix: string): Promise<string> {
     const directory = await mkdtemp(join(tmpdir(), prefix));
     temporaryDirectories.push(directory);
     return directory;
+}
+
+/**
+ * Splits a Terminal that already sits in `layout` (alongside another tab) off into its own pane, mirroring what the
+ * Renderer does when dropping a tab on a pane edge.
+ */
+function splitTerminalIntoOwnPane(layout: PaneLayout, terminalId: string): PaneLayout {
+    const occurrence = findResourceTabs(layout, { kind: 'terminal', terminalId }).at(0)!;
+    return splitTabIntoPane(layout, occurrence.tab.id, occurrence.pane.id, 'down');
 }
 
 /**
@@ -51,7 +65,7 @@ describe('CaxriDatabase', () => {
         },
     );
 
-    it('creates a Terminal-less Session with an empty layout when kind is null', async () => {
+    it('creates a Terminal-less Session with an empty pane layout when kind is null', async () => {
         const directory = await temporaryDirectory('caxri-db-no-terminal-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, null);
@@ -61,7 +75,9 @@ describe('CaxriDatabase', () => {
             displayTitle: 'Untitled',
             primaryAgentTerminalId: undefined,
         });
-        expect(database.getSessionState(created.session.id)).toMatchObject({ layout: {} });
+        expect(
+            listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
+        ).toEqual([]);
         database.close();
     });
 
@@ -115,176 +131,6 @@ describe('CaxriDatabase', () => {
             ]),
         );
         expect(database.listSessions()).toHaveLength(2);
-        database.close();
-    });
-
-    it('keeps owner identity and Terminal cwd global while restoring editor state per Workbench Root', async () => {
-        const directory = await temporaryDirectory('caxri-db-workbench-root-');
-        const ownerRoot = join(directory, 'owner');
-        const worktreeRoot = join(directory, 'worktree');
-        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const owner = database.createProject(ownerRoot);
-        const worktree = database.createProject(worktreeRoot);
-        const created = database.createSession(owner.id, 'shell');
-        const ownerState = database.getSessionState(created.session.id);
-        database.updateSessionState({
-            ...ownerState,
-            openTabs: [{ path: join(ownerRoot, 'owner.ts'), dirty: false }],
-            activeTab: { kind: 'editor', path: join(ownerRoot, 'owner.ts') },
-        });
-        const identity = await lstat(worktreeRoot, { bigint: true });
-
-        database.selectWorkbenchProject(created.session.id, worktree.id, {
-            device: identity.dev.toString(),
-            inode: identity.ino.toString(),
-        });
-
-        expect(database.getSession(created.session.id)).toMatchObject({
-            projectId: owner.id,
-            workbenchProjectId: worktree.id,
-            rootPath: worktreeRoot,
-        });
-        expect(database.getSessionState(created.session.id)).toMatchObject({
-            workbenchProjectId: worktree.id,
-            openTabs: [],
-        });
-        const worktreeState = database.getSessionState(created.session.id);
-        database.updateSessionState({
-            ...worktreeState,
-            openTabs: [{ path: join(worktreeRoot, 'worktree.ts'), dirty: true }],
-            activeTab: { kind: 'editor', path: join(worktreeRoot, 'worktree.ts') },
-        });
-        const laterTerminal = database.createTerminal(created.session.id, 'shell');
-        expect(laterTerminal.cwd).toBe(ownerRoot);
-
-        database.selectWorkbenchProject(created.session.id, owner.id);
-        expect(database.getSessionState(created.session.id)).toMatchObject({
-            workbenchProjectId: owner.id,
-            openTabs: [{ path: join(ownerRoot, 'owner.ts'), dirty: false }],
-            activeTab: { kind: 'editor', path: join(ownerRoot, 'owner.ts') },
-        });
-        expect(() => database.updateSessionState(worktreeState)).toThrow(/stale Workbench Root/);
-
-        database.selectWorkbenchProject(created.session.id, worktree.id, {
-            device: identity.dev.toString(),
-            inode: identity.ino.toString(),
-        });
-        expect(database.getSessionState(created.session.id)).toMatchObject({
-            workbenchProjectId: worktree.id,
-            openTabs: [{ path: join(worktreeRoot, 'worktree.ts'), dirty: false }],
-            activeTab: { kind: 'editor', path: join(worktreeRoot, 'worktree.ts') },
-        });
-
-        database.deleteProject(worktree.id);
-        expect(database.getSession(created.session.id)).toMatchObject({
-            projectId: owner.id,
-            workbenchProjectId: owner.id,
-            rootPath: ownerRoot,
-        });
-        expect(database.getTerminal(created.terminal!.id)).toMatchObject({
-            cwd: ownerRoot,
-            id: created.terminal!.id,
-        });
-        database.close();
-    });
-
-    it('remaps durable editor state for an inactive Workbench Root idempotently', async () => {
-        const directory = await temporaryDirectory('caxri-db-inactive-root-remap-');
-        const ownerRoot = join(directory, 'owner');
-        const worktreeRoot = join(directory, 'worktree');
-        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const owner = database.createProject(ownerRoot);
-        const worktree = database.createProject(worktreeRoot);
-        const created = database.createSession(owner.id, 'shell');
-        const identity = await lstat(worktreeRoot, { bigint: true });
-        database.selectWorkbenchProject(created.session.id, worktree.id, {
-            device: identity.dev.toString(),
-            inode: identity.ino.toString(),
-        });
-        const previousDirectory = join(worktreeRoot, 'source');
-        const nextDirectory = join(worktreeRoot, 'destination');
-        const previousPath = join(previousDirectory, 'document.ts');
-        const nextPath = join(nextDirectory, 'document.ts');
-        const gitDiffPath = 'caxri-git-diff://file/repository/source%2Fdocument.ts';
-        database.updateSessionState({
-            ...database.getSessionState(created.session.id),
-            openTabs: [
-                { path: previousPath, dirty: false },
-                { path: gitDiffPath, dirty: false },
-            ],
-            activeTab: { kind: 'editor', path: previousPath },
-        });
-        database.selectWorkbenchProject(created.session.id, owner.id);
-
-        expect(
-            database.remapWorkbenchEditorState(
-                worktree.id,
-                'operation-1',
-                previousDirectory,
-                nextDirectory,
-            ),
-        ).toBe(1);
-        expect(database.getSessionState(created.session.id)).toMatchObject({
-            workbenchProjectId: owner.id,
-            openTabs: [],
-        });
-
-        database.selectWorkbenchProject(created.session.id, worktree.id, {
-            device: identity.dev.toString(),
-            inode: identity.ino.toString(),
-        });
-        const remapped = database.getSessionState(created.session.id);
-        expect(remapped).toMatchObject({
-            workbenchProjectId: worktree.id,
-            openTabs: [
-                { path: nextPath, dirty: false },
-                { path: gitDiffPath, dirty: false },
-            ],
-            activeTab: { kind: 'editor', path: nextPath },
-            editorRemapOperationId: 'operation-1',
-        });
-        expect(
-            database.remapWorkbenchEditorState(
-                worktree.id,
-                'operation-1',
-                previousDirectory,
-                nextDirectory,
-            ),
-        ).toBe(0);
-        expect(database.getSessionState(created.session.id)).toEqual(remapped);
-        database.close();
-    });
-
-    it('leaves virtual editor tabs untouched when the remap source covers the process cwd', async () => {
-        const directory = await temporaryDirectory('caxri-db-virtual-tab-remap-');
-        const ownerRoot = join(directory, 'owner');
-        await mkdir(ownerRoot);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const owner = database.createProject(ownerRoot);
-        const created = database.createSession(owner.id, 'shell');
-        const transcriptPath = 'caxri-agent-transcript://terminal-1/Claude%20Code';
-        database.updateSessionState({
-            ...database.getSessionState(created.session.id),
-            openTabs: [{ path: transcriptPath, dirty: false }],
-        });
-
-        // A virtual tab path is not absolute, so without the scheme exemption `relative()` would
-        // resolve it against the process cwd; a remap whose source covers the cwd would then
-        // rewrite the tab into a bogus filesystem path. The count still reports 1: it counts
-        // Sessions stamped with the operation, not changed paths.
-        expect(
-            database.remapWorkbenchEditorState(
-                owner.id,
-                'operation-1',
-                process.cwd(),
-                join(directory, 'moved'),
-            ),
-        ).toBe(1);
-        expect(database.getSessionState(created.session.id)).toMatchObject({
-            openTabs: [{ path: transcriptPath, dirty: false }],
-        });
         database.close();
     });
 
@@ -653,16 +499,17 @@ describe('CaxriDatabase', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const second = database.createTerminal(created.session.id, 'shell');
         const state = database.getSessionState(created.session.id);
+        const opened = openResource(state.paneLayout, { kind: 'terminal', terminalId: second.id });
         database.updateSessionState({
             ...state,
-            layout: splitTerminal(state.layout, second.id, state.layout.activeGroupId!, 'vertical'),
+            paneLayout: splitTerminalIntoOwnPane(opened, second.id),
         });
 
         database.closeTerminal(second.id);
 
-        expect(listLayoutTerminalIds(database.getSessionState(created.session.id).layout)).toEqual([
-            created.terminal!.id,
-        ]);
+        expect(
+            listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
+        ).toEqual([created.terminal!.id]);
         database.close();
     });
 
@@ -696,14 +543,13 @@ describe('CaxriDatabase', () => {
         const created = database.createSession(project.id, 'codex');
         const shell = database.createTerminal(created.session.id, 'shell');
         const preMoveState = database.getSessionState(created.session.id);
+        const openedShell = openResource(preMoveState.paneLayout, {
+            kind: 'terminal',
+            terminalId: shell.id,
+        });
         database.updateSessionState({
             ...preMoveState,
-            layout: splitTerminal(
-                preMoveState.layout,
-                shell.id,
-                preMoveState.layout.activeGroupId!,
-                'vertical',
-            ),
+            paneLayout: splitTerminalIntoOwnPane(openedShell, shell.id),
         });
         expect(created.session.primaryAgentTerminalId).toBe(created.terminal!.id);
 
@@ -721,12 +567,12 @@ describe('CaxriDatabase', () => {
         expect(database.getAppState('lastSelectedSessionId')).toBe(moved.session.id);
         expect(database.getAppState('lastSelectedProjectId')).toBe(project.id);
 
-        expect(listLayoutTerminalIds(database.getSessionState(moved.session.id).layout)).toEqual([
+        expect(listPaneTerminalIds(database.getSessionState(moved.session.id).paneLayout)).toEqual([
             created.terminal!.id,
         ]);
-        expect(listLayoutTerminalIds(database.getSessionState(created.session.id).layout)).toEqual([
-            shell.id,
-        ]);
+        expect(
+            listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
+        ).toEqual([shell.id]);
 
         expect(database.getSession(created.session.id)).toMatchObject({
             primaryAgentTerminalId: undefined,
@@ -736,7 +582,7 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
-    it('leaves the source Session with an empty layout and no primary Agent when its only Terminal moves', async () => {
+    it('leaves the source Session with an empty pane layout and no primary Agent when its only Terminal moves', async () => {
         const directory = await temporaryDirectory('caxri-db-move-only-terminal-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.createProject(directory);
@@ -751,8 +597,10 @@ describe('CaxriDatabase', () => {
         expect(database.getSession(created.session.id)).toMatchObject({
             primaryAgentTerminalId: undefined,
         });
-        expect(database.getSessionState(created.session.id)).toMatchObject({ layout: {} });
-        expect(listLayoutTerminalIds(database.getSessionState(moved.session.id).layout)).toEqual([
+        expect(
+            listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
+        ).toEqual([]);
+        expect(listPaneTerminalIds(database.getSessionState(moved.session.id).paneLayout)).toEqual([
             created.terminal!.id,
         ]);
         database.close();

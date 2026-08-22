@@ -1,44 +1,38 @@
-import type { WorkItem } from '@shared/work-item';
 import { describe, expect, it } from 'vitest';
 
-import { nextWorkItem } from '../tab-navigation';
+import { nextTabId } from '../tab-navigation';
 
-const terminal = (id: string): WorkItem => ({ kind: 'terminal', terminalId: id });
-const editor = (path: string): WorkItem => ({ kind: 'editor', path });
-
-describe('nextWorkItem', () => {
-    it('steps forward and wraps from the last item to the first', () => {
-        const items = [terminal('a'), terminal('b'), editor('/x')];
-        expect(nextWorkItem(items, terminal('a'), 1)).toEqual(terminal('b'));
-        expect(nextWorkItem(items, terminal('b'), 1)).toEqual(editor('/x'));
-        expect(nextWorkItem(items, editor('/x'), 1)).toEqual(terminal('a'));
+describe('nextTabId', () => {
+    it('steps forward and wraps from the last tab to the first', () => {
+        const ids = ['a', 'b', 'c'];
+        expect(nextTabId(ids, 'a', 1)).toBe('b');
+        expect(nextTabId(ids, 'b', 1)).toBe('c');
+        expect(nextTabId(ids, 'c', 1)).toBe('a');
     });
 
-    it('steps backward and wraps from the first item to the last', () => {
-        const items = [terminal('a'), terminal('b'), editor('/x')];
-        expect(nextWorkItem(items, terminal('a'), -1)).toEqual(editor('/x'));
-        expect(nextWorkItem(items, editor('/x'), -1)).toEqual(terminal('b'));
+    it('steps backward and wraps from the first tab to the last', () => {
+        const ids = ['a', 'b', 'c'];
+        expect(nextTabId(ids, 'a', -1)).toBe('c');
+        expect(nextTabId(ids, 'c', -1)).toBe('b');
     });
 
-    it('returns undefined for an empty tab strip', () => {
-        expect(nextWorkItem([], undefined, 1)).toBeUndefined();
-        expect(nextWorkItem([], terminal('a'), -1)).toBeUndefined();
+    it('returns undefined for an empty pane', () => {
+        expect(nextTabId([], undefined, 1)).toBeUndefined();
+        expect(nextTabId([], 'a', -1)).toBeUndefined();
     });
 
-    it('falls back to the first item forward and the last item backward when nothing is active', () => {
-        const items = [terminal('a'), editor('/x'), editor('/y')];
-        expect(nextWorkItem(items, undefined, 1)).toEqual(terminal('a'));
-        expect(nextWorkItem(items, undefined, -1)).toEqual(editor('/y'));
+    it('falls back to the first tab forward and the last tab backward when nothing is active', () => {
+        const ids = ['a', 'b', 'c'];
+        expect(nextTabId(ids, undefined, 1)).toBe('a');
+        expect(nextTabId(ids, undefined, -1)).toBe('c');
     });
 
-    it('falls back the same way when the active item no longer exists in the strip', () => {
-        const items = [terminal('a'), terminal('b')];
-        expect(nextWorkItem(items, terminal('stale'), 1)).toEqual(terminal('a'));
+    it('falls back the same way when the active tab no longer exists in the pane', () => {
+        expect(nextTabId(['a', 'b'], 'stale', 1)).toBe('a');
     });
 
-    it('is a no-op cycle for a single-item strip', () => {
-        const items = [terminal('only')];
-        expect(nextWorkItem(items, terminal('only'), 1)).toEqual(terminal('only'));
-        expect(nextWorkItem(items, terminal('only'), -1)).toEqual(terminal('only'));
+    it('is a no-op cycle for a single-tab pane', () => {
+        expect(nextTabId(['only'], 'only', 1)).toBe('only');
+        expect(nextTabId(['only'], 'only', -1)).toBe('only');
     });
 });

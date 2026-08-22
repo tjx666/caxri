@@ -40,10 +40,16 @@ function sessionState(
     return {
         sessionId,
         workbenchProjectId,
-        openTabs: [{ path, dirty: false }],
-        activeTab: { kind: 'editor', path },
         inspectorMode: 'files',
-        layout: {},
+        paneLayout: {
+            root: {
+                type: 'pane',
+                id: 'pane-1',
+                tabs: [{ id: `tab-${sessionId}`, resource: { kind: 'file', path } }],
+                activeTabId: `tab-${sessionId}`,
+            },
+            activePaneId: 'pane-1',
+        },
     };
 }
 
@@ -51,7 +57,7 @@ beforeEach(() => {
     mocks.onEvent.mockClear();
     mocks.request.mockClear();
     useFileOperationStore.getState().clear();
-    useSessionViewStore.setState({ activeWork: {}, documents: {}, recentDocuments: {} });
+    useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
     useWorkbenchStore.setState({
         bootstrap: {
             selectedSessionId: 'session-1',

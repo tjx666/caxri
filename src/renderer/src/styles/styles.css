@@ -99,16 +99,16 @@
  * the intended click. Keep the widget stationary, let pointer events pass through simple tooltips,
  * and provide the standard 24px action target without changing Monaco's keyboard/search behavior.
  */
-.work-surface .monaco-editor .find-widget {
+.pane-surface .monaco-editor .find-widget {
     transition-duration: 0s;
 }
-.work-surface .monaco-editor .find-widget:not(.visible) {
+.pane-surface .monaco-editor .find-widget:not(.visible) {
     pointer-events: none;
 }
-.work-surface .monaco-editor .find-widget > .find-part {
+.pane-surface .monaco-editor .find-widget > .find-part {
     margin-right: 32px;
 }
-.work-surface .monaco-editor .find-widget > .button.codicon-widget-close {
+.pane-surface .monaco-editor .find-widget > .button.codicon-widget-close {
     top: 4px;
     right: 4px;
     width: 24px;

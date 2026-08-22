@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -19,10 +19,6 @@ function oscProgress(state: number, value?: number | string): string {
 }
 
 test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from process state', async () => {
-    allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 2 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 2 },
-    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-progress-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');

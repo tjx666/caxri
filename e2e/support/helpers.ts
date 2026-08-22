@@ -755,12 +755,14 @@ export async function openBottomPanelView(page: Page, name: 'Info' | 'Logs'): Pr
  */
 export async function splitTerminalToRight(page: Page, terminalId: string): Promise<void> {
     await expect(page.locator(`.work-tab[data-terminal-id="${terminalId}"]`)).toBeAttached();
-    await expect(page.locator('.terminal-group').first()).toBeAttached();
+    await expect(page.locator('.pane-surface').first()).toBeAttached();
     await page.evaluate((draggedTerminalId) => {
         const source = document.querySelector(
             `.work-tab[data-terminal-id="${CSS.escape(draggedTerminalId)}"]`,
         );
-        const target = document.querySelector('.terminal-group');
+        // The actual drop listeners live on `.pane-surface`, the content area beneath a pane's tab bar, not on the
+        // outer `.workbench-pane` box.
+        const target = document.querySelector('.pane-surface');
         if (!source || !target) throw new Error('Terminal split drag fixture not found');
         const transfer = new DataTransfer();
         const bounds = target.getBoundingClientRect();

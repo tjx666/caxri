@@ -1,52 +1,36 @@
-import type { WorkItem } from '@shared/work-item';
-import { areWorkItemsEqual } from '@shared/work-item';
+import { activePane } from '@shared/pane-layout';
 
-import { getSelectedSession, getSessionState, getSessionTerminals } from '../../stores/selectors';
-import { getResolvedActiveWork } from '../../stores/session-view';
-import { selectEditorTab } from '../editor/document-actions';
-import { activateTerminal } from '../terminal/terminal-actions';
-
-/**
- * Same ordering `WorkTabStrip` renders: session Terminals first, then open editor tabs in session-state order. Keeping
- * this list in sync with the visual strip is what makes `Ctrl+Tab`/`Ctrl+Shift+Tab` step exactly one visual tab
- * position at a time.
- */
-function orderedWorkItems(): WorkItem[] {
-    const terminals = getSessionTerminals();
-    const openTabs = getSessionState()?.openTabs ?? [];
-    return [
-        ...terminals.map((terminal): WorkItem => ({ kind: 'terminal', terminalId: terminal.id })),
-        ...openTabs.map((tab): WorkItem => ({ kind: 'editor', path: tab.path })),
-    ];
-}
+import { getSelectedSession } from '../../stores/selectors';
+import { getPaneLayout, selectPaneTab } from '../workbench/pane-actions';
 
 /**
  * Pure step function, exported separately so the wrap-around logic has focused unit coverage without mocking the
- * Renderer stores (see the `unit-testing` skill). When `active` is not present in `items` — nothing focused yet —
+ * Renderer stores (see the `unit-testing` skill). When `activeId` is not present in `ids` — nothing focused yet —
  * forward stepping lands on the first tab and backward stepping lands on the last one, matching the usual "start of the
  * strip" expectation instead of an arbitrary offset.
  */
-export function nextWorkItem(
-    items: readonly WorkItem[],
-    active: WorkItem | undefined,
+export function nextTabId(
+    ids: readonly string[],
+    activeId: string | undefined,
     delta: 1 | -1,
-): WorkItem | undefined {
-    if (items.length === 0) return undefined;
-    const currentIndex = items.findIndex((item) => areWorkItemsEqual(item, active));
-    if (currentIndex === -1) return delta === 1 ? items[0] : items.at(-1);
-    const nextIndex = (currentIndex + delta + items.length) % items.length;
-    return items[nextIndex];
+): string | undefined {
+    if (ids.length === 0) return undefined;
+    const currentIndex = ids.indexOf(activeId ?? '');
+    if (currentIndex === -1) return delta === 1 ? ids[0] : ids.at(-1);
+    return ids[(currentIndex + delta + ids.length) % ids.length];
 }
 
 /**
- * Cycles the active work item across the whole tab strip (Terminals, then editor tabs) and wraps around at either end.
- * Backs the `workbench.nextTab` / `workbench.previousTab` commands (`Ctrl+Tab` / `Ctrl+Shift+Tab`, both
- * `allowInEditable`); see `commands/definitions.ts`.
+ * Cycles the active tab within the focused pane and wraps around at either end. Backs the `workbench.nextTab` /
+ * `workbench.previousTab` commands (`Ctrl+Tab` / `Ctrl+Shift+Tab`, both `allowInEditable`); see
+ * `commands/definitions.ts`. Cycling stays inside one pane because that is the bar the user is looking at — moving
+ * between panes is a separate command.
  */
-export function cycleActiveWork(delta: 1 | -1): void {
-    if (!getSelectedSession()) return;
-    const next = nextWorkItem(orderedWorkItems(), getResolvedActiveWork(), delta);
-    if (!next) return;
-    if (next.kind === 'terminal') activateTerminal(next.terminalId);
-    else selectEditorTab(next.path);
+export function cycleActiveTab(delta: 1 | -1): void {
+    const layout = getPaneLayout();
+    if (!layout || !getSelectedSession()) return;
+    const pane = activePane(layout);
+    const tabIds = pane.tabs.map((tab) => tab.id);
+    const next = nextTabId(tabIds, pane.activeTabId ?? tabIds[0], delta);
+    if (next) selectPaneTab(next);
 }

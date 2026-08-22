@@ -22,7 +22,6 @@ function terminal(kind: 'codex' | 'shell' = 'codex', id = 'terminal-1'): Termina
         title: kind === 'shell' ? 'Shell' : 'Codex',
         icon: 'terminal',
         orderIndex: 0,
-        layoutNodeId: 'layout-1',
         lastProcessState: 'starting',
         createdAt: 1,
         updatedAt: 1,
