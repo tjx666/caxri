@@ -1,10 +1,15 @@
 export interface DesktopOpenRequest {
+    location?: { column: number; line: number };
     path?: string;
     sessionId: string;
 }
 
 export interface DesktopOpenQueueActions {
-    openFile(sessionId: string, path: string): Promise<unknown>;
+    openFile(
+        sessionId: string,
+        path: string,
+        location?: { column: number; line: number },
+    ): Promise<unknown>;
     selectSession(sessionId: string): Promise<boolean>;
 }
 
@@ -21,7 +26,7 @@ export function createDesktopOpenQueue(actions: DesktopOpenQueueActions) {
             const operation = (async () => {
                 await tail;
                 if (!(await actions.selectSession(request.sessionId)) || !request.path) return;
-                await actions.openFile(request.sessionId, request.path);
+                await actions.openFile(request.sessionId, request.path, request.location);
             })();
             /**
              * A rejected one-shot request must not prevent later Host targets from being handled.

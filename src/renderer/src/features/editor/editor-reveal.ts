@@ -53,6 +53,16 @@ export function revealEditorMatch(path: string, target: EditorRevealTarget): voi
 }
 
 /**
+ * Queues a reveal without touching a still-registered editor that the current React commit is replacing.
+ */
+export function queueEditorRevealLocation(
+    path: string,
+    target: Pick<EditorRevealTarget, 'column' | 'line'>,
+): void {
+    pending.set(path, { ...target, matchLength: 0, select: false });
+}
+
+/**
  * Navigates to a source location without selecting the character after the requested column.
  */
 export function revealEditorLocation(

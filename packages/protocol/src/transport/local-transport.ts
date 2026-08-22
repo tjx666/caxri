@@ -228,6 +228,12 @@ export const desktopTargetPayloadSchema = z.object({
     kind: z.enum(['file', 'directory']),
     sessionId: identifierSchema,
     path: pathSchema,
+    location: z
+        .object({
+            line: z.number().int().positive(),
+            column: z.number().int().positive(),
+        })
+        .optional(),
 });
 
 export type DesktopTargetPayload = z.infer<typeof desktopTargetPayloadSchema>;

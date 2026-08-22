@@ -701,6 +701,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.create' } });
             return terminal;
         },
+        'terminal.openFileLink': () => mainOwned('terminal.openFileLink'),
         'terminal.input': ({ terminalId, data }) => {
             if (terminals.processId(terminalId) !== undefined)
                 coordinator.observeInput(terminalId, data);

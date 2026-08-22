@@ -43,7 +43,11 @@ describe('runtimeEventSchema', () => {
         expect(
             runtimeEventSchema.safeParse({
                 event: 'desktop.openRequested',
-                payload: { sessionId: 'session-1', kind: 'file' },
+                payload: {
+                    sessionId: 'session-1',
+                    kind: 'file',
+                    location: { line: 12, column: 4 },
+                },
             }).success,
         ).toBe(true);
     });

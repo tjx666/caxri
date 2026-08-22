@@ -62,7 +62,9 @@ import {
 function useRuntimeAttachment(): void {
     useEffect(() => {
         const desktopOpenQueue = createDesktopOpenQueue({
-            openFile: openFileForSession,
+            openFile: async (sessionId, path, location) => {
+                return openFileForSession(sessionId, path, location ? { location } : {});
+            },
             selectSession: didSelectSession,
         });
         // Fire-and-forget: initializeWorkbench() catches its own Runtime request failures.
@@ -71,12 +73,16 @@ function useRuntimeAttachment(): void {
         return subscribeWorkbenchEvents({
             onCommand: (command, wasViaAccelerator) =>
                 runCommand(command, undefined, { viaAccelerator: wasViaAccelerator }),
-            onDesktopOpen: (sessionId, path) => {
+            onDesktopOpen: (sessionId, path, location) => {
                 // Fire-and-forget: a rejection here surfaces through the global
                 // `unhandledrejection` reporter (see renderer-error-reporter.ts), which is the
                 // established pattern for one-shot Host-triggered opens.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                void desktopOpenQueue.enqueue({ sessionId, ...(path && { path }) });
+                void desktopOpenQueue.enqueue({
+                    sessionId,
+                    ...(path && { path }),
+                    ...(location && { location }),
+                });
             },
         });
     }, []);

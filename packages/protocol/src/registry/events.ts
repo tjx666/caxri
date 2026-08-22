@@ -192,6 +192,12 @@ export const runtimeEventPayloads = {
         sessionId: identifierSchema,
         kind: z.enum(['file', 'directory']),
         path: pathSchema.optional(),
+        location: z
+            .object({
+                line: z.number().int().positive(),
+                column: z.number().int().positive(),
+            })
+            .optional(),
     }),
     /**
      * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one fired by an actual

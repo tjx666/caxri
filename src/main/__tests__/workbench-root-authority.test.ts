@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => ({
-    dialog: { showOpenDialog: vi.fn() },
+    dialog: { showMessageBox: vi.fn(), showOpenDialog: vi.fn() },
 }));
 vi.mock('electron', () => ({ dialog: electronMock.dialog }));
 
@@ -27,6 +27,7 @@ async function temporaryDirectory(prefix = 'caxri-workbench-root-'): Promise<str
 }
 
 afterEach(async () => {
+    electronMock.dialog.showMessageBox.mockReset();
     electronMock.dialog.showOpenDialog.mockReset();
     const directoriesToRemove = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
@@ -156,6 +157,227 @@ describe('createProject / cancelProjectCreate orchestration', () => {
         expect(instance.cancelProjectCreate({ rootPath: '/project' })).toBeNull();
         await expect(instance.createProject({ rootPath: '/project' })).rejects.toThrow(
             'was not selected',
+        );
+    });
+});
+
+describe('openTerminalFileLink', () => {
+    const identity = {
+        device: '2',
+        inode: '20',
+        root: { path: '/project', device: '1', inode: '10' },
+    };
+    const bootstrap = (sessions: Array<{ id: string; displayTitle: string }>) => ({
+        projects: [{ id: 'project-1', displayTitle: 'Project' }],
+        sessions: sessions.map((session) => ({
+            ...session,
+            archivedAt: undefined,
+            workbenchProjectId: 'project-1',
+        })),
+        selectedSessionId: sessions.at(0)?.id,
+    });
+
+    it('opens an already authorized Home file in the selected Project Session with its location', async () => {
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'authorized',
+                    identity,
+                    path: '/project/file.ts',
+                    projectId: 'project-1',
+                    sourceSessionId: 'source-session',
+                });
+            if (method === 'app.bootstrap')
+                return Promise.resolve(bootstrap([{ id: 'session-1', displayTitle: 'Session' }]));
+            if (method === 'desktop.openFile') return Promise.resolve({ state: 'requested' });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getHost: host(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/project/file.ts',
+                location: { line: 12, column: 4 },
+            }),
+        ).resolves.toEqual({ opened: true });
+        expect(request).toHaveBeenCalledWith('desktop.openFile', {
+            expectedIdentity: identity,
+            path: '/project/file.ts',
+            sessionId: 'session-1',
+            launchIfNeeded: false,
+            location: { line: 12, column: 4 },
+        });
+        expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
+    });
+
+    it('binds an outside file to the selected root before adding its Project and creating a Session', async () => {
+        const selectedRoot = await temporaryDirectory();
+        const request = vi.fn((method: string, parameters?: unknown) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve(
+                    'selectedRoot' in (parameters as object)
+                        ? {
+                              status: 'selection_authorized',
+                              identity: {
+                                  ...identity,
+                                  root: { ...identity.root, path: selectedRoot },
+                              },
+                              path: `${selectedRoot}/file.ts`,
+                              rootPath: selectedRoot,
+                              sourceSessionId: 'source-session',
+                          }
+                        : {
+                              status: 'authorization_required',
+                              path: `${selectedRoot}/file.ts`,
+                              sourceSessionId: 'source-session',
+                          },
+                );
+            if (method === 'project.create') return Promise.resolve({ id: 'project-1' });
+            if (method === 'app.bootstrap') return Promise.resolve(bootstrap([]));
+            if (method === 'session.create')
+                return Promise.resolve({ session: { id: 'session-created' } });
+            if (method === 'desktop.openFile') return Promise.resolve({ state: 'requested' });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({
+            getHost: host(request),
+            nextTestRoot: () => selectedRoot,
+        });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/selected/file.ts',
+            }),
+        ).resolves.toEqual({ opened: true });
+        expect(request.mock.calls.map(([method]) => method)).toEqual([
+            'terminal.fileLink.resolve',
+            'terminal.fileLink.resolve',
+            'project.create',
+            'app.bootstrap',
+            'session.create',
+            'desktop.openFile',
+        ]);
+        expect(request).toHaveBeenCalledWith('project.create', { rootPath: selectedRoot });
+        expect(request).toHaveBeenCalledWith('session.create', {
+            projectId: 'project-1',
+            defaultAgent: null,
+        });
+        expect(request).toHaveBeenCalledWith(
+            'desktop.openFile',
+            expect.objectContaining({
+                expectedIdentity: {
+                    ...identity,
+                    root: { ...identity.root, path: selectedRoot },
+                },
+            }),
+        );
+    });
+
+    it('cancels before directory selection without creating Project or Session state', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'authorization_required',
+                    path: '/outside/file.ts',
+                    sourceSessionId: 'source-session',
+                });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getHost: host(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/outside/file.ts',
+            }),
+        ).resolves.toEqual({ canceled: true });
+        expect(request.mock.calls.map(([method]) => method)).toEqual(['terminal.fileLink.resolve']);
+        expect(electronMock.dialog.showOpenDialog).not.toHaveBeenCalled();
+    });
+
+    it('revokes the selected-root grant when Project creation fails', async () => {
+        const selectedRoot = await temporaryDirectory();
+        const grants = new ProjectRootGrants();
+        const request = vi.fn((method: string, parameters?: unknown) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve(
+                    'selectedRoot' in (parameters as object)
+                        ? {
+                              status: 'selection_authorized',
+                              identity: {
+                                  ...identity,
+                                  root: { ...identity.root, path: selectedRoot },
+                              },
+                              path: `${selectedRoot}/file.ts`,
+                              rootPath: selectedRoot,
+                              sourceSessionId: 'source-session',
+                          }
+                        : {
+                              status: 'authorization_required',
+                              path: `${selectedRoot}/file.ts`,
+                              sourceSessionId: 'source-session',
+                          },
+                );
+            if (method === 'project.create')
+                return Promise.reject(new Error('Runtime unavailable'));
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({
+            getHost: host(request),
+            grants,
+            nextTestRoot: () => selectedRoot,
+        });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/selected/file.ts',
+            }),
+        ).rejects.toThrow('Runtime unavailable');
+        await expect(grants.use(selectedRoot, () => Promise.resolve('retried'))).rejects.toThrow(
+            'was not selected',
+        );
+    });
+
+    it('uses a native choice when an authorized Project has multiple Sessions', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'authorized',
+                    identity,
+                    path: '/project/file.ts',
+                    projectId: 'project-1',
+                    sourceSessionId: 'source-session',
+                });
+            if (method === 'app.bootstrap')
+                return Promise.resolve({
+                    ...bootstrap([
+                        { id: 'session-1', displayTitle: 'First' },
+                        { id: 'session-2', displayTitle: 'Second' },
+                    ]),
+                    selectedSessionId: undefined,
+                });
+            if (method === 'desktop.openFile') return Promise.resolve({ state: 'requested' });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getHost: host(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/project/file.ts',
+            }),
+        ).resolves.toEqual({ opened: true });
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
+            expect.objectContaining({ title: 'Choose a Session' }),
+        );
+        expect(request).toHaveBeenCalledWith(
+            'desktop.openFile',
+            expect.objectContaining({ sessionId: 'session-2' }),
         );
     });
 });

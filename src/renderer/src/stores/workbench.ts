@@ -393,7 +393,11 @@ export interface WorkbenchEventHandlers {
     /**
      * Applies an authenticated Host open request after Main redeemed its one-use target.
      */
-    onDesktopOpen(sessionId: string, path?: string): void;
+    onDesktopOpen(
+        sessionId: string,
+        path?: string,
+        location?: { column: number; line: number },
+    ): void;
 }
 
 /**
@@ -460,7 +464,11 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
                 return;
             case 'desktop.openRequested':
-                handlers.onDesktopOpen(event.payload.sessionId, event.payload.path);
+                handlers.onDesktopOpen(
+                    event.payload.sessionId,
+                    event.payload.path,
+                    event.payload.location,
+                );
                 return;
             case 'workbench.candidate':
                 showWorkbenchRootCandidate(event.payload);

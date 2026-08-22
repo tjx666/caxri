@@ -6,10 +6,16 @@ import type {
     DesktopOperation,
     DesktopTargetPayload,
 } from '../shared/ipc/local-transport';
-import type { RuntimeMethodResult } from '../shared/ipc/methods';
+import type {
+    RuntimeMethodParams as RuntimeMethodParameters,
+    RuntimeMethodResult,
+} from '../shared/ipc/methods';
 import type { HostRuntimeSupervisor } from './runtime-supervisor';
 
 type AuthorizedEntry = RuntimeMethodResult<'files.authorizeOpen'>;
+type ExpectedIdentity = NonNullable<
+    RuntimeMethodParameters<'desktop.openFile'>['expectedIdentity']
+>;
 type BootstrapState = RuntimeMethodResult<'app.bootstrap'>;
 type DesktopStatus = { state: 'offline' } | { state: 'background' | 'window'; generation: number };
 
@@ -21,6 +27,7 @@ interface StoredTarget {
     operation: 'open' | 'openInEditor' | 'reveal';
     projectId: string;
     sessionId: string;
+    location?: { column: number; line: number };
 }
 
 interface DesktopRouterBridge {
@@ -50,6 +57,16 @@ function isSameIdentity(left: AuthorizedEntry, right: AuthorizedEntry): boolean 
         left.root.path === right.root.path &&
         left.root.device === right.root.device &&
         left.root.inode === right.root.inode
+    );
+}
+
+function isExpectedIdentity(entry: AuthorizedEntry, expected: ExpectedIdentity): boolean {
+    return (
+        entry.device === expected.device &&
+        entry.inode === expected.inode &&
+        entry.root.path === expected.root.path &&
+        entry.root.device === expected.root.device &&
+        entry.root.inode === expected.root.inode
     );
 }
 
@@ -91,6 +108,7 @@ export class HostDesktopRouter {
         operation: 'open' | 'openInEditor' | 'reveal',
         generation: number,
         resolved: { entry: AuthorizedEntry; projectId: string; sessionId: string },
+        location?: { column: number; line: number },
     ): StoredTarget {
         this.pruneTargets();
         if (this.targets.size >= this.maximumTargets)
@@ -101,6 +119,7 @@ export class HostDesktopRouter {
             generation,
             id: randomUUID(),
             operation,
+            ...(location && { location }),
         };
         this.targets.set(target.id, target);
         return target;
@@ -202,7 +221,13 @@ export class HostDesktopRouter {
     async open(
         operation: 'open' | 'openInEditor' | 'reveal',
         requestedKind: 'directory' | 'file' | undefined,
-        parameters: { launchIfNeeded: boolean; path: string; sessionId?: string },
+        parameters: {
+            launchIfNeeded: boolean;
+            path: string;
+            sessionId?: string;
+            expectedIdentity?: ExpectedIdentity;
+            location?: { column: number; line: number };
+        },
     ): Promise<{
         state: 'opened' | 'requested' | 'revealed';
         generation: number;
@@ -210,6 +235,14 @@ export class HostDesktopRouter {
         sessionId: string;
     }> {
         const resolved = await this.resolveTarget(parameters.path, parameters.sessionId);
+        if (
+            parameters.expectedIdentity &&
+            !isExpectedIdentity(resolved.entry, parameters.expectedIdentity)
+        )
+            throw new CaxriError(
+                'CONFLICT',
+                'Desktop target changed after Terminal link authorization',
+            );
         if (requestedKind && resolved.entry.kind !== requestedKind)
             throw new CaxriError(
                 'VALIDATION',
@@ -221,7 +254,7 @@ export class HostDesktopRouter {
          * Reject a raw target in the headless Host before a CLI open is allowed to launch Desktop.
          */
         const lease = await this.requireLease(parameters.launchIfNeeded);
-        const target = this.issueTarget(operation, lease.generation, resolved);
+        const target = this.issueTarget(operation, lease.generation, resolved, parameters.location);
         try {
             await this.options.bridge.invoke(
                 { kind: operation, targetId: target.id },
@@ -267,6 +300,7 @@ export class HostDesktopRouter {
             kind: current.kind,
             sessionId: target.sessionId,
             path: current.path,
+            ...(target.location && { location: target.location }),
         };
     }
 }

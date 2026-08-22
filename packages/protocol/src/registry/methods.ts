@@ -16,7 +16,11 @@ import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from '../configuration/trusted-domains.js';
 import { argvConfigChangesSchema, argvConfigSchema } from '../desktop/argv-config.js';
-import { desktopHostMethods, desktopStatusResultSchema } from '../desktop/desktop-contract.js';
+import {
+    desktopHostMethods,
+    desktopOpenIdentitySchema,
+    desktopStatusResultSchema,
+} from '../desktop/desktop-contract.js';
 import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
@@ -462,6 +466,20 @@ export const methods = {
         }),
         result: terminalRecordSchema,
     },
+    'terminal.openFileLink': {
+        ...desktopControl,
+        params: z.object({
+            terminalId: identifierSchema,
+            target: z.string().min(3).max(4_096),
+            location: z
+                .object({
+                    line: z.number().int().positive(),
+                    column: z.number().int().positive(),
+                })
+                .optional(),
+        }),
+        result: z.union([canceled, z.object({ opened: z.literal(true) })]),
+    },
     'terminal.snapshot': {
         ...hostRead,
         params: z.object({ terminalId: identifierSchema }),
@@ -720,6 +738,35 @@ export const internalMethods = {
                 inode: z.string().regex(/^\d+$/),
             }),
         }),
+    },
+    'terminal.fileLink.resolve': {
+        ...hostControl,
+        params: z.object({
+            terminalId: identifierSchema,
+            target: z.string().min(3).max(4_096),
+            selectedRoot: pathSchema.optional(),
+        }),
+        result: z.discriminatedUnion('status', [
+            z.object({
+                status: z.literal('authorization_required'),
+                path: pathSchema,
+                sourceSessionId: identifierSchema,
+            }),
+            z.object({
+                status: z.literal('authorized'),
+                identity: desktopOpenIdentitySchema,
+                path: pathSchema,
+                projectId: identifierSchema,
+                sourceSessionId: identifierSchema,
+            }),
+            z.object({
+                status: z.literal('selection_authorized'),
+                identity: desktopOpenIdentitySchema,
+                path: pathSchema,
+                rootPath: pathSchema,
+                sourceSessionId: identifierSchema,
+            }),
+        ]),
     },
     'runtime.shutdown': { ...hostControl, params: noParameters, result: z.null() },
     'terminal.detachAll': { ...hostControl, params: noParameters, result: z.null() },
