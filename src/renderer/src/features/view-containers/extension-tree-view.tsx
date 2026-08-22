@@ -8,12 +8,19 @@ import {
     ChevronDown,
     ChevronRight,
     Circle,
+    CircleCheck,
+    CircleDot,
+    CircleX,
     Cloud,
+    EyeOff,
     File,
     GitBranch,
+    GitPullRequest,
     LoaderCircle,
     MessageSquareWarning,
+    Monitor,
     Package,
+    Rocket,
 } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
@@ -38,19 +45,39 @@ import { useExtensionTreeState } from './use-extension-tree-state';
 const ROOT_HANDLE = '__caxri_tree_root__';
 const themeIcons = {
     'check': Check,
+    'circle-check': CircleCheck,
+    'circle-dot': CircleDot,
+    'circle-outline': Circle,
+    'circle-x': CircleX,
     'cloud': Cloud,
     'error': AlertTriangle,
+    'eye-off': EyeOff,
     'file': File,
     'folder': Package,
     'git-branch': GitBranch,
+    'git-pull-request': GitPullRequest,
     'issues': MessageSquareWarning,
     'loading': LoaderCircle,
+    'monitor': Monitor,
     'pass': Check,
     'question': Circle,
     'repo': Package,
+    'rocket': Rocket,
     'symbol-string': File,
     'warning': AlertTriangle,
 } as const;
+const themeIconClassNames: Partial<Record<keyof typeof themeIcons, string>> = {
+    'check': 'text-success',
+    'circle-check': 'text-success',
+    'circle-dot': 'text-muted',
+    'circle-outline': 'text-muted',
+    'circle-x': 'text-danger',
+    'error': 'text-danger',
+    'loading': 'animate-spin text-warning',
+    'pass': 'text-success',
+    'question': 'text-muted',
+    'warning': 'text-warning',
+};
 
 interface VisibleItemRow {
     kind: 'item';
@@ -578,10 +605,11 @@ function TreeItemRow({
             )}
             <Icon
                 className={
-                    row.item.icon?.kind === 'theme' && row.item.icon.id === 'loading'
-                        ? 'animate-spin'
-                        : ''
+                    themeIconId && themeIconId in themeIcons
+                        ? themeIconClassNames[themeIconId as keyof typeof themeIcons]
+                        : undefined
                 }
+                data-theme-icon={themeIconId}
                 size={14}
             />
             <span className="min-w-0 flex-1 truncate">{row.item.label}</span>

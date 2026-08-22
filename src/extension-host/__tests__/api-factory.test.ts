@@ -14,6 +14,7 @@ import {
     extensionApiBinding,
     getTreeChildren,
     notifyActiveContextChanged,
+    notifyProjectStatusChanged,
 } from '../api-factory';
 
 const fixture = { extensionRoot: '' };
@@ -198,11 +199,13 @@ describe('Extension Host API factory', () => {
         ).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
     });
 
-    it('propagates cancellation and active-context changes only to the current runtime', async () => {
+    it('propagates cancellation and workspace changes only to the current runtime', async () => {
         configureExtensions([registration()]);
         const binding = extensionApiBinding('fixture-token-1');
         let contextChanges = 0;
+        let projectStatusChanges = 0;
         binding.api.workspace.onDidChangeActiveContext(() => contextChanges++);
+        binding.api.workspace.onDidChangeProjectStatus(() => projectStatusChanges++);
         let isCancellationObserved = false;
         binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
             getChildren: (_element: string | undefined, token) =>
@@ -229,6 +232,11 @@ describe('Extension Host API factory', () => {
 
         expect(notifyActiveContextChanged()).toEqual({ notified: 1 });
         expect(contextChanges).toBe(1);
+        expect(projectStatusChanges).toBe(0);
+
+        expect(notifyProjectStatusChanged()).toEqual({ notified: 1 });
+        expect(contextChanges).toBe(1);
+        expect(projectStatusChanges).toBe(1);
     });
 
     it('rejects providers that exceed the item limit', async () => {

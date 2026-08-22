@@ -74,23 +74,33 @@ test('bundled Project Status extension renders and refreshes the current reposit
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const bin = join(testDirectory, 'bin');
+    const statusTitlePath = join(testDirectory, 'status-title.txt');
     await execFileAsync('mkdir', ['-p', root, bin]);
     await execFileAsync('git', ['init', '-b', 'feature/status'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'fixture@caxri.test'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri Fixture'], { cwd: root });
+    await writeFile(join(root, 'README.md'), 'Project Status fixture\n');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'Initial fixture'], { cwd: root });
     await execFileAsync(
         'git',
         ['remote', 'add', 'origin', 'https://github.com/tjx666/project.git'],
         { cwd: root },
     );
+    await execFileAsync('git', ['update-ref', 'refs/remotes/origin/feature/status', 'HEAD'], {
+        cwd: root,
+    });
+    await execFileAsync(
+        'git',
+        ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/feature/status'],
+        { cwd: root },
+    );
+    await writeFile(statusTitlePath, 'Status A');
     await writeFile(
         join(bin, 'gh'),
         `#!/bin/sh
-printf '%s' '${JSON.stringify({
-            body: 'Related to https://linear.app/lobehub/issue/LOBE-42/project-status',
-            number: 42,
-            title: 'Project Status navigation',
-            url: 'https://github.com/tjx666/project/pull/42',
-            statusCheckRollup: [],
-        })}'
+status_title=$(cat ${JSON.stringify(statusTitlePath)})
+printf '{"body":"Related to https://linear.app/lobehub/issue/LOBE-42/project-status","number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"}]}' "$status_title"
 `,
         'utf8',
     );
@@ -99,10 +109,22 @@ printf '%s' '${JSON.stringify({
         "#!/bin/sh\nprintf 'Linear fixture failed\\n' >&2\nexit 1\n",
         'utf8',
     );
-    await writeFile(join(bin, 'vc'), "#!/bin/sh\nprintf '%s' '{\"teams\":[]}'\n", 'utf8');
+    await writeFile(
+        join(bin, 'vc'),
+        `#!/bin/sh
+case " $* " in
+  *" teams ls "*) printf '%s' '{"teams":[{"slug":"tjx666"}]}' ;;
+  *" githubCommitRef="*) printf '%s' '[{"name":"project","readyState":"BUILDING","target":"preview","url":"branch-preview.vercel.app"}]' ;;
+  *" --environment production "*) printf '%s' '[{"name":"project","readyState":"READY","target":"production","url":"project.example.com"}]' ;;
+  *" --environment preview "*) printf '%s' '[{"name":"project","readyState":"ERROR","target":"preview","url":"preview-project.vercel.app"}]' ;;
+  *) printf '%s' '[{"name":"project","readyState":"READY","target":"production","url":"discovery.vercel.app"}]' ;;
+esac
+`,
+        'utf8',
+    );
     await Promise.all(['gh', 'linear', 'vc'].map((name) => chmod(join(bin, name), 0o755)));
 
-    const running = await launchCaxri({
+    let running = await launchCaxri({
         executablePath: packagedExecutable,
         userDataDir: userData,
         testRootPath: root,
@@ -120,27 +142,46 @@ printf '%s' '${JSON.stringify({
             // The Shell button may already have been dismissed by an earlier auto-selection.
         }
         await expect(running.page.locator('.session-card')).toHaveCount(1);
-        await running.page.getByRole('tab', { name: 'Status', exact: true }).click();
+        const statusTab = running.page.getByRole('tab', { name: 'Status', exact: true });
+        await statusTab.click();
+        await expect(statusTab.locator('img')).toHaveCount(0);
+        await expect(statusTab.locator('svg')).toHaveCount(1);
 
         const tree = running.page.getByRole('tree', { name: 'Extension View' });
-        const repo = tree.getByRole('treeitem', { name: 'project, feature/status' });
+        const repo = tree.getByRole('treeitem', { name: 'project', exact: true });
         await expect(repo).toBeVisible();
-        await expect(repo).toHaveAttribute('aria-expanded', 'false');
-        await repo.click();
         await expect(repo).toHaveAttribute('aria-expanded', 'true');
-        await expect(tree.getByRole('treeitem', { name: 'feature/status, Branch' })).toBeVisible();
+        await expect(
+            tree.getByRole('treeitem', { name: 'feature/status, default', exact: true }),
+        ).toBeVisible();
 
         await running.page.keyboard.press('Meta+Shift+P');
         await running.page.getByText('Refresh Project Status', { exact: true }).click();
-        await expect(repo).toBeVisible();
+        const pullRequestA = tree.getByRole('treeitem', { name: '#42 Status A', exact: true });
+        await expect(pullRequestA).toBeVisible();
+        await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
+        await expect(pullRequestA.locator('[data-theme-icon="circle-x"]')).toHaveClass(
+            /text-danger/,
+        );
+        await expect(
+            tree.getByRole('treeitem', { name: 'Test / App, 2m 5s', exact: true }),
+        ).toBeVisible();
+        const deployments = tree.getByRole('treeitem', {
+            name: 'Deployments, 1 on preview',
+            exact: true,
+        });
+        await expect(deployments).toBeVisible();
+        await expect(
+            tree.getByRole('treeitem', { name: 'Production, project.example.com', exact: true }),
+        ).toBeVisible();
+        await expect(
+            tree.getByRole('treeitem', {
+                name: 'Preview, preview-project.vercel.app',
+                exact: true,
+            }),
+        ).toBeVisible();
 
         const linearError = tree.getByRole('treeitem', { name: /linear: error/i });
-        await expect
-            .poll(async () => {
-                if ((await repo.getAttribute('aria-expanded')) === 'false') await repo.click();
-                return linearError.count();
-            })
-            .toBe(1);
         await expect(linearError).toBeVisible();
         await expect(running.page.getByRole('region', { name: 'Panel' })).toHaveCount(0);
         await linearError.click();
@@ -149,6 +190,59 @@ printf '%s' '${JSON.stringify({
             'aria-selected',
             'true',
         );
+
+        const keybindings = await pageRequest<{
+            value: Array<{ command: string; key: string }>;
+        }>(running.page, 'keybindings.get');
+        await pageRequest(running.page, 'keybindings.update', {
+            source: JSON.stringify(
+                [
+                    ...keybindings.value,
+                    { command: 'caxri.project-status.refresh', key: 'cmd+alt+r' },
+                ],
+                null,
+                2,
+            ),
+        });
+        await writeFile(statusTitlePath, 'Status B');
+        await deployments.click();
+        await expect(deployments).toHaveAttribute('aria-expanded', 'true');
+        const production = tree.getByRole('treeitem', {
+            name: 'Production, project.example.com',
+            exact: true,
+        });
+        await production.focus();
+        await expect(production).toHaveAttribute('aria-selected', 'true');
+        await running.page.keyboard.press('Meta+Alt+r');
+        await expect(
+            tree.getByRole('treeitem', { name: '#42 Status B', exact: true }),
+        ).toBeVisible();
+        await expect(pullRequestA).toHaveCount(0);
+        await expect(deployments).toHaveAttribute('aria-expanded', 'true');
+        await expect(production).toHaveAttribute('aria-selected', 'true');
+        await running.page.waitForTimeout(150);
+
+        await running.app.close();
+        running = await launchCaxri({
+            executablePath: packagedExecutable,
+            userDataDir: userData,
+            testRootPath: root,
+            env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
+        });
+        await running.page.getByRole('tab', { name: 'Status', exact: true }).click();
+        await running.page.keyboard.press('Meta+Alt+r');
+        const restoredTree = running.page.getByRole('tree', { name: 'Extension View' });
+        const restoredDeployments = restoredTree.getByRole('treeitem', {
+            name: 'Deployments, 1 on preview',
+            exact: true,
+        });
+        await expect(restoredDeployments).toHaveAttribute('aria-expanded', 'true');
+        await expect(
+            restoredTree.getByRole('treeitem', {
+                name: 'Production, project.example.com',
+                exact: true,
+            }),
+        ).toHaveAttribute('aria-selected', 'true');
     } finally {
         try {
             await running.app.close();

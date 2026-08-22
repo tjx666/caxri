@@ -8,6 +8,8 @@ export type ExtensionProjectStatusSummary = Omit<ProjectStatusSummary, 'reposito
     repositories: Array<Omit<ProjectStatusSummary['repositories'][number], 'rootPath'>>;
 };
 
+export const MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH = 200;
+
 export interface ExtensionHostRegistration {
     extensionId: string;
     generation: number;
@@ -52,6 +54,7 @@ export type ExtensionHostRequest =
           };
       }
     | { id: string; method: 'activeContextChanged'; params: Record<string, never> }
+    | { id: string; method: 'projectStatusChanged'; params: Record<string, never> }
     | { id: string; method: 'cancel'; params: { requestId: string } }
     | { id: string; method: 'shutdown'; params: Record<string, never> };
 
@@ -62,6 +65,7 @@ export interface ExtensionHostApiRequest {
     generation: number;
     apiToken: string;
     method: 'workspace.getProjectStatus';
+    params: { refreshToken?: string };
 }
 
 export type ExtensionHostMessage =

@@ -17,6 +17,7 @@ import type {
     ExtensionHostRequest,
     ExtensionProjectStatusSummary,
 } from '../../shared/extension-host-protocol';
+import { MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH } from '../../shared/extension-host-protocol';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
@@ -69,7 +70,13 @@ export function isExtensionHostMessage(value: unknown): value is ExtensionHostMe
             Number.isSafeInteger(value.generation) &&
             Number(value.generation) >= 0 &&
             isBoundedString(value.apiToken, 200) &&
-            value.method === 'workspace.getProjectStatus'
+            value.method === 'workspace.getProjectStatus' &&
+            isRecord(value.params) &&
+            (value.params.refreshToken === undefined ||
+                isBoundedString(
+                    value.params.refreshToken,
+                    MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH,
+                ))
         );
     if (value.type === 'event')
         return (
@@ -114,6 +121,7 @@ export function isExtensionHostResult(
         case 'executeCommand':
             return value.executed === true;
         case 'activeContextChanged':
+        case 'projectStatusChanged':
             return Number.isSafeInteger(value.notified) && Number(value.notified) >= 0;
         case 'cancel':
             return typeof value.cancelled === 'boolean';
