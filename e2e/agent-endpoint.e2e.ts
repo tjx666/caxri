@@ -195,7 +195,9 @@ exec -a claude /bin/zsh -c 'while :; do printf "shell-agent-tick\n"; sleep 1; do
         await expect(running.page.locator('.xterm-rows')).toContainText(
             '"reason":"endpoint-credential-missing"',
         );
-        await expect(running.page.getByRole('tab', { name: 'Claude Code' })).toBeVisible();
+        // Promotion seeds the tab with the provider name, but the first probe carrying a conversation title replaces
+        // it: an Agent tab identifies its conversation, not which Agent is running in it.
+        await expect(running.page.getByRole('tab', { name: 'Shell Claude' })).toBeVisible();
         await expect
             .poll(async () => {
                 const state = await pageRequest<{ terminals: Array<{ kind: string }> }>(

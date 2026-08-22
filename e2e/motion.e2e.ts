@@ -140,12 +140,22 @@ test('Work tabs animate presence with motion-token durations and switch Sessions
         await pressNewTerminal(running.page);
         const addedTab = running.page.locator('.work-tab[data-terminal-id]').last();
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
-        const initialWidth = (await initialTab.boundingBox())!.width;
+        /**
+         * Both widths are re-read every iteration rather than sampling the sibling once up front. The second tab's
+         * arrival also brings back the tab bar's "+" action, hidden while the Workbench holds a single tab, so the rail
+         * loses width at the same moment the tabs start sharing it — a `initialWidth` captured before that settles is
+         * stale on the high side and the ratio never closes.
+         */
         await expect
-            .poll(async () => (await addedTab.boundingBox())?.width ?? 0, {
-                timeout: enterMs + 2_000,
-            })
-            .toBeGreaterThan(initialWidth * 0.9);
+            .poll(
+                async () => {
+                    const added = (await addedTab.boundingBox())?.width ?? 0;
+                    const initial = (await initialTab.boundingBox())?.width ?? 0;
+                    return initial > 0 ? added / initial : 0;
+                },
+                { timeout: enterMs + 2_000 },
+            )
+            .toBeGreaterThan(0.9);
         await expect(addedTab).toHaveCSS('opacity', '1');
 
         await addedTab.hover();
