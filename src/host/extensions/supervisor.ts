@@ -17,7 +17,8 @@ import type {
     ExtensionHostRequest,
     ExtensionProjectStatusSummary,
 } from '../../shared/extension-host-protocol';
-import { logEventCatalog, type StructuredLogger } from '../../shared/node/logger';
+import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
 
 interface PendingRequest {
@@ -256,9 +257,15 @@ export class ExtensionHostSupervisor extends EventTarget {
                 this.restartTimer = undefined;
                 // eslint-disable-next-line unicorn/prefer-await
                 this.start().catch((error) =>
-                    this.options.logger.write('error', logEventCatalog.extensionHost.restartFailed, {
-                        fields: { message: error instanceof Error ? error.message : String(error) },
-                    }),
+                    this.options.logger.write(
+                        'error',
+                        logEventCatalog.extensionHost.restartFailed,
+                        {
+                            fields: {
+                                message: error instanceof Error ? error.message : String(error),
+                            },
+                        },
+                    ),
                 );
             },
             Math.min(250 * 2 ** (this.restartCount - 1), 2_000),

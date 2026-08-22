@@ -12,13 +12,19 @@ import { getBuiltinViewComponent } from './builtin-components';
 import { ExtensionTreeView } from './extension-tree-view';
 import { resolveViewContainerId } from './resolution';
 
+const builtinIcons = {
+    'files': Files,
+    'git-branch': GitBranch,
+    'info': Info,
+    'logs': Logs,
+} as const;
+
 function CatalogIcon({ icon }: { icon: ViewIcon }) {
     if (icon.kind === 'resource') return <img alt="" className="size-4" src={icon.dataUrl} />;
-    const icons = { 'files': Files, 'git-branch': GitBranch, 'info': Info, 'logs': Logs } as const;
     const builtinIconId = icon.kind === 'builtin' ? icon.id : undefined;
     const Icon =
-        builtinIconId !== undefined && builtinIconId in icons
-            ? icons[builtinIconId as keyof typeof icons]
+        builtinIconId !== undefined && builtinIconId in builtinIcons
+            ? builtinIcons[builtinIconId as keyof typeof builtinIcons]
             : Package;
     return <Icon size={16} />;
 }

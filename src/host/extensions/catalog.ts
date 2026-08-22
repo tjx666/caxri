@@ -117,28 +117,23 @@ export async function buildViewCatalog(options: {
             lifecycle: 'discovered' as const,
         };
         let conflict: ExtensionError | undefined;
+        const contributions = extension.manifest.contributes;
+        const contributedViews = Object.values(contributions.views).flat();
         const contributedContainers = [
-            ...extension.manifest.contributes.viewsContainers.secondarySidebar,
-            ...extension.manifest.contributes.viewsContainers.panel,
+            ...contributions.viewsContainers.secondarySidebar,
+            ...contributions.viewsContainers.panel,
         ];
         const contributedIds = [
             ...contributedContainers.map(({ id }) => id),
             ...contributedContainers.map(({ id }) => `viewContainers.show.${id}`),
-            ...Object.values(extension.manifest.contributes.views)
-                .flat()
-                .map(({ id }) => id),
-            ...extension.manifest.contributes.commands.map(({ command }) => command),
+            ...contributedViews.map(({ id }) => id),
+            ...contributions.commands.map(({ command }) => command),
         ];
-        const contributedViewCount = Object.values(extension.manifest.contributes.views).reduce(
-            (total, contributions) => total + contributions.length,
-            0,
-        );
+        const contributedViewCount = contributedViews.length;
         const isExceedsCatalogCapacity =
             containers.length + contributedContainers.length > MAX_VIEW_CATALOG_CONTAINERS ||
             views.length + contributedViewCount > MAX_VIEW_CATALOG_VIEWS ||
-            commands.length +
-                contributedContainers.length +
-                extension.manifest.contributes.commands.length >
+            commands.length + contributedContainers.length + contributions.commands.length >
                 MAX_VIEW_CATALOG_COMMANDS;
         const duplicate = contributedIds.find(
             (id, index) => ids.has(id) || contributedIds.indexOf(id) !== index,
@@ -183,10 +178,10 @@ export async function buildViewCatalog(options: {
             ...(error && { error }),
         });
         if (conflict) continue;
-        const viewContainers = extension.manifest.contributes.viewsContainers;
+        const viewContainers = contributions.viewsContainers;
         for (const location of ['secondarySidebar', 'panel'] as const) {
-            const contributions = viewContainers[location];
-            for (const contribution of contributions) {
+            const containerContributions = viewContainers[location];
+            for (const contribution of containerContributions) {
                 ids.add(contribution.id);
                 containers.push({
                     id: contribution.id,
@@ -210,10 +205,8 @@ export async function buildViewCatalog(options: {
                 ids.add(`viewContainers.show.${contribution.id}`);
             }
         }
-        for (const [containerId, contributions] of Object.entries(
-            extension.manifest.contributes.views,
-        )) {
-            for (const contribution of contributions) {
+        for (const [containerId, viewContributions] of Object.entries(contributions.views)) {
+            for (const contribution of viewContributions) {
                 ids.add(contribution.id);
                 views.push({
                     id: contribution.id,
@@ -225,7 +218,7 @@ export async function buildViewCatalog(options: {
                 });
             }
         }
-        for (const contribution of extension.manifest.contributes.commands) {
+        for (const contribution of contributions.commands) {
             ids.add(contribution.command);
             commands.push({
                 id: contribution.command,

@@ -789,9 +789,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         },
     };
     watchSessionInBackground(selectedSessionId());
-    /**
-     * Initial Session Terminal restoration stays fire-and-forget to preserve the 3s startup gate.
-     */
+    // Background Terminal restore preserves the three-second startup gate.
     const initialSessionId = selectedSessionId();
     if (initialSessionId) {
         restoreInterruptedTerminalsInBackground(initialSessionId);
