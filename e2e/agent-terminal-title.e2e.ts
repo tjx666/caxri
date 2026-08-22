@@ -16,7 +16,7 @@ const AGENT_STATUS_TITLE = 'esc to interrupt · 12s';
 const CONVERSATION_TITLE = 'Ship the release notes';
 
 interface BootstrapTerminals {
-    terminals: Array<{ ptyTitle?: string; title: string }>;
+    terminals: Array<{ id: string; ptyTitle?: string; title: string }>;
 }
 
 /**
@@ -25,7 +25,7 @@ interface BootstrapTerminals {
  * Pure-function coverage of the arbitration stays green if a Renderer call site goes back to preferring the PTY title,
  * and the Agent E2E fixtures never emitted OSC at all before this spec.
  */
-test('an Agent tab keeps its conversation title against OSC and across a reload', async () => {
+test('an Agent tab keeps its conversation title against OSC and a reload, and drops it on a fresh restart', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-terminal-title-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -115,6 +115,26 @@ done
             page.getByRole('tab', { name: CONVERSATION_TITLE, exact: true }),
         ).toBeVisible();
         await expect(page.locator('.tab-label')).toHaveText(CONVERSATION_TITLE);
+
+        /**
+         * A fresh restart retires the conversation, so keeping its name would label a brand new Agent with a
+         * conversation it has nothing to do with — permanently, if the replacement never names one. The Runtime clears
+         * it in `resetAgentMetadataForStart`, and only a real restart proves that reset is wired into the launch path
+         * and projected back to the tab. The retired thread row stays in the fixture database on purpose: its
+         * `created_at_ms` predates the new `startedAt`, which is exactly what must keep the probe from re-claiming it.
+         */
+        const bootstrap = await pageRequest<BootstrapTerminals>(page, 'app.bootstrap');
+        const terminalId = bootstrap.terminals[0]?.id;
+        expect(terminalId).toBeTruthy();
+        await pageRequest(page, 'terminal.restart', { terminalId, mode: 'fresh' });
+        await expect
+            .poll(async () => {
+                const restarted = await pageRequest<BootstrapTerminals>(page, 'app.bootstrap');
+                return restarted.terminals.at(0)?.title;
+            })
+            .toBe('Codex');
+        await expect(page.locator('.tab-label')).toHaveText('Codex');
+        await expect(page.getByRole('tab', { name: 'Codex', exact: true })).toBeVisible();
     } finally {
         try {
             await app.close();

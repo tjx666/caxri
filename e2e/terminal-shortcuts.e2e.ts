@@ -186,8 +186,11 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
  * captured while both tabs existed is replayed after the close, which is byte-for-byte the write the losing race
  * sends.
  *
- * Only a real Electron run proves this. The write crosses Renderer, Host, and Runtime, each of which carries part of
- * the fix, and unit coverage of any one layer stays green while another regresses.
+ * Only a real Electron run proves the transport and persistence half: the write crosses Host and Runtime, and no unit
+ * test can show that the Runtime prunes a stale placement before storing it. The Renderer's own two defences —
+ * declining to re-place a Terminal closed mid-creation, and adopting the Runtime's pruned canonical state — are covered
+ * narrowly in `terminal-actions.test.ts` and `workbench-session-state.test.ts`, because the replay below bypasses the
+ * Renderer's create path by sending the layout straight over IPC.
  */
 test('a Terminal closed while its layout write was in flight leaves no tab behind', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-close-race-e2e-'));
