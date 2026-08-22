@@ -64,6 +64,7 @@ interface ProviderRegistration {
     ids: Map<string, string>;
     itemIds: Map<string, string>;
     nextHandle: number;
+    refreshEpoch: number;
 }
 
 interface ExtensionRuntime {
@@ -119,6 +120,17 @@ function assertCurrent(extensionId: string, generation: number): ExtensionRuntim
 
 function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed: unknown): void {
     if (providers.get(viewId) !== provider) return;
+    if (changed === undefined) {
+        provider.refreshEpoch += 1;
+        provider.elements.clear();
+        provider.depths.clear();
+        provider.children.clear();
+        provider.parents.clear();
+        provider.ids.clear();
+        provider.itemIds.clear();
+        provider.handles = new WeakMap();
+        provider.nextHandle = 0;
+    }
     const existing = pendingRefreshes.get(viewId);
     const changedElements: readonly unknown[] = Array.isArray(changed)
         ? changed
@@ -135,16 +147,6 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
     const batch = mergeTreeRefresh(existing?.batch, changed === undefined ? undefined : handles);
     if (!batch || batch === existing?.batch) return;
     if (existing) clearTimeout(existing.timer);
-    if (changed === undefined) {
-        provider.elements.clear();
-        provider.depths.clear();
-        provider.children.clear();
-        provider.parents.clear();
-        provider.ids.clear();
-        provider.itemIds.clear();
-        provider.handles = new WeakMap();
-        provider.nextHandle = 0;
-    }
     const timer = setTimeout(() => {
         pendingRefreshes.delete(viewId);
         if (providers.get(viewId) !== provider) return;
@@ -256,6 +258,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
                     ids: new Map(),
                     itemIds: new Map(),
                     nextHandle: 0,
+                    refreshEpoch: 0,
                 };
                 if (provider.onDidChangeTreeData)
                     providerRegistration.subscription = provider.onDidChangeTreeData((element) =>
@@ -476,6 +479,13 @@ function isRequestCancelled(cancellation: CancellationTokenSource): boolean {
     return cancellation.token.isCancellationRequested;
 }
 
+function assertRefreshCurrent(provider: ProviderRegistration, refreshEpoch: number): void {
+    if (provider.refreshEpoch !== refreshEpoch)
+        throw Object.assign(new Error('Tree provider refreshed while the request was running'), {
+            code: 'GENERATION_EXPIRED',
+        });
+}
+
 export async function getTreeChildren(parameters: {
     extensionId: string;
     generation: number;
@@ -517,6 +527,7 @@ export async function getTreeChildren(parameters: {
             code: 'PROVIDER_CAPACITY',
         });
     const cancellation = new CancellationTokenSource();
+    const refreshEpoch = provider.refreshEpoch;
     cancellations.set(parameters.requestId, cancellation);
     try {
         let children: readonly unknown[];
@@ -526,6 +537,7 @@ export async function getTreeChildren(parameters: {
             throw providerFailure(error);
         }
         assertRuntimeCurrent(runtime);
+        assertRefreshCurrent(provider, refreshEpoch);
         if (isRequestCancelled(cancellation)) return { items: [] };
         if (children.length > MAX_VIEW_TREE_ITEMS)
             throw Object.assign(new Error('Tree provider exceeded the item limit'), {
@@ -547,6 +559,7 @@ export async function getTreeChildren(parameters: {
             }),
         );
         assertRuntimeCurrent(runtime);
+        assertRefreshCurrent(provider, refreshEpoch);
         if (isRequestCancelled(cancellation)) return { items: [] };
         assertRuntimeCurrent(runtime);
         const retiredHandles = collectDescendantHandles(provider, parentKey);

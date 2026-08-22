@@ -99,6 +99,7 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.workspaces).toBeUndefined();
         expect(workspace.packages).toEqual(['extensions/*', 'packages/*']);
         expect(workspace.catalog).toEqual({
+            '@types/semver': '^7.8.0',
             '@yutengjing/eslint-config-typescript': '^4.0.0',
             '@yutengjing/prettier-config': '^2.0.0',
             'markdownlint': '^0.41.1',
@@ -106,6 +107,7 @@ describe('pnpm workspace contract', () => {
             'oxlint': '^1.78.0',
             'oxlint-tsgolint': '^7.0.2001',
             'prettier-plugin-tailwindcss': '^0.8.1',
+            'semver': '^7.8.5',
             'sonda': '^0.14.0',
             'zod': '4.4.3',
         });

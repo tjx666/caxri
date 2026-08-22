@@ -319,6 +319,68 @@ describe('Extension Host API factory', () => {
         });
     });
 
+    it('discards a request that started before a provider root refresh', async () => {
+        configureExtensions([registration()]);
+        // eslint-disable-next-line unicorn/prefer-event-target -- Verify the public VS Code-compatible provider event.
+        const changes = new EventEmitter<undefined>();
+        const staleStarted = Promise.withResolvers<void>();
+        let resolveStale!: (children: ReadonlyArray<{ label: string }>) => void;
+        let rootCalls = 0;
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                onDidChangeTreeData: changes.event,
+                getChildren: (element: { label: string } | undefined) => {
+                    if (element) return [{ label: `child-of-${element.label}` }];
+                    rootCalls += 1;
+                    if (rootCalls === 1)
+                        return new Promise<ReadonlyArray<{ label: string }>>((resolve) => {
+                            resolveStale = resolve;
+                            staleStarted.resolve();
+                        });
+                    return [{ label: 'fresh' }];
+                },
+                getTreeItem: (element: { label: string }) => {
+                    const item = new TreeItem(element.label, TreeItemCollapsibleState.Collapsed);
+                    item.id =
+                        element.label === 'stale' || element.label === 'fresh'
+                            ? 'root'
+                            : element.label;
+                    return item;
+                },
+            },
+        );
+
+        const stale = getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'stale-before-root-refresh',
+        });
+        await staleStarted.promise;
+        changes.fire(undefined);
+        const fresh = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'fresh-after-root-refresh',
+        });
+        resolveStale([{ label: 'stale' }]);
+
+        await expect(stale).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                parentHandle: fresh.items[0].handle,
+                requestId: 'fresh-child-after-root-refresh',
+            }),
+        ).resolves.toEqual({
+            items: [expect.objectContaining({ label: 'child-of-fresh' })],
+        });
+    });
+
     it('bounds serialized payloads and generation-scoped tree depth', async () => {
         configureExtensions([registration()]);
         const binding = extensionApiBinding('fixture-token-1');

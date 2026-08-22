@@ -39,12 +39,77 @@ function stripHtmlComments(line: string, state: { inside: boolean }): string {
     return segments.join('');
 }
 
+interface HiddenHtmlState {
+    depth: number;
+    tag?: string;
+}
+
+const nonRenderingHtmlTags = new Set(['head', 'script', 'style', 'template']);
+const voidHtmlTags = new Set([
+    'area',
+    'base',
+    'br',
+    'col',
+    'embed',
+    'hr',
+    'img',
+    'input',
+    'link',
+    'meta',
+    'param',
+    'source',
+    'track',
+    'wbr',
+]);
+
+function updateHiddenHtmlDepth(line: string, state: HiddenHtmlState): void {
+    if (!state.tag) return;
+    const tagPattern = new RegExp(String.raw`<\/?${state.tag}\b[^>]*>`, 'giu');
+    for (const match of line.matchAll(tagPattern)) {
+        if (match[0].startsWith('</')) state.depth -= 1;
+        else if (!/\/\s*>$/u.test(match[0]) && !voidHtmlTags.has(state.tag)) state.depth += 1;
+    }
+    if (state.depth <= 0) {
+        state.depth = 0;
+        state.tag = undefined;
+    }
+}
+
+function hasHiddenHtmlBlockStart(line: string, state: HiddenHtmlState): boolean {
+    for (const match of line.matchAll(/<[a-z][^>]*>/giu)) {
+        const tag = match[0]
+            .slice(1)
+            .match(/^[a-z][\w-]*/iu)?.[0]
+            .toLowerCase();
+        if (!tag) continue;
+        const normalized = match[0].toLowerCase().replaceAll(/\s+/gu, ' ');
+        const compact = normalized.replaceAll(' ', '');
+        const isHidden =
+            nonRenderingHtmlTags.has(tag) ||
+            /\shidden[\s=>]/u.test(normalized) ||
+            (compact.includes('style=') && compact.includes('display:none'));
+        if (!isHidden) continue;
+        if (!voidHtmlTags.has(tag) && !/\/\s*>$/u.test(match[0])) {
+            state.tag = tag;
+            updateHiddenHtmlDepth(line.slice(match.index), state);
+        }
+        return true;
+    }
+    return false;
+}
+
 function markdownLinesOutsideFences(body: string): string[] {
     const visible: string[] = [];
     let fence: { length: number; marker: '`' | '~' } | undefined;
     const htmlComment = { inside: false };
+    const hiddenHtml: HiddenHtmlState = { depth: 0 };
     for (const rawLine of body.split(/\r?\n/u)) {
         const line = stripHtmlComments(rawLine, htmlComment);
+        if (hiddenHtml.tag) {
+            updateHiddenHtmlDepth(line, hiddenHtml);
+            continue;
+        }
+        if (hasHiddenHtmlBlockStart(line, hiddenHtml)) continue;
         const markerMatch = line.match(/^\s{0,3}(`{3,}|~{3,})/u);
         const marker = markerMatch?.[1];
         if (fence) {
