@@ -32,7 +32,7 @@ export interface ExtensionServiceOptions {
     logger: StructuredLogger;
     activeContext(): Promise<{ projectId?: string; sessionId?: string }>;
     projectIds(): Promise<string[]>;
-    projectStatus(sessionId: string): Promise<ProjectStatusSummary>;
+    projectStatus(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary>;
 }
 
 function extensionFailure(error: unknown): ExtensionError {
@@ -158,11 +158,14 @@ export class ExtensionService extends EventTarget {
         return registrations;
     }
 
-    private async projectStatusForStableContext(active: {
-        projectId?: string;
-        sessionId: string;
-    }): Promise<ExtensionProjectStatusSummary> {
-        const result = await this.options.projectStatus(active.sessionId);
+    private async projectStatusForStableContext(
+        active: {
+            projectId?: string;
+            sessionId: string;
+        },
+        refreshToken?: string,
+    ): Promise<ExtensionProjectStatusSummary> {
+        const result = await this.options.projectStatus(active.sessionId, refreshToken);
         return this.projectStatusIfContextUnchanged(active, result);
     }
 
@@ -314,10 +317,13 @@ export class ExtensionService extends EventTarget {
                             code: 'PROJECT_SCOPE_DENIED',
                         },
                     );
-                return this.projectStatusForStableContext({
-                    sessionId: active.sessionId,
-                    ...(active.projectId && { projectId: active.projectId }),
-                });
+                return this.projectStatusForStableContext(
+                    {
+                        sessionId: active.sessionId,
+                        ...(active.projectId && { projectId: active.projectId }),
+                    },
+                    request.params.refreshToken,
+                );
             },
         });
         this.supervisor.onEvent((event) => {
@@ -432,6 +438,10 @@ export class ExtensionService extends EventTarget {
 
     async activeContextChanged(): Promise<void> {
         await this.supervisor?.request('activeContextChanged', {});
+    }
+
+    async projectStatusChanged(): Promise<void> {
+        await this.supervisor?.request('projectStatusChanged', {});
     }
 
     async retry(extensionId: string): Promise<{ accepted: boolean; error?: ExtensionError }> {

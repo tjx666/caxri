@@ -191,6 +191,13 @@ export interface ProjectStatusSummary {
     error?: string;
 }
 
+export interface ProjectStatusRequestOptions {
+    /**
+     * A unique, bounded token bypasses the settled Runtime cache exactly once.
+     */
+    refreshToken?: string;
+}
+
 export interface CaxriApi {
     readonly commands: {
         registerCommand(
@@ -203,7 +210,8 @@ export interface CaxriApi {
     };
     readonly workspace: {
         readonly onDidChangeActiveContext: Event<void>;
-        getProjectStatus(): Promise<ProjectStatusSummary>;
+        readonly onDidChangeProjectStatus: Event<void>;
+        getProjectStatus(options?: ProjectStatusRequestOptions): Promise<ProjectStatusSummary>;
     };
 }
 
@@ -234,6 +242,7 @@ const caxri: CaxriApi = Object.freeze({
     }),
     workspace: Object.freeze({
         onDidChangeActiveContext: outsideHostEvent,
+        onDidChangeProjectStatus: outsideHostEvent,
         getProjectStatus: () => unavailable('workspace.getProjectStatus'),
     }),
 });

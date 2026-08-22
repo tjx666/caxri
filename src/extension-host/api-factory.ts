@@ -7,6 +7,7 @@ import type {
     CaxriApi,
     DisposableLike,
     ExtensionContext,
+    ProjectStatusRequestOptions,
     ProjectStatusSummary,
     TreeDataProvider,
 } from 'caxri';
@@ -32,12 +33,14 @@ import type {
     ExtensionHostMessage,
     ExtensionHostRegistration,
 } from '../shared/extension-host-protocol';
+import { MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH } from '../shared/extension-host-protocol';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
 
 interface ApiBinding {
     api: CaxriApi;
     notifyActiveContext(): void;
+    notifyProjectStatus(): void;
     runtime: {
         CancellationTokenSource: typeof CancellationTokenSource;
         Disposable: typeof Disposable;
@@ -162,8 +165,17 @@ function requestProjectStatus(
     extensionId: string,
     generation: number,
     apiToken: string,
+    refreshToken?: string,
 ): Promise<ProjectStatusSummary> {
     assertCurrent(extensionId, generation);
+    if (
+        refreshToken !== undefined &&
+        (refreshToken.length === 0 ||
+            refreshToken.length > MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH)
+    )
+        throw Object.assign(new Error('Project Status refresh token is invalid'), {
+            code: 'PROVIDER_FAILED',
+        });
     const id = randomUUID();
     const request: ExtensionHostApiRequest = {
         type: 'api-request',
@@ -172,6 +184,7 @@ function requestProjectStatus(
         generation,
         apiToken,
         method: 'workspace.getProjectStatus',
+        params: { ...(refreshToken && { refreshToken }) },
     };
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -191,6 +204,8 @@ function requestProjectStatus(
 function createBinding(registration: ExtensionHostRegistration): ApiBinding {
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
     const activeContext = new EventEmitter<void>();
+    // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
+    const projectStatus = new EventEmitter<void>();
     const allowedViews = new Set(
         Object.values(registration.manifest.contributes.views)
             .flat()
@@ -258,12 +273,14 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
         }),
         workspace: Object.freeze({
             onDidChangeActiveContext: activeContext.event,
-            getProjectStatus: () => {
+            onDidChangeProjectStatus: projectStatus.event,
+            getProjectStatus: (options?: ProjectStatusRequestOptions) => {
                 assertBindingCurrent(registration);
                 return requestProjectStatus(
                     registration.extensionId,
                     registration.generation,
                     registration.apiToken,
+                    options?.refreshToken,
                 );
             },
         }),
@@ -271,6 +288,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
     return {
         api,
         notifyActiveContext: () => activeContext.fire(),
+        notifyProjectStatus: () => projectStatus.fire(),
         runtime: {
             CancellationTokenSource,
             Disposable,
@@ -287,6 +305,16 @@ export function notifyActiveContextChanged(): { notified: number } {
     for (const runtime of extensions.values()) {
         if (!runtime.activation) continue;
         runtime.apiBinding.notifyActiveContext();
+        notified += 1;
+    }
+    return { notified };
+}
+
+export function notifyProjectStatusChanged(): { notified: number } {
+    let notified = 0;
+    for (const runtime of extensions.values()) {
+        if (!runtime.activation) continue;
+        runtime.apiBinding.notifyProjectStatus();
         notified += 1;
     }
     return { notified };
