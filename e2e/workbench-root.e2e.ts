@@ -40,7 +40,7 @@ async function expectWorkbenchRoot(
     });
 }
 
-test('Agent worktree hook prompts, authorizes, and switches one Session atomically', async () => {
+test('authenticated Agent worktree provenance prompts, authorizes, and switches one Session', async () => {
     const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-hook-e2e-'));
     const testDirectory = await realpath(createdDirectory);
     const userData = join(testDirectory, 'user-data');
@@ -59,6 +59,14 @@ if (process.argv.includes('--version')) {
   process.stdout.write('codex 0.147.0\n');
   process.exit(0);
 }
+function signalShellToolFinished() {
+  const hooks = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));
+  const group = hooks.hooks.PostToolUse.find((candidate) => candidate.matcher === '^Bash$');
+  childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
+    env: process.env,
+    input: '{}',
+  });
+}
 let step = 0;
 process.stdin.setRawMode?.(true);
 process.stdin.on('data', () => {
@@ -66,21 +74,20 @@ process.stdin.on('data', () => {
   if (step === 1) {
     childProcess.execFileSync('git', ['worktree', 'add', '-b', 'feature/workbench', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
     fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context\n');
+    signalShellToolFinished();
+    childProcess.execFileSync(process.env.CAXRI_CLI_PATH, ['agent', 'worktree', 'created', ${JSON.stringify(worktree)}, '--json'], { env: process.env });
   } else if (step === 2) {
     childProcess.execFileSync('git', ['worktree', 'remove', '--force', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
+    signalShellToolFinished();
   } else if (step === 3) {
     childProcess.execFileSync('git', ['worktree', 'add', ${JSON.stringify(worktree)}, 'feature/workbench'], { cwd: ${JSON.stringify(root)} });
     fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context restored\n');
+    signalShellToolFinished();
+    childProcess.execFileSync(process.env.CAXRI_CLI_PATH, ['agent', 'worktree', 'created', ${JSON.stringify(worktree)}, '--json'], { env: process.env });
   } else {
     return;
   }
-  const hooks = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));
-  const group = hooks.hooks.PostToolUse.find((candidate) => candidate.matcher === '^Bash$');
-  childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
-    env: process.env,
-    input: JSON.stringify({ tool_input: { command: 'content must not cross the bridge' } }),
-  });
-  process.stdout.write('Worktree hook sent ' + step + '\r\n');
+  process.stdout.write('Workbench operation finished ' + step + '\r\n');
 });
 process.stdin.resume();
 process.stdout.write('Workbench Agent ready\r\n');
@@ -214,6 +221,82 @@ process.stdout.write('Workbench Agent ready\r\n');
         expect(terminalAfter?.cwd).toBe(terminalBefore?.cwd);
         expect(terminalAfter?.agentSessionId).toBe(terminalBefore?.agentSessionId);
         expect(terminalAfter?.lastProcessState).toBe(terminalBefore?.lastProcessState);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(createdDirectory, { recursive: true, force: true });
+    }
+});
+
+test('external worktree creation stays silent while one Agent Session is running', async () => {
+    const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-external-e2e-'));
+    const testDirectory = await realpath(createdDirectory);
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'owner');
+    const worktree = join(testDirectory, 'external-worktree');
+    await initializeRepo(root);
+    await execFileAsync('git', ['worktree', 'add', '-b', 'feature/external', worktree], {
+        cwd: root,
+    });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: { startupOutput: 'External provenance Agent ready\r\n' } },
+    });
+    const running = await launchCaxri({
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, worktree]) },
+    });
+    try {
+        const selectedOwner = await pageRequest<string | null>(
+            running.page,
+            'dialog.selectDirectory',
+        );
+        expect(selectedOwner).toBe(root);
+        const owner = await pageRequest<{ id: string }>(running.page, 'project.create', {
+            rootPath: selectedOwner,
+        });
+        const selectedWorktree = await pageRequest<string | null>(
+            running.page,
+            'dialog.selectDirectory',
+        );
+        expect(selectedWorktree).toBe(worktree);
+        await pageRequest(running.page, 'project.create', { rootPath: selectedWorktree });
+        await execFileAsync('git', ['worktree', 'remove', '--force', worktree], { cwd: root });
+        const currentSettings = await pageRequest<{ value: AppSettings }>(
+            running.page,
+            'settings.get',
+        );
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify({
+                ...currentSettings.value,
+                'workbench.newWorktreeBehavior': 'continueWhenAuthorized',
+            }),
+        });
+        const createdSession = await pageRequest<{ session: { id: string } }>(
+            running.page,
+            'session.create',
+            { projectId: owner.id, defaultAgent: 'codex' },
+        );
+        const sessionId = createdSession.session.id;
+        await expect(running.page.locator('.xterm-rows')).toContainText(
+            'External provenance Agent ready',
+        );
+
+        await execFileAsync('git', ['worktree', 'add', worktree, 'feature/external'], {
+            cwd: root,
+        });
+        await pageRequest(running.page, 'session.workbenchRoots', { sessionId });
+
+        await expect(running.page.getByRole('status', { name: 'New Git worktree' })).toHaveCount(0);
+        const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        expect(bootstrap.sessions.find((session) => session.id === sessionId)).toMatchObject({
+            rootPath: root,
+        });
     } finally {
         try {
             await running.app.close();

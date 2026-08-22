@@ -235,6 +235,17 @@ export class RuntimeAgentEndpointLifecycle {
         if (this.active.get(terminalId) === endpoint) this.active.delete(terminalId);
     }
 
+    /**
+     * Exposes the Host-issued identity after preparation but before PTY spawn so Runtime can bind pre-launch evidence
+     * to the exact generation without exposing its credential token.
+     */
+    preparedEndpointForTerminal(terminalId: string): RuntimeAgentControlTarget | undefined {
+        const endpoint = this.active.get(terminalId);
+        return endpoint && !endpoint.retiring
+            ? { launchId: endpoint.launchId, ref: endpoint.ref, terminalId: endpoint.terminalId }
+            : undefined;
+    }
+
     endpointForTerminal(terminalId: string): RuntimeAgentControlTarget | undefined {
         const endpoint = this.active.get(terminalId);
         return endpoint?.activated && !endpoint.retiring

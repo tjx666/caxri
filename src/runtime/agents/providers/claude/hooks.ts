@@ -41,7 +41,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 2,
+    schemaVersion: 3,
     configTargets: (environment) => [
         {
             id: SETTINGS_TARGET,
