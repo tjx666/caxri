@@ -116,7 +116,7 @@ export class TerminalScreenState {
         /**
          * Attached before the snapshot replay below so a recovered Terminal re-derives its title from whatever OSC the
          * replay happens to carry. The serializer does not currently emit the window title, so in practice recovery
-         * relies on the persisted `terminals.title` until the shell reprints its own at the next prompt.
+         * relies on the persisted `terminals.pty_title` until the shell reprints its own at the next prompt.
          */
         if (this.onTitleChange) this.terminal.onTitleChange(this.onTitleChange);
         this.write(initialSnapshot);

@@ -81,6 +81,53 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('persists a PTY display title without replacing the stable Terminal title', async () => {
+        const directory = await temporaryDirectory('caxri-db-pty-title-');
+        const databasePath = join(directory, 'state.db');
+        const database = new CaxriDatabase(databasePath);
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+
+        expect(created.terminal).toMatchObject({ title: 'Shell', ptyTitle: undefined });
+        expect(database.setTerminalPtyTitle(created.terminal!.id, 'zsh caxri')).toBe(true);
+        expect(database.setTerminalPtyTitle(created.terminal!.id, 'zsh caxri')).toBe(false);
+        expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+            title: 'Shell',
+            ptyTitle: 'zsh caxri',
+        });
+        database.close();
+
+        const reopened = new CaxriDatabase(databasePath);
+        expect(reopened.getTerminal(created.terminal!.id)).toMatchObject({
+            title: 'Shell',
+            ptyTitle: 'zsh caxri',
+        });
+        reopened.close();
+    });
+
+    it('falls back to each new stable title after promotion and provider switch', async () => {
+        const directory = await temporaryDirectory('caxri-db-pty-title-transition-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const terminalId = created.terminal!.id;
+
+        database.setTerminalPtyTitle(terminalId, 'zsh old-project');
+        expect(database.promoteShellToAgent(terminalId, 'codex')).toBe(true);
+        expect(database.getTerminal(terminalId)).toMatchObject({
+            kind: 'codex',
+            ptyTitle: undefined,
+            title: 'Codex',
+        });
+
+        database.setTerminalPtyTitle(terminalId, 'codex reviewing');
+        expect(database.switchAgentProvider(terminalId, 'claude')).toBe(true);
+        expect(database.getTerminal(terminalId)).toMatchObject({
+            kind: 'claude',
+            ptyTitle: undefined,
+            title: 'Claude Code',
+        });
+        database.close();
+    });
+
     it('persists manual Session title ownership across metadata resets and reopen', async () => {
         const directory = await temporaryDirectory('caxri-db-session-rename-');
         const databasePath = join(directory, 'state.db');

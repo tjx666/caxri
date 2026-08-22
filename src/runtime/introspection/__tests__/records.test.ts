@@ -65,6 +65,7 @@ const source: RecordQuerySource = {
             provider: 'codex',
             cwd: '/Users/test/one',
             title: 'Codex',
+            ptyTitle: 'dynamic PTY title',
             icon: 'codex',
             orderIndex: 0,
             agentSessionId: 'provider-secret',
@@ -174,7 +175,12 @@ describe('Runtime record queries', () => {
             ],
         });
         expect(JSON.stringify(terminals)).not.toContain('provider-secret');
+        expect(JSON.stringify(terminals)).not.toContain('dynamic PTY title');
         expect(JSON.stringify(terminals)).not.toContain('/Users/test');
+        expect(service.terminal({ mode: 'show', selector: 'Codex' }, agent)).toEqual(terminals);
+        expect(() =>
+            service.terminal({ mode: 'show', selector: 'dynamic PTY title' }, agent),
+        ).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }) as Error);
         expect(() => service.session({ mode: 'show', selector: 'session-2' }, agent)).toThrow(
             expect.objectContaining({ code: 'NOT_FOUND' }) as Error,
         );

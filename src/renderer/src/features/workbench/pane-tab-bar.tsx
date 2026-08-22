@@ -96,6 +96,7 @@ function TerminalPaneTab({
     const ProgressIcon =
         progress?.kind === 'error' ? CircleAlert : progress?.kind === 'paused' ? Pause : undefined;
     const activity = useAgentTabActivity(terminal.id);
+    const displayTitle = terminal.ptyTitle ?? terminal.title;
     return (
         <WorkTab
             active={active}
@@ -141,8 +142,8 @@ function TerminalPaneTab({
             }
             closeLabel="Close Terminal"
             icon={terminal.kind}
-            label={terminalTabLabel(terminal.title)}
-            labelTooltip={terminal.title}
+            label={terminalTabLabel(displayTitle)}
+            labelTooltip={displayTitle}
             status={terminal.lastProcessState}
             statusActivity={activity}
             tabId={workTabId(tab.id)}
@@ -197,7 +198,7 @@ function DocumentPaneTab({
     const paneLayout = useSessionState()?.paneLayout;
     const gitDiffTab = parseGitDiffTab(path);
     const transcriptTab = parseAgentTranscriptTab(path);
-    // Tab identity is the terminal ID alone; the label follows the terminal's live title.
+    // Tab identity is the terminal ID alone; the label follows its stable semantic title, never a PTY window title.
     const transcriptTerminal = useTerminal(transcriptTab?.terminalId ?? '');
     const isDirty = useSessionViewStore((state) =>
         session
