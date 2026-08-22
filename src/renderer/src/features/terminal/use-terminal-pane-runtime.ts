@@ -44,7 +44,7 @@ import { clearTerminalProgress, updateTerminalProgress } from './terminal-progre
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
 import { TerminalRendererController } from './terminal-renderer';
-import { TerminalReplayCoordinator } from './terminal-replay';
+import { TerminalBackpressureRecovery, TerminalReplayCoordinator } from './terminal-replay';
 import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
 import { TERMINAL_SEARCH_HIGHLIGHT_LIMIT } from './terminal-search';
 import { TerminalSelectionClipboard } from './terminal-selection-clipboard';
@@ -423,6 +423,7 @@ export function useTerminalPaneRuntime({
         };
         pasteReference.current = pasteFromClipboard;
         const observer = new ResizeObserver(scheduleResize);
+        const backpressureRecovery: { current?: TerminalBackpressureRecovery } = {};
         const replay = new TerminalReplayCoordinator(
             (value) =>
                 new Promise<void>((resolve) => {
@@ -448,22 +449,34 @@ export function useTerminalPaneRuntime({
                     )
                         xterm.resize(cols, rows);
                 },
+                onDroppedOutput: () => backpressureRecovery.current?.request(),
             },
+        );
+        backpressureRecovery.current = new TerminalBackpressureRecovery(
+            () =>
+                replay.reattach(() =>
+                    caxri.request('terminal.attach', {
+                        terminalId,
+                        cols: xterm.cols,
+                        rows: xterm.rows,
+                    }),
+                ),
+            (error) => onError(errorMessage(error, 'Terminal output recovery failed')),
         );
         replayReference.current = replay;
         const unsubscribe = caxri.onEvent((event) => {
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminalId)
                 return;
-            replay.push(event.payload.data);
             /**
              * Runtime's `TerminalImageOutputFilter` now reports its own size-limit drops as an inline
              * `TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER` inside `data` above instead of folding them into this
              * counter, so a nonzero value here is genuine output-queue backpressure only.
              */
-            if (event.payload.droppedBytes)
-                replay.push(
-                    `\r\n[${event.payload.droppedBytes} bytes dropped by output backpressure]`,
-                );
+            if (event.payload.droppedBytes) {
+                backpressureRecovery.current?.request();
+                return;
+            }
+            replay.push(event.payload.data);
         });
         let isAttachFocusSuperseded = false;
         let isTerminalReceivedFocus = false;
@@ -542,6 +555,8 @@ export function useTerminalPaneRuntime({
             document.removeEventListener('pointerdown', trackExplicitInteraction, true);
             unregisterClipboardHandlers();
             unsubscribe();
+            backpressureRecovery.current?.dispose();
+            replay.dispose();
             progressDisposable.dispose();
             searchResultsDisposable.dispose();
             selectionDisposable.dispose();
