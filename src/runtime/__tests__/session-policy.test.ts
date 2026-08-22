@@ -236,11 +236,28 @@ describe('decideAgentMetadataUpdate', () => {
         );
         expect(decision).toEqual({
             agentSessionId: 'agent-session-1',
+            terminalTitle: 'Run the development server',
             sessionPatch: {
                 displayTitle: 'Run the development server',
                 lastActivityState: 'running',
             },
         });
+    });
+
+    it('leaves an Agent Terminal title alone when the probe reports no usable title', () => {
+        const primary = terminal({ id: 'claude-1', provider: 'claude', title: '~/code/caxri' });
+        const decision = decideAgentMetadataUpdate(
+            primary,
+            session({ primaryAgentTerminalId: 'claude-1', lastActivityState: 'idle' }),
+            {
+                provider: 'claude',
+                available: true,
+                observedAt: 0,
+                status: 'running',
+                title: ' '.repeat(3),
+            },
+        );
+        expect(decision?.terminalTitle).toBeUndefined();
     });
 
     it('emits only reliable primary-Agent attention state transitions', () => {
@@ -338,8 +355,8 @@ describe('decideAgentMetadataUpdate', () => {
         expect(decision?.sessionPatch?.displayTitle).toBe('Explain [Image #1] in the terminal');
     });
 
-    it('updates only the Terminal agentSessionId for a non-primary Agent Terminal', () => {
-        const secondary = terminal({ id: 'claude-1', provider: 'claude' });
+    it('retitles a non-primary Agent Terminal without touching the Session title', () => {
+        const secondary = terminal({ id: 'claude-1', provider: 'claude', title: 'Claude' });
         const decision = decideAgentMetadataUpdate(
             secondary,
             session({
@@ -356,12 +373,17 @@ describe('decideAgentMetadataUpdate', () => {
                 title: 'Do not replace the first Agent title',
             },
         );
-        expect(decision).toEqual({ agentSessionId: 'claude-session-1', sessionPatch: undefined });
+        expect(decision).toEqual({
+            agentSessionId: 'claude-session-1',
+            terminalTitle: 'Do not replace the first Agent title',
+            sessionPatch: undefined,
+        });
     });
 
+    // A manual title is a name the user gave the *Session*; the Terminal's own tab still follows its Agent conversation.
     it('updates activity and Agent identity without overwriting a manual title', () => {
         const decision = decideAgentMetadataUpdate(
-            terminal({ id: 'codex-1', provider: 'codex' }),
+            terminal({ id: 'codex-1', provider: 'codex', title: 'Codex' }),
             session({
                 displayTitle: 'Manual name',
                 lastActivityState: 'idle',
@@ -380,6 +402,7 @@ describe('decideAgentMetadataUpdate', () => {
 
         expect(decision).toEqual({
             agentSessionId: 'agent-session-2',
+            terminalTitle: 'Agent replacement title',
             sessionPatch: { displayTitle: 'Manual name', lastActivityState: 'waiting' },
         });
     });
@@ -388,6 +411,7 @@ describe('decideAgentMetadataUpdate', () => {
         const primary = terminal({
             id: 'codex-1',
             provider: 'codex',
+            title: 'Codex',
             agentSessionId: 'agent-session-1',
         });
         const decision = decideAgentMetadataUpdate(

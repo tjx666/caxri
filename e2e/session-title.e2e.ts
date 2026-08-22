@@ -12,6 +12,7 @@ import {
     openAddProjectDialog,
     openPanelView,
     pageRequest,
+    pressNewTerminal,
     typeTerminal,
 } from './support/helpers.ts';
 
@@ -95,9 +96,12 @@ done
         await expect(info).toContainText('Title source');
         await expect(info.getByText('PID', { exact: true })).toBeVisible();
 
-        await page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await pressNewTerminal(page);
         await expect(page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
-        const codexTab = page.getByRole('tab', { name: 'Codex', exact: true });
+        // An Agent CLI names its conversation but never reports that name through OSC 0/2, so the tab has to take it
+        // from the probe's metadata; before that it stayed on the provider name ("Codex") for the Terminal's whole life.
+        await expect(page.getByRole('tab', { name: 'Codex', exact: true })).toHaveCount(0);
+        const codexTab = page.getByRole('tab', { name: 'hello', exact: true });
         await codexTab.click();
         const codexTerminalId = await codexTab.locator('xpath=..').getAttribute('data-terminal-id');
         // Switching back to Codex remounts its Terminal pane, which re-attaches the PTY asynchronously
@@ -178,7 +182,11 @@ exec -a claude /bin/zsh -c 'while :; do printf "tick\n"; sleep 1; done'
         await typeTerminal(page, 'ccy');
 
         await expect(page.locator('.session-card strong')).toHaveText('Claude from Shell');
-        await expect(page.getByRole('tab', { name: 'Claude Code' })).toBeVisible();
+        // The promotion seeds the tab with the provider name, but the first probe carrying a conversation title
+        // replaces it: an Agent tab identifies its conversation, not which Agent is running in it.
+        await expect(
+            page.getByRole('tab', { name: 'Claude from Shell', exact: true }),
+        ).toBeVisible();
         await expect
             .poll(async () => {
                 const state = await pageRequest<{

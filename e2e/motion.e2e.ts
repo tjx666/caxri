@@ -9,6 +9,7 @@ import {
     createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
+    pressNewTerminal,
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
@@ -136,7 +137,7 @@ test('Work tabs animate presence with motion-token durations and switch Sessions
         const enterMs = await motionTokenMs(running.page, '--motion-tab-enter');
         const exitMs = await motionTokenMs(running.page, '--motion-tab-exit');
 
-        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await pressNewTerminal(running.page);
         const addedTab = running.page.locator('.work-tab[data-terminal-id]').last();
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
         const initialWidth = (await initialTab.boundingBox())!.width;
@@ -261,7 +262,7 @@ test('prefers-reduced-motion completes disclosure and work-tab motion instantly'
         await expect(content).toHaveCount(1);
 
         // Work tabs: presence still changes correctly, with no animation to wait through.
-        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await pressNewTerminal(running.page);
         const reducedTab = running.page.locator('.work-tab[data-terminal-id]').last();
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
         await expect(reducedTab).toHaveCSS('opacity', '1');

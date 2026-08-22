@@ -2,7 +2,7 @@ import type { CSSProperties, DragEvent } from 'react';
 import { useEffect, useState } from 'react';
 
 import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from '@shared/ipc/pane-layout';
-import { listPanes, listPaneTerminalIds } from '@shared/pane-layout';
+import { listPanes, listPaneTabs, listPaneTerminalIds } from '@shared/pane-layout';
 import type { PaneLayout, PaneLayoutNode, PaneNode, PaneSplitNode } from '@shared/types';
 import { TerminalSquare } from 'lucide-react';
 
@@ -120,11 +120,16 @@ function PaneBox({
      */
     const isAcceptsFileDrop = Boolean(terminal) && terminal?.lastProcessState === 'running';
     // A stable, tree-order name so a screen reader can tell each pane's tablist apart; `aria-label="Open tabs"`
-    // repeated on every pane left them indistinguishable once a Workbench held more than one.
-    const paneLabel = `pane ${listPanes(layout).findIndex((candidate) => candidate.id === pane.id) + 1}`;
+    // repeated on every pane left them indistinguishable once a Workbench held more than one. The total is part of the
+    // name because an ordinal alone ("pane 2") gives no sense of how far the split tree extends.
+    const panes = listPanes(layout);
+    const paneLabel = `pane ${panes.findIndex((candidate) => candidate.id === pane.id) + 1} of ${panes.length}`;
     // Session-wide, not pane-local: a Terminal moved to a new session leaves its Session behind entirely, so the guard
     // must see every pane's Terminals, not just the ones sharing this Terminal's own tab bar.
     const isOnlySessionTerminal = listPaneTerminalIds(layout).length === 1;
+    // Workbench-wide for the same reason the tab bar's chrome is: a second tab in *any* pane is something to switch to,
+    // so a split whose panes each hold one tab still needs the active accent and the "New Terminal" button.
+    const isSoleWorkbenchTab = listPaneTabs(layout).length === 1;
     const canPreviewDrop = (event: DragEvent<HTMLElement>): boolean => {
         const isTabDrag = hasPaneTabDragType(event.dataTransfer.types);
         if (!isTabDrag && !(isAcceptsFileDrop && hasDraggedPath(event))) return false;
@@ -163,6 +168,7 @@ function PaneBox({
             <PaneTabBar
                 isOnlySessionTerminal={isOnlySessionTerminal}
                 isRootBar={isLeading}
+                isSoleWorkbenchTab={isSoleWorkbenchTab}
                 pane={pane}
                 paneLabel={paneLabel}
             />

@@ -6,7 +6,7 @@ import type { ElectronApplication, Page } from 'playwright';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { createProjectSession, launchCaxri, pressNewTerminal } from './support/helpers.ts';
 
 /**
  * Closes the Electron app during teardown without letting an already-closed app fail the test.
@@ -124,6 +124,57 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
         expect(minTerminalWidth).toBeGreaterThanOrEqual(79);
         // The "+" action stays reachable outside the scrolling rail no matter how far it has scrolled.
         await expect(running.page.getByRole('button', { name: 'New Terminal' })).toBeVisible();
+
+        // Squeezed this far, every label is clipped — which is exactly when the tooltip has something to add and
+        // must appear. (`primary-sidebar-chrome.e2e.ts` covers the other half: an unclipped label offers none.)
+        const squeezedTab = terminalTabs.first().locator('.tab-select');
+        const isLabelClipped = await squeezedTab
+            .locator('.tab-label')
+            .evaluate((element) => element.scrollWidth > element.clientWidth);
+        expect(isLabelClipped).toBe(true);
+        await squeezedTab.hover();
+        // `[data-open]` because a previously shown tooltip stays mounted through its exit animation.
+        await expect(running.page.locator('.tooltip-popup[data-open]')).toBeVisible();
+    } finally {
+        await closeAppQuietly(running.app);
+        await removeQuitTestDirectory(testDirectory);
+    }
+});
+
+test('the tab bar drops its active accent and "+" button while the Workbench holds a single tab', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-sole-tab-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const rootInput = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', rootInput]);
+    const root = await realpath(rootInput);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const tabs = running.page.locator('.work-tabs .work-tab');
+        const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
+        await expect(tabs).toHaveCount(1);
+        await waitForTabMotionToSettle(running.page);
+
+        /**
+         * Nothing to switch between: neither affordance has anything to say, and the active pane's own accent ring
+         * still marks focus. iTerm2 hides both at one tab for the same reason.
+         */
+        const accentHeight = (element: Element) =>
+            // eslint-disable-next-line unicorn/prefer-number-coercion -- the computed height carries a "px" suffix, which `Number()` cannot parse
+            Number.parseFloat(getComputedStyle(element, '::before').height) || 0;
+        expect(await tabs.first().evaluate(accentHeight)).toBe(0);
+        await expect(newTerminal).toHaveCount(0);
+
+        // A second tab restores both. `cmd+t` rather than the button, which is exactly what is missing right now.
+        await pressNewTerminal(running.page);
+        await expect(tabs).toHaveCount(2);
+        await waitForTabMotionToSettle(running.page);
+        await expect(newTerminal).toBeVisible();
+        const activeAccent = await running.page
+            .locator('.work-tab[data-tab-active="true"]')
+            .evaluate(accentHeight);
+        expect(activeAccent).toBeGreaterThan(0);
     } finally {
         await closeAppQuietly(running.app);
         await removeQuitTestDirectory(testDirectory);
@@ -198,7 +249,7 @@ test('dragging a work tab within its pane bar drops it at the pointed-at positio
     }
 });
 
-test('dragging a work tab over a sibling shows an insertion-line indicator and previews it after a hover delay', async () => {
+test('dragging a work tab over a sibling shows an insertion-line indicator without activating it', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-drag-preview-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -221,8 +272,8 @@ test('dragging a work tab over a sibling shows an insertion-line indicator and p
         await expect(documentTabs).toHaveCount(3);
         await waitForTabMotionToSettle(running.page);
 
-        // c.ts opened last, so it is the active tab; hovering a drag of it over a.ts is what should
-        // trigger both the insertion-line indicator and the delayed preview switch.
+        // c.ts opened last, so it is the active tab; hovering a drag of it over a.ts is what draws the
+        // insertion line — and must leave the selection exactly where it was.
         const source = documentTabs.filter({ hasText: 'c.ts' });
         const target = documentTabs.filter({ hasText: 'a.ts' });
         await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
@@ -250,11 +301,10 @@ test('dragging a work tab over a sibling shows an insertion-line indicator and p
                 source.dispatchEvent(new DragEvent('dragstart', options));
                 bar.dispatchEvent(new DragEvent('dragenter', options));
                 // Resolved via `elementFromPoint` (not a fixed `.work-tab` reference) so `event.target`
-                // matches what a real cursor-driven drag reports — the app's hover-preview switch reads
-                // it to resolve which tab is hovered, mirroring `dropEdge` in `use-project-order.ts`. This
-                // also means the marker's own `pointer-events-none` is load-bearing here: once it renders
-                // over this point, a later `elementFromPoint` at the same spot must still resolve through
-                // it to the tab underneath, not to the marker.
+                // matches what a real cursor-driven drag reports. This also means the marker's own
+                // `pointer-events-none` is load-bearing here: once it renders over this point, a later
+                // `elementFromPoint` at the same spot must still resolve through it to the tab
+                // underneath, not to the marker.
                 document
                     .elementFromPoint(dropX, dropY)
                     ?.dispatchEvent(new DragEvent('dragover', options));
@@ -285,13 +335,12 @@ test('dragging a work tab over a sibling shows an insertion-line indicator and p
             { dropX, dropY },
         );
 
-        // Still short of the hover-switch delay: the preview must not have fired yet.
-        await running.page.waitForTimeout(200);
+        // A drag is a question, not an answer: lingering over another tab must never commit a selection the
+        // user has not dropped. VS Code previews nothing on a tab drag either. The wait is deliberately long
+        // enough to have cleared the 500ms delay of the hover-preview switch this replaced.
+        await running.page.waitForTimeout(900);
         await expect(target.getByRole('tab')).toHaveAttribute('aria-selected', 'false');
         await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
-
-        await expect(target.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
-        await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'false');
 
         await running.page.evaluate(() => {
             document

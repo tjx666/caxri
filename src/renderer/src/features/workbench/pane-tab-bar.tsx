@@ -48,13 +48,6 @@ function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
     return event.dataTransfer.types.includes(PANE_TAB_DRAG_TYPE);
 }
 
-/**
- * How long a drag has to linger over another tab before that tab's pane treats it as selected, previewing its content
- * the way VS Code does while a tab drag is still in progress. Mirrors `AUTO_COLLAPSE_IDLE_DELAY_MS`'s naming
- * (`use-project-collapse.ts`).
- */
-const TAB_DRAG_HOVER_SWITCH_DELAY_MS = 500;
-
 function paneTabIdAt(target: EventTarget | null): string | undefined {
     return target instanceof Element
         ? (target.closest<HTMLElement>('[data-pane-tab-id]')?.dataset.paneTabId ?? undefined)
@@ -81,6 +74,10 @@ interface PaneTabProperties {
     active: boolean;
     onNavigate: (key: WorkTabNavigationKey) => void;
     paneId: string;
+    /**
+     * Forwarded to `WorkTab`; `false` for the Workbench's lone tab. See `WorkTab`'s own property doc.
+     */
+    showActiveAccent: boolean;
     tab: PaneTab;
 }
 
@@ -88,6 +85,7 @@ function TerminalPaneTab({
     active,
     isOnlySessionTerminal,
     onNavigate,
+    showActiveAccent,
     tab,
     terminal,
 }: PaneTabProperties & { isOnlySessionTerminal: boolean; terminal: TerminalRecord }) {
@@ -144,6 +142,7 @@ function TerminalPaneTab({
             icon={terminal.kind}
             label={terminalTabLabel(displayTitle)}
             labelTooltip={displayTitle}
+            showActiveAccent={showActiveAccent}
             status={terminal.lastProcessState}
             statusActivity={activity}
             tabId={workTabId(tab.id)}
@@ -187,6 +186,7 @@ function DocumentPaneTab({
     onNavigate,
     paneId,
     path,
+    showActiveAccent,
     tab,
 }: PaneTabProperties & { path: string }) {
     const session = useSelectedSession();
@@ -243,6 +243,7 @@ function DocumentPaneTab({
             // replace the filename a screen reader announces the way a Terminal's untruncated title does.
             keepLabelAsAccessibleName
             motionIdentity={tab.id}
+            showActiveAccent={showActiveAccent}
             tabId={workTabId(tab.id)}
             paneTabId={tab.id}
             onDoubleClick={() => pinDocumentTab(tab.id)}
@@ -342,11 +343,19 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: b
 export function PaneTabBar({
     isOnlySessionTerminal,
     isRootBar,
+    isSoleWorkbenchTab,
     pane,
     paneLabel,
 }: {
     isOnlySessionTerminal: boolean;
     isRootBar: boolean;
+    /**
+     * Whether this bar's only tab is also the Workbench's only tab. Both affordances a tab bar adds on top of the tab
+     * itself — the active accent and the "New Terminal" button — are noise at that point: there is nothing to switch
+     * between, and iTerm2 likewise shows neither until a second tab exists. `cmd+t` and the application menu keep "New
+     * Terminal" reachable meanwhile.
+     */
+    isSoleWorkbenchTab: boolean;
     pane: PaneNode;
     paneLabel: string;
 }) {
@@ -354,36 +363,25 @@ export function PaneTabBar({
     const [isDropTarget, setIsDropTarget] = useState(false);
     const [dropIndicatorLeft, setDropIndicatorLeft] = useState<number | undefined>(undefined);
     const barReference = useRef<HTMLDivElement>(null);
-    const hoverTabIdReference = useRef<string | undefined>(undefined);
-    const hoverTimeoutReference = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     /**
      * `dataTransfer.getData` cannot be read during `dragover` (only `types` is exposed before `drop`), so — mirroring
      * `draggedProjectId` in `use-project-order.ts` — the id is captured off the bubbled `dragstart` DOM event instead,
-     * which lets `dragover` exclude the dragged tab's own (unmoved) rect from both the insertion-line geometry and the
-     * hover-preview target, the same way `onDrop` below already excludes it from its own rects.
+     * which lets `dragover` exclude the dragged tab's own (unmoved) rect from the insertion-line geometry, the same way
+     * `onDrop` below already excludes it from its own rects.
      */
     const draggedTabIdReference = useRef<string | undefined>(undefined);
-    const clearHoverSwitch = (): void => {
-        hoverTabIdReference.current = undefined;
-        clearTimeout(hoverTimeoutReference.current);
-        hoverTimeoutReference.current = undefined;
-    };
     useEffect(() => {
         /**
          * `dragend` fires on the drag source and only bubbles through its own bar's ancestors, so a drag cancelled
-         * (Escape, dropped outside any bar) while hovering a _different_ pane's bar would otherwise leave that other
-         * bar's indicator and pending hover-switch timer stuck. A window-level listener clears every bar's state.
+         * (Escape, dropped outside any bar) while over a _different_ pane's bar would otherwise leave that other bar's
+         * insertion line stuck. A window-level listener clears every bar's state.
          */
         const onWindowDragEnd = (): void => {
             setDropIndicatorLeft(undefined);
-            clearHoverSwitch();
             draggedTabIdReference.current = undefined;
         };
         addEventListener('dragend', onWindowDragEnd);
-        return () => {
-            removeEventListener('dragend', onWindowDragEnd);
-            clearHoverSwitch();
-        };
+        return () => removeEventListener('dragend', onWindowDragEnd);
     }, []);
     const activeTabId =
         pane.tabs.find((tab) => tab.id === pane.activeTabId)?.id ?? pane.tabs[0]?.id;
@@ -439,27 +437,11 @@ export function PaneTabBar({
                 if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
                 setIsDropTarget(false);
                 setDropIndicatorLeft(undefined);
-                clearHoverSwitch();
             }}
             onDragOver={(event) => {
                 if (!canAcceptDrop(event)) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'move';
-
-                const hoveredTabId = paneTabIdAt(event.target);
-                const hoverSwitchTargetId =
-                    hoveredTabId !== draggedTabIdReference.current ? hoveredTabId : undefined;
-                if (hoverSwitchTargetId !== hoverTabIdReference.current) {
-                    hoverTabIdReference.current = hoverSwitchTargetId;
-                    clearTimeout(hoverTimeoutReference.current);
-                    hoverTimeoutReference.current = hoverSwitchTargetId
-                        ? setTimeout(
-                              () => selectPaneTab(hoverSwitchTargetId),
-                              TAB_DRAG_HOVER_SWITCH_DELAY_MS,
-                          )
-                        : undefined;
-                }
-
                 const scrollElement = barReference.current;
                 if (!scrollElement) return;
                 const tabElements =
@@ -480,7 +462,6 @@ export function PaneTabBar({
             onDrop={(event) => {
                 setIsDropTarget(false);
                 setDropIndicatorLeft(undefined);
-                clearHoverSwitch();
                 draggedTabIdReference.current = undefined;
                 const tabId = event.dataTransfer.getData(PANE_TAB_DRAG_TYPE);
                 if (!tabId) return;
@@ -528,6 +509,7 @@ export function PaneTabBar({
                                     isOnlySessionTerminal={isOnlySessionTerminal}
                                     onNavigate={(key) => navigate(tab.id, key)}
                                     paneId={pane.id}
+                                    showActiveAccent={!isSoleWorkbenchTab}
                                     tab={tab}
                                 />
                             ))}
@@ -542,21 +524,23 @@ export function PaneTabBar({
             {isRootBar && (
                 <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-18 flex-none" />
             )}
-            <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
-                <CommandTooltip commandId="terminal.new">
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="New Terminal"
-                        onClick={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
-                            void createTerminal('shell', { paneId: pane.id });
-                        }}
-                    >
-                        <Plus size={14} />
-                    </Button>
-                </CommandTooltip>
-            </div>
+            {!isSoleWorkbenchTab && (
+                <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
+                    <CommandTooltip commandId="terminal.new">
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label="New Terminal"
+                            onClick={() => {
+                                // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
+                                void createTerminal('shell', { paneId: pane.id });
+                            }}
+                        >
+                            <Plus size={14} />
+                        </Button>
+                    </CommandTooltip>
+                </div>
+            )}
         </div>
     );
 }

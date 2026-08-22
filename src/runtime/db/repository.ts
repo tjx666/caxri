@@ -236,6 +236,8 @@ export class CaxriDatabase {
                     decision.sessionPatch.lastActivityState,
                     decision.sessionPatch.attentionKind,
                 );
+            if (decision.terminalTitle !== undefined)
+                this.db.terminals.setTitle(terminal.id, decision.terminalTitle);
             this.db.terminals.updateAgentSessionId(terminal.id, decision.agentSessionId);
             return true;
         });
@@ -333,6 +335,8 @@ export class CaxriDatabase {
                     decision.sessionPatch.lastActivityState,
                     decision.sessionPatch.attentionKind,
                 );
+            if (decision.terminalTitle !== undefined)
+                this.db.terminals.setTitle(promoted.id, decision.terminalTitle);
             this.db.terminals.updateAgentSessionId(promoted.id, decision.agentSessionId);
             return true;
         });

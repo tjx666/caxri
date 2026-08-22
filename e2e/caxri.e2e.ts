@@ -14,6 +14,7 @@ import {
     openAddProjectDialog,
     openPanelView,
     pageReply,
+    pressNewTerminal,
     selectedSessionId,
     sessionCard,
     typeTerminal,
@@ -114,7 +115,7 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await pressNewTerminal(running.page);
         const terminalTabs = running.page.locator('.work-tab[data-terminal-id]');
         await expect(terminalTabs).toHaveCount(2);
 
@@ -285,7 +286,7 @@ test('Info secondarySidebar lists only the current Session Terminals', async () 
         await expect(terminalCards.filter({ hasText: 'Codex' })).toBeVisible();
         await expect(terminalCards.filter({ hasText: 'Claude Code' })).toHaveCount(0);
 
-        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await pressNewTerminal(running.page);
         await expect(terminalCards).toHaveCount(2);
         await expect(terminalCards.filter({ hasText: 'Shell' })).toBeVisible();
         await expect(terminalCards.locator('[data-agent-icon="codex"]')).toBeVisible();

@@ -10,6 +10,7 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     selectedSessionId,
     sessionCard,
     splitTerminalToRight,
@@ -175,7 +176,7 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         await expect(surface).toHaveAttribute('data-terminal-image-storage-limit-mb', '8');
         await expect(surface).toHaveAttribute('data-terminal-image-global-storage-limit-mb', '24');
 
-        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator('.workbench-pane')).toHaveCount(2);

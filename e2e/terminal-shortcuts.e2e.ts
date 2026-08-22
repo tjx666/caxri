@@ -13,6 +13,7 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     splitTerminalToRight,
     waitForNewTerminalId,
 } from './support/helpers.ts';
@@ -68,7 +69,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
             ),
         ).toContainText('FIRST_MARKER');
 
-        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator('.terminal-pane')).toHaveCount(2);

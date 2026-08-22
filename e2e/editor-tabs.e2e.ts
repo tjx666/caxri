@@ -6,7 +6,7 @@ import type { Locator, Page } from '@playwright/test';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { createProjectSession, launchCaxri, pressNewTerminal } from './support/helpers.ts';
 
 interface EditorPresenceEvent {
     ariaHidden?: string;
@@ -291,7 +291,7 @@ test('Open Work tabs provide roving keyboard navigation and accessible state', a
         await createProjectSession(running.page);
         const strip = running.page.getByRole('tablist', { name: 'Open tabs in pane 1' });
         const tabs = strip.getByRole('tab');
-        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await pressNewTerminal(running.page);
         await expect(tabs).toHaveCount(2);
         await expect(strip.locator('.process-running')).toHaveCount(2);
         await running.page.getByRole('treeitem', { name: 'accessible.ts', exact: true }).click();
