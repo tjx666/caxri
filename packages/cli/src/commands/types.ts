@@ -33,6 +33,7 @@ export interface RemoteCommandDefinition {
     parseParams(tokens: readonly string[]): unknown;
     path: readonly [string, ...string[]];
     requiresAgentEndpoint?: boolean;
+    requiresHostVersionMatch?: boolean;
     requiresHumanOwner?: boolean;
     summary: string;
     quietKey?: string;

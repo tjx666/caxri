@@ -1,22 +1,32 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 
+import type {
+    AgentEndpointRef as AgentEndpointReference,
+    AgentEndpointSummary,
+    AgentWorktreeCreatedResult,
+} from '../shared/ipc/agent-endpoint-contract';
 import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type { StructuredLogger } from '../shared/node/logger';
-import type { NewWorktreeBehavior, SessionRecord, WorkbenchRootOption } from '../shared/types';
+import type {
+    AgentProvider,
+    NewWorktreeBehavior,
+    SessionRecord,
+    WorkbenchRootOption,
+} from '../shared/types';
 import type { AgentLifecycleSignal } from './agents';
 import type { CaxriDatabase } from './db';
 import type { RuntimeHandlers } from './dispatch';
 import type { GitService, GitWorktreeTopology } from './git';
 import { SingleFlight } from './single-flight';
+import { BoundedSerialBatcher } from './workbench-provenance';
 
-const SIGNAL_SETTLE_MS = 100;
 const CANDIDATE_TTL_MS = 10 * 60_000;
-const MAX_PENDING_SIGNALS = 256;
 const MAX_CANDIDATES = 256;
-const MAX_TOPOLOGY_SNAPSHOTS = 256;
-const MAX_STARTUP_TOPOLOGY_PRIMES = 32;
+const MAX_PENDING_DELETION_VALIDATIONS = 256;
+const MAX_PROVENANCE_BASELINES = 256;
+const SHELL_VALIDATION_SETTLE_MS = 100;
 
 interface WorkbenchCandidate {
     candidateId: string;
@@ -25,6 +35,20 @@ interface WorkbenchCandidate {
     rootPath: string;
     sessionId: string;
     state: 'pending' | 'claimed';
+}
+
+interface WorktreeProvenanceScope {
+    projectId: string;
+    provider: AgentProvider;
+    ref: AgentEndpointReference;
+    sessionId: string;
+    terminalId: string;
+}
+
+interface WorktreeProvenanceBaseline extends WorktreeProvenanceScope {
+    reportedPaths: ReadonlySet<string>;
+    repositoryKey: string;
+    rootPaths: ReadonlySet<string>;
 }
 
 type TopologyValidation =
@@ -42,12 +66,8 @@ interface WorkbenchRootServiceOptions {
     logger: StructuredLogger;
 }
 
-function topologyByRoot(topology: GitWorktreeTopology): Map<string, string> {
-    return new Map(topology.worktrees.map((worktree) => [worktree.rootPath, worktree.branch]));
-}
-
-function topologyFingerprint(topology: ReadonlyMap<string, string>): string {
-    return JSON.stringify([...topology].toSorted(([left], [right]) => left.localeCompare(right)));
+function endpointKey(reference: AgentEndpointReference): string {
+    return JSON.stringify([reference.hostId, reference.endpointId, reference.generation]);
 }
 
 function isSameWorkbenchBinding(
@@ -63,20 +83,43 @@ function isSameWorkbenchBinding(
 }
 
 /**
- * Owns the only bridge from content-free Agent shell timing to authoritative Git worktree topology. A discovered path
- * remains inert until it matches an independently authorized Project.
+ * Owns the only bridge from authenticated Agent Endpoint provenance to authoritative Git worktree topology. A
+ * discovered path remains inert until the exact Endpoint generation reports it and the pre-launch baseline proves it is
+ * new in the owning repository.
  */
 export class WorkbenchRootService {
     private readonly candidates = new Map<string, WorkbenchCandidate>();
-    private readonly pendingSignals = new Map<string, AgentLifecycleSignal>();
-    private readonly topologySnapshots = new Map<string, Map<string, string>>();
+    private readonly deletionValidations: BoundedSerialBatcher<string>;
+    private readonly provenanceBaselines = new Map<string, WorktreeProvenanceBaseline>();
     private readonly topologyReads = new SingleFlight<string, GitWorktreeTopology>();
     private closed = false;
     private queue: Promise<void> = Promise.resolve();
-    private signalTimer?: NodeJS.Timeout;
     private onRootChanged?: (sessionId: string) => void;
 
-    constructor(private readonly options: WorkbenchRootServiceOptions) {}
+    constructor(private readonly options: WorkbenchRootServiceOptions) {
+        this.deletionValidations = new BoundedSerialBatcher({
+            capacity: MAX_PENDING_DELETION_VALIDATIONS,
+            delayMs: SHELL_VALIDATION_SETTLE_MS,
+            onCapacity: () =>
+                this.options.logger.write('warn', 'workbench_root.validation_dropped', {
+                    fields: { reason: 'capacity' },
+                }),
+            run: (sessionIds) => this.runQueued(() => this.validateSessions(sessionIds)),
+        });
+    }
+
+    /**
+     * Builds a fail-fast promise chain so one bounded batch never dispatches concurrent Git reads or database changes.
+     */
+    private validateSessions(sessionIds: readonly string[]): Promise<void> {
+        /* eslint-disable unicorn/prefer-await -- `await` inside an iteration would recreate the React Doctor warning, while this chain preserves the required serial ordering. */
+        return sessionIds.reduce<Promise<void>>(
+            (pending, sessionId) =>
+                pending.then(() => this.validateSession(sessionId)).then(() => {}),
+            Promise.resolve(),
+        );
+        /* eslint-enable unicorn/prefer-await */
+    }
 
     private async validateBinding(
         sessionId: string,
@@ -89,22 +132,22 @@ export class WorkbenchRootService {
         try {
             if (!owner || !active) reason = 'project_missing';
             else {
-                const identity = await this.rootIdentity(active.rootPath);
-                if (identity.device !== binding.rootDevice || identity.inode !== binding.rootInode)
-                    reason = 'root_replaced';
-                else {
-                    const topology = topologyValidation
-                        ? topologyValidation.status === 'available'
-                            ? topologyValidation.topology
-                            : undefined
-                        : await this.loadTopology(owner.rootPath);
-                    if (!topology) throw new Error('Workbench topology is unavailable');
+                const topology = topologyValidation
+                    ? topologyValidation.status === 'available'
+                        ? topologyValidation.topology
+                        : undefined
+                    : await this.loadTopology(owner.rootPath);
+                if (!topology) throw new Error('Workbench topology is unavailable');
+                if (topology.worktrees.every((worktree) => worktree.rootPath !== active.rootPath)) {
+                    this.forgetReportedPath(topology.repositoryKey, active.rootPath);
+                    reason = 'topology_removed';
+                } else {
+                    const identity = await this.rootIdentity(active.rootPath);
                     if (
-                        topology.worktrees.every(
-                            (worktree) => worktree.rootPath !== active.rootPath,
-                        )
+                        identity.device !== binding.rootDevice ||
+                        identity.inode !== binding.rootInode
                     )
-                        reason = 'topology_removed';
+                        reason = 'root_replaced';
                 }
             }
         } catch {
@@ -127,16 +170,22 @@ export class WorkbenchRootService {
     }
 
     /**
-     * `this.queue` must be reassigned synchronously (not after an `await`) so that back-to-back synchronous callers
-     * (e.g. `primeTerminal`, `observeShellToolFinished`) each chain onto the latest link instead of racing onto the
-     * same original promise; an `async`/`await` rewrite would introduce a microtask gap before the reassignment and
-     * break that serialization.
+     * Reassigns the queue synchronously so baseline and report operations cannot both consume the same pre-report
+     * topology. The returned task retains its own failure while the durable queue logs and continues.
      */
-    private enqueue(run: () => Promise<void>): void {
-        if (this.closed) return;
-        /* eslint-disable unicorn/prefer-await -- see comment above */
-        this.queue = this.queue
-            .then(() => (this.closed ? undefined : run()))
+    private runQueued<T>(run: () => Promise<T>): Promise<T> {
+        if (this.closed)
+            return Promise.reject(
+                new CaxriError('UNAVAILABLE', 'Workbench Root service is closed'),
+            );
+        /* eslint-disable unicorn/prefer-await -- synchronous queue reassignment is the serialization boundary. */
+        const result = this.queue.then(() => {
+            if (this.closed)
+                throw new CaxriError('UNAVAILABLE', 'Workbench Root service is closed');
+            return run();
+        });
+        this.queue = result
+            .then(() => {})
             .catch((error: unknown) => {
                 if (!this.closed)
                     this.options.logger.write('warn', 'workbench_root.topology_failed', {
@@ -144,125 +193,27 @@ export class WorkbenchRootService {
                     });
             });
         /* eslint-enable unicorn/prefer-await */
+        return result;
     }
 
-    private flushSignals(): void {
-        this.signalTimer = undefined;
-        const signals = this.pendingSignals.values().toArray();
-        this.pendingSignals.clear();
-        this.enqueue(() => this.refreshForSignals(signals));
-    }
-
-    private async primeSessionNow(sessionId: string): Promise<void> {
-        const session = this.options.database.getSession(sessionId);
-        if (!session) return;
-        const owner = this.options.database.getProject(session.projectId);
-        if (owner) await this.primeProjectNow(owner.rootPath);
-    }
-
-    private async primeProjectNow(rootPath: string): Promise<void> {
-        const startedAt = performance.now();
-        try {
-            const topology = await this.loadTopology(rootPath);
-            if (!this.topologySnapshots.has(topology.repositoryKey))
-                this.rememberTopology(topology);
-            this.options.logger.write('debug', 'workbench_root.topology_primed', {
-                durationMs: performance.now() - startedAt,
-                fields: { worktreeCount: topology.worktrees.length },
-            });
-        } catch {
-            // A non-Git Project has no automatic worktree candidates; manual Project use remains.
+    private rememberBaseline(baseline: WorktreeProvenanceBaseline): void {
+        const key = endpointKey(baseline.ref);
+        this.provenanceBaselines.delete(key);
+        this.provenanceBaselines.set(key, baseline);
+        while (this.provenanceBaselines.size > MAX_PROVENANCE_BASELINES) {
+            const oldest = this.provenanceBaselines.keys().next().value;
+            if (!oldest) break;
+            this.provenanceBaselines.delete(oldest);
         }
     }
 
-    /**
-     * Attributes a topology delta only when exactly one Session signaled for that repository in the debounce batch.
-     * Processing order can therefore never assign a shared delta to a random Agent.
-     */
-    private async refreshForSignals(signals: readonly AgentLifecycleSignal[]): Promise<void> {
-        const startedAt = performance.now();
-        const contexts: Array<{ ownerRoot: string; session: SessionRecord }> = [];
-        for (const signal of signals) {
-            const terminal = this.options.database.getTerminal(signal.terminalId);
-            if (!terminal || terminal.provider !== signal.provider) continue;
-            const initialSession = this.options.database.getSession(terminal.sessionId);
-            if (!initialSession) continue;
-            /**
-             * Sequential by design: the surrounding docstring guarantees a topology delta is only attributed once
-             * exactly one Session's validation has settled per debounce batch, so running these concurrently could race
-             * two signals onto the same shared delta.
-             */
-            // eslint-disable-next-line no-await-in-loop -- see comment above
-            await this.validateSession(initialSession.id);
-            const session = this.options.database.getSession(initialSession.id);
-            if (!session) continue;
-            const owner = this.options.database.getProject(session.projectId);
-            if (owner) contexts.push({ ownerRoot: owner.rootPath, session });
-        }
-        const topologyByOwnerRoot = new Map<string, GitWorktreeTopology>();
-        await Promise.all(
-            [...new Set(contexts.map(({ ownerRoot }) => ownerRoot))].map(async (ownerRoot) => {
-                try {
-                    topologyByOwnerRoot.set(ownerRoot, await this.loadTopology(ownerRoot));
-                } catch {
-                    // A failed structured Git read cannot produce a candidate.
-                }
-            }),
-        );
-        const groups = new Map<
-            string,
-            Array<{
-                current: Map<string, string>;
-                session: SessionRecord;
-                topology: GitWorktreeTopology;
-            }>
-        >();
-        for (const context of contexts) {
-            const topology = topologyByOwnerRoot.get(context.ownerRoot);
-            if (!topology) continue;
-            const entries = groups.get(topology.repositoryKey) ?? [];
-            entries.push({ current: topologyByRoot(topology), session: context.session, topology });
-            groups.set(topology.repositoryKey, entries);
-        }
-        for (const [repoKey, entries] of groups) {
-            const previous = this.topologySnapshots.get(repoKey);
-            const current = entries[0].current;
-            this.rememberTopology(entries[0].topology);
-            if (!previous) continue;
-            const sessionIds = new Set(entries.map(({ session }) => session.id));
-            const topologies = new Set(
-                entries.map(({ current: value }) => topologyFingerprint(value)),
-            );
-            const additions = current
-                .keys()
-                .filter((rootPath) => !previous.has(rootPath))
-                .toArray();
-            const isUnique =
-                sessionIds.size === 1 && topologies.size === 1 && additions.length === 1;
-            this.options.logger.write('debug', 'workbench_root.topology_refreshed', {
-                durationMs: performance.now() - startedAt,
-                fields: {
-                    additions: additions.length,
-                    reason: isUnique ? 'unique' : additions.length === 0 ? 'none' : 'ambiguous',
-                    sessionCount: sessionIds.size,
-                },
-            });
-            if (!isUnique || this.options.behavior() === 'ignore') continue;
-            const session = entries[0].session;
-            const rootPath = additions[0];
-            const authorized = this.options.database.findProjectByRootPath(rootPath);
-            if (authorized && this.options.behavior() === 'continueWhenAuthorized') {
-                /**
-                 * Kept sequential across repository groups: `select()` mutates the shared `topologySnapshots`/candidate
-                 * state this loop also reads via `rememberTopology` and `addCandidate` a few lines below, so concurrent
-                 * iterations could interleave on that shared state.
-                 */
-                // eslint-disable-next-line no-await-in-loop -- see comment above
-                await this.select(session.id, authorized.id);
-                continue;
+    private forgetReportedPath(repoKey: string, rootPath: string): void {
+        for (const [key, baseline] of this.provenanceBaselines)
+            if (baseline.repositoryKey === repoKey && baseline.reportedPaths.has(rootPath)) {
+                const reportedPaths = new Set(baseline.reportedPaths);
+                reportedPaths.delete(rootPath);
+                this.provenanceBaselines.set(key, { ...baseline, reportedPaths });
             }
-            this.addCandidate({ repositoryKey: repoKey, rootPath, sessionId: session.id });
-        }
     }
 
     private addCandidate(input: {
@@ -295,16 +246,6 @@ export class WorkbenchRootService {
         return this.topologyReads.run(ownerRoot, () =>
             this.options.git.worktreeTopology(ownerRoot),
         );
-    }
-
-    private rememberTopology(topology: GitWorktreeTopology): void {
-        this.topologySnapshots.delete(topology.repositoryKey);
-        this.topologySnapshots.set(topology.repositoryKey, topologyByRoot(topology));
-        while (this.topologySnapshots.size > MAX_TOPOLOGY_SNAPSHOTS) {
-            const oldest = this.topologySnapshots.keys().next().value;
-            if (!oldest) break;
-            this.topologySnapshots.delete(oldest);
-        }
     }
 
     private fallback(sessionId: string, fallbackReason: string): void {
@@ -392,51 +333,180 @@ export class WorkbenchRootService {
     }
 
     /**
-     * Primes topology before an Agent can create its first worktree in a new PTY generation.
+     * Captures the owning repository before the prepared Agent generation can spawn and create a worktree. A failed
+     * structured Git read leaves no baseline, so later reports fail closed without blocking the Agent launch.
      */
-    primeTerminal(terminalId: string): void {
-        const terminal = this.options.database.getTerminal(terminalId);
-        if (!terminal) return;
-        this.enqueue(() => this.primeSessionNow(terminal.sessionId));
+    async primeAgentEndpoint(scope: WorktreeProvenanceScope): Promise<boolean> {
+        return this.runQueued(async () => {
+            this.retireTerminal(scope.terminalId);
+            const terminal = this.options.database.getTerminal(scope.terminalId);
+            const session = this.options.database.getSession(scope.sessionId);
+            const owner = this.options.database.getProject(scope.projectId);
+            if (
+                !terminal ||
+                !session ||
+                !owner ||
+                terminal.sessionId !== scope.sessionId ||
+                terminal.provider !== scope.provider ||
+                session.projectId !== scope.projectId
+            )
+                return false;
+            const startedAt = performance.now();
+            try {
+                const topology = await this.loadTopology(owner.rootPath);
+                const currentTerminal = this.options.database.getTerminal(scope.terminalId);
+                const currentSession = this.options.database.getSession(scope.sessionId);
+                if (
+                    !currentTerminal ||
+                    !currentSession ||
+                    currentTerminal.sessionId !== scope.sessionId ||
+                    currentTerminal.provider !== scope.provider ||
+                    currentSession.projectId !== scope.projectId
+                )
+                    return false;
+                this.rememberBaseline({
+                    ...scope,
+                    reportedPaths: new Set(),
+                    repositoryKey: topology.repositoryKey,
+                    rootPaths: new Set(topology.worktrees.map(({ rootPath }) => rootPath)),
+                });
+                this.options.logger.write('debug', 'workbench_root.provenance_primed', {
+                    durationMs: performance.now() - startedAt,
+                    fields: {
+                        generation: scope.ref.generation,
+                        terminalId: scope.terminalId,
+                        worktreeCount: topology.worktrees.length,
+                    },
+                });
+                return true;
+            } catch (error) {
+                this.options.logger.write('debug', 'workbench_root.provenance_unavailable', {
+                    durationMs: performance.now() - startedAt,
+                    fields: { error: errorMessage(error, 'unknown'), terminalId: scope.terminalId },
+                });
+                return false;
+            }
+        });
     }
 
     /**
-     * Best-effort startup baseline; it never delays Runtime readiness.
+     * Accepts one exact path only when the authenticated generation, pre-launch baseline, live database scope, and a
+     * forced structured Git topology read all agree. No repository delta or Agent-running signal can enter this path.
      */
-    primeAll(): void {
-        const ownerProjectIds = new Set<string>();
-        const sessionsByRecency = this.options.database
-            .listSessions()
-            .toSorted((left, right) => right.lastOpenedAt - left.lastOpenedAt);
-        for (const session of sessionsByRecency) {
-            ownerProjectIds.add(session.projectId);
-            if (ownerProjectIds.size >= MAX_STARTUP_TOPOLOGY_PRIMES) break;
-        }
-        for (const projectId of ownerProjectIds) {
-            const project = this.options.database.getProject(projectId);
-            if (project) this.enqueue(() => this.primeProjectNow(project.rootPath));
-        }
+    async reportCreatedWorktree(
+        endpoint: AgentEndpointSummary,
+        rootPath: string,
+        isCurrentEndpoint: () => boolean,
+    ): Promise<AgentWorktreeCreatedResult> {
+        return this.runQueued(async () => {
+            if (!isCurrentEndpoint()) return { status: 'ignored', reason: 'endpoint_unavailable' };
+            const key = endpointKey(endpoint.ref);
+            const baseline = this.provenanceBaselines.get(key);
+            if (!baseline) return { status: 'ignored', reason: 'baseline_missing' };
+            if (
+                baseline.projectId !== endpoint.projectId ||
+                baseline.provider !== endpoint.provider ||
+                baseline.sessionId !== endpoint.sessionId ||
+                baseline.terminalId !== endpoint.terminalId
+            )
+                return { status: 'ignored', reason: 'scope_mismatch' };
+            const terminal = this.options.database.getTerminal(endpoint.terminalId);
+            const session = this.options.database.getSession(endpoint.sessionId);
+            const owner = this.options.database.getProject(endpoint.projectId);
+            if (
+                !terminal ||
+                !session ||
+                !owner ||
+                terminal.sessionId !== endpoint.sessionId ||
+                terminal.provider !== endpoint.provider ||
+                session.projectId !== endpoint.projectId
+            )
+                return { status: 'ignored', reason: 'scope_mismatch' };
+            let canonical: string;
+            try {
+                canonical = await realpath(rootPath);
+            } catch {
+                return { status: 'ignored', reason: 'path_not_canonical' };
+            }
+            if (canonical !== rootPath) return { status: 'ignored', reason: 'path_not_canonical' };
+            if (baseline.rootPaths.has(canonical) || baseline.reportedPaths.has(canonical))
+                return { status: 'ignored', reason: 'path_preexisting' };
+            let topology: GitWorktreeTopology;
+            try {
+                topology = await this.loadTopology(owner.rootPath);
+            } catch {
+                return { status: 'ignored', reason: 'topology_unavailable' };
+            }
+            if (!isCurrentEndpoint()) return { status: 'ignored', reason: 'endpoint_unavailable' };
+            if (this.provenanceBaselines.get(key) !== baseline)
+                return { status: 'ignored', reason: 'baseline_missing' };
+            const currentTerminal = this.options.database.getTerminal(endpoint.terminalId);
+            const currentSession = this.options.database.getSession(endpoint.sessionId);
+            if (
+                !currentTerminal ||
+                !currentSession ||
+                currentTerminal.sessionId !== endpoint.sessionId ||
+                currentTerminal.provider !== endpoint.provider ||
+                currentSession.projectId !== endpoint.projectId
+            )
+                return { status: 'ignored', reason: 'scope_mismatch' };
+            if (topology.repositoryKey !== baseline.repositoryKey)
+                return { status: 'ignored', reason: 'repository_mismatch' };
+            if (
+                topology.worktrees.filter((worktree) => worktree.rootPath === canonical).length !==
+                1
+            )
+                return { status: 'ignored', reason: 'path_not_linked' };
+            this.rememberBaseline({
+                ...baseline,
+                reportedPaths: new Set([...baseline.reportedPaths, canonical]),
+            });
+            if (this.options.behavior() === 'ignore')
+                return { status: 'ignored', reason: 'behavior_ignored' };
+            const authorized = this.options.database.findProjectByRootPath(canonical);
+            if (authorized && this.options.behavior() === 'continueWhenAuthorized') {
+                try {
+                    await this.select(
+                        endpoint.sessionId,
+                        authorized.id,
+                        'selected',
+                        isCurrentEndpoint,
+                    );
+                    return { status: 'accepted', action: 'selected' };
+                } catch {
+                    return {
+                        status: 'ignored',
+                        reason: isCurrentEndpoint()
+                            ? 'topology_unavailable'
+                            : 'endpoint_unavailable',
+                    };
+                }
+            }
+            this.addCandidate({
+                repositoryKey: topology.repositoryKey,
+                rootPath: canonical,
+                sessionId: endpoint.sessionId,
+            });
+            return { status: 'accepted', action: 'candidate' };
+        });
     }
 
+    retireTerminal(terminalId: string): void {
+        for (const [key, baseline] of this.provenanceBaselines)
+            if (baseline.terminalId === terminalId) this.provenanceBaselines.delete(key);
+    }
+
+    /**
+     * Revalidates only a previously selected non-owner root. This content-free timing boundary can return a Session to
+     * its owner after deletion, but it never records a baseline, discovers an addition, or emits a candidate.
+     */
     observeShellToolFinished(signal: AgentLifecycleSignal): boolean {
         const terminal = this.options.database.getTerminal(signal.terminalId);
         if (!terminal || terminal.provider !== signal.provider) return false;
         const session = this.options.database.getSession(terminal.sessionId);
         if (!session) return false;
-        if (
-            !this.pendingSignals.has(session.id) &&
-            this.pendingSignals.size >= MAX_PENDING_SIGNALS
-        ) {
-            this.options.logger.write('warn', 'workbench_root.signal_dropped', {
-                fields: { reason: 'capacity' },
-            });
-            return false;
-        }
-        this.pendingSignals.set(session.id, signal);
-        if (this.signalTimer) clearTimeout(this.signalTimer);
-        this.signalTimer = setTimeout(() => this.flushSignals(), SIGNAL_SETTLE_MS);
-        this.signalTimer.unref();
-        return true;
+        if (session.workbenchProjectId === session.projectId) return true;
+        return this.deletionValidations.schedule(session.id);
     }
 
     async listOptions(sessionId: string): Promise<WorkbenchRootOption[]> {
@@ -445,7 +515,6 @@ export class WorkbenchRootService {
         let topology: GitWorktreeTopology | undefined;
         try {
             topology = await this.loadTopology(owner.rootPath);
-            this.rememberTopology(topology);
         } catch {
             const active = this.options.database.getProject(session.workbenchProjectId);
             return [owner, ...(active && active.id !== owner.id ? [active] : [])].map(
@@ -487,6 +556,7 @@ export class WorkbenchRootService {
         sessionId: string,
         projectId: string,
         reason: 'selected' | 'authorized' = 'selected',
+        isStillAuthorized: () => boolean = () => true,
     ): Promise<SessionRecord> {
         const startedAt = performance.now();
         const session = this.requireSession(sessionId);
@@ -495,7 +565,6 @@ export class WorkbenchRootService {
         if (project.id !== session.projectId) {
             const owner = this.requireProject(session.projectId);
             const topology = await this.loadTopology(owner.rootPath);
-            this.rememberTopology(topology);
             if (topology.worktrees.every((worktree) => worktree.rootPath !== project.rootPath))
                 throw new CaxriError(
                     'PATH_DENIED',
@@ -503,6 +572,8 @@ export class WorkbenchRootService {
                 );
             identity = await this.rootIdentity(project.rootPath);
         }
+        if (!isStillAuthorized())
+            throw new CaxriError('UNAVAILABLE', 'Workbench selection authority expired');
         const selected = this.options.database.selectWorkbenchProject(
             sessionId,
             projectId,
@@ -564,7 +635,6 @@ export class WorkbenchRootService {
             const session = this.requireSession(sessionId);
             const owner = this.requireProject(session.projectId);
             const topology = await this.loadTopology(owner.rootPath);
-            this.rememberTopology(topology);
             if (
                 topology.repositoryKey !== candidate.repositoryKey ||
                 topology.worktrees.every((worktree) => worktree.rootPath !== canonical)
@@ -588,7 +658,6 @@ export class WorkbenchRootService {
         const session = this.requireSession(sessionId);
         const owner = this.requireProject(session.projectId);
         const topology = await this.loadTopology(owner.rootPath);
-        this.rememberTopology(topology);
         if (topology.worktrees.every((worktree) => worktree.rootPath !== canonical))
             throw new CaxriError(
                 'PATH_DENIED',
@@ -661,9 +730,8 @@ export class WorkbenchRootService {
      */
     async close(): Promise<void> {
         this.closed = true;
-        if (this.signalTimer) clearTimeout(this.signalTimer);
-        this.signalTimer = undefined;
-        this.pendingSignals.clear();
+        this.deletionValidations.close();
+        this.provenanceBaselines.clear();
         this.candidates.clear();
         await this.queue;
     }
@@ -680,6 +748,7 @@ type WorkbenchRuntimeHandlers = Pick<
     | 'session.workbenchCandidate.cancel'
     | 'session.workbenchCandidate.claim'
     | 'session.workbenchRoot.authorizeSelection'
+    | 'session.workbenchRoot.reportCreated'
     | 'session.workbenchRoots'
 >;
 
@@ -689,6 +758,7 @@ type WorkbenchRuntimeHandlers = Pick<
 export function createWorkbenchRootHandlers(
     service: WorkbenchRootService,
     mainOwned: (method: 'session.authorizeWorkbenchRoot' | 'session.continueInWorktree') => never,
+    isCurrentEndpoint: (endpoint: AgentEndpointSummary) => boolean,
 ): WorkbenchRuntimeHandlers {
     return {
         'session.authorizeWorkbenchRoot': () => mainOwned('session.authorizeWorkbenchRoot'),
@@ -710,6 +780,8 @@ export function createWorkbenchRootHandlers(
         },
         'session.workbenchRoot.authorizeSelection': ({ sessionId, rootPath }) =>
             service.authorizeSelection(sessionId, rootPath),
+        'session.workbenchRoot.reportCreated': ({ endpoint, rootPath }) =>
+            service.reportCreatedWorktree(endpoint, rootPath, () => isCurrentEndpoint(endpoint)),
         'session.validateWorkbenchRoots': async ({ sessionId }) => {
             await service.validate(sessionId);
             return null;

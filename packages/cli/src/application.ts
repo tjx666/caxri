@@ -27,11 +27,11 @@ import {
     resolveCliProfile,
     resolvePackagedHostLaunch,
 } from './environment';
-import type { HostLaunchOptions } from './host';
-import { connectToHost, ensureHost } from './host';
+import { connectToHost, ensureHost } from './host/client';
+import type { HostLaunchOptions } from './host/launch';
 import type { CliOutputMode } from './output';
 import { exitCodeFor, normalizeCliError, quietLines, renderHumanValue, stableJson } from './output';
-import { executeSkillCommand } from './skills';
+import { executeSkillCommand } from './skills/execute';
 import { CLI_PROTOCOL_VERSION, CLI_VERSION } from './version';
 
 export interface CliIo {
@@ -44,6 +44,7 @@ export interface CliIo {
 
 export interface CliHostClient {
     close: () => void;
+    hostVersion?: string;
     request: (method: CaxriMethod, parameters: unknown) => Promise<unknown>;
     requestWithId: (id: string, method: CaxriMethod, parameters: unknown) => Promise<unknown>;
     welcome: ProtocolWelcome;
@@ -614,6 +615,12 @@ export async function runCli(
             timeoutMs: parsed.connectTimeoutMs,
         });
         if (options.signal?.aborted) return 130;
+        if (command.requiresHostVersionMatch && client.hostVersion !== CLI_VERSION)
+            throw new CaxriError(
+                'CONFLICT',
+                'This command requires the CLI version bundled with the active Caxri Host',
+                { cliVersion: CLI_VERSION, hostVersion: client.hostVersion ?? 'unknown' },
+            );
         if (!client.welcome.commands.includes(command.method))
             throw new CaxriError(
                 'CONFLICT',
