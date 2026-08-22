@@ -173,6 +173,26 @@ describe('Acceptance Electron launcher seams', () => {
         });
     });
 
+    it('can leave directory selection on the real native dialog boundary', () => {
+        const launch = createElectronLaunchSpec({
+            electronPath: '/repo/node_modules/.bin/electron',
+            environment: { PATH: '/usr/bin' },
+            port: 9333,
+            projectRoot: '/repo',
+            testRootPath: '/project-one',
+            testRootPaths: ['/project-one'],
+            useTestRootFixture: false,
+            userDataDir: '/tmp/caxri-acceptance-user-case',
+        });
+
+        expect(launch.options.env).not.toHaveProperty('CAXRI_TEST_ROOT_PATH');
+        expect(launch.options.env).not.toHaveProperty('CAXRI_TEST_ROOT_PATHS');
+        expect(launch.options.env).toMatchObject({
+            CAXRI_E2E: '1',
+            CAXRI_USER_DATA_DIR: '/tmp/caxri-acceptance-user-case',
+        });
+    });
+
     it('reports both exit and spawn-error outcomes without launching a process', async () => {
         const exited = new FakeChild();
         const exit = createChildExitPromise(childProcess(exited));

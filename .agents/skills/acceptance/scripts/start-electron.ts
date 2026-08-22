@@ -93,6 +93,7 @@ interface ElectronLaunchSpecInput {
     projectRoot?: string;
     testRootPath: string;
     testRootPaths: string[];
+    useTestRootFixture?: boolean;
     userDataDir: string;
 }
 
@@ -186,6 +187,7 @@ function help(): string {
 Options:
   --port N               CDP port (default: 9222)
   --test-root PATH       Project root selected in Caxri; repeat to queue roots (default: repository root)
+  --native-dialog        Use the real macOS directory picker instead of the deterministic test-root fixture
   --case-id ID           Stable lowercase id for this isolated Acceptance case
   --report-dir DIR       Frozen round containing this case plan and lifecycle evidence
   --case-mode MODE       isolated (default) or restart
@@ -205,6 +207,7 @@ export function createElectronLaunchSpec({
     projectRoot = PROJECT_ROOT,
     testRootPath,
     testRootPaths,
+    useTestRootFixture = true,
     userDataDir,
 }: ElectronLaunchSpecInput) {
     return {
@@ -216,8 +219,10 @@ export function createElectronLaunchSpec({
                 ...environment,
                 CAXRI_E2E: '1',
                 CAXRI_E2E_WINDOW_MODE: 'visible',
-                CAXRI_TEST_ROOT_PATH: testRootPath,
-                CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
+                ...(useTestRootFixture && {
+                    CAXRI_TEST_ROOT_PATH: testRootPath,
+                    CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
+                }),
                 CAXRI_USER_DATA_DIR: userDataDir,
             },
             stdio: 'inherit' as const,
@@ -444,6 +449,7 @@ async function main(): Promise<void> {
     const caseMode = (stringOption(options, 'case-mode') ?? 'isolated') as 'isolated' | 'restart';
     const reuseUserDataDirectory = stringOption(options, 'reuse-user-data');
     const isCleanupReusable = hasBooleanOption(options, 'cleanup-reused-user-data');
+    const isUseNativeDialog = hasBooleanOption(options, 'native-dialog');
 
     let desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
     try {
@@ -522,6 +528,7 @@ async function main(): Promise<void> {
                 port,
                 testRootPath,
                 testRootPaths,
+                useTestRootFixture: !isUseNativeDialog,
                 userDataDir,
             });
             const child = spawn(launch.command, launch.args, launch.options);
