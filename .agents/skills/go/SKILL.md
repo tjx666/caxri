@@ -53,6 +53,11 @@ Read [references/intake.md](references/intake.md) in full.
    canonical `lobehub whoami --json` probe fails closed before Acceptance work.
 2. Normalize the user's requirements. Deduplicate them and classify each as
    execute now, already satisfied, defer, reject, or discuss before execution.
+   An existing issue whose Caxri project Status is `Backlog` classifies as defer:
+   that Status is the owner saying "not yet". Admit it only when the owner names
+   that issue explicitly in the current request. Report every issue skipped this
+   way instead of dropping it silently. `file-issue` owns the full Status
+   lifecycle.
 3. Before proposing issue solutions, Call the Skill tool with "competitors". Use current
    source evidence from relevant products, prefer VS Code for performance,
    security, filesystem, editor, IPC, and desktop-platform mechanics, and prefer
