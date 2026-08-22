@@ -144,6 +144,7 @@
     "devDependencies": {
         "@base-ui/react": "1.6.0",
         "@caxri/cli": "workspace:*",
+        "@caxri/protocol": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",
         "@electron/rebuild": "4.2.0",
