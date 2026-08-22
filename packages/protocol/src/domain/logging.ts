@@ -24,6 +24,8 @@ export const logEventCatalog = {
         childProcessGone: 'app.child_process_gone',
         quitRequested: 'app.quit_requested',
         ready: 'app.ready',
+        secondInstanceFocusFailed: 'app.second_instance_focus_failed',
+        secondInstanceFocused: 'app.second_instance_focused',
     },
     configuration: {
         loadFailed: 'configuration.load_failed',
