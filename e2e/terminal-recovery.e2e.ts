@@ -126,6 +126,100 @@ async function renderedTerminalGrid(page: Page, terminalId: string): Promise<str
         .evaluate((surface) => (surface as HTMLElement).dataset.terminalGrid ?? null);
 }
 
+function backpressureAgentFixture(): string {
+    return String.raw`#!${process.execPath}
+if (process.argv.includes('--version')) {
+  process.stdout.write('caxri-fake-codex 1.0.0\n');
+  process.exit(0);
+}
+const escape = '\x1b';
+const burst = (escape + '[H' + 'X'.repeat(192)).repeat(6144);
+process.stdin.setRawMode?.(true);
+process.stdin.resume();
+process.stdin.on('data', (chunk) => {
+  const input = chunk.toString('utf8');
+  if (input.includes('b')) {
+    process.stdout.write(
+      escape + '[?1049h' + escape + '[2J' + burst +
+      escape + '[2J' + escape + '[HBACKPRESSURE_SCREEN_READY'
+    );
+  }
+  if (input.includes('i')) process.stdout.write('\r\nBACKPRESSURE_INPUT_READY\r\n');
+});
+process.stdout.write('BACKPRESSURE_FIXTURE_READY\r\n');
+`;
+}
+
+test('live Terminal restores the authoritative screen after Renderer output backpressure', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-backpressure-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: { executableSource: backpressureAgentFixture() } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page, 'codex');
+        const pane = running.page.locator('.terminal-pane');
+        const rows = pane.locator('.xterm-rows');
+        const input = pane.locator('.xterm-helper-textarea');
+        const terminalId = await pane.getAttribute('data-terminal-id');
+        if (!terminalId) throw new Error('Terminal identity was not rendered');
+        await expect(rows).toContainText('BACKPRESSURE_FIXTURE_READY');
+        const before = await pageRequest<{
+            terminals: Array<{ id: string; processId?: number }>;
+        }>(running.page, 'app.bootstrap');
+        const processId = before.terminals.find(({ id }) => id === terminalId)?.processId;
+        expect(typeof processId).toBe('number');
+
+        await input.focus();
+        await input.press('b');
+        await expect
+            .poll(async () => {
+                try {
+                    const records = (
+                        await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8')
+                    )
+                        .trim()
+                        .split('\n')
+                        .map((line) => JSON.parse(line) as Record<string, unknown>);
+                    return records.some((record) => {
+                        const fields = record.fields as Record<string, unknown> | undefined;
+                        return (
+                            record.event === 'pty.throughput' &&
+                            fields?.terminalId === terminalId &&
+                            Number(fields.droppedBytes) > 0
+                        );
+                    });
+                } catch {
+                    return false;
+                }
+            })
+            .toBe(true);
+        await expect(rows).toContainText('BACKPRESSURE_SCREEN_READY');
+        await expect(rows).not.toContainText('dropped by output backpressure');
+
+        await input.focus();
+        await input.press('i');
+        await expect(rows).toContainText('BACKPRESSURE_INPUT_READY');
+        await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
+        const after = await pageRequest<{
+            terminals: Array<{ id: string; processId?: number }>;
+        }>(running.page, 'app.bootstrap');
+        expect(after.terminals.find(({ id }) => id === terminalId)?.processId).toBe(processId);
+        await expect.poll(() => pageRequest<number>(running.page, 'terminal.runningCount')).toBe(1);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('normal exit stays neutral and restart preserves one durable Terminal', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-recovery-e2e-'));
     const userData = join(testDirectory, 'user-data');

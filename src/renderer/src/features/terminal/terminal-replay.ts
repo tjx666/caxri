@@ -8,6 +8,10 @@ const textEncoder = new TextEncoder();
 export interface TerminalReplayBufferOptions {
     maximumPendingBytes?: number;
     maximumPendingItems?: number;
+    /**
+     * Requests an authoritative screen snapshot when replay output develops a gap.
+     */
+    onDroppedOutput?: (droppedBytes: number) => void;
 }
 
 export interface TerminalReplaySnapshot {
@@ -62,10 +66,12 @@ export class TerminalReplayBuffer {
 
     constructor(
         private readonly write: (value: string) => Promise<void>,
-        options: TerminalReplayBufferOptions = {},
+        private readonly options: TerminalReplayBufferOptions = {},
     ) {
-        this.maximumPendingBytes = options.maximumPendingBytes ?? DEFAULT_MAXIMUM_PENDING_BYTES;
-        this.maximumPendingItems = options.maximumPendingItems ?? DEFAULT_MAXIMUM_PENDING_ITEMS;
+        this.maximumPendingBytes =
+            this.options.maximumPendingBytes ?? DEFAULT_MAXIMUM_PENDING_BYTES;
+        this.maximumPendingItems =
+            this.options.maximumPendingItems ?? DEFAULT_MAXIMUM_PENDING_ITEMS;
         if (!Number.isSafeInteger(this.maximumPendingBytes) || this.maximumPendingBytes < 1)
             throw new RangeError('Terminal replay byte limit must be a positive integer');
         if (!Number.isSafeInteger(this.maximumPendingItems) || this.maximumPendingItems < 1)
@@ -92,6 +98,16 @@ export class TerminalReplayBuffer {
         if (this.droppedBytes > 0) {
             const droppedBytes = this.droppedBytes;
             this.droppedBytes = 0;
+            const onDroppedOutput = this.options.onDroppedOutput;
+            if (onDroppedOutput) {
+                /**
+                 * The callback synchronously redirects later output into a replacement replay buffer, so reopen this
+                 * buffer before invoking it without exposing output after the known gap to the stale screen.
+                 */
+                this.restored = true;
+                onDroppedOutput(droppedBytes);
+                return;
+            }
             const marker = this.write(
                 `\r\n[Caxri dropped ${droppedBytes} bytes while terminal output was replaying]\r\n`,
             );
@@ -155,10 +171,63 @@ export class TerminalReplayBuffer {
 }
 
 /**
+ * Serializes authoritative screen recovery while preserving one follow-up attempt when more output is dropped during an
+ * in-flight snapshot. Each follow-up is caused by a new gap instead of an unbounded timer-based retry loop.
+ */
+export class TerminalBackpressureRecovery {
+    private active = false;
+    private disposed = false;
+    private pending = false;
+
+    constructor(
+        private readonly reattach: () => Promise<void>,
+        private readonly onFailure: (error: unknown) => void,
+    ) {}
+
+    private async recover(): Promise<void> {
+        this.pending = false;
+        try {
+            await this.reattach();
+        } catch (error) {
+            // TypeScript preserves the pre-await narrowing, but pane disposal can set this flag while attachment is
+            // pending and must suppress a teardown-time error toast.
+            // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
+            if (!this.disposed) this.onFailure(error);
+        } finally {
+            this.active = false;
+            /**
+             * Start a detached follow-up instead of awaiting recursively, so a continuously noisy Terminal cannot
+             * retain an ever-growing promise chain while still allowing only one attachment at a time. TypeScript
+             * cannot see `request()` or `dispose()` mutating these fields during the await above.
+             */
+            // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
+            if (this.pending && !this.disposed) this.request();
+        }
+    }
+
+    dispose(): void {
+        this.disposed = true;
+        this.pending = false;
+    }
+
+    request(): void {
+        if (this.disposed) return;
+        this.pending = true;
+        if (this.active) return;
+        this.active = true;
+        // This synchronous API owns failure reporting through `onFailure`.
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void this.recover();
+    }
+}
+
+/**
  * Replaces an already-mounted xterm from a fresh Runtime snapshot without losing live output.
  */
 export class TerminalReplayCoordinator {
+    private disposed = false;
     private readonly initial = Promise.withResolvers<void>();
+    private readonly initialReplay: TerminalReplayBuffer;
     private replay: TerminalReplayBuffer;
     private tail: Promise<void>;
 
@@ -167,19 +236,25 @@ export class TerminalReplayCoordinator {
         private readonly reset: () => void,
         private readonly replayOptions: TerminalReplayCoordinatorOptions = {},
     ) {
-        this.replay = new TerminalReplayBuffer(write, replayOptions);
+        this.initialReplay = new TerminalReplayBuffer(write, replayOptions);
+        this.replay = this.initialReplay;
         this.tail = this.initial.promise;
     }
 
     push(value: string): void {
+        if (this.disposed) return;
         this.replay.push(value);
     }
 
     async restoreInitial(snapshot: TerminalReplaySnapshot | null): Promise<void> {
+        if (this.disposed) {
+            this.initial.resolve();
+            return;
+        }
         this.replayOptions.beginSnapshot?.();
         try {
             if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
-            await this.replay.restore(snapshot?.payload ?? '');
+            await this.initialReplay.restore(snapshot?.payload ?? '');
         } finally {
             this.replayOptions.finishSnapshot?.();
             this.initial.resolve();
@@ -187,17 +262,31 @@ export class TerminalReplayCoordinator {
     }
 
     reattach(loadSnapshot: () => Promise<TerminalReplaySnapshot | null>): Promise<void> {
+        if (this.disposed) return Promise.resolve();
+        const previousTail = this.tail;
+        /**
+         * Swap buffers before waiting for an older attachment. A later discontinuity can then queue output behind its
+         * own authoritative snapshot instead of briefly leaking it into the screen that is about to be replaced.
+         */
+        const replay = new TerminalReplayBuffer(this.write, this.replayOptions);
+        this.replay = replay;
         const task = (async (): Promise<void> => {
-            await this.tail;
-            const replay = new TerminalReplayBuffer(this.write, this.replayOptions);
-            this.replay = replay;
+            await previousTail;
+            // Disposal resolves the initial barrier so a queued attachment can release all captured pane state.
+            if (this.disposed) return;
             this.replayOptions.beginSnapshot?.();
             try {
                 const snapshot = await loadSnapshot();
+                // The pane may be removed while Runtime is serializing its parsed screen.
+                // oxlint-disable-next-line typescript/no-unnecessary-condition -- changed across await
+                if (this.disposed) return;
                 if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
                 this.reset();
                 await replay.restore(snapshot?.payload ?? '');
             } catch (error) {
+                // A teardown-time request failure has no surviving view to notify or replay into.
+                // oxlint-disable-next-line typescript/no-unnecessary-condition -- changed across await
+                if (this.disposed) return;
                 /**
                  * Keep the existing screen on an attach failure, but release output buffered while the Runtime request
                  * was pending.
@@ -210,6 +299,12 @@ export class TerminalReplayCoordinator {
         })();
         this.tail = settleQuietly(task);
         return task;
+    }
+
+    dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        this.initial.resolve();
     }
 }
 
