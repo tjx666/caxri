@@ -20,6 +20,8 @@ import type { DiscoveredExtension } from './discovery';
 import { discoverExtensions } from './discovery';
 import { ExtensionHostSupervisor } from './supervisor';
 
+type DiscoveryResult = Awaited<ReturnType<typeof discoverExtensions>>;
+
 export interface ExtensionServiceOptions {
     appVersion: string;
     commit: string;
@@ -94,7 +96,7 @@ interface ExtensionGrant {
 export class ExtensionService extends EventTarget {
     private catalogSnapshot?: ViewCatalogSnapshot;
     private discovered: DiscoveredExtension[] = [];
-    private rejected: Awaited<ReturnType<typeof discoverExtensions>>['rejected'] = [];
+    private rejected: DiscoveryResult['rejected'] = [];
     private readonly states = new Map<string, CatalogExtensionState>();
     private readonly grants = new Map<string, ExtensionGrant>();
     private revision = 0;
@@ -103,6 +105,33 @@ export class ExtensionService extends EventTarget {
 
     constructor(private readonly options: ExtensionServiceOptions) {
         super();
+    }
+
+    private applyDiscovery(result: DiscoveryResult, shouldAdvanceGenerations: boolean): void {
+        const previousStates = new Map(this.states);
+        this.discovered = result.extensions;
+        this.rejected = result.rejected;
+        this.states.clear();
+        this.grants.clear();
+        for (const extension of this.discovered) {
+            const generation = shouldAdvanceGenerations
+                ? (previousStates.get(extension.extensionId)?.generation ?? 0) + 1
+                : 1;
+            this.states.set(extension.extensionId, { generation, lifecycle: 'discovered' });
+            // Bundled extensions are trusted, but declarations still do not become authority until recorded here.
+            this.grants.set(extension.extensionId, {
+                apiToken: randomUUID(),
+                capabilities: new Set(grantsForExtension(extension)),
+                projectIds: new Set(extension.source === 'bundled' ? this.projectIds : []),
+            });
+            this.options.logger.write('info', logEventCatalog.extensionHost.discovered, {
+                fields: {
+                    extensionId: extension.extensionId,
+                    source: extension.source,
+                    version: extension.manifest.version,
+                },
+            });
+        }
     }
 
     private registrations(): ExtensionHostRegistration[] {
@@ -248,24 +277,7 @@ export class ExtensionService extends EventTarget {
             appVersion: this.options.appVersion,
             includeTestOnly: this.options.includeTestOnly,
         });
-        this.discovered = result.extensions;
-        this.rejected = result.rejected;
-        for (const extension of this.discovered) {
-            this.states.set(extension.extensionId, { generation: 1, lifecycle: 'discovered' });
-            // Bundled extensions are trusted, but declarations still do not become authority until recorded here.
-            this.grants.set(extension.extensionId, {
-                apiToken: randomUUID(),
-                capabilities: new Set(grantsForExtension(extension)),
-                projectIds: new Set(extension.source === 'bundled' ? this.projectIds : []),
-            });
-            this.options.logger.write('info', logEventCatalog.extensionHost.discovered, {
-                fields: {
-                    extensionId: extension.extensionId,
-                    source: extension.source,
-                    version: extension.manifest.version,
-                },
-            });
-        }
+        this.applyDiscovery(result, false);
         await this.rebuildCatalog();
         this.supervisor = new ExtensionHostSupervisor({
             appVersion: this.options.appVersion,
@@ -424,11 +436,46 @@ export class ExtensionService extends EventTarget {
 
     async retry(extensionId: string): Promise<{ accepted: boolean; error?: ExtensionError }> {
         const state = this.states.get(extensionId);
-        if (!state)
+        const rejected = this.rejected.find((extension) => extension.extensionId === extensionId);
+        if (!state && !rejected)
             return {
                 accepted: false,
                 error: { code: 'MANIFEST_INVALID', message: 'Extension not found' },
             };
+        if (rejected) {
+            const result = await discoverExtensions({
+                roots: this.options.extensionRoots,
+                appVersion: this.options.appVersion,
+                includeTestOnly: this.options.includeTestOnly,
+            });
+            const stillRejected = result.rejected.find(
+                (extension) => extension.extensionId === extensionId,
+            );
+            if (stillRejected) {
+                this.rejected = this.rejected.map((extension) =>
+                    extension.extensionId === extensionId ? stillRejected : extension,
+                );
+                await this.rebuildCatalog(extensionId);
+                return { accepted: false, error: stillRejected.error };
+            }
+            this.applyDiscovery(result, true);
+            try {
+                await this.supervisor?.restart();
+                await this.rebuildCatalog(extensionId);
+                return { accepted: true };
+            } catch (error) {
+                const failure = extensionFailure(error);
+                for (const [currentExtensionId, currentState] of this.states)
+                    this.states.set(currentExtensionId, {
+                        ...currentState,
+                        lifecycle: 'error',
+                        error: failure,
+                    });
+                await this.rebuildCatalog(extensionId);
+                return { accepted: false, error: failure };
+            }
+        }
+        if (!state) throw new Error(`Extension retry state is missing: ${extensionId}`);
         for (const [currentExtensionId, currentState] of this.states)
             this.states.set(currentExtensionId, {
                 generation: currentState.generation + 1,

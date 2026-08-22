@@ -26,7 +26,10 @@
                 {
                     "id": "caxri.project-status",
                     "title": "Status",
-                    "icon": "media/status.svg"
+                    "icon": {
+                        "kind": "builtin",
+                        "id": "status"
+                    }
                 }
             ]
         },

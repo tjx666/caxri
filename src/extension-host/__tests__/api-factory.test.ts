@@ -44,11 +44,14 @@ function registration(generation = 1): ExtensionHostRegistration {
             main: './extension.mjs',
             engines: { caxri: '^0.0.17' },
             caxri: { capabilities: ['projects.read'] },
-            activationEvents: [],
             contributes: {
                 viewsContainers: {
                     secondarySidebar: [
-                        { id: 'publisher.fixture', title: 'Fixture', icon: 'fixture.svg' },
+                        {
+                            id: 'publisher.fixture',
+                            title: 'Fixture',
+                            icon: { kind: 'resource', path: 'fixture.svg' },
+                        },
                     ],
                     panel: [],
                 },

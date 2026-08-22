@@ -68,14 +68,16 @@ vi.mock('../discovery', () => ({
                         main: './dist/extension.js',
                         engines: { caxri: '^0.0.17' },
                         caxri: { capabilities: [] },
-                        activationEvents: [],
                         contributes: {
                             viewsContainers: {
                                 secondarySidebar: [
                                     {
                                         id: 'publisher.fixture',
                                         title: 'Fixture',
-                                        icon: 'media/fixture.svg',
+                                        icon: {
+                                            kind: 'resource',
+                                            path: 'media/fixture.svg',
+                                        },
                                     },
                                 ],
                                 panel: [],

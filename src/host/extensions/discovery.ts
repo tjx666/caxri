@@ -1,13 +1,19 @@
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
 import { open, readdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
+
+import { satisfies } from 'semver';
 
 import type {
     ExtensionError,
     ExtensionManifest,
 } from '../../../packages/protocol/src/domain/views';
-import { extensionManifestSchema } from '../../../packages/protocol/src/domain/views';
+import {
+    extensionIdSchema,
+    extensionManifestSchema,
+} from '../../../packages/protocol/src/domain/views';
 
 export interface DiscoveredExtension {
     extensionId: string;
@@ -54,22 +60,30 @@ function extensionError(code: ExtensionError['code'], message: string): Extensio
 }
 
 function isEngineCompatible(range: string, version: string): boolean {
-    if (range === '*' || range === version) return true;
-    const expected = range.startsWith('^') ? range.slice(1) : undefined;
-    if (!expected) return false;
-    const expectedParts = expected.split('.').map(Number);
-    const actualParts = version.split('.').map(Number);
-    if (expectedParts.length !== 3 || actualParts.length !== 3) return false;
-    if (expectedParts.some(Number.isNaN) || actualParts.some(Number.isNaN)) return false;
-    if (expectedParts[0] > 0)
-        return actualParts[0] === expectedParts[0] && actualParts[1] >= expectedParts[1];
-    if (expectedParts[1] > 0)
-        return (
-            actualParts[0] === 0 &&
-            actualParts[1] === expectedParts[1] &&
-            actualParts[2] >= expectedParts[2]
-        );
-    return actualParts[0] === 0 && actualParts[1] === 0 && actualParts[2] === expectedParts[2];
+    try {
+        return satisfies(version, range);
+    } catch {
+        return false;
+    }
+}
+
+function rejectedExtensionId(entryName: string, rootIndex: number): string {
+    const slug =
+        entryName
+            .toLowerCase()
+            .replaceAll(/[^a-z0-9-]+/g, '-')
+            .replaceAll(/^-+|-+$/g, '')
+            .slice(0, 120)
+            .replaceAll(/-+$/g, '') || 'extension';
+    const digest = createHash('sha256')
+        .update(`${rootIndex}:${entryName}`)
+        .digest('hex')
+        .slice(0, 12);
+    return `invalid.${slug}-${digest}`;
+}
+
+function rejectedVersion(value: unknown): string {
+    return typeof value === 'string' && value.length > 0 && value.length <= 100 ? value : 'unknown';
 }
 
 function isInside(rootPath: string, candidate: string): boolean {
@@ -85,8 +99,35 @@ interface DiscoveryOptions {
 
 type EntryDiscoveryResult =
     | { kind: 'extension'; value: DiscoveredExtension }
-    | { kind: 'rejected'; value: RejectedExtension }
+    | { kind: 'rejected'; value: RejectedExtension; reservedExtensionId?: string }
     | undefined;
+
+function rejectedIdentifiedExtension(options: {
+    code: ExtensionError['code'];
+    entryName: string;
+    rootIndex: number;
+    manifest: ExtensionManifest;
+    message: string;
+    reserveBundledIdentity?: boolean;
+}): Exclude<EntryDiscoveryResult, { kind: 'extension' } | undefined> {
+    const {
+        code,
+        entryName,
+        rootIndex,
+        manifest,
+        message,
+        reserveBundledIdentity = true,
+    } = options;
+    return {
+        kind: 'rejected',
+        value: {
+            extensionId: rejectedExtensionId(entryName, rootIndex),
+            version: manifest.version,
+            error: extensionError(code, message),
+        },
+        ...(rootIndex === 0 && reserveBundledIdentity && { reservedExtensionId: manifest.name }),
+    };
+}
 
 function recordDiscoveryResult(
     result: EntryDiscoveryResult,
@@ -98,7 +139,11 @@ function recordDiscoveryResult(
      * A visible entry in an earlier root owns its extension id even when its manifest or engine is rejected. Otherwise
      * an installed extension could impersonate a broken bundled extension and replace its catalog.
      */
-    if (result) discoveredIds.add(result.value.extensionId);
+    if (result) {
+        discoveredIds.add(result.value.extensionId);
+        if (result.kind === 'rejected' && result.reservedExtensionId)
+            discoveredIds.add(result.reservedExtensionId);
+    }
     if (result?.kind === 'extension') extensions.push(result.value);
     else if (result?.kind === 'rejected') rejected.push(result.value);
 }
@@ -157,7 +202,9 @@ async function discoverSourceRoot(
         return;
     }
     return discoverDirectoryEntries(
-        entries.filter((candidate) => candidate.isDirectory()),
+        entries
+            .filter((candidate) => candidate.isDirectory())
+            .toSorted((left, right) => left.name.localeCompare(right.name)),
         0,
         rootIndex,
         sourceRoot,
@@ -202,7 +249,7 @@ async function discoverEntry(options: {
         return {
             kind: 'rejected',
             value: {
-                extensionId: entry.name.includes('.') ? entry.name : `invalid.${entry.name}`,
+                extensionId: rejectedExtensionId(entry.name, rootIndex),
                 version: 'unknown',
                 error: extensionError(
                     'MANIFEST_INVALID',
@@ -219,7 +266,7 @@ async function discoverEntry(options: {
         return {
             kind: 'rejected',
             value: {
-                extensionId: entry.name.includes('.') ? entry.name : `invalid.${entry.name}`,
+                extensionId: rejectedExtensionId(entry.name, rootIndex),
                 version: 'unknown',
                 error: extensionError('MANIFEST_INVALID', 'Extension package.json is invalid JSON'),
             },
@@ -236,45 +283,46 @@ async function discoverEntry(options: {
         const unsupportedCommonJs =
             candidate.type === 'commonjs' ||
             (typeof candidate.main === 'string' && candidate.main.endsWith('.cjs'));
+        const candidateId = extensionIdSchema.safeParse(candidate.name);
         return {
             kind: 'rejected',
             value: {
-                extensionId:
-                    typeof candidate.name === 'string' && candidate.name.includes('.')
-                        ? candidate.name
-                        : `invalid.${entry.name}`,
-                version: typeof candidate.version === 'string' ? candidate.version : 'unknown',
+                extensionId: rejectedExtensionId(entry.name, rootIndex),
+                version: rejectedVersion(candidate.version),
                 error: extensionError(
                     unsupportedCommonJs ? 'COMMONJS_ENTRY_UNSUPPORTED' : 'MANIFEST_INVALID',
-                    parsed.error.issues.map(({ message }) => message).join('; '),
+                    parsed.error.issues
+                        .map(
+                            ({ message, path }) =>
+                                `${path.length > 0 ? path.join('.') : 'manifest'}: ${message}`,
+                        )
+                        .join('; '),
                 ),
             },
+            ...(rootIndex === 0 &&
+                candidateId.success && { reservedExtensionId: candidateId.data }),
         };
     }
 
     const manifest = parsed.data;
     if (!includeTestOnly && manifest.caxri.testOnly) return undefined;
     if (!isEngineCompatible(manifest.engines.caxri, appVersion))
-        return {
-            kind: 'rejected',
-            value: {
-                extensionId: manifest.name,
-                version: manifest.version,
-                error: extensionError(
-                    'ENGINE_INCOMPATIBLE',
-                    `${manifest.name} requires Caxri ${manifest.engines.caxri}`,
-                ),
-            },
-        };
+        return rejectedIdentifiedExtension({
+            code: 'ENGINE_INCOMPATIBLE',
+            entryName: entry.name,
+            rootIndex,
+            manifest,
+            message: `${manifest.name} requires Caxri ${manifest.engines.caxri}`,
+        });
     if (discoveredIds.has(manifest.name))
-        return {
-            kind: 'rejected',
-            value: {
-                extensionId: manifest.name,
-                version: manifest.version,
-                error: extensionError('DUPLICATE_ID', `Duplicate extension id: ${manifest.name}`),
-            },
-        };
+        return rejectedIdentifiedExtension({
+            code: 'DUPLICATE_ID',
+            entryName: entry.name,
+            rootIndex,
+            manifest,
+            message: `Duplicate extension id: ${manifest.name}`,
+            reserveBundledIdentity: false,
+        });
 
     let rootPath: string;
     let entryPath: string;
@@ -282,27 +330,22 @@ async function discoverEntry(options: {
         rootPath = await realpath(candidateRoot);
         entryPath = await realpath(resolve(rootPath, manifest.main));
     } catch {
-        return {
-            kind: 'rejected',
-            value: {
-                extensionId: manifest.name,
-                version: manifest.version,
-                error: extensionError(
-                    'MANIFEST_INVALID',
-                    'Extension entry is missing or inaccessible',
-                ),
-            },
-        };
+        return rejectedIdentifiedExtension({
+            code: 'MANIFEST_INVALID',
+            entryName: entry.name,
+            rootIndex,
+            manifest,
+            message: 'Extension entry is missing or inaccessible',
+        });
     }
     if (!isInside(rootPath, entryPath))
-        return {
-            kind: 'rejected',
-            value: {
-                extensionId: manifest.name,
-                version: manifest.version,
-                error: extensionError('MANIFEST_INVALID', 'Extension entry escapes its root'),
-            },
-        };
+        return rejectedIdentifiedExtension({
+            code: 'MANIFEST_INVALID',
+            entryName: entry.name,
+            rootIndex,
+            manifest,
+            message: 'Extension entry escapes its root',
+        });
     return {
         kind: 'extension',
         value: {

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { extensionIdSchema } from '../../../../packages/protocol/src/domain/views';
 import { discoverExtensions } from '../discovery';
 
 const temporaryDirectories: string[] = [];
@@ -72,7 +73,8 @@ describe('discoverExtensions', () => {
             expect.objectContaining({ extensionId: 'publisher.duplicate', source: 'bundled' }),
         ]);
         const duplicate = result.rejected.find(({ error }) => error.code === 'DUPLICATE_ID');
-        expect(duplicate?.extensionId).toBe('publisher.duplicate');
+        expect(duplicate?.extensionId).not.toBe('publisher.duplicate');
+        expect(extensionIdSchema.safeParse(duplicate?.extensionId).success).toBe(true);
     });
 
     it('does not let an installed extension replace a rejected bundled id', async () => {
@@ -115,9 +117,10 @@ describe('discoverExtensions', () => {
             'publisher.valid',
         ]);
         const missing = result.rejected.find(
-            ({ extensionId }) => extensionId === 'publisher.missing',
+            ({ error }) => error.message === 'Extension entry is missing or inaccessible',
         );
         expect(missing?.error.code).toBe('MANIFEST_INVALID');
+        expect(extensionIdSchema.safeParse(missing?.extensionId).success).toBe(true);
     });
 
     it('rejects CommonJS and incompatible engines before executing extension code', async () => {
@@ -160,4 +163,186 @@ describe('discoverExtensions', () => {
         expect(hidden.extensions).toEqual([]);
         expect(visible.extensions).toHaveLength(1);
     });
+
+    it('rejects unsupported manifest fields without hiding a healthy sibling', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-extension-unsupported-manifest-'));
+        temporaryDirectories.push(root);
+        await writeExtension(root, 'activation', { activationEvents: ['*'] });
+        await writeExtension(root, 'condition', {
+            contributes: {
+                views: {
+                    'publisher.condition': [
+                        {
+                            id: 'publisher.condition.tree',
+                            name: 'Condition',
+                            type: 'tree',
+                            when: 'never',
+                        },
+                    ],
+                },
+            },
+        });
+        await writeExtension(root, 'healthy');
+
+        const result = await discoverExtensions({
+            roots: [root],
+            appVersion: '0.0.17',
+            includeTestOnly: false,
+        });
+
+        expect(result.extensions.map(({ extensionId }) => extensionId)).toEqual([
+            'publisher.healthy',
+        ]);
+        expect(result.rejected).toHaveLength(2);
+        expect(result.rejected.map(({ error }) => error.code)).toEqual([
+            'MANIFEST_INVALID',
+            'MANIFEST_INVALID',
+        ]);
+        expect(result.rejected.map(({ error }) => error.message).join('\n')).toMatch(
+            /activationEvents|when/u,
+        );
+    });
+
+    it('assigns malformed JSON a bounded catalog-safe identity without hiding siblings', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-extension-malformed-json-'));
+        temporaryDirectories.push(root);
+        const malformedDirectory = `NOT AN EXTENSION ${'x'.repeat(180)}`;
+        await mkdir(join(root, malformedDirectory));
+        await writeFile(join(root, malformedDirectory, 'package.json'), '{');
+        await writeExtension(root, 'healthy');
+
+        const result = await discoverExtensions({
+            roots: [root],
+            appVersion: '0.0.17',
+            includeTestOnly: false,
+        });
+
+        expect(result.extensions.map(({ extensionId }) => extensionId)).toEqual([
+            'publisher.healthy',
+        ]);
+        expect(result.rejected).toHaveLength(1);
+        expect(result.rejected[0].error.code).toBe('MANIFEST_INVALID');
+        expect(extensionIdSchema.safeParse(result.rejected[0].extensionId).success).toBe(true);
+    });
+
+    it('does not let a malformed installed manifest reserve a healthy sibling identity', async () => {
+        const bundledRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-clean-bundled-'));
+        const installedRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-malformed-installed-'));
+        temporaryDirectories.push(bundledRoot, installedRoot);
+        await writeExtension(installedRoot, 'a-malformed', {
+            name: 'publisher.valid',
+            type: 'commonjs',
+        });
+        await writeExtension(installedRoot, 'z-valid', { name: 'publisher.valid' });
+
+        const result = await discoverExtensions({
+            roots: [bundledRoot, installedRoot],
+            appVersion: '0.0.17',
+            includeTestOnly: false,
+        });
+
+        expect(result.extensions).toEqual([
+            expect.objectContaining({ extensionId: 'publisher.valid', source: 'installed' }),
+        ]);
+        expect(result.rejected[0].error.code).toBe('COMMONJS_ENTRY_UNSUPPORTED');
+        expect(result.rejected[0].extensionId).not.toBe('publisher.valid');
+        expect(extensionIdSchema.safeParse(result.rejected[0].extensionId).success).toBe(true);
+    });
+
+    it('does not let a missing installed entry reserve a healthy sibling identity', async () => {
+        const bundledRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-clean-bundled-'));
+        const installedRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-missing-installed-'));
+        temporaryDirectories.push(bundledRoot, installedRoot);
+        await writeExtension(installedRoot, 'a-missing', { name: 'publisher.valid' });
+        await rm(join(installedRoot, 'a-missing/dist/extension.js'));
+        await writeExtension(installedRoot, 'z-valid', { name: 'publisher.valid' });
+
+        const result = await discoverExtensions({
+            roots: [bundledRoot, installedRoot],
+            appVersion: '0.0.17',
+            includeTestOnly: false,
+        });
+
+        expect(result.extensions).toEqual([
+            expect.objectContaining({ extensionId: 'publisher.valid', source: 'installed' }),
+        ]);
+        expect(result.rejected[0].error.code).toBe('MANIFEST_INVALID');
+        expect(result.rejected[0].extensionId).not.toBe('publisher.valid');
+    });
+
+    it('does not let an incompatible installed engine reserve a healthy sibling identity', async () => {
+        const bundledRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-clean-bundled-'));
+        const installedRoot = await mkdtemp(
+            join(tmpdir(), 'caxri-extension-incompatible-installed-'),
+        );
+        temporaryDirectories.push(bundledRoot, installedRoot);
+        await writeExtension(installedRoot, 'a-incompatible', {
+            name: 'publisher.valid',
+            engines: { caxri: '^1.0.0' },
+        });
+        await writeExtension(installedRoot, 'z-valid', { name: 'publisher.valid' });
+
+        const result = await discoverExtensions({
+            roots: [bundledRoot, installedRoot],
+            appVersion: '0.0.17',
+            includeTestOnly: false,
+        });
+
+        expect(result.extensions).toEqual([
+            expect.objectContaining({ extensionId: 'publisher.valid', source: 'installed' }),
+        ]);
+        expect(result.rejected[0].error.code).toBe('ENGINE_INCOMPATIBLE');
+        expect(result.rejected[0].extensionId).not.toBe('publisher.valid');
+    });
+
+    it('keeps a malformed bundled identity authoritative over installed extensions', async () => {
+        const bundledRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-malformed-bundled-'));
+        const installedRoot = await mkdtemp(join(tmpdir(), 'caxri-extension-shadow-installed-'));
+        temporaryDirectories.push(bundledRoot, installedRoot);
+        await writeExtension(bundledRoot, 'malformed', {
+            name: 'publisher.reserved',
+            type: 'commonjs',
+        });
+        await writeExtension(installedRoot, 'shadow', { name: 'publisher.reserved' });
+
+        const result = await discoverExtensions({
+            roots: [bundledRoot, installedRoot],
+            appVersion: '0.0.17',
+            includeTestOnly: false,
+        });
+
+        expect(result.extensions).toEqual([]);
+        expect(result.rejected.map(({ error }) => error.code)).toEqual([
+            'COMMONJS_ENTRY_UNSUPPORTED',
+            'DUPLICATE_ID',
+        ]);
+    });
+
+    it.each([
+        { range: '^1.2.3', appVersion: '1.2.0', accepted: false },
+        { range: '^1.2.3', appVersion: '1.9.0', accepted: true },
+        { range: '^1.2.3', appVersion: '2.0.0', accepted: false },
+        { range: '^0.2.3', appVersion: '0.2.9', accepted: true },
+        { range: '^0.2.3', appVersion: '0.3.0', accepted: false },
+        { range: '^0.0.3', appVersion: '0.0.3', accepted: true },
+        { range: '^0.0.3', appVersion: '0.0.4', accepted: false },
+        { range: '^1.2.3', appVersion: '1.3.0-beta.1', accepted: false },
+        { range: 'not-a-range', appVersion: '1.2.3', accepted: false },
+    ])(
+        'applies standard SemVer range $range to $appVersion',
+        async ({ range, appVersion, accepted }) => {
+            const root = await mkdtemp(join(tmpdir(), 'caxri-extension-semver-'));
+            temporaryDirectories.push(root);
+            await writeExtension(root, 'semver', { engines: { caxri: range } });
+
+            const result = await discoverExtensions({
+                roots: [root],
+                appVersion,
+                includeTestOnly: false,
+            });
+
+            expect(result.extensions).toHaveLength(accepted ? 1 : 0);
+            expect(result.rejected).toHaveLength(accepted ? 0 : 1);
+        },
+    );
 });

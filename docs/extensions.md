@@ -57,7 +57,7 @@ An extension package must declare `type: "module"`, a `.js` or `.mjs` entry, a c
         {
           "id": "publisher.extension",
           "title": "Extension",
-          "icon": "media/extension.svg"
+          "icon": { "kind": "resource", "path": "media/extension.svg" }
         }
       ]
     },
@@ -75,11 +75,20 @@ An extension package must declare `type: "module"`, a `.js` or `.mjs` entry, a c
 }
 ```
 
-Only `secondarySidebar` and `panel` are contribution locations. `onView:<id>` and
-`onCommand:<id>` activation are derived from contributions. Caxri validates manifest and engine
-compatibility, canonical entry and icon containment, sizes, namespaces, and duplicate IDs before
-running extension code. The first discovery root is authoritative, so an installed extension
-cannot replace a bundled identity.
+Only `secondarySidebar` and `panel` are contribution locations. Container icons explicitly choose
+either an allowlisted semantic icon (`{ "kind": "builtin", "id": "status" }`) or an extension
+resource (`{ "kind": "resource", "path": "media/extension.svg" }`). Resource icons keep their
+authored colors. `onView:<id>` and `onCommand:<id>` activation are derived from contributions, so
+manifests must not declare `activationEvents`; conditional `when` clauses are likewise unsupported
+until Caxri implements and validates their semantics. Caxri validates manifest and engine
+compatibility with standard SemVer rules, canonical entry and icon containment, sizes, namespaces,
+and duplicate IDs before running extension code. One malformed package is surfaced as its own
+catalog error without hiding healthy siblings. The first discovery root is authoritative, so an
+installed extension cannot replace a bundled identity.
+
+Rejected packages receive a stable catalog-safe synthetic identity and an isolated error container.
+Retry re-runs discovery, so repairing the manifest or entry on disk replaces that error container
+with the extension's declared identity without restarting the Desktop.
 
 Manifest capabilities are declarations, not grants. The Host records actual capability and Project
 scope per extension. Bundled extensions receive their reviewed grants; installed extensions
@@ -91,6 +100,11 @@ capability, and Runtime-authoritative active Session/Project scope before return
 Builtin Files, Source Control, Logs, and Info and extension contributions share one Host catalog.
 Descriptors use `builtin-react` for reviewed native components and `tree` for extension data. The
 Renderer dispatches only these declared kinds; extension code cannot inject a component.
+
+The Command Palette and app-level keybindings resolve extension commands through this same Host
+catalog. A shortcut reloads a missing, stale, or invalidated catalog before dispatch, executes the
+extension command once, and reports unknown or failed commands through the shared toast path. The
+native application menu does not synthesize dynamic extension accelerators.
 
 Session SQLite persists the free, bounded
 `desiredSecondarySidebarViewContainerId`. Device-local layout persists
