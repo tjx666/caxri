@@ -407,12 +407,12 @@ if (ownsProfileInstance) {
         app,
         async () => {
             await focusMainWindow();
-            mainLogger?.write('info', 'app.second_instance_focused', {
+            mainLogger?.write('info', logEventCatalog.app.secondInstanceFocused, {
                 fields: { profileId: runtimeProfile.id },
             });
         },
         (error) =>
-            mainLogger?.write('error', 'app.second_instance_focus_failed', {
+            mainLogger?.write('error', logEventCatalog.app.secondInstanceFocusFailed, {
                 fields: { error: errorMessage(error, 'unknown') },
             }),
     );

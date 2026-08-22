@@ -2,6 +2,7 @@ import type { AgentProviderSettings } from '../shared/agents';
 import type { AgentEndpointSummary } from '../shared/ipc/agent-endpoint-contract';
 import { CaxriError } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type { TerminalRecord } from '../shared/types';
 import type { RuntimeAgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentCoordinator, AgentLifecycleSignal } from './agents';
@@ -101,7 +102,7 @@ export async function retireAgentWorkbenchProvenance(options: {
     try {
         await options.endpoints?.retire(options.terminalId);
     } catch (error: unknown) {
-        options.logger.write('warn', 'agent_endpoint.retire_failed', {
+        options.logger.write('warn', logEventCatalog.agentEndpoint.retireFailed, {
             fields: {
                 terminalId: options.terminalId,
                 error: error instanceof Error ? error.message : String(error),
