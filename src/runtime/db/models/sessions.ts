@@ -10,6 +10,7 @@ import { CaxriError } from '../../../shared/ipc/errors';
 import {
     addPaneTerminalSilently,
     createPaneLayout,
+    listPaneTerminalIds,
     openResource,
     remapPaneLayoutPaths,
     removePaneTerminal,
@@ -252,6 +253,29 @@ export class SessionsModel {
             reason: parsed.reason,
         });
         return repaired;
+    }
+
+    /**
+     * Drops Terminal tabs the Session no longer owns. A client layout is a view preference, never authority over which
+     * Terminals exist: a Renderer that closes a Terminal while an older layout write is still being assembled would
+     * otherwise resurrect its tab here, leaving a permanently blank pane that no close can reach.
+     */
+    private pruneClosedTerminalTabs(
+        sessionId: string,
+        paneLayout: SessionState['paneLayout'],
+    ): SessionState['paneLayout'] {
+        const owned = new Set(
+            this.database
+                .select({ id: terminals.id })
+                .from(terminals)
+                .where(eq(terminals.sessionId, sessionId))
+                .all()
+                .map((row) => row.id),
+        );
+        let pruned = paneLayout;
+        for (const terminalId of listPaneTerminalIds(paneLayout))
+            if (!owned.has(terminalId)) pruned = removePaneTerminal(pruned, terminalId);
+        return pruned;
     }
 
     /**
@@ -609,11 +633,12 @@ export class SessionsModel {
             .from(sessionStateTable)
             .where(eq(sessionStateTable.sessionId, state.sessionId))
             .get();
+        const paneLayout = this.pruneClosedTerminalTabs(state.sessionId, state.paneLayout);
         // Only the selected Root's snapshot is rewritten; every other Root keeps the arrangement it was left in.
         const workbenchStates: WorkbenchEditorStates = {
             ...(existing && parseWorkbenchEditorStates(existing.workbenchStateJson)),
             [state.workbenchProjectId]: {
-                paneLayout: state.paneLayout,
+                paneLayout,
                 ...(state.editorRemapOperationId && {
                     editorRemapOperationId: state.editorRemapOperationId,
                 }),

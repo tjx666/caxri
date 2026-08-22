@@ -625,6 +625,24 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('refuses to let a stale layout write resurrect a closed Terminal tab', async () => {
+        const directory = await temporaryDirectory('caxri-db-stale-layout-write-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const second = database.createTerminal(created.session.id, 'shell');
+        const staleState = database.getSessionState(created.session.id);
+        expect(listPaneTerminalIds(staleState.paneLayout)).toContain(second.id);
+
+        // The Renderer closes the Terminal while it is still assembling the layout write above.
+        database.closeTerminal(second.id);
+        database.updateSessionState(staleState);
+
+        expect(
+            listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
+        ).toEqual([created.terminal!.id]);
+        database.close();
+    });
+
     it('never reuses a Terminal order_index after closing a middle Terminal and creating a new one', async () => {
         const directory = await temporaryDirectory('caxri-db-order-index-');
         const database = new CaxriDatabase(join(directory, 'state.db'));

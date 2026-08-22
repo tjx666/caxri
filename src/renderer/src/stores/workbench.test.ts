@@ -509,6 +509,42 @@ describe('workbench Session state', () => {
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([filesState]);
     });
 
+    /**
+     * Closing a Terminal while a layout write is being assembled leaves that write carrying a tab the Runtime has
+     * already dropped. The Runtime stores the layout pruned and answers with it; keeping the optimistic copy instead
+     * would strand the tab on screen as a blank pane, because the persisted overlay re-applies it over later
+     * snapshots.
+     */
+    it('adopts the pruned layout the Runtime answers with instead of the state it sent', async () => {
+        const sentState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
+            paneLayout: paneLayout('/project/kept.txt', '/project/closed.txt'),
+        };
+        const prunedState: SessionState = {
+            ...sentState,
+            paneLayout: paneLayout('/project/kept.txt'),
+        };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                configurationErrors: [],
+                sessions: [],
+                terminals: [],
+                sessionStates: [sentState],
+            } as unknown as BootstrapState,
+        });
+        mocks.request.mockImplementation((method: unknown) =>
+            method === 'session.updateState'
+                ? Promise.resolve(prunedState)
+                : Promise.reject(new Error(`Unexpected method: ${String(method)}`)),
+        );
+
+        await useWorkbenchStore.getState().patchSessionState(sentState);
+
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([prunedState]);
+    });
+
     it('keeps the optimistic state when session.updateState resolves', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
