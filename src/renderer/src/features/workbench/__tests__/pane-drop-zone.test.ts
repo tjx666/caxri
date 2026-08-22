@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { hasPaneTabDragType, PANE_TAB_DRAG_TYPE, resolvePaneDropZone } from '../pane-drop-zone';
+import {
+    hasPaneTabDragType,
+    PANE_TAB_DRAG_TYPE,
+    resolvePaneDropZone,
+    resolveTabDropIndex,
+} from '../pane-drop-zone';
 
 const bounds = { width: 200, height: 100 };
 
@@ -45,5 +50,29 @@ describe('hasPaneTabDragType', () => {
     it('accepts the pane tab MIME type and ignores text/plain-only drags', () => {
         expect(hasPaneTabDragType([PANE_TAB_DRAG_TYPE, 'text/plain'])).toBe(true);
         expect(hasPaneTabDragType(['text/plain'])).toBe(false);
+    });
+});
+
+describe('resolveTabDropIndex', () => {
+    const tabRects = [
+        { left: 0, width: 100 },
+        { left: 100, width: 100 },
+        { left: 200, width: 100 },
+    ];
+
+    it('inserts before the first tab when dropped left of its midpoint', () => {
+        expect(resolveTabDropIndex(tabRects, 30)).toBe(0);
+    });
+
+    it('inserts before the second tab when dropped left of its midpoint', () => {
+        expect(resolveTabDropIndex(tabRects, 120)).toBe(1);
+    });
+
+    it('inserts after the last tab, past every midpoint', () => {
+        expect(resolveTabDropIndex(tabRects, 280)).toBeUndefined();
+    });
+
+    it('appends to an empty bar', () => {
+        expect(resolveTabDropIndex([], 50)).toBeUndefined();
     });
 });

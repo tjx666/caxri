@@ -42,7 +42,7 @@ import {
     useTerminalProgress,
 } from '../terminal/terminal-progress';
 import { movePaneTab, selectPaneTab, splitPaneTab } from './pane-actions';
-import { PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
+import { PANE_TAB_DRAG_TYPE, resolveTabDropIndex } from './pane-drop-zone';
 
 function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
     return event.dataTransfer.types.includes(PANE_TAB_DRAG_TYPE);
@@ -86,6 +86,7 @@ function TerminalPaneTab({
     return (
         <WorkTab
             active={active}
+            fill
             accessory={
                 isCompacting ? (
                     <Tooltip content="Codex is summarizing earlier context before continuing.">
@@ -132,6 +133,7 @@ function TerminalPaneTab({
             status={terminal.lastProcessState}
             statusActivity={activity}
             tabId={workTabId(tab.id)}
+            paneTabId={tab.id}
             terminalId={terminal.id}
             onClose={() => closeTerminal(terminal.id)}
             onDragStart={(event) => {
@@ -193,6 +195,7 @@ function DocumentPaneTab({
     return (
         <WorkTab
             active={active}
+            fill={false}
             closeLabel="Close Editor"
             dirty={isDirty}
             fileIconName={
@@ -214,6 +217,7 @@ function DocumentPaneTab({
             }
             motionIdentity={tab.id}
             tabId={workTabId(tab.id)}
+            paneTabId={tab.id}
             onDoubleClick={() => pinDocumentTab(tab.id)}
             onClose={() => {
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, closeDocumentTabs() reports its own errors
@@ -383,7 +387,13 @@ export function PaneTabBar({
                 const tabId = event.dataTransfer.getData(PANE_TAB_DRAG_TYPE);
                 if (!tabId) return;
                 event.preventDefault();
-                movePaneTab(tabId, pane.id);
+                const tabRects = [
+                    ...(barReference.current?.querySelectorAll<HTMLElement>('[data-pane-tab-id]') ??
+                        []),
+                ]
+                    .filter((element) => element.dataset.paneTabId !== tabId)
+                    .map((element) => element.getBoundingClientRect());
+                movePaneTab(tabId, pane.id, resolveTabDropIndex(tabRects, event.clientX));
             }}
         >
             <div ref={barReference} className="work-tab-scroll flex min-w-0 flex-1 overflow-x-auto">
@@ -414,6 +424,13 @@ export function PaneTabBar({
                     </LazyMotion>
                 </div>
             </div>
+            {/* Evenly divided tabs would otherwise reach the window's right edge and leave this frameless window with
+                no draggable chrome at all. This reserved gap inherits the bar's drag region and is the only remaining
+                way to move the window by its title area. It sits before the "+" button (not after) so "+" stays
+                pinned to the bar's true right edge instead of floating in front of a dead-space gap. */}
+            {isRootBar && (
+                <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-18 flex-none" />
+            )}
             <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
                 <CommandTooltip commandId="terminal.new">
                     <Button
@@ -429,12 +446,6 @@ export function PaneTabBar({
                     </Button>
                 </CommandTooltip>
             </div>
-            {/* Evenly divided tabs would otherwise reach the window's right edge and leave this frameless window with
-                no draggable chrome at all. This reserved gap inherits the bar's drag region and is the only remaining
-                way to move the window by its title area. */}
-            {isRootBar && (
-                <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-18 flex-none" />
-            )}
         </div>
     );
 }

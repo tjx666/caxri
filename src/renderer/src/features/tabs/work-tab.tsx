@@ -53,6 +53,12 @@ interface WorkTabProperties {
     closeLabel: string;
     dirty?: boolean;
     fileIconName?: string;
+    /**
+     * Whether this tab grows to fill its pane's bar alongside its siblings (a Terminal) or is sized to its own content
+     * up to a fixed cap (a document). The one place a tab's kind is allowed to reach past its own content into layout —
+     * see `TERMINAL_TAB_MAX_WIDTH` / `DOCUMENT_TAB_MAX_WIDTH`.
+     */
+    fill: boolean;
     icon: 'file' | AgentIconIdentity;
     label: string;
     /**
@@ -69,6 +75,11 @@ interface WorkTabProperties {
      */
     statusActivity?: { className: string; description: string };
     tabId: string;
+    /**
+     * Raw pane-tab occurrence id, distinct from {@link tabId} (its DOM-safe, prefixed form): read back off
+     * `data-pane-tab-id` at drop time to resolve where in the tab order a drag landed.
+     */
+    paneTabId: string;
     terminalId?: string;
     contextMenu?: ReactNode;
     onClose: () => void;
@@ -79,21 +90,26 @@ interface WorkTabProperties {
 }
 
 /**
- * Every tab divides its own pane's bar equally, with no maximum width. VS Code caps tabs at 160px because a pane there
- * holds many files; Caxri is terminal-first — most Sessions never open an editor — and a Terminal tab's title is the
- * only thing that tells two Agents apart, so the room goes to the title. This bound only has to exceed any realistic
- * pane width, since it exists to give the enter/exit width animation something to travel to.
+ * A Terminal tab divides its pane's bar equally with its Terminal siblings, with no maximum width: Caxri is
+ * terminal-first — most Sessions never open an editor — and a Terminal tab's title is the only thing that tells two
+ * Agents apart, so the room goes to the title. This bound only has to exceed any realistic pane width, since it exists
+ * to give the enter/exit width animation something to travel to.
  */
-const TAB_ANIMATION_MAX_WIDTH = 2000;
+const TERMINAL_TAB_MAX_WIDTH = 2000;
 
 /**
- * Floor for an evenly divided tab. Once enough tabs are open to push past it, flex stops shrinking and the bar's
- * `overflow-x-auto` takes over — even division degrades to scrolling rather than to unreadable slivers.
- *
- * It is animated from 0 alongside `maxWidth` because CSS resolves `min-width` above `max-width`: a static floor would
- * override the `maxWidth: 0` keyframe and the enter/exit width animation would never play.
+ * Floor for an evenly divided Terminal tab. Once enough Terminal tabs are open to push past it, flex stops shrinking
+ * and the bar's `overflow-x-auto` takes over — even division degrades to scrolling rather than to unreadable slivers.
  */
-const TAB_MIN_WIDTH = 80;
+const TERMINAL_TAB_MIN_WIDTH = 80;
+
+/**
+ * An Editor tab never competes with Terminal tabs for the bar's width: it is sized to its filename, capped so one long
+ * path cannot crowd out every Terminal tab next to it. Mirrors VS Code's `workbench.editor.tabSizingFixedMaxWidth` /
+ * `tabSizingFixedMinWidth` defaults (`competitors/vscode/.../workbench.contribution.ts`).
+ */
+const DOCUMENT_TAB_MAX_WIDTH = 160;
+const DOCUMENT_TAB_MIN_WIDTH = 50;
 
 export function WorkTab({
     active,
@@ -101,6 +117,7 @@ export function WorkTab({
     closeLabel,
     dirty = false,
     fileIconName,
+    fill,
     icon,
     label,
     labelTooltip,
@@ -109,6 +126,7 @@ export function WorkTab({
     status,
     statusActivity,
     tabId,
+    paneTabId,
     terminalId,
     contextMenu,
     onClose,
@@ -152,13 +170,19 @@ export function WorkTab({
         <m.div
             className={cn(
                 'work-tab group relative flex items-center border-r border-border bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
-                // `basis-0` is what makes the division even: without it flex distributes only the
-                // leftover space, so a long label would still win a wider slot than a short one.
-                'min-w-0 flex-1 basis-0',
+                'min-w-0',
+                fill
+                    ? // `basis-0` is what makes the division even: without it flex distributes only the
+                      // leftover space, so a long label would still win a wider slot than a short one.
+                      'flex-1 basis-0'
+                    : // A document tab never grows or shrinks with its siblings; `min-w-0` above still lets its own
+                      // label ellipsis-truncate once the animated `maxWidth` below clamps it.
+                      'flex-none',
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
                     "active bg-background text-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
             )}
+            data-pane-tab-id={paneTabId}
             data-terminal-id={terminalId}
             data-motion-identity={motionIdentity}
             data-preview={preview || undefined}
@@ -180,10 +204,13 @@ export function WorkTab({
             onAuxClick={(event) => {
                 if (event.button === 1) onClose();
             }}
+            // `minWidth`/`maxWidth` are animated from 0 (rather than set as static CSS) because CSS resolves
+            // `min-width` above `max-width`: a static floor would override the `maxWidth: 0` enter keyframe and the
+            // enter/exit width animation would never play.
             initial={{ maxWidth: 0, minWidth: 0, opacity: 0, overflow: 'hidden' }}
             animate={{
-                maxWidth: TAB_ANIMATION_MAX_WIDTH,
-                minWidth: TAB_MIN_WIDTH,
+                maxWidth: fill ? TERMINAL_TAB_MAX_WIDTH : DOCUMENT_TAB_MAX_WIDTH,
+                minWidth: fill ? TERMINAL_TAB_MIN_WIDTH : DOCUMENT_TAB_MIN_WIDTH,
                 opacity: 1,
                 transitionEnd: { overflow: 'visible' },
                 transition: { duration: enterDuration, ease: 'easeOut' },
