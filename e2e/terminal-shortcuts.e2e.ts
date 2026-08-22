@@ -97,9 +97,21 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
 
         await running.page.keyboard.press('Meta+T');
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(3);
+        const openedTab = running.page.locator('.workbench-pane.active .work-tab.active');
+        await expect(openedTab).toHaveAttribute('data-terminal-id', /.+/);
+        /**
+         * A new Terminal's pane attaches its PTY asynchronously (`use-terminal-pane-runtime.ts`). Pressing `Meta+W`
+         * before that round-trip resolves queues `terminal.close` behind it on the Host's ordered command queue
+         * (`src/host/local-server.ts`) and the tab is still open when the assertion below runs — a race no human could
+         * hit by hand, but one Playwright's instant keypress does under CI's contended pool. Mirrors the same wait in
+         * `session-title.e2e.ts`.
+         */
+        const openedTerminalId = await openedTab.getAttribute('data-terminal-id');
         await expect(
-            running.page.locator('.workbench-pane.active .work-tab.active'),
-        ).toHaveAttribute('data-terminal-id', /.+/);
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${openedTerminalId}"] .terminal-surface[data-terminal-attached="true"]`,
+            ),
+        ).toBeVisible();
         await running.page.keyboard.press('Meta+W');
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
 
