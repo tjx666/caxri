@@ -117,6 +117,15 @@ async function iconDataUrl(extension: DiscoveredExtension, icon: string): Promis
     }
 }
 
+async function resourceIconEntry(
+    extension: DiscoveredExtension,
+    id: string,
+    path: string,
+): Promise<readonly [string, string]> {
+    const dataUrl = await iconDataUrl(extension, path);
+    return [id, dataUrl];
+}
+
 export interface CatalogExtensionState {
     generation: number;
     lifecycle: ExtensionDescriptor['lifecycle'];
@@ -180,16 +189,17 @@ export async function buildViewCatalog(options: {
                 resourceIcons = new Map(
                     // eslint-disable-next-line no-await-in-loop -- Preserve deterministic extension conflict ownership.
                     await Promise.all(
-                        contributedContainers
-                            .flatMap((contribution) =>
-                                contribution.icon.kind === 'resource'
-                                    ? [{ id: contribution.id, path: contribution.icon.path }]
-                                    : [],
-                            )
-                            .map(async ({ id, path }) => {
-                                const dataUrl = await iconDataUrl(extension, path);
-                                return [id, dataUrl] as const;
-                            }),
+                        contributedContainers.flatMap((contribution) =>
+                            contribution.icon.kind === 'resource'
+                                ? [
+                                      resourceIconEntry(
+                                          extension,
+                                          contribution.id,
+                                          contribution.icon.path,
+                                      ),
+                                  ]
+                                : [],
+                        ),
                     ),
                 );
             } catch (error) {
