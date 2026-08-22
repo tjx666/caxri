@@ -566,11 +566,6 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         'updates.cancel': () => mainOwned('updates.cancel'),
         'updates.open': () => mainOwned('updates.open'),
         'theme.import': () => mainOwned('theme.import'),
-        'project.create': async ({ rootPath }) => {
-            const project = database.createProject(await realpath(rootPath));
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.create' } });
-            return project;
-        },
         'project.cancelCreate': () => {
             throw new CaxriError(
                 'CONFLICT',

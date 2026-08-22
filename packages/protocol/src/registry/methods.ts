@@ -19,6 +19,7 @@ import { argvConfigChangesSchema, argvConfigSchema } from '../desktop/argv-confi
 import {
     desktopHostMethods,
     desktopOpenIdentitySchema,
+    desktopRootIdentitySchema,
     desktopStatusResultSchema,
 } from '../desktop/desktop-contract.js';
 import { bugReportScreenshot, bugReportText } from '../domain/bug-report-contract.js';
@@ -310,7 +311,10 @@ export const methods = {
     'updates.open': { ...desktopControl, params: noParameters, result: updateStateSchema },
     'project.create': {
         ...desktopWrite,
-        params: z.object({ rootPath: pathSchema }),
+        params: z.object({
+            rootPath: pathSchema,
+            expectedRootIdentity: desktopRootIdentitySchema.optional(),
+        }),
         result: projectRecordSchema,
     },
     'project.cancelCreate': {
