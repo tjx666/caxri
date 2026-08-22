@@ -363,7 +363,7 @@ test('Git secondarySidebar shows child repositories, submodule state, and change
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Source Control', exact: true }).click();
         const repoSections = running.page.locator('.git-repository-section');
         await expect(repoSections).toHaveCount(3);
         const primary = repoSections.filter({
