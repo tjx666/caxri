@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentProvider } from '../../../shared/agents';
-import { agentProviderCatalog, agentProviderIds } from '../../../shared/agents';
+import { agentProviderIds } from '../../../shared/agents';
 import type { RuntimeEvent } from '../../../shared/ipc';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
@@ -104,11 +104,13 @@ describe('AgentCoordinator', () => {
                 await expect
                     .poll(() => database.getTerminal(created.terminal!.id)?.provider)
                     .toBe(provider);
+                // The tab follows the Agent's own conversation title, not the provider name it was promoted with: an
+                // Agent CLI never reports that title through OSC 0/2, so without this every Agent tab reads "Claude".
                 expect(database.getTerminal(created.terminal!.id)).toMatchObject({
                     agentSessionId: `${provider}-session`,
                     icon: provider,
                     kind: provider,
-                    title: agentProviderCatalog[provider].displayName,
+                    title: `${provider} from Shell`,
                 });
                 expect(database.getSession(created.session.id)).toMatchObject({
                     displayTitle: `${provider} from Shell`,

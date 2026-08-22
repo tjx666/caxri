@@ -10,7 +10,9 @@ reference this file; deviations require updating this spec first.
 2. **One durable accent focus per screen.** `--accent` marks exactly one resting focus
    at a time: the focused pane together with its active workbench tab's 2px top border —
    the tab border and the pane ring express the same focus and count as one, VS Code
-   style. Primary buttons and transient, action-scoped feedback
+   style. The tab border drops out at a one-tab workbench, where it would mark a choice
+   the user never has (see **Tab strip**), leaving the pane ring to carry focus alone.
+   Primary buttons and transient, action-scoped feedback
    (the drag insertion line, drop-target tint) may also use `--accent` because they exist
    only for the duration of an interaction. Persistent chrome state expresses itself
    through foreground shades and background elevation, never through additional accent
@@ -156,7 +158,12 @@ disclosures contain active Sessions only, so low-frequency history never fragmen
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive:
 `--surface` + `--muted`. Dirty dot replaces the close button until hover/focus (already
-the pattern — keep). Tabs fill the full 44px rail height. A clean preview Editor owns one
+the pattern — keep). Tabs fill the full 44px rail height. While the whole workbench holds
+exactly one tab across every pane, that tab drops both the accent top border and the New
+Terminal button: an "active" marker distinguishes nothing when there is nothing to
+distinguish it from, and the pane ring still carries focus. The command stays reachable
+through `cmd+t` and the application menu, iTerm2 style. Both return as soon as a second tab
+exists anywhere in the window. A clean preview Editor owns one
 transient, Session-scoped
 motion identity: replacing its path updates the same DOM tab instantly, pinning preserves that
 identity, and only the next real tab receives the existing enter animation. Session bootstrap and

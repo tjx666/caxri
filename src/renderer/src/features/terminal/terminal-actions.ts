@@ -60,6 +60,12 @@ export async function createTerminal(
          * tab id here would fight the server's for the same Terminal and flash a duplicate.
          */
         await refreshWorkbench();
+        /**
+         * `Cmd+T` immediately followed by `Cmd+W` can close this Terminal while the refresh above is still in flight.
+         * Placing it afterwards would open a tab for a Terminal the Runtime has already deleted, which renders as a
+         * permanently blank pane no close can reach.
+         */
+        if (!getBootstrap()?.terminals.some((candidate) => candidate.id === terminal.id)) return;
         const currentState = getSessionState();
         if (currentState) {
             const resource = { kind: 'terminal' as const, terminalId: terminal.id };

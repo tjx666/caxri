@@ -19,11 +19,17 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 export function Tooltip({
     children,
     content,
+    disabled,
     shortcut,
     triggerId,
 }: {
     children: ReactElement;
     content: ReactNode;
+    /**
+     * Keeps the trigger (and the `triggerId` it owns) mounted while suppressing the popup, for a caller whose tooltip
+     * is only worth showing under a condition that changes at runtime.
+     */
+    disabled?: boolean;
     shortcut?: string;
     /**
      * Required when the trigger element needs an `id` of its own (a WAI-ARIA `role="tab"`, for example).
@@ -36,7 +42,7 @@ export function Tooltip({
     triggerId?: string;
 }) {
     return (
-        <TooltipPrimitive.Root>
+        <TooltipPrimitive.Root disabled={disabled}>
             <TooltipPrimitive.Trigger id={triggerId} render={children} />
             <TooltipPrimitive.Portal>
                 <TooltipPrimitive.Positioner className="z-[90]" side="bottom" sideOffset={6}>

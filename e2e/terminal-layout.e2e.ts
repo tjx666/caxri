@@ -11,6 +11,7 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     splitTerminalToRight,
     waitForNewTerminalId,
 } from './support/helpers.ts';
@@ -301,7 +302,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
             ),
         ).toContainText('alive');
-        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
@@ -445,7 +446,7 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
         const terminalIds = (
             await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
         ).terminals.map((terminal) => terminal.id);
-        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, terminalIds);
         await splitTerminalToRight(running.page, secondTerminalId);
         const terminalPanes = running.page.locator('.terminal-pane');
@@ -607,7 +608,7 @@ sleep 30
             );
         }
 
-        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator('.workbench-pane')).toHaveCount(2);

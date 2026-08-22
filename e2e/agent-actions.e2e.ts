@@ -9,6 +9,7 @@ import {
     createProjectSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     waitForNewTerminalId,
 } from './support/helpers.ts';
 
@@ -133,7 +134,7 @@ test('Agent Actions discovers skills, preserves drafts, runs explicitly, and sup
         await running.page.keyboard.type('-after-escape');
         await expect.poll(() => capturedInput(capture)).toContain('-after-escape');
 
-        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        await pressNewTerminal(running.page);
         const shellTerminalId = await waitForNewTerminalId(running.page, [agentTerminal.id]);
         const shellInput = running.page.locator(
             `.terminal-pane[data-terminal-id="${shellTerminalId}"] .xterm-helper-textarea`,

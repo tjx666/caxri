@@ -19,6 +19,7 @@ export const parallelSafeSpecs = [
     'e2e/agent-inbox.e2e.ts',
     'e2e/agent-login-path.e2e.ts',
     'e2e/agent-mode.e2e.ts',
+    'e2e/agent-terminal-title.e2e.ts',
     'e2e/chrome-tabs.e2e.ts',
     'e2e/editor-colors.e2e.ts',
     'e2e/editor-dotfiles.e2e.ts',

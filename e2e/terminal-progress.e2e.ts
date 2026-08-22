@@ -8,6 +8,7 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     selectedSessionId,
     sessionCard,
     typeTerminal,
@@ -74,7 +75,7 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
         const existingTerminalIds = (
             await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
         ).terminals.map((terminal) => terminal.id);
-        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, existingTerminalIds);
         const firstInactiveTab = running.page.locator(
             `.work-tab[data-terminal-id="${firstTerminalId}"]`,
