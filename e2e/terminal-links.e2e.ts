@@ -10,6 +10,8 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    selectedSessionId,
+    sessionCard,
     typeTerminal,
 } from './support/helpers.ts';
 
@@ -17,14 +19,23 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
     allowE2EErrors([{ source: 'main', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 }]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-links-e2e-'));
     const userData = join(testDirectory, 'user-data');
-    const root = join(testDirectory, 'project');
+    const isolatedHome = join(userData, 'e2e-agents', 'home');
+    const root = join(isolatedHome, 'project');
     const file = join(root, 'link-target.ts');
-    await mkdir(root);
+    const outsideRoot = join(isolatedHome, 'outside-project');
+    const outsideFile = join(outsideRoot, 'outside-target.ts');
+    await Promise.all([mkdir(root, { recursive: true }), mkdir(outsideRoot, { recursive: true })]);
     await writeFile(file, 'first line\nsecond line\nthird line\n');
+    await writeFile(outsideFile, 'outside first\noutside second\n');
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, outsideRoot]) },
+    });
     try {
         await createShellSession(running.page);
+        const sourceSessionId = await selectedSessionId(running.page);
         const fileLink = 'link-target.ts:2:3';
         await typeTerminal(running.page, String.raw`printf '%s\n' '${fileLink}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(fileLink);
@@ -35,6 +46,33 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             'true',
         );
         await expect(running.page.getByLabel(/^Editor position: Ln 2, Col 3/)).toBeVisible();
+
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
+        const existingHomeLink = '~/project/link-target.ts:3:2';
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${existingHomeLink}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(existingHomeLink);
+        await clickTerminalLink(running.page, existingHomeLink);
+        await expect(running.page.getByRole('tab', { name: 'link-target.ts' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await expect(running.page.getByLabel(/^Editor position: Ln 3, Col 2/)).toBeVisible();
+
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
+        const outsideHomeLink = '~/outside-project/outside-target.ts:2:4';
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${outsideHomeLink}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(outsideHomeLink);
+        await clickTerminalLink(running.page, outsideHomeLink);
+        await expect(running.page.getByRole('tab', { name: 'outside-target.ts' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await expect(running.page.getByLabel(/^Editor position: Ln 2, Col 4/)).toBeVisible();
+        await expect(
+            running.page.getByRole('treeitem', { name: /outside-project/ }).first(),
+        ).toBeVisible();
+        await sessionCard(running.page, sourceSessionId).click();
+        await expect(running.page.getByRole('tab', { name: 'Shell' })).toBeVisible();
 
         await running.app.evaluate(({ dialog, shell }) => {
             const target = globalThis as typeof globalThis & {

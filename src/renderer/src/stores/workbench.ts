@@ -66,6 +66,17 @@ const pendingTerminalRecordIds = new Set<string>();
 const configErrors = { reported: false };
 const sessionPatchRevision = { current: 0 };
 /**
+ * Per-Terminal request ordering for the two read paths that can overlap: full `app.bootstrap` and targeted
+ * `app.records`. One monotonic counter timestamps request issuance, while `appliedById` keeps the latest successfully
+ * applied read for each affected Terminal. Entries retire as soon as no older request can still resolve, so deleted
+ * Terminal IDs cannot accumulate as permanent tombstones.
+ */
+const terminalReads = {
+    active: new Map<number, ReadonlySet<string>>(),
+    appliedById: new Map<string, number>(),
+    sent: 0,
+};
+/**
  * Monotonic count of `session.updateState` requests issued so far. Stamped on a write when it is _sent_, not when it
  * resolves: over a single serialized Runtime connection, any read issued after that point is guaranteed to observe the
  * write once it lands, regardless of which of the two responses comes back first. Comparing against resolution time
@@ -213,15 +224,43 @@ function applyPendingSessionPatches(state: BootstrapState, readStamp: number): B
     return { ...state, sessionStates };
 }
 
+function beginTerminalRead(terminalIds: ReadonlySet<string> = new Set()): number {
+    terminalReads.sent += 1;
+    terminalReads.active.set(terminalReads.sent, new Set(terminalIds));
+    return terminalReads.sent;
+}
+
+function finishTerminalRead(readSequence: number): void {
+    terminalReads.active.delete(readSequence);
+    const oldestActiveSequence = Math.min(...terminalReads.active.keys());
+    for (const [terminalId, appliedSequence] of terminalReads.appliedById)
+        if (oldestActiveSequence >= appliedSequence) terminalReads.appliedById.delete(terminalId);
+}
+
+function isCurrentTerminalRead(terminalId: string, readSequence: number): boolean {
+    return (terminalReads.appliedById.get(terminalId) ?? -1) <= readSequence;
+}
+
 /**
  * Dirtiness is no longer mirrored into the persisted Session state: an unsaved buffer lives only in the Renderer's
  * document cache, so a Runtime snapshot can be applied as is.
  */
-function applySnapshot(state: BootstrapState, readStamp: number): void {
-    const current = applyPendingSessionPatches(state, readStamp);
-    useWorkbenchStore.setState((previous) => ({
-        bootstrap: mergeStructurally(previous.bootstrap, current),
-    }));
+function applySnapshot(
+    state: BootstrapState,
+    sessionReadStamp: number,
+    terminalReadSequence: number,
+): void {
+    const current = applyPendingSessionPatches(state, sessionReadStamp);
+    useWorkbenchStore.setState((previous) => {
+        const terminals = applyFullTerminalSnapshot(
+            previous.bootstrap?.terminals ?? [],
+            current.terminals,
+            terminalReadSequence,
+        );
+        return {
+            bootstrap: mergeStructurally(previous.bootstrap, { ...current, terminals }),
+        };
+    });
     if (configErrors.reported) return;
     configErrors.reported = true;
     if (current.configurationErrors?.[0]) pushToast('error', current.configurationErrors[0]);
@@ -244,13 +283,54 @@ function replaceRequestedRecords<Record extends { id: string }>(
     ];
 }
 
+/**
+ * Applies every Terminal in a full snapshot except IDs already covered by a newer successful targeted read. The current
+ * record (or its absence) is preserved for those IDs, so an older bootstrap cannot roll `dead` back to `running` or
+ * resurrect a targeted deletion.
+ */
+function applyFullTerminalSnapshot(
+    current: readonly TerminalRecord[],
+    incoming: readonly TerminalRecord[],
+    readSequence: number,
+): TerminalRecord[] {
+    const currentIds = new Set(current.map((terminal) => terminal.id));
+    const candidateIds = new Set([
+        ...currentIds,
+        ...incoming.map((terminal) => terminal.id),
+        ...terminalReads.appliedById.keys(),
+    ]);
+    for (const terminalIds of terminalReads.active.values())
+        for (const terminalId of terminalIds) candidateIds.add(terminalId);
+    const authoritativeIds = new Set<string>();
+    for (const terminalId of candidateIds) {
+        if (!isCurrentTerminalRead(terminalId, readSequence)) continue;
+        authoritativeIds.add(terminalId);
+        terminalReads.appliedById.set(terminalId, readSequence);
+    }
+    const safeIncoming = incoming.filter(
+        (terminal) => authoritativeIds.has(terminal.id) || currentIds.has(terminal.id),
+    );
+    return replaceRequestedRecords(current, authoritativeIds, safeIncoming);
+}
+
 function applyRecordSnapshot(
     sessionIds: ReadonlySet<string>,
     terminalIds: ReadonlySet<string>,
     records: { sessions: SessionRecord[]; terminals: TerminalRecord[] },
+    terminalReadSequence: number | undefined,
 ): void {
     useWorkbenchStore.setState((current) => {
         if (!current.bootstrap) return current;
+        const acceptedTerminalIds = new Set(
+            terminalReadSequence === undefined
+                ? []
+                : [...terminalIds].filter((terminalId) =>
+                      isCurrentTerminalRead(terminalId, terminalReadSequence),
+                  ),
+        );
+        if (terminalReadSequence !== undefined)
+            for (const terminalId of acceptedTerminalIds)
+                terminalReads.appliedById.set(terminalId, terminalReadSequence);
         const next = {
             ...current.bootstrap,
             sessions: replaceRequestedRecords(
@@ -260,8 +340,8 @@ function applyRecordSnapshot(
             ),
             terminals: replaceRequestedRecords(
                 current.bootstrap.terminals,
-                terminalIds,
-                records.terminals,
+                acceptedTerminalIds,
+                records.terminals.filter((terminal) => acceptedTerminalIds.has(terminal.id)),
             ),
         };
         return { bootstrap: mergeStructurally(current.bootstrap, next) };
@@ -272,15 +352,17 @@ async function runRecordRefresh(
     sessionIds: ReadonlySet<string>,
     terminalIds: ReadonlySet<string>,
 ): Promise<void> {
+    const terminalReadSequence = terminalIds.size > 0 ? beginTerminalRead(terminalIds) : undefined;
     try {
         const records = await caxri.request('app.records', {
             sessionIds: [...sessionIds],
             terminalIds: [...terminalIds],
         });
-        applyRecordSnapshot(sessionIds, terminalIds, records);
+        applyRecordSnapshot(sessionIds, terminalIds, records, terminalReadSequence);
     } catch {
         await refreshWorkbench();
     } finally {
+        if (terminalReadSequence !== undefined) finishTerminalRead(terminalReadSequence);
         recordRefresh.inFlight = undefined;
         if (pendingSessionRecordIds.size > 0 || pendingTerminalRecordIds.size > 0)
             // Genuinely fire-and-forget: this kicks off the next coalesced refresh round, and
@@ -311,13 +393,15 @@ function applyStateChange(
 }
 
 async function runLoadBootstrap(): Promise<void> {
+    const terminalReadSequence = beginTerminalRead();
     try {
         const readStamp = sessionStateWrites.sent;
         const state = await caxri.request('app.bootstrap');
-        applySnapshot(state, readStamp);
+        applySnapshot(state, readStamp, terminalReadSequence);
     } catch (error: unknown) {
         pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
     } finally {
+        finishTerminalRead(terminalReadSequence);
         bootstrapRead.inFlight = undefined;
     }
 }
@@ -393,7 +477,11 @@ export interface WorkbenchEventHandlers {
     /**
      * Applies an authenticated Host open request after Main redeemed its one-use target.
      */
-    onDesktopOpen(sessionId: string, path?: string): void;
+    onDesktopOpen(
+        sessionId: string,
+        path?: string,
+        location?: { column: number; line: number },
+    ): void;
 }
 
 /**
@@ -460,7 +548,11 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
                 return;
             case 'desktop.openRequested':
-                handlers.onDesktopOpen(event.payload.sessionId, event.payload.path);
+                handlers.onDesktopOpen(
+                    event.payload.sessionId,
+                    event.payload.path,
+                    event.payload.location,
+                );
                 return;
             case 'workbench.candidate':
                 showWorkbenchRootCandidate(event.payload);

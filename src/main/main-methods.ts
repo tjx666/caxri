@@ -97,6 +97,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.workbenchRootAuthority.createProject(request.params);
             case 'project.cancelCreate':
                 return options.workbenchRootAuthority.cancelProjectCreate(request.params);
+            case 'terminal.openFileLink':
+                return options.workbenchRootAuthority.openTerminalFileLink(request.params);
             case 'files.trash': {
                 const item = await supervisor.request('files.authorizeTrash', request.params);
                 const result = await dialog.showMessageBox(

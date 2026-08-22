@@ -14,6 +14,11 @@ describe('isDesktopRuntimeMethod', () => {
         expect(isDesktopRuntimeMethod('not.a.method')).toBe(false);
     });
 
+    it('allows Main to resolve a Terminal Home link through the authenticated Runtime route', () => {
+        expect(desktopRuntimeMethodIds).toContain('terminal.fileLink.resolve');
+        expect(isDesktopRuntimeMethod('terminal.fileLink.resolve')).toBe(true);
+    });
+
     it('never lists runtime.shutdown, keeping Desktop disconnection from stopping the Host Runtime', () => {
         expect(desktopRuntimeMethodIds).not.toContain('runtime.shutdown');
     });

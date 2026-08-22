@@ -11,7 +11,9 @@ import type { RuntimeHandlers } from './dispatch';
 import type { FileService } from './files';
 import type { GitService } from './git';
 import type { createIntrospectionServices } from './introspection';
+import { resolveProjectRoot } from './project-root-identity';
 import type { ProjectStatusService } from './project-status';
+import { resolveTerminalFileLink } from './terminal';
 
 type ServiceHandlerMethods =
     | 'agentActions.list'
@@ -31,6 +33,8 @@ type ServiceHandlerMethods =
     | 'files.write'
     | 'files.search'
     | 'terminal.agentTranscript'
+    | 'terminal.fileLink.resolve'
+    | 'project.create'
     | 'project.setIcon'
     | 'git.summary'
     | 'git.overview'
@@ -138,6 +142,14 @@ export function createServiceHandlers(services: {
         'terminal.agentTranscript': async ({ terminalId, withContent }) => {
             if (withContent) await transcripts.watch(terminalId);
             return readAgentTranscript(database, terminalId, withContent, agentEnvironment);
+        },
+        'terminal.fileLink.resolve': (parameters) => resolveTerminalFileLink(database, parameters),
+        'project.create': async ({ expectedRootIdentity, rootPath }) => {
+            const project = database.createProject(
+                await resolveProjectRoot(rootPath, expectedRootIdentity),
+            );
+            emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.create' } });
+            return project;
         },
         'project.setIcon': ({ projectId, icon }) => {
             const project = database.setProjectIcon(projectId, icon);

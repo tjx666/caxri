@@ -655,11 +655,11 @@ export class CaxriDatabase {
     }
 
     /**
-     * Applies a PTY-reported (OSC 0/2) Terminal title. Returns whether anything actually changed so the caller can skip
-     * broadcasting a no-op; see `TerminalsModel.setTitle`.
+     * Applies a PTY-reported (OSC 0/2) display title without replacing the Terminal's stable semantic title. Returns
+     * whether anything actually changed so the caller can skip broadcasting a no-op; see `TerminalsModel.setPtyTitle`.
      */
-    setTerminalTitle(id: string, title: string): boolean {
-        return this.db.terminals.setTitle(id, title);
+    setTerminalPtyTitle(id: string, ptyTitle: string): boolean {
+        return this.db.terminals.setPtyTitle(id, ptyTitle);
     }
 
     closeTerminal(id: string): void {
