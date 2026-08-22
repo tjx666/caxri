@@ -88,6 +88,96 @@ type EntryDiscoveryResult =
     | { kind: 'rejected'; value: RejectedExtension }
     | undefined;
 
+function recordDiscoveryResult(
+    result: EntryDiscoveryResult,
+    discoveredIds: Set<string>,
+    extensions: DiscoveredExtension[],
+    rejected: RejectedExtension[],
+): void {
+    /**
+     * A visible entry in an earlier root owns its extension id even when its manifest or engine is rejected. Otherwise
+     * an installed extension could impersonate a broken bundled extension and replace its catalog.
+     */
+    if (result) discoveredIds.add(result.value.extensionId);
+    if (result?.kind === 'extension') extensions.push(result.value);
+    else if (result?.kind === 'rejected') rejected.push(result.value);
+}
+
+interface DiscoveryAccumulator {
+    discoveredIds: Set<string>;
+    extensions: DiscoveredExtension[];
+    rejected: RejectedExtension[];
+}
+
+async function discoverDirectoryEntries(
+    entries: readonly Dirent[],
+    entryIndex: number,
+    rootIndex: number,
+    sourceRoot: string,
+    options: DiscoveryOptions,
+    accumulator: DiscoveryAccumulator,
+): Promise<void> {
+    if (entryIndex >= entries.length) return;
+    const entry = entries[entryIndex];
+    const result = await discoverEntry({
+        entry,
+        rootIndex,
+        sourceRoot,
+        appVersion: options.appVersion,
+        includeTestOnly: options.includeTestOnly,
+        discoveredIds: accumulator.discoveredIds,
+    });
+    recordDiscoveryResult(
+        result,
+        accumulator.discoveredIds,
+        accumulator.extensions,
+        accumulator.rejected,
+    );
+    // eslint-disable-next-line unicorn/no-useless-recursion -- sequential precedence is the security boundary
+    return discoverDirectoryEntries(
+        entries,
+        entryIndex + 1,
+        rootIndex,
+        sourceRoot,
+        options,
+        accumulator,
+    );
+}
+
+async function discoverSourceRoot(
+    sourceRoot: string,
+    rootIndex: number,
+    options: DiscoveryOptions,
+    accumulator: DiscoveryAccumulator,
+): Promise<void> {
+    let entries: Dirent[];
+    try {
+        entries = await readdir(sourceRoot, { withFileTypes: true });
+    } catch {
+        return;
+    }
+    return discoverDirectoryEntries(
+        entries.filter((candidate) => candidate.isDirectory()),
+        0,
+        rootIndex,
+        sourceRoot,
+        options,
+        accumulator,
+    );
+}
+
+async function discoverSourceRoots(
+    rootIndex: number,
+    options: DiscoveryOptions,
+    accumulator: DiscoveryAccumulator,
+): Promise<void> {
+    if (rootIndex >= options.roots.length) return;
+    const sourceRoot = options.roots[rootIndex];
+    await discoverSourceRoot(sourceRoot, rootIndex, options, accumulator);
+    // eslint-disable-next-line unicorn/no-useless-recursion -- roots must stay ordered for bundled precedence
+    return discoverSourceRoots(rootIndex + 1, options, accumulator);
+}
+
 async function discoverEntry(options: {
     entry: Dirent;
     rootIndex: number;
@@ -232,37 +322,11 @@ export async function discoverExtensions(options: DiscoveryOptions): Promise<{
     const extensions: DiscoveredExtension[] = [];
     const rejected: RejectedExtension[] = [];
     const discoveredIds = new Set<string>();
-    for (const [rootIndex, sourceRoot] of options.roots.entries()) {
-        let entries: Dirent[];
-        try {
-            // Root order determines bundled precedence over installed extensions.
-            // eslint-disable-next-line no-await-in-loop
-            entries = await readdir(sourceRoot, { withFileTypes: true });
-        } catch {
-            continue;
-        }
-        const directories = entries.filter((candidate) => candidate.isDirectory());
-        for (const entry of directories) {
-            // Entry order determines duplicate-ID precedence and keeps path checks bounded.
-            // eslint-disable-next-line no-await-in-loop
-            const result = await discoverEntry({
-                entry,
-                rootIndex,
-                sourceRoot,
-                appVersion: options.appVersion,
-                includeTestOnly: options.includeTestOnly,
-                discoveredIds,
-            });
-            /**
-             * A visible entry in an earlier root owns its extension id even when its manifest or engine is rejected.
-             * Otherwise an installed extension could impersonate a broken bundled extension and replace its catalog.
-             */
-            if (result) discoveredIds.add(result.value.extensionId);
-            if (result?.kind === 'extension') {
-                extensions.push(result.value);
-            } else if (result?.kind === 'rejected') rejected.push(result.value);
-        }
-    }
+    /**
+     * Recursive traversal is deliberate: root and directory precedence defines which duplicate extension id wins.
+     * Parallel discovery could let an installed extension race and impersonate an earlier bundled entry.
+     */
+    await discoverSourceRoots(0, options, { discoveredIds, extensions, rejected });
     return { extensions, rejected };
 }
 

@@ -12,7 +12,8 @@ import type {
     ExtensionHostRegistration,
     ExtensionProjectStatusSummary,
 } from '../../shared/extension-host-protocol';
-import { logEventCatalog, type StructuredLogger } from '../../shared/node/logger';
+import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import type { CatalogExtensionState } from './catalog';
 import { buildViewCatalog } from './catalog';
 import type { DiscoveredExtension } from './discovery';
@@ -105,26 +106,48 @@ export class ExtensionService extends EventTarget {
     }
 
     private registrations(): ExtensionHostRegistration[] {
-        return this.discovered
-            .filter(({ extensionId }) => this.states.get(extensionId)?.lifecycle !== 'error')
-            .map((extension) => {
-                const state = this.states.get(extension.extensionId);
-                const grant = this.grants.get(extension.extensionId);
-                if (!state || !grant)
-                    throw new Error(
-                        `Extension registration state is missing: ${extension.extensionId}`,
-                    );
-                return {
-                    extensionId: extension.extensionId,
-                    generation: state.generation,
-                    apiToken: grant.apiToken,
-                    rootPath: extension.rootPath,
-                    entryPath: extension.entryPath,
-                    manifest: extension.manifest,
-                    grants: [...grant.capabilities],
-                    projectIds: [...grant.projectIds],
-                };
+        const registrations: ExtensionHostRegistration[] = [];
+        for (const extension of this.discovered) {
+            const state = this.states.get(extension.extensionId);
+            if (state?.lifecycle === 'error') continue;
+            const grant = this.grants.get(extension.extensionId);
+            if (!state || !grant)
+                throw new Error(
+                    `Extension registration state is missing: ${extension.extensionId}`,
+                );
+            registrations.push({
+                extensionId: extension.extensionId,
+                generation: state.generation,
+                apiToken: grant.apiToken,
+                rootPath: extension.rootPath,
+                entryPath: extension.entryPath,
+                manifest: extension.manifest,
+                grants: [...grant.capabilities],
+                projectIds: [...grant.projectIds],
             });
+        }
+        return registrations;
+    }
+
+    private async projectStatusForStableContext(active: {
+        projectId?: string;
+        sessionId: string;
+    }): Promise<ExtensionProjectStatusSummary> {
+        const result = await this.options.projectStatus(active.sessionId);
+        return this.projectStatusIfContextUnchanged(active, result);
+    }
+
+    private async projectStatusIfContextUnchanged(
+        active: { projectId?: string; sessionId: string },
+        result: ProjectStatusSummary,
+    ): Promise<ExtensionProjectStatusSummary> {
+        const current = await this.options.activeContext();
+        if (current.sessionId !== active.sessionId || current.projectId !== active.projectId)
+            throw Object.assign(
+                new Error('Active Project changed while the extension request was running'),
+                { code: 'GENERATION_EXPIRED' },
+            );
+        return projectStatusForExtension(result);
     }
 
     private async rebuildCatalog(extensionId?: string): Promise<void> {
@@ -279,17 +302,10 @@ export class ExtensionService extends EventTarget {
                             code: 'PROJECT_SCOPE_DENIED',
                         },
                     );
-                const result = await this.options.projectStatus(active.sessionId);
-                const current = await this.options.activeContext();
-                if (
-                    current.sessionId !== active.sessionId ||
-                    current.projectId !== active.projectId
-                )
-                    throw Object.assign(
-                        new Error('Active Project changed while the extension request was running'),
-                        { code: 'GENERATION_EXPIRED' },
-                    );
-                return projectStatusForExtension(result);
+                return this.projectStatusForStableContext({
+                    sessionId: active.sessionId,
+                    ...(active.projectId && { projectId: active.projectId }),
+                });
             },
         });
         this.supervisor.onEvent((event) => {
@@ -324,7 +340,7 @@ export class ExtensionService extends EventTarget {
                     'error',
                     logEventCatalog.extensionHost.catalogRebuildFailed,
                     {
-                    fields: { message: error instanceof Error ? error.message : String(error) },
+                        fields: { message: error instanceof Error ? error.message : String(error) },
                     },
                 ),
             );
@@ -344,7 +360,7 @@ export class ExtensionService extends EventTarget {
                     'error',
                     logEventCatalog.extensionHost.catalogRebuildFailed,
                     {
-                    fields: { message: error instanceof Error ? error.message : String(error) },
+                        fields: { message: error instanceof Error ? error.message : String(error) },
                     },
                 ),
             );
