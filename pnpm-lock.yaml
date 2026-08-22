@@ -60,9 +60,6 @@ importers:
       '@caxri/cli':
         specifier: workspace:*
         version: link:packages/cli
-      '@caxri/protocol':
-        specifier: workspace:*
-        version: link:packages/protocol
       '@caxri/utils':
         specifier: workspace:*
         version: link:packages/utils
