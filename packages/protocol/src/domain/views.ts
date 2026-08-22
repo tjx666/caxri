@@ -156,6 +156,11 @@ export const treeItemSchema = z.object({
     command: treeItemCommandSchema.optional(),
 });
 
+export const treeChildrenResultSchema = z.object({
+    items: z.array(treeItemSchema).max(MAX_VIEW_TREE_ITEMS),
+    reset: z.literal(true).optional(),
+});
+
 export const extensionTreeViewStateSchema = z.object({
     expandedItemIds: z.array(treeItemIdSchema).max(MAX_VIEW_TREE_PERSISTED_IDS),
     initializedItemIds: z.array(treeItemIdSchema).max(MAX_VIEW_TREE_PERSISTED_IDS),
@@ -248,6 +253,7 @@ export type ContributedCommandDescriptor = z.infer<typeof contributedCommandDesc
 export type ExtensionDescriptor = z.infer<typeof extensionDescriptorSchema>;
 export type ViewCatalogSnapshot = z.infer<typeof viewCatalogSnapshotSchema>;
 export type TreeItemDto = z.infer<typeof treeItemSchema>;
+export type TreeChildrenResult = z.infer<typeof treeChildrenResultSchema>;
 export type ExtensionTreeViewState = z.infer<typeof extensionTreeViewStateSchema>;
 export type ExtensionTreeViewStates = z.infer<typeof extensionTreeViewStatesSchema>;
 export type ExtensionManifest = z.infer<typeof extensionManifestSchema>;

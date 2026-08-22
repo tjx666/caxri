@@ -1,11 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
 
 const supervisorHarness = vi.hoisted(() => ({
     activation: Promise.withResolvers<void>(),
     exitListeners: [] as Array<(code: number) => void>,
+    requests: [] as Array<{ method: string; parameters?: Record<string, unknown> }>,
     startListeners: [] as Array<() => void>,
+    treeChildrenFailure: undefined as Error | undefined,
 }));
 
 vi.mock('../catalog', () => ({
@@ -121,8 +123,14 @@ vi.mock('../supervisor', () => ({
             return Promise.resolve();
         }
 
-        request(method: string): Promise<unknown> {
+        request(method: string, parameters?: Record<string, unknown>): Promise<unknown> {
+            supervisorHarness.requests.push({ method, parameters });
             if (method === 'activate') return supervisorHarness.activation.promise;
+            if (method === 'treeChildren' && parameters?.parentHandle) {
+                const failure = supervisorHarness.treeChildrenFailure;
+                supervisorHarness.treeChildrenFailure = undefined;
+                if (failure) return Promise.reject(failure);
+            }
             return Promise.resolve({ items: [] });
         }
 
@@ -143,6 +151,14 @@ vi.mock('../supervisor', () => ({
 import { ExtensionService } from '../service';
 
 describe('ExtensionService generation lifecycle', () => {
+    beforeEach(() => {
+        supervisorHarness.activation = Promise.withResolvers<void>();
+        supervisorHarness.exitListeners.length = 0;
+        supervisorHarness.requests.length = 0;
+        supervisorHarness.startListeners.length = 0;
+        supervisorHarness.treeChildrenFailure = undefined;
+    });
+
     it('does not let a rejected retired activation overwrite the crash generation', async () => {
         const service = new ExtensionService({
             appVersion: '0.0.17',
@@ -175,5 +191,38 @@ describe('ExtensionService generation lifecycle', () => {
                 lifecycle: 'crashed',
             }),
         );
+    });
+
+    it('recovers an expired branch handle with a current root snapshot', async () => {
+        const service = new ExtensionService({
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            extensionRoots: ['/extensions'],
+            includeTestOnly: true,
+            logger: new StructuredLogger('/tmp/caxri-extension-service-test', 'host', 'error'),
+            activeContext: () => Promise.resolve({}),
+            projectIds: () => Promise.resolve([]),
+            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+        });
+        await service.start();
+        supervisorHarness.activation.resolve();
+        supervisorHarness.treeChildrenFailure = Object.assign(new Error('Tree handle expired'), {
+            code: 'GENERATION_EXPIRED',
+        });
+
+        await expect(
+            service.treeChildren({
+                viewId: 'publisher.fixture.tree',
+                parentHandle: 'stale-handle',
+                requestId: 'request-1',
+            }),
+        ).resolves.toEqual({ items: [], reset: true });
+        const treeRequests = supervisorHarness.requests.filter(
+            ({ method }) => method === 'treeChildren',
+        );
+        expect(treeRequests).toHaveLength(2);
+        expect(treeRequests[0]?.parameters?.parentHandle).toBe('stale-handle');
+        expect(treeRequests[1]?.parameters).not.toHaveProperty('parentHandle');
     });
 });

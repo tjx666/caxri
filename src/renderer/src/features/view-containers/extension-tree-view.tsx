@@ -298,10 +298,12 @@ function ExtensionTreeViewContent({
                     ...(parentHandle !== ROOT_HANDLE && { parentHandle }),
                 });
                 if (requests.current.get(parentHandle) !== requestId) return;
-                replaceLoadedChildren(parentHandle, result.items);
+                if (result.reset) resetLoadedChildren();
+                const resultParentHandle = result.reset ? ROOT_HANDLE : parentHandle;
+                replaceLoadedChildren(resultParentHandle, result.items);
                 updateTreeState((current) => {
                     let next = reconcileTreeItems(current, result.items);
-                    if (parentHandle === ROOT_HANDLE && !next.focusedKey && result.items[0])
+                    if (resultParentHandle === ROOT_HANDLE && !next.focusedKey && result.items[0])
                         next = focusTreeItem(next, result.items[0]);
                     return next;
                 });
@@ -324,7 +326,7 @@ function ExtensionTreeViewContent({
                 }
             }
         },
-        [replaceLoadedChildren, updateTreeState, viewId],
+        [replaceLoadedChildren, resetLoadedChildren, updateTreeState, viewId],
     );
 
     useEffect(() => {
