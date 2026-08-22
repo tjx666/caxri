@@ -413,11 +413,11 @@ export class ExtensionService extends EventTarget {
                 ...parameters,
             })) as TreeChildrenResult;
         } catch (error) {
-            if (!parameters.parentHandle || extensionFailure(error).code !== 'GENERATION_EXPIRED')
-                throw error;
+            if (extensionFailure(error).code !== 'GENERATION_EXPIRED') throw error;
             /**
-             * A root refresh retires handles before its debounced treeChanged event reaches the Renderer. Recover the
-             * narrow stale-branch race with a current root snapshot while preserving strict Extension Host rejection.
+             * A provider refresh can invalidate either an in-flight root request or a branch handle before its
+             * debounced treeChanged event reaches the Renderer. Recover both races with a current root snapshot while
+             * preserving strict Extension Host rejection for every other failure.
              */
             const root = (await this.supervisor?.request('treeChildren', {
                 extensionId: extension.extensionId,
@@ -425,7 +425,7 @@ export class ExtensionService extends EventTarget {
                 viewId: parameters.viewId,
                 requestId: parameters.requestId,
             })) as TreeChildrenResult;
-            return { ...root, reset: true };
+            return { ...root, ...(parameters.parentHandle && { reset: true }) };
         }
     }
 

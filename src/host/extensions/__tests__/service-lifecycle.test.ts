@@ -126,7 +126,7 @@ vi.mock('../supervisor', () => ({
         request(method: string, parameters?: Record<string, unknown>): Promise<unknown> {
             supervisorHarness.requests.push({ method, parameters });
             if (method === 'activate') return supervisorHarness.activation.promise;
-            if (method === 'treeChildren' && parameters?.parentHandle) {
+            if (method === 'treeChildren') {
                 const failure = supervisorHarness.treeChildrenFailure;
                 supervisorHarness.treeChildrenFailure = undefined;
                 if (failure) return Promise.reject(failure);
@@ -224,5 +224,37 @@ describe('ExtensionService generation lifecycle', () => {
         expect(treeRequests).toHaveLength(2);
         expect(treeRequests[0]?.parameters?.parentHandle).toBe('stale-handle');
         expect(treeRequests[1]?.parameters).not.toHaveProperty('parentHandle');
+    });
+
+    it('recovers a root request invalidated by a concurrent provider refresh', async () => {
+        const service = new ExtensionService({
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            extensionRoots: ['/extensions'],
+            includeTestOnly: true,
+            logger: new StructuredLogger('/tmp/caxri-extension-service-test', 'host', 'error'),
+            activeContext: () => Promise.resolve({}),
+            projectIds: () => Promise.resolve([]),
+            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+        });
+        await service.start();
+        supervisorHarness.activation.resolve();
+        supervisorHarness.treeChildrenFailure = Object.assign(
+            new Error('Tree provider refreshed while the request was running'),
+            { code: 'GENERATION_EXPIRED' },
+        );
+
+        await expect(
+            service.treeChildren({
+                viewId: 'publisher.fixture.tree',
+                requestId: 'request-1',
+            }),
+        ).resolves.toEqual({ items: [] });
+        const treeRequests = supervisorHarness.requests.filter(
+            ({ method }) => method === 'treeChildren',
+        );
+        expect(treeRequests).toHaveLength(2);
+        expect(treeRequests.every(({ parameters }) => !parameters?.parentHandle)).toBe(true);
     });
 });
