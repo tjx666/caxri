@@ -176,7 +176,6 @@ function PaneBox({
             }}
         >
             <PaneTabBar
-                isActivePane={isActivePane}
                 isOnlySessionTerminal={isOnlySessionTerminal}
                 isRootBar={isLeading}
                 isSoleWorkbenchTab={isSoleWorkbenchTab}
