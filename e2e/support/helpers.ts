@@ -562,7 +562,7 @@ export async function createProjectSession(
 }
 
 /**
- * The sidebar hosts no Add Project button; the default `Cmd+O` keybinding is the primary entry point.
+ * The primarySidebar hosts no Add Project button; the default `Cmd+O` keybinding is the primary entry point.
  */
 export async function openAddProjectDialog(page: Page): Promise<void> {
     await page.keyboard.press('Meta+o');
@@ -725,11 +725,11 @@ export function sessionCard(page: Page, sessionId: string) {
 }
 
 /**
- * Reveals a Bottom Panel view and returns its tab. The Bottom Panel is closed at rest, so its tabs are not in the DOM
- * until `Command+J` opens the region; the toggle is idempotent here only because the panel is asserted closed first.
+ * Reveals a Panel view and returns its tab. The Panel is closed at rest, so its tabs are not in the DOM until
+ * `Command+J` opens the region; the toggle is idempotent here only because the panel is asserted closed first.
  */
-export async function openBottomPanelView(page: Page, name: 'Info' | 'Logs'): Promise<Locator> {
-    const tablist = page.getByRole('tablist', { name: 'Bottom Panel' });
+export async function openPanelView(page: Page, name: 'Info' | 'Logs'): Promise<Locator> {
+    const tablist = page.getByRole('tablist', { name: 'Panel' });
     if ((await tablist.count()) === 0) {
         await page.keyboard.press('Meta+j');
         await expect(tablist).toBeVisible();

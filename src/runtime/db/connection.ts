@@ -43,7 +43,7 @@ function installCurrentSchema(database: Database.Database): void {
 const PROJECT_ORDER_SCHEMA_VERSION = schemaVersionForMigration('0004_wonderful_gladiator');
 
 /**
- * Preserves the v9 Sidebar order, which was defined by `created_at, id`, as explicit indexes.
+ * Preserves the v9 PrimarySidebar order, which was defined by `created_at, id`, as explicit indexes.
  */
 function backfillProjectOrder(database: Database.Database): void {
     const legacyProjects = database

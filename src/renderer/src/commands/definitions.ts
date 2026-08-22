@@ -1,7 +1,5 @@
-import { bottomPanelViewRegistrations } from '@shared/bottom-panel';
 import type { CommandId } from '@shared/commands';
 import { getCommandDefinition } from '@shared/commands';
-import { inspectorModeRegistrations } from '@shared/inspector';
 
 import type { CommandContext, CommandDefinition, SessionMruShortcutInvocation } from './registry';
 import { defineCommand, registerCommand } from './registry';
@@ -171,24 +169,34 @@ export const commandDefinitions: CommandDefinition[] = [
             when: (context) => context.workbench.canSplitActive(),
         }),
     ),
-    ...inspectorModeRegistrations.map(({ commandId, mode }) =>
-        fromCatalog(commandId, (context) => context.inspector.activateMode(mode)),
+    fromCatalog('secondarySidebar.showFiles', (context) =>
+        context.secondarySidebar.activateViewContainer('caxri.files'),
     ),
-    fromCatalog('inspector.searchFiles', (context) => context.inspector.searchFiles(), {
-        allowInEditable: true,
-    }),
-    fromCatalog('inspector.toggle', (context) => context.inspector.toggle(), {
-        allowInEditable: true,
-    }),
-    ...bottomPanelViewRegistrations.map(({ commandId, view }) =>
-        fromCatalog(commandId, (context) => context.bottomPanel.activateView(view), {
+    fromCatalog('secondarySidebar.showGit', (context) =>
+        context.secondarySidebar.activateViewContainer('caxri.git'),
+    ),
+    fromCatalog(
+        'secondarySidebar.searchFiles',
+        (context) => context.secondarySidebar.searchFiles(),
+        {
             allowInEditable: true,
-        }),
+        },
     ),
-    fromCatalog('bottomPanel.toggle', (context) => context.bottomPanel.toggle(), {
+    fromCatalog('secondarySidebar.toggle', (context) => context.secondarySidebar.toggle(), {
         allowInEditable: true,
     }),
-    fromCatalog('sidebar.toggle', (context) => context.sidebar.toggle(), { allowInEditable: true }),
+    fromCatalog('panel.showLogs', (context) => context.panel.activateViewContainer('caxri.logs'), {
+        allowInEditable: true,
+    }),
+    fromCatalog('panel.showInfo', (context) => context.panel.activateViewContainer('caxri.info'), {
+        allowInEditable: true,
+    }),
+    fromCatalog('panel.toggle', (context) => context.panel.toggle(), {
+        allowInEditable: true,
+    }),
+    fromCatalog('primarySidebar.toggle', (context) => context.primarySidebar.toggle(), {
+        allowInEditable: true,
+    }),
     fromCatalog('settings.open', (context) => context.dialogs.openSettings(), {
         allowInEditable: true,
     }),

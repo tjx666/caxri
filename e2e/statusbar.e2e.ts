@@ -134,7 +134,7 @@ exec /bin/zsh -l
 
         await running.page.keyboard.press('Meta+]');
         await changes.click();
-        await expect(running.page.locator('.inspector')).toBeVisible();
+        await expect(running.page.locator('.secondary-sidebar')).toBeVisible();
         await expect(running.page.getByText('Source Control', { exact: true })).toBeVisible();
 
         await writeFile(join(root, 'untracked.txt'), 'new\n', 'utf8');
@@ -146,7 +146,7 @@ exec /bin/zsh -l
         expect((await readFile(ghCalls, 'utf8')).trim().split('\n')).toHaveLength(2);
 
         // The status bar no longer offers an "open Files" chip, so reach the file tree through
-        // the inspector's own Files tab (the inspector is already open from `changes.click()`).
+        // the secondarySidebar's own Files tab (the secondarySidebar is already open from `changes.click()`).
         await running.page.getByRole('tab', { name: 'Files', exact: true }).click();
         await running.page.getByRole('treeitem', { name: 'source.ts', exact: true }).click();
         await expect(

@@ -20,7 +20,7 @@ Copyright (c) 2014 Ryan L McIntyre. Licensed under the MIT License. The vendored
 
 ## vscode-icons
 
-Caxri bundles the file and folder icon set from the `@yutengjing/vscode-icons` package (a maintained standalone port of the `vscode-icons` VS Code extension icon data) for the Files inspector, so file and folder icons match the look of VS Code's vscode-icons extension. The full icon set is emitted into the Renderer build as individual SVG assets (any file or folder name can appear in a user's project at runtime); icons are loaded from local packaged assets, never fetched remotely.
+Caxri bundles the file and folder icon set from the `@yutengjing/vscode-icons` package (a maintained standalone port of the `vscode-icons` VS Code extension icon data) for the Files view, so file and folder icons match the look of VS Code's vscode-icons extension. The full icon set is emitted into the Renderer build as individual SVG assets (any file or folder name can appear in a user's project at runtime); icons are loaded from local packaged assets, never fetched remotely.
 
 The `@yutengjing/vscode-icons` source code is licensed under the MIT License; the upstream source is <https://github.com/tjx666/vscode-icons>.
 

@@ -143,7 +143,7 @@ truncates the transported `files` array at `MAX_GIT_STATUS_FILES` (2,000,
 `packages/protocol/src/domain/git.ts`) with `truncated = changedFileCount > MAX_GIT_STATUS_FILES`.
 `changedFileCount` is authoritative on a truncated snapshot; otherwise it is the post
 child-repository-filtering visible file count, so every consumer of one generation reports the same
-number. `GitPanel` (`src/renderer/src/features/inspector/panels/git/git-panel.tsx:291-300`) renders
+number. `GitPanel` (`src/renderer/src/features/secondary-sidebar/panels/git/git-panel.tsx:291-300`) renders
 an explicit `Showing the first N of <changedFileCount>` notice when `truncated`; already-listed
 files remain fully diffable.
 
@@ -191,7 +191,7 @@ asserts against it rather than the last `git.command` record.
   Renderer, or diagnostics/logs.
 - Topology discovery does not imply authorization. An unauthorized linked worktree can appear in
   `RepoTopologyRegistry` (for Workbench Root candidate flows) without being reachable through Git
-  Inspector, diff, history, Files, the CLI, or an Agent Endpoint — `GitRepoService` re-checks
+  SecondarySidebar, diff, history, Files, the CLI, or an Agent Endpoint — `GitRepoService` re-checks
   approved Project roots on every summary.
 - No increase to the global Git concurrency limit (`MAX_CONCURRENT_GIT_COMMANDS = 8`); reduced
   command counts are the mechanism, not added parallelism.

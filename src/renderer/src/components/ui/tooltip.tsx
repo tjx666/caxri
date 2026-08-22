@@ -43,7 +43,7 @@ export function Tooltip({
                     <TooltipPrimitive.Popup
                         className={cn(
                             // Kept as a plain class (not `data-slot`) because
-                            // `e2e/sidebar-chrome.e2e.ts` locates it via `.tooltip-popup`.
+                            // `e2e/primary-sidebar-chrome.e2e.ts` locates it via `.tooltip-popup`.
                             'tooltip-popup flex max-w-80 items-center gap-3 rounded-md bg-elevated px-2.5 py-1.5 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] outline-none',
                             // `TooltipPositioner` exposes `--transform-origin`
                             // (`TooltipPositionerCssVars`) and it inherits down to this

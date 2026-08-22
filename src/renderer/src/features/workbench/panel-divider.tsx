@@ -1,6 +1,6 @@
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
 import { cn } from '../../lib/utilities';
-import { PANEL_RESIZE_STEP } from '../../stores/panel-layout';
+import { PANEL_RESIZE_STEP } from '../../stores/chrome-layout';
 
 /**
  * Applied to `document.body` for the duration of a drag; see `styles.css`. Suppresses selection and pointer events
@@ -13,7 +13,7 @@ const DRAG_CLASS = 'panel-resize-active';
  * The seam is invisible at rest — like VS Code's unset `sideBar.border`, the adjacent `bg-surface`/`bg-background` step
  * alone marks the boundary — while a 6px hit band stays comfortable to grab. The band paints `bg-surface` (not
  * transparent): the grid behind it is `bg-background`, which would otherwise show through as a light stripe where both
- * neighbors are surface-colored chrome (Sidebar title beside the tab strip). Hover/focus/drag reveal a centered
+ * neighbors are surface-colored chrome (PrimarySidebar title beside the tab strip). Hover/focus/drag reveal a centered
  * hairline using a foreground tint, never `--accent` — the divider is chrome, not the one focus indicator (DESIGN.md
  * "One accent focus per screen").
  */
@@ -57,26 +57,26 @@ interface PanelDividerProperties {
     /**
      * Custom property this divider drives directly during a drag, bypassing React state.
      */
-    cssVariable: '--sidebar-width' | '--inspector-width' | '--bottom-panel-height';
+    cssVariable: '--primary-sidebar-width' | '--secondary-sidebar-width' | '--panel-height';
     /**
-     * `1` when the panel grows as the pointer moves right/down (Sidebar), `-1` when it grows as the pointer moves
-     * left/up (Inspector, Bottom Panel). Also flips the Arrow key mapping so the "increase" key always matches the
-     * physical drag direction for that divider.
+     * `1` when the panel grows as the pointer moves right/down (PrimarySidebar), `-1` when it grows as the pointer
+     * moves left/up (SecondarySidebar, Panel). Also flips the Arrow key mapping so the "increase" key always matches
+     * the physical drag direction for that divider.
      */
     growDirection: 1 | -1;
     /**
-     * `'vertical'` for a column seam dragged along X (Sidebar↔main, main↔Inspector); `'horizontal'` for a row seam
-     * dragged along Y (work surface↔Bottom Panel). Also selects the Arrow key pair.
+     * `'vertical'` for a column seam dragged along X (PrimarySidebar↔main, main↔SecondarySidebar); `'horizontal'` for a
+     * row seam dragged along Y (work surface↔Panel). Also selects the Arrow key pair.
      */
     orientation: 'horizontal' | 'vertical';
     onCommit(size: number): void;
 }
 
 /**
- * A min/max-constrained drag divider shared by the Sidebar↔main, main↔Inspector, and work-surface↔Bottom Panel seams.
- * Dragging writes the live size straight to a root CSS custom property (and to `aria-valuenow`) instead of React state,
- * so a pointermove never triggers a render; the size only reaches the panel-layout store — and `localStorage` — once
- * the gesture ends.
+ * A min/max-constrained drag divider shared by the PrimarySidebar↔main, main↔SecondarySidebar, and work-surface↔Panel
+ * seams. Dragging writes the live size straight to a root CSS custom property (and to `aria-valuenow`) instead of React
+ * state, so a pointermove never triggers a render; the size only reaches the chrome-layout store — and `localStorage` —
+ * once the gesture ends.
  */
 export function PanelDivider(properties: PanelDividerProperties) {
     const isHorizontal = properties.orientation === 'horizontal';

@@ -74,12 +74,22 @@ async function repoVersionLocations(): Promise<string[]> {
     const candidates = stdout
         .split('\0')
         .filter((path) => path && !excluded.has(path) && executableSource.test(path));
-    const sources = await Promise.all(
-        candidates.map(async (path) => ({
-            path,
-            source: await readFile(join(repoRoot, path), 'utf8'),
-        })),
-    );
+    const sources = (
+        await Promise.all(
+            candidates.map(async (path) => {
+                try {
+                    return { path, source: await readFile(join(repoRoot, path), 'utf8') };
+                } catch (error) {
+                    /**
+                     * `git ls-files` includes tracked paths deleted by an in-progress refactor. They are not version
+                     * sources in the working tree and must not make this dirty-worktree-safe contract fail early.
+                     */
+                    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+                    throw error;
+                }
+            }),
+        )
+    ).filter((candidate) => candidate !== undefined);
 
     return sources.flatMap(({ path, source }) =>
         versions.some((version) => source.includes(version)) ? [path] : [],

@@ -6,8 +6,8 @@ import { clamp } from 'es-toolkit';
 /**
  * Snapshot captured on pointer down and handed to {@link UsePointerDragResizeOptions.resolveValue} on every subsequent
  * move/up/cancel for the same pointer. `startValue` is `value` at drag start, so a delta-based divider (e.g.
- * Sidebar/Inspector width, which grows or shrinks from where the drag began) can compute `startValue + delta` instead
- * of re-deriving a position from scratch. A divider that resolves an absolute position instead (e.g. a
+ * PrimarySidebar/SecondarySidebar width, which grows or shrinks from where the drag began) can compute `startValue +
+ * delta` instead of re-deriving a position from scratch. A divider that resolves an absolute position instead (e.g. a
  * container-relative split ratio) can ignore it.
  */
 interface PointerDragStart {

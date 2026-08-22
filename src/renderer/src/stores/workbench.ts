@@ -43,7 +43,7 @@ interface WorkbenchState {
      */
     refresh(): Promise<void>;
     /**
-     * Optimistically applies a Session layout/tab/inspector change and reports persistence.
+     * Optimistically applies a Session layout/tab/secondarySidebar change and reports persistence.
      */
     patchSessionState(
         next: SessionState,
@@ -494,6 +494,8 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             }
             case 'agent.dispatch.changed':
+            case 'viewContainers.catalogChanged':
+            case 'viewContainers.treeChanged':
             case 'agent.message.held':
             case 'agent.message.receipt':
             case 'agent.messaging.changed':

@@ -60,6 +60,9 @@ importers:
       '@caxri/cli':
         specifier: workspace:*
         version: link:packages/cli
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:packages/protocol
       '@caxri/utils':
         specifier: workspace:*
         version: link:packages/utils
@@ -159,6 +162,9 @@ importers:
       babel-plugin-react-compiler:
         specifier: 1.0.0
         version: 1.0.0
+      caxri:
+        specifier: workspace:*
+        version: link:packages/api
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -279,6 +285,8 @@ importers:
       zustand:
         specifier: 5.0.14
         version: 5.0.14(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
+
+  packages/api: {}
 
   packages/cli:
     dependencies:
@@ -2682,10 +2690,12 @@ packages:
   '@xmldom/xmldom@0.8.14':
     resolution: {integrity: sha512-T4EDRUBVZYRldYApjEJiU0e1stYWaRAX7CuSnKzrpwdZKo53zGV8/pqfzV6FfwNl9YThD2OumQYvqtvjvgG7aQ==}
     engines: {node: '>=10.0.0'}
+    deprecated: this version has critical issues, please update to the latest version
 
   '@xmldom/xmldom@0.9.11':
     resolution: {integrity: sha512-tW8bcK3hsG0/uqSnNz6TK4BkcuZSezoU7DlnYssILmZDktPnSHHuDJJFM0AJv+13gz2r0iGdrj6qqKeUnxXEDg==}
     engines: {node: '>=14.6'}
+    deprecated: this version has critical issues, please update to the latest version
 
   '@xterm/addon-clipboard@0.3.0-beta.301':
     resolution: {integrity: sha512-DRL0EybPhWzgndaTeakVbh/HvJF7yzxRtfNCnIudFZQaGugFYsEUZNOaV2NZev8z5kLwor6miH1j3DNMI8Paxg==}

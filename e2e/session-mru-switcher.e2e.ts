@@ -90,10 +90,11 @@ test('Session MRU switching cycles, respects editable focus, and persists across
         expect(await selectedSessionId(running.page)).toBe(sessionB);
 
         /**
-         * The switcher is a modal moment: a click aimed at a Sidebar Session must hit its scrim instead. Letting it
-         * through would switch the Session immediately and then commit a second, stale one when the chord is released.
-         * `force` is what makes this a regression test — Playwright would otherwise refuse the click precisely because
-         * the scrim covers the card, and a scrim that stopped taking pointer events would make the click succeed.
+         * The switcher is a modal moment: a click aimed at a PrimarySidebar Session must hit its scrim instead. Letting
+         * it through would switch the Session immediately and then commit a second, stale one when the chord is
+         * released. `force` is what makes this a regression test — Playwright would otherwise refuse the click
+         * precisely because the scrim covers the card, and a scrim that stopped taking pointer events would make the
+         * click succeed.
          */
         await running.page.keyboard.down('Control');
         await running.page.keyboard.down('Alt');

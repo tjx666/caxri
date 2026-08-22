@@ -7,7 +7,7 @@ import { launchCaxri, openAddProjectDialog } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
-test('Files inspector renders local file, folder, open, and fallback icons', async () => {
+test('Files secondarySidebar renders local file, folder, open, and fallback icons', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-icons-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');

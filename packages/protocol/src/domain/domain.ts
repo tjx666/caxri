@@ -7,9 +7,9 @@ import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import type { CommandId } from './commands.js';
 import { gitCommitSchema } from './git.js';
-import { inspectorModeSchema } from './inspector.js';
 import { paneLayoutSchema } from './pane-layout.js';
 import { projectIconSchema } from './project-customization.js';
+import { viewContainerIdSchema } from './views.js';
 
 export * from './git.js';
 
@@ -78,7 +78,7 @@ export const projectRecordSchema = z.object({
 export const sessionRecordSchema = z.object({
     id: identifierSchema,
     /**
-     * Durable owner used for Sidebar grouping, Terminal cwd, and Agent authorization.
+     * Durable owner used for PrimarySidebar grouping, Terminal cwd, and Agent authorization.
      */
     projectId: identifierSchema,
     /**
@@ -181,7 +181,11 @@ export const sessionStateSchema = z.object({
      * Last durable file mutation whose editor remap was applied to this atomic Session snapshot.
      */
     editorRemapOperationId: identifierSchema.optional(),
-    inspectorMode: inspectorModeSchema,
+    /**
+     * The user's durable intent. Availability is resolved against the Host catalog in the Renderer; unknown extension
+     * IDs remain valid so a temporarily missing extension can reclaim the selection when it returns.
+     */
+    desiredSecondarySidebarViewContainerId: viewContainerIdSchema,
     /**
      * The Workbench split tree: the single source of truth for which Terminals and documents are open, how they are
      * arranged, and which one each pane shows. Terminal processes stay Session-global; only their placement is

@@ -381,7 +381,8 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
                 const result = await pageRequest<{
                     value: Array<{ command: string; key: string }>;
                 }>(running.page, 'keybindings.get');
-                return result.value.find((binding) => binding.command === 'inspector.toggle')?.key;
+                return result.value.find((binding) => binding.command === 'secondarySidebar.toggle')
+                    ?.key;
             })
             .toBe('cmd+]');
     } finally {

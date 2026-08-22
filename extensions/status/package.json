@@ -1,0 +1,43 @@
+{
+    "name": "caxri.project-status",
+    "version": "0.0.17",
+    "private": true,
+    "type": "module",
+    "main": "./dist/extension.js",
+    "engines": {
+        "caxri": "^0.0.17"
+    },
+    "caxri": {
+        "capabilities": [
+            "projects.read",
+            "sessions.read"
+        ]
+    },
+    "contributes": {
+        "viewsContainers": {
+            "secondarySidebar": [
+                {
+                    "id": "caxri.project-status",
+                    "title": "Status",
+                    "icon": "media/status.svg"
+                }
+            ]
+        },
+        "views": {
+            "caxri.project-status": [
+                {
+                    "id": "caxri.project-status.overview",
+                    "name": "Project Status",
+                    "type": "tree"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "caxri.project-status.refresh",
+                "title": "Refresh Project Status",
+                "description": "Refresh Project Status from GitHub, Linear, and Vercel"
+            }
+        ]
+    }
+}

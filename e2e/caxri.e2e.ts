@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -12,7 +12,7 @@ import {
     createShellSession,
     launchCaxri,
     openAddProjectDialog,
-    openBottomPanelView,
+    openPanelView,
     pageReply,
     selectedSessionId,
     sessionCard,
@@ -146,7 +146,7 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
     }
 });
 
-test('dragging the Sidebar divider resizes it and the width survives a reload', async () => {
+test('dragging the PrimarySidebar divider resizes it and the width survives a reload', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-panel-resize-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -154,9 +154,9 @@ test('dragging the Sidebar divider resizes it and the width survives a reload', 
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        const sidebar = running.page.locator('.session-sidebar');
-        const divider = running.page.getByRole('separator', { name: 'Resize Sidebar' });
-        const startWidth = (await sidebar.boundingBox())!.width;
+        const primarySidebar = running.page.locator('.session-primary-sidebar');
+        const divider = running.page.getByRole('separator', { name: 'Resize Primary Side Bar' });
+        const startWidth = (await primarySidebar.boundingBox())!.width;
         const dividerBox = (await divider.boundingBox())!;
         const startX = dividerBox.x + dividerBox.width / 2;
         const y = dividerBox.y + dividerBox.height / 2;
@@ -167,33 +167,38 @@ test('dragging the Sidebar divider resizes it and the width survives a reload', 
         await running.page.mouse.up();
 
         await expect
-            .poll(async () => (await sidebar.boundingBox())?.width)
+            .poll(async () => (await primarySidebar.boundingBox())?.width)
             .toBeGreaterThan(startWidth + 60);
-        const widthAfterDrag = Math.round((await sidebar.boundingBox())!.width);
+        const widthAfterDrag = Math.round((await primarySidebar.boundingBox())!.width);
 
         await running.page.reload();
         await waitForRuntimeReady(running.page);
         await expect
             .poll(async () =>
-                Math.round((await running.page.locator('.session-sidebar').boundingBox())!.width),
+                Math.round(
+                    (await running.page.locator('.session-primary-sidebar').boundingBox())!.width,
+                ),
             )
             .toBe(widthAfterDrag);
 
         // Double-click resets to the default width shipped with `.app-shell` in styles.css.
-        await running.page.getByRole('separator', { name: 'Resize Sidebar' }).dblclick();
+        await running.page.getByRole('separator', { name: 'Resize Primary Side Bar' }).dblclick();
         await expect
-            .poll(async () => (await running.page.locator('.session-sidebar').boundingBox())?.width)
+            .poll(
+                async () =>
+                    (await running.page.locator('.session-primary-sidebar').boundingBox())?.width,
+            )
             .toBe(230);
 
-        // The global Inspector shortcut collapses the panel and its divider.
-        await expect(running.page.locator('.inspector')).toBeVisible();
+        // The global SecondarySidebar shortcut collapses the panel and its divider.
+        await expect(running.page.locator('.secondary-sidebar')).toBeVisible();
         await running.page.keyboard.press('Meta+]');
-        await expect(running.page.locator('.inspector')).toHaveCount(0);
-        await expect(running.page.getByRole('separator', { name: 'Resize Inspector' })).toHaveCount(
-            0,
-        );
+        await expect(running.page.locator('.secondary-sidebar')).toHaveCount(0);
+        await expect(
+            running.page.getByRole('separator', { name: 'Resize Secondary Side Bar' }),
+        ).toHaveCount(0);
         await running.page.keyboard.press('Meta+]');
-        await expect(running.page.locator('.inspector')).toBeVisible();
+        await expect(running.page.locator('.secondary-sidebar')).toBeVisible();
     } finally {
         try {
             await running.app.close();
@@ -204,7 +209,7 @@ test('dragging the Sidebar divider resizes it and the width survives a reload', 
     }
 });
 
-test('sidebar search finds and selects Projects instead of exporting diagnostics', async () => {
+test('primarySidebar search finds and selects Projects instead of exporting diagnostics', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-search-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const firstRoot = join(testDirectory, 'alpha-project');
@@ -255,7 +260,7 @@ test('sidebar search finds and selects Projects instead of exporting diagnostics
     }
 });
 
-test('Info inspector lists only the current Session Terminals', async () => {
+test('Info secondarySidebar lists only the current Session Terminals', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-multi-agent-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -274,7 +279,7 @@ test('Info inspector lists only the current Session Terminals', async () => {
         await running.page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
         await expect(running.page.locator('.session-card')).toHaveCount(1);
 
-        await openBottomPanelView(running.page, 'Info');
+        await openPanelView(running.page, 'Info');
         const terminalCards = running.page.locator('.terminal-info-card');
         await expect(terminalCards).toHaveCount(1);
         await expect(terminalCards.filter({ hasText: 'Codex' })).toBeVisible();
@@ -295,90 +300,7 @@ test('Info inspector lists only the current Session Terminals', async () => {
     }
 });
 
-test('Project Status inspector renders and refreshes the current repository tree', async () => {
-    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-status-e2e-'));
-    const userData = join(testDirectory, 'user-data');
-    const root = join(testDirectory, 'project');
-    const bin = join(testDirectory, 'bin');
-    await execFileAsync('mkdir', ['-p', root, bin]);
-    await execFileAsync('git', ['init', '-b', 'feature/status'], { cwd: root });
-    await execFileAsync(
-        'git',
-        ['remote', 'add', 'origin', 'https://github.com/tjx666/project.git'],
-        { cwd: root },
-    );
-    await writeFile(
-        join(bin, 'gh'),
-        `#!/bin/sh
-printf '%s' '${JSON.stringify({
-            body: 'Related to https://linear.app/lobehub/issue/LOBE-42/project-status',
-            number: 42,
-            title: 'Project Status navigation',
-            url: 'https://github.com/tjx666/project/pull/42',
-            statusCheckRollup: [],
-        })}'
-`,
-        'utf8',
-    );
-    await writeFile(
-        join(bin, 'linear'),
-        "#!/bin/sh\nprintf 'Linear fixture failed\\n' >&2\nexit 1\n",
-        'utf8',
-    );
-    await writeFile(join(bin, 'vc'), "#!/bin/sh\nprintf '%s' '{\"teams\":[]}'\n", 'utf8');
-    await Promise.all(['gh', 'linear', 'vc'].map((name) => chmod(join(bin, name), 0o755)));
-
-    const running = await launchCaxri({
-        userDataDir: userData,
-        testRootPath: root,
-        env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
-    });
-    try {
-        await openAddProjectDialog(running.page);
-        try {
-            await running.page
-                .getByRole('dialog')
-                .getByRole('button', { name: 'Shell', exact: true })
-                .click({ timeout: 5_000 });
-        } catch {
-            // The Shell button may already have been dismissed by an earlier auto-selection.
-        }
-        await expect(running.page.locator('.session-card')).toHaveCount(1);
-        await running.page.getByRole('tab', { name: 'Status', exact: true }).click();
-
-        await expect(running.page.getByText('Project Status', { exact: true })).toBeVisible();
-        const repo = running.page.locator('.project-status-repository');
-        await expect(repo).toHaveCount(1);
-        await expect(repo).toContainText('project');
-        await expect(repo).toContainText('feature/status');
-
-        await repo.locator('.project-status-repository-row').click();
-        await expect(repo.getByText('feature/status', { exact: true })).toHaveCount(0);
-        await repo.locator('.project-status-repository-row').click();
-        await running.page.getByRole('button', { name: 'Refresh Project Status' }).click();
-        await expect(repo.getByText('feature/status', { exact: true })).toBeVisible();
-
-        const linearError = repo.getByRole('button', { name: /linear: error/ });
-        await expect(linearError).toBeVisible();
-        await expect(linearError).toHaveAttribute('title', 'See Runtime logs for details.');
-        await expect(running.page.getByRole('region', { name: 'Bottom Panel' })).toHaveCount(0);
-        await linearError.click();
-        await expect(running.page.getByRole('region', { name: 'Bottom Panel' })).toBeVisible();
-        await expect(running.page.getByRole('tab', { name: 'Logs', exact: true })).toHaveAttribute(
-            'aria-selected',
-            'true',
-        );
-    } finally {
-        try {
-            await running.app.close();
-        } catch {
-            // Ignore close errors during test cleanup.
-        }
-        await rm(testDirectory, { recursive: true, force: true });
-    }
-});
-
-test('Git inspector shows child repositories, submodule state, and changed-file trees', async () => {
+test('Git secondarySidebar shows child repositories, submodule state, and changed-file trees', async () => {
     allowE2EErrors([
         { source: 'main', event: 'ipc.request_failed', code: 'GIT', count: 1 },
         { source: 'runtime', event: 'ipc.request_failed', code: 'GIT', count: 1 },

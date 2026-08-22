@@ -2,7 +2,7 @@
 
 Caxri is a project-first, terminal-native development workbench for macOS, built for running and
 supervising coding agents. It groups durable Agent and Shell Sessions beneath local Projects —
-real PTYs, a focused editor, file and Git inspectors, and reliable agent attention signals in one
+real PTYs, a focused editor, Files and Source Control views, and reliable agent attention signals in one
 Electron app.
 
 ## Highlights
@@ -14,7 +14,7 @@ Electron app.
   pseudo-terminals. Caxri observes them; it never proxies or rewrites their I/O.
 - **Attention you can trust.** Each Session's Primary Agent reports waiting / completed / failed
   states, so a wall of parallel agent sessions never stalls silently.
-- **A focused workbench.** A narrow editor, file tree, search, and read-only Git inspector cover
+- **A focused workbench.** A narrow editor, file tree, search, and read-only Source Control view cover
   the "glance at what the agent did" loop without becoming an IDE.
 - **A scriptable CLI.** The standalone `caxri` CLI drives the same authenticated, profile-scoped
   Host that the desktop app uses — see [docs/cli.md](docs/cli.md).
@@ -42,6 +42,9 @@ directory. Unsigned development packages are written beneath `release/`; tagged 
 an unsigned Apple Silicon DMG. Install or upgrade the released app with
 `bun run install:caxri` — terminal downloads skip the Gatekeeper quarantine that makes
 browser-downloaded unsigned apps report as "damaged" (see [RELEASING.md](RELEASING.md)).
+
+Caxri's Host-owned native ESM extension model and ViewContainer contribution contract are described
+in [docs/extensions.md](docs/extensions.md).
 
 Caxri does not upload telemetry, terminal output, file content, or agent transcripts.
 

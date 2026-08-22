@@ -26,7 +26,7 @@ vi.mock('../../../lib/caxri', () => ({ caxri: mocks }));
 import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
 import { useToastStore } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { useFileOperationStore } from '../../inspector/panels/files/file-operation-state';
+import { useFileOperationStore } from '../../secondary-sidebar/panels/files/file-operation-state';
 import { subscribeExternalDocumentSync } from '../external-sync';
 
 const oldPath = '/project/old.ts';
@@ -40,7 +40,7 @@ function sessionState(
     return {
         sessionId,
         workbenchProjectId,
-        inspectorMode: 'files',
+        desiredSecondarySidebarViewContainerId: 'caxri.files',
         paneLayout: {
             root: {
                 type: 'pane',

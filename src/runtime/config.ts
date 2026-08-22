@@ -51,116 +51,6 @@ class ConfigSourceReadError extends Error {
 const WATCH_SETTLE_DELAY_MS = 100;
 const FALLBACK_POLL_INTERVAL_MS = 250;
 const JSONC_FORMATTING_OPTIONS = { tabSize: 2, insertSpaces: true, eol: '\n' };
-const originalDefaultKeybindings: Keybinding[] = [
-    { key: 'cmd+shift+p', command: 'commandPalette.open' },
-    { key: 'cmd+n', command: 'session.create' },
-    { key: 'cmd+t', command: 'terminal.new' },
-    { key: 'cmd+shift+r', command: 'terminal.restart' },
-    { key: 'cmd+w', command: 'terminal.close' },
-    { key: 'cmd+s', command: 'editor.save' },
-    { key: 'cmd+1', command: 'inspector.showFiles' },
-    { key: 'cmd+2', command: 'inspector.showGit' },
-    { key: 'cmd+3', command: 'inspector.showAgent' },
-    { key: 'cmd+,', command: 'theme.openSettings' },
-];
-/**
- * The untouched defaults immediately before Agent Actions gained its configurable shortcut.
- */
-const preAgentActionsDefaultKeybindings = defaultKeybindings.filter(
-    (binding) => binding.command !== 'agentActions.open',
-);
-/**
- * The untouched defaults immediately before Sessions gained browser-style back/forward navigation.
- */
-const preSessionNavigationDefaultKeybindings = preAgentActionsDefaultKeybindings.filter(
-    (binding) => !['session.navigateBack', 'session.navigateForward'].includes(binding.command),
-);
-/**
- * The untouched defaults immediately before Session MRU switching gained its own configurable shortcut.
- */
-const preSessionMruDefaultKeybindings = preSessionNavigationDefaultKeybindings.filter(
-    (binding) => binding.command !== 'session.switchMru',
-);
-/**
- * The defaults shipped while Info was still an Inspector tab on `Cmd+4`, before Info and Logs moved to the Bottom
- * Panel.
- *
- * Every other historical set is derived by _removing_ commands from the current catalog, which works only while ids
- * survive. `inspector.showInfo` was retired by that move, so this set has to reinstate it explicitly — otherwise no
- * untouched pre-move file matches any known default set and every existing profile silently keeps a keybinding table
- * that has no `Cmd+J` and still names a command that no longer exists.
- */
-const preBottomPanelDefaultKeybindings: Keybinding[] = preSessionMruDefaultKeybindings.flatMap(
-    (binding) => {
-        if (binding.command.startsWith('bottomPanel.')) return [];
-        return binding.command === 'inspector.showStatus'
-            ? [binding, { key: 'cmd+4', command: 'inspector.showInfo' }]
-            : [binding];
-    },
-);
-/**
- * The defaults shipped while "Add Project" was still bound to `Cmd+N`, before it moved to the macOS-conventional
- * `Cmd+O`.
- */
-const preProjectOpenDefaultKeybindings = preBottomPanelDefaultKeybindings.map((binding) =>
-    binding.command === 'project.create' ? { ...binding, key: 'cmd+n' } : binding,
-);
-/**
- * The defaults shipped immediately before Terminal Copy and tab cycling were added and `pathBrowser.open` moved off
- * `Cmd+P`. Each historical set below is derived from the one after it, so a new default has to be stripped here as well
- * — otherwise every older set would also claim to contain bindings that release never had, and no untouched file would
- * match any of them.
- */
-const preTerminalCopyDefaultKeybindings = preProjectOpenDefaultKeybindings.flatMap((binding) => {
-    if (['terminal.copy', 'workbench.nextTab', 'workbench.previousTab'].includes(binding.command))
-        return [];
-    return binding.command === 'pathBrowser.open' ? [{ ...binding, key: 'cmd+p' }] : [binding];
-});
-const preCommandNavigationDefaultKeybindings = preTerminalCopyDefaultKeybindings.filter(
-    (binding) => !['terminal.previousCommand', 'terminal.nextCommand'].includes(binding.command),
-);
-const previousDefaultKeybindings = preCommandNavigationDefaultKeybindings.filter(
-    (binding) => binding.command !== 'terminal.find',
-);
-const prePathBrowserDefaultKeybindings = previousDefaultKeybindings.filter(
-    (binding) => binding.command !== 'pathBrowser.open',
-);
-const closeTerminalDefaultKeybindings = prePathBrowserDefaultKeybindings.map((binding) =>
-    binding.command === 'workbench.closeActiveTab'
-        ? { ...binding, command: 'terminal.close' }
-        : binding,
-);
-const newlyAddedDefaultCommands = new Set([
-    'inspector.searchFiles',
-    'inspector.toggle',
-    'sidebar.toggle',
-]);
-/**
- * Every historical default set {@link migrateLegacyDefaultKeybindings} still recognizes as untouched. Exported so tests
- * can drive the migration from the real derivation chain: a test that rebuilds a past release by filtering the
- * _current_ catalog silently rots the moment a default is added or rebound, because the fixture then contains chords
- * that release never shipped.
- */
-export const previousDefaultKeybindingSets = [
-    preAgentActionsDefaultKeybindings,
-    preSessionNavigationDefaultKeybindings,
-    preSessionMruDefaultKeybindings,
-    preBottomPanelDefaultKeybindings,
-    preProjectOpenDefaultKeybindings,
-    preTerminalCopyDefaultKeybindings,
-    preCommandNavigationDefaultKeybindings,
-    previousDefaultKeybindings,
-    prePathBrowserDefaultKeybindings,
-    originalDefaultKeybindings,
-    closeTerminalDefaultKeybindings,
-    closeTerminalDefaultKeybindings.filter(
-        (binding) => !['inspector.toggle', 'sidebar.toggle'].includes(binding.command),
-    ),
-    closeTerminalDefaultKeybindings.filter(
-        (binding) => !newlyAddedDefaultCommands.has(binding.command),
-    ),
-];
-
 interface ConfigServiceOptions {
     /**
      * Overrides the fallback watcher cadence for deterministic integration tests.
@@ -171,16 +61,6 @@ interface ConfigServiceOptions {
      * service owns a private hub with equivalent behavior.
      */
     watchHub?: WatchHub;
-}
-
-/**
- * Upgrades known untouched historical defaults while preserving every customized keybinding file.
- */
-function migrateLegacyDefaultKeybindings(keybindings: Keybinding[]): Keybinding[] {
-    const source = JSON.stringify(keybindings);
-    return previousDefaultKeybindingSets.some((defaults) => source === JSON.stringify(defaults))
-        ? defaultKeybindings
-        : keybindings;
 }
 
 async function readBoundedConfigSource(path: string): Promise<string> {
@@ -333,15 +213,12 @@ export class ConfigService {
                 };
             }
             if (kind === 'keybindings') {
-                const parsed = keybindingsFileSchema.parse(parseJsonc(source));
-                const keybindings = migrateLegacyDefaultKeybindings(parsed);
-                const normalizedSource =
-                    keybindings === parsed ? source : `${JSON.stringify(keybindings, null, 2)}\n`;
+                const keybindings = keybindingsFileSchema.parse(parseJsonc(source));
                 return {
-                    source: normalizedSource,
+                    source,
                     apply: () => {
                         this.keybindings = keybindings;
-                        this.keybindingsSource = normalizedSource;
+                        this.keybindingsSource = source;
                     },
                 };
             }

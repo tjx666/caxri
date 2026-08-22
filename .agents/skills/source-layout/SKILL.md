@@ -67,7 +67,7 @@ rule enforces the thresholds and the no-coexistence contract.
 - A helper enters `utils` only when its semantics are feature-specific. Generic helpers still
   follow the shared ladder: `es-toolkit` first, then `@caxri/utils`; a hook used by a second
   feature moves to `@/hooks`.
-- When a feature grows a cohesive sub-domain, split by sub-domain (`inspector/panels/git/`) before
+- When a feature grows a cohesive sub-domain, split by sub-domain (`secondary-sidebar/panels/git/`) before
   piling onto kind folders: kind folders solve "too many files of one kind", sub-domains solve
   "the feature itself is too big". Each sub-domain directory applies the same scale rules.
 

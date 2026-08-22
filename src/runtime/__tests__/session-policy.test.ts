@@ -441,7 +441,7 @@ describe('withTerminalRemovedFromLayout', () => {
         const state: SessionState = {
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout,
         };
 

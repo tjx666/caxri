@@ -10,7 +10,7 @@ import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
     launchCaxri,
-    openBottomPanelView,
+    openPanelView,
     pageRequest,
 } from './support/helpers.ts';
 
@@ -96,7 +96,7 @@ test('live transcript updates follow the bottom until the user scrolls away', as
         ).join('');
         await writeFile(transcriptPath, initialContent);
 
-        await openBottomPanelView(running.page, 'Info');
+        await openPanelView(running.page, 'Info');
         await running.page.getByTitle('Open transcript in the editor').click();
         const editor = running.page.locator('.agent-transcript-editor');
         const content = editor.locator('[data-transcript-following]');
@@ -172,7 +172,7 @@ test('live transcript updates follow the bottom until the user scrolls away', as
         await mkdir(dirname(secondTranscriptPath), { recursive: true });
         await writeFile(secondTranscriptPath, transcriptLine('second-transcript-latest'));
         await running.page.locator(`.work-tab[data-terminal-id="${secondTerminal.id}"]`).click();
-        await openBottomPanelView(running.page, 'Info');
+        await openPanelView(running.page, 'Info');
         await running.page
             .locator(`[data-terminal-info-id="${secondTerminal.id}"]`)
             .getByRole('button')

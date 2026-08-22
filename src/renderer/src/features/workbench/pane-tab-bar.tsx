@@ -19,7 +19,7 @@ import {
 import { Spinner } from '../../components/ui/spinner';
 import { CommandTooltip, Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
-import { usePanelLayoutStore } from '../../stores/panel-layout';
+import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSelectedSession, useSessionState, useTerminal } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import {
@@ -27,11 +27,11 @@ import {
     closeDocumentTabs,
     pinDocumentTab,
 } from '../editor/document-actions';
-import { moveTerminalToNewSession } from '../session/session-actions';
 import {
     sessionActivityPresentation,
     sessionToneBackgroundClassName,
-} from '../sidebar/session-activity';
+} from '../primary-sidebar/session-activity';
+import { moveTerminalToNewSession } from '../session/session-actions';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from '../tabs/work-tab-accessibility';
@@ -336,7 +336,7 @@ export function PaneTabBar({
     pane: PaneNode;
     paneLabel: string;
 }) {
-    const isSidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
+    const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
     const [isDropTarget, setIsDropTarget] = useState(false);
     const barReference = useRef<HTMLDivElement>(null);
     const activeTabId =
@@ -377,7 +377,7 @@ export function PaneTabBar({
                 // Only the Workbench-level bar carries the frameless window's drag region and the traffic-light inset;
                 // a pane bar inside a split is an ordinary surface.
                 isRootBar && '[-webkit-app-region:drag]',
-                isRootBar && !isSidebarVisible && 'pl-[78px]',
+                isRootBar && !isPrimarySidebarVisible && 'pl-[78px]',
                 isDropTarget && 'bg-elevated',
             )}
             data-pane-tab-bar={pane.id}

@@ -12,11 +12,11 @@ legitimately needs more bytes.
 | `app.asar`          | ~38.6 MiB | `out/` bundles + native-module JS shims                            |
 | `app.asar.unpacked` | ~5.5 MiB  | better-sqlite3 / node-pty / @parcel/watcher binaries               |
 | `out/renderer`      | ~35.4 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), fonts, vscode-icons (below) |
-| `out/main`          | ~2.4 MiB  | Main + Host + Runtime with all pure-JS deps bundled                |
+| `out/main`          | ~2.5 MiB  | Main + Host + Extension Host + Runtime with pure-JS deps bundled   |
 | `out/preload`       | ~8 KiB    | Sandboxed preload bundles                                          |
 
 The renderer carries the full `@yutengjing/vscode-icons` SVG set (~4.5 MiB across 1553 files,
-emitted as individual assets). This is a conscious budget increase, not drift: the Files inspector
+emitted as individual assets). This is a conscious budget increase, not drift: the Files secondarySidebar
 can encounter any file or folder name in a user's project at runtime, so there is no meaningful
 subset to tree-shake, and shipping the complete set is what makes icons match VS Code's
 vscode-icons extension.
@@ -24,7 +24,7 @@ vscode-icons extension.
 Pre-optimization the app was ~367 MiB on disk: 220 Electron locales (47 MiB), whole-package
 `node_modules` copies in the asar (drizzle-orm 14 MiB, zod 5.7 MiB, xterm 5 MiB, archiver's
 transitive tree ~7 MiB), multi-platform native prebuilds and sqlite source (~26 MiB), and a
-1024px sidebar logo (0.5 MiB).
+1024px primarySidebar logo (0.5 MiB).
 
 ## Rules that keep the package small
 
@@ -32,14 +32,14 @@ transitive tree ~7 MiB), multi-platform native prebuilds and sqlite source (~26 
    electron-builder copies the production dependency tree into the asar wholesale, so every
    pure-JS dependency lives in `devDependencies` and is bundled by electron-vite instead
    (tree-shaken, deduplicated). See `electron.vite.config.ts`.
-2. **No bundler-invisible requires in Main/Host/Runtime.** A `createRequire`/dynamic `require`
+2. **No bundler-invisible requires in Main/Host/Extension Host/Runtime.** A `createRequire`/dynamic `require`
    of a devDependency builds fine but crashes only in the packaged app. The budget gate loads
    `out/main/host.js` and `out/main/runtime.js` from the packaged asar with
    `ELECTRON_RUN_AS_NODE` to catch exactly this class of regression.
 3. **Native packages ship binaries only.** `build.files` excludes non-darwin prebuilds and the
    C/C++ `deps`/`src` trees of better-sqlite3 and node-pty.
 4. **Electron locales are pruned** to `electronLanguages` (en, en_GB, zh_CN, zh_TW).
-5. **Renderer assets match their display size** (the sidebar logo is 128px, not the 1024px icon
+5. **Renderer assets match their display size** (the primarySidebar logo is 128px, not the 1024px icon
    source). Monaco and its language workers (`ts.worker` ~11 MiB) are a deliberate product cost
    for editor IntelliSense; they load lazily at runtime but ship in full.
 

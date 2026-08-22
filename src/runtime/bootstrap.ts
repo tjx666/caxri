@@ -446,6 +446,11 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         watchSessionInBackground,
     };
     const handlers: RuntimeHandlers = {
+        'extensions.retry': () => mainOwned('extensions.retry'),
+        'viewContainers.cancelRequest': () => mainOwned('viewContainers.cancelRequest'),
+        'viewContainers.catalog': () => mainOwned('viewContainers.catalog'),
+        'viewContainers.executeCommand': () => mainOwned('viewContainers.executeCommand'),
+        'viewContainers.treeChildren': () => mainOwned('viewContainers.treeChildren'),
         'agent.context': () => mainOwned('agent.context'),
         'agent.list': () => mainOwned('agent.list'),
         'agent.worktree.created': () => mainOwned('agent.worktree.created'),
@@ -785,8 +790,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     };
     watchSessionInBackground(selectedSessionId());
     /**
-     * Same fire-and-forget rationale as `files.watchSession` above: restoring the initially selected Session's
-     * interrupted Terminals must never delay Runtime startup past the 3s large-Project gate.
+     * Initial Session Terminal restoration stays fire-and-forget to preserve the 3s startup gate.
      */
     const initialSessionId = selectedSessionId();
     if (initialSessionId) {

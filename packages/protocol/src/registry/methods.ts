@@ -51,6 +51,16 @@ import {
 } from '../domain/domain.js';
 import { gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
+import {
+    extensionCommandIdSchema,
+    extensionErrorSchema,
+    extensionIdSchema,
+    MAX_EXTENSION_COMMAND_ARGUMENTS,
+    MAX_VIEW_TREE_ITEMS,
+    treeItemSchema,
+    viewCatalogSnapshotSchema,
+    viewIdSchema,
+} from '../domain/views.js';
 import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-contract.js';
 import { eventRecoverySchema } from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
@@ -126,6 +136,39 @@ export const methods = {
     ...agentInboxMethods,
     ...businessMethods,
     ...workbenchMethods,
+    'viewContainers.catalog': {
+        ...hostRead,
+        params: noParameters,
+        result: viewCatalogSnapshotSchema,
+    },
+    'viewContainers.treeChildren': {
+        ...hostRead,
+        params: z.object({
+            viewId: viewIdSchema,
+            parentHandle: z.string().min(1).max(512).optional(),
+            requestId: identifierSchema,
+            sessionId: identifierSchema.optional(),
+        }),
+        result: z.object({ items: z.array(treeItemSchema).max(MAX_VIEW_TREE_ITEMS) }),
+    },
+    'viewContainers.executeCommand': {
+        ...hostControl,
+        params: z.object({
+            commandId: extensionCommandIdSchema,
+            arguments: z.array(z.unknown()).max(MAX_EXTENSION_COMMAND_ARGUMENTS).default([]),
+        }),
+        result: z.object({ executed: z.literal(true) }),
+    },
+    'viewContainers.cancelRequest': {
+        ...hostControl,
+        params: z.object({ requestId: identifierSchema }),
+        result: z.object({ cancelled: z.boolean() }),
+    },
+    'extensions.retry': {
+        ...hostControl,
+        params: z.object({ extensionId: extensionIdSchema }),
+        result: z.object({ accepted: z.boolean(), error: extensionErrorSchema.optional() }),
+    },
     'app.bootstrap': { ...hostRead, params: noParameters, result: bootstrapStateSchema },
     'app.records': {
         ...hostRead,

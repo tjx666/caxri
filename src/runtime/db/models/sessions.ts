@@ -5,7 +5,6 @@ import { and, asc, eq, lt, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
-import { inspectorModeSchema } from '../../../shared/inspector';
 import { sessionStateSchema } from '../../../shared/ipc/domain';
 import { CaxriError } from '../../../shared/ipc/errors';
 import {
@@ -112,7 +111,7 @@ interface SessionStateRow {
     workbenchProjectId: string | null;
     stateVersion: number;
     workbenchStateJson: string;
-    inspectorMode: string;
+    desiredSecondarySidebarViewContainerId: string;
 }
 
 /**
@@ -160,17 +159,6 @@ export interface SessionStateRepair {
 }
 
 /**
- * `inspector_mode` is a free-form text column whose accepted values narrow whenever a surface moves off the Inspector —
- * Info and Logs became Bottom Panel views, retiring those two ids. A row still holding a retired id would fail
- * `sessionStateSchema` and take the whole persisted Session down the `invalid_shape` repair path, discarding its open
- * tabs and split layout over one presentation field. Falling back to the default mode keeps the rest of the row intact;
- * the retired value carries nothing worth a full-state reset.
- */
-function normalizeInspectorMode(value: string): string {
-    return inspectorModeSchema.safeParse(value).success ? value : 'files';
-}
-
-/**
  * `fallbackPaneLayout` covers a Workbench Root the Session has never arranged: the row itself is healthy, so this is an
  * ordinary first visit rather than a repair.
  */
@@ -197,8 +185,8 @@ function parseSessionState(
         sessionId: row.sessionId,
         workbenchProjectId,
         editorRemapOperationId: rootState?.editorRemapOperationId,
-        // See `normalizeInspectorMode`: a retired Inspector mode must not cost the Session its whole Workbench layout.
-        inspectorMode: normalizeInspectorMode(row.inspectorMode),
+        // Availability is presentation state. Keep the desired ID even while its extension is absent or crashed.
+        desiredSecondarySidebarViewContainerId: row.desiredSecondarySidebarViewContainerId,
         paneLayout: rootState?.paneLayout ?? fallbackPaneLayout(),
     };
     const parsed = sessionStateSchema.safeParse(candidate);
@@ -248,7 +236,7 @@ export class SessionsModel {
         return {
             sessionId,
             workbenchProjectId: session?.workbenchProjectId ?? session?.projectId ?? '',
-            inspectorMode: 'files',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: this.defaultPaneLayout(sessionId),
         };
     }
@@ -561,7 +549,8 @@ export class SessionsModel {
                 workbenchProjectId: sessions.workbenchProjectId,
                 stateVersion: sessionStateTable.stateVersion,
                 workbenchStateJson: sessionStateTable.workbenchStateJson,
-                inspectorMode: sessionStateTable.inspectorMode,
+                desiredSecondarySidebarViewContainerId:
+                    sessionStateTable.desiredSecondarySidebarViewContainerId,
             })
             .from(sessionStateTable)
             .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
@@ -582,7 +571,8 @@ export class SessionsModel {
                 workbenchProjectId: sessions.workbenchProjectId,
                 stateVersion: sessionStateTable.stateVersion,
                 workbenchStateJson: sessionStateTable.workbenchStateJson,
-                inspectorMode: sessionStateTable.inspectorMode,
+                desiredSecondarySidebarViewContainerId:
+                    sessionStateTable.desiredSecondarySidebarViewContainerId,
             })
             .from(sessionStateTable)
             .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
@@ -601,7 +591,7 @@ export class SessionsModel {
             .values({
                 sessionId,
                 stateVersion: CURRENT_SESSION_STATE_VERSION,
-                inspectorMode: 'files',
+                desiredSecondarySidebarViewContainerId: 'caxri.files',
                 workbenchStateJson: JSON.stringify(
                     binding ? { [binding.workbenchProjectId]: { paneLayout } } : {},
                 ),
@@ -633,7 +623,7 @@ export class SessionsModel {
             sessionId: state.sessionId,
             stateVersion: CURRENT_SESSION_STATE_VERSION,
             workbenchStateJson: JSON.stringify(workbenchStates),
-            inspectorMode: state.inspectorMode,
+            desiredSecondarySidebarViewContainerId: state.desiredSecondarySidebarViewContainerId,
         };
         this.database
             .insert(sessionStateTable)
@@ -643,7 +633,8 @@ export class SessionsModel {
                 set: {
                     stateVersion: values.stateVersion,
                     workbenchStateJson: values.workbenchStateJson,
-                    inspectorMode: values.inspectorMode,
+                    desiredSecondarySidebarViewContainerId:
+                        values.desiredSecondarySidebarViewContainerId,
                 },
             })
             .run();

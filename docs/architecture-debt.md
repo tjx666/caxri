@@ -59,7 +59,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-lifecycle-mutation-remap-origin-delete — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Deleting the Session that started a completed rename/move no longer lets the durable journal disappear before sibling same-Project state is remapped.
-- **Evidence:** `src/renderer/src/features/inspector/panels/files/file-operation-reconciliation.ts:116-225` resolves the operation by `workbenchProjectId`, durably remaps every surviving same-Project Session, and acknowledges only after apply succeeds. `src/renderer/src/stores/selectors.ts:74-83` discovers those Sessions by Project identity.
+- **Evidence:** `src/renderer/src/features/secondary-sidebar/panels/files/file-operation-reconciliation.ts:116-225` resolves the operation by `workbenchProjectId`, durably remaps every surviving same-Project Session, and acknowledges only after apply succeeds. `src/renderer/src/stores/selectors.ts:74-83` discovers those Sessions by Project identity.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-14 @ 2b8da83.
 - **Remediation target / Acceptance:** A and B open the same file; move it from A; delete A before ack; B's tab, dirty buffer, and later reload show the new path; the operation is not acked while B still needs the remap.
@@ -91,18 +91,18 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-state-sibling-session-invalidation — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Project-shared filesystem and Git facts now invalidate every same-Project Session, including a sibling selected during a queued watcher batch.
-- **Evidence:** `packages/protocol/src/registry/events.ts:81-87` gives `files.changed` immutable Project identity. `src/renderer/src/queries/invalidation.ts:103-115` and `src/renderer/src/features/inspector/panels/files/file-tree-refresh.ts:36-66` fan invalidation out by Project. `src/runtime/files/__tests__/watcher.scope.integration.test.ts:66-156` covers queued rebind and cross-Project fencing.
+- **Evidence:** `packages/protocol/src/registry/events.ts:81-87` gives `files.changed` immutable Project identity. `src/renderer/src/queries/invalidation.ts:103-115` and `src/renderer/src/features/secondary-sidebar/panels/files/file-tree-refresh.ts:36-66` fan invalidation out by Project. `src/runtime/files/__tests__/watcher.scope.integration.test.ts:66-156` covers queued rebind and cross-Project fencing.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ 660ef29 via [issue caxri#168](https://github.com/tjx666/caxri/issues/168).
 - **Remediation target / Acceptance:** Two Sessions sharing one Project observe matching `files.list` and `git.summary` after an external write and immediate Session switch; another Project remains untouched.
 
-### AD-ui-inspector-show-reveal — [RESOLVED · Contract drift · S]
+### AD-ui-secondarySidebar-show-reveal — [RESOLVED · Contract drift · S]
 
-- **Summary:** Catalogued Inspector Show commands and Search Files now reveal a hidden Inspector before selecting their target mode.
+- **Summary:** Catalogued SecondarySidebar Show commands and Search Files now reveal a hidden SecondarySidebar before selecting their target mode.
 - **Evidence:** `src/renderer/src/commands/execute.ts:49-57` owns the reveal-and-activate boundary; command registrations use it at `src/renderer/src/commands/execute.ts:135-147`. `src/renderer/src/commands/execute.test.ts` covers all registered Show commands and Search Files.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ b6826f5 via [issue caxri#169](https://github.com/tjx666/caxri/issues/169).
-- **Remediation target / Acceptance:** With the Inspector hidden, each Show command and its default binding makes the requested panel visible without rewriting an already-visible layout.
+- **Remediation target / Acceptance:** With the SecondarySidebar hidden, each Show command and its default binding makes the requested panel visible without rewriting an already-visible layout.
 
 ### AD-ext-e2e-provider-shims — [RESOLVED · Architecture debt · S]
 
@@ -214,7 +214,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 - **Evidence:** `src/renderer/src/components/ui/input.tsx:6-69` owns `standard`, `dense`, `compact`, and `palette` sizes plus shared appearances and `InputGroup`. FileTree, Project Search, Commit History, Project/Session rename, and Path Browser now consume those variants. `src/renderer/__tests__/renderer-design-contract.test.ts:85-121` rejects feature-local raw text inputs.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 1e77c5c via [issue caxri#82](https://github.com/tjx666/caxri/issues/82).
-- **Remediation target / Acceptance:** Dense size (and optional adornment) variants on Input; migrate inspector/search/rename fields. Acceptance: feature-local text fields do not reinvent border/focus/radius; density is a prop on the shared primitive.
+- **Remediation target / Acceptance:** Dense size (and optional adornment) variants on Input; migrate secondarySidebar/search/rename fields. Acceptance: feature-local text fields do not reinvent border/focus/radius; density is a prop on the shared primitive.
 
 ### AD-toolchain-shadcn-components-json — [RESOLVED · Contract drift · S]
 

@@ -37,7 +37,7 @@ interface TopologyEntry {
  * change, or an explicit refresh).
  *
  * Discovery never implies authorization: unauthorized worktrees are visible here for Workbench candidate flows, but Git
- * Inspector consumers must still filter against approved Project roots.
+ * SecondarySidebar consumers must still filter against approved Project roots.
  */
 export class RepoTopologyRegistry {
     private readonly entries = new Map<string, TopologyEntry>();

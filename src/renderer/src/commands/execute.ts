@@ -4,11 +4,11 @@ import type { CommandId } from '@shared/commands';
 import { listPanes } from '@shared/pane-layout';
 
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
+import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     closeFileSearch,
     requestFileSearchFocus,
-} from '../features/inspector/panels/files/file-search-state';
-import { toggleScreencastMode } from '../features/screencast/screencast';
+} from '../features/secondary-sidebar/panels/files/file-search-state';
 import {
     beginSessionCreation,
     canNavigateSessionHistory,
@@ -42,8 +42,8 @@ import {
 } from '../features/workbench/pane-actions';
 import { caxri } from '../lib/caxri';
 import { isEditableEventTarget } from '../lib/keybindings';
+import { useChromeLayoutStore } from '../stores/chrome-layout';
 import { useDialogStore } from '../stores/dialogs';
-import { usePanelLayoutStore } from '../stores/panel-layout';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';
 import { useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
@@ -75,26 +75,25 @@ function activePaneTarget(): { paneId: string; tabId: string } | undefined {
 }
 
 /**
- * Makes an Inspector mode reachable before persisting it into the selected Session. Callers such as the Status Bar and
- * Command Palette must share this boundary so selecting a mode cannot leave the Inspector collapsed.
+ * Makes a Secondary Side Bar ViewContainer reachable before persisting it into the selected Session.
  */
-function activateInspectorMode(
-    mode: Parameters<CommandContext['inspector']['activateMode']>[0],
+function activateSecondarySidebarViewContainer(
+    id: Parameters<CommandContext['secondarySidebar']['activateViewContainer']>[0],
 ): void {
     const session = getSelectedSession();
     if (!session) return;
-    if (!usePanelLayoutStore.getState().inspectorVisible)
-        usePanelLayoutStore.getState().setInspectorVisible(true);
-    if (mode !== 'files') closeFileSearch(session.id);
-    useSessionViewStore.getState().setInspectorMode(mode);
+    if (!useChromeLayoutStore.getState().secondarySidebarVisible)
+        useChromeLayoutStore.getState().setSecondarySidebarVisible(true);
+    if (id !== 'caxri.files') closeFileSearch(session.id);
+    useSessionViewStore.getState().setDesiredSecondarySidebarViewContainerId(id);
 }
 
 /**
  * `terminal.copy` binds `Cmd+C`, the single most overloaded chord in the app, and is `allowInEditable` so it can reach
  * through the xterm surface. Availability therefore cannot rest on "the active tab is a terminal with a selection"
- * alone: a sidebar rename field or the path browser input can hold focus while a stale terminal selection is still
- * highlighted behind them, and hijacking their `Cmd+C` would silently copy the wrong text. Requiring focus to actually
- * sit inside the terminal keeps the chord falling through to the native copy everywhere else.
+ * alone: a primarySidebar rename field or the path browser input can hold focus while a stale terminal selection is
+ * still highlighted behind them, and hijacking their `Cmd+C` would silently copy the wrong text. Requiring focus to
+ * actually sit inside the terminal keeps the chord falling through to the native copy everywhere else.
  */
 function isTerminalSurfaceFocused(): boolean {
     const focused = document.activeElement;
@@ -209,21 +208,22 @@ const commandContext: CommandContext = {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         saveActive: () => void saveActiveEditor(),
     },
-    inspector: {
+    secondarySidebar: {
         searchFiles: () => {
             const session = getSelectedSession();
             if (!session) return;
-            activateInspectorMode('files');
+            activateSecondarySidebarViewContainer('caxri.files');
             requestFileSearchFocus(session.id);
         },
-        activateMode: activateInspectorMode,
-        toggle: () => usePanelLayoutStore.getState().toggleInspector(),
+        activateViewContainer: activateSecondarySidebarViewContainer,
+        toggle: () => useChromeLayoutStore.getState().toggleSecondarySidebar(),
     },
-    bottomPanel: {
-        activateView: (view) => usePanelLayoutStore.getState().activateBottomPanelView(view),
-        toggle: () => usePanelLayoutStore.getState().toggleBottomPanel(),
+    panel: {
+        activateViewContainer: (id) =>
+            useChromeLayoutStore.getState().activatePanelViewContainer(id),
+        toggle: () => useChromeLayoutStore.getState().togglePanel(),
     },
-    sidebar: { toggle: () => usePanelLayoutStore.getState().toggleSidebar() },
+    primarySidebar: { toggle: () => useChromeLayoutStore.getState().togglePrimarySidebar() },
     dialogs: {
         openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
