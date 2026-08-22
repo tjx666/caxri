@@ -6,8 +6,9 @@ import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
+import { agentProviderIds } from '../../shared/agents';
 import type { ShutdownReason } from '../session-policy';
-import { shutdownOutcome } from '../session-policy';
+import { defaultTerminalTitle, shutdownOutcome } from '../session-policy';
 import {
     CURRENT_SCHEMA_VERSION,
     migrationManifest,
@@ -41,6 +42,7 @@ function installCurrentSchema(database: Database.Database): void {
 }
 
 const PROJECT_ORDER_SCHEMA_VERSION = schemaVersionForMigration('0004_wonderful_gladiator');
+const TERMINAL_PTY_TITLE_SCHEMA_VERSION = schemaVersionForMigration('0015_terminal-pty-title');
 
 /**
  * Preserves the v9 PrimarySidebar order, which was defined by `created_at, id`, as explicit indexes.
@@ -54,10 +56,23 @@ function backfillProjectOrder(database: Database.Database): void {
         updateOrder.run(orderIndex, project.id);
 }
 
+/**
+ * Preserves the PTY-authored display title that schema v19 stored in `title`, then restores the kind-derived stable
+ * identity. This data repair lives beside the generated migration runner so `drizzle-kit generate` remains the sole
+ * author of schema SQL.
+ */
+function backfillTerminalTitles(database: Database.Database): void {
+    database.prepare('UPDATE terminals SET pty_title = title').run();
+    const restoreStableTitle = database.prepare('UPDATE terminals SET title = ? WHERE kind = ?');
+    for (const kind of ['shell', ...agentProviderIds] as const)
+        restoreStableTitle.run(defaultTerminalTitle(kind), kind);
+}
+
 function migratePreservingData(database: Database.Database, version: number): void {
     for (const migration of preservingMigrations)
         if (migration.version > version) runGeneratedSql(database, migration.sql);
     if (version < PROJECT_ORDER_SCHEMA_VERSION) backfillProjectOrder(database);
+    if (version < TERMINAL_PTY_TITLE_SCHEMA_VERSION) backfillTerminalTitles(database);
 }
 
 function initializeSchema(database: Database.Database): void {

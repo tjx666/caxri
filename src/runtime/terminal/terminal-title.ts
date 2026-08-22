@@ -8,7 +8,7 @@ import type { TerminalTitleObserver } from './screen';
  * database.
  */
 interface TerminalTitleStore {
-    setTerminalTitle: (id: string, title: string) => boolean;
+    setTerminalPtyTitle: (id: string, title: string) => boolean;
 }
 
 /**
@@ -86,8 +86,8 @@ export function normalizeTerminalTitle(raw: string): string | undefined {
  * Persists a PTY-reported title and republishes the Terminal record, which is how a tab label learns what a Shell or
  * Agent CLI is actually doing — the same OSC 0/2 signal every terminal emulator has used since xterm.
  *
- * `setTerminalTitle` reports whether anything changed, so the prompt-by-prompt repeat of an unchanged title costs one
- * comparison and no broadcast. Leading-edge delivery keeps a Terminal's first title instant; the trailing edge
+ * `setTerminalPtyTitle` reports whether anything changed, so the prompt-by-prompt repeat of an unchanged title costs
+ * one comparison and no broadcast. Leading-edge delivery keeps a Terminal's first title instant; the trailing edge
  * guarantees the last title of a burst is the one that sticks. The screen that owns this observer cancels the pending
  * trailing delivery when it is disposed — see `TerminalTitleObserver`.
  */
@@ -99,7 +99,7 @@ export function createTerminalTitleListener(
 ): TerminalTitleObserver {
     const publish = throttle(
         (title: string) => {
-            if (!database.setTerminalTitle(terminalId, title)) return;
+            if (!database.setTerminalPtyTitle(terminalId, title)) return;
             emit({
                 event: 'state.changed',
                 payload: { kind: 'records', sessionIds: [], terminalIds: [terminalId] },

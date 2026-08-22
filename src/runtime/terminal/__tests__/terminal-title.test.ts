@@ -24,7 +24,7 @@ function createStore() {
     const titles = new Map<string, string>();
     return {
         titles,
-        setTerminalTitle(id: string, title: string): boolean {
+        setTerminalPtyTitle(id: string, title: string): boolean {
             if (titles.get(id) === title) return false;
             titles.set(id, title);
             return true;
@@ -69,6 +69,21 @@ describe('createTerminalTitleListener', () => {
 
     afterEach(() => {
         vi.useRealTimers();
+    });
+
+    it('keeps the stable Terminal title while persisting the PTY display title separately', () => {
+        const terminal: { ptyTitle?: string; title: string } = { title: 'Shell' };
+        const store = {
+            setTerminalPtyTitle(_id: string, title: string): boolean {
+                terminal.ptyTitle = title;
+                return true;
+            },
+        };
+        const listen = createTerminalTitleListener('t1', store, () => {});
+
+        listen('zsh caxri');
+
+        expect(terminal).toEqual({ ptyTitle: 'zsh caxri', title: 'Shell' });
     });
 
     it('persists the first title immediately and broadcasts the Terminal record', () => {
@@ -116,7 +131,7 @@ describe('createTerminalTitleListener', () => {
         listen('old-trailing');
         listen.cancel();
         // The replacement PTY reuses the durable Terminal ID and writes its own title.
-        store.setTerminalTitle('t1', 'restarted');
+        store.setTerminalPtyTitle('t1', 'restarted');
         vi.advanceTimersByTime(TERMINAL_TITLE_THROTTLE_MS * 4);
         expect(store.titles.get('t1')).toBe('restarted');
     });

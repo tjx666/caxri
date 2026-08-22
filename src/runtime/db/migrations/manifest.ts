@@ -17,6 +17,7 @@ import projectIconMigrationSql from './0011_past_blue_marvel.sql?raw';
 import unifiedPaneLayoutMigrationSql from './0012_unified_pane_layout.sql?raw';
 import dropTerminalLayoutNodeIdMigrationSql from './0013_drop_terminal_layout_node_id.sql?raw';
 import desiredSecondarySidebarViewContainerMigrationSql from './0014_wide_squadron_sinister.sql?raw';
+import terminalPtyTitleMigrationSql from './0015_terminal-pty-title.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -71,6 +72,7 @@ export const migrationManifest = [
         tag: '0014_wide_squadron_sinister',
         sql: desiredSecondarySidebarViewContainerMigrationSql,
     },
+    { tag: '0015_terminal-pty-title', sql: terminalPtyTitleMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an
