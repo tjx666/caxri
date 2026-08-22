@@ -163,9 +163,20 @@ function PaneBox({
                     'active shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_55%,transparent)]',
             )}
             data-pane-id={pane.id}
-            onFocusCapture={() => focusPane(pane.id)}
+            onFocusCapture={(event) => {
+                /**
+                 * Clicking a tab in an inactive pane focuses the tab first and selects it after, and `selectTab`
+                 * already moves `activePaneId` onto the tab's own pane. Activating the pane from here as well wrote the
+                 * entire SessionState twice for one click — two independent `session.updateState` round-trips — so a
+                 * focus that lands on a tab is left for the tab's own selection to finish.
+                 */
+                if (event.target instanceof Element && event.target.closest('[data-pane-tab-id]'))
+                    return;
+                focusPane(pane.id);
+            }}
         >
             <PaneTabBar
+                isActivePane={isActivePane}
                 isOnlySessionTerminal={isOnlySessionTerminal}
                 isRootBar={isLeading}
                 isSoleWorkbenchTab={isSoleWorkbenchTab}
