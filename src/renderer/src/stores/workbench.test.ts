@@ -205,9 +205,17 @@ describe('workbench Runtime events', () => {
         const unsubscribe = subscribeWorkbenchEvents(handlers);
         mocks.emit({
             event: 'desktop.openRequested',
-            payload: { sessionId: 'session-1', kind: 'file', path: '/project/file.ts' },
+            payload: {
+                sessionId: 'session-1',
+                kind: 'file',
+                path: '/project/file.ts',
+                location: { line: 12, column: 4 },
+            },
         });
-        expect(handlers.onDesktopOpen).toHaveBeenCalledWith('session-1', '/project/file.ts');
+        expect(handlers.onDesktopOpen).toHaveBeenCalledWith('session-1', '/project/file.ts', {
+            line: 12,
+            column: 4,
+        });
         unsubscribe();
     });
 

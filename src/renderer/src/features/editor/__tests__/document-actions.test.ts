@@ -2,10 +2,16 @@ import type { BootstrapState, SessionState } from '@shared/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+    queueEditorRevealLocation: vi.fn(),
     request: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(() => Promise.resolve(null)),
+    revealEditorLocation: vi.fn(),
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
+vi.mock('../editor-reveal', () => ({
+    queueEditorRevealLocation: mocks.queueEditorRevealLocation,
+    revealEditorLocation: mocks.revealEditorLocation,
+}));
 
 import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
 import { useWorkbenchStore } from '../../../stores/workbench';
@@ -169,7 +175,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 }
 
 afterEach(() => {
-    mocks.request.mockClear();
+    for (const mock of Object.values(mocks)) mock.mockClear();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
 });
@@ -381,6 +387,42 @@ describe('session-scoped file mutation completion', () => {
         expect(useSessionViewStore.getState().documents['session-2']).not.toHaveProperty(
             '/project/host-target.ts',
         );
+    });
+
+    it('queues a source location before activating an inactive editor tab', async () => {
+        installSessions('/project/current.ts', 'session-1', '/project/other.ts');
+        mocks.request.mockResolvedValueOnce({
+            content: 'target',
+            mtimeMs: 1,
+            path: '/project/target.ts',
+            size: 6,
+        });
+
+        await openFile('/project/target.ts', { location: { line: 3, column: 2 } });
+
+        expect(mocks.queueEditorRevealLocation).toHaveBeenCalledWith(
+            expect.stringContaining('/project/target.ts'),
+            { line: 3, column: 2 },
+        );
+        expect(mocks.revealEditorLocation).not.toHaveBeenCalled();
+    });
+
+    it('reveals a source location immediately when the target editor is already active', async () => {
+        installSessions('/project/target.ts', 'session-1', '/project/other.ts');
+        mocks.request.mockResolvedValueOnce({
+            content: 'target',
+            mtimeMs: 1,
+            path: '/project/target.ts',
+            size: 6,
+        });
+
+        await openFile('/project/target.ts', { location: { line: 3, column: 2 } });
+
+        expect(mocks.revealEditorLocation).toHaveBeenCalledWith(
+            expect.stringContaining('/project/target.ts'),
+            { line: 3, column: 2 },
+        );
+        expect(mocks.queueEditorRevealLocation).not.toHaveBeenCalled();
     });
 
     it('keeps newer dirty content when a save completes after the file moved', async () => {

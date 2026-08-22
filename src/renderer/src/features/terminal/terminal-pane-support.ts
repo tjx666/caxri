@@ -1,13 +1,10 @@
-import { editorModelPath } from '@shared/editor-state';
 import { errorMessage } from '@shared/ipc';
 import type { Terminal } from '@xterm/xterm';
 
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
-import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
-import { revealEditorLocation } from '../editor/editor-reveal';
 import { registerTerminalPasteHandler } from './terminal-actions';
 import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
@@ -107,7 +104,7 @@ export function registerTerminalInputHandlers(
 interface TerminalLinkSnapshot {
     projectRoot: string;
     terminalCwd: string;
-    terminalSessionId: string;
+    terminalId: string;
     wordSeparators: string;
 }
 
@@ -130,10 +127,18 @@ export function registerTerminalPaneLinks(
             return latest().wordSeparators;
         },
         async openFile(path, location) {
-            const resolvedPath = await openFile(path);
-            if (!resolvedPath || !location) return;
-            const scope = sessionViewScope(latest().terminalSessionId);
-            revealEditorLocation(editorModelPath(scope, resolvedPath), location);
+            await openFile(path, location ? { location } : {});
+        },
+        async openHomeFile(target, location) {
+            try {
+                await caxri.request('terminal.openFileLink', {
+                    terminalId: latest().terminalId,
+                    target,
+                    ...(location && { location }),
+                });
+            } catch (error) {
+                onError(errorMessage(error, 'Terminal file link failed'));
+            }
         },
         async openUrl(url) {
             await openExternalUrl(url, onError);

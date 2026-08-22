@@ -15,6 +15,7 @@ interface FakeHostClient {
     onClose: ReturnType<typeof vi.fn>;
     onEvent: ReturnType<typeof vi.fn>;
     request: ReturnType<typeof vi.fn>;
+    requestRuntime: ReturnType<typeof vi.fn>;
     triggerClose: (reason?: 'replaced') => void;
     triggerEvent: (envelope: unknown) => void;
 }
@@ -34,6 +35,7 @@ function createFakeHostClient(): FakeHostClient {
             return () => {};
         }),
         request: vi.fn().mockResolvedValue({ cursor: 0, events: [], kind: 'events' }),
+        requestRuntime: vi.fn(),
         triggerClose: (reason) => {
             for (const listener of closeListeners) listener(reason);
         },
@@ -112,6 +114,29 @@ describe('Desktop Host connection facade', () => {
             request = connection.request('app.health');
         }).not.toThrow();
         await expect(request).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    });
+
+    it('routes Terminal Home-link resolution through the Desktop-authenticated Runtime channel', async () => {
+        const client = mockHostRound({ hostBuildId: 'build-a', hostVersion: '0.0.9' });
+        client.requestRuntime.mockResolvedValueOnce({
+            status: 'authorization_required',
+            path: '/Users/test/file.ts',
+            sourceSessionId: 'session-1',
+        });
+        const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
+        await connection.start();
+
+        await expect(
+            connection.request('terminal.fileLink.resolve', {
+                terminalId: 'terminal-1',
+                target: '~/file.ts',
+            }),
+        ).resolves.toMatchObject({ status: 'authorization_required' });
+        expect(client.requestRuntime).toHaveBeenCalledWith(
+            'terminal.fileLink.resolve',
+            { terminalId: 'terminal-1', target: '~/file.ts' },
+            undefined,
+        );
     });
 
     it('shares a pending attachment and retries after that attachment rejects', async () => {

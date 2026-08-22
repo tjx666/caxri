@@ -12,6 +12,7 @@ import type { FileService } from './files';
 import type { GitService } from './git';
 import type { createIntrospectionServices } from './introspection';
 import type { ProjectStatusService } from './project-status';
+import { resolveTerminalFileLink } from './terminal';
 
 type ServiceHandlerMethods =
     | 'agentActions.list'
@@ -31,6 +32,7 @@ type ServiceHandlerMethods =
     | 'files.write'
     | 'files.search'
     | 'terminal.agentTranscript'
+    | 'terminal.fileLink.resolve'
     | 'project.setIcon'
     | 'git.summary'
     | 'git.overview'
@@ -139,6 +141,7 @@ export function createServiceHandlers(services: {
             if (withContent) await transcripts.watch(terminalId);
             return readAgentTranscript(database, terminalId, withContent, agentEnvironment);
         },
+        'terminal.fileLink.resolve': (parameters) => resolveTerminalFileLink(database, parameters),
         'project.setIcon': ({ projectId, icon }) => {
             const project = database.setProjectIcon(projectId, icon);
             emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.setIcon' } });

@@ -122,6 +122,7 @@ describe('Host Desktop router', () => {
         });
         await router.open('reveal', undefined, {
             launchIfNeeded: false,
+            location: { line: 12, column: 4 },
             path: authorized.path,
             sessionId: session.id,
         });
@@ -132,6 +133,7 @@ describe('Host Desktop router', () => {
             kind: 'file',
             sessionId: session.id,
             path: authorized.path,
+            location: { line: 12, column: 4 },
         });
         await expect(router.consumeTarget(operation.targetId, 4)).rejects.toMatchObject({
             code: 'NOT_FOUND',
@@ -164,6 +166,41 @@ describe('Host Desktop router', () => {
                 path: '/outside/file.ts',
             }),
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        expect(invoke).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['target', { device: authorized.device, inode: '999', root: authorized.root }],
+        [
+            'Project root',
+            {
+                device: authorized.device,
+                inode: authorized.inode,
+                root: { ...authorized.root, inode: '999' },
+            },
+        ],
+    ])('rejects a replaced %s identity after Terminal-link authorization', async (_, identity) => {
+        const invoke = vi.fn(() => Promise.resolve(null));
+        const router = new HostDesktopRouter({
+            bridge: {
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 1,
+                    expiresAt: Date.now() + 1_000,
+                }),
+                invoke,
+            },
+            runtime: runtime(),
+        });
+
+        await expect(
+            router.open('open', 'file', {
+                expectedIdentity: identity,
+                launchIfNeeded: false,
+                path: authorized.path,
+                sessionId: session.id,
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
         expect(invoke).not.toHaveBeenCalled();
     });
 

@@ -115,8 +115,16 @@ describe('findTerminalLinks', () => {
         expect(findTerminalLinks('javascript:alert(1) --flag version.')).toEqual([]);
     });
 
-    it('does not offer unsupported shell-home shorthand as a file link', () => {
-        expect(findTerminalLinks('config: ~/example/path.json')).toEqual([]);
+    it('offers exact current-user Home paths without accepting other shell expansion forms', () => {
+        expect(findTerminalLinks('config: ~/example/path.json:7')).toMatchObject([
+            { kind: 'file', target: '~/example/path.json', line: 7, column: 1 },
+        ]);
+        expect(
+            findTerminalLinks('~user/example.json $HOME/example.json ${HOME}/example.json'),
+        ).toEqual([]);
+        expect(
+            findTerminalLinks('~user/example.json $HOME/example.json ${HOME}/example.json', ' ~$'),
+        ).toEqual([]);
     });
 
     it('keeps maximal trailing-bracket trimming bounded', () => {
@@ -218,15 +226,17 @@ function cellsFor(text: string): Array<{ chars: string; width: number }> {
 describe('registerTerminalLinks', () => {
     const baseContext = () => {
         const openFile = vi.fn();
+        const openHomeFile = vi.fn();
         const openUrl = vi.fn();
         const context: TerminalLinkContext = {
             cwd: '/repo',
             projectRoot: '/repo',
             wordSeparators: TERMINAL_DEFAULT_WORD_SEPARATORS,
             openFile,
+            openHomeFile,
             openUrl,
         };
-        return { context, openFile, openUrl };
+        return { context, openFile, openHomeFile, openUrl };
     };
 
     it('maps a link after wide CJK cells to the correct xterm range', async () => {
@@ -298,5 +308,21 @@ describe('registerTerminalLinks', () => {
         unregister();
         expect(terminal.dispose).toHaveBeenCalledOnce();
         expect(terminal.terminal.options.linkHandler).toBeNull();
+    });
+
+    it('forwards an exact Home link to the trusted resolver without expanding it in Renderer', async () => {
+        const text = '~/outside/project.json:12:4';
+        const terminal = createTerminal(text, cellsFor(text));
+        const { context, openFile, openHomeFile } = baseContext();
+        registerTerminalLinks(terminal.terminal, context);
+
+        const links = await terminal.links();
+        links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
+
+        expect(openHomeFile).toHaveBeenCalledWith('~/outside/project.json', {
+            line: 12,
+            column: 4,
+        });
+        expect(openFile).not.toHaveBeenCalled();
     });
 });

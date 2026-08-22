@@ -1,10 +1,15 @@
 import { realpath } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
 
 import { CaxriError } from '../shared/ipc/errors';
-import type { MainRequest } from '../shared/ipc/methods';
+import type {
+    MainRequest,
+    RuntimeMethodParams as RuntimeMethodParameters,
+    RuntimeMethodResult,
+} from '../shared/ipc/methods';
 import type { DesktopHostConnection } from './host-connection';
 import type { ProjectRootGrants } from './root-grants';
 
@@ -15,6 +20,10 @@ type AuthorizeParameters = Extract<
 >['params'];
 type CreateProjectParameters = Extract<MainRequest, { method: 'project.create' }>['params'];
 type CancelProjectParameters = Extract<MainRequest, { method: 'project.cancelCreate' }>['params'];
+type OpenTerminalFileLinkParameters = Extract<
+    MainRequest,
+    { method: 'terminal.openFileLink' }
+>['params'];
 
 interface WorkbenchRootAuthorityOptions {
     getHost(): DesktopHostConnection;
@@ -30,11 +39,125 @@ async function chooseDirectory(
     return window ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options);
 }
 
+async function showMessageBox(
+    window: BrowserWindow | undefined,
+    options: Electron.MessageBoxOptions,
+): Promise<Electron.MessageBoxReturnValue> {
+    return window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options);
+}
+
 /**
  * Keeps candidate paths and single-use directory grants inside Electron Main. The Renderer sees only opaque candidate
  * IDs and can never nominate a path for automatic authorization.
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
+    async function chooseTargetSession(projectId: string): Promise<string | undefined> {
+        const host = options.getHost();
+        const state = await host.request('app.bootstrap');
+        const sessions = state.sessions.filter(
+            (session) =>
+                session.archivedAt === undefined && session.workbenchProjectId === projectId,
+        );
+        const selected = sessions.find((session) => session.id === state.selectedSessionId);
+        if (selected) return selected.id;
+        if (sessions.length === 1) return sessions[0].id;
+        if (sessions.length === 0)
+            return (await host.request('session.create', { projectId, defaultAgent: null })).session
+                .id;
+
+        const projectTitle =
+            state.projects.find((project) => project.id === projectId)?.displayTitle ?? 'Project';
+        const result = await showMessageBox(options.getWindow(), {
+            type: 'question',
+            title: 'Choose a Session',
+            message: `Choose a Session in ${projectTitle} to open this file`,
+            detail: 'The file will open in the selected Session without starting a Terminal.',
+            buttons: [
+                ...sessions.map(
+                    (session, index) => `${session.displayTitle || 'Untitled'} (${index + 1})`,
+                ),
+                'Cancel',
+            ],
+            defaultId: 0,
+            cancelId: sessions.length,
+            noLink: true,
+        });
+        return result.response === sessions.length ? undefined : sessions[result.response]?.id;
+    }
+
+    async function openTerminalFileLink(parameters: OpenTerminalFileLinkParameters) {
+        const host = options.getHost();
+        const initial = await host.request('terminal.fileLink.resolve', parameters);
+        let expectedIdentity: NonNullable<
+            RuntimeMethodParameters<'desktop.openFile'>['expectedIdentity']
+        >;
+        let path: string;
+        let projectId: string;
+
+        if (initial.status === 'authorized') {
+            expectedIdentity = initial.identity;
+            path = initial.path;
+            projectId = initial.projectId;
+        } else {
+            const testRoot = options.nextTestRoot();
+            let selectedRoot = testRoot;
+            if (!selectedRoot) {
+                const confirmation = await showMessageBox(options.getWindow(), {
+                    type: 'question',
+                    title: 'Open a File Outside Added Projects?',
+                    message: 'This file is outside every added Project.',
+                    detail: 'Choose a Project folder that contains the file. Caxri will add that folder before opening it.',
+                    buttons: ['Choose Project Folder…', 'Cancel'],
+                    defaultId: 0,
+                    cancelId: 1,
+                    noLink: true,
+                });
+                if (confirmation.response !== 0) return { canceled: true as const };
+                const selection = await chooseDirectory(options.getWindow(), {
+                    title: 'Choose a Project Folder',
+                    defaultPath: dirname(initial.path),
+                    properties: ['openDirectory'],
+                });
+                selectedRoot = selection.canceled ? undefined : selection.filePaths.at(0);
+            }
+            if (!selectedRoot) return { canceled: true as const };
+
+            const selected = await host.request('terminal.fileLink.resolve', {
+                ...parameters,
+                selectedRoot,
+            });
+            if (selected.status !== 'selection_authorized')
+                throw new CaxriError('INTERNAL', 'Terminal link selection was not authorized');
+            expectedIdentity = selected.identity;
+            options.grants.grant(selected.rootPath);
+            let project: RuntimeMethodResult<'project.create'>;
+            /**
+             * A failed autonomous flow cannot leave a reusable directory grant behind.
+             */
+            try {
+                project = await options.grants.use(selected.rootPath, () =>
+                    host.request('project.create', { rootPath: selected.rootPath }),
+                );
+            } catch (error) {
+                options.grants.revoke(selected.rootPath);
+                throw error;
+            }
+            path = selected.path;
+            projectId = project.id;
+        }
+
+        const sessionId = await chooseTargetSession(projectId);
+        if (!sessionId) return { canceled: true as const };
+        await host.request('desktop.openFile', {
+            expectedIdentity,
+            path,
+            sessionId,
+            launchIfNeeded: false,
+            ...(parameters.location && { location: parameters.location }),
+        });
+        return { opened: true as const };
+    }
+
     return {
         async selectProjectDirectory() {
             const testRoot = options.nextTestRoot();
@@ -66,6 +189,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             options.grants.revoke(parameters.rootPath);
             return null;
         },
+
+        openTerminalFileLink,
 
         async authorizeSelection(parameters: AuthorizeParameters) {
             const testRoot = options.nextTestRoot();

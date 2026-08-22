@@ -26,8 +26,8 @@ describe('Host Desktop open queue', () => {
 
         expect(selected.mock.calls).toEqual([['session-first'], ['session-second']]);
         expect(opened.mock.calls).toEqual([
-            ['session-first', '/project/first.ts'],
-            ['session-second', '/project/second.ts'],
+            ['session-first', '/project/first.ts', undefined],
+            ['session-second', '/project/second.ts', undefined],
         ]);
     });
 
@@ -46,6 +46,23 @@ describe('Host Desktop open queue', () => {
             queue.enqueue({ path: '/project/second.ts', sessionId: 'session-second' }),
         ).resolves.toBeUndefined();
 
-        expect(opened).toHaveBeenLastCalledWith('session-second', '/project/second.ts');
+        expect(opened).toHaveBeenLastCalledWith('session-second', '/project/second.ts', undefined);
+    });
+
+    it('preserves the requested editor location through serialized Desktop opens', async () => {
+        const selected = vi.fn(() => Promise.resolve(true));
+        const opened = vi.fn(() => Promise.resolve());
+        const queue = createDesktopOpenQueue({ openFile: opened, selectSession: selected });
+
+        await queue.enqueue({
+            location: { line: 12, column: 4 },
+            path: '/project/file.ts',
+            sessionId: 'session-1',
+        });
+
+        expect(opened).toHaveBeenCalledWith('session-1', '/project/file.ts', {
+            line: 12,
+            column: 4,
+        });
     });
 });

@@ -199,7 +199,6 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         scrollback,
         terminalCwd: terminal?.cwd ?? '',
         terminalId,
-        terminalSessionId: terminal?.sessionId ?? '',
         terminalTheme,
         wordSeparators,
     });
