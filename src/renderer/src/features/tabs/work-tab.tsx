@@ -1,5 +1,5 @@
 import type { DragEvent, KeyboardEvent, ReactElement, ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { ProcessState } from '@shared/types';
 import { X } from 'lucide-react';
@@ -166,8 +166,27 @@ export function WorkTab({
      * leaves the tab with no id for `aria-controls`/roving focus to target. See `Tooltip`'s `triggerId`.
      */
     const tabIdProperty = labelTooltip || !isPresent ? {} : { id: tabId };
+    const targetMinWidth = fill ? TERMINAL_TAB_MIN_WIDTH : DOCUMENT_TAB_MIN_WIDTH;
+    // Motion keeps re-applying whatever value it last resolved for a key present in `initial`/`animate`/`exit` on
+    // every re-render of the component, even to a plain DOM mutation made outside Motion — so `minWidth` and
+    // `overflow` cannot be Motion-managed keys landed via `transitionEnd` or an animation-complete callback: when
+    // several tabs mount together (e.g. opening many Terminals back to back), a later sibling's mount re-renders
+    // every already-mounted tab, and Motion stomps an already-landed floor back to its stale `initial` value of 0.
+    // Tracking "has this tab's enter animation finished" as plain React state instead keeps the floor entirely
+    // outside Motion's reach.
+    const [hasSettled, setHasSettled] = useState(false);
+    useEffect(() => {
+        const timer = setTimeout(() => setHasSettled(true), enterDuration * 1_000);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once for this tab's own enter animation; enterDuration is fixed for its lifetime
+    }, []);
+    const isSettled = isPresent && hasSettled;
     const tab = (
         <m.div
+            style={{
+                minWidth: isSettled ? targetMinWidth : 0,
+                overflow: isSettled ? 'visible' : 'hidden',
+            }}
             className={cn(
                 'work-tab group relative flex items-center border-r border-border bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
                 'min-w-0',
@@ -204,22 +223,19 @@ export function WorkTab({
             onAuxClick={(event) => {
                 if (event.button === 1) onClose();
             }}
-            // `minWidth`/`maxWidth` are animated from 0 (rather than set as static CSS) because CSS resolves
-            // `min-width` above `max-width`: a static floor would override the `maxWidth: 0` enter keyframe and the
-            // enter/exit width animation would never play.
-            initial={{ maxWidth: 0, minWidth: 0, opacity: 0, overflow: 'hidden' }}
+            // `maxWidth` is animated from 0 (rather than set as static CSS) because CSS resolves `min-width` above
+            // `max-width`: a static floor would override the `maxWidth: 0` enter keyframe and the enter/exit width
+            // animation would never play. `minWidth`/`overflow` are deliberately absent here — see the `style` prop
+            // above and the comment on `hasSettled`.
+            initial={{ maxWidth: 0, opacity: 0 }}
             animate={{
                 maxWidth: fill ? TERMINAL_TAB_MAX_WIDTH : DOCUMENT_TAB_MAX_WIDTH,
-                minWidth: fill ? TERMINAL_TAB_MIN_WIDTH : DOCUMENT_TAB_MIN_WIDTH,
                 opacity: 1,
-                transitionEnd: { overflow: 'visible' },
                 transition: { duration: enterDuration, ease: 'easeOut' },
             }}
             exit={{
                 maxWidth: 0,
-                minWidth: 0,
                 opacity: 0,
-                overflow: 'hidden',
                 transition: { duration: exitDuration, ease: 'easeIn' },
             }}
         >
