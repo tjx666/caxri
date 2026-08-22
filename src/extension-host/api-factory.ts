@@ -32,6 +32,8 @@ import type {
     ExtensionHostMessage,
     ExtensionHostRegistration,
 } from '../shared/extension-host-protocol';
+import type { TreeRefreshBatch } from './tree-refresh-coalescing';
+import { mergeTreeRefresh } from './tree-refresh-coalescing';
 
 interface ApiBinding {
     api: CaxriApi;
@@ -84,8 +86,15 @@ const commands = new Map<
 >();
 const cancellations = new Map<string, CancellationTokenSource>();
 const pendingApi = new Map<string, PendingApiRequest>();
-const pendingRefreshes = new Map<string, NodeJS.Timeout>();
+const pendingRefreshes = new Map<string, { batch: TreeRefreshBatch; timer: NodeJS.Timeout }>();
 const HOST_API_TIMEOUT_MS = 15_000;
+
+function cancelPendingRefresh(viewId: string): void {
+    const pending = pendingRefreshes.get(viewId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingRefreshes.delete(viewId);
+}
 
 function send(message: ExtensionHostMessage): void {
     if (process.connected) process.send?.(message);
@@ -103,10 +112,9 @@ function assertCurrent(extensionId: string, generation: number): ExtensionRuntim
 function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed: unknown): void {
     if (providers.get(viewId) !== provider) return;
     const existing = pendingRefreshes.get(viewId);
-    if (existing) clearTimeout(existing);
     const changedElements: readonly unknown[] = Array.isArray(changed)
         ? changed
-        : changed
+        : changed !== undefined
           ? [changed]
           : [];
     const handles = changedElements
@@ -116,6 +124,9 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
                 : undefined,
         )
         .filter((handle): handle is string => Boolean(handle));
+    const batch = mergeTreeRefresh(existing?.batch, changed === undefined ? undefined : handles);
+    if (!batch || batch === existing?.batch) return;
+    if (existing) clearTimeout(existing.timer);
     if (changed === undefined) {
         provider.elements.clear();
         provider.depths.clear();
@@ -131,11 +142,11 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
             extensionId: provider.extensionId,
             generation: provider.generation,
             viewId,
-            ...(handles.length > 0 && { handles }),
+            ...(!batch.root && { handles: [...batch.handles] }),
         });
     }, 25);
     timer.unref();
-    pendingRefreshes.set(viewId, timer);
+    pendingRefreshes.set(viewId, { batch, timer });
 }
 
 function requestProjectStatus(
@@ -225,7 +236,10 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
                 providers.set(viewId, providerRegistration);
                 return new Disposable(() => {
                     providerRegistration.subscription?.dispose();
-                    providers.delete(viewId);
+                    if (providers.get(viewId) === providerRegistration) {
+                        cancelPendingRefresh(viewId);
+                        providers.delete(viewId);
+                    }
                 });
             },
         }),
@@ -275,7 +289,10 @@ function disposeExtension(runtime: ExtensionRuntime): void {
         }
     }
     for (const [viewId, provider] of providers)
-        if (provider.extensionId === runtime.registration.extensionId) providers.delete(viewId);
+        if (provider.extensionId === runtime.registration.extensionId) {
+            cancelPendingRefresh(viewId);
+            providers.delete(viewId);
+        }
     for (const [commandId, command] of commands)
         if (command.extensionId === runtime.registration.extensionId) commands.delete(commandId);
 }
@@ -283,7 +300,7 @@ function disposeExtension(runtime: ExtensionRuntime): void {
 export function configureExtensions(registrations: readonly ExtensionHostRegistration[]): void {
     for (const runtime of extensions.values()) disposeExtension(runtime);
     extensions.clear();
-    for (const timer of pendingRefreshes.values()) clearTimeout(timer);
+    for (const { timer } of pendingRefreshes.values()) clearTimeout(timer);
     pendingRefreshes.clear();
     for (const pending of pendingApi.values()) {
         clearTimeout(pending.timer);

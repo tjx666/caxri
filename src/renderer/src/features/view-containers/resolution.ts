@@ -18,8 +18,12 @@ export function resolveViewContainerId(
     location: ViewContainerLocation,
     catalog: ViewCatalogSnapshot,
 ): ViewContainerId | undefined {
-    const candidates = catalog.containers.filter(
+    const desired = catalog.containers.find(
+        (container) => container.location === location && container.id === desiredId,
+    );
+    if (desired && (isResolvable(desired) || desired.error)) return desired.id;
+    const candidate = catalog.containers.find(
         (container) => container.location === location && isResolvable(container),
     );
-    return candidates.find(({ id }) => id === desiredId)?.id ?? candidates[0]?.id;
+    return candidate?.id;
 }

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import type { CommandId, Keybinding } from '@shared/types';
 
+import { executeViewCatalogShortcut } from '../features/view-containers/view-container-commands';
 import {
     buildShortcutMap,
     isEditableEventTarget,
@@ -10,6 +11,7 @@ import {
     keyboardEventShortcut,
     resolveShortcutBinding,
 } from '../lib/keybindings';
+import { useDialogStore } from '../stores/dialogs';
 import { useWorkbenchStore } from '../stores/workbench';
 import { isCommandAvailable, runCommand } from './execute';
 import type { SessionMruShortcutInvocation } from './registry';
@@ -65,19 +67,26 @@ export function useCommandShortcuts(): void {
              * A contextual shortcut must fall through untouched so the owning editor can handle the same chord
              * (Terminal `Cmd+F` versus Monaco's native Find widget).
              */
-            if (!isCommandAvailable(commandId)) return;
+            if (definition && !isCommandAvailable(commandId)) return;
             /**
              * The terminal and the editor are editable surfaces too; only opted-in commands reach through.
              */
             if (isEditableEventTarget(event.target) && !definition?.allowInEditable) return;
             event.preventDefault();
             event.stopPropagation();
-            runCommand(
-                commandId as CommandId,
-                commandId === 'session.switchMru'
-                    ? { ...binding.args, shortcut: sessionMruShortcutInvocation(event) }
-                    : binding.args,
-            );
+            if (useDialogStore.getState().isModalOpen()) return;
+            if (definition)
+                runCommand(
+                    commandId as CommandId,
+                    commandId === 'session.switchMru'
+                        ? { ...binding.args, shortcut: sessionMruShortcutInvocation(event) }
+                        : binding.args,
+                );
+            else {
+                // Fire-and-forget: the shared shortcut helper reports catalog and command failures through toasts.
+                // eslint-disable-next-line no-void -- one keydown owns one asynchronous extension command dispatch
+                void executeViewCatalogShortcut(commandId, binding.args ? [binding.args] : []);
+            }
         };
         addEventListener('keydown', onKeyDown, { capture: true });
         return () => removeEventListener('keydown', onKeyDown, { capture: true });

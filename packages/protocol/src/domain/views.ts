@@ -5,20 +5,26 @@ export const MAX_VIEW_TREE_PAYLOAD_BYTES = 256 * 1024;
 export const MAX_VIEW_TREE_DEPTH = 64;
 export const MAX_VIEW_TREE_HANDLES = 10_000;
 export const MAX_EXTENSION_COMMAND_ARGUMENTS = 32;
+export const MAX_VIEW_ICON_DATA_URL_LENGTH = 128 * 1024;
 export const MAX_VIEW_CATALOG_CONTAINERS = 256;
 export const MAX_VIEW_CATALOG_VIEWS = 1_024;
 export const MAX_VIEW_CATALOG_COMMANDS = 1_024;
 export const MAX_VIEW_CATALOG_EXTENSIONS = 256;
+export const SHOW_VIEW_CONTAINER_COMMAND_PREFIX = 'viewContainers.show.';
+const MAX_NAMESPACED_IDENTIFIER_LENGTH = 200;
 
-function createNamespacedIdentifierSchema() {
+function createNamespacedIdentifierSchema(maxLength = MAX_NAMESPACED_IDENTIFIER_LENGTH) {
     return z
         .string()
         .min(1)
-        .max(200)
+        .max(maxLength)
         .regex(/^[A-Z0-9](?:[\w.-]*[A-Z0-9])?$/i);
 }
 
 export const viewContainerIdSchema = createNamespacedIdentifierSchema();
+const contributedViewContainerIdSchema = createNamespacedIdentifierSchema(
+    MAX_NAMESPACED_IDENTIFIER_LENGTH - SHOW_VIEW_CONTAINER_COMMAND_PREFIX.length,
+);
 export const viewIdSchema = createNamespacedIdentifierSchema();
 export const extensionIdSchema = z
     .string()
@@ -26,6 +32,7 @@ export const extensionIdSchema = z
     .max(200)
     .regex(/^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+$/);
 export const extensionCommandIdSchema = createNamespacedIdentifierSchema();
+export const extensionBuiltinIconIdSchema = z.enum(['beaker', 'status']);
 
 export const viewContainerLocationSchema = z.enum(['secondarySidebar', 'panel']);
 export const extensionCapabilitySchema = z.enum(['projects.read', 'sessions.read']);
@@ -35,10 +42,7 @@ export const viewIconSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('theme'), id: z.string().min(1).max(100) }),
     z.object({
         kind: z.literal('resource'),
-        dataUrl: z
-            .string()
-            .startsWith('data:image/')
-            .max(128 * 1024),
+        dataUrl: z.string().startsWith('data:image/').max(MAX_VIEW_ICON_DATA_URL_LENGTH),
     }),
 ]);
 
@@ -104,7 +108,6 @@ export const viewDescriptorSchema = z.object({
     source: descriptorSourceSchema,
     title: z.string().min(1).max(200),
     viewKind: viewKindSchema,
-    when: z.string().min(1).max(1_024).optional(),
 });
 
 export const contributedCommandDescriptorSchema = z.object({
@@ -148,21 +151,28 @@ export const treeItemSchema = z.object({
     command: treeItemCommandSchema.optional(),
 });
 
+const manifestIconResourcePathSchema = z
+    .string()
+    .min(1)
+    .max(1_024)
+    .regex(/^(?:\.\/)?(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\\]+\.(?:png|svg)$/i);
+
+const manifestContainerIconSchema = z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('builtin'), id: extensionBuiltinIconIdSchema }),
+    z.object({ kind: z.literal('resource'), path: manifestIconResourcePathSchema }),
+]);
+
 const manifestContainerSchema = z.object({
-    id: viewContainerIdSchema,
+    id: contributedViewContainerIdSchema,
     title: z.string().min(1).max(200),
-    icon: z
-        .string()
-        .min(1)
-        .max(1_024)
-        .regex(/^(?:\.\/)?(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\\]+\.(?:png|svg)$/i),
+    icon: manifestContainerIconSchema,
 });
 
 const manifestViewSchema = z.object({
     id: viewIdSchema,
     name: z.string().min(1).max(200),
     type: z.literal('tree'),
-    when: z.string().min(1).max(1_024).optional(),
+    when: z.never().optional(),
 });
 
 const manifestCommandSchema = z.object({
@@ -198,7 +208,7 @@ export const extensionManifestSchema = z.object({
         capabilities: z.array(extensionCapabilitySchema).max(32).default([]),
         testOnly: z.boolean().optional(),
     }),
-    activationEvents: z.array(z.string().min(1).max(200)).max(256).default([]),
+    activationEvents: z.never().optional(),
     contributes: manifestContributionsSchema.default({
         viewsContainers: { secondarySidebar: [], panel: [] },
         views: {},
@@ -210,6 +220,7 @@ export type ViewContainerId = z.infer<typeof viewContainerIdSchema>;
 export type ViewId = z.infer<typeof viewIdSchema>;
 export type ViewContainerLocation = z.infer<typeof viewContainerLocationSchema>;
 export type ExtensionCapability = z.infer<typeof extensionCapabilitySchema>;
+export type ExtensionBuiltinIconId = z.infer<typeof extensionBuiltinIconIdSchema>;
 export type ExtensionError = z.infer<typeof extensionErrorSchema>;
 export type ExtensionLifecycleState = z.infer<typeof extensionLifecycleStateSchema>;
 export type ViewIcon = z.infer<typeof viewIconSchema>;

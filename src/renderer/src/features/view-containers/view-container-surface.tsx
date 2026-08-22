@@ -1,7 +1,23 @@
 import type { ReactNode } from 'react';
 
-import type { ViewContainerId, ViewContainerLocation, ViewIcon } from '@shared/views';
-import { AlertTriangle, Files, GitBranch, Info, LoaderCircle, Logs, Package } from 'lucide-react';
+import type {
+    ExtensionBuiltinIconId,
+    ViewContainerId,
+    ViewContainerLocation,
+    ViewIcon,
+} from '@shared/views';
+import type { LucideIcon } from 'lucide-react';
+import {
+    AlertTriangle,
+    ChartNoAxesColumnIncreasing,
+    Files,
+    FlaskConical,
+    GitBranch,
+    Info,
+    LoaderCircle,
+    Package,
+    ScrollText,
+} from 'lucide-react';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
 import { Button } from '../../components/ui/button';
@@ -16,16 +32,24 @@ const builtinIcons = {
     'files': Files,
     'git-branch': GitBranch,
     'info': Info,
-    'logs': Logs,
+    'scroll-text': ScrollText,
 } as const;
+
+const extensionBuiltinIcons = {
+    beaker: FlaskConical,
+    status: ChartNoAxesColumnIncreasing,
+} satisfies Record<ExtensionBuiltinIconId, LucideIcon>;
 
 function CatalogIcon({ icon }: { icon: ViewIcon }) {
     if (icon.kind === 'resource') return <img alt="" className="size-4" src={icon.dataUrl} />;
     const builtinIconId = icon.kind === 'builtin' ? icon.id : undefined;
-    const Icon =
-        builtinIconId !== undefined && builtinIconId in builtinIcons
-            ? builtinIcons[builtinIconId as keyof typeof builtinIcons]
-            : Package;
+    let Icon: LucideIcon = Package;
+    if (builtinIconId !== undefined) {
+        if (builtinIconId in builtinIcons)
+            Icon = builtinIcons[builtinIconId as keyof typeof builtinIcons];
+        else if (builtinIconId in extensionBuiltinIcons)
+            Icon = extensionBuiltinIcons[builtinIconId as ExtensionBuiltinIconId];
+    }
     return <Icon size={16} />;
 }
 
@@ -121,9 +145,18 @@ export function ViewContainerSurface({
                                                 async () => {
                                                     if (container.source.kind !== 'extension')
                                                         return;
-                                                    await caxri.request('extensions.retry', {
-                                                        extensionId: container.source.extensionId,
-                                                    });
+                                                    const result = await caxri.request(
+                                                        'extensions.retry',
+                                                        {
+                                                            extensionId:
+                                                                container.source.extensionId,
+                                                        },
+                                                    );
+                                                    if (!result.accepted && result.error)
+                                                        throw Object.assign(
+                                                            new Error(result.error.message),
+                                                            { code: result.error.code },
+                                                        );
                                                 },
                                             );
                                         }}

@@ -34,7 +34,7 @@ async function writePersistenceExtension(extensionRoot: string): Promise<void> {
                         {
                             id: 'e2e.persistence',
                             title: 'Persistence Fixture',
-                            icon: 'media/persistence.svg',
+                            icon: { kind: 'resource', path: 'media/persistence.svg' },
                         },
                     ],
                 },
