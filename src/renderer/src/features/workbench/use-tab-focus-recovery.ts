@@ -20,7 +20,7 @@ import { workTabId } from '../tabs/work-tab-accessibility';
  * hear anything. Resolving the target from the fresh layout instead covers all three from one place.
  */
 export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
-    const wasTabFocused = useRef(false);
+    const wasPaneFocused = useRef(false);
     const layoutReference = useRef(layout);
     const recover = useCallback((): void => {
         /**
@@ -31,7 +31,7 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
             // Recovering only from `document.body` — the browser's "nothing is focused" state — keeps this to repairing
             // a loss rather than competing for focus with anything that legitimately took it in the meantime.
             const current = layoutReference.current;
-            if (!current || !wasTabFocused.current || document.activeElement !== document.body)
+            if (!current || !wasPaneFocused.current || document.activeElement !== document.body)
                 return;
             const pane = activePane(current);
             const tab =
@@ -55,13 +55,23 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
     useEffect(() => {
         /**
          * `focusin` fires only when something _gains_ focus, so focus falling back to `document.body` leaves this flag
-         * standing — which is precisely the state worth repairing. Anything the user focuses on purpose (a Terminal, an
-         * editor, a dialog, the sidebar) clears it, so recovery can never pull focus out from under them.
+         * standing — which is precisely the state worth repairing. Focus somewhere outside the panes entirely (the
+         * sidebar, a Settings field) clears it, so a layout edit the user made from elsewhere never yanks focus back.
+         *
+         * The whole pane counts, not just its tab bar: a Terminal hands focus to xterm's helper textarea the moment its
+         * pane activates, so a tab-bar-only flag would read "the user left" for the most ordinary state there is, and
+         * switch the recovery off for the tab that Terminal is sitting in.
          */
         const onFocusIn = (event: FocusEvent): void => {
-            wasTabFocused.current =
-                event.target instanceof Element &&
-                Boolean(event.target.closest('[data-pane-tab-bar]'));
+            if (!(event.target instanceof Element)) return;
+            /**
+             * A menu renders in a portal and holds focus for as long as it is open, so it always looks like the user
+             * left the panes. Treating that as leaving would switch the recovery off in exactly the case that needs it
+             * most: the menu's own Close or Split destroys the element the menu would hand focus back to, so focus
+             * lands on `document.body` and nothing is left to notice.
+             */
+            if (event.target.closest('[role="menu"], [role="menuitem"], [role="dialog"]')) return;
+            wasPaneFocused.current = Boolean(event.target.closest('[data-pane-id]'));
         };
         /**
          * The primary trigger. The `inert` blur that ends a tab's exit animation fires _after_ the layout commit that
@@ -70,7 +80,7 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
          */
         const onFocusOut = (event: FocusEvent): void => {
             // Focus moving somewhere real is the user's own doing; only focus going nowhere is a loss to repair.
-            if (event.relatedTarget || !wasTabFocused.current) return;
+            if (event.relatedTarget || !wasPaneFocused.current) return;
             recover();
         };
         addEventListener('focusin', onFocusIn);

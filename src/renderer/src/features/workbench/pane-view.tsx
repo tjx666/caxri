@@ -116,6 +116,20 @@ function PaneBox({
      * click behind it, so only the pointer case may leave the pane activation to the click.
      */
     const isPointerPressed = useRef(false);
+    /**
+     * The other half of that deferral: a press that never becomes a click leaves nobody to run `selectTab`. A drag
+     * cancelled with `Escape` is the everyday case — `pointerdown → focusin → dragstart → dragend`, no `click` — and it
+     * would otherwise strand focus in one pane while `activePaneId`, the focus ring, the Status Bar, and every
+     * layout-resolved command stay on another.
+     *
+     * Checked a frame after the interaction ends so an ordinary click's own selection lands first; `focusPane` no-ops
+     * on an already-active pane, so this costs nothing whenever the click did arrive.
+     */
+    const settlePaneActivation = (root: HTMLElement): void => {
+        requestAnimationFrame(() => {
+            if (root.contains(document.activeElement)) focusPane(pane.id);
+        });
+    };
     const activeTab =
         pane.tabs.find((candidate) => candidate.id === pane.activeTabId) ?? pane.tabs.at(0);
     const terminalId =
@@ -198,6 +212,8 @@ function PaneBox({
                     return;
                 focusPane(pane.id);
             }}
+            onPointerUpCapture={(event) => settlePaneActivation(event.currentTarget)}
+            onDragEnd={(event) => settlePaneActivation(event.currentTarget)}
         >
             <PaneTabBar
                 isOnlySessionTerminal={isOnlySessionTerminal}

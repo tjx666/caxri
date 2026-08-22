@@ -96,6 +96,29 @@ async function finishTabDrag(page: Page): Promise<void> {
 }
 
 /**
+ * Cancels a tab drag the way `Escape` does: the press and the focus it moved are real, the drag ends without ever
+ * producing a `click`. Playwright cannot start a native HTML5 drag from synthetic mouse input, so the press is real and
+ * only the drag events are dispatched.
+ */
+async function cancelTabDragFrom(page: Page, tab: Locator): Promise<void> {
+    const bounds = await tab.boundingBox();
+    if (!bounds) throw new Error('Tab has no layout box to press');
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.down();
+    const tabButtonId = await tab.getByRole('tab').getAttribute('id');
+    if (!tabButtonId) throw new Error('Drag-cancel fixture is missing a tab id');
+    await page.evaluate((sourceButtonId) => {
+        const source = document
+            .querySelector(`#${CSS.escape(sourceButtonId)}`)
+            ?.closest('.work-tab');
+        if (!source) throw new Error('Drag-cancel fixture not found');
+        const options = { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() };
+        source.dispatchEvent(new DragEvent('dragstart', options));
+        source.dispatchEvent(new DragEvent('dragend', options));
+    }, tabButtonId);
+}
+
+/**
  * A pane holding a Terminal next to a document is the case the unified pane tree exists for, and the one nothing
  * exercised end to end: every other layout workflow keeps to a single kind, so a menu, a drop target, or a focus path
  * that quietly branches on `resource.kind` stays green in all of them.
@@ -218,6 +241,71 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         await expect(
             running.page.locator(`.work-tab[data-terminal-id="${terminalId}"]`),
         ).toHaveCount(0);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * The two interactions that reach a tab without ever producing the `click` the rest of the tab bar is built around: a
+ * drag the user cancels, and the tab's own context menu. Both leave the Workbench in a state no single event can
+ * describe — a press with no selection behind it, and a portal that holds focus while its action destroys the element
+ * it would hand focus back to — so both are only observable end to end.
+ */
+test('a cancelled drag and a context-menu close both leave focus and the active pane agreeing', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-pane-focus-settle-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const rootInput = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', rootInput]);
+    const root = await realpath(rootInput);
+    await writeFile(join(root, 'notes.ts'), 'export const notes = 1;\n', 'utf8');
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const terminalId = await terminalIdOf(running.page);
+        const terminalTab = running.page.locator(`.work-tab[data-terminal-id="${terminalId}"]`);
+        const fileTab = await openAndPinFile(running.page, 'notes.ts');
+        const panes = running.page.locator('.workbench-pane');
+
+        await terminalTab.click({ button: 'right' });
+        await running.page.getByRole('menuitem', { name: 'Split Right' }).click();
+        await expect(panes).toHaveCount(2);
+        const paneIds = await panes.evaluateAll((nodes) =>
+            nodes.map((node) => (node as HTMLElement).dataset.paneId),
+        );
+        const [documentPaneId, terminalPaneId] = paneIds;
+        await expect.poll(() => activePaneId(running.page)).toBe(terminalPaneId);
+
+        /**
+         * Pressing a tab in an inactive pane deliberately leaves the pane activation to the `click` that normally
+         * follows, so one click costs one persist instead of two. A drag cancelled with `Escape` is the case where that
+         * click never comes: `pointerdown → focusin → dragstart → dragend`. Focus is now in the document pane, so
+         * `activePaneId` has to follow it — otherwise the focus ring, the Status Bar, and every layout-resolved command
+         * keep pointing at the Terminal pane the user left.
+         *
+         * Asserted before releasing the button, because a real cancelled drag never produces a `pointerup` either.
+         */
+        await cancelTabDragFrom(running.page, fileTab);
+        await expect.poll(() => activePaneId(running.page)).toBe(documentPaneId);
+        await running.page.mouse.up();
+
+        /**
+         * The context menu renders in a portal and holds focus while it is open, so the tab bar looks abandoned right
+         * up until the menu's own action destroys the tab the menu would hand focus back to. Closing through it must
+         * still leave focus on the surviving tab rather than on `document.body`, where no arrow key or tablist shortcut
+         * reaches. Nothing calls `focus()` afterwards here — that would hide the very result under test.
+         */
+        await terminalTab.click({ button: 'right' });
+        await running.page.getByRole('menuitem', { name: 'Close', exact: true }).click();
+        await expect(panes).toHaveCount(1);
+        await expect(running.page.locator('.work-tab')).toHaveCount(1);
+        await expect(fileTab.getByRole('tab')).toBeFocused();
     } finally {
         try {
             await running.app.close();
