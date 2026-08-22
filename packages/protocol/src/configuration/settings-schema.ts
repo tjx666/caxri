@@ -130,9 +130,9 @@ export const appSettingsSchema = z.object({
     'workbench.newWorktreeBehavior': z
         .enum(enumValues(spec['workbench.newWorktreeBehavior'].options))
         .default(spec['workbench.newWorktreeBehavior'].default),
-    'sidebar.autoCollapseProjects': z
-        .enum(enumValues(spec['sidebar.autoCollapseProjects'].options))
-        .default(spec['sidebar.autoCollapseProjects'].default),
+    'primarySidebar.autoCollapseProjects': z
+        .enum(enumValues(spec['primarySidebar.autoCollapseProjects'].options))
+        .default(spec['primarySidebar.autoCollapseProjects'].default),
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),
     'agents.providers': agentProvidersSchema,

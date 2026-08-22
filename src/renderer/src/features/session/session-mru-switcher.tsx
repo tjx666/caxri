@@ -11,10 +11,10 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { formatShortcutParts, useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
-import { ProjectIcon } from '../sidebar/project-icon';
-import { formatSessionRelativeTime } from '../sidebar/session-activity';
-import { SessionActivityDot } from '../sidebar/session-activity-dot';
-import { SessionUnreadIndicator } from '../sidebar/session-unread-indicator';
+import { ProjectIcon } from '../primary-sidebar/project-icon';
+import { formatSessionRelativeTime } from '../primary-sidebar/session-activity';
+import { SessionActivityDot } from '../primary-sidebar/session-activity-dot';
+import { SessionUnreadIndicator } from '../primary-sidebar/session-unread-indicator';
 import { commitMruSession } from './session-actions';
 import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru-switcher-state';
 
@@ -89,7 +89,7 @@ function SessionMruRow({
                  * DESIGN.md principle 2 reserves `--accent` for the screen's single resting focus, with an explicit
                  * carve-out for transient, action-scoped feedback. The switcher exists only while its chord is held
                  * and its entire job is to show where the pending jump will land, so the highlighted row earns the
-                 * accent ring the Sidebar's persistent selection is denied.
+                 * accent ring the PrimarySidebar's persistent selection is denied.
                  */
                 selected && 'bg-elevated ring-1 ring-accent/70 ring-inset',
             )}
@@ -204,7 +204,7 @@ export function SessionMruSwitcher() {
             {/*
              * Same scrim redline as a Dialog: the switcher is a modal moment, just one that ends on key release. The
              * scrim takes pointer events so a click outside the panel cannot reach the workbench underneath — without
-             * that, clicking a Sidebar Session while the chord is held switches the Session and the switcher then
+             * that, clicking a PrimarySidebar Session while the chord is held switches the Session and the switcher then
              * commits a second, stale one on release. Clicking the scrim cancels, matching Escape.
              */}
             <div

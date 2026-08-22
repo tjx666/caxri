@@ -26,6 +26,12 @@ describe('isTransientRuntimeEvent / transient and durable schemas', () => {
         expect(
             isTransientRuntimeEvent({ event: 'projectStatus.changed', payload: {} } as never),
         ).toBe(true);
+        expect(
+            isTransientRuntimeEvent({
+                event: 'viewContainers.catalogChanged',
+                payload: {},
+            } as never),
+        ).toBe(true);
     });
 
     it('classifies a durable state event as non-transient', () => {

@@ -175,6 +175,27 @@ export function useRuntimeQueryInvalidation(): void {
 export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () => void {
     const pendingTimers = new Map<string, number>();
     const unsubscribe = caxri.onEvent((event) => {
+        if (event.event === 'viewContainers.catalogChanged') {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, React Query owns invalidation errors
+            void queryClient.invalidateQueries({ queryKey: ['viewContainers.catalog'] });
+            return;
+        }
+        if (event.event === 'viewContainers.treeChanged') {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, React Query owns invalidation errors
+            void queryClient.invalidateQueries({
+                predicate: (query) => {
+                    const [method, parameters] = query.queryKey as [
+                        CaxriMethod,
+                        { viewId?: string } | undefined,
+                    ];
+                    return (
+                        method === 'viewContainers.treeChildren' &&
+                        parameters?.viewId === event.payload.viewId
+                    );
+                },
+            });
+            return;
+        }
         if (event.event === 'state.changed') {
             if (event.payload.kind === 'full') invalidateAgentTranscriptQuery(queryClient);
             else {

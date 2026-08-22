@@ -146,10 +146,10 @@ process.stdout.write('Compaction Agent ready\r\n');
         ).toBeUndefined();
 
         /**
-         * A Session has to read the same way wherever its row is drawn, and the MRU switcher shares the Sidebar's
-         * activity dot. Compaction is restarted here, at the end, because the switcher only lists the Sessions the user
-         * is not on: reaching it needs a second Session and a switch, which discards the ephemeral Terminal progress
-         * the workflow above asserts.
+         * A Session has to read the same way wherever its row is drawn, and the MRU switcher shares the
+         * PrimarySidebar's activity dot. Compaction is restarted here, at the end, because the switcher only lists the
+         * Sessions the user is not on: reaching it needs a second Session and a switch, which discards the ephemeral
+         * Terminal progress the workflow above asserts.
          */
         await running.page.locator('.xterm-helper-textarea').press('c');
         await expect(tabOperation).toHaveText('Compacting');

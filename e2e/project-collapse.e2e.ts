@@ -112,7 +112,7 @@ test('auto-collapse protects active, running, unread, and manually expanded Proj
         await mkdir(join(userData, 'config'), { recursive: true });
         await writeFile(
             join(userData, 'config', 'settings.jsonc'),
-            `${JSON.stringify({ 'sidebar.autoCollapseProjects': '30m' }, null, 2)}\n`,
+            `${JSON.stringify({ 'primarySidebar.autoCollapseProjects': '30m' }, null, 2)}\n`,
         );
 
         running = await launchCaxri(launchOptions);
@@ -131,10 +131,10 @@ test('auto-collapse protects active, running, unread, and manually expanded Proj
             sessionId: sessionIds.get('running')!,
         });
         await pageRequest(running.page, 'settings.update', {
-            source: JSON.stringify({ 'sidebar.autoCollapseProjects': 'off' }),
+            source: JSON.stringify({ 'primarySidebar.autoCollapseProjects': 'off' }),
         });
         await pageRequest(running.page, 'settings.update', {
-            source: JSON.stringify({ 'sidebar.autoCollapseProjects': '30m' }),
+            source: JSON.stringify({ 'primarySidebar.autoCollapseProjects': '30m' }),
         });
         await running.page.getByRole('tab', { name: 'Files' }).focus();
         await running.page.mouse.move(600, 400);

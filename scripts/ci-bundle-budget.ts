@@ -243,7 +243,11 @@ async function writeBaseline(baseline: BundleBaseline): Promise<void> {
  * at runtime). Each entry is expected to fail fast on missing process wiring, not on module resolution.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
-export const PACKAGED_NODE_ENTRIES = ['out/main/host.js', 'out/main/runtime.js'];
+export const PACKAGED_NODE_ENTRIES = [
+    'out/main/host.js',
+    'out/main/extension-host.js',
+    'out/main/runtime.js',
+];
 
 const PACKAGED_EXECUTABLE = 'release/mac-arm64/Caxri.app/Contents/MacOS/Caxri';
 const PACKAGED_ASAR = 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar';

@@ -11,12 +11,14 @@ import { BugReportDialog } from './features/bug-report/bug-report-dialog';
 import { openFileForSession } from './features/editor/document-actions';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { useExternalDocumentSync } from './features/editor/external-sync';
-import { Inspector } from './features/inspector/inspector';
-import { useFileMutationReconciliation } from './features/inspector/panels/files/file-operation-reconciliation';
-import { useFileTreeQueryInvalidation } from './features/inspector/panels/files/file-tree-refresh';
 import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
+import { PrimarySidebar } from './features/primary-sidebar/primary-sidebar';
+import { ProjectIconDialog } from './features/primary-sidebar/project-icon-dialog';
 import { ScreencastOverlay } from './features/screencast/screencast-overlay';
+import { useFileMutationReconciliation } from './features/secondary-sidebar/panels/files/file-operation-reconciliation';
+import { useFileTreeQueryInvalidation } from './features/secondary-sidebar/panels/files/file-tree-refresh';
+import { SecondarySidebar } from './features/secondary-sidebar/secondary-sidebar';
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
 import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
@@ -26,8 +28,6 @@ import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { useSessionMruSwitcherLifecycle } from './features/session/use-session-mru-switcher-lifecycle';
 import { useSessionNavigationHistory } from './features/session/use-session-navigation-history';
 import { SettingsDialog } from './features/settings/settings-dialog';
-import { ProjectIconDialog } from './features/sidebar/project-icon-dialog';
-import { ProjectSidebar } from './features/sidebar/project-sidebar';
 import { StatusBar } from './features/status-bar/status-bar';
 import { ToastOutlet } from './features/toasts/toast-outlet';
 import { UpdateDialog } from './features/updates/update-dialog';
@@ -39,15 +39,15 @@ import { applyCssTheme } from './lib/theme-css';
 import { cn } from './lib/utilities';
 import { useRuntimeQueryInvalidation } from './queries/invalidation';
 import {
-    INSPECTOR_DEFAULT_WIDTH,
-    INSPECTOR_MAX_WIDTH,
-    INSPECTOR_MIN_WIDTH,
-    SIDEBAR_DEFAULT_WIDTH,
-    SIDEBAR_MAX_WIDTH,
-    SIDEBAR_MIN_WIDTH,
-    usePanelLayoutStore,
-    usePanelViewportClamp,
-} from './stores/panel-layout';
+    PRIMARY_SIDEBAR_DEFAULT_WIDTH,
+    PRIMARY_SIDEBAR_MAX_WIDTH,
+    PRIMARY_SIDEBAR_MIN_WIDTH,
+    SECONDARY_SIDEBAR_DEFAULT_WIDTH,
+    SECONDARY_SIDEBAR_MAX_WIDTH,
+    SECONDARY_SIDEBAR_MIN_WIDTH,
+    useChromeLayoutStore,
+    useChromeViewportClamp,
+} from './stores/chrome-layout';
 import { useSettings, useTheme } from './stores/selectors';
 import {
     initializeWorkbench,
@@ -86,10 +86,12 @@ export function App() {
     const isAttached = useWorkbenchStore((state) => state.bootstrap !== undefined);
     const theme = useTheme();
     const workbenchFontFamily = useSettings()?.['workbench.fontFamily'];
-    const sidebarWidth = usePanelLayoutStore((state) => state.sidebarWidth);
-    const inspectorWidth = usePanelLayoutStore((state) => state.inspectorWidth);
-    const isSidebarVisible = usePanelLayoutStore((state) => state.sidebarVisible);
-    const isInspectorVisible = usePanelLayoutStore((state) => state.inspectorVisible);
+    const primarySidebarWidth = useChromeLayoutStore((state) => state.primarySidebarWidth);
+    const secondarySidebarWidth = useChromeLayoutStore((state) => state.secondarySidebarWidth);
+    const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
+    const isSecondarySidebarVisible = useChromeLayoutStore(
+        (state) => state.secondarySidebarVisible,
+    );
 
     useRuntimeAttachment();
     useFileMutationReconciliation(isAttached);
@@ -100,7 +102,7 @@ export function App() {
     useCommandShortcuts();
     useSessionAttentionAcknowledgement();
     useExternalDocumentSync();
-    usePanelViewportClamp();
+    useChromeViewportClamp();
     useEffect(() => {
         if (theme) applyCssTheme(theme);
     }, [theme]);
@@ -124,11 +126,17 @@ export function App() {
      * directly (see `PanelDivider`), so this effect never fires mid-gesture.
      */
     useEffect(() => {
-        document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`);
-    }, [sidebarWidth]);
+        document.documentElement.style.setProperty(
+            '--primary-sidebar-width',
+            `${primarySidebarWidth}px`,
+        );
+    }, [primarySidebarWidth]);
     useEffect(() => {
-        document.documentElement.style.setProperty('--inspector-width', `${inspectorWidth}px`);
-    }, [inspectorWidth]);
+        document.documentElement.style.setProperty(
+            '--secondary-sidebar-width',
+            `${secondarySidebarWidth}px`,
+        );
+    }, [secondarySidebarWidth]);
 
     if (!isAttached) return <LoadingScreen />;
 
@@ -137,58 +145,60 @@ export function App() {
             <main
                 className={cn(
                     /*
-                     * Sidebar/Inspector widths are device-local UI state (`stores/panel-layout.ts`), not part
+                     * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
                      * of the Runtime-synced Session; each panel writes its own custom property directly on
                      * drag and through React on commit/reset. The 6px tracks are the divider hit areas — see
                      * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
                      */
                     'app-shell grid h-screen w-screen grid-rows-[minmax(0,1fr)_24px] bg-background',
-                    isSidebarVisible && isInspectorVisible
-                        ? 'grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--inspector-width,310px)]'
-                        : isSidebarVisible
-                          ? 'inspector-collapsed grid-cols-[var(--sidebar-width,230px)_6px_minmax(320px,1fr)]'
-                          : isInspectorVisible
-                            ? 'sidebar-collapsed grid-cols-[minmax(320px,1fr)_6px_var(--inspector-width,310px)]'
-                            : 'sidebar-collapsed inspector-collapsed grid-cols-[minmax(320px,1fr)]',
+                    isPrimarySidebarVisible && isSecondarySidebarVisible
+                        ? 'grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]'
+                        : isPrimarySidebarVisible
+                          ? 'secondary-sidebar-collapsed grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)]'
+                          : isSecondarySidebarVisible
+                            ? 'primary-sidebar-collapsed grid-cols-[minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]'
+                            : 'primary-sidebar-collapsed secondary-sidebar-collapsed grid-cols-[minmax(320px,1fr)]',
                 )}
             >
-                {!isSidebarVisible && (
+                {!isPrimarySidebarVisible && (
                     <div
                         aria-hidden="true"
-                        className="collapsed-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-[78px] [-webkit-app-region:drag]"
+                        className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-[78px] [-webkit-app-region:drag]"
                     />
                 )}
-                {isSidebarVisible && <ProjectSidebar />}
-                {isSidebarVisible && (
+                {isPrimarySidebarVisible && <PrimarySidebar />}
+                {isPrimarySidebarVisible && (
                     <PanelDivider
-                        ariaLabel="Resize Sidebar"
-                        size={sidebarWidth}
-                        min={SIDEBAR_MIN_WIDTH}
-                        max={SIDEBAR_MAX_WIDTH}
-                        defaultSize={SIDEBAR_DEFAULT_WIDTH}
-                        cssVariable="--sidebar-width"
+                        ariaLabel="Resize Primary Side Bar"
+                        size={primarySidebarWidth}
+                        min={PRIMARY_SIDEBAR_MIN_WIDTH}
+                        max={PRIMARY_SIDEBAR_MAX_WIDTH}
+                        defaultSize={PRIMARY_SIDEBAR_DEFAULT_WIDTH}
+                        cssVariable="--primary-sidebar-width"
                         growDirection={1}
                         orientation="vertical"
-                        onCommit={(width) => usePanelLayoutStore.getState().setSidebarWidth(width)}
-                    />
-                )}
-                <WorkbenchColumn />
-                {isInspectorVisible && (
-                    <PanelDivider
-                        ariaLabel="Resize Inspector"
-                        size={inspectorWidth}
-                        min={INSPECTOR_MIN_WIDTH}
-                        max={INSPECTOR_MAX_WIDTH}
-                        defaultSize={INSPECTOR_DEFAULT_WIDTH}
-                        cssVariable="--inspector-width"
-                        growDirection={-1}
-                        orientation="vertical"
                         onCommit={(width) =>
-                            usePanelLayoutStore.getState().setInspectorWidth(width)
+                            useChromeLayoutStore.getState().setPrimarySidebarWidth(width)
                         }
                     />
                 )}
-                {isInspectorVisible && <Inspector />}
+                <WorkbenchColumn />
+                {isSecondarySidebarVisible && (
+                    <PanelDivider
+                        ariaLabel="Resize Secondary Side Bar"
+                        size={secondarySidebarWidth}
+                        min={SECONDARY_SIDEBAR_MIN_WIDTH}
+                        max={SECONDARY_SIDEBAR_MAX_WIDTH}
+                        defaultSize={SECONDARY_SIDEBAR_DEFAULT_WIDTH}
+                        cssVariable="--secondary-sidebar-width"
+                        growDirection={-1}
+                        orientation="vertical"
+                        onCommit={(width) =>
+                            useChromeLayoutStore.getState().setSecondarySidebarWidth(width)
+                        }
+                    />
+                )}
+                {isSecondarySidebarVisible && <SecondarySidebar />}
                 <StatusBar />
                 <CreateSessionDialog />
                 <ArchivedSessionsDialog />

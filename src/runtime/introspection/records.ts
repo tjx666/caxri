@@ -23,10 +23,14 @@ interface SelectableRecord {
     projectId?: string;
 }
 
+type ScopedPrincipal = Extract<Principal, { kind: 'agent' | 'extension' | 'paired-device' }>;
+
+function isScopedPrincipal(principal: Principal): principal is ScopedPrincipal {
+    return ['agent', 'extension', 'paired-device'].includes(principal.kind);
+}
+
 function scopeFor(principal: Principal): ReadonlySet<string> | undefined {
-    return principal.kind === 'agent' || principal.kind === 'paired-device'
-        ? new Set(principal.projectIds)
-        : undefined;
+    return isScopedPrincipal(principal) ? new Set(principal.projectIds) : undefined;
 }
 
 function select<T extends SelectableRecord>(
@@ -101,7 +105,7 @@ export class RecordQueryService {
                   : [selectCurrent(visible, this.source.currentProjectId(), 'Project')];
         if (scope)
             return {
-                view: principalView(principal) as 'agent' | 'paired-device',
+                view: principalView(principal) as 'agent' | 'extension' | 'paired-device',
                 projects: selected.map(({ id, displayTitle }) => ({ id, displayTitle })),
             };
         return {

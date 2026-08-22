@@ -6,7 +6,6 @@ import {
     getNativeMenuCommandGroups,
     nativeMenuIds,
 } from '../commands';
-import { inspectorModeRegistrations } from '../inspector';
 import { commandIds } from '../ipc';
 
 describe('command registry', () => {
@@ -24,9 +23,9 @@ describe('command registry', () => {
             expect.arrayContaining([
                 { key: 'cmd+k', command: 'terminal.clear' },
                 { key: 'cmd+f', command: 'terminal.find' },
-                { key: 'cmd+[', command: 'sidebar.toggle' },
-                { key: 'cmd+]', command: 'inspector.toggle' },
-                { key: 'cmd+shift+f', command: 'inspector.searchFiles' },
+                { key: 'cmd+[', command: 'primarySidebar.toggle' },
+                { key: 'cmd+]', command: 'secondarySidebar.toggle' },
+                { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },
                 { key: 'cmd+,', command: 'settings.open' },
                 { key: 'cmd+shift+p', command: 'commandPalette.open' },
                 { key: 'cmd+shift+a', command: 'agentActions.open' },
@@ -79,19 +78,17 @@ describe('command registry', () => {
         ]);
     });
 
-    it('derives every Inspector command and default binding from its mode registration', () => {
-        for (const registration of inspectorModeRegistrations) {
-            expect(commandDefinitions).toContainEqual(
-                expect.objectContaining({
-                    id: registration.commandId,
-                    title: registration.commandTitle,
-                    description: registration.commandDescription,
-                }),
-            );
-            expect(defaultKeybindings).toContainEqual({
-                key: registration.defaultKeybinding,
-                command: registration.commandId,
-            });
-        }
+    it('defines builtin chrome commands while extension commands remain Host-catalog data', () => {
+        expect(commandDefinitions.map(({ id }) => id)).toEqual(
+            expect.arrayContaining([
+                'secondarySidebar.showFiles',
+                'secondarySidebar.showGit',
+                'panel.showLogs',
+                'panel.showInfo',
+            ]),
+        );
+        expect(commandDefinitions.some(({ id }) => id.startsWith('viewContainers.show.'))).toBe(
+            false,
+        );
     });
 });

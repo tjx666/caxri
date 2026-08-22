@@ -5,7 +5,7 @@
 
 ## Decision
 
-Use `electron-vite` for separate Main, Headless Host, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
+Use `electron-vite` for separate Main, Headless Host, Extension Host, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
 
 `ELECTRON_RENDERER_URL` is an unpackaged electron-vite development input only. Packaged Workbench
 and Process Explorer windows always resolve their renderer entry files from the application bundle,
@@ -30,9 +30,10 @@ pnpm's isolated layout; electron-builder flattens the packaged dependency graph 
 
 The Electron `RunAsNode` fuse remains enabled deliberately. Both the provider lifecycle-hook bridge
 and the profile-scoped Headless Host execute the packaged Caxri binary with
-`ELECTRON_RUN_AS_NODE=1`; the Host then supervises `out/main/runtime.js` as an advanced-serialization
-Node IPC child so it retains Electron ABI parity without launching Chromium. Packaging validation
-must keep proving that `host.js` and `runtime.js` load from `app.asar` while their native modules load
+`ELECTRON_RUN_AS_NODE=1`; the Host then separately supervises `out/main/runtime.js` and
+`out/main/extension-host.js` as advanced-serialization Node IPC children so they retain Electron ABI
+parity without launching Chromium. Packaging validation must keep proving that `host.js`,
+`extension-host.js`, and `runtime.js` load from `app.asar` while native modules load
 from `app.asar.unpacked`. Disabling this fuse requires replacing both production launch paths first.
 
 The Desktop build explicitly bundles `@caxri/cli` and `@caxri/protocol` into Main while leaving the

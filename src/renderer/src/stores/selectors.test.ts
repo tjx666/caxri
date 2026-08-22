@@ -70,7 +70,7 @@ describe('selectSelectedProject', () => {
             selectedProjectId: 'project-work',
         });
 
-        // Sidebar ownership tracks `projectId`, not the Workbench Root, even when a different
+        // PrimarySidebar ownership tracks `projectId`, not the Workbench Root, even when a different
         // Project is separately marked selected.
         expect(selectSelectedProject(state)?.id).toBe('project-owner');
     });

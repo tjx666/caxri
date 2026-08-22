@@ -136,8 +136,8 @@ if (ownsProfileInstance) {
              */
             backgroundColor: '#282a36',
             /**
-             * No title bar row: the sidebar header is the drag region and carries the brand instead. `title` stays for
-             * VoiceOver and Mission Control, which still read the window title.
+             * No title bar row: the primarySidebar header is the drag region and carries the brand instead. `title`
+             * stays for VoiceOver and Mission Control, which still read the window title.
              */
             titleBarStyle: 'hiddenInset',
             /**

@@ -1,5 +1,5 @@
 {
-    "name": "caxri",
+    "name": "@caxri/desktop",
     "version": "0.0.17",
     "private": true,
     "author": "Caxri contributors",
@@ -21,11 +21,14 @@
         "doctor": "react-doctor --no-score --blocking warning",
         "doctor:changed": "bun run scripts/doctor-changed.ts",
         "typecheck": "bun run typecheck:workspaces && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-        "typecheck:workspaces": "bun run typecheck:protocol && bun run typecheck:cli",
+        "typecheck:workspaces": "bun run typecheck:api && bun run typecheck:protocol && bun run typecheck:cli && bun run typecheck:extensions",
+        "typecheck:api": "bun run --cwd packages/api typecheck",
         "typecheck:protocol": "bun run --cwd packages/protocol typecheck",
         "typecheck:cli": "bun run --cwd packages/cli typecheck",
+        "typecheck:extensions": "tsc --noEmit -p extensions/tsconfig.json",
         "test": "vitest run",
-        "test:workspaces": "bun run test:protocol && bun run test:cli",
+        "test:workspaces": "bun run test:api && bun run test:protocol && bun run test:cli",
+        "test:api": "bun run --cwd packages/api test",
         "test:protocol": "bun run --cwd packages/protocol test",
         "test:cli": "bun run --cwd packages/cli test",
         "test:watch": "vitest",
@@ -35,9 +38,11 @@
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
         "build": "bun run build:workspaces && bun run build:desktop",
-        "build:workspaces": "bun run build:protocol && bun run build:cli",
+        "build:workspaces": "bun run build:api && bun run build:protocol && bun run build:cli && bun run build:extensions",
+        "build:api": "bun run --cwd packages/api build",
         "build:protocol": "bun run --cwd packages/protocol build",
         "build:cli": "bun run --cwd packages/cli build",
+        "build:extensions": "bun run scripts/build-extensions.ts",
         "link:cli": "bun run build:cli && bun run packages/cli/scripts/link-global.ts",
         "unlink:cli": "pnpm remove --global @caxri/cli",
         "uninstall:caxri": "bun run scripts/uninstall-caxri.ts",
@@ -84,6 +89,7 @@
                     ".agents/skills/go/scripts/start.ts",
                     ".agents/skills/go/scripts/state.ts",
                     ".agents/skills/go/scripts/xterm-beta-line.ts",
+                    "extensions/*/src/extension.ts",
                     "scripts/reporters/e2e-receipt-reporter.ts",
                     "scripts/fixtures/e2e-census.fixture.ts",
                     "scripts/fixtures/playwright-census.config.ts",
@@ -128,6 +134,7 @@
     "devDependencies": {
         "@base-ui/react": "1.6.0",
         "@caxri/cli": "workspace:*",
+        "@caxri/protocol": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",
         "@electron/rebuild": "4.2.0",
@@ -161,6 +168,7 @@
         "@yutengjing/vscode-icons": "^0.1.1",
         "archiver": "8.0.0",
         "babel-plugin-react-compiler": "1.0.0",
+        "caxri": "workspace:*",
         "class-variance-authority": "0.7.1",
         "clsx": "2.1.1",
         "cmdk": "1.1.1",
@@ -226,6 +234,24 @@
             {
                 "from": "build/caxri",
                 "to": "bin/caxri"
+            },
+            {
+                "from": "extensions/status",
+                "to": "extensions/status",
+                "filter": [
+                    "package.json",
+                    "dist/**",
+                    "media/**"
+                ]
+            },
+            {
+                "from": "extensions/fixture",
+                "to": "extensions/fixture",
+                "filter": [
+                    "package.json",
+                    "dist/**",
+                    "media/**"
+                ]
             }
         ],
         "files": [

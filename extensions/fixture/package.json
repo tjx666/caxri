@@ -1,0 +1,46 @@
+{
+    "name": "caxri.fixture",
+    "version": "0.0.17",
+    "private": true,
+    "type": "module",
+    "main": "./dist/extension.js",
+    "engines": {
+        "caxri": "^0.0.17"
+    },
+    "caxri": {
+        "capabilities": [
+            "projects.read"
+        ],
+        "testOnly": true
+    },
+    "contributes": {
+        "viewsContainers": {
+            "secondarySidebar": [
+                {
+                    "id": "caxri.fixture",
+                    "title": "Extension Fixture",
+                    "icon": "media/fixture.svg"
+                }
+            ]
+        },
+        "views": {
+            "caxri.fixture": [
+                {
+                    "id": "caxri.fixture.tree",
+                    "name": "Fixture Tree",
+                    "type": "tree"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "caxri.fixture.refresh",
+                "title": "Refresh Extension Fixture"
+            },
+            {
+                "command": "caxri.fixture.crashHost",
+                "title": "Crash Extension Host"
+            }
+        ]
+    }
+}

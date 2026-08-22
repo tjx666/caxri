@@ -128,9 +128,9 @@ const borderlessChromeFiles = [
     'features/workbench/panel-divider.tsx',
     'features/workbench/pane-tab-bar.tsx',
     'features/status-bar/status-bar.tsx',
-    'features/inspector/inspector.tsx',
+    'features/secondary-sidebar/secondary-sidebar.tsx',
     'features/settings/settings-dialog.tsx',
-    // features/sidebar/project-sidebar.tsx and features/process-explorer/process-explorer-app.tsx
+    // features/primary-sidebar/primary-sidebar.tsx and features/process-explorer/process-explorer-app.tsx
     // also had their chrome seams removed, but keep legitimate in-surface borders (dashed CTA,
     // table column rules) this blanket guard cannot distinguish.
 ];
@@ -274,7 +274,7 @@ describe('Renderer design contract', () => {
         // a disabled-capable control from an always-interactive one first.
         const paths = [
             join(rendererRoot, 'components/ui/button.tsx'),
-            join(rendererRoot, 'features/sidebar/session-history-navigation.tsx'),
+            join(rendererRoot, 'features/primary-sidebar/session-history-navigation.tsx'),
         ];
         const violationsByFile = await Promise.all(
             paths.map(async (path): Promise<string[]> => {

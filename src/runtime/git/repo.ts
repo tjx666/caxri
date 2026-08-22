@@ -178,7 +178,7 @@ export interface GitWorktreeEntry {
 }
 
 /**
- * Shared parser for both Git Inspector discovery and Session Workbench Root attribution.
+ * Shared parser for both Git SecondarySidebar discovery and Session Workbench Root attribution.
  */
 export function parseWorktreeEntries(output: string): GitWorktreeEntry[] {
     return output.split('\0\0').flatMap((block) => {

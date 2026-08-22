@@ -573,7 +573,7 @@ describe('Pane layout contract', () => {
     const state = {
         sessionId: 'session-1',
         workbenchProjectId: 'project-1',
-        inspectorMode: 'files' as const,
+        desiredSecondarySidebarViewContainerId: 'caxri.files' as const,
     };
     const pane = (id: string, terminalId: string) => ({
         type: 'pane' as const,

@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 
 import { relativeTime } from '@caxri/utils';
+import type { CommandId } from '@shared/commands';
 import { parseGitDiffTab } from '@shared/git-diff';
-import type { InspectorCommandId } from '@shared/inspector';
 import type { CaxriMethod } from '@shared/ipc';
 import type { BootstrapState } from '@shared/types';
 import { useQueryClient } from '@tanstack/react-query';
@@ -637,7 +637,7 @@ function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId
     );
 }
 
-function showInspector(command: InspectorCommandId): void {
+function showSecondarySidebar(command: Extract<CommandId, `secondarySidebar.show${string}`>): void {
     executeCommand(command);
 }
 
@@ -669,14 +669,14 @@ export function StatusBar() {
                         icon={Monitor}
                         ariaLabel={`Open project files: ${workbenchProject.displayTitle}`}
                         title={workbenchProject.rootPath}
-                        onClick={() => showInspector('inspector.showFiles')}
+                        onClick={() => showSecondarySidebar('secondarySidebar.showFiles')}
                     >
                         {workbenchProject.displayTitle}
                     </StatusItem>
                 )}
                 {/*
                  * No "No Project selected" placeholder: the only way to reach this state is an empty Workbench, where
-                 * the Sidebar already offers "Add your first Project" at full size. Restating it in the status bar
+                 * the PrimarySidebar already offers "Add your first Project" at full size. Restating it in the status bar
                  * says nothing new and gives the emptiest screen its most prominent line of prose.
                  */}
                 {sessionId && <WorkbenchRootPicker branch={repo?.branch} sessionId={sessionId} />}
@@ -702,7 +702,7 @@ export function StatusBar() {
                         icon={FileDiff}
                         ariaLabel={`Open changes: ${repo.additions} ${repo.additions === 1 ? 'addition' : 'additions'}, ${repo.deletions} ${repo.deletions === 1 ? 'deletion' : 'deletions'}`}
                         title="Show primary repository changes"
-                        onClick={() => showInspector('inspector.showGit')}
+                        onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
                     >
                         +{repo.additions} -{repo.deletions}
                     </StatusItem>

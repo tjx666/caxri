@@ -70,8 +70,12 @@ describe('ci-bundle-budget', () => {
         expect(findModuleResolutionFailure('')).toBeUndefined();
     });
 
-    it('verifies both Node-executable packaged entry points', () => {
-        expect(PACKAGED_NODE_ENTRIES).toEqual(['out/main/host.js', 'out/main/runtime.js']);
+    it('verifies every Node-executable packaged entry point', () => {
+        expect(PACKAGED_NODE_ENTRIES).toEqual([
+            'out/main/host.js',
+            'out/main/extension-host.js',
+            'out/main/runtime.js',
+        ]);
     });
 
     it('stays inside the protected CI retry paths', () => {
