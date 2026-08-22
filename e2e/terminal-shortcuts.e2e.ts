@@ -32,6 +32,45 @@ async function terminalIds(page: Page): Promise<string[]> {
     return state.terminals.map((terminal) => terminal.id);
 }
 
+/**
+ * A tab whose Terminal the Runtime no longer owns renders an empty pane that no close reaches, so tab identity — not
+ * tab count — is what proves the layout stayed consistent.
+ *
+ * Polled rather than sampled once: a close that overtakes its own create legitimately shows the doomed tab for a frame
+ * or two, and only a tab that is still orphaned once the system settles is the defect.
+ */
+async function expectNoOrphanTabs(page: Page): Promise<void> {
+    await expect
+        .poll(async () => {
+            const tabbed = await page
+                .locator('.work-tab[data-terminal-id]')
+                .evaluateAll((tabs) => tabs.map((tab) => tab.dataset.terminalId));
+            const owned = new Set(await terminalIds(page));
+            return tabbed.filter((id) => id === undefined || !owned.has(id));
+        })
+        .toEqual([]);
+}
+
+async function sessionStateOf(page: Page): Promise<unknown> {
+    const bootstrap = await pageRequest<{
+        selectedSessionId?: string;
+        sessionStates: Array<{ sessionId: string }>;
+    }>(page, 'app.bootstrap');
+    return bootstrap.sessionStates.find(
+        (candidate) => candidate.sessionId === bootstrap.selectedSessionId,
+    );
+}
+
+/**
+ * The Session state the selected Session currently holds, asserted to still carry `terminalId` so the caller cannot
+ * silently capture a layout that never contained the Terminal whose removal it is about to race.
+ */
+async function sessionStateCarrying(page: Page, terminalId: string): Promise<unknown> {
+    const state = await sessionStateOf(page);
+    expect(JSON.stringify(state)).toContain(terminalId);
+    return state;
+}
+
 async function removeQuitTestDirectory(path: string): Promise<void> {
     await expect
         .poll(async () => {
@@ -130,6 +169,70 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
             ),
         ).toContainText('AFTER_CLEAR');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * `Cmd+T` immediately followed by `Cmd+W` can send a layout write that still carries the Terminal the very next command
+ * deletes. Whether the two round-trips actually interleave that way depends on machine load — it reproduced on CI's
+ * contended pool and never on an idle laptop — so the interleaving is driven here instead of waited for: the layout
+ * captured while both tabs existed is replayed after the close, which is byte-for-byte the write the losing race
+ * sends.
+ *
+ * Only a real Electron run proves this. The write crosses Renderer, Host, and Runtime, each of which carries part of
+ * the fix, and unit coverage of any one layer stays green while another regresses.
+ */
+test('a Terminal closed while its layout write was in flight leaves no tab behind', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-close-race-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        const tabs = running.page.locator('.work-tab[data-terminal-id]');
+        await expect(tabs).toHaveCount(1);
+        const firstTerminalId = (await terminalIds(running.page))[0];
+
+        await pressNewTerminal(running.page);
+        const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
+        await expect(tabs).toHaveCount(2);
+        const staleState = await sessionStateCarrying(running.page, secondTerminalId);
+
+        await expect(
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${secondTerminalId}"] .terminal-surface[data-terminal-attached="true"]`,
+            ),
+        ).toBeVisible();
+        await running.page.keyboard.press('Meta+W');
+        await expect(tabs).toHaveCount(1);
+
+        // The write the slower Renderer would still be sending. A client layout is a view preference, never authority
+        // over which Terminals exist, so this must not bring the closed Terminal's tab back.
+        await pageRequest(running.page, 'session.updateState', staleState);
+        await expect(tabs).toHaveCount(1);
+        await expectNoOrphanTabs(running.page);
+        // The Renderer declines to render a tab whose Terminal is gone, so the layout the Runtime actually stored is
+        // what has to be inspected: a resurrected placement is invisible until the next reload replays it.
+        await expect
+            .poll(async () =>
+                JSON.stringify(await sessionStateOf(running.page)).includes(secondTerminalId),
+            )
+            .toBe(false);
+
+        // The layout the Runtime persisted is what a reload replays; an orphan tab that only lived in Renderer state
+        // would disappear here and hide the defect.
+        await running.page.reload();
+        await expect(tabs).toHaveCount(1);
+        await expectNoOrphanTabs(running.page);
     } finally {
         try {
             await running.app.close();
