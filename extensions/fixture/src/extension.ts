@@ -4,7 +4,8 @@ import type { CancellationToken, ExtensionContext, TreeDataProvider } from 'caxr
 import caxri, { EventEmitter, ThemeIcon, TreeItem, TreeItemCollapsibleState } from 'caxri';
 
 interface FixtureNode {
-    kind: 'branch' | 'leaf' | 'throw' | 'timeout' | 'overflow';
+    id?: string;
+    kind: 'branch' | 'command' | 'empty' | 'leaf' | 'overflow' | 'throw' | 'timeout';
     label: string;
     depth?: number;
 }
@@ -24,6 +25,9 @@ function cancellableDelay(milliseconds: number, token: CancellationToken): Promi
 class FixtureProvider implements TreeDataProvider<FixtureNode> {
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
     private readonly changed = new EventEmitter<FixtureNode | readonly FixtureNode[] | undefined>();
+    private commandCount = 0;
+    private target?: FixtureNode;
+    private targetVersion = 0;
     readonly onDidChangeTreeData = this.changed.event;
 
     async getChildren(
@@ -32,10 +36,16 @@ class FixtureProvider implements TreeDataProvider<FixtureNode> {
     ): Promise<readonly FixtureNode[]> {
         if (!element) {
             await cancellableDelay(180, token);
+            this.target = { kind: 'branch', label: 'Targeted refresh' };
             return token.isCancellationRequested
                 ? []
                 : [
                       { kind: 'branch', label: 'Lazy children' },
+                      { kind: 'branch', label: 'Provider expanded' },
+                      this.target,
+                      { kind: 'empty', label: 'Empty children' },
+                      { kind: 'leaf', label: 'Tooltip row' },
+                      { kind: 'command', label: `Command count: ${this.commandCount}` },
                       { kind: 'branch', label: 'Deep tree', depth: 0 },
                       { kind: 'throw', label: 'Provider error' },
                       { kind: 'timeout', label: 'Provider timeout' },
@@ -57,6 +67,17 @@ class FixtureProvider implements TreeDataProvider<FixtureNode> {
                 label: `Overflow ${index}`,
             }));
         }
+        if (element.kind === 'empty') return [];
+        if (element.label === 'Provider expanded')
+            return [{ kind: 'leaf', label: 'Expanded child' }];
+        if (element.label === 'Targeted refresh')
+            return [
+                {
+                    id: 'target-child',
+                    kind: 'leaf',
+                    label: `Target child ${this.targetVersion}`,
+                },
+            ];
         if (element.label === 'Lazy children') {
             await cancellableDelay(180, token);
             return token.isCancellationRequested
@@ -76,19 +97,46 @@ class FixtureProvider implements TreeDataProvider<FixtureNode> {
     }
 
     getTreeItem(element: FixtureNode): TreeItem {
-        const isCollapsible = ['branch', 'throw', 'timeout', 'overflow'].includes(element.kind);
+        const isCollapsible = ['branch', 'empty', 'throw', 'timeout', 'overflow'].includes(
+            element.kind,
+        );
         const item = new TreeItem(
             element.label,
-            isCollapsible ? TreeItemCollapsibleState.Collapsed : TreeItemCollapsibleState.None,
+            element.label === 'Provider expanded'
+                ? TreeItemCollapsibleState.Expanded
+                : isCollapsible
+                  ? TreeItemCollapsibleState.Collapsed
+                  : TreeItemCollapsibleState.None,
         );
-        item.id = `${element.kind}:${element.depth ?? 0}:${element.label}`;
+        item.id =
+            element.id ??
+            (element.kind === 'command'
+                ? 'command-counter'
+                : `${element.kind}:${element.depth ?? 0}:${element.label}`);
         item.iconPath = new ThemeIcon(isCollapsible ? 'folder' : 'symbol-string');
         item.accessibilityInformation = { label: element.label };
+        if (element.label === 'Tooltip row') {
+            item.description = 'A long fixture description';
+            item.tooltip = 'Full fixture tooltip';
+        }
+        if (element.kind === 'command')
+            item.command = { command: 'caxri.fixture.increment', title: 'Increment counter' };
         return item;
     }
 
     refresh(): void {
         this.changed.fire(undefined);
+    }
+
+    refreshTarget(): void {
+        if (!this.target) return;
+        this.targetVersion += 1;
+        this.changed.fire(this.target);
+    }
+
+    increment(): void {
+        this.commandCount += 1;
+        this.refresh();
     }
 }
 
@@ -97,6 +145,10 @@ export function activate(context: ExtensionContext): void {
     context.subscriptions.push(
         caxri.views.registerTreeDataProvider('caxri.fixture.tree', provider),
         caxri.commands.registerCommand('caxri.fixture.refresh', () => provider.refresh()),
+        caxri.commands.registerCommand('caxri.fixture.refreshTarget', () =>
+            provider.refreshTarget(),
+        ),
+        caxri.commands.registerCommand('caxri.fixture.increment', () => provider.increment()),
         caxri.commands.registerCommand('caxri.fixture.crashHost', () => {
             // eslint-disable-next-line unicorn/no-process-exit -- This fixture command intentionally terminates the Extension Host for recovery coverage.
             process.exit(86);

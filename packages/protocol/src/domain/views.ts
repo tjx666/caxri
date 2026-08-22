@@ -4,6 +4,8 @@ export const MAX_VIEW_TREE_ITEMS = 1_000;
 export const MAX_VIEW_TREE_PAYLOAD_BYTES = 256 * 1024;
 export const MAX_VIEW_TREE_DEPTH = 64;
 export const MAX_VIEW_TREE_HANDLES = 10_000;
+export const MAX_VIEW_TREE_PERSISTED_IDS = 1_000;
+export const MAX_EXTENSION_TREE_VIEW_STATES = 64;
 export const MAX_EXTENSION_COMMAND_ARGUMENTS = 32;
 export const MAX_VIEW_ICON_DATA_URL_LENGTH = 128 * 1024;
 export const MAX_VIEW_CATALOG_CONTAINERS = 256;
@@ -140,8 +142,11 @@ export const treeItemCommandSchema = z.object({
     arguments: z.array(z.unknown()).max(MAX_EXTENSION_COMMAND_ARGUMENTS).optional(),
 });
 
+export const treeItemIdSchema = z.string().min(1).max(480);
+
 export const treeItemSchema = z.object({
     handle: z.string().min(1).max(512),
+    id: treeItemIdSchema.optional(),
     label: z.string().min(1).max(1_024),
     description: z.string().max(1_024).optional(),
     tooltip: z.string().max(4_096).optional(),
@@ -150,6 +155,19 @@ export const treeItemSchema = z.object({
     icon: viewIconSchema.optional(),
     command: treeItemCommandSchema.optional(),
 });
+
+export const extensionTreeViewStateSchema = z.object({
+    expandedItemIds: z.array(treeItemIdSchema).max(MAX_VIEW_TREE_PERSISTED_IDS),
+    initializedItemIds: z.array(treeItemIdSchema).max(MAX_VIEW_TREE_PERSISTED_IDS),
+    focusedItemId: treeItemIdSchema.optional(),
+});
+
+export const extensionTreeViewStatesSchema = z
+    .record(viewIdSchema, extensionTreeViewStateSchema)
+    .refine(
+        (states) => Object.keys(states).length <= MAX_EXTENSION_TREE_VIEW_STATES,
+        'Too many persisted extension tree views',
+    );
 
 const manifestIconResourcePathSchema = z
     .string()
@@ -230,4 +248,6 @@ export type ContributedCommandDescriptor = z.infer<typeof contributedCommandDesc
 export type ExtensionDescriptor = z.infer<typeof extensionDescriptorSchema>;
 export type ViewCatalogSnapshot = z.infer<typeof viewCatalogSnapshotSchema>;
 export type TreeItemDto = z.infer<typeof treeItemSchema>;
+export type ExtensionTreeViewState = z.infer<typeof extensionTreeViewStateSchema>;
+export type ExtensionTreeViewStates = z.infer<typeof extensionTreeViewStatesSchema>;
 export type ExtensionManifest = z.infer<typeof extensionManifestSchema>;

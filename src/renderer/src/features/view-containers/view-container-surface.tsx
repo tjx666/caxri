@@ -133,6 +133,7 @@ export function ViewContainerSurface({
                         {isActive && container.error ? (
                             <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted">
                                 <AlertTriangle className="text-danger" size={18} />
+                                <p className="font-medium text-foreground">Extension unavailable</p>
                                 <p>{container.error.message}</p>
                                 {container.source.kind === 'extension' && (
                                     <Button

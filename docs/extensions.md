@@ -116,9 +116,19 @@ explicit user selection updates desired state.
 ## Tree RPC
 
 Extension element type `T` never leaves the Extension Host. The process boundary carries
-generation-scoped opaque handles and validated `TreeItemDTO` values. The shared Renderer owns
-virtualization, ThemeIcon rendering, roving focus, arrow/Home/End navigation, expansion, loading and
-local retry rows, and ARIA tree semantics.
+opaque handles and validated `TreeItemDTO` values. An explicit `TreeItem.id` is unique within its
+View and produces stable identity when a provider rebuilds element objects or the Extension Host
+restarts. Duplicate IDs fail the affected provider branch. Items without an ID retain only a
+generation-local object handle and have no cross-refresh persistence guarantee. Replacing a parent
+retires its removed descendants before the bounded handle capacity is evaluated.
+
+The shared Renderer owns virtualization, ThemeIcon rendering, roving focus, arrow/Home/End
+navigation, expansion, loading/empty/provider-error rows, local Retry, tooltip presentation, and
+ARIA tree semantics. Provider `Expanded` is applied only the first time a logical item appears;
+later user expansion wins. Bounded stable-ID expansion and focus state is stored in the existing
+Session/Workbench-Root JSON per View, so it survives root/target refresh and restart without leaking
+to another Session. Pointer and keyboard actions share one dispatch gate: Chromium's
+click-click-double-click sequence cannot execute a leaf command more than once.
 
 Tree requests have bounded item count, payload size, handle count, depth, concurrency, and timeout.
 Cancellation reaches the provider token. A cancelled or stale request cannot commit handles or
@@ -147,5 +157,6 @@ present, are discovered from `<userData>/extensions` after bundled identities.
 
 Focused validation lives in the API, protocol, discovery, catalog, supervisor, API factory,
 persistence, bundle-contract, and Renderer resolution tests. `e2e/extensions.e2e.ts` exercises lazy
-tree activation, keyboard/virtualized interaction, provider errors, crash recovery, Terminal
-survival, and desired-ID removal/restoration on the real Electron surface.
+and provider-owned expansion, stable state across targeted and root refresh/restart, Session
+isolation, tooltip/empty/error states, exactly-once pointer and keyboard commands, virtualization,
+crash recovery, Terminal survival, and desired-ID removal/restoration on the real Electron surface.

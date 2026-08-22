@@ -48,6 +48,14 @@
                 "title": "Refresh Extension Fixture"
             },
             {
+                "command": "caxri.fixture.refreshTarget",
+                "title": "Refresh Extension Fixture Target"
+            },
+            {
+                "command": "caxri.fixture.increment",
+                "title": "Increment Extension Fixture Counter"
+            },
+            {
                 "command": "caxri.fixture.crashHost",
                 "title": "Crash Extension Host"
             }
