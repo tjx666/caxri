@@ -1,9 +1,7 @@
 import { join } from 'node:path';
 
-import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { CaxriError } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 import type { ProcessExplorerSnapshot } from '../shared/process-explorer';
@@ -15,7 +13,10 @@ import type { ThemeTokens } from '../shared/types';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import type { ProcessExplorerSampler } from './process-explorer';
-import { resolveRendererEntryUrl } from './renderer-entry';
+import {
+    assertTrustedProcessExplorerSender,
+    resolveProcessExplorerRendererUrl,
+} from './process-explorer-window-helpers';
 import type { E2EWindowMode } from './window-mode';
 
 interface ProcessExplorerWindowOptions {
@@ -38,26 +39,6 @@ export class ProcessExplorerWindowController {
 
     constructor(private readonly options: ProcessExplorerWindowOptions) {}
 
-    private resolveRendererUrl(): string {
-        const rendererUrl = new URL(
-            resolveRendererEntryUrl({
-                currentDirectory: this.options.currentDirectory,
-                isPackaged: this.options.isPackaged,
-                page: 'process-explorer.html',
-                rendererUrl: this.options.rendererUrl,
-            }),
-        );
-        if (this.options.forceRenderError)
-            rendererUrl.searchParams.set('caxri-test-render-error', '1');
-        return rendererUrl.href;
-    }
-
-    private assertSender(event: IpcMainInvokeEvent): void {
-        if (!this.window || event.sender !== this.window.webContents) {
-            throw new CaxriError('PATH_DENIED', 'Untrusted Process Explorer IPC sender');
-        }
-    }
-
     installIpc(): void {
         ipcMain.on(RENDERER_ERROR_CHANNELS.processExplorer, (event, rawKind: unknown) => {
             if (!this.window || event.sender !== this.window.webContents) return;
@@ -78,7 +59,7 @@ export class ProcessExplorerWindowController {
         ipcMain.handle(
             PROCESS_EXPLORER_CHANNELS.snapshot,
             async (event): Promise<ProcessExplorerSnapshot> => {
-                this.assertSender(event);
+                assertTrustedProcessExplorerSender(this.window?.webContents, event.sender);
                 const startedAt = performance.now();
                 const snapshot = processExplorerSnapshotSchema.parse(
                     await this.options.sampler.snapshot(),
@@ -91,7 +72,7 @@ export class ProcessExplorerWindowController {
             },
         );
         ipcMain.handle(PROCESS_EXPLORER_CHANNELS.theme, (event) => {
-            this.assertSender(event);
+            assertTrustedProcessExplorerSender(this.window?.webContents, event.sender);
             return this.options.theme();
         });
     }
@@ -115,7 +96,7 @@ export class ProcessExplorerWindowController {
             }
             return;
         }
-        const rendererUrl = this.resolveRendererUrl();
+        const rendererUrl = resolveProcessExplorerRendererUrl(this.options);
         const window = new BrowserWindow({
             width: 1_280,
             height: 760,
