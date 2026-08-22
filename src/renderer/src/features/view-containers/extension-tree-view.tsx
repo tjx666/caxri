@@ -211,7 +211,9 @@ export function ExtensionTreeView({ viewId }: { viewId: string }) {
         },
         [viewId],
     );
-    loadChildrenReference.current = loadChildren;
+    useEffect(() => {
+        loadChildrenReference.current = loadChildren;
+    }, [loadChildren]);
 
     useEffect(() => {
         // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
