@@ -16,6 +16,7 @@ import { isClipboardTextEqual } from './support/clipboard.ts';
 import type { Locator, Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { readFileForPoll } from './support/result-file-polling.ts';
 
 /**
  * Context menu items now carry a visible live-keybinding hint (`ContextMenuItem`'s `hint` prop, see
@@ -26,15 +27,6 @@ import { createProjectSession, launchCaxri, pageRequest } from './support/helper
  */
 function exactMenuItem(page: Page, label: string): Locator {
     return page.getByRole('menuitem').filter({ has: page.getByText(label, { exact: true }) });
-}
-
-async function readExpectedFile(path: string): Promise<string | undefined> {
-    try {
-        return await readFile(path, 'utf8');
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-        throw error;
-    }
 }
 
 async function injectTransientFileAbsence(path: string): Promise<{ restored: Promise<void> }> {
@@ -209,13 +201,15 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         const copiedDraft = join(destination, 'draft.txt');
         let restoreDraft: Promise<void> | undefined;
         if (process.env.CAXRI_CI_PARITY_CASE === 'transient-enoent') {
-            await expect.poll(() => readExpectedFile(copiedDraft)).toBe('draft\n');
+            await expect
+                .poll(() => readFileForPoll(() => readFile(copiedDraft, 'utf8')))
+                .toBe('draft\n');
             restoreDraft = (await injectTransientFileAbsence(copiedDraft)).restored;
         }
         let isObservedTransientAbsence = false;
         await expect
             .poll(async () => {
-                const contents = await readExpectedFile(copiedDraft);
+                const contents = await readFileForPoll(() => readFile(copiedDraft, 'utf8'));
                 if (contents === undefined) isObservedTransientAbsence = true;
                 return contents;
             })

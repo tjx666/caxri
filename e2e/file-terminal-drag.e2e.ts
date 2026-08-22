@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Locator } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { readFileForPoll } from './support/result-file-polling.ts';
 
 function quoteShellPath(path: string): string {
     return `'${path.replaceAll("'", String.raw`'\''`)}'`;
@@ -49,7 +50,7 @@ test('Files entries dragged to Terminal insert shell-safe paths without opening 
         await expect(terminalInput).toBeFocused();
         await running.page.keyboard.type(` > ${quoteShellPath(fileResult)}`);
         await running.page.keyboard.press('Enter');
-        await expect.poll(() => readFile(fileResult, 'utf8')).toBe(filePath);
+        await expect.poll(() => readFileForPoll(() => readFile(fileResult, 'utf8'))).toBe(filePath);
 
         const folderResult = join(root, '.folder-drop-result');
         await running.page.keyboard.type("printf '%s' ");
@@ -60,7 +61,9 @@ test('Files entries dragged to Terminal insert shell-safe paths without opening 
         await expectMissing(folderResult);
         await running.page.keyboard.type(` > ${quoteShellPath(folderResult)}`);
         await running.page.keyboard.press('Enter');
-        await expect.poll(() => readFile(folderResult, 'utf8')).toBe(folderPath);
+        await expect
+            .poll(() => readFileForPoll(() => readFile(folderResult, 'utf8')))
+            .toBe(folderPath);
 
         await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
         await expect(running.page.locator('.terminal-group')).toHaveCount(1);
