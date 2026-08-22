@@ -1,3 +1,4 @@
+import { createPaneLayout } from '@shared/pane-layout';
 import type { BootstrapState, TerminalRecord } from '@shared/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -36,6 +37,7 @@ vi.mock('../../../stores/workbench', () => ({
 import {
     clearActiveTerminal,
     copyActiveTerminalSelection,
+    createTerminal,
     didPasteIntoTerminal,
     focusTerminalById,
     hasActiveTerminalSelection,
@@ -290,6 +292,40 @@ describe('focus handler registration contract', () => {
         expect(firstHandler).not.toHaveBeenCalled();
         expect(secondHandler).toHaveBeenCalledTimes(1);
         unregisterSecond();
+    });
+});
+
+describe('createTerminal', () => {
+    function stubSessionState(): void {
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
+        mocks.getSessionState.mockReturnValue({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            paneLayout: createPaneLayout(),
+        });
+        mocks.caxriRequest.mockResolvedValue(terminalFixture({ id: 'terminal-new' }));
+    }
+
+    it('places the new Terminal into the layout once it exists', async () => {
+        stubSessionState();
+        mocks.getBootstrap.mockReturnValue(bootstrapWith(terminalFixture({ id: 'terminal-new' })));
+
+        await createTerminal();
+
+        expect(mocks.patchSessionState).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * `Cmd+T` then `Cmd+W`: the close lands while `createTerminal` is still awaiting its refresh, so the Terminal is
+     * already gone by the time the placement would run. Writing the tab back would strand a blank pane.
+     */
+    it('opens no tab for a Terminal that was closed before the refresh returned', async () => {
+        stubSessionState();
+        mocks.getBootstrap.mockReturnValue(bootstrapWith(terminalFixture({ id: 'terminal-1' })));
+
+        await createTerminal();
+
+        expect(mocks.patchSessionState).not.toHaveBeenCalled();
     });
 });
 

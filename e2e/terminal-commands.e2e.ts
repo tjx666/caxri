@@ -9,6 +9,7 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
+    pressNewTerminal,
     selectedSessionId,
     sessionCard,
     splitTerminalToRight,
@@ -126,7 +127,7 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
         await running.page.keyboard.press('Meta+Shift+ArrowDown');
         await expect(visibleRows).toContainText('COMMAND_NAV_120');
 
-        await running.page.getByRole('button', { name: 'New Terminal', exact: true }).click();
+        await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(terminalSurface(running.page, firstTerminalId)).toBeVisible();

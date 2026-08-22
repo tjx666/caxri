@@ -1,11 +1,12 @@
 import type { DragEvent, KeyboardEvent, ReactElement, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { ProcessState } from '@shared/types';
 import { X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
+import { useIsOverflowing } from '@/hooks/use-is-overflowing';
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
 import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
@@ -24,19 +25,25 @@ const processIndicatorClassName =
  * Wraps the tab in the shared `Tooltip` only when there is an untruncated title to reveal, so an Editor tab keeps its
  * current tooltip-free behavior. The tooltip hangs off the `role="tab"` button rather than the label span because that
  * is the focusable element — a native `title` attribute would be pointer-only.
+ *
+ * `disabled` (rather than unmounting the wrapper) is what suppresses a redundant tooltip: Base UI's trigger owns the
+ * tab's DOM `id` whenever this wrapper renders, so mounting and unmounting it as the label's measured overflow changes
+ * would make that id blink in and out from under `aria-controls` and roving focus.
  */
 function MaybeTooltip({
     children,
     content,
+    disabled,
     triggerId,
 }: {
     children: ReactElement;
     content?: string;
+    disabled?: boolean;
     triggerId?: string;
 }) {
     if (!content) return children;
     return (
-        <Tooltip content={content} triggerId={triggerId}>
+        <Tooltip content={content} disabled={disabled} triggerId={triggerId}>
             {children}
         </Tooltip>
     );
@@ -71,6 +78,12 @@ interface WorkTabProperties {
     labelTooltip?: string;
     keepLabelAsAccessibleName?: boolean;
     motionIdentity?: string;
+    /**
+     * Whether the active tab wears its accent bar. A lone tab in the whole Workbench has no sibling to be distinguished
+     * from, so the bar would be marking a choice the user never made; the active pane's own accent ring (`PaneBox`)
+     * already says where focus is. Mirrors iTerm2, which hides its tab chrome at one tab.
+     */
+    showActiveAccent?: boolean;
     preview?: boolean;
     status?: ProcessState;
     /**
@@ -128,6 +141,7 @@ export function WorkTab({
     labelTooltip,
     keepLabelAsAccessibleName = false,
     motionIdentity,
+    showActiveAccent = true,
     preview = false,
     status,
     statusActivity,
@@ -168,6 +182,15 @@ export function WorkTab({
      */
     const isLabelAbbreviated =
         Boolean(labelTooltip) && labelTooltip !== label && !keepLabelAsAccessibleName;
+    const labelReference = useRef<HTMLSpanElement>(null);
+    const isLabelClipped = useIsOverflowing(labelReference, label);
+    /**
+     * A tooltip that reproduces the label verbatim tells the user nothing they cannot already read — the common case
+     * for a Terminal whose title needed no compression. It stays suppressed until the label is actually clipped; a
+     * tooltip carrying _different_ text (a compressed Terminal title, a Document's full path) is always worth
+     * offering.
+     */
+    const isTooltipRedundant = labelTooltip === label && !isLabelClipped;
     /**
      * Spread rather than written inline because the key has to be _absent_, not `undefined`, whenever the tooltip owns
      * it: Base UI merges the rendered element's own props last, so `id={undefined}` erases the trigger id it writes and
@@ -207,7 +230,10 @@ export function WorkTab({
                       'flex-none',
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
-                    "active bg-background text-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-[''] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
+                    "active bg-background text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
+                isVisuallyActive &&
+                    showActiveAccent &&
+                    "before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-['']",
             )}
             data-pane-tab-id={paneTabId}
             data-terminal-id={terminalId}
@@ -247,7 +273,11 @@ export function WorkTab({
                 transition: { duration: exitDuration, ease: 'easeIn' },
             }}
         >
-            <MaybeTooltip content={labelTooltip} triggerId={isPresent ? tabId : undefined}>
+            <MaybeTooltip
+                content={labelTooltip}
+                disabled={isTooltipRedundant}
+                triggerId={isPresent ? tabId : undefined}
+            >
                 <button
                     {...tabIdProperty}
                     type="button"
@@ -267,6 +297,7 @@ export function WorkTab({
                         <AgentIdentityIcon identity={icon} size={13} />
                     )}
                     <span
+                        ref={labelReference}
                         // Hiding visible text is normally wrong, but here the sr-only sibling carries the
                         // same string in full, so the accessible name gains the elided part instead of
                         // losing anything — and the badge in `accessory` still contributes to it.

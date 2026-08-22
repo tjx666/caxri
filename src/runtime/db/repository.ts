@@ -236,6 +236,8 @@ export class CaxriDatabase {
                     decision.sessionPatch.lastActivityState,
                     decision.sessionPatch.attentionKind,
                 );
+            if (decision.terminalTitle !== undefined)
+                this.db.terminals.setTitle(terminal.id, decision.terminalTitle);
             this.db.terminals.updateAgentSessionId(terminal.id, decision.agentSessionId);
             return true;
         });
@@ -333,6 +335,8 @@ export class CaxriDatabase {
                     decision.sessionPatch.lastActivityState,
                     decision.sessionPatch.attentionKind,
                 );
+            if (decision.terminalTitle !== undefined)
+                this.db.terminals.setTitle(promoted.id, decision.terminalTitle);
             this.db.terminals.updateAgentSessionId(promoted.id, decision.agentSessionId);
             return true;
         });
@@ -394,12 +398,17 @@ export class CaxriDatabase {
 
     /**
      * Clears the previous process binding so a restarted Agent cannot inherit its old session.
+     *
+     * The tab title is part of that binding now that it carries the Agent's conversation name: leaving it in place
+     * would show the retired conversation's name against a brand new one until the first probe of the replacement
+     * happens to report a title of its own — and forever if it never does.
      */
     resetAgentMetadataForStart(terminalId: string, startedAt = Date.now()): void {
         this.db.transaction(() => {
             const terminal = this.db.terminals.get(terminalId);
             if (!terminal?.provider) return;
             this.db.terminals.updateAgentSessionId(terminalId, undefined, startedAt);
+            this.db.terminals.setTitle(terminalId, defaultTerminalTitle(terminal.kind), startedAt);
             const session = this.db.sessions.get(terminal.sessionId);
             if (session?.primaryAgentTerminalId === terminalId) {
                 this.db.sessions.setDisplayTitleAndActivity(

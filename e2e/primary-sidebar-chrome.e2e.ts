@@ -12,6 +12,7 @@ import {
     createProjectSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     selectedSessionId,
     sessionCard,
     waitForRuntimeReady,
@@ -468,6 +469,11 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         const strip = running.page.locator('.work-tabs');
         const tab = strip.locator('.work-tab').last();
         const actions = strip.locator('.tab-actions');
+        // The bar drops its "+" chrome entirely while the Workbench holds a single tab, so the geometry this test is
+        // about only exists once a second tab makes the button meaningful.
+        await expect(actions).toHaveCount(0);
+        await pressNewTerminal(running.page);
+        await expect(strip.locator('.work-tab')).toHaveCount(2);
         const metrics = await Promise.all([
             strip.evaluate((element) => ({
                 region: getComputedStyle(element).getPropertyValue('-webkit-app-region'),
@@ -504,8 +510,6 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
 
         // Terminal tabs divide the rail evenly (iTerm2/Chrome), so a tab's position depends on the tab
         // count alone and Command+1..9 keeps a stable spatial meaning.
-        await running.page.getByRole('button', { name: 'New Terminal' }).click();
-        await expect(strip.locator('.work-tab')).toHaveCount(2);
         await expect
             .poll(async () =>
                 strip.evaluate((element) => {
@@ -548,20 +552,17 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         assertAligned(await alignedBottoms('.primary-sidebar-title', '.work-tabs'));
         await running.page.keyboard.press('Meta+]');
 
-        // A Terminal tab renders a title compressed to fit; the untruncated one has to stay reachable,
-        // and a native `title` attribute would be pointer-only.
+        // A tab whose title fits offers no tooltip: repeating a label the user can already read is noise. The
+        // reveal-on-clip half of this rule is covered in `work-tab-sizing.e2e.ts`, where enough tabs squeeze
+        // every label past its box.
         const terminalTab = strip.locator('.work-tab[data-terminal-id] .tab-select').first();
-        const fullTitle = await terminalTab.evaluate(
-            (element) =>
-                // The sr-only sibling exists only when the label was compressed; otherwise the two agree.
-                element.querySelector('.sr-only')?.textContent ??
-                element.querySelector('.tab-label')?.textContent ??
-                '',
-        );
-        expect(fullTitle.length).toBeGreaterThan(0);
+        const isLabelClipped = await terminalTab
+            .locator('.tab-label')
+            .evaluate((element) => element.scrollWidth > element.clientWidth);
+        expect(isLabelClipped).toBe(false);
         await terminalTab.hover();
         // `[data-open]` because a previously shown tooltip stays mounted through its exit animation.
-        await expect(running.page.locator('.tooltip-popup[data-open]')).toContainText(fullTitle);
+        await expect(running.page.locator('.tooltip-popup[data-open]')).toHaveCount(0);
         await running.page.mouse.move(0, 300);
 
         const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });

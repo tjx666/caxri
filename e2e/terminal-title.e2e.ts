@@ -32,13 +32,20 @@ test('a PTY window title reaches the tab label and survives a Renderer reload', 
         await typeTerminal(running.page, osc0('caxri-title-probe'));
         await expect(tabLabel).toHaveText('caxri-title-probe');
         await expect(tab).toHaveAccessibleName('caxri-title-probe');
-        await tab.hover();
-        await expect(running.page.locator('.tooltip-popup')).toHaveText('caxri-title-probe');
         await expect(terminalRegion).toBeVisible();
 
         // Persisted in `terminals.pty_title`, not held in Renderer state: a reload has to bring it back.
         await running.page.reload();
         await expect(tabLabel).toHaveText('caxri-title-probe');
+
+        // A prompt-shaped title is compressed down to its identifying tail for the narrow tab, so the untouched
+        // original has to stay reachable as the tooltip. A title the label shows in full offers no tooltip at all.
+        await typeTerminal(running.page, osc0('tj@probe:~/code/caxri-worktrees/feat-title'));
+        await expect(tabLabel).toHaveText('~/…/feat-title');
+        await tab.hover();
+        await expect(running.page.locator('.tooltip-popup[data-open]')).toHaveText(
+            'tj@probe:~/code/caxri-worktrees/feat-title',
+        );
 
         // Untrusted PTY output: control characters must never reach the label, and an empty payload
         // leaves the previous title in place rather than blanking the tab.

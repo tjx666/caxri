@@ -8,6 +8,7 @@ import type {
     SessionState,
     TerminalRecord,
 } from '@shared/types';
+import { isEqual } from 'es-toolkit';
 import { create } from 'zustand';
 
 import {
@@ -152,9 +153,14 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 pendingSessionPatches.delete(patchKey);
         };
         try {
-            await caxri.request('session.updateState', next);
-            if (pendingSessionPatches.get(patchKey)?.revision === revision)
-                persistedSessionPatches.set(patchKey, { sendStamp, state: next });
+            const settled = settledSessionState(
+                next,
+                await caxri.request('session.updateState', next),
+            );
+            if (pendingSessionPatches.get(patchKey)?.revision === revision) {
+                persistedSessionPatches.set(patchKey, { sendStamp, state: settled });
+                if (settled !== next) applySettledSessionState(settled);
+            }
             finish();
             return true;
         } catch (error: unknown) {
@@ -200,6 +206,47 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         }
     },
 }));
+
+/**
+ * What the Workbench must show once `session.updateState` resolves.
+ *
+ * The Runtime answers with the state it actually stored, which can differ from what was sent: a layout that still
+ * carried a Terminal closed while this write was being assembled comes back pruned. Showing the answer rather than the
+ * optimistic copy is what stops that tab from lingering as a blank pane, because {@link persistedSessionPatches} would
+ * otherwise re-apply the stale layout over every later snapshot.
+ *
+ * The answer is treated as untrusted input for the same reason snapshots are: a write that the Runtime confirmed must
+ * never be rolled back, or reported as failed, merely because its response body could not be read.
+ */
+function settledSessionState(sent: SessionState, answer: unknown): SessionState {
+    const stored = answer as SessionState | undefined;
+    if (
+        stored?.sessionId !== sent.sessionId ||
+        stored.workbenchProjectId !== sent.workbenchProjectId
+    )
+        return sent;
+    return isEqual(stored.paneLayout, sent.paneLayout) ? sent : stored;
+}
+
+/**
+ * Replaces one Session's visible state with the Runtime's canonical answer to a layout write.
+ */
+function applySettledSessionState(settled: SessionState): void {
+    useWorkbenchStore.setState((current) => {
+        if (!current.bootstrap) return current;
+        return {
+            bootstrap: {
+                ...current.bootstrap,
+                sessionStates: current.bootstrap.sessionStates.map((state) =>
+                    state.sessionId === settled.sessionId &&
+                    state.workbenchProjectId === settled.workbenchProjectId
+                        ? settled
+                        : state,
+                ),
+            },
+        };
+    });
+}
 
 /**
  * A bootstrap read started before `session.updateState` can resolve after the optimistic Renderer write. Preserve the

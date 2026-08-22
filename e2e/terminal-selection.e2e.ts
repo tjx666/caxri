@@ -10,6 +10,7 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     splitTerminalToRight,
     waitForNewTerminalId,
 } from './support/helpers.ts';
@@ -183,7 +184,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         await firstInput.press('Meta+C');
         await expect.poll(() => isClipboardTextEqual(running.app, 'KEEP_ON_EMPTY')).toBe(true);
 
-        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await typeInTerminal(running.page, secondTerminalId, splitOutput);

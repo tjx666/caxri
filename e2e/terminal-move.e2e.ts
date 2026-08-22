@@ -10,6 +10,7 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     sessionCard,
     waitForNewTerminalId,
 } from './support/helpers.ts';
@@ -69,7 +70,7 @@ test('Move to New Session keeps the live Terminal and disables the only-tab acti
         expect(afterDisabledActivation.terminals).toEqual(initial.terminals);
         await running.page.keyboard.press('Escape');
 
-        await running.page.getByRole('button', { name: 'New Terminal' }).click();
+        await pressNewTerminal(running.page);
         const movedTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         const beforeMove = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         const movedBefore = beforeMove.terminals.find(({ id }) => id === movedTerminalId);
