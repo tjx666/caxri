@@ -225,21 +225,20 @@ test('dragging a work tab over a sibling shows an insertion-line indicator and p
         // trigger both the insertion-line indicator and the delayed preview switch.
         const source = documentTabs.filter({ hasText: 'c.ts' });
         const target = documentTabs.filter({ hasText: 'a.ts' });
+        await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
+        await expect(target.getByRole('tab')).toHaveAttribute('aria-selected', 'false');
         const sourceButtonId = await source.getByRole('tab').getAttribute('id');
-        const targetButtonId = await target.getByRole('tab').getAttribute('id');
         const targetBounds = await target.evaluate((element) => element.getBoundingClientRect());
-        if (!sourceButtonId || !targetButtonId)
-            throw new Error('Work tab drag fixture is missing an id');
+        if (!sourceButtonId) throw new Error('Work tab drag fixture is missing an id');
+        const dropX = targetBounds.x + targetBounds.width * 0.25;
+        const dropY = targetBounds.y + targetBounds.height / 2;
 
         await running.page.evaluate(
-            ({ sourceButtonId: id, targetButtonId: targetId, dropX, dropY }) => {
+            ({ sourceButtonId: id, dropX, dropY }) => {
                 const sourceButton = document.querySelector(`#${CSS.escape(id)}`);
                 const source = sourceButton?.closest('.work-tab');
-                const targetButton = document.querySelector(`#${CSS.escape(targetId)}`);
-                const target = targetButton?.closest('.work-tab');
                 const bar = document.querySelector('[data-pane-tab-bar]');
-                if (!source || !target || !bar)
-                    throw new Error('Work tab drag preview fixture not found');
+                if (!source || !bar) throw new Error('Work tab drag preview fixture not found');
                 const transfer = new DataTransfer();
                 const options = {
                     bubbles: true,
@@ -249,24 +248,47 @@ test('dragging a work tab over a sibling shows an insertion-line indicator and p
                     dataTransfer: transfer,
                 };
                 source.dispatchEvent(new DragEvent('dragstart', options));
-                // Dispatched on the target tab itself (not the bar) so `event.target` matches what a
-                // real cursor-driven drag would report — the app's hover-preview switch reads it to
-                // resolve which tab is being hovered, mirroring `dropEdge` in `use-project-order.ts`.
-                target.dispatchEvent(new DragEvent('dragenter', options));
-                target.dispatchEvent(new DragEvent('dragover', options));
+                bar.dispatchEvent(new DragEvent('dragenter', options));
+                // Resolved via `elementFromPoint` (not a fixed `.work-tab` reference) so `event.target`
+                // matches what a real cursor-driven drag reports — the app's hover-preview switch reads
+                // it to resolve which tab is hovered, mirroring `dropEdge` in `use-project-order.ts`. This
+                // also means the marker's own `pointer-events-none` is load-bearing here: once it renders
+                // over this point, a later `elementFromPoint` at the same spot must still resolve through
+                // it to the tab underneath, not to the marker.
+                document
+                    .elementFromPoint(dropX, dropY)
+                    ?.dispatchEvent(new DragEvent('dragover', options));
             },
-            {
-                sourceButtonId,
-                targetButtonId,
-                dropX: targetBounds.x + targetBounds.width * 0.25,
-                dropY: targetBounds.y + targetBounds.height / 2,
-            },
+            { sourceButtonId, dropX, dropY },
         );
 
         const marker = running.page.locator('.work-tab-drop-marker');
         await expect(marker).toBeVisible();
         const markerLeft = await marker.evaluate((element) => element.getBoundingClientRect().left);
         expect(Math.abs(markerLeft - targetBounds.x)).toBeLessThanOrEqual(2);
+
+        // A second dragover at the same point, now that the marker overlays it, exercises exactly the
+        // `pointer-events-none` requirement noted above.
+        await running.page.evaluate(
+            ({ dropX, dropY }) => {
+                const transfer = new DataTransfer();
+                document.elementFromPoint(dropX, dropY)?.dispatchEvent(
+                    new DragEvent('dragover', {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: dropX,
+                        clientY: dropY,
+                        dataTransfer: transfer,
+                    }),
+                );
+            },
+            { dropX, dropY },
+        );
+
+        // Still short of the hover-switch delay: the preview must not have fired yet.
+        await running.page.waitForTimeout(200);
+        await expect(target.getByRole('tab')).toHaveAttribute('aria-selected', 'false');
+        await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
 
         await expect(target.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
         await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'false');

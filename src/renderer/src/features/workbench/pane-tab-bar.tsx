@@ -355,12 +355,35 @@ export function PaneTabBar({
     const barReference = useRef<HTMLDivElement>(null);
     const hoverTabIdReference = useRef<string | undefined>(undefined);
     const hoverTimeoutReference = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    /**
+     * `dataTransfer.getData` cannot be read during `dragover` (only `types` is exposed before `drop`), so — mirroring
+     * `draggedProjectId` in `use-project-order.ts` — the id is captured off the bubbled `dragstart` DOM event instead,
+     * which lets `dragover` exclude the dragged tab's own (unmoved) rect from both the insertion-line geometry and the
+     * hover-preview target, the same way `onDrop` below already excludes it from its own rects.
+     */
+    const draggedTabIdReference = useRef<string | undefined>(undefined);
     const clearHoverSwitch = (): void => {
         hoverTabIdReference.current = undefined;
         clearTimeout(hoverTimeoutReference.current);
         hoverTimeoutReference.current = undefined;
     };
-    useEffect(() => clearHoverSwitch, []);
+    useEffect(() => {
+        /**
+         * `dragend` fires on the drag source and only bubbles through its own bar's ancestors, so a drag cancelled
+         * (Escape, dropped outside any bar) while hovering a _different_ pane's bar would otherwise leave that other
+         * bar's indicator and pending hover-switch timer stuck. A window-level listener clears every bar's state.
+         */
+        const onWindowDragEnd = (): void => {
+            setDropIndicatorLeft(undefined);
+            clearHoverSwitch();
+            draggedTabIdReference.current = undefined;
+        };
+        addEventListener('dragend', onWindowDragEnd);
+        return () => {
+            removeEventListener('dragend', onWindowDragEnd);
+            clearHoverSwitch();
+        };
+    }, []);
     const activeTabId =
         pane.tabs.find((tab) => tab.id === pane.activeTabId)?.id ?? pane.tabs[0]?.id;
     /**
@@ -403,6 +426,9 @@ export function PaneTabBar({
                 isDropTarget && 'bg-elevated',
             )}
             data-pane-tab-bar={pane.id}
+            onDragStart={(event) => {
+                draggedTabIdReference.current = paneTabIdAt(event.target);
+            }}
             onDragEnter={(event) => {
                 if (!canAcceptDrop(event)) return;
                 event.preventDefault();
@@ -420,12 +446,14 @@ export function PaneTabBar({
                 event.dataTransfer.dropEffect = 'move';
 
                 const hoveredTabId = paneTabIdAt(event.target);
-                if (hoveredTabId !== hoverTabIdReference.current) {
-                    hoverTabIdReference.current = hoveredTabId;
+                const hoverSwitchTargetId =
+                    hoveredTabId !== draggedTabIdReference.current ? hoveredTabId : undefined;
+                if (hoverSwitchTargetId !== hoverTabIdReference.current) {
+                    hoverTabIdReference.current = hoverSwitchTargetId;
                     clearTimeout(hoverTimeoutReference.current);
-                    hoverTimeoutReference.current = hoveredTabId
+                    hoverTimeoutReference.current = hoverSwitchTargetId
                         ? setTimeout(
-                              () => selectPaneTab(hoveredTabId),
+                              () => selectPaneTab(hoverSwitchTargetId),
                               TAB_DRAG_HOVER_SWITCH_DELAY_MS,
                           )
                         : undefined;
@@ -433,9 +461,13 @@ export function PaneTabBar({
 
                 const scrollElement = barReference.current;
                 if (!scrollElement) return;
-                const tabRects = [
-                    ...scrollElement.querySelectorAll<HTMLElement>('[data-pane-tab-id]'),
-                ].map((element) => element.getBoundingClientRect());
+                const tabElements =
+                    scrollElement.querySelectorAll<HTMLElement>('[data-pane-tab-id]');
+                const tabRects: DOMRect[] = [];
+                for (const element of tabElements) {
+                    if (element.dataset.paneTabId !== draggedTabIdReference.current)
+                        tabRects.push(element.getBoundingClientRect());
+                }
                 if (tabRects.length === 0) return;
                 const index = resolveTabDropIndex(tabRects, event.clientX);
                 const targetRect = index === undefined ? tabRects.at(-1) : tabRects[index];
@@ -448,6 +480,7 @@ export function PaneTabBar({
                 setIsDropTarget(false);
                 setDropIndicatorLeft(undefined);
                 clearHoverSwitch();
+                draggedTabIdReference.current = undefined;
                 const tabId = event.dataTransfer.getData(PANE_TAB_DRAG_TYPE);
                 if (!tabId) return;
                 event.preventDefault();
