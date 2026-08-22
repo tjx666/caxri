@@ -30,6 +30,15 @@ interface MatchingRule {
     pattern: string;
 }
 
+/**
+ * Cursor chrome is provider-owned output syntax. A new provider must explicitly choose a reviewed omission pattern or
+ * `undefined`; it must never inherit Claude Code's matcher.
+ */
+const CURSOR_LINE_OMISSION_PATTERNS: Record<AgentProvider, RegExp | undefined> = {
+    claude: /^[^a-z\d]*cogitated for (?:\d+\s*[hms]\s*)+$/iu,
+    codex: undefined,
+};
+
 function settingsSignature(settings: AgentOutputRecoverySettings): string {
     return JSON.stringify(settings);
 }
@@ -45,10 +54,7 @@ function matchingRule(
      * this narrow, content-free shape may be ignored; dropping an arbitrary cursor line could mistake historical errors
      * for the latest output while an Agent is visibly making progress.
      */
-    if (
-        provider === 'claude' &&
-        /^[^a-z\d]*cogitated for (?:\d+\s*[hms]\s*)+$/iu.test(tail.cursorLine.trim())
-    )
+    if (CURSOR_LINE_OMISSION_PATTERNS[provider]?.test(tail.cursorLine.trim()))
         normalizedTails.push(tail.beforeCursorLine.trimEnd().toLowerCase());
     for (const [index, pattern] of patterns.entries()) {
         const normalizedPattern = pattern.trim().toLowerCase();

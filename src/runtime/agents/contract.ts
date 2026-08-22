@@ -95,6 +95,11 @@ export interface AgentProviderDescriptor {
         environment: AgentEnvironment,
     ): Promise<LocalAgentState | undefined>;
     /**
+     * Structured argv for restoring one provider conversation. This is Runtime launch behavior, not a browser-safe
+     * identity or capability contract.
+     */
+    resumeArguments(agentSessionId: string): string[];
+    /**
      * Derives the absolute path of the provider's on-disk transcript for a bound Agent session. Pure path derivation —
      * no filesystem access; absent when the provider keeps no per-session transcript file.
      */

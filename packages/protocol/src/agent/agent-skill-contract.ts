@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
+import { agentProviderIds } from './agents.js';
 
 const versionSchema = z
     .string()
@@ -8,7 +9,9 @@ const versionSchema = z
     .regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u);
 const contentHashSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 
-export const agentSkillScopeSchema = z.enum(['local', 'global']);
+const agentSkillScopes = ['local', 'global'] as const;
+
+export const agentSkillScopeSchema = z.enum(agentSkillScopes);
 export const agentSkillStatusSchema = z.enum(['compatible', 'conflict', 'missing', 'stale']);
 export const agentSkillReasonSchema = z.enum([
     'foreign-entry',
@@ -58,7 +61,9 @@ export const installedAgentSkillHealthSchema = z.object({
  */
 export const agentSkillHealthSchema = z.object({
     bundled: bundledAgentSkillMetadataSchema,
-    installations: z.array(installedAgentSkillHealthSchema).max(4),
+    installations: z
+        .array(installedAgentSkillHealthSchema)
+        .max(agentProviderIds.length * agentSkillScopes.length),
     selectedProjectId: identifierSchema.optional(),
 });
 

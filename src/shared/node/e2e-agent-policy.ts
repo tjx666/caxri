@@ -209,16 +209,31 @@ export function selectE2EAgentExecutable(
     return policy.provider === provider ? requestedExecutable : undefined;
 }
 
-const REAL_CODEX_ARGUMENT_PREFIX = [
-    'exec',
-    '--sandbox',
-    'read-only',
-    '--skip-git-repo-check',
-    '--ephemeral',
-    '--ignore-rules',
-    '--color',
-    'never',
-] as const;
+interface RealE2EAgentLaunchPolicy {
+    argumentPrefix: readonly string[];
+    executableName: string;
+}
+
+/**
+ * Real-host execution is an explicit safety decision per provider. `null` means fake mode remains the only authorized
+ * test surface; a catalog extension cannot inherit Codex's reviewed arguments by omission.
+ */
+const REAL_E2E_AGENT_LAUNCH_POLICIES: Record<AgentProvider, RealE2EAgentLaunchPolicy | null> = {
+    claude: null,
+    codex: {
+        argumentPrefix: [
+            'exec',
+            '--sandbox',
+            'read-only',
+            '--skip-git-repo-check',
+            '--ephemeral',
+            '--ignore-rules',
+            '--color',
+            'never',
+        ],
+        executableName: agentProviderCatalog.codex.executableName,
+    },
+};
 
 /**
  * Real E2E authority is deliberately narrower than normal provider settings: one ephemeral Codex execution, a read-only
@@ -241,16 +256,17 @@ export function assertE2EAgentLaunch(
         );
     const prompt = launch.args.at(-1);
     const prefix = launch.args.slice(0, -1);
+    const launchPolicy = REAL_E2E_AGENT_LAUNCH_POLICIES[provider];
     // Simple identifier-based conditions are ordered first per unicorn/prefer-simple-condition-first;
     // every branch below is a pure boolean check with no side effects, so reordering is safe.
     if (
-        provider !== 'codex' ||
+        !launchPolicy ||
         !prompt ||
-        launch.executable !== agentProviderCatalog.codex.executableName ||
+        launch.executable !== launchPolicy.executableName ||
         prompt !== prompt.trim() ||
         prompt.length > 200 ||
-        prefix.length !== REAL_CODEX_ARGUMENT_PREFIX.length ||
-        prefix.some((argument, index) => argument !== REAL_CODEX_ARGUMENT_PREFIX[index]) ||
+        prefix.length !== launchPolicy.argumentPrefix.length ||
+        prefix.some((argument, index) => argument !== launchPolicy.argumentPrefix[index]) ||
         /\p{Cc}/u.test(prompt)
     ) {
         throw new CaxriError(

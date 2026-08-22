@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentEndpointBeginParams as AgentEndpointBeginParameters } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
 import { StructuredLogger } from '../../../shared/node/logger';
+import { createPendingAgentAdapters } from '../../__tests__/create-test-runtime';
 import { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';
 import { createRuntime } from '../../bootstrap';
 
@@ -60,14 +61,6 @@ function endpointLifecycle() {
     );
 }
 
-function fakeAgentAdapters() {
-    const pending = new Promise<never>(() => {});
-    return {
-        claude: { provider: 'claude' as const, snapshot: () => pending },
-        codex: { provider: 'codex' as const, snapshot: () => pending },
-    };
-}
-
 afterEach(async () => {
     const directories = [...temporaryDirectories];
     temporaryDirectories.length = 0;
@@ -88,7 +81,7 @@ describe('Agent dispatch Runtime integration', () => {
         });
         const events: string[] = [];
         const runtime = await createRuntime({
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
             agentEndpoints: endpointLifecycle(),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: (event) => {
@@ -164,7 +157,7 @@ describe('Agent dispatch Runtime integration', () => {
         await mkdir(projectRoot);
         const spawned: Array<ReturnType<typeof fakePty>> = [];
         const runtime = await createRuntime({
-            agentAdapters: fakeAgentAdapters(),
+            agentAdapters: createPendingAgentAdapters(),
             agentEndpoints: endpointLifecycle(),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},

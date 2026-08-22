@@ -444,72 +444,88 @@ describe('Runtime composition root', () => {
 });
 
 describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
-    it('resumes a claude Terminal interrupted by an orderly shutdown with its bound Agent session id', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restore-'));
-        temporaryDirectories.push(directory);
-        const userDataPath = join(directory, 'user-data');
-        const projectRoot = join(directory, 'project');
-        await mkdir(projectRoot);
-        const resolveExecutable = () => Promise.resolve('/usr/local/bin/claude');
+    it.each([
+        {
+            provider: 'claude' as const,
+            resumeArguments: ['--resume', 'claude-session-1'],
+            sessionId: 'claude-session-1',
+        },
+        {
+            provider: 'codex' as const,
+            resumeArguments: ['resume', 'codex-session-1'],
+            sessionId: 'codex-session-1',
+        },
+    ])(
+        'resumes an interrupted $provider Terminal with its bound Agent session id',
+        async ({ provider, resumeArguments, sessionId }) => {
+            const directory = await mkdtemp(join(tmpdir(), `caxri-runtime-${provider}-restore-`));
+            temporaryDirectories.push(directory);
+            const userDataPath = join(directory, 'user-data');
+            const projectRoot = join(directory, 'project');
+            await mkdir(projectRoot);
+            const resolveExecutable = () => Promise.resolve(`/usr/local/bin/${provider}`);
 
-        const runtimeA = await createRuntime({
-            userDataPath,
-            logger: new StructuredLogger(join(directory, 'logs-a')),
-            send: () => {},
-            terminal: { resolveExecutable, spawn: () => createFakePty() },
-            agentAdapters: createPendingAgentAdapters(),
-        });
-        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
-        const created = await runtimeA.handlers['session.create']({
-            projectId: project.id,
-            defaultAgent: 'claude',
-        });
-        expect(created.terminal!.provider).toBe('claude');
-        /**
-         * Orderly close marks the still-running Terminal `interrupted`, not `stopped`/`dead`.
-         */
-        await runtimeA.close();
-
-        /**
-         * Simulate a capability-detected Agent session id having been bound before the shutdown; done through the raw
-         * better-sqlite3 handle because `updateAgentMetadata` requires a matching provider snapshot, which this
-         * hermetic test does not produce.
-         */
-        const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
-        expect(direct.getTerminal(created.terminal!.id)?.lastProcessState).toBe('interrupted');
-        direct.database
-            .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
-            .run('sess-resume-1', created.terminal!.id);
-        direct.close();
-
-        const spawnSpy = vi.fn();
-        spawnSpy.mockImplementation(() => createFakePty());
-        const runtimeB = await createRuntime({
-            userDataPath,
-            terminalRestoreGridWaitMs: 0,
-            logger: new StructuredLogger(join(directory, 'logs-b')),
-            send: () => {},
-            terminal: { resolveExecutable, spawn: spawnSpy },
-            agentAdapters: createPendingAgentAdapters(),
-        });
-        try {
-            await vi.waitFor(() => expect(spawnSpy).toHaveBeenCalled());
-            expect(spawnSpy.mock.calls[0]?.[1]).toEqual(['--resume', 'sess-resume-1']);
-
-            const bootstrap = await vi.waitFor(async () => {
-                const state = await runtimeB.handlers['app.bootstrap']({});
-                const terminal = state.terminals.find((entry) => entry.id === created.terminal!.id);
-                expect(terminal?.lastProcessState).toBe('running');
-                return state;
+            const runtimeA = await createRuntime({
+                userDataPath,
+                logger: new StructuredLogger(join(directory, 'logs-a')),
+                send: () => {},
+                terminal: { resolveExecutable, spawn: () => createFakePty() },
+                agentAdapters: createPendingAgentAdapters(),
             });
-            const restoredTerminal = bootstrap.terminals.find(
-                (entry) => entry.id === created.terminal!.id,
-            );
-            expect(restoredTerminal?.agentSessionId).toBe('sess-resume-1');
-        } finally {
-            await runtimeB.close();
-        }
-    });
+            const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
+            const created = await runtimeA.handlers['session.create']({
+                projectId: project.id,
+                defaultAgent: provider,
+            });
+            expect(created.terminal!.provider).toBe(provider);
+            /**
+             * Orderly close marks the still-running Terminal `interrupted`, not `stopped`/`dead`.
+             */
+            await runtimeA.close();
+
+            /**
+             * Simulate a capability-detected Agent session id having been bound before the shutdown; done through the
+             * raw better-sqlite3 handle because `updateAgentMetadata` requires a matching provider snapshot, which this
+             * hermetic test does not produce.
+             */
+            const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
+            expect(direct.getTerminal(created.terminal!.id)?.lastProcessState).toBe('interrupted');
+            direct.database
+                .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
+                .run(sessionId, created.terminal!.id);
+            direct.close();
+
+            const spawnSpy = vi.fn();
+            spawnSpy.mockImplementation(() => createFakePty());
+            const runtimeB = await createRuntime({
+                userDataPath,
+                terminalRestoreGridWaitMs: 0,
+                logger: new StructuredLogger(join(directory, 'logs-b')),
+                send: () => {},
+                terminal: { resolveExecutable, spawn: spawnSpy },
+                agentAdapters: createPendingAgentAdapters(),
+            });
+            try {
+                await vi.waitFor(() => expect(spawnSpy).toHaveBeenCalled());
+                expect(spawnSpy.mock.calls[0]?.[1]).toEqual(resumeArguments);
+
+                const bootstrap = await vi.waitFor(async () => {
+                    const state = await runtimeB.handlers['app.bootstrap']({});
+                    const terminal = state.terminals.find(
+                        (entry) => entry.id === created.terminal!.id,
+                    );
+                    expect(terminal?.lastProcessState).toBe('running');
+                    return state;
+                });
+                const restoredTerminal = bootstrap.terminals.find(
+                    (entry) => entry.id === created.terminal!.id,
+                );
+                expect(restoredTerminal?.agentSessionId).toBe(sessionId);
+            } finally {
+                await runtimeB.close();
+            }
+        },
+    );
 
     it("restores a Session's interrupted Terminals concurrently", async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-restore-concurrent-'));
@@ -686,15 +702,13 @@ describe('selected Session Agent probes', () => {
                 sessionId: context.correlationId,
             }),
         );
-        const pending = new Promise<never>(() => {});
         const runtimeB = await createRuntime({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: () => {},
-            agentAdapters: {
+            agentAdapters: createPendingAgentAdapters({
                 claude: { provider: 'claude', snapshot },
-                codex: { provider: 'codex', snapshot: () => pending },
-            },
+            }),
         });
 
         try {

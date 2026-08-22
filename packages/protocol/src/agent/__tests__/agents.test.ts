@@ -2,21 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { agentProviderCatalog, agentProviderIds, defaultAgentProviderSettings } from '../agents.js';
 
-describe('agentProviderCatalog.resumeArguments', () => {
-    it('builds Claude Code resume argv with the --resume flag', () => {
-        expect(agentProviderCatalog.claude.resumeArguments('session-123')).toEqual([
-            '--resume',
-            'session-123',
-        ]);
-    });
-
-    it('builds Codex resume argv with the resume subcommand', () => {
-        expect(agentProviderCatalog.codex.resumeArguments('session-123')).toEqual([
-            'resume',
-            'session-123',
-        ]);
-    });
-
+describe('agentProviderCatalog capabilities', () => {
     it('keeps image input undefined for providers without a documented safe paste path', () => {
         expect(agentProviderCatalog.claude.imageInput).toBeUndefined();
         expect(agentProviderCatalog.codex.imageInput).toEqual({

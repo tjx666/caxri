@@ -1,11 +1,15 @@
 import { CaxriError } from '@caxri/protocol';
 
+/**
+ * CLI domains expose thin barrels by repository contract; commands consume the skills domain API rather than its
+ * private module layout.
+ */
+// oxlint-disable-next-line react-doctor/no-barrel-import
+import { agentSkillProviderUsage, parseAgentSkillProvider } from '../skills';
 import type { LocalCommandDefinition } from './catalog';
 
 const SKILL_NAME = 'caxri-cli';
-const providers = ['claude', 'codex'] as const;
-
-type SkillCommandProvider = (typeof providers)[number];
+const providerUsage = `<${agentSkillProviderUsage}>`;
 
 function rejectOptions(tokens: readonly string[]): Record<string, never> {
     if (tokens.length > 0)
@@ -19,12 +23,6 @@ function skillName(source: string | undefined): typeof SKILL_NAME {
     return SKILL_NAME;
 }
 
-function provider(source: string | undefined): SkillCommandProvider {
-    if (!providers.includes(source as SkillCommandProvider))
-        throw new CaxriError('VALIDATION', '--provider must be claude or codex');
-    return source as SkillCommandProvider;
-}
-
 function getSkill(tokens: readonly string[]): { full: boolean; name: typeof SKILL_NAME } {
     const name = skillName(tokens[0]);
     if (tokens.length === 1) return { full: false, name };
@@ -34,20 +32,20 @@ function getSkill(tokens: readonly string[]): { full: boolean; name: typeof SKIL
 
 interface SkillCommandSelection {
     name: typeof SKILL_NAME;
-    provider: SkillCommandProvider;
+    provider: ReturnType<typeof parseAgentSkillProvider>;
     scope: 'global' | 'local';
 }
 
 function selection(tokens: readonly string[]): SkillCommandSelection {
     const name = skillName(tokens[0]);
-    let selectedProvider: SkillCommandProvider | undefined;
+    let selectedProvider: SkillCommandSelection['provider'] | undefined;
     let scope: SkillCommandSelection['scope'] | undefined;
     for (let index = 1; index < tokens.length; index += 1) {
         const token = tokens[index];
         if (token === '--provider') {
             if (selectedProvider)
                 throw new CaxriError('VALIDATION', '--provider may be provided only once');
-            selectedProvider = provider(tokens[index + 1]);
+            selectedProvider = parseAgentSkillProvider(tokens[index + 1]);
             index += 1;
         } else if (token === '--local' || token === '--global') {
             if (scope)
@@ -56,21 +54,24 @@ function selection(tokens: readonly string[]): SkillCommandSelection {
         } else throw new CaxriError('VALIDATION', `Unknown option: ${token.split('=', 1)[0]}`);
     }
     if (!selectedProvider)
-        throw new CaxriError('VALIDATION', 'Skill installation requires --provider claude|codex');
+        throw new CaxriError(
+            'VALIDATION',
+            `Skill installation requires --provider ${agentSkillProviderUsage}`,
+        );
     if (!scope)
         throw new CaxriError('VALIDATION', 'Skill installation requires --local or --global');
     return { name, provider: selectedProvider, scope };
 }
 
 function statusSelection(tokens: readonly string[]): Partial<Omit<SkillCommandSelection, 'name'>> {
-    let selectedProvider: SkillCommandProvider | undefined;
+    let selectedProvider: SkillCommandSelection['provider'] | undefined;
     let scope: SkillCommandSelection['scope'] | undefined;
     for (let index = 0; index < tokens.length; index += 1) {
         const token = tokens[index];
         if (token === '--provider') {
             if (selectedProvider)
                 throw new CaxriError('VALIDATION', '--provider may be provided only once');
-            selectedProvider = provider(tokens[index + 1]);
+            selectedProvider = parseAgentSkillProvider(tokens[index + 1]);
             index += 1;
         } else if (token === '--local' || token === '--global') {
             if (scope)
@@ -102,14 +103,14 @@ export const SKILL_COMMANDS: readonly LocalCommandDefinition[] = [
         kind: 'local',
         path: ['skills', 'status'],
         summary: 'Inspect bundled and installed skill compatibility without a Host.',
-        usage: '[--provider <claude|codex>] [--local|--global]',
+        usage: `[--provider ${providerUsage}] [--local|--global]`,
         parseParams: statusSelection,
     },
     {
         kind: 'local',
         path: ['skills', 'install'],
         summary: 'Install the bundled skill into one explicit Provider scope.',
-        usage: 'caxri-cli --provider <claude|codex> <--local|--global>',
+        usage: `caxri-cli --provider ${providerUsage} <--local|--global>`,
         confirmation: 'Install the Caxri-managed skill into this Provider scope?',
         mutates: true,
         parseParams: selection,
@@ -118,7 +119,7 @@ export const SKILL_COMMANDS: readonly LocalCommandDefinition[] = [
         kind: 'local',
         path: ['skills', 'update'],
         summary: 'Atomically update one older Caxri-managed skill.',
-        usage: 'caxri-cli --provider <claude|codex> <--local|--global>',
+        usage: `caxri-cli --provider ${providerUsage} <--local|--global>`,
         confirmation: 'Update the Caxri-managed skill in this Provider scope?',
         mutates: true,
         parseParams: selection,
@@ -127,7 +128,7 @@ export const SKILL_COMMANDS: readonly LocalCommandDefinition[] = [
         kind: 'local',
         path: ['skills', 'uninstall'],
         summary: 'Remove one current or older Caxri-managed skill.',
-        usage: 'caxri-cli --provider <claude|codex> <--local|--global>',
+        usage: `caxri-cli --provider ${providerUsage} <--local|--global>`,
         confirmation: 'Remove the Caxri-managed skill from this Provider scope?',
         mutates: true,
         parseParams: selection,

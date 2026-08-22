@@ -4,6 +4,7 @@ import process from 'node:process';
 
 import type { AgentProvider } from '../../src/shared/agents';
 import { agentProviderIds } from '../../src/shared/agents';
+import { createE2EAgentIsolationEnvironment } from './agent-environment';
 
 interface FakeAgentInputCapture {
     encoding: 'hex' | 'raw' | 'utf8';
@@ -100,17 +101,8 @@ export async function createFakeAgentMode(options: {
 }): Promise<FakeAgentMode> {
     const fixtureRoot = join(options.userDataDir, 'e2e-agents');
     const bin = join(fixtureRoot, 'bin');
-    const home = join(fixtureRoot, 'home');
-    const codexState = join(fixtureRoot, 'codex');
-    const claudeState = join(fixtureRoot, 'claude');
-    const xdg = join(fixtureRoot, 'xdg');
-    await Promise.all([
-        mkdir(bin, { recursive: true }),
-        mkdir(home, { recursive: true }),
-        mkdir(codexState, { recursive: true }),
-        mkdir(claudeState, { recursive: true }),
-        mkdir(xdg, { recursive: true }),
-    ]);
+    const environment = await createE2EAgentIsolationEnvironment(fixtureRoot);
+    await mkdir(bin, { recursive: true });
 
     const providerEntries = Object.entries(options.providers) as Array<
         [AgentProvider, FakeAgentDefinition]
@@ -144,14 +136,6 @@ export async function createFakeAgentMode(options: {
     return {
         mode: 'fake',
         executables,
-        environment: {
-            HOME: home,
-            CODEX_HOME: codexState,
-            CODEX_SQLITE_HOME: codexState,
-            CLAUDE_CONFIG_DIR: claudeState,
-            XDG_CACHE_HOME: join(xdg, 'cache'),
-            XDG_CONFIG_HOME: join(xdg, 'config'),
-            XDG_DATA_HOME: join(xdg, 'data'),
-        },
+        environment,
     };
 }

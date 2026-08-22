@@ -1,3 +1,4 @@
+import { agentProviderIds } from '@shared/agents';
 import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from '@shared/types';
 import { groupBy, sortBy, sumBy } from 'es-toolkit';
 
@@ -34,7 +35,7 @@ interface ArchivedSessionView {
 /**
  * Stable display order for Agent filter options; only kinds actually present in the archive show.
  */
-const AGENT_ORDER: TerminalKind[] = ['shell', 'claude', 'codex'];
+const AGENT_ORDER: TerminalKind[] = ['shell', ...agentProviderIds];
 
 /**
  * Builds the archived management read model from the existing bootstrap snapshot.

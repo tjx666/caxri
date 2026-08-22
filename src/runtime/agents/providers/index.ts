@@ -6,7 +6,7 @@ import { codexProvider } from './codex';
 /**
  * Registry of every Agent provider descriptor, keyed by provider id.
  */
-export const agentProviders = {
+export const agentProviders: Record<AgentProvider, AgentProviderDescriptor> = {
     claude: claudeProvider,
     codex: codexProvider,
-} satisfies Record<AgentProvider, AgentProviderDescriptor>;
+};

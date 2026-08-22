@@ -15,10 +15,10 @@ export interface AgentIconDefinition {
     src?: string;
 }
 
-const managedAgentIconAssets = {
+const managedAgentIconAssets: Record<AgentProvider, Pick<AgentIconDefinition, 'kind' | 'src'>> = {
     claude: { kind: 'color-asset', src: claudeCode },
     codex: { kind: 'color-asset', src: codex },
-} as const satisfies Record<AgentProvider, Pick<AgentIconDefinition, 'kind' | 'src'>>;
+};
 
 const managedAgentIcons = Object.fromEntries(
     agentProviderIds.map((provider) => [

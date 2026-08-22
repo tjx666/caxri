@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { executeSkillCommand } from '../../../packages/cli/src/skills';
 import { agentSkillHealthSchema } from '../../../packages/protocol/src';
+import { agentProviderIds } from '../../shared/agents';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
 import { createFakePty } from './create-test-runtime';
@@ -48,10 +49,11 @@ describe('Runtime Agent skill health', () => {
         try {
             const withoutProject = await runtime.handlers['agentSkills.get']({});
             expect(withoutProject).toMatchObject({
-                installations: [
-                    { provider: 'codex', scope: 'global', status: 'missing' },
-                    { provider: 'claude', scope: 'global', status: 'missing' },
-                ],
+                installations: agentProviderIds.map((provider) => ({
+                    provider,
+                    scope: 'global',
+                    status: 'missing',
+                })),
             });
             expect(withoutProject.installations.some(({ scope }) => scope === 'local')).toBe(false);
 
