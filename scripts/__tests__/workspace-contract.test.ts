@@ -97,7 +97,7 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.packageManager).toBeUndefined();
         expect(rootManifest.devEngines?.packageManager).toBeUndefined();
         expect(rootManifest.workspaces).toBeUndefined();
-        expect(workspace.packages).toEqual(['packages/*']);
+        expect(workspace.packages).toEqual(['extensions/*', 'packages/*']);
         expect(workspace.catalog).toEqual({
             '@yutengjing/eslint-config-typescript': '^4.0.0',
             '@yutengjing/prettier-config': '^2.0.0',
