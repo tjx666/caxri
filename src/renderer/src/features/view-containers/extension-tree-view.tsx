@@ -59,6 +59,7 @@ const themeIcons = {
     'issues': MessageSquareWarning,
     'loading': LoaderCircle,
     'monitor': Monitor,
+    'package': Package,
     'pass': Check,
     'question': Circle,
     'repo': Package,

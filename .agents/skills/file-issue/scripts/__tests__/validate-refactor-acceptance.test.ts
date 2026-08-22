@@ -15,12 +15,13 @@ describe('validateRefactorAcceptancePlan', () => {
     it.each([
         ['missing-preserved-behaviors.md', 'Acceptance 方案缺少 **保留行为**'],
         ['fenced-example-bypass.md', '前后基线必须同时说明重构前和重构后'],
-        ['fence-trailing-info-bypass.md', 'Refactor issue 缺少 ## Acceptance 方案'],
+        ['fence-trailing-info-bypass.txt', 'Refactor issue 缺少 ## Acceptance 方案'],
         [
             'duplicate-acceptance-sections.md',
             'Refactor issue 必须且只能包含一个可见的 ## Acceptance 方案',
         ],
         ['html-comment-bypass.md', '前后基线必须同时说明重构前和重构后'],
+        ['html-hidden-bypass.md', 'Refactor issue 缺少 ## Acceptance 方案'],
         ['only-new-screenshot.md', '前后基线必须同时说明重构前和重构后'],
         ['missing-fixed-environment.md', 'Acceptance 方案缺少 **固定环境**'],
         ['missing-interaction-replay.md', 'Acceptance 方案缺少 **交互重放**'],
