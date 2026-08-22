@@ -69,15 +69,18 @@ const partition = resolveVitestPartition();
 export const serialNativeTests = partition.serialNativeTests;
 export const parallelMaxWorkers = partition.maxWorkers;
 
+export const workspaceAliases = {
+    '@': resolve(import.meta.dirname, 'src/renderer/src'),
+    '@caxri/cli': resolve(import.meta.dirname, 'packages/cli/src/index.ts'),
+    '@caxri/protocol': resolve(import.meta.dirname, 'packages/protocol/src/index.ts'),
+    '@caxri/utils': resolve(import.meta.dirname, 'packages/utils/src/index.ts'),
+    '@shared': resolve(import.meta.dirname, 'src/shared'),
+    'caxri': resolve(import.meta.dirname, 'packages/api/src/index.ts'),
+};
+
 export default defineConfig({
     resolve: {
-        alias: {
-            '@': resolve(import.meta.dirname, 'src/renderer/src'),
-            '@caxri/cli': resolve(import.meta.dirname, 'packages/cli/src/index.ts'),
-            '@caxri/protocol': resolve(import.meta.dirname, 'packages/protocol/src/index.ts'),
-            '@caxri/utils': resolve(import.meta.dirname, 'packages/utils/src/index.ts'),
-            '@shared': resolve(import.meta.dirname, 'src/shared'),
-        },
+        alias: workspaceAliases,
     },
     test: {
         environment: 'node',

@@ -8,6 +8,7 @@ import {
     resolveVitestPartition,
     testProjectNames,
     utilitiesTestFiles,
+    workspaceAliases,
 } from '../../vitest.config';
 
 const SAFE_FILE_TESTS = [
@@ -39,6 +40,9 @@ describe('Vitest project partition', () => {
         expect(apiTestFiles).toEqual(['packages/api/src/**/*.test.ts']);
         expect(utilitiesTestFiles).toEqual(['packages/utils/src/**/*.test.ts']);
         expect(cliTestFiles).toEqual(['packages/cli/{scripts,src}/**/*.test.ts']);
+        expect(workspaceAliases.caxri).toBe(
+            new URL('../../packages/api/src/index.ts', import.meta.url).pathname,
+        );
     });
 
     it('keeps native file watchers serial while allowing isolated file tests to use both workers', () => {
