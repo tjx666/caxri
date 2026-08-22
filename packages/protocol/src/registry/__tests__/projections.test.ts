@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { agentProviderIds } from '../../agent/agents';
 import type { Principal } from '../../transport/principal';
 import { principalProjectionSchemas, projectListForPrincipal } from '../projections';
 
@@ -108,5 +109,17 @@ describe('principalProjectionSchemas.settings', () => {
             'some.unrelated.setting': 'must be stripped',
         });
         expect(parsed).not.toHaveProperty('some.unrelated.setting');
+    });
+});
+
+describe('principalProjectionSchemas.agent', () => {
+    it.each(agentProviderIds)('accepts the catalogued %s provider', (provider) => {
+        expect(
+            principalProjectionSchemas.agent.parse({
+                available: true,
+                provider,
+                status: 'working',
+            }),
+        ).toMatchObject({ provider });
     });
 });

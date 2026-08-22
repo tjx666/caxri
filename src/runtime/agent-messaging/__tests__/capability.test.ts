@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { agentProviderCatalog, agentProviderIds } from '../../../shared/agents';
 import { AgentMessagingCapabilityProbe } from '..';
 
 const launch = { executable: 'codex', args: [] };
@@ -113,6 +114,38 @@ describe('AgentMessagingCapabilityProbe', () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+
+    it('invalidates cached capabilities for every catalogued provider', async () => {
+        const providerProbe = vi.fn((provider) =>
+            Promise.resolve({ executable: `/fixture/${provider}`, version: 'fixture 99.0.0' }),
+        );
+        const probe = new AgentMessagingCapabilityProbe({
+            cliAvailable: () => Promise.resolve(true),
+            cliPath: '/caxri',
+            fixtureMode: true,
+            probe: providerProbe,
+        });
+        const checkAll = () =>
+            Promise.all(
+                agentProviderIds.map((provider) =>
+                    probe.check({
+                        enabled: true,
+                        launch: {
+                            executable: agentProviderCatalog[provider].executableName,
+                            args: [],
+                        },
+                        provider,
+                    }),
+                ),
+            );
+
+        await checkAll();
+        await checkAll();
+        expect(providerProbe).toHaveBeenCalledTimes(agentProviderIds.length);
+        probe.invalidate();
+        await checkAll();
+        expect(providerProbe).toHaveBeenCalledTimes(agentProviderIds.length * 2);
     });
 
     it('coalesces identical concurrent provider and launch checks', async () => {

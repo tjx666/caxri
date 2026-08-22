@@ -1,8 +1,10 @@
+import type { AgentProvider } from '@shared/agents';
+import { agentProviderCatalog } from '@shared/agents';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-    CODEX_IMAGE_PASTE_INPUT,
     isClipboardContainingImage,
+    terminalImagePasteInput,
     terminalKeyboardInput,
     writeTerminalSelectionToCopyEvent,
 } from '../terminal-keyboard';
@@ -17,6 +19,10 @@ function keyEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
         type: 'keydown',
         ...overrides,
     } as KeyboardEvent;
+}
+
+function catalogImagePasteInput(provider: AgentProvider): string | undefined {
+    return agentProviderCatalog[provider].imageInput?.terminalInput;
 }
 
 describe('terminalKeyboardInput', () => {
@@ -67,14 +73,21 @@ describe('isClipboardContainingImage', () => {
     });
 
     it('keeps ordinary text paste on xterm native handling', () => {
+        const textClipboard = { files: [], items: [], types: ['text/plain'] };
+        expect(isClipboardContainingImage(textClipboard)).toBe(false);
         expect(
-            isClipboardContainingImage({
-                files: [],
-                items: [],
-                types: ['text/plain'],
-            }),
-        ).toBe(false);
-        expect(CODEX_IMAGE_PASTE_INPUT).toBe('\u{16}');
+            terminalImagePasteInput(textClipboard, catalogImagePasteInput('codex')),
+        ).toBeUndefined();
+    });
+
+    it('intercepts image paste only when the provider catalog declares an input capability', () => {
+        const imageClipboard = { files: [], items: [], types: ['image/png'] };
+        expect(terminalImagePasteInput(imageClipboard, catalogImagePasteInput('codex'))).toBe(
+            '\u{16}',
+        );
+        expect(
+            terminalImagePasteInput(imageClipboard, catalogImagePasteInput('claude')),
+        ).toBeUndefined();
     });
 });
 

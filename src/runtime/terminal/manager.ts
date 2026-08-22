@@ -18,6 +18,11 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '../../shared/types';
+/**
+ * Runtime domains expose public root barrels by architecture contract; structure tests reject deep provider imports.
+ */
+// oxlint-disable-next-line react-doctor/no-barrel-import
+import { agentProviders } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { runtimeProcessEnvironment } from '../executables';
 import type { ShutdownReason } from '../session-policy';
@@ -144,9 +149,7 @@ export class TerminalManager {
             let arguments_ = record.kind === 'shell' ? ['-l'] : [...launch!.args];
             if (record.kind !== 'shell' && options?.resumeAgentSessionId) {
                 arguments_.push(
-                    ...agentProviderCatalog[record.kind].resumeArguments(
-                        options.resumeAgentSessionId,
-                    ),
+                    ...agentProviders[record.kind].resumeArguments(options.resumeAgentSessionId),
                 );
             }
             if (options?.waitForAttachedSizeMs)

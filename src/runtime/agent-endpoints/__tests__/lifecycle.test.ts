@@ -7,7 +7,10 @@ import type {
     AgentEndpointMessagingParams as AgentEndpointMessagingParameters,
     AgentEndpointRetireParams as AgentEndpointRetireParameters,
 } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
-import { defaultAgentOutputRecoverySettings } from '../../../shared/agents';
+import {
+    defaultAgentOutputRecoverySettings,
+    defaultAgentProviderSettings,
+} from '../../../shared/agents';
 import type { TerminalRecord } from '../../../shared/types';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { classifyAgentPermission, RuntimeAgentEndpointLifecycle } from '../lifecycle';
@@ -226,22 +229,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             '/profile',
             probe(),
         );
-        const enabled = {
-            codex: {
-                actions: { items: {} },
-                hooks: { enabled: false },
-                launch: { executable: 'codex', args: [] },
-                messaging: { enabled: true },
-                recovery: defaultAgentOutputRecoverySettings,
-            },
-            claude: {
-                actions: { items: {} },
-                hooks: { enabled: false },
-                launch: { executable: 'claude', args: [] },
-                messaging: { enabled: true },
-                recovery: defaultAgentOutputRecoverySettings,
-            },
-        };
+        const enabled = structuredClone(defaultAgentProviderSettings);
         await lifecycle.environment(terminal(), 'project-1', enabled.codex);
         await lifecycle.activate('terminal-1');
         await lifecycle.reconcile({
@@ -293,22 +281,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             '/profile',
             capabilityProbe,
         );
-        const settings = {
-            codex: {
-                actions: { items: {} },
-                hooks: { enabled: false },
-                launch: { executable: 'codex', args: [] },
-                messaging: { enabled: true },
-                recovery: defaultAgentOutputRecoverySettings,
-            },
-            claude: {
-                actions: { items: {} },
-                hooks: { enabled: false },
-                launch: { executable: 'claude', args: [] },
-                messaging: { enabled: true },
-                recovery: defaultAgentOutputRecoverySettings,
-            },
-        };
+        const settings = structuredClone(defaultAgentProviderSettings);
 
         await lifecycle.environment(terminal('codex', 'terminal-1'), 'project-1', settings.codex);
         await lifecycle.environment(terminal('codex', 'terminal-2'), 'project-1', settings.codex);

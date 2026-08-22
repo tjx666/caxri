@@ -59,7 +59,7 @@ function fakeTerminals() {
     } as unknown as TerminalManager;
 }
 
-function createService(database: CaxriDatabase) {
+function createService(database: CaxriDatabase, terminals: TerminalManager = fakeTerminals()) {
     const service = new AgentDispatchService({
         database,
         coordinator: {
@@ -67,7 +67,7 @@ function createService(database: CaxriDatabase) {
             prepareTerminalResume: vi.fn(),
             probeTerminal: vi.fn(),
         } as unknown as AgentCoordinator,
-        terminals: fakeTerminals(),
+        terminals,
         endpoints: {
             endpointForTerminal: (terminalId: string) => ({
                 launchId: `launch-${terminalId}`,
@@ -97,6 +97,43 @@ async function seededDispatch() {
 }
 
 describe('AgentDispatchService', () => {
+    it('passes the exact bound Provider session into the resume launch path', async () => {
+        const database = await openDatabase();
+        const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+        const { session, terminal } = database.createSession(project.id, 'codex');
+        database.database
+            .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
+            .run('codex-session-1', terminal!.id);
+        database.updateTerminalState(terminal!.id, 'stopped');
+        let processId: number | undefined;
+        const restart = vi.fn((terminalId: string) => {
+            processId = 4_243;
+            return Promise.resolve({
+                ...database.getTerminal(terminalId)!,
+                lastProcessState: 'running' as const,
+            });
+        });
+        const terminals = {
+            processId: () => processId,
+            restart,
+            signalExact: vi.fn(() => true),
+        } as unknown as TerminalManager;
+        const service = createService(database, terminals);
+
+        await expect(
+            service.resume('dispatch-resume-1', PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                terminalId: terminal!.id,
+                providerSessionId: 'codex-session-1',
+            }),
+        ).resolves.toMatchObject({ operation: 'resume', status: 'running' });
+        expect(restart).toHaveBeenCalledWith(
+            terminal!.id,
+            expect.objectContaining({ resumeAgentSessionId: 'codex-session-1' }),
+        );
+    });
+
     it('rejects a reused dispatch id whose command fingerprint does not match', async () => {
         const { project, service, session } = await seededDispatch();
         const input = { projectId: project.id, sessionId: session.id, provider: 'codex' as const };

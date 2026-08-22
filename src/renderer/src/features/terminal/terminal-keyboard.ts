@@ -1,7 +1,3 @@
-import { agentProviderCatalog } from '@shared/agents';
-
-export const CODEX_IMAGE_PASTE_INPUT = agentProviderCatalog.codex.imageInput.terminalInput;
-
 interface ClipboardDataLike {
     files: ArrayLike<{ type: string }>;
     items: ArrayLike<{ type: string }>;
@@ -17,8 +13,8 @@ interface TerminalClipboardHandlerOptions {
     container: HTMLElement;
     document: Document;
     getSelection(): string;
-    isCodex(): boolean;
-    pasteCodexImage(input: string): void;
+    imagePasteInput(): string | undefined;
+    pasteImage(input: string): void;
 }
 
 /**
@@ -47,7 +43,19 @@ export function isClipboardContainingImage(data: ClipboardDataLike): boolean {
 }
 
 /**
- * Registers the native copy bridge and Codex image-paste interception at their required DOM boundaries. Electron's Edit
+ * Resolves image paste solely from the current provider's catalog capability. Providers without a documented input
+ * sequence leave the native xterm paste path untouched.
+ */
+export function terminalImagePasteInput(
+    data: ClipboardDataLike,
+    capabilityInput: string | undefined,
+): string | undefined {
+    return capabilityInput && isClipboardContainingImage(data) ? capabilityInput : undefined;
+}
+
+/**
+ * Registers the native copy bridge and provider-capability image-paste interception at their required DOM boundaries.
+ * Electron's Edit
  *
  * > Copy role targets `document`, while xterm's paste event targets its container; keeping both listeners here makes
  * > their focus and disposal rules a single lifecycle contract.
@@ -61,18 +69,16 @@ export function registerTerminalClipboardHandlers(
         writeTerminalSelectionToCopyEvent(event, options.getSelection());
     };
     const handlePaste = (event: ClipboardEvent): void => {
-        if (
-            !options.isCodex() ||
-            !event.clipboardData ||
-            !isClipboardContainingImage(event.clipboardData)
-        )
-            return;
+        const input = event.clipboardData
+            ? terminalImagePasteInput(event.clipboardData, options.imagePasteInput())
+            : undefined;
+        if (!input) return;
         /**
-         * Codex owns image encoding and temp-file lifecycle; it only needs its Ctrl+V binding.
+         * The provider owns image encoding and temp-file lifecycle; Caxri sends only its catalogued paste binding.
          */
         event.preventDefault();
         event.stopImmediatePropagation();
-        options.pasteCodexImage(CODEX_IMAGE_PASTE_INPUT);
+        options.pasteImage(input);
     };
     document.addEventListener('copy', handleCopy, { capture: true });
     container.addEventListener('paste', handlePaste, { capture: true });

@@ -9,10 +9,14 @@ import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { AgentProvider } from '../../../../shared/agents';
+import { agentProviderIds } from '../../../../shared/agents';
 import { AgentHookServer, pruneStaleAgentHookSockets } from '../server';
 
 const temporaryDirectories: string[] = [];
-const SCHEMA_VERSIONS = { claude: 2, codex: 2 } as const;
+const SCHEMA_VERSIONS = Object.fromEntries(
+    agentProviderIds.map((provider) => [provider, 2]),
+) as Record<AgentProvider, number>;
 
 afterEach(async () => {
     const pendingCleanup = [...temporaryDirectories];

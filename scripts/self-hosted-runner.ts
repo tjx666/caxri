@@ -18,6 +18,8 @@ import {
     assertDesktopLeasesReleased,
     reclaimDesktopLeasesByOwner,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
+import type { AgentProvider } from '../src/shared/agents';
+import { agentProviderIds } from '../src/shared/agents';
 import { execFileAsync } from './exec';
 
 const ownerPattern = /^caxri-\d+-\d+-[a-z0-9-]+$/u;
@@ -29,6 +31,16 @@ const generatedWorkspacePaths = [
     'release',
     'test-results',
 ];
+
+interface RunnerAgentEnvironmentPolicy {
+    directoryName: string;
+    environmentKeys: readonly string[];
+}
+
+const RUNNER_AGENT_ENVIRONMENT_POLICIES: Record<AgentProvider, RunnerAgentEnvironmentPolicy> = {
+    claude: { directoryName: 'claude', environmentKeys: ['CLAUDE_CONFIG_DIR'] },
+    codex: { directoryName: 'codex', environmentKeys: ['CODEX_HOME'] },
+};
 
 interface ProcessRecord {
     command: string;
@@ -269,12 +281,21 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
             mode: 0o600,
         });
         const temporaryDirectory = join(runRoot, 'tmp');
-        const codexHome = join(runRoot, 'providers', 'codex');
-        const claudeConfig = join(runRoot, 'providers', 'claude');
+        const providerDirectories = Object.fromEntries(
+            agentProviderIds.map((provider) => [
+                provider,
+                join(
+                    runRoot,
+                    'providers',
+                    RUNNER_AGENT_ENVIRONMENT_POLICIES[provider].directoryName,
+                ),
+            ]),
+        ) as Record<AgentProvider, string>;
         await Promise.all([
             mkdir(temporaryDirectory, { recursive: true, mode: 0o700 }),
-            mkdir(codexHome, { recursive: true, mode: 0o700 }),
-            mkdir(claudeConfig, { recursive: true, mode: 0o700 }),
+            ...agentProviderIds.map((provider) =>
+                mkdir(providerDirectories[provider], { recursive: true, mode: 0o700 }),
+            ),
         ]);
         // Fails closed on EEXIST, mirroring the non-recursive mkdir of the run root above.
         const temporaryLink = shortTemporaryLinkPath(owner);
@@ -285,8 +306,11 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
             githubEnvironment,
             [
                 `CAXRI_RUNNER_ROOT=${runRoot}`,
-                `CODEX_HOME=${codexHome}`,
-                `CLAUDE_CONFIG_DIR=${claudeConfig}`,
+                ...agentProviderIds.flatMap((provider) =>
+                    RUNNER_AGENT_ENVIRONMENT_POLICIES[provider].environmentKeys.map(
+                        (key) => `${key}=${providerDirectories[provider]}`,
+                    ),
+                ),
                 `TEMP=${temporaryLink}`,
                 `TMP=${temporaryLink}`,
                 `TMPDIR=${temporaryLink}`,

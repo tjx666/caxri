@@ -33,6 +33,11 @@ interface FieldDraft {
     value: string;
 }
 
+const RECOVERY_PATTERN_PLACEHOLDERS: Record<AgentProvider, string> = {
+    claude: 'API Error: The response stopped arriving. The response above may be incomplete.',
+    codex: 'API timeout\nretry failed',
+};
+
 function currentDraft(state: FieldDraft, canonical: string): FieldDraft {
     return state.canonical === canonical ? state : { canonical, value: canonical };
 }
@@ -136,11 +141,7 @@ export function ProviderRecoveryEditor({
                             aria-label={`${providerName} ending output patterns`}
                             aria-invalid={Boolean(patternDraft.error)}
                             className="min-h-24 bg-background font-mono text-foreground"
-                            placeholder={
-                                provider === 'claude'
-                                    ? 'API Error: The response stopped arriving. The response above may be incomplete.'
-                                    : 'API timeout\nretry failed'
-                            }
+                            placeholder={RECOVERY_PATTERN_PLACEHOLDERS[provider]}
                             value={patternDraft.value}
                             onBlur={commitPatterns}
                             onChange={(event) => {

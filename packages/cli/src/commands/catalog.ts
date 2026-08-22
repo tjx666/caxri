@@ -1,4 +1,9 @@
-import { CaxriError, logQueryParametersSchema, settingsPatchChangeSchema } from '@caxri/protocol';
+import {
+    agentProviderIds,
+    CaxriError,
+    logQueryParametersSchema,
+    settingsPatchChangeSchema,
+} from '@caxri/protocol';
 
 import { SKILL_COMMANDS } from './skills';
 import type { CliCommandDefinition } from './types';
@@ -408,7 +413,7 @@ export const CLI_COMMANDS = [
         path: ['agent', 'dispatch', 'start'],
         method: 'agent.dispatch.start',
         summary: 'Start one fresh Agent conversation in an exact Project Session.',
-        usage: '--project <project-id> --session <session-id> --provider <claude|codex>',
+        usage: `--project <project-id> --session <session-id> --provider <${agentProviderIds.join('|')}>`,
         confirmation: 'Start this Agent dispatch?',
         parseParams: (tokens) => dispatchTarget(tokens, false),
     },

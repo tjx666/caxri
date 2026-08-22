@@ -1,5 +1,6 @@
 import type {
     AgentHookHealthMap,
+    AgentProvider,
     AgentSkillHealth,
     AgentSkillInstallationHealth,
     AgentSkillScope,
@@ -12,7 +13,7 @@ import type {
  */
 export function hookHealthLabel(
     isEnabled: boolean,
-    health: AgentHookHealthMap['codex'] | undefined,
+    health: AgentHookHealthMap[AgentProvider] | undefined,
 ): string {
     if (!isEnabled) return 'Disabled';
     if (!health) return 'Checking installation…';

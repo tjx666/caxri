@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentProviderIds } from '../agent/agents.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import type { ProjectRecord } from '../domain/domain.js';
 import {
@@ -70,7 +71,7 @@ export const principalProjectionSchemas = {
         terminalCount: z.number().int().nonnegative(),
     }),
     agent: z.object({
-        provider: z.enum(['claude', 'codex']),
+        provider: z.enum(agentProviderIds),
         status: z.enum(['unknown', 'working', 'waiting', 'completed', 'failed']),
         available: z.boolean(),
     }),

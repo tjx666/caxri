@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
+import { agentProviderCatalog } from '@shared/agents';
 import type { ProcessState, TerminalFailureReason } from '@shared/types';
 import { CircleCheck, CircleX, MessageSquarePlus, RotateCcw, TriangleAlert } from 'lucide-react';
 
@@ -163,7 +164,11 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const wordSeparators =
         settings?.['terminal.wordSeparators'] ?? TERMINAL_DEFAULT_WORD_SEPARATORS;
     const processState = terminal?.lastProcessState ?? 'starting';
-    const isCodex = terminal?.kind === 'codex' || terminal?.provider === 'codex';
+    const provider =
+        terminal?.provider ?? (terminal?.kind === 'shell' ? undefined : terminal?.kind);
+    const imagePasteInput = provider
+        ? agentProviderCatalog[provider].imageInput?.terminalInput
+        : undefined;
     const isAgent = Boolean(terminal && (terminal.kind !== 'shell' || terminal.provider));
     const terminalTheme = theme?.terminal;
 
@@ -186,8 +191,8 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         fontFamily,
         fontSize,
         gpuAcceleration,
+        imagePasteInput,
         isAgent,
-        isCodex,
         osc52ClipboardWrite: isOsc52ClipboardWrite,
         processState,
         projectRoot: session?.rootPath ?? '',

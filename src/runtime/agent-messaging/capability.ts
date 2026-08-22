@@ -1,6 +1,7 @@
 import { constants } from 'node:fs';
 
 import type { AgentLaunchSettings, AgentProvider } from '../../shared/agents';
+import { agentProviderIds } from '../../shared/agents';
 import type { AgentMessagingCapability } from '../../shared/ipc/agent-endpoint-contract';
 import { readE2EAgentPolicy } from '../../shared/node/e2e-agent-policy';
 import { isAccessible } from '../../shared/node/fs';
@@ -14,10 +15,13 @@ import { discoverExecutable, readVersion } from '../agents';
 const PROBE_TIMEOUT_MS = 5_000;
 const CACHE_TTL_MS = 60_000;
 
-const VERIFIED_PROVIDER_RANGE = {
+const VERIFIED_PROVIDER_RANGE: Record<
+    AgentProvider,
+    { major: number; minimum: readonly [number, number, number] }
+> = {
     claude: { major: 2, minimum: [2, 1, 80] as const },
     codex: { major: 0, minimum: [0, 147, 0] as const },
-} satisfies Record<AgentProvider, { major: number; minimum: readonly [number, number, number] }>;
+};
 
 interface ProbeResult {
     executable?: string;
@@ -212,7 +216,7 @@ export class AgentMessagingCapabilityProbe {
     }
 
     invalidate(provider?: AgentProvider): void {
-        const providers: readonly AgentProvider[] = provider ? [provider] : ['claude', 'codex'];
+        const providers: readonly AgentProvider[] = provider ? [provider] : agentProviderIds;
         for (const current of providers) {
             this.providerEpochs.set(current, (this.providerEpochs.get(current) ?? 0) + 1);
             for (const key of this.cache.keys()) {

@@ -6,15 +6,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { RuntimeEvent } from '../../../shared/ipc';
 import { StructuredLogger } from '../../../shared/node/logger';
+import { createTestAgentService } from '../../__tests__/create-test-runtime';
 import { CaxriDatabase } from '../../db/repository';
 import { AgentCoordinator } from '../coordinator';
 import type { AgentAdapter } from '../service';
-import { AgentService } from '../service';
 
 const temporaryDirectories: string[] = [];
 
-function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
-    return new AgentService(undefined, {
+function createAgents(snapshot: AgentAdapter['snapshot']) {
+    return createTestAgentService({
         claude: { provider: 'claude', snapshot },
         codex: { provider: 'codex', snapshot },
     });

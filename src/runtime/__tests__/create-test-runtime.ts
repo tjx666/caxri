@@ -1,7 +1,10 @@
 import type { IPty } from 'node-pty';
 import { vi } from 'vitest';
 
+import type { AgentProvider } from '../../shared/agents';
+import { agentProviderIds } from '../../shared/agents';
 import type { AgentAdapter } from '../agents/service';
+import { AgentService } from '../agents/service';
 
 /**
  * Creates the inert PTY used by Runtime composition tests that must not launch a login shell. Tests that need to emit
@@ -21,10 +24,24 @@ export function createFakePty(): IPty {
 /**
  * Prevents background Agent metadata probes from escaping hermetic Runtime composition tests.
  */
-export function createPendingAgentAdapters(): Record<'claude' | 'codex', AgentAdapter> {
+export function createPendingAgentAdapters(
+    overrides: Partial<Record<AgentProvider, AgentAdapter>> = {},
+): Record<AgentProvider, AgentAdapter> {
     const pending = new Promise<never>(() => {});
-    return {
-        claude: { provider: 'claude', snapshot: () => pending },
-        codex: { provider: 'codex', snapshot: () => pending },
-    };
+    return Object.fromEntries(
+        agentProviderIds.map((provider) => [
+            provider,
+            overrides[provider] ?? { provider, snapshot: () => pending },
+        ]),
+    ) as Record<AgentProvider, AgentAdapter>;
+}
+
+/**
+ * Keeps focused Agent tests exhaustive for the catalog without making every fixture restate inert providers.
+ */
+export function createTestAgentService(
+    overrides: Partial<Record<AgentProvider, AgentAdapter>> = {},
+    logger?: ConstructorParameters<typeof AgentService>[0],
+): AgentService {
+    return new AgentService(logger, createPendingAgentAdapters(overrides));
 }
