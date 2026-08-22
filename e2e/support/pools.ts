@@ -30,6 +30,7 @@ export const parallelSafeSpecs = [
     'e2e/git-commits.e2e.ts',
     'e2e/git-pr.e2e.ts',
     'e2e/motion.e2e.ts',
+    'e2e/pane-mixed-kind.e2e.ts',
     'e2e/path-browser.e2e.ts',
     'e2e/project-collapse.e2e.ts',
     'e2e/project-icons.e2e.ts',

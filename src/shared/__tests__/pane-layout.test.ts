@@ -16,6 +16,7 @@ import {
     listPaneTerminalIds,
     moveTab,
     openResource,
+    paneSplitBlockedReason,
     paneTabIdsToClose,
     pinPaneTab,
     remapPaneLayoutPaths,
@@ -182,6 +183,35 @@ describe('pane layout reducer', () => {
         const [onlyTab] = activePane(layout).tabs;
         expect(splitTabIntoPane(layout, onlyTab.id, activePane(layout).id, 'right', id)).toBe(
             layout,
+        );
+    });
+
+    /**
+     * The Split menu items read this instead of clicking to find out: a no-op split returns the identical layout, which
+     * an enabled menu item cannot distinguish from a successful edit.
+     */
+    it('reports why a split would do nothing before it is attempted', () => {
+        const id = ids();
+        let layout = createPaneLayout(file('a.ts'), id);
+        const [onlyTab] = activePane(layout).tabs;
+        expect(paneSplitBlockedReason(layout, onlyTab.id, activePane(layout).id)).toBe('only-tab');
+        expect(paneSplitBlockedReason(layout, 'missing', activePane(layout).id)).toBe('missing');
+        expect(paneSplitBlockedReason(layout, onlyTab.id, 'missing')).toBe('missing');
+
+        layout = openResource(layout, file('b.ts'), {}, id);
+        expect(paneSplitBlockedReason(layout, onlyTab.id, activePane(layout).id)).toBeUndefined();
+
+        // Filling the layout to its pane ceiling blocks every remaining split, tab count notwithstanding.
+        while (listPanes(layout).length < MAX_PANE_LAYOUT_PANES) {
+            layout = openResource(layout, file(`pane-${listPanes(layout).length}.ts`), {}, id);
+            const [head] = activePane(layout).tabs;
+            layout = splitTabIntoPane(layout, head.id, activePane(layout).id, 'right', id);
+        }
+        expect(listPanes(layout)).toHaveLength(MAX_PANE_LAYOUT_PANES);
+        layout = openResource(layout, file('extra.ts'), {}, id);
+        const [crowded] = activePane(layout).tabs;
+        expect(paneSplitBlockedReason(layout, crowded.id, activePane(layout).id)).toBe(
+            'pane-limit',
         );
     });
 

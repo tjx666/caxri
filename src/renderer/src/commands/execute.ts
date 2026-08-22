@@ -1,7 +1,7 @@
 import './definitions';
 
 import type { CommandId } from '@shared/commands';
-import { listPanes } from '@shared/pane-layout';
+import { paneSplitBlockedReason } from '@shared/pane-layout';
 
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
 import { toggleScreencastMode } from '../features/screencast/screencast';
@@ -196,8 +196,9 @@ const commandContext: CommandContext = {
             const layout = getPaneLayout();
             const target = activePaneTarget();
             if (!layout || !target) return false;
-            const pane = listPanes(layout).find((candidate) => candidate.id === target.paneId);
-            return (pane?.tabs.length ?? 0) > 1;
+            // The same predicate the Context Menu and the reducer use, so a Split offered from the Command Palette or
+            // the native menu cannot claim to be available where the write path would silently no-op.
+            return paneSplitBlockedReason(layout, target.tabId, target.paneId) === undefined;
         },
         splitActive: (direction) => {
             const target = activePaneTarget();

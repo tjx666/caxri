@@ -256,7 +256,18 @@ describe('subscribeExternalDocumentSync', () => {
                     current.sessionId === 'session-1'
                         ? {
                               ...current,
-                              openTabs: paths.map((path) => ({ path, dirty: false })),
+                              paneLayout: {
+                                  root: {
+                                      type: 'pane',
+                                      id: 'pane-1',
+                                      tabs: paths.map((path) => ({
+                                          id: `tab-${path}`,
+                                          resource: { kind: 'file', path },
+                                      })),
+                                      activeTabId: `tab-${paths[0]}`,
+                                  },
+                                  activePaneId: 'pane-1',
+                              },
                           }
                         : current,
                 ),
