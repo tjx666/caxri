@@ -69,12 +69,6 @@ done
         userDataDir: userData,
         testRootPath: root,
     });
-    page.on('console', (message) => {
-        console.log(`CONSOLE[${message.type()}]:`, message.text());
-    });
-    page.on('pageerror', (error) => {
-        console.log('PAGEERROR:', error.message);
-    });
     try {
         await openAddProjectDialog(page);
         await page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
@@ -103,7 +97,20 @@ done
 
         await page.getByRole('button', { name: 'New Terminal', exact: true }).click();
         await expect(page.locator('.work-tab[data-terminal-id]')).toHaveCount(2);
-        await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        const codexTab = page.getByRole('tab', { name: 'Codex', exact: true });
+        await codexTab.click();
+        const codexTerminalId = await codexTab.locator('xpath=..').getAttribute('data-terminal-id');
+        // Switching back to Codex remounts its Terminal pane, which re-attaches the PTY asynchronously
+        // (`use-terminal-pane-runtime.ts`). Pressing `Meta+W` before that attach round-trip resolves races
+        // `workbench.closeActiveTab`'s `terminal.close` request behind it on the Host's ordered command
+        // queue (`src/host/local-server.ts`) — a race no human could reproduce by hand, but one Playwright's
+        // instant click-then-keypress can, especially under CI's contended parallel-safe pool. Waiting for
+        // the attach flag mirrors the same synchronization already used in `editor-tabs.e2e.ts`.
+        await expect(
+            page.locator(
+                `.terminal-pane[data-terminal-id="${codexTerminalId}"] .terminal-surface[data-terminal-attached="true"]`,
+            ),
+        ).toBeVisible();
         await page.keyboard.press('Meta+W');
         await expect(page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
         await expect(page.locator('.session-card strong')).toHaveText('hello');
