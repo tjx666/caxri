@@ -33,6 +33,11 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   The final root remains selected after the queue is exhausted, so Acceptance never falls through
   to a native dialog.
 
+- **Real directory picker:** add `--native-dialog` to keep `CAXRI_E2E` process isolation while
+  omitting the deterministic test-root environment. Use this only when the planned criterion crosses
+  the macOS picker itself, then interact through the semantic native-dialog helper. `--test-root`
+  still identifies the authorized fixture root for lifecycle records but is not returned automatically.
+
 - **Restart with the same isolated profile:** create an empty temporary directory whose basename
   starts with `caxri-acceptance-user-<profile-id-length>-<profile-id>-`, pass the same `--case-id`,
   `--case-mode restart`, and `--reuse-user-data PATH` on both launches, and add
