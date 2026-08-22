@@ -92,7 +92,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         );
 
         const gitStartedAt = performance.now();
-        await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await page.getByRole('tab', { name: 'Source Control', exact: true }).click();
         await page.locator('.git-heading').waitFor();
         const gitReadyMs = performance.now() - gitStartedAt;
 
