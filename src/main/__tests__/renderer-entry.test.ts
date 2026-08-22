@@ -70,8 +70,6 @@ describe('renderer entry loading', () => {
         expect(mainSource).toMatch(
             /loadRendererEntry\(window, \{[\s\S]*?isPackaged: app\.isPackaged,[\s\S]*?page: 'index\.html'/,
         );
-        expect(processExplorerSource).toMatch(
-            /resolveRendererEntryUrl\(\{[\s\S]*?isPackaged: this\.options\.isPackaged,[\s\S]*?page: 'process-explorer\.html'/,
-        );
+        expect(processExplorerSource).toMatch(/resolveProcessExplorerRendererUrl\(this\.options\)/);
     });
 });
