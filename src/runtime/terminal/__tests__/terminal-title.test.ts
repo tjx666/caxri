@@ -13,9 +13,14 @@ const BELL = String.fromCodePoint(0x07);
 const ESCAPE = String.fromCodePoint(0x1b);
 
 function createStore() {
+    const providers = new Map<string, 'claude' | 'codex'>();
     const titles = new Map<string, string>();
     return {
+        providers,
         titles,
+        getTerminal(id: string) {
+            return { provider: providers.get(id) };
+        },
         setTerminalPtyTitle(id: string, title: string): boolean {
             if (titles.get(id) === title) return false;
             titles.set(id, title);
@@ -36,6 +41,7 @@ describe('createTerminalTitleListener', () => {
     it('keeps the stable Terminal title while persisting the PTY display title separately', () => {
         const terminal: { ptyTitle?: string; title: string } = { title: 'Shell' };
         const store = {
+            getTerminal: () => ({ provider: undefined }),
             setTerminalPtyTitle(_id: string, title: string): boolean {
                 terminal.ptyTitle = title;
                 return true;
@@ -83,6 +89,35 @@ describe('createTerminalTitleListener', () => {
         vi.advanceTimersByTime(TERMINAL_TITLE_THROTTLE_MS);
         listen('zsh');
         vi.advanceTimersByTime(TERMINAL_TITLE_THROTTLE_MS);
+        expect(events).toHaveLength(1);
+    });
+
+    it('skips persistence and broadcast for a bound Agent Terminal', () => {
+        const store = createStore();
+        store.providers.set('t1', 'codex');
+        const events: RuntimeEvent[] = [];
+        const setTerminalPtyTitle = vi.spyOn(store, 'setTerminalPtyTitle');
+        const listen = createTerminalTitleListener('t1', store, (event) => events.push(event));
+
+        listen('codex working');
+        vi.advanceTimersByTime(TERMINAL_TITLE_THROTTLE_MS);
+
+        expect(setTerminalPtyTitle).not.toHaveBeenCalled();
+        expect(store.titles.size).toBe(0);
+        expect(events).toHaveLength(0);
+    });
+
+    it('drops a queued Shell title after the Terminal binds an Agent', () => {
+        const store = createStore();
+        const events: RuntimeEvent[] = [];
+        const listen = createTerminalTitleListener('t1', store, (event) => events.push(event));
+
+        listen('shell-leading');
+        listen('agent-trailing');
+        store.providers.set('t1', 'claude');
+        vi.advanceTimersByTime(TERMINAL_TITLE_THROTTLE_MS);
+
+        expect(store.titles.get('t1')).toBe('shell-leading');
         expect(events).toHaveLength(1);
     });
 
