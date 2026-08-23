@@ -36,7 +36,7 @@ export type ConfigAction =
     | { type: 'settings/sourceParsed'; value: AppSettings }
     | { type: 'settings/applied'; value: AppSettings; source: string }
     /**
-     * The Runtime reports `settings.jsonc` changed on disk (an external editor, or our own write echoing back). `value`
+     * An external editor changed `settings.jsonc` on disk. Local-write echoes are consumed before this action; `value`
      * is omitted when the new text fails to parse, so a foreign edit that breaks the file surfaces its error without
      * discarding the last-known-good structured value.
      */

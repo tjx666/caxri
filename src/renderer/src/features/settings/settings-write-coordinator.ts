@@ -87,7 +87,11 @@ export function createSettingsWriteCoordinator(
                 apply();
                 options.onApplied?.();
             } catch (error) {
-                hasRemovedOwnWrite(kind, source);
+                /**
+                 * A request can reject after Runtime has committed and broadcast the write (for example, when
+                 * post-write Settings reconciliation fails). Keep the marker until that possibly delayed event arrives,
+                 * otherwise recovery can misclassify the echo as external and cancel the next draft.
+                 */
                 options.onError(error, kind);
             }
         })();
