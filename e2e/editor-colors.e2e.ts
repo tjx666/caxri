@@ -74,7 +74,7 @@ test('JSON and gitlink patches use VS Code-style Dracula colors', async () => {
             'rgb(189, 147, 249)',
         );
 
-        await running.page.getByRole('tab', { name: 'Source Control', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const primary = running.page.locator('.git-repository-section').filter({
             has: running.page.locator('.git-repository-row', { hasText: 'project' }),
         });

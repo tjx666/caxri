@@ -91,7 +91,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(running.page.locator('.view-lines')).toContainText('external wins');
         await expect(editorTab).not.toHaveAttribute('aria-describedby');
 
-        await running.page.getByRole('tab', { name: 'Source Control', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const gitPanelText = running.page.locator('.git-panel').getByText('main', { exact: false });
         await expect(gitPanelText).toBeVisible();
         await expect(

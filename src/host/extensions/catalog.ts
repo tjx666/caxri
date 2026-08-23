@@ -36,7 +36,7 @@ const builtinContainers: ViewContainerDescriptor[] = [
         id: 'caxri.git',
         location: 'secondarySidebar',
         source: { kind: 'builtin' },
-        title: 'Source Control',
+        title: 'Git',
         icon: { kind: 'builtin', id: 'git-branch' },
         commandId: 'secondarySidebar.showGit',
         lifecycle: 'builtin',

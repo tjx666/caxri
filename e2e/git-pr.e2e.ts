@@ -55,7 +55,7 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
     });
     try {
         await createProjectSession(running.page);
-        await running.page.getByRole('tab', { name: 'Source Control', exact: true }).click();
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const files = running.page.locator('.git-files');
         await expect(files.locator('.git-row[title="working-only.txt"]')).toBeVisible();
 
