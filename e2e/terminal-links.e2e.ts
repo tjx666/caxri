@@ -253,9 +253,10 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         const url = 'https://example.org/keyboard-link';
         const rejectedUrl = 'https://user:password@example.net/rejected';
         const oscUrl = 'https://example.com/osc-keyboard-link';
+        const oscPrefix = `OSC reflow prefix ${'x'.repeat(180)}`;
         await typeTerminal(
             running.page,
-            String.raw`printf '%s\n' '${fileLink}' '${homeLink}' '${url}' '${rejectedUrl}'; printf '\033]8;;https://example.com/%s\007OSC link label\033]8;;\007\n' 'osc-keyboard-link'`,
+            String.raw`printf '%s\n' '${fileLink}' '${homeLink}' '${url}' '${rejectedUrl}'; printf '%s\033]8;;https://example.com/%s\007OSC link label\033]8;;\007\n' '${oscPrefix}' 'osc-keyboard-link'`,
         );
         const terminalInput = running.page.locator('.xterm-helper-textarea');
         await expect(running.page.locator('.xterm-rows')).toContainText('OSC link label');
@@ -272,6 +273,18 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
             ).toBeVisible();
             await search.press('Enter');
             await expect(dialog).toHaveCount(0);
+        };
+        const printTerminalLink = async (target: string): Promise<void> => {
+            const midpoint = Math.floor(target.length / 2);
+            /**
+             * Keep the full target out of the echoed command so this assertion can only pass after the shell emits the
+             * completed command's output, not during its transient editable-line redraw.
+             */
+            await typeTerminal(
+                running.page,
+                String.raw`printf '%s%s\n' '${target.slice(0, midpoint)}' '${target.slice(midpoint)}'`,
+            );
+            await expect(running.page.locator('.xterm-rows')).toContainText(target);
         };
 
         await terminalInput.focus();
@@ -330,6 +343,33 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         await expect(running.page.getByLabel(/^Editor position: Ln 2, Col 3/)).toBeVisible();
 
         await running.page.getByRole('tab', { name: 'Shell' }).click();
+        await typeTerminal(
+            running.page,
+            String.raw`printf '\033[?1049hALTERNATE SCREEN DURING REMOUNT'`,
+        );
+        await expect(running.page.locator('.xterm-rows')).toContainText(
+            'ALTERNATE SCREEN DURING REMOUNT',
+        );
+        await running.page.getByRole('tab', { name: 'link-target.ts' }).click();
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
+        await expect(running.page.locator('.xterm-rows')).toContainText(
+            'ALTERNATE SCREEN DURING REMOUNT',
+        );
+        const terminalWidthBeforeResize = await running.page
+            .locator('.xterm-screen')
+            .evaluate((element) => element.getBoundingClientRect().width);
+        await running.app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()[0]?.setBounds({ width: 720, height: 640 }),
+        );
+        await expect
+            .poll(() =>
+                running.page
+                    .locator('.xterm-screen')
+                    .evaluate((element) => element.getBoundingClientRect().width),
+            )
+            .toBeLessThan(terminalWidthBeforeResize);
+        await typeTerminal(running.page, String.raw`printf '\033[?1049l'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText('OSC link label');
         await running.app.evaluate(() => {
             const target = globalThis as typeof globalThis & {
                 caxriKeyboardLinkProbe?: { response: number };
@@ -356,8 +396,7 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
             sessions: unknown[];
         }>(running.page, 'app.bootstrap');
         const deniedLink = deniedFile;
-        await typeTerminal(running.page, String.raw`printf '%s\n' '${deniedLink}'`);
-        await expect(running.page.locator('.xterm-rows')).toContainText(deniedLink);
+        await printTerminalLink(deniedLink);
         await openLink(deniedLink, `Open file link ${deniedLink}`);
         await expect(
             running.page
@@ -367,8 +406,7 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         await expect(terminalInput).toBeFocused();
 
         const missingLink = '~/project/missing-target.ts';
-        await typeTerminal(running.page, String.raw`printf '%s\n' '${missingLink}'`);
-        await expect(running.page.locator('.xterm-rows')).toContainText(missingLink);
+        await printTerminalLink(missingLink);
         await openLink(missingLink, `Open file link ${missingLink}`);
         await expect(
             running.page

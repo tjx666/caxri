@@ -263,7 +263,7 @@ export class TerminalReplayCoordinator {
         try {
             if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
             await this.initialReplay.restore(snapshot?.payload ?? '', () => {
-                if (snapshot) this.replayOptions.restoreSnapshotLinks?.(snapshot);
+                if (snapshot && !this.disposed) this.replayOptions.restoreSnapshotLinks?.(snapshot);
             });
         } finally {
             this.replayOptions.finishSnapshot?.();
@@ -293,7 +293,8 @@ export class TerminalReplayCoordinator {
                 if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
                 this.reset();
                 await replay.restore(snapshot?.payload ?? '', () => {
-                    if (snapshot) this.replayOptions.restoreSnapshotLinks?.(snapshot);
+                    if (snapshot && !this.disposed)
+                        this.replayOptions.restoreSnapshotLinks?.(snapshot);
                 });
             } catch (error) {
                 // A teardown-time request failure has no surviving view to notify or replay into.

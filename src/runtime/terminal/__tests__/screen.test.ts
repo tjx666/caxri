@@ -47,15 +47,119 @@ describe('TerminalScreenState', () => {
         await screen.snapshot();
         screen.write('\r\u{1B}]8;;https://example.com/authoritative\u{7}LABEL\u{1B}]8;;\u{7}');
 
-        expect((await screen.snapshot()).oscLinks).toEqual([
+        expect((await screen.snapshot()).oscLinks).toMatchObject([
             {
-                endColumn: 5,
-                endCursorOffset: 0,
-                startColumn: 0,
-                startCursorOffset: 0,
+                buffer: 'normal',
+                endCellOffset: 5,
+                startCellOffset: 0,
                 target: 'https://example.com/authoritative',
             },
         ]);
+        screen.dispose();
+    });
+
+    it('snapshots normal-buffer OSC 8 targets while the alternate buffer is active', async () => {
+        const screen = new TerminalScreenState('', 20, 4);
+
+        screen.write(
+            '\u{1B}]8;;https://example.com/normal-buffer\u{7}LABEL\u{1B}]8;;\u{7}' +
+                '\u{1B}[?1049hALTERNATE',
+        );
+
+        const snapshot = await screen.snapshot();
+        expect(snapshot.payload).toContain('LABEL');
+        expect(snapshot.payload).toContain('\u{1B}[?1049h');
+        expect(snapshot.oscLinks).toMatchObject([
+            {
+                buffer: 'normal',
+                endCellOffset: 5,
+                startCellOffset: 0,
+                target: 'https://example.com/normal-buffer',
+            },
+        ]);
+        screen.dispose();
+    });
+
+    it('snapshots OSC 8 targets created in the active alternate buffer', async () => {
+        const screen = new TerminalScreenState('', 20, 4);
+
+        screen.write(
+            '\u{1B}[?1049h\u{1B}]8;;https://example.com/alternate-buffer\u{7}LABEL\u{1B}]8;;\u{7}',
+        );
+
+        const snapshot = await screen.snapshot();
+        expect(snapshot.payload).toContain('LABEL');
+        expect(snapshot.oscLinks).toMatchObject([
+            {
+                buffer: 'alternate',
+                target: 'https://example.com/alternate-buffer',
+            },
+        ]);
+        screen.dispose();
+    });
+
+    it('preserves inactive normal-buffer OSC 8 targets across reflow', async () => {
+        const screen = new TerminalScreenState('', 80, 4);
+        const target = 'https://example.com/inactive-reflow';
+
+        screen.write(
+            `prefix-${'x'.repeat(48)}` +
+                `\u{1B}]8;;${target}\u{7}${'LABEL'.repeat(8)}\u{1B}]8;;\u{7}` +
+                '\r\n\u{1B}[?1049hALTERNATE',
+        );
+        expect((await screen.snapshot()).oscLinks).toEqual([
+            expect.objectContaining({ buffer: 'normal', target }),
+        ]);
+
+        screen.resize(60, 4);
+
+        expect((await screen.snapshot()).oscLinks).toEqual([
+            expect.objectContaining({ buffer: 'normal', target }),
+        ]);
+        screen.dispose();
+    });
+
+    it('preserves inactive normal-buffer OSC 8 targets when wrapped rows merge', async () => {
+        const screen = new TerminalScreenState('', 20, 4);
+        const target = 'https://example.com/inactive-grow';
+
+        screen.write(
+            `\u{1B}]8;;${target}\u{7}${'L'.repeat(21)}\u{1B}]8;;\u{7}` +
+                '\r\n\u{1B}[?1049hALTERNATE',
+        );
+        expect((await screen.snapshot()).oscLinks).toEqual([
+            expect.objectContaining({ buffer: 'normal', target }),
+        ]);
+
+        screen.resize(30, 4);
+
+        expect((await screen.snapshot()).oscLinks).toEqual([
+            expect.objectContaining({ buffer: 'normal', target }),
+        ]);
+        screen.dispose();
+    });
+
+    it('omits OSC targets when aggregate snapshot bounds remove their normal-buffer labels', async () => {
+        const screen = new TerminalScreenState('', 20, 4);
+        const normalLines = Array.from({ length: 1_998 }, (_, index) => `line-${index}`).join(
+            '\r\n',
+        );
+
+        screen.write(
+            `prefix-1\r\n` +
+                `\u{1B}]8;;https://secret.example/oldest\u{7}OLDEST-LABEL\u{1B}]8;;\u{7}\r\n${
+                    normalLines
+                }\u{1B}[?1049hALT-1\r\nALT-2\r\nALT-3\r\nALT-4`,
+        );
+
+        const snapshot = await screen.snapshot();
+        expect(snapshot.payload).not.toContain('OLDEST-LABEL');
+        expect(snapshot.payload).toContain('line-100');
+        expect(snapshot.oscLinks ?? []).not.toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ target: 'https://secret.example/oldest' }),
+            ]),
+        );
         screen.dispose();
     });
 
