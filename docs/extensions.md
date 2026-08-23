@@ -57,7 +57,7 @@ An extension package must declare `type: "module"`, a `.js` or `.mjs` entry, a c
         {
           "id": "publisher.extension",
           "title": "Extension",
-          "icon": "media/extension.svg"
+          "icon": { "kind": "resource", "path": "media/extension.svg" }
         }
       ]
     },
@@ -75,11 +75,20 @@ An extension package must declare `type: "module"`, a `.js` or `.mjs` entry, a c
 }
 ```
 
-Only `secondarySidebar` and `panel` are contribution locations. `onView:<id>` and
-`onCommand:<id>` activation are derived from contributions. Caxri validates manifest and engine
-compatibility, canonical entry and icon containment, sizes, namespaces, and duplicate IDs before
-running extension code. The first discovery root is authoritative, so an installed extension
-cannot replace a bundled identity.
+Only `secondarySidebar` and `panel` are contribution locations. Container icons explicitly choose
+either an allowlisted semantic icon (`{ "kind": "builtin", "id": "status" }`) or an extension
+resource (`{ "kind": "resource", "path": "media/extension.svg" }`). Resource icons keep their
+authored colors. `onView:<id>` and `onCommand:<id>` activation are derived from contributions, so
+manifests must not declare `activationEvents`; conditional `when` clauses are likewise unsupported
+until Caxri implements and validates their semantics. Caxri validates manifest and engine
+compatibility with standard SemVer rules, canonical entry and icon containment, sizes, namespaces,
+and duplicate IDs before running extension code. One malformed package is surfaced as its own
+catalog error without hiding healthy siblings. The first discovery root is authoritative, so an
+installed extension cannot replace a bundled identity.
+
+Rejected packages receive a stable catalog-safe synthetic identity and an isolated error container.
+Retry re-runs discovery, so repairing the manifest or entry on disk replaces that error container
+with the extension's declared identity without restarting the Desktop.
 
 Manifest capabilities are declarations, not grants. The Host records actual capability and Project
 scope per extension. Bundled extensions receive their reviewed grants; installed extensions
@@ -92,6 +101,11 @@ Builtin Files, Source Control, Logs, and Info and extension contributions share 
 Descriptors use `builtin-react` for reviewed native components and `tree` for extension data. The
 Renderer dispatches only these declared kinds; extension code cannot inject a component.
 
+The Command Palette and app-level keybindings resolve extension commands through this same Host
+catalog. A shortcut reloads a missing, stale, or invalidated catalog before dispatch, executes the
+extension command once, and reports unknown or failed commands through the shared toast path. The
+native application menu does not synthesize dynamic extension accelerators.
+
 Session SQLite persists the free, bounded
 `desiredSecondarySidebarViewContainerId`. Device-local layout persists
 `desiredPanelViewContainerId`. The Renderer derives a currently available resolved ID from the
@@ -102,9 +116,19 @@ explicit user selection updates desired state.
 ## Tree RPC
 
 Extension element type `T` never leaves the Extension Host. The process boundary carries
-generation-scoped opaque handles and validated `TreeItemDTO` values. The shared Renderer owns
-virtualization, ThemeIcon rendering, roving focus, arrow/Home/End navigation, expansion, loading and
-local retry rows, and ARIA tree semantics.
+opaque handles and validated `TreeItemDTO` values. An explicit `TreeItem.id` is unique within its
+View and produces stable identity when a provider rebuilds element objects or the Extension Host
+restarts. Duplicate IDs fail the affected provider branch. Items without an ID retain only a
+generation-local object handle and have no cross-refresh persistence guarantee. Replacing a parent
+retires its removed descendants before the bounded handle capacity is evaluated.
+
+The shared Renderer owns virtualization, ThemeIcon rendering, roving focus, arrow/Home/End
+navigation, expansion, loading/empty/provider-error rows, local Retry, tooltip presentation, and
+ARIA tree semantics. Provider `Expanded` is applied only the first time a logical item appears;
+later user expansion wins. Bounded stable-ID expansion and focus state is stored in the existing
+Session/Workbench-Root JSON per View, so it survives root/target refresh and restart without leaking
+to another Session. Pointer and keyboard actions share one dispatch gate: Chromium's
+click-click-double-click sequence cannot execute a leaf command more than once.
 
 Tree requests have bounded item count, payload size, handle count, depth, concurrency, and timeout.
 Cancellation reaches the provider token. A cancelled or stale request cannot commit handles or
@@ -119,14 +143,20 @@ contracts.
 
 `extensions/status` is the first product extension and imports only public `caxri` API plus ordinary
 dependencies. `extensions/fixture` is test-only and supplies deterministic lazy, cancellation,
-failure, timeout, capacity, deep-tree, virtualization, refresh, and crash paths.
+failure, timeout, capacity, deep-tree, virtualization, refresh, and crash paths. Each extension is
+an independent pnpm workspace package with a package-local TypeScript program and a development-only
+`caxri: workspace:*` dependency.
 
-`bun run build:extensions` emits ESM bundles with `caxri` externalized. `electron-builder` copies
-each reviewed manifest, bundle, icon, and media asset to `Contents/Resources/extensions`. Packaged
-Host discovery uses that resource root and starts the Extension Host entry from `app.asar`; installed
-extensions, when present, are discovered from `<userData>/extensions` after bundled identities.
+`bun run build:extensions` orchestrates package-local ESM builds with `caxri` externalized. The
+production `electron-builder` profile copies only reviewed product manifests, bundles, icons, and
+media assets to `Contents/Resources/extensions`; it does not carry Fixture or extension source maps.
+`package:e2e` writes a separate test artifact that adds Fixture explicitly. Runtime `testOnly`
+filtering remains defense in depth, not the release-artifact boundary. Packaged Host discovery uses
+the resource root and starts the Extension Host entry from `app.asar`; installed extensions, when
+present, are discovered from `<userData>/extensions` after bundled identities.
 
 Focused validation lives in the API, protocol, discovery, catalog, supervisor, API factory,
 persistence, bundle-contract, and Renderer resolution tests. `e2e/extensions.e2e.ts` exercises lazy
-tree activation, keyboard/virtualized interaction, provider errors, crash recovery, Terminal
-survival, and desired-ID removal/restoration on the real Electron surface.
+and provider-owned expansion, stable state across targeted and root refresh/restart, Session
+isolation, tooltip/empty/error states, exactly-once pointer and keyboard commands, virtualization,
+crash recovery, Terminal survival, and desired-ID removal/restoration on the real Electron surface.

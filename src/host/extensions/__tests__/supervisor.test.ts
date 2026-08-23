@@ -64,6 +64,28 @@ describe('ExtensionHostSupervisor message boundary', () => {
         ).toBe(true);
         expect(
             isExtensionHostMessage({
+                type: 'api-request',
+                id: 'api',
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                apiToken: 'fixture-token-1',
+                method: 'workspace.getProjectStatus',
+                params: { refreshToken: 'refresh-1' },
+            }),
+        ).toBe(true);
+        expect(
+            isExtensionHostMessage({
+                type: 'api-request',
+                id: 'api',
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                apiToken: 'fixture-token-1',
+                method: 'workspace.getProjectStatus',
+                params: { refreshToken: 'x'.repeat(201) },
+            }),
+        ).toBe(false);
+        expect(
+            isExtensionHostMessage({
                 type: 'event',
                 event: 'treeChanged',
                 extensionId: 'publisher.fixture',
@@ -76,6 +98,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
     it('validates successful replies against their request method', () => {
         expect(isExtensionHostResult('activate', { activated: true })).toBe(true);
         expect(isExtensionHostResult('activate', { executed: true })).toBe(false);
+        expect(isExtensionHostResult('projectStatusChanged', { notified: 1 })).toBe(true);
         expect(
             isExtensionHostResult('treeChildren', {
                 items: [

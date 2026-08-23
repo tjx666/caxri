@@ -50,4 +50,26 @@ describe('resolveViewContainerId', () => {
             'publisher.view',
         );
     });
+
+    it('keeps an explicitly selected failed extension reachable for error and Retry UI', () => {
+        const failed: ViewCatalogSnapshot = {
+            ...catalog,
+            containers: catalog.containers.map((container) =>
+                container.id === 'publisher.view'
+                    ? {
+                          ...container,
+                          lifecycle: 'error' as const,
+                          error: {
+                              code: 'MANIFEST_INVALID' as const,
+                              message: 'Extension manifest is invalid',
+                          },
+                      }
+                    : container,
+            ),
+        };
+
+        expect(resolveViewContainerId('publisher.view', 'secondarySidebar', failed)).toBe(
+            'publisher.view',
+        );
+    });
 });

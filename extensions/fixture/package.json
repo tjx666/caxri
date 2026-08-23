@@ -4,6 +4,13 @@
     "private": true,
     "type": "module",
     "main": "./dist/extension.js",
+    "scripts": {
+        "build": "bun run --cwd ../.. scripts/build-extension.ts --extension-root extensions/fixture",
+        "typecheck": "tsc --noEmit -p tsconfig.json"
+    },
+    "devDependencies": {
+        "caxri": "workspace:*"
+    },
     "engines": {
         "caxri": "^0.0.17"
     },
@@ -19,7 +26,10 @@
                 {
                     "id": "caxri.fixture",
                     "title": "Extension Fixture",
-                    "icon": "media/fixture.svg"
+                    "icon": {
+                        "kind": "resource",
+                        "path": "media/fixture.svg"
+                    }
                 }
             ]
         },
@@ -36,6 +46,14 @@
             {
                 "command": "caxri.fixture.refresh",
                 "title": "Refresh Extension Fixture"
+            },
+            {
+                "command": "caxri.fixture.refreshTarget",
+                "title": "Refresh Extension Fixture Target"
+            },
+            {
+                "command": "caxri.fixture.increment",
+                "title": "Increment Extension Fixture Counter"
             },
             {
                 "command": "caxri.fixture.crashHost",

@@ -1,0 +1,134 @@
+import type { TreeItemDto } from '@shared/views';
+import { describe, expect, it } from 'vitest';
+
+import {
+    createExtensionTreeState,
+    focusTreeItem,
+    isTreeItemExpanded,
+    keyboardTreeRowAction,
+    pointerTreeRowAction,
+    reconcileTreeItems,
+    replaceTreeChildren,
+    serializeExtensionTreeState,
+    toggleTreeItem,
+} from '../extension-tree-state';
+
+function item(options: {
+    collapsibleState?: TreeItemDto['collapsibleState'];
+    command?: boolean;
+    handle: string;
+    id?: string;
+}): TreeItemDto {
+    return {
+        handle: options.handle,
+        ...(options.id && { id: options.id }),
+        label: options.id ?? options.handle,
+        accessibilityLabel: options.id ?? options.handle,
+        collapsibleState: options.collapsibleState ?? 'none',
+        ...(options.command && {
+            command: { id: 'publisher.command', title: 'Run command' },
+        }),
+    };
+}
+
+describe('extension tree state', () => {
+    it('applies provider-expanded once and preserves a later user collapse across refresh', () => {
+        const branch = item({
+            collapsibleState: 'expanded',
+            handle: 'generation-1',
+            id: 'stable-branch',
+        });
+        let state = reconcileTreeItems(createExtensionTreeState(), [branch]);
+        expect(isTreeItemExpanded(state, branch)).toBe(true);
+
+        state = toggleTreeItem(state, branch);
+        const replacement = item({
+            collapsibleState: 'expanded',
+            handle: 'generation-2',
+            id: 'stable-branch',
+        });
+        state = reconcileTreeItems(state, [replacement]);
+
+        expect(isTreeItemExpanded(state, replacement)).toBe(false);
+        expect(serializeExtensionTreeState(state)).toEqual({
+            expandedItemIds: [],
+            initializedItemIds: ['stable-branch'],
+        });
+    });
+
+    it('restores only stable ids and keeps handle-only items transient', () => {
+        const stable = item({ handle: 'new-handle', id: 'stable', collapsibleState: 'collapsed' });
+        const transient = item({ handle: 'transient', collapsibleState: 'collapsed' });
+        let state = createExtensionTreeState({
+            expandedItemIds: ['stable'],
+            initializedItemIds: ['stable'],
+            focusedItemId: 'stable',
+        });
+        state = reconcileTreeItems(state, [stable, transient]);
+        state = toggleTreeItem(state, transient);
+        state = focusTreeItem(state, stable);
+
+        expect(isTreeItemExpanded(state, stable)).toBe(true);
+        expect(isTreeItemExpanded(state, transient)).toBe(true);
+        expect(serializeExtensionTreeState(state)).toEqual({
+            expandedItemIds: ['stable'],
+            initializedItemIds: ['stable'],
+            focusedItemId: 'stable',
+        });
+    });
+
+    it('retires cached descendants when a refreshed branch reuses a stable child handle', () => {
+        const stableChild = item({
+            collapsibleState: 'collapsed',
+            handle: 'id:stable-child',
+            id: 'stable-child',
+        });
+        const oldGrandchild = item({ handle: 'old-grandchild', id: 'old-grandchild' });
+        const current = new Map<string, readonly TreeItemDto[]>([
+            ['parent', [stableChild]],
+            [stableChild.handle, [oldGrandchild]],
+            [oldGrandchild.handle, []],
+        ]);
+        const refreshedChild = {
+            ...stableChild,
+            label: 'Refreshed child',
+            accessibilityLabel: 'Refreshed child',
+        };
+
+        const result = replaceTreeChildren(current, 'parent', [refreshedChild]);
+
+        expect(result.children.get('parent')).toEqual([refreshedChild]);
+        expect(result.children.has(stableChild.handle)).toBe(false);
+        expect(result.children.has(oldGrandchild.handle)).toBe(false);
+        expect(result.retiredHandles).toEqual(new Set([stableChild.handle, oldGrandchild.handle]));
+    });
+});
+
+describe('extension tree interaction gate', () => {
+    const leaf = item({ command: true, handle: 'leaf', id: 'leaf' });
+    const branch = item({
+        collapsibleState: 'collapsed',
+        command: true,
+        handle: 'branch',
+        id: 'branch',
+    });
+
+    it('executes a leaf exactly once across Chromium click-click-doubleClick dispatch', () => {
+        expect(pointerTreeRowAction(leaf, 'click', 1)).toBe('activate');
+        expect(pointerTreeRowAction(leaf, 'click', 2)).toBe('none');
+        expect(pointerTreeRowAction(leaf, 'doubleClick', 2)).toBe('none');
+    });
+
+    it('toggles then activates a command branch at most once on double click', () => {
+        expect(pointerTreeRowAction(branch, 'click', 1)).toBe('toggle');
+        expect(pointerTreeRowAction(branch, 'click', 2)).toBe('none');
+        expect(pointerTreeRowAction(branch, 'doubleClick', 2)).toBe('activate');
+    });
+
+    it('keeps keyboard activation and expansion as single explicit actions', () => {
+        expect(keyboardTreeRowAction(leaf, 'Enter')).toBe('activate');
+        expect(keyboardTreeRowAction(branch, 'Enter')).toBe('activate');
+        expect(keyboardTreeRowAction(branch, ' ')).toBe('toggle');
+        expect(keyboardTreeRowAction(leaf, ' ')).toBe('none');
+    });
+});

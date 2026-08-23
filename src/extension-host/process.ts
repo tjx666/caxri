@@ -14,6 +14,7 @@ import {
     extensionApiBinding,
     getTreeChildren,
     notifyActiveContextChanged,
+    notifyProjectStatusChanged,
     settleApiReply,
 } from './api-factory';
 import { extensionErrorShape } from './extension-error';
@@ -52,6 +53,8 @@ async function handle(request: ExtensionHostRequest): Promise<unknown> {
             return executeExtensionCommand(request.params);
         case 'activeContextChanged':
             return notifyActiveContextChanged();
+        case 'projectStatusChanged':
+            return notifyProjectStatusChanged();
         case 'cancel':
             return cancelTreeRequest(request.params.requestId);
         case 'shutdown':

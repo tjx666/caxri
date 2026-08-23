@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@types/semver':
+      specifier: ^7.8.0
+      version: 7.8.0
     '@yutengjing/eslint-config-typescript':
       specifier: ^4.0.0
       version: 4.0.0
@@ -27,6 +30,9 @@ catalogs:
     prettier-plugin-tailwindcss:
       specifier: ^0.8.1
       version: 0.8.1
+    semver:
+      specifier: ^7.8.5
+      version: 7.8.5
     sonda:
       specifier: ^0.14.0
       version: 0.14.0
@@ -111,6 +117,9 @@ importers:
       '@types/react-dom':
         specifier: 19.2.4
         version: 19.2.4(@types/react@19.2.18)
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
       '@typescript/native':
         specifier: npm:typescript@7.0.2
         version: typescript@7.0.2
@@ -252,6 +261,9 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
       sonda:
         specifier: 'catalog:'
         version: 0.14.0
@@ -285,6 +297,18 @@ importers:
       zustand:
         specifier: 5.0.14
         version: 5.0.14(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
+
+  extensions/fixture:
+    devDependencies:
+      caxri:
+        specifier: workspace:*
+        version: link:../../packages/api
+
+  extensions/status:
+    devDependencies:
+      caxri:
+        specifier: workspace:*
+        version: link:../../packages/api
 
   packages/api: {}
 
@@ -2329,6 +2353,9 @@ packages:
 
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
+
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
@@ -7492,6 +7519,8 @@ snapshots:
   '@types/responselike@1.0.3':
     dependencies:
       '@types/node': 26.1.2
+
+  '@types/semver@7.8.0': {}
 
   '@types/trusted-types@2.0.7':
     optional: true

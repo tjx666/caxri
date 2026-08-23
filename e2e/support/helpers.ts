@@ -16,7 +16,6 @@ import {
 } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
 import type { AgentProvider } from '../../src/shared/agents.ts';
 import { agentProviderCatalog } from '../../src/shared/agents.ts';
-import { createBuildFreshnessGuard } from '../../src/shared/node/build-freshness.ts';
 import {
     e2eAgentPolicyEnvironment,
     e2eAgentShellShims,
@@ -27,6 +26,7 @@ import {
     e2eAgentStateEnvironmentKeys,
     selectE2ERealAgentStateEnvironment,
 } from './agent-environment.ts';
+import { assertE2EBuildIsFresh } from './build-freshness.ts';
 import type { ClipboardFixture, ClipboardSnapshot } from './clipboard.ts';
 import {
     armClipboardRestoreOnQuit,
@@ -38,68 +38,12 @@ import { registerE2ELaunch } from './error-gate.ts';
 import { resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
-const staleBuildMessage = 'Build output is stale — run "bun run build" before running e2e specs.';
-const buildInputPaths = [
-    join(projectRoot, 'src'),
-    join(projectRoot, 'electron.vite.config.ts'),
-    join(projectRoot, 'package.json'),
-    join(projectRoot, 'packages', 'cli', 'package.json'),
-    join(projectRoot, 'packages', 'cli', 'scripts'),
-    join(projectRoot, 'packages', 'cli', 'src'),
-    join(projectRoot, 'packages', 'cli', 'tsconfig.build.json'),
-    join(projectRoot, 'packages', 'cli', 'tsconfig.json'),
-    join(projectRoot, 'packages', 'protocol', 'package.json'),
-    join(projectRoot, 'packages', 'protocol', 'src'),
-    join(projectRoot, 'packages', 'protocol', 'tsconfig.build.json'),
-    join(projectRoot, 'packages', 'protocol', 'tsconfig.json'),
-    join(projectRoot, 'pnpm-lock.yaml'),
-    join(projectRoot, 'pnpm-workspace.yaml'),
-    join(projectRoot, 'tsconfig.node.json'),
-    join(projectRoot, 'tsconfig.web.json'),
-];
-const buildOutputPaths = [
-    join(projectRoot, 'out', 'main', 'index.js'),
-    join(projectRoot, 'out', 'main', 'host.js'),
-    join(projectRoot, 'out', 'main', 'runtime.js'),
-    join(projectRoot, 'out', 'preload', 'index.cjs'),
-    join(projectRoot, 'out', 'preload', 'process-explorer.cjs'),
-    join(projectRoot, 'out', 'renderer', 'index.html'),
-    join(projectRoot, 'out', 'renderer', 'process-explorer.html'),
-];
-const watchedBuildInputExtensions = new Set([
-    '.css',
-    '.html',
-    '.json',
-    '.png',
-    '.svg',
-    '.ts',
-    '.tsx',
-    '.ttf',
-    '.woff',
-    '.woff2',
-]);
 const e2eAgentEnvironmentKeys = [
     'CAXRI_E2E_AGENT_MODE',
     'CAXRI_E2E_AGENT_PROVIDER',
     ...e2eFakeExecutableEnvironmentKeys(),
     ...e2eAgentStateEnvironmentKeys,
 ] as const;
-
-/**
- * Guards against testing stale build output. The standard focused entrypoint (`bun run --silent check e2e/foo.e2e.ts
- * --e2e`) builds first, while direct Playwright invocations may skip that step and otherwise silently launch a
- * previously built `out/main/index.js`.
- */
-const buildFreshnessGuard = createBuildFreshnessGuard({
-    inputPaths: buildInputPaths,
-    outputPaths: buildOutputPaths,
-    watchedDirectoryExtensions: watchedBuildInputExtensions,
-    staleMessage: staleBuildMessage,
-});
-
-async function assertBuildIsFresh(): Promise<void> {
-    await buildFreshnessGuard.assertFresh();
-}
 
 export interface LaunchCaxriOptions {
     /**
@@ -291,7 +235,7 @@ export async function waitForNewTerminalId(
  * measure the readiness wait themselves.
  */
 export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri> {
-    await assertBuildIsFresh();
+    await assertE2EBuildIsFresh();
     const {
         userDataDir,
         testRootPath,

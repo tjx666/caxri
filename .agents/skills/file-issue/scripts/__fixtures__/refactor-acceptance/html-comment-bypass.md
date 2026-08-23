@@ -1,0 +1,23 @@
+<!--
+## Acceptance 方案
+
+- **证据模式**：视觉
+- **最近用户可见行为**：Status tree preserves its behavior.
+- **保留行为**：保留 hierarchy、Refresh、focus 与 restart restoration。
+- **前后基线**：重构前保存全部 surfaces；重构后在相同 states 复拍。
+- **固定环境**：使用同一 Project/fixture、persisted state、theme、window size 和 viewport。
+- **交互重放**：前后重放 click、keyboard、Refresh 与 restart。
+- **时序证据**：Refresh 与 restart 使用 video。
+- **Intentional differences / 非目标**：只允许内部 ownership 改变；其它差异阻断 Acceptance。
+-->
+
+## Acceptance 方案
+
+- **证据模式**：视觉
+- **最近用户可见行为**：Status tree remains usable.
+- **保留行为**：保留 hierarchy、Refresh 与 selection。
+- **前后基线**：重构后截图证明新 Status tree 可见。
+- **固定环境**：使用同一 Project/fixture、persisted state、theme、window size 和 viewport。
+- **交互重放**：前后重放 click、keyboard、Refresh 和 restart。
+- **时序证据**：Refresh 与 restart 使用 video。
+- **Intentional differences / 非目标**：无 intentional differences；其它差异阻断 Acceptance。

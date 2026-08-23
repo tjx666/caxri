@@ -1,4 +1,5 @@
 import { commandDefinitions } from '@shared/commands';
+import type { ViewCatalogSnapshot } from '@shared/views';
 
 import { executeCommand } from '../../commands/execute';
 import { ShortcutBadge } from '../../components/shortcut-badge';
@@ -11,15 +12,12 @@ import {
     CommandList,
 } from '../../components/ui/command';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
-import { caxri } from '../../lib/caxri';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
-import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSessions } from '../../stores/selectors';
-import { useSessionViewStore } from '../../stores/session-view';
-import { tryCommand } from '../../stores/toasts';
 import { didSelectSession, selectProject } from '../session/session-actions';
+import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
 
 const NO_RECORDS: never[] = [];
 
@@ -59,35 +57,18 @@ function CommandRow({ command }: { command: (typeof commandDefinitions)[number] 
 }
 
 function DynamicCommandRow({
+    catalog,
     command,
-    container,
 }: {
+    catalog: ViewCatalogSnapshot;
     command: { id: string; title: string; description?: string };
-    container?: { id: string; location: 'secondarySidebar' | 'panel' };
 }) {
     return (
         <CommandItem
             value={`Extension ${command.title} ${command.id}`}
             onSelect={() => {
                 setPaletteOpen(false);
-                if (container?.location === 'secondarySidebar') {
-                    useChromeLayoutStore.getState().setSecondarySidebarVisible(true);
-                    useSessionViewStore
-                        .getState()
-                        .setDesiredSecondarySidebarViewContainerId(container.id);
-                    return;
-                }
-                if (container?.location === 'panel') {
-                    useChromeLayoutStore.getState().activatePanelViewContainer(container.id);
-                    return;
-                }
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand() reports its own errors
-                void tryCommand(`Unable to run ${command.title}`, () =>
-                    caxri.request('viewContainers.executeCommand', {
-                        commandId: command.id,
-                        arguments: [],
-                    }),
-                );
+                didExecuteViewCatalogCommand(catalog, command.id);
             }}
         >
             <span className="flex min-w-0 flex-col gap-0.5">
@@ -173,10 +154,8 @@ export function CommandPalette() {
                                     ? [
                                           <DynamicCommandRow
                                               key={command.id}
+                                              catalog={catalog}
                                               command={command}
-                                              container={catalog.containers.find(
-                                                  ({ commandId }) => commandId === command.id,
-                                              )}
                                           />,
                                       ]
                                     : [],

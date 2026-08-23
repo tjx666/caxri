@@ -1,4 +1,6 @@
-import { readFile, realpath } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
+import { open, realpath } from 'node:fs/promises';
 import { extname, isAbsolute, relative, resolve } from 'node:path';
 
 import type {
@@ -14,6 +16,9 @@ import {
     MAX_VIEW_CATALOG_CONTAINERS,
     MAX_VIEW_CATALOG_EXTENSIONS,
     MAX_VIEW_CATALOG_VIEWS,
+    MAX_VIEW_ICON_DATA_URL_LENGTH,
+    SHOW_VIEW_CONTAINER_COMMAND_PREFIX,
+    viewCatalogSnapshotSchema,
 } from '../../../packages/protocol/src/domain/views';
 import type { DiscoveredExtension, RejectedExtension } from './discovery';
 
@@ -78,15 +83,47 @@ function dataMime(path: string): string {
     return extname(path).toLowerCase() === '.svg' ? 'image/svg+xml' : 'image/png';
 }
 
+function catalogErrorContainerId(extensionId: string): string {
+    const digest = createHash('sha256').update(extensionId).digest('hex').slice(0, 16);
+    return `extension-error.${digest}`;
+}
+
 async function iconDataUrl(extension: DiscoveredExtension, icon: string): Promise<string> {
     const canonicalRoot = await realpath(extension.rootPath);
     const iconPath = await realpath(resolve(canonicalRoot, icon));
     const nested = relative(canonicalRoot, iconPath);
     if (nested.startsWith('..') || isAbsolute(nested))
         throw new Error(`Extension icon escapes its root: ${icon}`);
-    const bytes = await readFile(iconPath);
-    if (bytes.byteLength > 96 * 1_024) throw new Error(`Extension icon is too large: ${icon}`);
-    return `data:${dataMime(icon)};base64,${bytes.toString('base64')}`;
+    const prefix = `data:${dataMime(icon)};base64,`;
+    const maxSourceBytes = Math.floor((MAX_VIEW_ICON_DATA_URL_LENGTH - prefix.length) / 4) * 3;
+    const file = await open(iconPath, 'r');
+    try {
+        const metadata = await file.stat();
+        if (!metadata.isFile()) throw new Error(`Extension icon is not a regular file: ${icon}`);
+        if (metadata.size > maxSourceBytes) throw new Error(`Extension icon is too large: ${icon}`);
+        const buffer = Buffer.allocUnsafe(maxSourceBytes + 1);
+        let bytesRead = 0;
+        while (bytesRead < buffer.length) {
+            // The bounded sequential read prevents a file-growth race from allocating an unbounded Host buffer.
+            // eslint-disable-next-line no-await-in-loop
+            const result = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
+            if (result.bytesRead === 0) break;
+            bytesRead += result.bytesRead;
+        }
+        if (bytesRead > maxSourceBytes) throw new Error(`Extension icon is too large: ${icon}`);
+        return `${prefix}${buffer.subarray(0, bytesRead).toString('base64')}`;
+    } finally {
+        await file.close();
+    }
+}
+
+async function resourceIconEntry(
+    extension: DiscoveredExtension,
+    id: string,
+    path: string,
+): Promise<readonly [string, string]> {
+    const dataUrl = await iconDataUrl(extension, path);
+    return [id, dataUrl];
 }
 
 export interface CatalogExtensionState {
@@ -125,7 +162,7 @@ export async function buildViewCatalog(options: {
         ];
         const contributedIds = [
             ...contributedContainers.map(({ id }) => id),
-            ...contributedContainers.map(({ id }) => `viewContainers.show.${id}`),
+            ...contributedContainers.map(({ id }) => `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${id}`),
             ...contributedViews.map(({ id }) => id),
             ...contributions.commands.map(({ command }) => command),
         ];
@@ -145,20 +182,23 @@ export async function buildViewCatalog(options: {
             };
         else if (duplicate)
             conflict = { code: 'DUPLICATE_ID', message: `Duplicate contribution id: ${duplicate}` };
-        let icons = new Map<string, string>();
+        let resourceIcons = new Map<string, string>();
         if (!conflict)
             try {
                 // Each extension is cataloged in order so the first conflicting contribution wins.
-                icons = new Map(
-                    // Icon reads are bounded and remain ordered by Promise.all below.
-                    // eslint-disable-next-line no-await-in-loop
+                resourceIcons = new Map(
+                    // eslint-disable-next-line no-await-in-loop -- Preserve deterministic extension conflict ownership.
                     await Promise.all(
-                        contributedContainers.map(
-                            async (contribution) =>
-                                [
-                                    contribution.id,
-                                    await iconDataUrl(extension, contribution.icon),
-                                ] as const,
+                        contributedContainers.flatMap((contribution) =>
+                            contribution.icon.kind === 'resource'
+                                ? [
+                                      resourceIconEntry(
+                                          extension,
+                                          contribution.id,
+                                          contribution.icon.path,
+                                      ),
+                                  ]
+                                : [],
                         ),
                     ),
                 );
@@ -177,7 +217,36 @@ export async function buildViewCatalog(options: {
             lifecycle,
             ...(error && { error }),
         });
-        if (conflict) continue;
+        if (conflict) {
+            const containerId = catalogErrorContainerId(extension.extensionId);
+            const commandId = `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${containerId}`;
+            if (
+                containers.length < MAX_VIEW_CATALOG_CONTAINERS &&
+                commands.length < MAX_VIEW_CATALOG_COMMANDS &&
+                !ids.has(containerId) &&
+                !ids.has(commandId)
+            ) {
+                ids.add(containerId);
+                ids.add(commandId);
+                containers.push({
+                    id: containerId,
+                    location: 'secondarySidebar',
+                    source: { kind: 'extension', extensionId: extension.extensionId },
+                    title: extension.extensionId,
+                    icon: { kind: 'builtin', id: 'beaker' },
+                    commandId,
+                    lifecycle: 'error',
+                    error: conflict,
+                });
+                commands.push({
+                    id: commandId,
+                    title: extension.extensionId,
+                    source: { kind: 'extension', extensionId: extension.extensionId },
+                    lifecycle: 'error',
+                });
+            }
+            continue;
+        }
         const viewContainers = contributions.viewsContainers;
         for (const location of ['secondarySidebar', 'panel'] as const) {
             const containerContributions = viewContainers[location];
@@ -188,21 +257,24 @@ export async function buildViewCatalog(options: {
                     location,
                     source: { kind: 'extension', extensionId: extension.extensionId },
                     title: contribution.title,
-                    icon: {
-                        kind: 'resource',
-                        dataUrl: icons.get(contribution.id)!,
-                    },
-                    commandId: `viewContainers.show.${contribution.id}`,
+                    icon:
+                        contribution.icon.kind === 'builtin'
+                            ? contribution.icon
+                            : {
+                                  kind: 'resource',
+                                  dataUrl: resourceIcons.get(contribution.id)!,
+                              },
+                    commandId: `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${contribution.id}`,
                     lifecycle,
                     ...(error && { error }),
                 });
                 commands.push({
-                    id: `viewContainers.show.${contribution.id}`,
+                    id: `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${contribution.id}`,
                     title: `Show ${contribution.title}`,
                     source: { kind: 'extension', extensionId: extension.extensionId },
                     lifecycle,
                 });
-                ids.add(`viewContainers.show.${contribution.id}`);
+                ids.add(`${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${contribution.id}`);
             }
         }
         for (const [containerId, viewContributions] of Object.entries(contributions.views)) {
@@ -214,7 +286,6 @@ export async function buildViewCatalog(options: {
                     source: { kind: 'extension', extensionId: extension.extensionId },
                     title: contribution.name,
                     viewKind: { kind: 'tree' },
-                    ...(contribution.when && { when: contribution.when }),
                 });
             }
         }
@@ -233,7 +304,7 @@ export async function buildViewCatalog(options: {
         0,
         Math.max(0, MAX_VIEW_CATALOG_EXTENSIONS - extensions.length),
     );
-    for (const rejected of remainingRejected)
+    for (const rejected of remainingRejected) {
         extensions.push({
             id: rejected.extensionId,
             version: rejected.version,
@@ -241,5 +312,38 @@ export async function buildViewCatalog(options: {
             lifecycle: 'error',
             error: rejected.error,
         });
-    return { revision: options.revision, containers, views, commands, extensions };
+        const commandId = `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${rejected.extensionId}`;
+        if (
+            containers.length >= MAX_VIEW_CATALOG_CONTAINERS ||
+            commands.length >= MAX_VIEW_CATALOG_COMMANDS ||
+            ids.has(rejected.extensionId) ||
+            ids.has(commandId)
+        )
+            continue;
+        ids.add(rejected.extensionId);
+        ids.add(commandId);
+        containers.push({
+            id: rejected.extensionId,
+            location: 'secondarySidebar',
+            source: { kind: 'extension', extensionId: rejected.extensionId },
+            title: rejected.extensionId,
+            icon: { kind: 'builtin', id: 'beaker' },
+            commandId,
+            lifecycle: 'error',
+            error: rejected.error,
+        });
+        commands.push({
+            id: commandId,
+            title: `Show ${rejected.extensionId}`,
+            source: { kind: 'extension', extensionId: rejected.extensionId },
+            lifecycle: 'error',
+        });
+    }
+    return viewCatalogSnapshotSchema.parse({
+        revision: options.revision,
+        containers,
+        views,
+        commands,
+        extensions,
+    });
 }

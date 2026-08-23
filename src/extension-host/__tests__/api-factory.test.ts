@@ -14,6 +14,7 @@ import {
     extensionApiBinding,
     getTreeChildren,
     notifyActiveContextChanged,
+    notifyProjectStatusChanged,
 } from '../api-factory';
 
 const fixture = { extensionRoot: '' };
@@ -44,11 +45,14 @@ function registration(generation = 1): ExtensionHostRegistration {
             main: './extension.mjs',
             engines: { caxri: '^0.0.17' },
             caxri: { capabilities: ['projects.read'] },
-            activationEvents: [],
             contributes: {
                 viewsContainers: {
                     secondarySidebar: [
-                        { id: 'publisher.fixture', title: 'Fixture', icon: 'fixture.svg' },
+                        {
+                            id: 'publisher.fixture',
+                            title: 'Fixture',
+                            icon: { kind: 'resource', path: 'fixture.svg' },
+                        },
                     ],
                     panel: [],
                 },
@@ -102,11 +106,106 @@ describe('Extension Host API factory', () => {
         ).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
     });
 
-    it('propagates cancellation and active-context changes only to the current runtime', async () => {
+    it('uses explicit TreeItem ids as stable view-scoped identity and rejects duplicates', async () => {
+        configureExtensions([registration()]);
+        let children = [{ label: 'first' }];
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: () => children,
+                getTreeItem: (element: { label: string }) => {
+                    const item = new TreeItem(element.label);
+                    item.id = 'stable-item';
+                    return item;
+                },
+            },
+        );
+
+        const first = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'stable-first',
+        });
+        children = [{ label: 'replacement' }];
+        const replacement = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'stable-replacement',
+        });
+        expect(replacement.items[0]).toMatchObject({
+            handle: first.items[0].handle,
+            id: 'stable-item',
+            label: 'replacement',
+        });
+
+        children = [{ label: 'duplicate-a' }, { label: 'duplicate-b' }];
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                requestId: 'stable-duplicate',
+            }),
+        ).rejects.toMatchObject({ code: 'DUPLICATE_ID' });
+    });
+
+    it('retires removed child handles when a parent branch is replaced', async () => {
+        configureExtensions([registration()]);
+        let childLabel = 'old-child';
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                getChildren: (element: { label: string } | undefined) =>
+                    element ? [{ label: childLabel }] : [{ label: 'parent' }],
+                getTreeItem: (element: { label: string }) => {
+                    const item = new TreeItem(element.label, TreeItemCollapsibleState.Collapsed);
+                    item.id = element.label;
+                    return item;
+                },
+            },
+        );
+        const root = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'retire-root',
+        });
+        const firstChildren = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            parentHandle: root.items[0].handle,
+            requestId: 'retire-old-child',
+        });
+        childLabel = 'new-child';
+        await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            parentHandle: root.items[0].handle,
+            requestId: 'retire-new-child',
+        });
+
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                parentHandle: firstChildren.items[0].handle,
+                requestId: 'retire-expired-child',
+            }),
+        ).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+    });
+
+    it('propagates cancellation and workspace changes only to the current runtime', async () => {
         configureExtensions([registration()]);
         const binding = extensionApiBinding('fixture-token-1');
         let contextChanges = 0;
+        let projectStatusChanges = 0;
         binding.api.workspace.onDidChangeActiveContext(() => contextChanges++);
+        binding.api.workspace.onDidChangeProjectStatus(() => projectStatusChanges++);
         let isCancellationObserved = false;
         binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
             getChildren: (_element: string | undefined, token) =>
@@ -133,6 +232,11 @@ describe('Extension Host API factory', () => {
 
         expect(notifyActiveContextChanged()).toEqual({ notified: 1 });
         expect(contextChanges).toBe(1);
+        expect(projectStatusChanges).toBe(0);
+
+        expect(notifyProjectStatusChanged()).toEqual({ notified: 1 });
+        expect(contextChanges).toBe(1);
+        expect(projectStatusChanges).toBe(1);
     });
 
     it('rejects providers that exceed the item limit', async () => {
@@ -212,6 +316,68 @@ describe('Extension Host API factory', () => {
             }),
         ).resolves.toEqual({
             items: [expect.objectContaining({ handle: '2:1', label: 'fresh' })],
+        });
+    });
+
+    it('discards a request that started before a provider root refresh', async () => {
+        configureExtensions([registration()]);
+        // eslint-disable-next-line unicorn/prefer-event-target -- Verify the public VS Code-compatible provider event.
+        const changes = new EventEmitter<undefined>();
+        const staleStarted = Promise.withResolvers<void>();
+        let resolveStale!: (children: ReadonlyArray<{ label: string }>) => void;
+        let rootCalls = 0;
+        extensionApiBinding('fixture-token-1').api.views.registerTreeDataProvider(
+            'publisher.fixture.tree',
+            {
+                onDidChangeTreeData: changes.event,
+                getChildren: (element: { label: string } | undefined) => {
+                    if (element) return [{ label: `child-of-${element.label}` }];
+                    rootCalls += 1;
+                    if (rootCalls === 1)
+                        return new Promise<ReadonlyArray<{ label: string }>>((resolve) => {
+                            resolveStale = resolve;
+                            staleStarted.resolve();
+                        });
+                    return [{ label: 'fresh' }];
+                },
+                getTreeItem: (element: { label: string }) => {
+                    const item = new TreeItem(element.label, TreeItemCollapsibleState.Collapsed);
+                    item.id =
+                        element.label === 'stale' || element.label === 'fresh'
+                            ? 'root'
+                            : element.label;
+                    return item;
+                },
+            },
+        );
+
+        const stale = getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'stale-before-root-refresh',
+        });
+        await staleStarted.promise;
+        changes.fire(undefined);
+        const fresh = await getTreeChildren({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            requestId: 'fresh-after-root-refresh',
+        });
+        resolveStale([{ label: 'stale' }]);
+
+        await expect(stale).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+        await expect(
+            getTreeChildren({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                parentHandle: fresh.items[0].handle,
+                requestId: 'fresh-child-after-root-refresh',
+            }),
+        ).resolves.toEqual({
+            items: [expect.objectContaining({ label: 'child-of-fresh' })],
         });
     });
 

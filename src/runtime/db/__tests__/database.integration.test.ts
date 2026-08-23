@@ -523,6 +523,37 @@ describe('CaxriDatabaseConnection', () => {
         database.close();
     });
 
+    it('round-trips extension tree state independently for each Session', async () => {
+        const directory = await temporaryDirectory('caxri-db-extension-tree-state-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.projects.create(directory);
+        const first = database.sessions.insert({ projectId: project.id, displayTitle: 'First' });
+        const second = database.sessions.insert({ projectId: project.id, displayTitle: 'Second' });
+        database.sessions.insertInitialState(first.id);
+        database.sessions.insertInitialState(second.id);
+
+        database.sessions.updateState({
+            ...database.sessions.getState(first.id),
+            extensionTreeViewStates: {
+                'publisher.fixture.tree': {
+                    expandedItemIds: ['repository'],
+                    initializedItemIds: ['repository'],
+                    focusedItemId: 'repository',
+                },
+            },
+        });
+
+        expect(database.sessions.getState(first.id).extensionTreeViewStates).toEqual({
+            'publisher.fixture.tree': {
+                expandedItemIds: ['repository'],
+                initializedItemIds: ['repository'],
+                focusedItemId: 'repository',
+            },
+        });
+        expect(database.sessions.getState(second.id).extensionTreeViewStates).toBeUndefined();
+        database.close();
+    });
+
     it('loads all Session states in one ordered query', async () => {
         const directory = await temporaryDirectory('caxri-db-session-states-');
         const database = new CaxriDatabase(join(directory, 'state.db'));

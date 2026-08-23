@@ -71,6 +71,12 @@ export default defineConfig(
          */
         'scripts/fixtures/markdown/**',
         /**
+         * Negative fixture for the refactor Acceptance validator: the mismatched closing fence is intentional so the
+         * test can prove that trailing fence info cannot expose a hidden plan. ESLint otherwise parses the deliberately
+         * malformed fixture as a virtual TypeScript module before the validator test can consume it as plain text.
+         */
+        '.agents/skills/file-issue/scripts/__fixtures__/refactor-acceptance/fence-trailing-info-bypass.txt',
+        /**
          * `.claude/skills` is a compatibility symlink to `.agents/skills` (see AGENTS.md); linting both paths would
          * just duplicate every finding under the canonical `.agents/skills` tree.
          */

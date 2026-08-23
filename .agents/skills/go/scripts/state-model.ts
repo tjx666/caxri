@@ -7,6 +7,7 @@ import {
     acceptancePublicationSchema,
     assertPublishedAcceptanceLineage,
     createEmptyAcceptancePublication,
+    recordOrphanedAcceptance,
 } from './acceptance-publication';
 import {
     assertDeliveryCanAdvance,
@@ -441,6 +442,31 @@ export function recordPullRequest(state: GoState, input: PullRequestInput): GoSt
         if (state.reviewGate.frozenHeadSha !== input.headSha) {
             state.reviewGate.frozenHeadSha = null;
         }
+        /**
+         * Acceptance decisions and pending publications bind one exact head. Preserve the immutable lineage so the
+         * replacement head can append a new round, but reset every decision field before validating the new PR head.
+         */
+        const pendingPublication = state.acceptance.publication.pendingAttempt;
+        if (pendingPublication) {
+            if (pendingPublication.acceptanceId === state.acceptance.id) {
+                state.acceptance.publication.pendingAttempt = null;
+            } else {
+                recordOrphanedAcceptance(state, {
+                    acceptanceId: pendingPublication.acceptanceId,
+                    reason: 'PR head changed before exact remote readback completed.',
+                    verifyRunId: pendingPublication.verifyRunId,
+                });
+            }
+            addEvent(
+                state,
+                'acceptance',
+                `Invalidated pending publication ${pendingPublication.verifyRunId} for ${pendingPublication.headSha}`,
+            );
+        }
+        state.acceptance.acceptedHeadSha = null;
+        state.acceptance.status = 'not_started';
+        state.acceptance.waivedHeadSha = null;
+        state.acceptance.waiverReason = null;
         state.handoffReport = null;
         state.finalization = null;
     }

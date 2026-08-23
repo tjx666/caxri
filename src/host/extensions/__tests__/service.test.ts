@@ -17,7 +17,6 @@ function extension(source: DiscoveredExtension['source']): DiscoveredExtension {
             main: './dist/extension.js',
             engines: { caxri: '^0.0.17' },
             caxri: { capabilities: ['projects.read', 'sessions.read'] },
-            activationEvents: [],
             contributes: {
                 viewsContainers: { secondarySidebar: [], panel: [] },
                 views: {},

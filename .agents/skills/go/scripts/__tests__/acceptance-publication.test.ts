@@ -9,9 +9,11 @@ import {
     commandCapture,
     publishAcceptanceRound,
     recordOrphanedAcceptance,
+    recordPublishedAcceptance,
+    restartAcceptanceLineage,
 } from '../acceptance-publication';
 import { createResumeCheckpoint } from '../resume';
-import { createInitialState } from '../state-model';
+import { createInitialState, recordPullRequest } from '../state-model';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const TEST_ROOT = join(
@@ -35,10 +37,10 @@ function report(
     verdict: 'fail' | 'partial' | 'pass' = 'pass',
 ) {
     return {
-        cases: checkIds.map((id) => ({ id })),
+        cases: checkIds.map((id) => ({ evidence: [`assets/${id}.txt`], id })),
         commit: headSha,
         createdAt: '2026-08-12T00:00:00.000Z',
-        plan: checkIds.map((id) => ({ id })),
+        plan: checkIds.map((id) => ({ id, requiredEvidence: ['text'] })),
         requirement: '同一交付只保留一个稳定的 Acceptance lineage。',
         summary: { verdict },
     };
@@ -55,6 +57,40 @@ async function writeRound(
     await writeFile(
         join(directory, 'result.json'),
         `${JSON.stringify(report(headSha, checkIds, verdict), null, 2)}\n`,
+    );
+    return directory;
+}
+
+async function writeRoundWithVisualEvidence(): Promise<string> {
+    const directory = join(TEST_ROOT, 'round-1');
+    await mkdir(join(directory, 'assets'), { recursive: true });
+    await writeFile(join(directory, 'assets', 'desktop.png'), 'visual evidence');
+    await writeFile(
+        join(directory, 'result.json'),
+        `${JSON.stringify(
+            {
+                cases: [
+                    {
+                        evidence: ['assets/desktop.png'],
+                        id: 'desktop-visual-state',
+                    },
+                ],
+                commit: 'head-1',
+                createdAt: '2026-08-12T00:00:00.000Z',
+                plan: [
+                    {
+                        id: 'desktop-visual-state',
+                        requiredEvidence: [
+                            { hint: 'Capture the rendered desktop surface', type: 'screenshot' },
+                        ],
+                    },
+                ],
+                requirement: '桌面视觉结果必须随 Acceptance 报告交付。',
+                summary: { verdict: 'pass' },
+            },
+            null,
+            2,
+        )}\n`,
     );
     return directory;
 }
@@ -91,6 +127,12 @@ function viewJson(
     input: {
         acceptanceId?: string;
         checkIds?: string[];
+        evidence?: Array<{
+            content?: string | null;
+            fileId?: string | null;
+            fileUrl?: string | null;
+            type: 'dom_snapshot' | 'gif' | 'markdown' | 'screenshot' | 'text' | 'video';
+        }>;
         headSha?: string;
         roundIndex?: number;
         verdict?: 'failed' | 'passed' | 'uncertain';
@@ -103,6 +145,9 @@ function viewJson(
     return JSON.stringify({
         acceptance: { id: acceptanceId },
         checks: (input.checkIds ?? ['acceptance-round-lineage']).map((id) => ({
+            evidence: input.evidence ?? [
+                { content: 'Remote evidence receipt', fileId: null, fileUrl: null, type: 'text' },
+            ],
             id,
             resultRound: roundIndex,
         })),
@@ -168,6 +213,160 @@ describe('Go Acceptance round publication', () => {
             roundIndex: 1,
             verifyRunId: 'run-1',
         });
+    });
+
+    it('rejects a remote round that dropped required visual evidence', async () => {
+        const state = publicationState('missing-visual-evidence');
+        const directory = await writeRoundWithVisualEvidence();
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1))
+            .mockResolvedValueOnce(
+                viewJson({ checkIds: ['desktop-visual-state'], headSha: 'head-1' }),
+            );
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).rejects.toThrow('evidence');
+        expect(state.acceptance.publication.history).toEqual([]);
+    });
+
+    it('rejects visual evidence that has a file record but no renderable URL', async () => {
+        const state = publicationState('missing-visual-url');
+        const directory = await writeRoundWithVisualEvidence();
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1))
+            .mockResolvedValueOnce(
+                viewJson({
+                    checkIds: ['desktop-visual-state'],
+                    evidence: [
+                        { content: null, fileId: 'file-1', fileUrl: null, type: 'screenshot' },
+                    ],
+                    headSha: 'head-1',
+                }),
+            );
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).rejects.toThrow('payload is missing');
+        expect(state.acceptance.publication.history).toEqual([]);
+    });
+
+    it('accepts visual evidence only when the remote round has a renderable file', async () => {
+        const state = publicationState('renderable-visual-evidence');
+        const directory = await writeRoundWithVisualEvidence();
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1))
+            .mockResolvedValueOnce(
+                viewJson({
+                    checkIds: ['desktop-visual-state'],
+                    evidence: [
+                        {
+                            content: null,
+                            fileId: 'file-1',
+                            fileUrl: 'https://example.com/desktop.png',
+                            type: 'screenshot',
+                        },
+                    ],
+                    headSha: 'head-1',
+                }),
+            );
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({ acceptanceId: 'acc-1', roundIndex: 1 });
+    });
+
+    it('invalidates a pending publication when the pull request head changes', async () => {
+        const state = publicationState('replacement-head');
+        recordPublishedAcceptance(state, {
+            acceptanceId: 'acc-1',
+            checkIds: ['acceptance-round-lineage'],
+            headSha: 'head-1',
+            publishedAt: '2026-08-12T00:00:00.000Z',
+            roundIndex: 1,
+            url: 'https://app.lobehub.com/acceptance/acc-1',
+            verdict: 'pass',
+            verifyRunId: 'run-1',
+        });
+        state.acceptance.publication.pendingAttempt = {
+            acceptanceId: 'acc-1',
+            checkIds: ['acceptance-round-lineage'],
+            createdAt: '2026-08-12T01:00:00.000Z',
+            headSha: 'head-1',
+            reportPath: '.records/go/replacement-head/acceptance/round-2',
+            roundIndex: 2,
+            verdict: 'pass',
+            verifyRunId: 'run-stale',
+        };
+
+        recordPullRequest(state, { headSha: 'head-2', status: 'checks_pending' });
+
+        expect(state.acceptance).toMatchObject({
+            acceptedHeadSha: null,
+            id: 'acc-1',
+            round: 1,
+            status: 'not_started',
+            waivedHeadSha: null,
+            waiverReason: null,
+        });
+        expect(state.acceptance.publication.history).toHaveLength(1);
+        expect(state.acceptance.publication.pendingAttempt).toBeNull();
+
+        const directory = await writeRound(2, 'head-2');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(2))
+            .mockResolvedValueOnce(viewJson({ headSha: 'head-2', roundIndex: 2 }));
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-2', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({ headSha: 'head-2', roundIndex: 2 });
+    });
+
+    it('preserves a replaced-head standalone publication as orphaned history', () => {
+        const state = publicationState('replacement-standalone');
+        state.acceptance.publication.pendingAttempt = {
+            acceptanceId: 'acc-standalone',
+            checkIds: ['acceptance-round-lineage'],
+            createdAt: '2026-08-12T01:00:00.000Z',
+            headSha: 'head-1',
+            reportPath: '.records/go/replacement-standalone/acceptance/round-1',
+            roundIndex: 1,
+            verdict: 'pass',
+            verifyRunId: 'run-standalone',
+        };
+
+        recordPullRequest(state, { headSha: 'head-2', status: 'checks_pending' });
+
+        expect(state.acceptance.publication.pendingAttempt).toBeNull();
+        expect(state.acceptance.publication.orphanedStandalones).toEqual([
+            expect.objectContaining({
+                acceptanceId: 'acc-standalone',
+                verifyRunId: 'run-standalone',
+            }),
+        ]);
     });
 
     it('bounds a stalled external publication command', async () => {
@@ -351,6 +550,102 @@ describe('Go Acceptance round publication', () => {
 
         expect(state.acceptance.publication.pendingAttempt).toBeNull();
         expect(state.acceptance.publication.orphanedStandalones).toHaveLength(1);
+    });
+
+    it('restarts an inaccessible frozen lineage without deleting its publication history', async () => {
+        const state = publicationState('restart-lineage');
+        recordPublishedAcceptance(state, {
+            acceptanceId: 'acc-old',
+            checkIds: ['acceptance-round-lineage'],
+            headSha: 'head-old',
+            publishedAt: '2026-08-11T00:00:00.000Z',
+            roundIndex: 1,
+            url: 'https://app.lobehub.com/acceptance/acc-old',
+            verdict: 'pass',
+            verifyRunId: 'run-old',
+        });
+        state.handoffReport = {
+            deliveredAt: '2026-08-11T01:00:00.000Z',
+            evidence: {
+                actionsUse: 'pinned',
+                commitFileMetrics: 'recorded',
+                costCheckpointCount: 1,
+                issueDriftAssessmentCount: 1,
+                issueDriftCommentCount: 0,
+                reviewBaselineId: 'review-001',
+                reviewDecisionCount: 1,
+                reviewLineageComplete: true,
+                reviewPolicyMode: 'light',
+                validationRepairCount: 0,
+            },
+            generatedAt: '2026-08-11T00:30:00.000Z',
+            headSha: 'head-1',
+            path: 'handoff-report.md',
+            sections: [
+                'delivery',
+                'review',
+                'technical-debt',
+                'workflow',
+                'cost',
+                'automation',
+                'boundaries',
+            ],
+            sha256: 'a'.repeat(64),
+        };
+
+        state.phase = 'delivery';
+        expect(() =>
+            restartAcceptanceLineage(state, {
+                acceptanceId: 'acc-old',
+                reason: '当前认证主体无法追加旧 Acceptance。',
+            }),
+        ).toThrow('Acceptance phase');
+        state.phase = 'acceptance';
+
+        expect(() =>
+            restartAcceptanceLineage(state, {
+                acceptanceId: 'acc-other',
+                reason: '当前认证主体无法追加旧 Acceptance。',
+            }),
+        ).toThrow('active frozen Acceptance');
+
+        restartAcceptanceLineage(state, {
+            acceptanceId: 'acc-old',
+            reason: '当前认证主体无法追加旧 Acceptance。',
+        });
+
+        expect(state.acceptance).toMatchObject({
+            id: null,
+            round: 0,
+            status: 'not_started',
+            url: null,
+        });
+        expect(state.acceptance.publication.history).toEqual([
+            expect.objectContaining({ acceptanceId: 'acc-old', verifyRunId: 'run-old' }),
+        ]);
+        expect(state.acceptance.publication.orphanedStandalones).toEqual([
+            expect.objectContaining({ acceptanceId: 'acc-old', verifyRunId: 'run-old' }),
+        ]);
+        expect(state.handoffReport).toBeNull();
+
+        const directory = await writeRound(1, 'head-1');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1, 'acc-new', 'run-new'))
+            .mockResolvedValueOnce(viewJson({ acceptanceId: 'acc-new', verifyRunId: 'run-new' }));
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({ acceptanceId: 'acc-new', roundIndex: 1 });
+        expect(state.acceptance.publication.history).toEqual([
+            expect.objectContaining({ acceptanceId: 'acc-old' }),
+            expect.objectContaining({ acceptanceId: 'acc-new' }),
+        ]);
     });
 
     it('persists an unresolved ingest and retries only its remote readback', async () => {
