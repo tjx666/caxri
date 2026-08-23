@@ -90,19 +90,10 @@ validate the package version and unused tag, run all release gates, launch the p
 the startup benchmark, verify the DMG, and upload a SHA-256 checksum. Signing and notarization are a
 separate public-distribution decision and must not be inferred from the presence of this workflow.
 
-Every GitHub Actions job runs on the repository-level Apple Silicon `m2-24` self-hosted runner.
-Retry policy, platform checks, and the final gate select `caxri-ci`; Electron E2E selects
-`caxri-e2e`; downstream packaging selects `caxri-release`. There is no GitHub-hosted fallback.
-Workflow event metadata must reject untrusted source execution before checkout: only owner-authored,
-owner-triggered same-repository PRs, trusted `main` pushes, and owner dispatches may execute
-repository code. Untrusted PRs run only the fixed no-checkout final gate and fail closed.
-
-Every source-executing job uses owner-scoped process, desktop-lease, profile, temporary-directory,
-and workspace cleanup. Exact trusted release commits route both their full E2E and downstream
-packaging through the same machine with a non-persisted, short-lived `contents: write` token.
-Reusing an existing macOS user is an accepted trust decision and must never be described as
-isolation from malicious workflow code; see `docs/self-hosted-runner.md` for operation and incident
-recovery.
+[`docs/self-hosted-runner.md`](../../../../docs/self-hosted-runner.md) owns GitHub Actions runner
+routing, source-admission trust, labels, offline behavior, cleanup, and recovery. This toolchain
+decision relies on that contract rather than restating it. Exact trusted release commits still run
+full E2E before downstream packaging uses a non-persisted, short-lived `contents: write` token.
 
 The repository-local `setup-caxri-job` composite action owns common toolchain setup. CI provisions
 exact Node 24 through `actions/setup-node`, installs pnpm 12 through `pnpm/setup` only on a runner

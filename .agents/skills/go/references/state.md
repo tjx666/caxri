@@ -1,5 +1,9 @@
 # Durable Run State
 
+The [Go skill](../SKILL.md) owns the ledger trust model. The commands below validate cooperative
+state and lineage; a failed transition is an internal consistency result, not independent
+attestation that a recorded command or review claim is true.
+
 New runs start through the isolated-worktree entry point:
 
 ```bash
@@ -174,10 +178,10 @@ bun run .agents/skills/go/scripts/state.ts finalization-generate \
 bun run .agents/skills/go/scripts/state.ts finalization-delivered --state "$STATE"
 ```
 
-The ledger rejects `waiting_acceptance` when the report is absent, incomplete,
-stale, checksum-invalid, or undelivered. It rejects `complete` until the same
-exact-head handoff and finalization receipts exist, their files match the
-ledger, the PR is merged, and every intended issue is `CLOSED` / `Done`.
+The state transition to `waiting_acceptance` fails validation when the report is absent,
+incomplete, stale, checksum-invalid, or undelivered. The transition to `complete` fails until the
+same exact-head handoff and finalization receipts exist, their files match the ledger, the PR is
+merged, and every intended issue is `CLOSED` / `Done`.
 
 ## Resume and rules
 

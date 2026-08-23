@@ -1,9 +1,11 @@
 # CI and E2E Performance Evidence
 
-This is the single source of truth for CI optimization decisions. It preserves historical
-GitHub-hosted evidence and records current self-hosted samples, non-green attempts, correctness
-constraints, and resource controls. A failed path is useful failure-cost data, but it is never a
-green performance baseline.
+This is the single source of truth for CI optimization decisions, execution profiles, and
+performance evidence. It preserves historical GitHub-hosted evidence and records current
+self-hosted samples, non-green attempts, correctness constraints, and resource controls. A failed
+path is useful failure-cost data, but it is never a green performance baseline. Runner labels,
+trust, offline behavior, and recovery are owned by
+[`docs/self-hosted-runner.md`](self-hosted-runner.md).
 
 ## Baseline
 
@@ -60,8 +62,8 @@ Vite's `.vite` directory is not a reusable production-output cache.
 
 ## Self-hosted diagnosis contract
 
-- Every CI and Release job runs on `m2-24`. If it is offline or busy, keep the job queued; there is
-  no hosted fallback, billing probe, or alternate runner input.
+- Runner availability, offline queuing, and recovery follow
+  [`docs/self-hosted-runner.md`](self-hosted-runner.md); a queued job is not successful evidence.
 - Preserve the first red self-hosted run and download its artifacts. Do not rerun a known red SHA or push
   one assertion fix at a time.
 - Reproduce the exact failed spec against a fresh production build with one worker and
@@ -76,6 +78,38 @@ Vite's `.vite` directory is not a reusable production-output cache.
   product, workflow, dependency, fixture, pool, and other skill changes fail closed to full CI.
 - Keep test counts, assertions, isolation, error gates, and failure artifacts unchanged. Optimize
   fixture cost and orchestration rather than coverage.
+
+## Current CI decision matrix
+
+The policy evaluates a retry hint first, derives the initial execution plan, and only searches for
+a reusable ancestor run when an otherwise full ready-PR path needs E2E and has no retry hint or
+parse error. A verified ancestor then recomputes the plan. Missing, malformed, stale, or unverifiable
+evidence fails closed to the event's ordinary row.
+
+`mode` belongs to `RetryPolicyDecision`; the remaining three values belong to
+`CIExecutionPlan`. The table is a behavior map, not a second implementation of the state machine.
+
+| Input and validated precondition                                                    | `mode`                    | `checksScope`               | `e2eProfile`                        | `runE2E`       |
+| ----------------------------------------------------------------------------------- | ------------------------- | --------------------------- | ----------------------------------- | -------------- |
+| Eligible exact-tree PR retry                                                        | `e2e-only` / `e2e-repair` | `skipped`                   | `control`                           | yes            |
+| Missing or rejected retry evidence                                                  | `full`                    | Continue with the event row | Continue with the event row         | event row      |
+| `workflow_dispatch`, profile `skip` / `control` / `optimized`                       | `full`                    | `full`                      | `control` / `control` / `optimized` | no / yes / yes |
+| PR strict-ancestor full-green reuse; delta is documentation only                    | `full`                    | `focused-docs`              | `control`                           | no             |
+| PR strict-ancestor full-green reuse; delta includes only `go` / `acceptance` skills | `full`                    | `focused-skills`            | `control`                           | no             |
+| PR documentation only                                                               | `full`                    | `focused-docs`              | `control`                           | no             |
+| PR repository-skill and documentation only                                          | `full`                    | `focused-skills`            | `control`                           | no             |
+| Draft PR with any remaining source change                                           | `full`                    | `focused-source`            | `control`                           | no             |
+| Ready PR with any remaining source change                                           | `full`                    | `full`                      | `optimized`                         | yes            |
+| Non-release `push` containing only documentation or repository skills               | `full`                    | `full`                      | `optimized`                         | no             |
+| Non-release `push` with product, test, workflow, or unknown delta                   | `full`                    | `full`                      | `optimized`                         | yes            |
+| Exact release commit                                                                | `full`                    | `full`                      | `control`                           | yes            |
+| Unknown or missing event                                                            | `full`                    | `full`                      | `control`                           | yes            |
+
+The pure retry, execution-plan, and green-reuse evaluators each have focused tests. The ordered
+GitHub lookup and `main` orchestration glue remain fail-closed but do not have a direct IO-level
+unit test; this is accepted while no concrete glue regression justifies extracting or mocking that
+boundary. Adding a new decision dimension must update the pure policy tests and this matrix before
+changing workflow wiring.
 
 ## Current single-runner execution contract
 

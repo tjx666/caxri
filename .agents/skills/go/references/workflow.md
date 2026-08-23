@@ -77,7 +77,7 @@ code-changing gates → one aggregate baseline → repair P0/P1 → light delta 
 
 - Complete `knip`, `doctor`, affected builds, and focused Electron E2E before
   the baseline so late gates do not reopen a declared-clean head.
-- A ledger accepts at most one full review. Every later code-changing repair is
+- The review policy permits at most one full review. Every later code-changing repair is
   `light` and binds `baselineReviewId`, `baselineHeadSha`, `parentReviewId`, and
   the exact `parentHead..currentHead` range.
 - If an architecture, security, or frozen-requirement change cannot credibly be
@@ -137,7 +137,8 @@ followed by one `bun run test:e2e` on the same clean head. Both surfaces must
 pass before Acceptance. Keep the PR `checks_blocked`; local evidence never turns
 the Actions check green. Normally one full Electron E2E is allowed. A product
 failure or human rejection can permit one final run after a new reviewed head;
-the ledger rejects a third.
+state validation refuses a third. The [Go skill](../SKILL.md) owns the cooperative ledger trust
+model; this gate does not independently attest the recorded command result.
 
 ## Waiting without token churn
 
