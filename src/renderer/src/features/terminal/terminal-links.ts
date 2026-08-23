@@ -17,6 +17,40 @@ const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`
  */
 export const TERMINAL_DEFAULT_WORD_SEPARATORS = ' ()[]{}\',"`─‘’“”|';
 
+/**
+ * The picker uses a non-virtualized cmdk list, so both descriptor count and retained target bytes need hard bounds even
+ * when an artificially large Terminal viewport is filled with short links.
+ */
+export const MAX_TERMINAL_DETECTED_LINKS = 200;
+export const MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES = 64 * 1_024;
+
+const terminalLinkTextEncoder = new TextEncoder();
+
+interface TerminalDetectedLinkBudget {
+    links: TerminalDetectedLink[];
+    targetBytes: number;
+    uniqueTargets: Set<string>;
+}
+
+function appendBoundedDetectedLink(
+    budget: TerminalDetectedLinkBudget,
+    key: string,
+    target: string,
+    createLink: () => TerminalDetectedLink,
+): 'accepted' | 'duplicate' | 'exhausted' {
+    if (budget.uniqueTargets.has(key)) return 'duplicate';
+    const candidateBytes = terminalLinkTextEncoder.encode(target).byteLength;
+    if (
+        budget.links.length >= MAX_TERMINAL_DETECTED_LINKS ||
+        budget.targetBytes + candidateBytes > MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES
+    )
+        return 'exhausted';
+    budget.links.push(createLink());
+    budget.uniqueTargets.add(key);
+    budget.targetBytes += candidateBytes;
+    return 'accepted';
+}
+
 export interface TerminalLinkMatch {
     endIndex: number;
     kind: 'file' | 'url';
@@ -558,13 +592,18 @@ function viewportPlainTextLinks(
     const firstVisibleLine = buffer.viewportY;
     const lastVisibleLine = Math.min(buffer.length - 1, firstVisibleLine + terminal.rows - 1);
     const visitedLogicalLines = new Set<number>();
-    const links: TerminalDetectedLink[] = [];
+    const budget: TerminalDetectedLinkBudget = {
+        links: [],
+        targetBytes: 0,
+        uniqueTargets: new Set(),
+    };
     for (let line = firstVisibleLine; line <= lastVisibleLine; line += 1) {
         const logicalLine = readLogicalLine(terminal, line + 1);
         if (!logicalLine || visitedLogicalLines.has(logicalLine.firstBufferLine)) continue;
         visitedLogicalLines.add(logicalLine.firstBufferLine);
         for (const match of findTerminalLinks(logicalLine.text, context.wordSeparators)) {
-            links.push(
+            const key = `${match.kind}:${match.text}`;
+            const result = appendBoundedDetectedLink(budget, key, match.text, () =>
                 createDetectedLink(
                     match,
                     context,
@@ -572,9 +611,35 @@ function viewportPlainTextLinks(
                     logicalLine.firstBufferLine,
                 ),
             );
+            if (result === 'exhausted') return budget.links;
         }
     }
-    return links;
+    return budget.links;
+}
+
+function boundedDetectedLinks(
+    candidates: Array<{
+        bufferLine: number;
+        key: string;
+        target: string;
+        link(): TerminalDetectedLink;
+    }>,
+): TerminalDetectedLink[] {
+    const budget: TerminalDetectedLinkBudget = {
+        links: [],
+        targetBytes: 0,
+        uniqueTargets: new Set(),
+    };
+    const orderedCandidates = candidates.toSorted(
+        (left, right) => left.bufferLine - right.bufferLine,
+    );
+    for (const candidate of orderedCandidates) {
+        const result = appendBoundedDetectedLink(budget, candidate.key, candidate.target, () =>
+            candidate.link(),
+        );
+        if (result === 'exhausted') break;
+    }
+    return budget.links;
 }
 
 function exactTerminalLinkTarget(
@@ -620,24 +685,20 @@ export function registerTerminalLinks(
     return {
         getViewportLinks() {
             const plain = viewportPlainTextLinks(terminal, context);
-            const known = new Set(
-                plain.map(({ bufferLine, kind, target }) => `${bufferLine}:${kind}:${target}`),
-            );
-            const osc: TerminalDetectedLink[] = [];
-            for (const { bufferLine, id, match } of oscTracker.getViewportLinks()) {
-                const link = createDetectedLink(match, context, id, bufferLine);
-                if (!known.has(`${link.bufferLine}:${link.kind}:${link.target}`)) osc.push(link);
-            }
-            const ordered = [...plain, ...osc].toSorted(
-                (left, right) => left.bufferLine - right.bufferLine,
-            );
-            const uniqueTargets = new Set<string>();
-            return ordered.filter(({ kind, target }) => {
-                const key = `${kind}:${target}`;
-                if (uniqueTargets.has(key)) return false;
-                uniqueTargets.add(key);
-                return true;
-            });
+            return boundedDetectedLinks([
+                ...plain.map((link) => ({
+                    bufferLine: link.bufferLine,
+                    key: `${link.kind}:${link.target}`,
+                    target: link.target,
+                    link: () => link,
+                })),
+                ...oscTracker.getViewportLinks().map(({ bufferLine, id, match }) => ({
+                    bufferLine,
+                    key: `${match.kind}:${match.text}`,
+                    target: match.text,
+                    link: () => createDetectedLink(match, context, id, bufferLine),
+                })),
+            ]);
         },
         restoreOscLinks: (snapshots) => oscTracker.restoreOscLinks(snapshots),
         dispose() {
