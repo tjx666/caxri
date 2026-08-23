@@ -381,9 +381,9 @@ export function PaneTabBar({
         if (!target) return;
         const targetTab = document.querySelector<HTMLElement>(`#${CSS.escape(workTabId(target))}`);
         /**
-         * Terminal activation normally moves focus into xterm. This marker exists only for keyboard navigation and is
-         * removed on blur, so the Terminal process effect can preserve the WAI-ARIA tab focus without changing mouse
-         * selection behavior.
+         * Terminal activation normally moves focus into xterm. The marker exists for activations that must not take the
+         * keyboard — roving tab navigation here, drag hover previews in `previewTab` — and is removed on blur, so the
+         * Terminal process effect can preserve the WAI-ARIA tab focus without changing mouse selection behavior.
          */
         if (targetTab) {
             const tab = pane.tabs.find((candidate) => candidate.id === target);
@@ -391,6 +391,23 @@ export function PaneTabBar({
             targetTab.focus();
         }
         selectPaneTab(target);
+    };
+    /**
+     * Activating a tab under a live drag must not hand it the keyboard: VS Code previews the dragged-over editor with
+     * `openEditor(..., { preserveFocus: true })` (`multiEditorTabsControl.ts`). A previewed Terminal would otherwise
+     * pull focus into xterm mid-drag, so it reuses `navigate`'s marker — Document tabs never move focus on activation
+     * and are left alone.
+     */
+    const previewTab = (tabId: string): void => {
+        const tab = pane.tabs.find((candidate) => candidate.id === tabId);
+        if (tab?.resource.kind === 'terminal') {
+            const element = document.querySelector<HTMLElement>(`#${CSS.escape(workTabId(tabId))}`);
+            if (element) {
+                element.dataset.preserveTerminalFocus = 'true';
+                element.focus();
+            }
+        }
+        selectPaneTab(tabId);
     };
     return (
         <div
@@ -433,7 +450,7 @@ export function PaneTabBar({
                     clearTimeout(hoverTimeoutReference.current);
                     hoverTimeoutReference.current = hoverSwitchTargetId
                         ? setTimeout(
-                              () => selectPaneTab(hoverSwitchTargetId),
+                              () => previewTab(hoverSwitchTargetId),
                               TAB_DRAG_HOVER_SWITCH_DELAY_MS,
                           )
                         : undefined;
