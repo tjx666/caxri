@@ -1,4 +1,8 @@
-import { publishAcceptanceRound, recordOrphanedAcceptance } from './acceptance-publication';
+import {
+    publishAcceptanceRound,
+    recordOrphanedAcceptance,
+    restartAcceptanceLineage,
+} from './acceptance-publication';
 import {
     admitCiFallback,
     ciFailureKindSchema,
@@ -150,6 +154,8 @@ const COMMAND_USAGE: Record<string, string> = {
         'acceptance --state PATH [--status STATUS] [--id ID] [--url URL] [--round N] [--accepted-head-sha SHA] [--waived-head-sha SHA --waiver-reason TEXT]',
     'acceptance-orphan':
         'acceptance-orphan --state PATH --acceptance-id ID --reason TEXT [--verify-run-id ID]',
+    'acceptance-restart-lineage':
+        'acceptance-restart-lineage --state PATH --acceptance-id ID --reason TEXT',
     'acceptance-publish': 'acceptance-publish --state PATH --report-dir DIR --head-sha SHA',
     'checkpoint':
         'checkpoint --state PATH [--boundary manual|issue|batch|phase] [--issue-number N] [--tokens N|unavailable] [--commit-count N|unavailable] [--file-count N|unavailable] [--revised-eta TEXT]',
@@ -590,6 +596,19 @@ export async function runStateCli(argv: string[]): Promise<void> {
                     reason: one(options, 'reason', true)!,
                     verifyRunId: one(options, 'verify-run-id'),
                 });
+
+                break;
+            }
+            case 'acceptance-restart-lineage': {
+                restartAcceptanceLineage(state, {
+                    acceptanceId: one(options, 'acceptance-id', true)!,
+                    reason: one(options, 'reason', true)!,
+                });
+                addEvent(
+                    state,
+                    'acceptance',
+                    `Restarted inaccessible lineage ${one(options, 'acceptance-id', true)}`,
+                );
 
                 break;
             }
