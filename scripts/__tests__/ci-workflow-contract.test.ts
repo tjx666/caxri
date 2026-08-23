@@ -272,7 +272,7 @@ describe('CI workflow contract', () => {
             "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}",
         );
         expect(e2eJob).toContain("VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}");
-        expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts create');
+        expect(e2eJob).not.toContain('run: bun run scripts/ci-checks-worktree.ts create');
         expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts remove');
         expect(e2eJob).toContain('run: bun run scripts/ci-concurrent-validation.ts run');
         expect(concurrentIndex).toBeGreaterThan(0);
@@ -287,8 +287,10 @@ describe('CI workflow contract', () => {
         );
         expect(checksWorktree).toContain('Synthetic merge parents do not match');
         expect(checksWorktree).toContain('CAXRI_REACT_DOCTOR_BASE=${baseRevision}');
-        expect(checksWorktree).toContain('env: sanitizedChildEnvironment(process.env)');
-        expect(concurrentValidation).toContain('await Promise.all([checksPromise, runE2E()])');
+        expect(checksWorktree).toContain('env: sanitizedChildEnvironment(environment)');
+        expect(concurrentValidation).toContain('prepareChecksWorktree');
+        expect(concurrentValidation).toContain('runE2E(safeEnvironment)');
+        expect(concurrentValidation).toContain('await Promise.all([checksPromise, e2ePromise])');
         for (const gate of [
             "'lint'",
             "'lint:type-aware'",

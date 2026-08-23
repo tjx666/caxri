@@ -188,6 +188,7 @@ test('live Terminal restores the authoritative screen after Renderer output back
 
         await input.focus();
         await input.press('b');
+        let droppedBytes = 0;
         await expect
             .poll(async () => {
                 try {
@@ -197,7 +198,7 @@ test('live Terminal restores the authoritative screen after Renderer output back
                         .trim()
                         .split('\n')
                         .map((line) => JSON.parse(line) as Record<string, unknown>);
-                    return records.some((record) => {
+                    const throughput = records.findLast((record) => {
                         const fields = record.fields as Record<string, unknown> | undefined;
                         return (
                             record.event === 'pty.throughput' &&
@@ -205,11 +206,15 @@ test('live Terminal restores the authoritative screen after Renderer output back
                             Number(fields.droppedBytes) > 0
                         );
                     });
+                    const fields = throughput?.fields as Record<string, unknown> | undefined;
+                    droppedBytes = Number(fields?.droppedBytes) || 0;
+                    return droppedBytes;
                 } catch {
-                    return false;
+                    return 0;
                 }
             })
-            .toBe(true);
+            .toBeGreaterThan(0);
+        console.log(`CAXRI_E2E_TERMINAL_BACKPRESSURE ${JSON.stringify({ droppedBytes })}`);
         await expect(rows).toContainText('BACKPRESSURE_SCREEN_READY');
         await expect(rows).not.toContainText('dropped by output backpressure');
 
