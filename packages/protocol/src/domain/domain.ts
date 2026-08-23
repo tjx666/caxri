@@ -128,11 +128,12 @@ export const terminalRecordSchema = z.object({
     provider: agentProviderSchema.optional(),
     cwd: pathSchema,
     /**
-     * Stable semantic identity derived from the Terminal kind. PTY-authored window titles must not replace it.
+     * Stable semantic title. Agent metadata promotes it to the conversation title; PTY-authored window titles must not
+     * replace it.
      */
     title: z.string(),
     /**
-     * Optional live display title reported by the PTY through OSC 0/2.
+     * Optional live Shell display title reported by the PTY through OSC 0/2. Agent bindings discard this signal.
      */
     ptyTitle: z.string().optional(),
     icon: z.string(),

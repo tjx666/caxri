@@ -41,12 +41,114 @@ function activeFilePath(layout: PaneLayout): string | undefined {
     return tab?.resource.kind === 'file' ? tab.resource.path : undefined;
 }
 
+interface StoredRootState {
+    editorRemapOperationId?: string;
+    extensionTreeViewStates?: unknown;
+    paneLayout: PaneLayout;
+}
+
+function readStoredRootStates(
+    database: CaxriDatabase,
+    sessionId: string,
+): Record<string, StoredRootState> {
+    const row = database.database
+        .prepare(
+            'SELECT workbench_state_json AS workbenchStateJson FROM session_state WHERE session_id = ?',
+        )
+        .get(sessionId) as { workbenchStateJson: string };
+    return JSON.parse(row.workbenchStateJson) as Record<string, StoredRootState>;
+}
+
 /**
  * Coverage for how `CaxriDatabase` scopes a Session's durable editor state (open document tabs, active tab, and remaps)
  * per Workbench Root while keeping owner identity and Terminal cwd global. See `./repo.integration.test.ts` for the
  * rest of the facade-level wiring; `./database.integration.test.ts` for pure-SQL/schema behavior.
  */
 describe('CaxriDatabase Workbench Root editor state', () => {
+    it('heals historical orphan Terminal tabs per Root without dropping extension tree state', async () => {
+        const directory = await temporaryDirectory('caxri-db-orphan-terminal-heal-');
+        const databasePath = join(directory, 'state.db');
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(databasePath);
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const orphan = database.createTerminal(created.session.id, 'shell');
+        const worktreeIdentity = await lstat(worktreeRoot, { bigint: true });
+        const ownerTreeState = {
+            'publisher.fixture.owner': {
+                expandedItemIds: ['owner-root'],
+                focusedItemId: 'owner-root',
+                initializedItemIds: ['owner-root'],
+            },
+        };
+        const worktreeTreeState = {
+            'publisher.fixture.worktree': {
+                expandedItemIds: ['worktree-root'],
+                focusedItemId: 'worktree-root',
+                initializedItemIds: ['worktree-root'],
+            },
+        };
+
+        database.updateSessionState({
+            ...database.getSessionState(created.session.id),
+            editorRemapOperationId: 'owner-operation',
+            extensionTreeViewStates: ownerTreeState,
+        });
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: worktreeIdentity.dev.toString(),
+            inode: worktreeIdentity.ino.toString(),
+        });
+        database.updateSessionState({
+            ...database.getSessionState(created.session.id),
+            editorRemapOperationId: 'worktree-operation',
+            extensionTreeViewStates: worktreeTreeState,
+        });
+        const historicalState = database.database
+            .prepare(
+                'SELECT workbench_state_json AS workbenchStateJson FROM session_state WHERE session_id = ?',
+            )
+            .get(created.session.id) as { workbenchStateJson: string };
+
+        database.closeTerminal(orphan.id);
+        database.database
+            .prepare('UPDATE session_state SET workbench_state_json = ? WHERE session_id = ?')
+            .run(historicalState.workbenchStateJson, created.session.id);
+
+        const healedWorktree = database.getSessionState(created.session.id);
+        expect(listPaneTerminalIds(healedWorktree.paneLayout)).toEqual([created.terminal!.id]);
+        expect(healedWorktree.extensionTreeViewStates).toEqual(worktreeTreeState);
+        expect(healedWorktree.editorRemapOperationId).toBe('worktree-operation');
+
+        const afterWorktreeRead = readStoredRootStates(database, created.session.id);
+        expect(listPaneTerminalIds(afterWorktreeRead[worktree.id].paneLayout)).toEqual([
+            created.terminal!.id,
+        ]);
+        expect(afterWorktreeRead[worktree.id].extensionTreeViewStates).toEqual(worktreeTreeState);
+        expect(listPaneTerminalIds(afterWorktreeRead[owner.id].paneLayout)).toContain(orphan.id);
+        expect(afterWorktreeRead[owner.id].extensionTreeViewStates).toEqual(ownerTreeState);
+
+        database.selectWorkbenchProject(created.session.id, owner.id);
+        const healedOwner = database.getSessionState(created.session.id);
+        expect(listPaneTerminalIds(healedOwner.paneLayout)).toEqual([created.terminal!.id]);
+        expect(healedOwner.extensionTreeViewStates).toEqual(ownerTreeState);
+        expect(healedOwner.editorRemapOperationId).toBe('owner-operation');
+        const afterOwnerRead = readStoredRootStates(database, created.session.id);
+        expect(listPaneTerminalIds(afterOwnerRead[owner.id].paneLayout)).toEqual([
+            created.terminal!.id,
+        ]);
+        expect(afterOwnerRead[worktree.id].extensionTreeViewStates).toEqual(worktreeTreeState);
+        database.close();
+
+        const reopened = new CaxriDatabase(databasePath);
+        const persisted = reopened.getSessionState(created.session.id);
+        expect(listPaneTerminalIds(persisted.paneLayout)).toEqual([created.terminal!.id]);
+        expect(persisted.extensionTreeViewStates).toEqual(ownerTreeState);
+        reopened.close();
+    });
+
     it('keeps owner identity and Terminal cwd global while restoring editor state per Workbench Root', async () => {
         const directory = await temporaryDirectory('caxri-db-workbench-root-');
         const ownerRoot = join(directory, 'owner');

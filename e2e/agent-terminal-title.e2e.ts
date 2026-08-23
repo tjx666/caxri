@@ -20,12 +20,12 @@ interface BootstrapTerminals {
 }
 
 /**
- * Two title writers reach the same Terminal row from opposite directions, and only a real Electron run exercises both:
- * the Agent conversation arrives through the Runtime's provider probe, while OSC 0/2 arrives through the PTY stream.
- * Pure-function coverage of the arbitration stays green if a Renderer call site goes back to preferring the PTY title,
- * and the Agent E2E fixtures never emitted OSC at all before this spec.
+ * Two title sources reach the same Terminal from opposite directions, and only a real Electron run exercises both: the
+ * Agent conversation arrives through the Runtime's provider probe, while OSC 0/2 arrives through the PTY stream. The
+ * Agent binding must reject the transient OSC title before persistence, and the Renderer must keep projecting the
+ * semantic conversation title across reloads.
  */
-test('an Agent tab keeps its conversation title against OSC and a reload, and drops it on a fresh restart', async () => {
+test('an Agent tab suppresses OSC persistence, survives reload, and resets on a fresh restart', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-terminal-title-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -95,14 +95,9 @@ done
         ).toBeVisible();
 
         await typeTerminal(page, 'status');
-        // Proves the OSC payload actually reached the Runtime and was stored, rather than the tab surviving because
-        // the escape sequence never made it out of the PTY.
-        await expect
-            .poll(async () => {
-                const bootstrap = await pageRequest<BootstrapTerminals>(page, 'app.bootstrap');
-                return bootstrap.terminals.at(0);
-            })
-            .toMatchObject({ ptyTitle: AGENT_STATUS_TITLE, title: CONVERSATION_TITLE });
+        // The marker follows the OSC write in the fake Agent, so seeing it proves the escape sequence reached the PTY
+        // stream before the durable-state assertion below verifies that the Agent-bound listener discarded it.
+        await expect(page.locator('.xterm-rows')).toContainText('status announced');
         await expect(
             page.getByRole('tab', { name: CONVERSATION_TITLE, exact: true }),
         ).toBeVisible();
@@ -115,6 +110,11 @@ done
             page.getByRole('tab', { name: CONVERSATION_TITLE, exact: true }),
         ).toBeVisible();
         await expect(page.locator('.tab-label')).toHaveText(CONVERSATION_TITLE);
+        const reloadedTerminal = (
+            await pageRequest<BootstrapTerminals>(page, 'app.bootstrap')
+        ).terminals.at(0);
+        expect(reloadedTerminal).toMatchObject({ title: CONVERSATION_TITLE });
+        expect(reloadedTerminal).not.toHaveProperty('ptyTitle');
 
         /**
          * A fresh restart retires the conversation, so keeping its name would label a brand new Agent with a
