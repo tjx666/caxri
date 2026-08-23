@@ -167,17 +167,24 @@
     background-color: transparent;
 }
 .terminal-command-decoration {
-    display: flex;
-    justify-content: center;
-    align-items: center;
     pointer-events: none;
 }
 .terminal-command-decoration::before {
     content: '';
+    /*
+     * Xterm owns the decoration element's inline `display: block/none` lifecycle, so a flex layout
+     * on the parent is always overridden. Position the glyph itself to preserve xterm's offscreen
+     * and alternate-buffer hiding while still giving the empty pseudo-element a paintable box.
+     */
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
     box-sizing: border-box;
     width: 9px;
     height: 9px;
     border-radius: 50%;
+    transform: translate(-50%, -50%);
 }
 .terminal-command-decoration[data-terminal-command-phase='running']::before {
     border: 1.5px solid currentColor;
