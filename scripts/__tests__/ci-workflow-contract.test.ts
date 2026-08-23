@@ -14,6 +14,12 @@ const setupAction = await readFile(
     new URL('../../.github/actions/setup-caxri-job/action.yml', import.meta.url),
     'utf8',
 );
+const checksWorktree = await readFile(new URL('../ci-checks-worktree.ts', import.meta.url), 'utf8');
+const concurrentValidation = await readFile(
+    new URL('../ci-concurrent-validation.ts', import.meta.url),
+    'utf8',
+);
+const platformChecks = await readFile(new URL('../ci-platform-checks.ts', import.meta.url), 'utf8');
 const bunVersion = (await readFile(new URL('../../.bun-version', import.meta.url), 'utf8')).trim();
 const packageManifest = JSON.parse(
     await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
@@ -79,6 +85,9 @@ describe('CI workflow contract', () => {
         );
         expect(workflow).toContain(
             "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}",
+        );
+        expect(workflow).toContain(
+            "CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}",
         );
         expect(workflow).toContain(
             'Vitest full suite partition=${CAXRI_VITEST_PARTITION} workers=${CAXRI_VITEST_MAX_WORKERS}',
@@ -209,8 +218,10 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain('bun run scripts/run-ci-parity.ts');
         expect(workflow).toContain('id: parallel-safe');
         expect(workflow).toContain('id: desktop-exclusive');
-        expect(workflow).toContain("if: always() && steps.parallel-safe.outcome == 'failure'");
-        expect(workflow).toContain("if: always() && steps.desktop-exclusive.outcome == 'failure'");
+        expect(workflow).toContain("steps.parallel-safe.outcome == 'failure' ||");
+        expect(workflow).toContain("steps.parallel-safe-receipt.outcome == 'failure'");
+        expect(workflow).toContain("steps.desktop-exclusive.outcome == 'failure' ||");
+        expect(workflow).toContain("steps.desktop-exclusive-receipt.outcome == 'failure'");
         expect(workflow).toContain("steps.failure-isolation.outcome == 'failure'");
         expect(workflow).toContain("steps.failure-census.outcome == 'failure'");
         expect(workflow).toContain("steps.execution-receipt.outcome == 'failure'");
@@ -233,6 +244,53 @@ describe('CI workflow contract', () => {
         );
         expect(workflow).toContain('name: CI gate');
         expect(workflow).toContain('needs: [retry-policy, checks, e2e]');
+    });
+
+    it('overlaps synthetic-merge checks with exact-head E2E without weakening either tree', () => {
+        const checksJob = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}e2e:/u)?.[1];
+        const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
+        const concurrentIndex = e2eJob?.indexOf(
+            'Execute synthetic-merge checks and exact-head E2E concurrently',
+        );
+        const checksReceiptIndex = e2eJob?.indexOf('Verify full platform checks');
+        const parallelReceiptIndex = e2eJob?.indexOf(
+            'run: bun run scripts/ci-concurrent-validation.ts verify parallel-safe',
+        );
+        const desktopReceiptIndex = e2eJob?.indexOf(
+            'run: bun run scripts/ci-concurrent-validation.ts verify desktop-exclusive',
+        );
+
+        expect(checksJob).toContain("needs.retry-policy.outputs.e2e_profile != 'optimized'");
+        expect(e2eJob).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}');
+        expect(e2eJob).toContain('CAXRI_CHECKS_REVISION: ${{ github.sha }}');
+        expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts create');
+        expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts remove');
+        expect(e2eJob).toContain('run: bun run scripts/ci-concurrent-validation.ts run');
+        expect(concurrentIndex).toBeGreaterThan(0);
+        expect(checksReceiptIndex).toBeGreaterThan(concurrentIndex ?? 0);
+        expect(parallelReceiptIndex).toBeGreaterThan(checksReceiptIndex ?? 0);
+        expect(desktopReceiptIndex).toBeGreaterThan(parallelReceiptIndex ?? 0);
+        expect(checksWorktree).toContain("['worktree', 'add', '--detach', worktree, revision]");
+        expect(checksWorktree).toContain("['fetch', '--no-tags', '--depth=1', 'origin', revision]");
+        expect(checksWorktree).toContain('stdout.trim() !== revision');
+        expect(concurrentValidation).toContain('await Promise.all([checksPromise, runE2E()])');
+        for (const gate of [
+            "'lint'",
+            "'lint:type-aware'",
+            "'lint:markdown'",
+            "'knip'",
+            "'doctor:changed'",
+            "'typecheck'",
+            "'format:check'",
+            "'test'",
+            "'scripts/ci-bundle-budget.ts'",
+        ]) {
+            expect(platformChecks, gate).toContain(gate);
+        }
+        expect(workflow).toContain(
+            'FULL_CHECKS_RESULT: ${{ needs.e2e.outputs.full_checks_result }}',
+        );
+        expect(workflow).toContain('test "$FULL_CHECKS_RESULT" = success');
     });
 
     it('routes every job to the repository self-hosted runner without a hosted fallback', () => {
