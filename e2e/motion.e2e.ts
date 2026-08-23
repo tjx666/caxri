@@ -13,6 +13,7 @@ import {
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
+import { pollUntil } from './support/polling.ts';
 
 /**
  * Mirrors `lib/motion.ts`'s `motionDurationMs` parsing so a `--motion-*` token and a computed CSS duration (which the
@@ -20,11 +21,17 @@ import {
  * Every expected timing in this spec is derived from a token through this helper — never a hardcoded millisecond
  * literal, per the DESIGN.md "Motion" contract this suite verifies.
  */
-function parseDurationMs(raw: string): number {
+function parseDurationMs(raw: string): number | null {
     const match = /^(?<value>[\d.]+)(?<unit>m?s)$/.exec(raw.trim());
-    if (!match?.groups) throw new Error(`Unparsable CSS duration: "${raw}"`);
+    if (!match?.groups) return null;
     const value = Number(match.groups.value);
     return match.groups.unit === 's' ? value * 1000 : value;
+}
+
+function requireDurationMs(raw: string): number {
+    const duration = parseDurationMs(raw);
+    if (duration === null) throw new Error(`Unparsable CSS duration: "${raw}"`);
+    return duration;
 }
 
 async function motionTokenMs(page: Page, token: string): Promise<number> {
@@ -32,21 +39,34 @@ async function motionTokenMs(page: Page, token: string): Promise<number> {
         (name) => getComputedStyle(document.documentElement).getPropertyValue(name),
         token,
     );
-    return parseDurationMs(raw);
+    return requireDurationMs(raw);
 }
 
 async function transitionDurationMs(locator: Locator): Promise<number> {
     const raw = await locator.evaluate((element) => getComputedStyle(element).transitionDuration);
-    return parseDurationMs(raw);
+    return requireDurationMs(raw);
 }
 
 async function animationDurationMs(locator: Locator): Promise<number> {
     const raw = await locator.evaluate((element) => getComputedStyle(element).animationDuration);
-    return parseDurationMs(raw);
+    return requireDurationMs(raw);
 }
 
 async function animationNameOf(locator: Locator): Promise<string> {
     return locator.evaluate((element) => getComputedStyle(element).animationName);
+}
+
+async function animationStateOf(locator: Locator) {
+    const state = await locator.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+            closed: Object.hasOwn(element.dataset, 'closed'),
+            duration: style.animationDuration,
+            name: style.animationName,
+        };
+    });
+    const durationMs = parseDurationMs(state.duration);
+    return durationMs === null ? null : { closed: state.closed, durationMs, name: state.name };
 }
 
 /**
@@ -222,12 +242,17 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
         // via the keyboard shortcut does not steal focus into the dialog), so Escape would be
         // delivered to the Terminal instead of the dialog and never close it.
         await dialogPopup.getByRole('button', { name: 'Close' }).click();
-        // Base UI keeps the popup mounted with data-closed set until its exit animation
-        // finishes (dialog.tsx documents this), so the exit keyframe/duration is observable in
-        // that window before the element unmounts.
-        await expect(dialogPopup).toHaveAttribute('data-closed', '');
-        expect(await animationNameOf(dialogPopup)).toBe('exit');
-        expect(await animationDurationMs(dialogPopup)).toBe(exitMs);
+        /**
+         * Base UI exposes `data-closed` only during the exit animation. Read that state and both computed animation
+         * fields atomically: separate awaits can let the popup unmount between samples, returning an empty duration and
+         * turning a still-converging overlay into a hard poll-callback failure.
+         */
+        const exitAnimation = await pollUntil(
+            () => animationStateOf(dialogPopup),
+            (state) => state.closed && state.name === 'exit' && state.durationMs === exitMs,
+            { message: 'Settings dialog exit animation', timeout: exitMs + 2_000 },
+        );
+        expect(exitAnimation).toEqual({ closed: true, durationMs: exitMs, name: 'exit' });
         await expect(dialogPopup).toHaveCount(0, { timeout: exitMs + 2_000 });
     } finally {
         try {
