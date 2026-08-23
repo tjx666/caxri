@@ -1,4 +1,4 @@
-import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
+import type { IBufferCellPosition, IBufferLine, ILink, IMarker, Terminal } from '@xterm/xterm';
 
 const MAX_LOGICAL_LINE_ROWS = 16;
 const MAX_LOGICAL_LINE_LENGTH = 16_384;
@@ -38,6 +38,20 @@ export interface TerminalLinkContext {
     openFile(path: string, location?: { column: number; line: number }): void;
     openHomeFile(target: string, location?: { column: number; line: number }): void;
     openUrl(url: string): void;
+}
+
+export interface TerminalDetectedLink {
+    accessibleName: string;
+    bufferLine: number;
+    id: string;
+    kind: TerminalLinkMatch['kind'];
+    target: string;
+    activate(): void;
+}
+
+export interface TerminalLinkRegistration {
+    dispose(): void;
+    getViewportLinks(): TerminalDetectedLink[];
 }
 
 type ClosingBracket = ')' | ']' | '}';
@@ -334,12 +348,11 @@ function hasLinkActivationModifier(event: MouseEvent): boolean {
     return event.metaKey || event.ctrlKey;
 }
 
-function activateLink(
-    event: MouseEvent,
-    match: TerminalLinkMatch,
-    context: TerminalLinkContext,
-): void {
-    if (!hasLinkActivationModifier(event)) return;
+/**
+ * The single authority-neutral activation path shared by pointer links and the keyboard picker. Every branch delegates
+ * to the existing typed callback, so discovering a link never grants the Renderer another filesystem or URL route.
+ */
+function activateLink(match: TerminalLinkMatch, context: TerminalLinkContext): void {
     if (match.kind === 'url') {
         context.openUrl(match.target);
         return;
@@ -356,7 +369,32 @@ function activateLink(
     context.openFile(path, location);
 }
 
+function activateLinkFromPointer(
+    event: MouseEvent,
+    match: TerminalLinkMatch,
+    context: TerminalLinkContext,
+): void {
+    if (hasLinkActivationModifier(event)) activateLink(match, context);
+}
+
+function createDetectedLink(
+    match: TerminalLinkMatch,
+    context: TerminalLinkContext,
+    id: string,
+    bufferLine: number,
+): TerminalDetectedLink {
+    return {
+        accessibleName: `Open ${match.kind === 'url' ? 'external' : 'file'} link ${match.text}`,
+        bufferLine,
+        id,
+        kind: match.kind,
+        target: match.text,
+        activate: () => activateLink(match, context),
+    };
+}
+
 interface LogicalLine {
+    firstBufferLine: number;
     positions: IBufferCellPosition[];
     text: string;
 }
@@ -392,7 +430,7 @@ function readLogicalLine(terminal: Terminal, bufferLineNumber: number): LogicalL
         appendLineCellPositions(line, y, lineText, terminal.cols, positions);
         text += lineText.slice(0, Math.min(lineText.length, MAX_LOGICAL_LINE_LENGTH - text.length));
     }
-    return { positions, text };
+    return { firstBufferLine: first, positions, text };
 }
 
 /**
@@ -487,7 +525,7 @@ function linksForLogicalLine(
         if (!start || !end) return [];
         return [
             {
-                activate: (event) => activateLink(event, match, context),
+                activate: (event) => activateLinkFromPointer(event, match, context),
                 /**
                  * The cursor/underline stay unconditional on hover rather than gated behind a live Cmd/Ctrl check:
                  * xterm only recomputes decorations when a link is (re)provided, so gating on the held modifier would
@@ -506,14 +544,87 @@ function linksForLogicalLine(
     });
 }
 
+function viewportPlainTextLinks(
+    terminal: Terminal,
+    context: TerminalLinkContext,
+): TerminalDetectedLink[] {
+    const buffer = terminal.buffer.active;
+    const firstVisibleLine = buffer.viewportY;
+    const lastVisibleLine = Math.min(buffer.length - 1, firstVisibleLine + terminal.rows - 1);
+    const visitedLogicalLines = new Set<number>();
+    const links: TerminalDetectedLink[] = [];
+    for (let line = firstVisibleLine; line <= lastVisibleLine; line += 1) {
+        const logicalLine = readLogicalLine(terminal, line + 1);
+        if (!logicalLine || visitedLogicalLines.has(logicalLine.firstBufferLine)) continue;
+        visitedLogicalLines.add(logicalLine.firstBufferLine);
+        for (const match of findTerminalLinks(logicalLine.text, context.wordSeparators)) {
+            links.push(
+                createDetectedLink(
+                    match,
+                    context,
+                    `plain:${logicalLine.firstBufferLine}:${match.startIndex}:${match.endIndex}`,
+                    logicalLine.firstBufferLine,
+                ),
+            );
+        }
+    }
+    return links;
+}
+
+function exactTerminalLinkTarget(
+    target: string,
+    wordSeparators: string,
+): TerminalLinkMatch | undefined {
+    return findTerminalLinks(target, wordSeparators).find(
+        (candidate) =>
+            candidate.endIndex === target.length &&
+            (candidate.startIndex === 0 ||
+                CJK_PROSE_BOUNDARIES.has(target[candidate.startIndex - 1])),
+    );
+}
+
+interface TrackedOscLink {
+    marker: IMarker;
+    match: TerminalLinkMatch;
+}
+
+function trackedOscLink(
+    data: string,
+    terminal: Terminal,
+    context: TerminalLinkContext,
+): TrackedOscLink | undefined {
+    const separator = data.indexOf(';');
+    if (separator === -1) return;
+    const target = data.slice(separator + 1);
+    if (!target) return;
+    const match = exactTerminalLinkTarget(target, context.wordSeparators);
+    if (!match) return;
+    return { marker: terminal.registerMarker(), match };
+}
+
+function visibleOscLinks(
+    terminal: Terminal,
+    context: TerminalLinkContext,
+    tracked: Iterable<TrackedOscLink>,
+): TerminalDetectedLink[] {
+    const firstVisibleLine = terminal.buffer.active.viewportY;
+    const lastVisibleLine = firstVisibleLine + terminal.rows - 1;
+    return Array.from(tracked).flatMap(({ marker, match }) =>
+        marker.isDisposed || marker.line < firstVisibleLine || marker.line > lastVisibleLine
+            ? []
+            : [createDetectedLink(match, context, `osc:${marker.id}:${match.text}`, marker.line)],
+    );
+}
+
 /**
  * Registers plain-text links and the OSC 8 handler through the same guarded activation path.
  */
 export function registerTerminalLinks(
     terminal: Terminal,
     context: TerminalLinkContext,
-): () => void {
+): TerminalLinkRegistration {
     const hint = createLinkHintController(terminal);
+    const trackedOscLinks = new Map<number, TrackedOscLink>();
     const disposable = terminal.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
             const logicalLine = readLogicalLine(terminal, bufferLineNumber);
@@ -523,22 +634,53 @@ export function registerTerminalLinks(
     });
     terminal.options.linkHandler = {
         activate(event, text) {
-            const match = findTerminalLinks(text, context.wordSeparators).find(
-                (candidate) =>
-                    candidate.endIndex === text.length &&
-                    (candidate.startIndex === 0 ||
-                        CJK_PROSE_BOUNDARIES.has(text[candidate.startIndex - 1])),
-            );
-            if (match) activateLink(event, match, context);
+            const match = exactTerminalLinkTarget(text, context.wordSeparators);
+            if (match) activateLinkFromPointer(event, match, context);
         },
         /**
          * File URLs are allowed into the handler, then constrained by the Runtime-rooted read.
          */
         allowNonHttpProtocols: true,
     };
-    return () => {
-        hint.dispose();
-        terminal.options.linkHandler = null;
-        disposable.dispose();
+    /**
+     * The public parser observer runs before xterm's builtin OSC 8 handler and returns false so xterm still owns the
+     * hyperlink. Markers follow scrollback trimming without private `_core` access; the bounded URI-only cache is
+     * transient, never logged or persisted, and exists solely to make custom OSC labels discoverable in the viewport.
+     */
+    const oscDisposable = terminal.parser.registerOscHandler(8, (data) => {
+        const tracked = trackedOscLink(data, terminal, context);
+        if (tracked) {
+            trackedOscLinks.set(tracked.marker.id, tracked);
+            tracked.marker.onDispose(() => trackedOscLinks.delete(tracked.marker.id));
+        }
+        return false;
+    });
+    return {
+        getViewportLinks() {
+            const plain = viewportPlainTextLinks(terminal, context);
+            const known = new Set(
+                plain.map(({ bufferLine, kind, target }) => `${bufferLine}:${kind}:${target}`),
+            );
+            const osc = visibleOscLinks(terminal, context, trackedOscLinks.values()).filter(
+                ({ bufferLine, kind, target }) => !known.has(`${bufferLine}:${kind}:${target}`),
+            );
+            const ordered = [...plain, ...osc].toSorted(
+                (left, right) => left.bufferLine - right.bufferLine,
+            );
+            const uniqueTargets = new Set<string>();
+            return ordered.filter(({ kind, target }) => {
+                const key = `${kind}:${target}`;
+                if (uniqueTargets.has(key)) return false;
+                uniqueTargets.add(key);
+                return true;
+            });
+        },
+        dispose() {
+            hint.dispose();
+            terminal.options.linkHandler = null;
+            disposable.dispose();
+            oscDisposable.dispose();
+            for (const { marker } of trackedOscLinks.values()) marker.dispose();
+        },
     };
 }

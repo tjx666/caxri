@@ -21,6 +21,7 @@ export const commandIds = [
     'terminal.clear',
     'terminal.copy',
     'terminal.find',
+    'terminal.openDetectedLink',
     'terminal.previousCommand',
     'terminal.nextCommand',
     'workbench.action.terminal.sendSequence',

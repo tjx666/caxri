@@ -6,6 +6,7 @@ import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
 import { registerTerminalPasteHandler } from './terminal-actions';
+import { registerTerminalLinkProvider } from './terminal-link-actions';
 import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
 import type { TerminalRendererReason } from './terminal-renderer';
@@ -116,7 +117,7 @@ export function registerTerminalPaneLinks(
     terminal: Terminal,
     latest: () => TerminalLinkSnapshot,
 ): () => void {
-    return registerTerminalLinks(terminal, {
+    const registration = registerTerminalLinks(terminal, {
         get cwd() {
             return latest().terminalCwd;
         },
@@ -144,4 +145,11 @@ export function registerTerminalPaneLinks(
             await openExternalUrl(url, onError);
         },
     });
+    const unregisterProvider = registerTerminalLinkProvider(latest().terminalId, () =>
+        registration.getViewportLinks(),
+    );
+    return () => {
+        unregisterProvider();
+        registration.dispose();
+    };
 }
