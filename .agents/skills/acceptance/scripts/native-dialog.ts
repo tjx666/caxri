@@ -6,18 +6,13 @@ import { fileURLToPath } from 'node:url';
 import { execFileAsync } from '../../../../src/shared/node/exec';
 import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
 
-interface ProcessRow {
-    pid: number;
-    ppid: number;
-}
-
 interface DialogOptions {
     button: string;
     command: 'click' | 'inspect';
     timeoutMs: number;
 }
 
-interface DialogMatch {
+export interface DialogMatch {
     count: number;
     pid: number | null;
 }
@@ -76,54 +71,80 @@ export function parseDialogOptions(arguments_: string[]): DialogOptions | 'help'
     return { button, command, timeoutMs };
 }
 
-export function collectProcessTree(rootPid: number, rows: ProcessRow[]): number[] {
-    const children = new Map<number, number[]>();
-    for (const row of rows) {
-        const siblings = children.get(row.ppid) ?? [];
-        siblings.push(row.pid);
-        children.set(row.ppid, siblings);
-    }
-
-    const tree: number[] = [];
-    const queue = [rootPid];
-    const seen = new Set<number>();
-    while (queue.length > 0) {
-        const pid = queue.shift();
-        if (!pid || seen.has(pid)) continue;
-        seen.add(pid);
-        tree.push(pid);
-        queue.push(...(children.get(pid) ?? []));
-    }
-    return tree;
+/**
+ * `start-electron.ts` now launches the re-identified app executable directly, so `electronPid` is the only process that
+ * can own Caxri native windows. Querying Renderer, GPU, Host, and Runtime descendants made Accessibility scans both
+ * ambiguous and slow while adding no valid dialog owner.
+ */
+export function ownedDialogProcessIds(runtime: { electronPid?: number | null }): number[] {
+    if (!runtime.electronPid) throw new Error('Owned Acceptance runtime has no Electron PID');
+    return [runtime.electronPid];
 }
 
-async function processTree(rootPid: number): Promise<number[]> {
-    const { stdout } = await execFileAsync('ps', ['-ax', '-o', 'pid=', '-o', 'ppid=']);
-    const rows = stdout
-        .split('\n')
-        .filter((line) => line.trim().length > 0)
-        .map((line) => line.trim().split(/\s+/).map(Number))
-        .filter(([pid, ppid]) => Number.isSafeInteger(pid) && Number.isSafeInteger(ppid))
-        .map(([pid, ppid]) => ({ pid, ppid }));
-    return collectProcessTree(rootPid, rows);
-}
+export const NATIVE_DIALOG_MAX_ELEMENTS = 256;
+export const NATIVE_DIALOG_MAX_DEPTH = 12;
 
-const NATIVE_DIALOG_SCRIPT = [
-    'on collectButtons(theContainer, targetButton)',
+export const NATIVE_DIALOG_SCRIPT = [
+    'on appendMatches(targetList, sourceList)',
+    'repeat with sourceItem in sourceList',
+    'set end of targetList to contents of sourceItem',
+    'end repeat',
+    'return targetList',
+    'end appendMatches',
+    'on collectStandardButtons(theContainer, targetButton)',
     'set matches to {}',
     'tell application "System Events"',
     'try',
-    'set allElements to entire contents of (contents of theContainer)',
-    'on error',
-    'set allElements to {}',
+    'set defaultButton to value of attribute "AXDefaultButton" of (contents of theContainer)',
+    'if defaultButton is not missing value and role of defaultButton is "AXButton" and name of defaultButton is targetButton then set end of matches to defaultButton',
     'end try',
-    'repeat with candidate in allElements',
     'try',
-    'if role of candidate is "AXButton" and name of candidate is targetButton then set end of matches to contents of candidate',
+    'set cancelButton to value of attribute "AXCancelButton" of (contents of theContainer)',
+    'if cancelButton is not missing value and role of cancelButton is "AXButton" and name of cancelButton is targetButton then set end of matches to cancelButton',
     'end try',
-    'end repeat',
     'end tell',
     'return matches',
+    'end collectStandardButtons',
+    'on canDescendInto(elementRole)',
+    'return elementRole is not in {"AXBrowser", "AXList", "AXMenu", "AXMenuBar", "AXOutline", "AXScrollArea", "AXTable", "AXWebArea"}',
+    'end canDescendInto',
+    'on collectDescendantButtons(theContainer, targetButton, remainingDepth, remainingElements)',
+    'set matches to {}',
+    'if remainingDepth is less than 1 then return {matches, remainingElements, false}',
+    'tell application "System Events"',
+    'try',
+    'set childElements to UI elements of (contents of theContainer)',
+    'on error',
+    'set childElements to {}',
+    'end try',
+    'end tell',
+    'repeat with childElement in childElements',
+    'set remainingElements to remainingElements - 1',
+    'if remainingElements is less than 0 then return {matches, 0, true}',
+    'set childRole to ""',
+    'set childName to ""',
+    'tell application "System Events"',
+    'try',
+    'set childRole to role of childElement',
+    'set childName to name of childElement',
+    'end try',
+    'end tell',
+    'if childRole is "AXButton" and childName is targetButton then',
+    'set end of matches to contents of childElement',
+    'else if remainingDepth is greater than 1 and my canDescendInto(childRole) then',
+    'set nestedResult to my collectDescendantButtons(contents of childElement, targetButton, remainingDepth - 1, remainingElements)',
+    'set matches to my appendMatches(matches, item 1 of nestedResult)',
+    'set remainingElements to item 2 of nestedResult',
+    'if item 3 of nestedResult then return {matches, remainingElements, true}',
+    'end if',
+    'end repeat',
+    'return {matches, remainingElements, false}',
+    'end collectDescendantButtons',
+    'on collectButtons(theContainer, targetButton)',
+    'set matches to my collectStandardButtons(theContainer, targetButton)',
+    'if (count of matches) is greater than 0 then return {matches, false}',
+    `set traversalResult to my collectDescendantButtons(theContainer, targetButton, ${NATIVE_DIALOG_MAX_DEPTH}, ${NATIVE_DIALOG_MAX_ELEMENTS})`,
+    'return {item 1 of traversalResult, item 3 of traversalResult}',
     'end collectButtons',
     'on run argv',
     'set actionName to item 1 of argv',
@@ -137,10 +158,11 @@ const NATIVE_DIALOG_SCRIPT = [
     'try',
     'set targetPid to (contents of pidText) as integer',
     'set appProcess to first application process whose unix id is targetPid',
-    'set frontmost of appProcess to true',
     'repeat with appWindow in windows of appProcess',
     'repeat with appSheet in sheets of appWindow',
-    'set foundButtons to my collectButtons(appSheet, targetButton)',
+    'set foundResult to my collectButtons(appSheet, targetButton)',
+    'if item 2 of foundResult then return "limit" & tab',
+    'set foundButtons to item 1 of foundResult',
     'repeat with foundButton in foundButtons',
     'set end of matchedButtons to contents of foundButton',
     'set end of matchedProcesses to appProcess',
@@ -149,7 +171,9 @@ const NATIVE_DIALOG_SCRIPT = [
     'end repeat',
     'try',
     'if subrole of appWindow is "AXDialog" and (count of sheets of appWindow) is 0 then',
-    'set foundButtons to my collectButtons(appWindow, targetButton)',
+    'set foundResult to my collectButtons(appWindow, targetButton)',
+    'if item 2 of foundResult then return "limit" & tab',
+    'set foundButtons to item 1 of foundResult',
     'repeat with foundButton in foundButtons',
     'set end of matchedButtons to contents of foundButton',
     'set end of matchedProcesses to appProcess',
@@ -171,6 +195,21 @@ const NATIVE_DIALOG_SCRIPT = [
     'end run',
 ];
 
+export function parseNativeDialogResult(stdout: string): DialogMatch {
+    const [rawCount, rawPid] = stdout.trimEnd().split('\t', 2);
+    if (rawCount === 'limit') {
+        throw new Error(
+            `Native dialog Accessibility traversal exceeded its ${NATIVE_DIALOG_MAX_ELEMENTS}-element safety bound`,
+        );
+    }
+    const count = Number(rawCount);
+    const pid = rawPid ? Number(rawPid) : null;
+    if (!Number.isSafeInteger(count) || count < 0 || (pid !== null && !Number.isSafeInteger(pid))) {
+        throw new Error(`Unexpected Accessibility response: ${stdout.trim()}`);
+    }
+    return { count, pid };
+}
+
 async function queryNativeDialog(
     pids: number[],
     options: Pick<DialogOptions, 'button' | 'command'>,
@@ -183,17 +222,7 @@ async function queryNativeDialog(
             [...commandArguments, options.command, options.button, ...pids.map(String)],
             { timeout: timeoutMs },
         );
-        const [rawCount, rawPid] = stdout.trimEnd().split('\t', 2);
-        const count = Number(rawCount);
-        const pid = rawPid ? Number(rawPid) : null;
-        if (
-            !Number.isSafeInteger(count) ||
-            count < 0 ||
-            (pid !== null && !Number.isSafeInteger(pid))
-        ) {
-            throw new Error(`Unexpected Accessibility response: ${stdout.trim()}`);
-        }
-        return { count, pid };
+        return parseNativeDialogResult(stdout);
     } catch (error: unknown) {
         const detail = commandFailureDetail(error, timeoutMs);
         throw new Error(
@@ -236,9 +265,7 @@ async function main(): Promise<void> {
     if (!(await isOwnedRuntime(runtime))) {
         throw new Error('Acceptance runtime state does not belong to a live owned process');
     }
-    if (!runtime.electronPid) throw new Error('Owned Acceptance runtime has no Electron PID');
-
-    const pids = await processTree(runtime.electronPid);
+    const pids = ownedDialogProcessIds(runtime);
     const pid = await waitForSingleDialog(pids, options);
     const action = options.command === 'click' ? 'Clicked' : 'Found exactly one';
     console.log(`${action} native dialog button "${options.button}" in PID ${pid}`);
