@@ -235,6 +235,7 @@ jobs:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
       CAXRI_E2E_AGENT_MODE: blocked
       CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
+      CAXRI_E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
       CAXRI_E2E_RUNNER_KIND: self-hosted
       CAXRI_E2E_RUNNER_REASON: >-
         ${{ github.event_name == 'pull_request'
@@ -245,6 +246,7 @@ jobs:
           && 'trusted owner main push'
           || 'unreachable untrusted event' }}
       CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      CAXRI_CHECKS_REVISION: ${{ github.sha }}
       CAXRI_RUNNER_AGENT_DISCOVERY: blocked
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
     steps:
@@ -283,7 +285,24 @@ jobs:
           needs.retry-policy.outputs.checks_scope == 'full' &&
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         env:
-          CAXRI_CHECKS_REVISION: ${{ github.sha }}
+          CAXRI_CHECKS_BASE_FETCH_REF: >-
+            ${{ github.event_name == 'pull_request'
+              && github.event.pull_request.base.sha
+              || github.event_name == 'push'
+              && github.event.before
+              || format('refs/heads/{0}', github.event.repository.default_branch) }}
+          CAXRI_CHECKS_BASE_REVISION: >-
+            ${{ github.event_name == 'pull_request'
+              && github.event.pull_request.base.sha
+              || github.event_name == 'push'
+              && github.event.before
+              || '' }}
+          CAXRI_CHECKS_FETCH_REF: >-
+            ${{ github.event_name == 'pull_request'
+              && format('refs/pull/{0}/merge', github.event.pull_request.number)
+              || github.sha }}
+          CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          CAXRI_CHECKS_REQUIRE_MERGE: ${{ github.event_name == 'pull_request' }}
           CAXRI_GITHUB_TOKEN: ${{ github.token }}
         run: bun run scripts/ci-checks-worktree.ts create
       - name: Report E2E runner route
@@ -315,7 +334,6 @@ jobs:
           needs.retry-policy.outputs.checks_scope == 'full' &&
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         env:
-          CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}

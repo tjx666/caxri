@@ -109,7 +109,7 @@ describe('CI execution plan', () => {
                 eventName: 'push',
                 isReleaseCommit: false,
             }),
-        ).toMatchObject({ checksScope: 'full', runE2E: false });
+        ).toMatchObject({ checksScope: 'full', e2eProfile: 'control', runE2E: false });
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: [],

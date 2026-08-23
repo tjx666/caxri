@@ -142,7 +142,7 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
         );
         return {
             checksScope: 'full',
-            e2eProfile: 'optimized',
+            e2eProfile: isDocumentationOnlyPush ? 'control' : 'optimized',
             reason: isDocumentationOnlyPush ? 'documentation-only main push' : 'ordinary main push',
             runE2E: !isDocumentationOnlyPush,
         };

@@ -263,6 +263,10 @@ describe('CI workflow contract', () => {
         expect(checksJob).toContain("needs.retry-policy.outputs.e2e_profile != 'optimized'");
         expect(e2eJob).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}');
         expect(e2eJob).toContain('CAXRI_CHECKS_REVISION: ${{ github.sha }}');
+        expect(e2eJob).toContain("format('refs/pull/{0}/merge', github.event.pull_request.number)");
+        expect(e2eJob).toContain('&& github.event.pull_request.base.sha');
+        expect(e2eJob).toContain('CAXRI_CHECKS_HEAD_REVISION:');
+        expect(e2eJob).toContain('CAXRI_CHECKS_REQUIRE_MERGE:');
         expect(e2eJob).toContain('CAXRI_GITHUB_TOKEN: ${{ github.token }}');
         expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts create');
         expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts remove');
@@ -271,9 +275,15 @@ describe('CI workflow contract', () => {
         expect(checksReceiptIndex).toBeGreaterThan(concurrentIndex ?? 0);
         expect(parallelReceiptIndex).toBeGreaterThan(checksReceiptIndex ?? 0);
         expect(desktopReceiptIndex).toBeGreaterThan(parallelReceiptIndex ?? 0);
-        expect(checksWorktree).toContain("['worktree', 'add', '--detach', worktree, revision]");
-        expect(checksWorktree).toContain("['fetch', '--no-tags', '--depth=1', 'origin', revision]");
-        expect(checksWorktree).toContain('stdout.trim() !== revision');
+        expect(checksWorktree).toContain(
+            "['clone', '--shared', '--no-checkout', projectRoot, path]",
+        );
+        expect(checksWorktree).toContain(
+            "['fetch', '--no-tags', '--depth=1', 'origin', fetchReference]",
+        );
+        expect(checksWorktree).toContain('Synthetic merge parents do not match');
+        expect(checksWorktree).toContain('CAXRI_REACT_DOCTOR_BASE=${baseRevision}');
+        expect(checksWorktree).toContain('env: sanitizedChildEnvironment(process.env)');
         expect(concurrentValidation).toContain('await Promise.all([checksPromise, runE2E()])');
         for (const gate of [
             "'lint'",
