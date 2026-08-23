@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'vitest';
 
@@ -89,6 +89,42 @@ describe('E2E pools', () => {
         ]) {
             expect(parallelSafeSpecs, path).not.toContain(path);
         }
+    });
+
+    it('keeps every clipboard-capable spec desktop-exclusive', async () => {
+        const specNames = (await readdir(new URL('../../e2e', import.meta.url))).filter((name) =>
+            name.endsWith('.e2e.ts'),
+        );
+        const clipboardSpecs: string[] = [];
+        const specSources = await Promise.all(
+            specNames.map(async (name) => ({
+                path: `e2e/${name}`,
+                source: await readFile(new URL(`../../e2e/${name}`, import.meta.url), 'utf8'),
+            })),
+        );
+        for (const { path, source } of specSources) {
+            if (!(
+                source.includes("from './support/clipboard.ts'") ||
+                source.includes('clipboardFixture:') ||
+                source.includes('running.clipboard') ||
+                /\(\{\s*clipboard\s*[,}]/u.test(source)
+            )) {
+                continue;
+            }
+
+            clipboardSpecs.push(path);
+            expect(parallelSafeSpecs, path).not.toContain(path);
+        }
+        expect(clipboardSpecs.toSorted((left, right) => left.localeCompare(right))).toEqual([
+            'e2e/bug-report.e2e.ts',
+            'e2e/clipboard-restoration.e2e.ts',
+            'e2e/file-operations.e2e.ts',
+            'e2e/settings.e2e.ts',
+            'e2e/terminal-osc52-clipboard.e2e.ts',
+            'e2e/terminal-search.e2e.ts',
+            'e2e/terminal-selection.e2e.ts',
+            'e2e/terminal-shortcuts.e2e.ts',
+        ]);
     });
 
     it('partitions the current repository manifest without duplicates or omissions', async () => {

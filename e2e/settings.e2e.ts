@@ -6,6 +6,7 @@ import process from 'node:process';
 import { writeTestClipboardText } from './support/clipboard.ts';
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
+import type { RunningCaxriWithClipboard } from './support/helpers.ts';
 import { launchCaxri, pageRequest, revealSettingsSection } from './support/helpers.ts';
 
 /**
@@ -20,7 +21,7 @@ function configSource(dialog: Locator, kind: 'keybindings' | 'settings' | 'theme
 }
 
 async function replaceMonacoText(
-    running: Awaited<ReturnType<typeof launchCaxri>>,
+    running: RunningCaxriWithClipboard,
     page: Page,
     editor: Locator,
     source: string,
@@ -37,7 +38,10 @@ test('Settings keeps actions visible and provides highlighted editors and live T
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+    });
     const pageErrors: string[] = [];
     running.page.on('pageerror', (error) => {
         pageErrors.push(error.message);
@@ -251,7 +255,11 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        clipboard: true,
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
         const initial = await pageRequest<{ source: string }>(running.page, 'settings.get');
         const legalSource = initial.source

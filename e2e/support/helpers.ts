@@ -35,7 +35,7 @@ import {
     writeClipboardFixture,
 } from './clipboard.ts';
 import { registerE2ELaunch } from './error-gate.ts';
-import { resolveE2EWorkerIsolation } from './worker-isolation.ts';
+import { resolveE2EClipboardPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
 const e2eAgentEnvironmentKeys = [
@@ -80,6 +80,12 @@ export interface LaunchCaxriOptions {
      */
     preserveHostOnClose?: boolean;
     /**
+     * Declares that the spec needs the protected clipboard snapshot handle. Parallel-safe workers reject this
+     * capability before launching Electron; desktop-exclusive, control, and focused launches preserve the existing
+     * restore path.
+     */
+    clipboard?: boolean;
+    /**
      * Seeds a native pasteboard fixture after the shared desktop lease is held and restores the pre-launch clipboard
      * after the launch's own format-complete restoration has been verified.
      */
@@ -88,8 +94,12 @@ export interface LaunchCaxriOptions {
 
 export interface RunningCaxri {
     app: ElectronApplication;
-    clipboard: ClipboardSnapshot;
+    clipboard?: ClipboardSnapshot;
     page: Page;
+}
+
+export interface RunningCaxriWithClipboard extends RunningCaxri {
+    clipboard: ClipboardSnapshot;
 }
 
 type E2EAgentMode =
@@ -234,6 +244,10 @@ export async function waitForNewTerminalId(
  * {@link launchCaxri} instead; this lower-level entry point exists for specs (eg. the startup benchmark) that need to
  * measure the readiness wait themselves.
  */
+export function launchCaxriApp(
+    options: LaunchCaxriOptions & { clipboard: true },
+): Promise<RunningCaxriWithClipboard>;
+export function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri>;
 export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri> {
     await assertE2EBuildIsFresh();
     const {
@@ -245,9 +259,14 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         windowMode = 'hidden',
         agentMode = { mode: 'blocked' },
         preserveHostOnClose = false,
+        clipboard = false,
         clipboardFixture,
     } = options;
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
+    const clipboardPolicy = resolveE2EClipboardPolicy(process.env, clipboard);
+    if (clipboardFixture && !clipboard) {
+        throw new Error('clipboardFixture requires clipboard access');
+    }
     const workerIsolation = resolveE2EWorkerIsolation(process.env);
     const launchEnvironmentSource: NodeJS.ProcessEnv = {
         ...process.env,
@@ -352,13 +371,15 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                 }
             })());
         try {
-            if (clipboardFixture) {
-                clipboardBaseline = await snapshotClipboard();
-                const fixtureMetadata = await writeClipboardFixture(clipboardFixture);
-                clipboardBaseline.claimGeneration(fixtureMetadata.generation);
+            if (clipboardPolicy.protectClipboard) {
+                if (clipboardFixture) {
+                    clipboardBaseline = await snapshotClipboard();
+                    const fixtureMetadata = await writeClipboardFixture(clipboardFixture);
+                    clipboardBaseline.claimGeneration(fixtureMetadata.generation);
+                }
+                clipboardSnapshot = await snapshotClipboard();
+                await armClipboardRestoreOnQuit(app, clipboardSnapshot);
             }
-            clipboardSnapshot = await snapshotClipboard();
-            await armClipboardRestoreOnQuit(app, clipboardSnapshot);
         } catch (error) {
             let failure: unknown = error;
             try {
@@ -387,7 +408,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                 }
                 let failure: unknown;
                 try {
-                    await restoreClipboard(activeClipboardSnapshot);
+                    if (activeClipboardSnapshot) await restoreClipboard(activeClipboardSnapshot);
                 } catch (error) {
                     clipboardRestoreFailure =
                         error instanceof Error
@@ -421,7 +442,14 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
     }
     try {
         const page = await app.firstWindow();
-        return { app, clipboard: clipboardSnapshot, page };
+        if (clipboard && !clipboardSnapshot) {
+            throw new Error('Clipboard access was declared without an active protected snapshot');
+        }
+        return {
+            app,
+            ...(clipboardSnapshot && clipboard && { clipboard: clipboardSnapshot }),
+            page,
+        };
     } catch (error) {
         try {
             await app.close();
@@ -454,6 +482,10 @@ export async function waitForRuntimeReady(page: Page): Promise<void> {
 /**
  * Launches Caxri and waits for the Runtime to report ready.
  */
+export function launchCaxri(
+    options: LaunchCaxriOptions & { clipboard: true },
+): Promise<RunningCaxriWithClipboard>;
+export function launchCaxri(options: LaunchCaxriOptions): Promise<RunningCaxri>;
 export async function launchCaxri(options: LaunchCaxriOptions): Promise<RunningCaxri> {
     const running = await launchCaxriApp(options);
     await waitForRuntimeReady(running.page);
