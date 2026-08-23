@@ -2,6 +2,7 @@ import type { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { execFileAsync } from '../../../../src/shared/node/exec';
 
@@ -43,6 +44,10 @@ interface WaitForMacosAcceptanceProcessDependencies {
     sleep: (milliseconds: number) => Promise<void>;
 }
 
+interface StopMacosAcceptanceProcessesDependencies extends WaitForMacosAcceptanceProcessDependencies {
+    signalProcess: (pid: number, signal: NodeJS.Signals) => void;
+}
+
 export interface MacosAcceptanceAppPlan {
     appName: string;
     appPath: string;
@@ -73,6 +78,13 @@ const defaultWaitDependencies: WaitForMacosAcceptanceProcessDependencies = {
     now: Date.now,
     sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 };
+
+const defaultStopDependencies: StopMacosAcceptanceProcessesDependencies = {
+    ...defaultWaitDependencies,
+    signalProcess: (pid, signal) => process.kill(pid, signal),
+};
+
+const PROCESS_STOP_GRACE_MS = 5_000;
 
 function identitySegment(value: string, label: string): string {
     const normalized = value
@@ -167,6 +179,68 @@ export async function waitForMacosAcceptanceProcess(
         await dependencies.sleep(100);
     }
     throw new Error('Timed out waiting for the unique Acceptance Electron process');
+}
+
+function signalOwnedProcesses(
+    processIds: readonly number[],
+    signal: NodeJS.Signals,
+    dependencies: StopMacosAcceptanceProcessesDependencies,
+): void {
+    for (const processId of processIds) {
+        try {
+            dependencies.signalProcess(processId, signal);
+        } catch (error: unknown) {
+            if (
+                !error ||
+                typeof error !== 'object' ||
+                !('code' in error) ||
+                error.code !== 'ESRCH'
+            ) {
+                throw error;
+            }
+        }
+    }
+}
+
+/**
+ * PID discovery normally binds shutdown to one exact Main process. If launch supervision fails before that bind, sweep
+ * every process using the per-launch executable path, wait for graceful exit, then escalate and verify none survived.
+ * The cloned path is unique to one owned Acceptance profile, so this never targets a resident dev or installed app.
+ */
+export async function stopMacosAcceptanceProcesses(
+    executablePath: string,
+    dependencies: StopMacosAcceptanceProcessesDependencies = defaultStopDependencies,
+): Promise<number[]> {
+    const findOwnedProcessIds = async (): Promise<number[]> =>
+        findMacosAcceptanceProcessIds(await dependencies.listProcesses(), executablePath);
+    const initialProcessIds = await findOwnedProcessIds();
+    const observedProcessIds = new Set(initialProcessIds);
+    signalOwnedProcesses(initialProcessIds, 'SIGTERM', dependencies);
+
+    const gracefulDeadline = dependencies.now() + PROCESS_STOP_GRACE_MS;
+    while (dependencies.now() < gracefulDeadline) {
+        // eslint-disable-next-line no-await-in-loop -- exact-path shutdown must observe process exit before cleanup
+        const liveProcessIds = await findOwnedProcessIds();
+        const newlyObservedProcessIds = liveProcessIds.filter(
+            (processId) => !observedProcessIds.has(processId),
+        );
+        signalOwnedProcesses(newlyObservedProcessIds, 'SIGTERM', dependencies);
+        for (const processId of newlyObservedProcessIds) observedProcessIds.add(processId);
+        if (liveProcessIds.length === 0) return [...observedProcessIds];
+        // eslint-disable-next-line no-await-in-loop -- bounded graceful shutdown polling
+        await dependencies.sleep(100);
+    }
+
+    const remainingProcessIds = await findOwnedProcessIds();
+    signalOwnedProcesses(remainingProcessIds, 'SIGKILL', dependencies);
+    const forceDeadline = dependencies.now() + PROCESS_STOP_GRACE_MS;
+    while (dependencies.now() < forceDeadline) {
+        // eslint-disable-next-line no-await-in-loop -- forced shutdown must be confirmed before profile cleanup
+        if ((await findOwnedProcessIds()).length === 0) return [...observedProcessIds];
+        // eslint-disable-next-line no-await-in-loop -- bounded forced shutdown polling
+        await dependencies.sleep(100);
+    }
+    throw new Error('Unique Acceptance Electron processes survived forced shutdown');
 }
 
 export async function prepareMacosAcceptanceApp(
