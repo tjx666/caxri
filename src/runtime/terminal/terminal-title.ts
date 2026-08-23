@@ -2,6 +2,7 @@ import { throttle } from 'es-toolkit';
 
 import type { RuntimeEvent } from '../../shared/ipc/events';
 import { normalizeTerminalTitle } from '../../shared/terminal-title';
+import type { TerminalRecord } from '../../shared/types';
 import type { TerminalTitleObserver } from './screen';
 
 /**
@@ -9,6 +10,7 @@ import type { TerminalTitleObserver } from './screen';
  * database.
  */
 interface TerminalTitleStore {
+    getTerminal: (id: string) => Pick<TerminalRecord, 'provider'> | undefined;
     setTerminalPtyTitle: (id: string, title: string) => boolean;
 }
 
@@ -20,8 +22,9 @@ interface TerminalTitleStore {
 export const TERMINAL_TITLE_THROTTLE_MS = 250;
 
 /**
- * Persists a PTY-reported title and republishes the Terminal record, which is how a tab label learns what a Shell or
- * Agent CLI is actually doing — the same OSC 0/2 signal every terminal emulator has used since xterm.
+ * Persists a Shell PTY-reported title and republishes the Terminal record, which is how its tab label learns what the
+ * Shell is actually doing — the same OSC 0/2 signal every terminal emulator has used since xterm. Once the durable
+ * record binds an Agent provider, conversation metadata owns the semantic title and the OSC signal has no consumer.
  *
  * `setTerminalPtyTitle` reports whether anything changed, so the prompt-by-prompt repeat of an unchanged title costs
  * one comparison and no broadcast. Leading-edge delivery keeps a Terminal's first title instant; the trailing edge
@@ -36,6 +39,8 @@ export function createTerminalTitleListener(
 ): TerminalTitleObserver {
     const publish = throttle(
         (title: string) => {
+            const terminal = database.getTerminal(terminalId);
+            if (!terminal || terminal.provider) return;
             if (!database.setTerminalPtyTitle(terminalId, title)) return;
             emit({
                 event: 'state.changed',
