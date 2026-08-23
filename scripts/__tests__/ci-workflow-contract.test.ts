@@ -263,6 +263,7 @@ describe('CI workflow contract', () => {
         expect(checksJob).toContain("needs.retry-policy.outputs.e2e_profile != 'optimized'");
         expect(e2eJob).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}');
         expect(e2eJob).toContain('CAXRI_CHECKS_REVISION: ${{ github.sha }}');
+        expect(e2eJob).toContain('CAXRI_GITHUB_TOKEN: ${{ github.token }}');
         expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts create');
         expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts remove');
         expect(e2eJob).toContain('run: bun run scripts/ci-concurrent-validation.ts run');

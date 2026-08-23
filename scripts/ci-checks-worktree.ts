@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { Buffer } from 'node:buffer';
 import { access, appendFile, mkdir, symlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
@@ -20,6 +21,27 @@ export function checksWorktreePath(environment: NodeJS.ProcessEnv): string {
     const owner = requiredEnvironment(environment, 'CAXRI_RUNNER_OWNER');
     if (!/^caxri-\d+-\d+-e2e$/u.test(owner)) throw new Error('Invalid E2E runner owner');
     return join(temporaryRoot, 'synthetic-merge-checks');
+}
+
+/**
+ * Supplies GitHub's job token to one fetch through command-scoped Git configuration. The exact-head checkout
+ * deliberately removes persisted credentials, so the token must not be written back into the repository config.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
+export function authenticatedGitEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    const existingCount = environment.GIT_CONFIG_COUNT ?? '0';
+    if (!/^\d+$/u.test(existingCount) || Number(existingCount) > 32) {
+        throw new Error('Invalid GIT_CONFIG_COUNT');
+    }
+    const index = Number(existingCount);
+    const token = requiredEnvironment(environment, 'CAXRI_GITHUB_TOKEN');
+    const authorization = Buffer.from(`x-access-token:${token}`).toString('base64');
+    return {
+        ...environment,
+        GIT_CONFIG_COUNT: String(index + 1),
+        [`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraheader',
+        [`GIT_CONFIG_VALUE_${index}`]: `AUTHORIZATION: basic ${authorization}`,
+    };
 }
 
 async function isPathPresent(path: string): Promise<boolean> {
@@ -45,6 +67,7 @@ async function ensureRevisionAvailable(revision: string): Promise<void> {
     } catch {
         await execFileAsync('git', ['fetch', '--no-tags', '--depth=1', 'origin', revision], {
             cwd: projectRoot,
+            env: authenticatedGitEnvironment(process.env),
         });
         await execFileAsync('git', ['cat-file', '-e', commitObject], {
             cwd: projectRoot,
