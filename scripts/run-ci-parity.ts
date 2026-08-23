@@ -30,7 +30,7 @@ export const ciParityCases = [
     },
     {
         id: 'long-path-wrapped-terminal',
-        match: 'Terminal selection copies exact text and stays isolated across split panes',
+        match: String.raw`Cmd\+C copies the focused Editor or Terminal selection across split panes`,
         seam: 'three long path segments, a 720px window, and cross-row selection',
         spec: 'e2e/terminal-selection.e2e.ts',
     },
