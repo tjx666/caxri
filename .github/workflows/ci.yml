@@ -28,7 +28,7 @@ on:
       vitest_max_workers:
         description: Vitest worker cap for self-hosted A/B runs
         required: true
-        default: '2'
+        default: '1'
         type: choice
         options: ['1', '2', '3', '4']
       e2e_parallel_workers:
@@ -319,7 +319,7 @@ jobs:
         env:
           E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
           RUNNER_LABELS: self-hosted,macOS,ARM64,caxri-e2e
-          VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
+          VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}
           VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
           E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
         run: |
@@ -334,7 +334,7 @@ jobs:
           needs.retry-policy.outputs.checks_scope == 'full' &&
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         env:
-          CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
+          CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}
           CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
         run: bun run scripts/ci-concurrent-validation.ts run

@@ -91,12 +91,13 @@ describe('E2E pools', () => {
         );
     });
 
-    it('never classifies known machine-global specs as parallel-safe', () => {
+    it('never classifies known machine-global or lifecycle-sensitive specs as parallel-safe', () => {
         for (const path of [
             'e2e/bug-report.e2e.ts',
             'e2e/codex-compaction.e2e.ts',
             'e2e/desktop-host.e2e.ts',
             'e2e/editor.performance.e2e.ts',
+            'e2e/extensions.e2e.ts',
             'e2e/failure-isolation.e2e.ts',
             'e2e/file-operations.e2e.ts',
             'e2e/host-platform.e2e.ts',
@@ -111,6 +112,7 @@ describe('E2E pools', () => {
             'e2e/terminal-webgl.e2e.ts',
             'e2e/updates.e2e.ts',
             'e2e/window-mode.e2e.ts',
+            'e2e/workbench-root.e2e.ts',
         ]) {
             expect(parallelSafeSpecs, path).not.toContain(path);
         }
