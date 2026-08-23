@@ -1,8 +1,10 @@
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import type { E2EApp } from './support/electron-app.ts';
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -64,6 +66,218 @@ async function expectCommandState(
             String(expected.lastExitStatus),
         );
 }
+
+type TerminalCommandPhase = 'failed' | 'running' | 'succeeded';
+
+interface TerminalDecorationPixelEvidence {
+    background: [number, number, number];
+    center: [number, number, number];
+    centerChanged: boolean;
+    changedPixels: number;
+    computedColor: string;
+    phase: TerminalCommandPhase;
+}
+
+async function terminalDecorationPixelEvidence(
+    app: E2EApp,
+    page: Page,
+    terminalId: string,
+    phase: TerminalCommandPhase,
+): Promise<TerminalDecorationPixelEvidence> {
+    const pane = page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`);
+    const decoration = pane.locator(`[data-terminal-command-phase="${phase}"]`).last();
+    await expect(decoration).toBeVisible();
+    const geometry = await decoration.evaluate((element) => {
+        const paneElement = element.closest('.terminal-pane');
+        if (!paneElement) throw new Error('Terminal pane is unavailable');
+        const paneBounds = paneElement.getBoundingClientRect();
+        const decorationBounds = element.getBoundingClientRect();
+        return {
+            color: getComputedStyle(element).color,
+            decoration: {
+                height: decorationBounds.height,
+                width: decorationBounds.width,
+                x: decorationBounds.x - paneBounds.x,
+                y: decorationBounds.y - paneBounds.y,
+            },
+            pane: { height: paneBounds.height, width: paneBounds.width },
+            phase: (element as HTMLElement).dataset.terminalCommandPhase,
+        };
+    });
+    const screenshot = await pane.screenshot();
+    return app.evaluate(
+        ({ nativeImage }, { geometry: measured, phase: expectedPhase, screenshotBase64 }) => {
+            const image = nativeImage.createFromBuffer(Buffer.from(screenshotBase64, 'base64'));
+            const size = image.getSize();
+            const bitmap = image.toBitmap();
+            const scaleX = size.width / measured.pane.width;
+            const scaleY = size.height / measured.pane.height;
+            const left = Math.max(0, Math.floor(measured.decoration.x * scaleX));
+            const right = Math.min(
+                size.width,
+                Math.ceil((measured.decoration.x + measured.decoration.width) * scaleX),
+            );
+            const top = Math.max(0, Math.floor(measured.decoration.y * scaleY));
+            const bottom = Math.min(
+                size.height,
+                Math.ceil((measured.decoration.y + measured.decoration.height) * scaleY),
+            );
+            const centerX = Math.min(size.width - 1, Math.floor((left + right) / 2));
+            const centerY = Math.min(size.height - 1, Math.floor((top + bottom) / 2));
+            const backgroundX = Math.max(0, left - Math.max(2, Math.round(2 * scaleX)));
+            const pixel = (x: number, y: number): [number, number, number] => {
+                const offset = (y * size.width + x) * 4;
+                return [bitmap[offset], bitmap[offset + 1], bitmap[offset + 2]];
+            };
+            const background = pixel(backgroundX, centerY);
+            const isDifferentFromBackground = (sample: [number, number, number]): boolean =>
+                Math.max(
+                    Math.abs(sample[0] - background[0]),
+                    Math.abs(sample[1] - background[1]),
+                    Math.abs(sample[2] - background[2]),
+                ) > 8;
+            let changedPixels = 0;
+            for (let y = top; y < bottom; y += 1) {
+                for (let x = left; x < right; x += 1) {
+                    if (isDifferentFromBackground(pixel(x, y))) changedPixels += 1;
+                }
+            }
+            if (measured.phase !== expectedPhase)
+                throw new Error(`Expected ${expectedPhase} decoration, received ${measured.phase}`);
+            const center = pixel(centerX, centerY);
+            return {
+                background,
+                center,
+                centerChanged: isDifferentFromBackground(center),
+                changedPixels,
+                computedColor: measured.color,
+                phase: expectedPhase,
+            };
+        },
+        { geometry, phase, screenshotBase64: screenshot.toString('base64') },
+    );
+}
+
+async function terminalLayoutEvidence(surface: Locator): Promise<{
+    canvasGeometry: Array<{
+        className: string;
+        height: number;
+        width: number;
+        x: number;
+        y: number;
+    }>;
+    grid: string | undefined;
+    renderer: string | undefined;
+    screen: { height: number; width: number; x: number; y: number };
+    scrollTop: number;
+}> {
+    return surface.evaluate((element) => {
+        const screen = element.querySelector('.xterm-screen');
+        const viewport = element.querySelector('.xterm-viewport');
+        if (!screen || !viewport) throw new Error('Terminal layout is unavailable');
+        const surfaceBounds = element.getBoundingClientRect();
+        const relativeGeometry = (target: Element) => {
+            const bounds = target.getBoundingClientRect();
+            return {
+                className: (target as HTMLElement).className,
+                height: bounds.height,
+                width: bounds.width,
+                x: bounds.x - surfaceBounds.x,
+                y: bounds.y - surfaceBounds.y,
+            };
+        };
+        const screenGeometry = relativeGeometry(screen);
+        return {
+            canvasGeometry: [...element.querySelectorAll(':scope .xterm canvas')].map(
+                relativeGeometry,
+            ),
+            grid: (element as HTMLElement).dataset.terminalGrid,
+            renderer: (element as HTMLElement).dataset.terminalRenderer,
+            screen: {
+                height: screenGeometry.height,
+                width: screenGeometry.width,
+                x: screenGeometry.x,
+                y: screenGeometry.y,
+            },
+            scrollTop: viewport.scrollTop,
+        };
+    });
+}
+
+test('command gutter paints running, succeeded, and failed phases without moving the grid', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-command-pixels-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root);
+
+    const running = await launchCaxri({
+        env: { SHELL: '/bin/zsh' },
+        userDataDir: userData,
+        testRootPath: root,
+    });
+    try {
+        await createShellSession(running.page);
+        const terminalId = await activeTerminalId(running.page);
+        const surface = terminalSurface(running.page, terminalId);
+        await expect(surface).toHaveAttribute('data-terminal-grid', /^\d+x\d+$/u);
+        await expect(surface).toHaveAttribute('data-terminal-renderer', /^(?:dom|webgl)$/u);
+        const layoutBefore = await terminalLayoutEvidence(surface);
+
+        await typeInTerminal(running.page, terminalId, 'sleep 60');
+        await expectCommandState(surface, { commandCount: 1, completedCount: 0 });
+        const runningPixels = await terminalDecorationPixelEvidence(
+            running.app,
+            running.page,
+            terminalId,
+            'running',
+        );
+        expect(runningPixels.changedPixels, JSON.stringify(runningPixels)).toBeGreaterThan(16);
+        expect(runningPixels.centerChanged, JSON.stringify(runningPixels)).toBe(false);
+
+        await running.page
+            .locator(`.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`)
+            .press('Control+C');
+        await expect(surface.locator('[data-terminal-command-phase="failed"]')).toHaveCount(1);
+        const failedPixels = await terminalDecorationPixelEvidence(
+            running.app,
+            running.page,
+            terminalId,
+            'failed',
+        );
+        expect(failedPixels.changedPixels, JSON.stringify(failedPixels)).toBeGreaterThan(16);
+        expect(failedPixels.computedColor).toBe('rgb(241, 76, 76)');
+
+        await typeInTerminal(running.page, terminalId, 'true');
+        await expectCommandState(surface, {
+            commandCount: 2,
+            completedCount: 2,
+            lastExitStatus: 0,
+        });
+        const succeededPixels = await terminalDecorationPixelEvidence(
+            running.app,
+            running.page,
+            terminalId,
+            'succeeded',
+        );
+        expect(succeededPixels.changedPixels, JSON.stringify(succeededPixels)).toBeGreaterThan(32);
+        expect(succeededPixels.centerChanged, JSON.stringify(succeededPixels)).toBe(true);
+        expect(succeededPixels.computedColor).toBe('rgb(27, 129, 168)');
+
+        expect(await terminalLayoutEvidence(surface)).toEqual(layoutBefore);
+        await expect(
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`,
+            ),
+        ).toBeFocused();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
 
 test('zsh command boundaries survive scrollback, split resize, Session switches, and reload', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-commands-zsh-e2e-'));
