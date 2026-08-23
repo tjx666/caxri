@@ -35,6 +35,8 @@ export type ConfigAction =
     | { type: 'settings/sourceChanged'; source: string }
     | { type: 'settings/sourceParsed'; value: AppSettings }
     | { type: 'settings/applied'; value: AppSettings; source: string }
+    | { type: 'settings/echoApplied'; source: string }
+    | { type: 'settings/reconciled'; value: AppSettings; source: string }
     /**
      * An external editor changed `settings.jsonc` on disk. Local-write echoes are consumed before this action; `value`
      * is omitted when the new text fails to parse, so a foreign edit that breaks the file surfaces its error without
@@ -50,6 +52,13 @@ export type ConfigAction =
           source: string;
           conflicts: KeybindingConflict[];
       }
+    | { type: 'keybindings/echoApplied'; source: string }
+    | {
+          type: 'keybindings/reconciled';
+          value: Keybinding[];
+          source: string;
+          conflicts: KeybindingConflict[];
+      }
     | {
           type: 'keybindings/externalChanged';
           source: string;
@@ -60,6 +69,8 @@ export type ConfigAction =
     | { type: 'theme/sourceChanged'; source: string }
     | { type: 'theme/sourceParsed'; value: ThemeTokens }
     | { type: 'theme/applied'; value: ThemeTokens; source: string }
+    | { type: 'theme/echoApplied'; source: string }
+    | { type: 'theme/reconciled'; value: ThemeTokens; source: string }
     | { type: 'theme/externalChanged'; source: string; value?: ThemeTokens }
     | { type: 'theme/imported'; value: ThemeTokens; source: string };
 
@@ -102,6 +113,22 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
                     appliedSource: action.source,
                 },
             };
+        case 'settings/echoApplied':
+            return {
+                ...state,
+                settings: { ...state.settings, appliedSource: action.source },
+            };
+        case 'settings/reconciled': {
+            const hasPendingDraft = state.settings.source !== state.settings.appliedSource;
+            return {
+                ...state,
+                settings: {
+                    value: hasPendingDraft ? state.settings.value : action.value,
+                    source: hasPendingDraft ? state.settings.source : action.source,
+                    appliedSource: action.source,
+                },
+            };
+        }
         case 'settings/externalChanged':
             return {
                 ...state,
@@ -130,6 +157,23 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
                     conflicts: action.conflicts,
                 },
             };
+        case 'keybindings/echoApplied':
+            return {
+                ...state,
+                keybindings: { ...state.keybindings, appliedSource: action.source },
+            };
+        case 'keybindings/reconciled': {
+            const hasPendingDraft = state.keybindings.source !== state.keybindings.appliedSource;
+            return {
+                ...state,
+                keybindings: {
+                    value: hasPendingDraft ? state.keybindings.value : action.value,
+                    source: hasPendingDraft ? state.keybindings.source : action.source,
+                    appliedSource: action.source,
+                    conflicts: hasPendingDraft ? state.keybindings.conflicts : action.conflicts,
+                },
+            };
+        }
         case 'keybindings/externalChanged':
             return {
                 ...state,
@@ -154,6 +198,22 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
                 ...state,
                 theme: { value: action.value, source: action.source, appliedSource: action.source },
             };
+        case 'theme/echoApplied':
+            return {
+                ...state,
+                theme: { ...state.theme, appliedSource: action.source },
+            };
+        case 'theme/reconciled': {
+            const hasPendingDraft = state.theme.source !== state.theme.appliedSource;
+            return {
+                ...state,
+                theme: {
+                    value: hasPendingDraft ? state.theme.value : action.value,
+                    source: hasPendingDraft ? state.theme.source : action.source,
+                    appliedSource: action.source,
+                },
+            };
+        }
         case 'theme/externalChanged':
             return {
                 ...state,
