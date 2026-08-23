@@ -285,7 +285,7 @@ test('dragging a work tab within its pane bar drops it at the pointed-at positio
     }
 });
 
-test('dragging a work tab over a sibling shows an insertion-line indicator without activating it', async () => {
+test('dragging a work tab over a sibling shows an insertion line and previews the hovered tab', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-drag-preview-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -309,7 +309,7 @@ test('dragging a work tab over a sibling shows an insertion-line indicator witho
         await waitForTabMotionToSettle(running.page);
 
         // c.ts opened last, so it is the active tab; hovering a drag of it over a.ts is what draws the
-        // insertion line — and must leave the selection exactly where it was.
+        // insertion line and, once the drag lingers, what previews a.ts.
         const source = documentTabs.filter({ hasText: 'c.ts' });
         const target = documentTabs.filter({ hasText: 'a.ts' });
         await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
@@ -371,12 +371,20 @@ test('dragging a work tab over a sibling shows an insertion-line indicator witho
             { dropX, dropY },
         );
 
-        // A drag is a question, not an answer: lingering over another tab must never commit a selection the
-        // user has not dropped. VS Code previews nothing on a tab drag either. The wait is deliberately long
-        // enough to have cleared the 500ms delay of the hover-preview switch this replaced.
-        await running.page.waitForTimeout(900);
+        // A cursor merely crossing a tab on its way to the drop position must not flip the content under it,
+        // so well short of the hover threshold the selection still belongs to the dragged tab.
+        await running.page.waitForTimeout(400);
         await expect(target.getByRole('tab')).toHaveAttribute('aria-selected', 'false');
         await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'true');
+
+        // Lingering past it previews the hovered tab's content, matching VS Code's
+        // `DRAG_OVER_OPEN_TAB_THRESHOLD` (`multiEditorTabsControl.ts`). The insertion line stays where it is:
+        // the preview answers "what am I dropping next to", it does not move the drop position.
+        await expect(target.getByRole('tab')).toHaveAttribute('aria-selected', 'true', {
+            timeout: 5000,
+        });
+        await expect(source.getByRole('tab')).toHaveAttribute('aria-selected', 'false');
+        await expect(marker).toBeVisible();
 
         await running.page.evaluate(() => {
             document

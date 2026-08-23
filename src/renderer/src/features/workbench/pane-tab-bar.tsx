@@ -40,6 +40,15 @@ function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
     return event.dataTransfer.types.includes(PANE_TAB_DRAG_TYPE);
 }
 
+/**
+ * How long a drag has to linger over another tab before that tab's pane treats it as selected, previewing its content
+ * the way VS Code does while a tab drag is still in progress (`multiEditorTabsControl.ts`,
+ * `DRAG_OVER_OPEN_TAB_THRESHOLD`). The value matches VS Code's deliberately unhurried 1.5s: a shorter delay flips the
+ * content under a cursor that is only passing over a tab on its way to the drop position. Mirrors
+ * `AUTO_COLLAPSE_IDLE_DELAY_MS`'s naming (`use-project-collapse.ts`).
+ */
+const TAB_DRAG_HOVER_SWITCH_DELAY_MS = 1500;
+
 function paneTabIdAt(target: EventTarget | null): string | undefined {
     return target instanceof Element
         ? (target.closest<HTMLElement>('[data-pane-tab-id]')?.dataset.paneTabId ?? undefined)
@@ -321,25 +330,36 @@ export function PaneTabBar({
     const [isDropTarget, setIsDropTarget] = useState(false);
     const [dropIndicatorLeft, setDropIndicatorLeft] = useState<number | undefined>(undefined);
     const barReference = useRef<HTMLDivElement>(null);
+    const hoverTabIdReference = useRef<string | undefined>(undefined);
+    const hoverTimeoutReference = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     /**
      * `dataTransfer.getData` cannot be read during `dragover` (only `types` is exposed before `drop`), so — mirroring
      * `draggedProjectId` in `use-project-order.ts` — the id is captured off the bubbled `dragstart` DOM event instead,
-     * which lets `dragover` exclude the dragged tab's own (unmoved) rect from the insertion-line geometry, the same way
-     * `onDrop` below already excludes it from its own rects.
+     * which lets `dragover` exclude the dragged tab's own (unmoved) rect from both the insertion-line geometry and the
+     * hover-preview target, the same way `onDrop` below already excludes it from its own rects.
      */
     const draggedTabIdReference = useRef<string | undefined>(undefined);
+    const clearHoverSwitch = (): void => {
+        hoverTabIdReference.current = undefined;
+        clearTimeout(hoverTimeoutReference.current);
+        hoverTimeoutReference.current = undefined;
+    };
     useEffect(() => {
         /**
          * `dragend` fires on the drag source and only bubbles through its own bar's ancestors, so a drag cancelled
          * (Escape, dropped outside any bar) while over a _different_ pane's bar would otherwise leave that other bar's
-         * insertion line stuck. A window-level listener clears every bar's state.
+         * insertion line and pending hover-switch timer stuck. A window-level listener clears every bar's state.
          */
         const onWindowDragEnd = (): void => {
             setDropIndicatorLeft(undefined);
+            clearHoverSwitch();
             draggedTabIdReference.current = undefined;
         };
         addEventListener('dragend', onWindowDragEnd);
-        return () => removeEventListener('dragend', onWindowDragEnd);
+        return () => {
+            removeEventListener('dragend', onWindowDragEnd);
+            clearHoverSwitch();
+        };
     }, []);
     const activeTabId =
         pane.tabs.find((tab) => tab.id === pane.activeTabId)?.id ?? pane.tabs[0]?.id;
@@ -395,11 +415,29 @@ export function PaneTabBar({
                 if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
                 setIsDropTarget(false);
                 setDropIndicatorLeft(undefined);
+                clearHoverSwitch();
             }}
             onDragOver={(event) => {
                 if (!canAcceptDrop(event)) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'move';
+                /**
+                 * Lingering over another tab previews its content, matching VS Code: the drop still lands where the
+                 * insertion line points, but the user can see what they are dropping next to while the drag is live.
+                 */
+                const hoveredTabId = paneTabIdAt(event.target);
+                const hoverSwitchTargetId =
+                    hoveredTabId !== draggedTabIdReference.current ? hoveredTabId : undefined;
+                if (hoverSwitchTargetId !== hoverTabIdReference.current) {
+                    hoverTabIdReference.current = hoverSwitchTargetId;
+                    clearTimeout(hoverTimeoutReference.current);
+                    hoverTimeoutReference.current = hoverSwitchTargetId
+                        ? setTimeout(
+                              () => selectPaneTab(hoverSwitchTargetId),
+                              TAB_DRAG_HOVER_SWITCH_DELAY_MS,
+                          )
+                        : undefined;
+                }
                 const scrollElement = barReference.current;
                 if (!scrollElement) return;
                 const tabElements =
@@ -420,6 +458,7 @@ export function PaneTabBar({
             onDrop={(event) => {
                 setIsDropTarget(false);
                 setDropIndicatorLeft(undefined);
+                clearHoverSwitch();
                 draggedTabIdReference.current = undefined;
                 const tabId = event.dataTransfer.getData(PANE_TAB_DRAG_TYPE);
                 if (!tabId) return;
@@ -475,13 +514,6 @@ export function PaneTabBar({
                     </LazyMotion>
                 </div>
             </div>
-            {/* Evenly divided tabs would otherwise reach the window's right edge and leave this frameless window with
-                no draggable chrome at all. This reserved gap inherits the bar's drag region and is the only remaining
-                way to move the window by its title area. It sits before the "+" button (not after) so "+" stays
-                pinned to the bar's true right edge instead of floating in front of a dead-space gap. */}
-            {isRootBar && (
-                <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-18 flex-none" />
-            )}
             {!isSoleWorkbenchTab && (
                 <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
                     <CommandTooltip commandId="terminal.new">
@@ -498,6 +530,14 @@ export function PaneTabBar({
                         </Button>
                     </CommandTooltip>
                 </div>
+            )}
+            {/* Evenly divided tabs would otherwise reach the window's right edge and leave this frameless window with
+                no draggable chrome at all. This corner inherits the bar's drag region and is the only remaining way to
+                move the window by its title area, so it stays just wide enough to grab. It sits after the "+" button,
+                matching iTerm2: tabs run straight into "+", and the leftover strip is the corner, not a gap wedged
+                between the last tab and the button. */}
+            {isRootBar && (
+                <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-8 flex-none" />
             )}
         </div>
     );
