@@ -109,6 +109,11 @@ interface TerminalLinkSnapshot {
     wordSeparators: string;
 }
 
+interface TerminalPaneLinkRegistration {
+    dispose(): void;
+    restoreOscLinks: ReturnType<typeof registerTerminalLinks>['restoreOscLinks'];
+}
+
 /**
  * Wires `registerTerminalLinks` to the pane's live state snapshot: link providers are registered once per attach, so
  * every field reads through `latest()` instead of capturing values that would go stale on session or settings changes.
@@ -116,44 +121,43 @@ interface TerminalLinkSnapshot {
 export function registerTerminalPaneLinks(
     terminal: Terminal,
     latest: () => TerminalLinkSnapshot,
-): () => void {
-    const registration = registerTerminalLinks(
-        terminal,
-        {
-            get cwd() {
-                return latest().terminalCwd;
-            },
-            get projectRoot() {
-                return latest().projectRoot;
-            },
-            get wordSeparators() {
-                return latest().wordSeparators;
-            },
-            async openFile(path, location) {
-                await openFile(path, location ? { location } : {});
-            },
-            async openHomeFile(target, location) {
-                try {
-                    await caxri.request('terminal.openFileLink', {
-                        terminalId: latest().terminalId,
-                        target,
-                        ...(location && { location }),
-                    });
-                } catch (error) {
-                    onError(errorMessage(error, 'Terminal file link failed'));
-                }
-            },
-            async openUrl(url) {
-                await openExternalUrl(url, onError);
-            },
+): TerminalPaneLinkRegistration {
+    const registration = registerTerminalLinks(terminal, {
+        get cwd() {
+            return latest().terminalCwd;
         },
-        latest().terminalId,
-    );
+        get projectRoot() {
+            return latest().projectRoot;
+        },
+        get wordSeparators() {
+            return latest().wordSeparators;
+        },
+        async openFile(path, location) {
+            await openFile(path, location ? { location } : {});
+        },
+        async openHomeFile(target, location) {
+            try {
+                await caxri.request('terminal.openFileLink', {
+                    terminalId: latest().terminalId,
+                    target,
+                    ...(location && { location }),
+                });
+            } catch (error) {
+                onError(errorMessage(error, 'Terminal file link failed'));
+            }
+        },
+        async openUrl(url) {
+            await openExternalUrl(url, onError);
+        },
+    });
     const unregisterProvider = registerTerminalLinkProvider(latest().terminalId, () =>
         registration.getViewportLinks(),
     );
-    return () => {
-        unregisterProvider();
-        registration.dispose();
+    return {
+        dispose() {
+            unregisterProvider();
+            registration.dispose();
+        },
+        restoreOscLinks: (snapshots) => registration.restoreOscLinks(snapshots),
     };
 }

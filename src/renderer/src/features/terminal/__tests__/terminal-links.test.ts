@@ -9,7 +9,6 @@ import {
     TERMINAL_DEFAULT_WORD_SEPARATORS,
     terminalLinkHintPosition,
 } from '../terminal-links';
-import { clearTerminalOscLinkSnapshots } from '../terminal-osc-link-tracker';
 
 describe('findTerminalLinks', () => {
     it('extracts Markdown URLs after CJK text without including prose punctuation', () => {
@@ -428,15 +427,17 @@ describe('registerTerminalLinks', () => {
         expect(openUrl).toHaveBeenCalledWith('https://example.com/osc-target');
     });
 
-    it('bounds same-line OSC 8 targets independently of marker disposal', () => {
-        const terminal = createTerminal('descriptive labels', cellsFor('descriptive labels'));
+    it('bounds OSC 8 targets independently of marker disposal', () => {
+        const terminal = createTerminal('x', cellsFor('x'));
         const { context } = baseContext();
         const registration = registerTerminalLinks(terminal.terminal, context);
+        terminal.setSize(1, 1_001);
 
         for (let index = 0; index < 1_001; index += 1) {
-            terminal.setCursor(0, 0);
+            terminal.setLine(index, 'x');
+            terminal.setCursor(index, 0);
             terminal.osc8(`;https://example.com/osc-target-${index}`);
-            terminal.setCursor(0, 'descriptive labels'.length);
+            terminal.setCursor(index, 1);
             terminal.osc8(';');
         }
 
@@ -495,38 +496,39 @@ describe('registerTerminalLinks', () => {
         ]);
     });
 
-    it('restores OSC 8 targets after an inactive Terminal pane remounts', () => {
-        const terminalId = 'terminal-remount';
+    it('restores only the Runtime-authoritative OSC 8 target after a pane remount', () => {
         const firstTerminal = createTerminal('LABEL', cellsFor('LABEL'));
         const { context } = baseContext();
-        const firstRegistration = registerTerminalLinks(
-            firstTerminal.terminal,
-            context,
-            terminalId,
-        );
+        const firstRegistration = registerTerminalLinks(firstTerminal.terminal, context);
 
         firstTerminal.setCursor(0, 0);
-        firstTerminal.osc8(';https://example.com/remounted');
+        firstTerminal.osc8(';https://example.com/stale-before-remount');
         firstTerminal.setCursor(0, 5);
         firstTerminal.osc8(';');
         expect(firstRegistration.getViewportLinks()).toMatchObject([
-            { target: 'https://example.com/remounted' },
+            { target: 'https://example.com/stale-before-remount' },
         ]);
         firstRegistration.dispose();
 
         const remountedTerminal = createTerminal('LABEL', cellsFor('LABEL'));
         remountedTerminal.setCursor(0, 5);
-        const remountedRegistration = registerTerminalLinks(
-            remountedTerminal.terminal,
-            context,
-            terminalId,
-        );
+        const remountedRegistration = registerTerminalLinks(remountedTerminal.terminal, context);
+        expect(remountedRegistration.getViewportLinks()).toEqual([]);
+
+        remountedRegistration.restoreOscLinks([
+            {
+                endColumn: 5,
+                endCursorOffset: 0,
+                startColumn: 0,
+                startCursorOffset: 0,
+                target: 'https://example.com/authoritative-after-remount',
+            },
+        ]);
         expect(remountedRegistration.getViewportLinks()).toMatchObject([
-            { target: 'https://example.com/remounted' },
+            { target: 'https://example.com/authoritative-after-remount' },
         ]);
 
         remountedRegistration.dispose();
-        clearTerminalOscLinkSnapshots(terminalId);
     });
 
     it('ignores a bare click without the Cmd/Ctrl activation modifier', async () => {

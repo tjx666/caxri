@@ -15,7 +15,6 @@ import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
 import { getPaneLayout, selectPaneTab } from '../workbench/pane-actions';
 import type { TerminalCommandNavigationDirection } from './terminal-commands';
 import { didNavigateTerminalCommand } from './terminal-commands';
-import { clearTerminalOscLinkSnapshots } from './terminal-osc-link-tracker';
 import { clearTerminalProgress } from './terminal-progress';
 import { openTerminalSearch } from './terminal-search';
 
@@ -95,7 +94,6 @@ export function closeTerminal(terminalId: string): void {
         'Terminal close failed',
         async () => {
             await caxri.request('terminal.close', { terminalId });
-            clearTerminalOscLinkSnapshots(terminalId);
             clearTerminalProgress(terminalId);
         },
         {
