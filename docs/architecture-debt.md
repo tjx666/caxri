@@ -3,12 +3,20 @@
 Persistent record of architecture-debt audit findings for revalidation across runs.
 Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md`.
 
-| Field            | Value                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------ |
-| **First audit**  | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last updated** | 2026-08-16 @ `19474c0` (`main`)                                                                        |
-| **Scope**        | Repository-wide revalidation of every prior OPEN entry plus Host, protocol, CLI, and Agent deltas      |
-| **Maintenance**  | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
+| Field                    | Value                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
+| **Last full audit**      | 2026-08-16 @ `19474c0` (`main`)                                                                        |
+| **Targeted review base** | 2026-08-23 @ `6e8ecb7` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
+| **Full-audit scope**     | Repository-wide revalidation of every prior OPEN entry plus Host, protocol, CLI, and Agent deltas      |
+| **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
+
+Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
+the full-audit watermark or imply a repository-wide debt sweep. Quarterly or ownership-refactor
+revalidation may inspect workflow clauses, contract tests, and guard scripts for current owners,
+consumers, and trigger evidence. Record “checked, no change” when appropriate; absence of failures
+alone does not prove a guard is stale, and a separate reverse-knip job or ceremony requires a
+concrete failure mode.
 
 Statuses: `OPEN` · `RESOLVED` · `STALE`. Effort: S / M / L per the audit report format.
 Category labels match the audit skill: Confirmed defect, Architecture debt, Contract drift,
@@ -239,8 +247,8 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-test-hyphenated-sibling-discovery — [STALE · Coverage or observability gap · S]
 
 - **Summary:** The original claim that `check --test` silently misses `project-status-runner.test.ts` is no longer true because static direct-import discovery includes that suite.
-- **Evidence:** `.agents/skills/quality-check/scripts/check.ts:240-280` adds static direct-import candidates across `src`; `src/runtime/__tests__/project-status-runner.test.ts:3` directly imports `../project-status`. Exact-stem candidate generation remains intentionally narrower.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified stale:** 2026-08-15 @ 43af4d6
+- **Evidence:** `.agents/skills/quality-check/scripts/check.ts:338-455` resolves Renderer aliases and scans static direct imports across `src`, skills, scripts, and packages; `src/runtime/__tests__/project-status-runner.test.ts:3-4` directly imports `../project-status-external`. Exact-stem candidate generation remains intentionally narrower.
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified stale:** 2026-08-23 @ 6e8ecb7
 - **Disposition:** Do not add broad hyphenated-sibling inference. The distinct alias-import and `packages/cli` discovery gaps remain tracked by [issue caxri#159](https://github.com/tjx666/caxri/issues/159).
 
 ---
@@ -249,21 +257,29 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 
 Recorded so repeat audits do not reclassify them as findings.
 
-| ID                                  | Tradeoff                                                                                                        | Evidence                                                        |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| IT-disk-wins-dirty-buffer           | External disk changes replace dirty editor buffers without a conflict dialog                                    | architecture / `external-sync`                                  |
-| IT-unsaved-buffers-not-durable      | Document bodies stay Renderer-local; SQLite holds tab metadata only                                             | `session_state` / session-view                                  |
-| IT-terminal-snapshot-finalization   | Parsed snapshot encoding 3 persists its source grid; unclean Runtime loss may drop latest visual state          | `src/runtime/terminal/snapshot-persistence.ts`, TerminalManager |
-| IT-copy-not-journaled               | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled  | `supervisor.ts`, `mutation-journal`, partial-copy tests         |
-| IT-project-status-fixed-allowlist   | Project Status CLIs fixed to gh / linear / vc; not a plugin adapter surface                                     | architecture, `project-status.ts`                               |
-| IT-pe-flag-redaction-only           | Process Explorer redacts common credential **flag** argv shapes only (best-effort); not full `redactSecretText` | `process-explorer.ts` `redactProcessName`                       |
-| IT-pnpm-12-release-candidate        | Local and CI toolchains pin pnpm 12 RC5 until the stable Rust release supersedes the tested migration baseline  | `mise.toml`, `setup-caxri-job`                                  |
-| IT-cli-global-wrapper               | Global CLI linking registers a dependency-free wrapper around the verified standalone bundle                    | `packages/cli/scripts/link-global.ts`                           |
-| IT-typescript-6-eslint-plus-7-tsc   | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                | electron-toolchain / stack-baseline                             |
-| IT-electron-vite-beta               | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                       | package.json, electron-toolchain.md                             |
-| IT-runtime-integration-not-inferred | `check` does not map every `src/runtime/*.ts` edit onto `runtime.integration.test.ts`                           | `check.ts`, `check.test.ts`                                     |
-| IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload, not nested feature boundaries           | `error-boundary.tsx`, both Renderer entries                     |
-| IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk          | `eslint.config.ts`, `BrowserWindow` webPreferences              |
+| ID                                  | Tradeoff                                                                                                                                                                             | Evidence                                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| IT-disk-wins-dirty-buffer           | External disk changes replace dirty editor buffers without a conflict dialog                                                                                                         | architecture / `external-sync`                                                                  |
+| IT-unsaved-buffers-not-durable      | Document bodies stay Renderer-local; SQLite holds tab metadata only                                                                                                                  | `session_state` / session-view                                                                  |
+| IT-terminal-snapshot-finalization   | Parsed snapshot encoding 3 persists its source grid; unclean Runtime loss may drop latest visual state                                                                               | `src/runtime/terminal/snapshot-persistence.ts`, TerminalManager                                 |
+| IT-copy-not-journaled               | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled                                                                       | `supervisor.ts`, `mutation-journal`, partial-copy tests                                         |
+| IT-project-status-fixed-allowlist   | Project Status CLIs fixed to gh / linear / vc; not a plugin adapter surface                                                                                                          | architecture, `project-status.ts`                                                               |
+| IT-pe-flag-redaction-only           | Process Explorer redacts common credential **flag** argv shapes only (best-effort); not full `redactSecretText`                                                                      | `process-explorer.ts` `redactProcessName`                                                       |
+| IT-pnpm-12-release-candidate        | Local and CI toolchains pin pnpm 12 RC5 until the stable Rust release supersedes the tested migration baseline                                                                       | `mise.toml`, `setup-caxri-job`                                                                  |
+| IT-cli-global-wrapper               | Global CLI linking registers a dependency-free wrapper around the verified standalone bundle                                                                                         | `packages/cli/scripts/link-global.ts`                                                           |
+| IT-typescript-6-eslint-plus-7-tsc   | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                                                                                     | electron-toolchain / stack-baseline                                                             |
+| IT-electron-vite-beta               | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                                                                                            | package.json, electron-toolchain.md                                                             |
+| IT-runtime-integration-not-inferred | `check` does not map every `src/runtime/*.ts` edit onto `runtime.integration.test.ts`                                                                                                | `check.ts`, `check.test.ts`                                                                     |
+| IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload, not nested feature boundaries                                                                                | `error-boundary.tsx`, both Renderer entries                                                     |
+| IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk                                                                               | `eslint.config.ts`, `BrowserWindow` webPreferences                                              |
+| IT-go-cooperative-ledger            | Go receipts validate cooperative exact-head state and lineage; they do not execute commands, derive findings, or form an adversarial security boundary                               | `.agents/skills/go/SKILL.md`                                                                    |
+| IT-single-self-hosted-runner        | One machine owns all CI/Release labels with queued offline behavior and no hosted fallback; this is an availability/cost tradeoff, not a security boundary                           | `docs/self-hosted-runner.md`                                                                    |
+| IT-ci-workflow-source-contract      | Ordinary workflow contracts use source-shape/order smoke assertions; trust clauses have structured YAML binding, and neither layer evaluates arbitrary GitHub expression equivalence | `ci-workflow-contract.test.ts`, `ci-trust-policy.test.ts`                                       |
+| IT-skill-shared-redaction-helper    | Repository skill scripts reuse the browser-safe shared redaction helper instead of duplicating secret-shape policy in a skill-only package                                           | `note-safety.ts`, `src/shared/redaction.ts`                                                     |
+| IT-runner-cleanup-primary-error     | Runner cleanup attempts every stage, reports all failed stages in the summary, and throws the first causal error rather than changing the CLI contract to `AggregateError`           | `self-hosted-runner.ts`, `self-hosted-runner.test.ts`                                           |
+| IT-e2e-build-input-roots            | E2E build freshness uses audited coarse repository roots rather than parsing the Vite dependency graph; confirmed missing consumed roots are defects                                 | `e2e/support/build-freshness.ts`, [issue caxri#335](https://github.com/tjx666/caxri/issues/335) |
+| IT-e2e-worker-local-error-gate      | `E2EErrorGate` state is isolated per Playwright worker process; pool orchestration may use more than one worker                                                                      | `e2e/support/error-gate.ts`, `scripts/run-e2e-pools.ts`                                         |
+| IT-e2e-parallel-safe-allowlist      | Only individually audited specs enter the two-worker allowlist; every unclassified spec fails closed to the desktop-exclusive pool                                                   | `e2e/support/pools.ts`, `docs/ci-performance.md`                                                |
 
 ---
 

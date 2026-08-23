@@ -1,5 +1,9 @@
 # Self-hosted macOS CI and release runner
 
+This document is authoritative for runner routing, trust, availability, and recovery.
+`docs/ci-performance.md` owns CI/E2E execution profiles and performance evidence; `RELEASING.md`
+owns release steps and refers here for runner operations.
+
 ## Scope and trust boundary
 
 Caxri uses the repository-level `m2-24` runner for every GitHub Actions job: retry policy,
@@ -143,6 +147,28 @@ or the machine shows unexpected credential access:
 4. rotate credentials reachable by the macOS user, not only Actions secrets;
 5. inspect and clear verified Caxri-owned processes, leases, worktrees, and profiles;
 6. register a fresh runner token and repeat the full validation matrix before recovery.
+
+### Permanent loss and replacement
+
+When the machine is permanently unavailable or cannot be trusted for reuse:
+
+1. remove its repository registration in **Settings -> Actions -> Runners**; if the machine cannot
+   be reached, treat the remaining registration as lost rather than trying to recover a removal
+   token from it;
+2. provision a replacement macOS ARM64 machine and runner user, then use GitHub's current
+   repository registration command with the same capability labels: `self-hosted`, `macOS`,
+   `ARM64`, `caxri-ci`, `caxri-e2e`, and `caxri-release`; unchanged labels require no workflow YAML
+   edit;
+3. configure and verify the runner-local action archive cache with the commands in
+   [Toolchain and caches](#toolchain-and-caches), then start the per-user launchd service;
+4. repeat the complete frozen-head validation matrix above before admitting normal PR or Release
+   traffic.
+
+During replacement, keep matching CI and Release jobs queued. Local lint, typecheck, unit, build,
+or focused E2E results are provisional local evidence; they are not GitHub checks, exact-head CI,
+or a reason to add a temporary hosted fallback. If the capability labels must change, review the
+workflow and its contract tests as a separate repository change after the replacement is
+available.
 
 To remove a healthy runner intentionally:
 
