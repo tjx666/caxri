@@ -1,5 +1,5 @@
 import { lstat, readFile, realpath } from 'node:fs/promises';
-import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { z } from 'zod';
 
@@ -64,12 +64,31 @@ interface PublicationState {
 type CommandRunner = (command: string, arguments_: string[], timeoutMs?: number) => Promise<string>;
 
 const checkIdSchema = z.object({ id: z.string().min(1) });
+const evidenceTypeSchema = z.enum([
+    'dom_snapshot',
+    'gif',
+    'markdown',
+    'screenshot',
+    'text',
+    'video',
+]);
+const evidenceReferenceSchema = z.union([z.string().min(1), z.object({ path: z.string().min(1) })]);
+const localCaseSchema = checkIdSchema.extend({
+    evidence: z.array(evidenceReferenceSchema).min(1),
+});
+const requiredEvidenceSchema = z.union([
+    evidenceTypeSchema,
+    z.object({ hint: z.string().optional(), type: evidenceTypeSchema }),
+]);
+const localPlanItemSchema = checkIdSchema.extend({
+    requiredEvidence: z.array(requiredEvidenceSchema).min(1),
+});
 
 const localReportSchema = z.object({
-    cases: z.array(checkIdSchema).min(1),
+    cases: z.array(localCaseSchema).min(1),
     commit: z.string().min(1),
     createdAt: z.string().min(1),
-    plan: z.array(checkIdSchema).min(1),
+    plan: z.array(localPlanItemSchema).min(1),
     requirement: z.string().min(1),
     summary: z.object({ verdict: z.enum(['fail', 'partial', 'pass']) }),
 });
@@ -100,7 +119,14 @@ const acceptanceRoundSchema = z.object({
     report: z.object({ verdict: z.enum(['failed', 'passed', 'uncertain']) }),
     run: acceptanceRunSchema,
 });
+const acceptanceEvidenceSchema = z.object({
+    content: z.string().min(1).nullable().optional(),
+    fileId: z.string().min(1).nullable().optional(),
+    fileUrl: z.string().min(1).nullable().optional(),
+    type: evidenceTypeSchema,
+});
 const acceptanceCheckSchema = z.object({
+    evidence: z.array(acceptanceEvidenceSchema),
     id: z.string().min(1),
     resultRound: z.number().int().positive(),
 });
@@ -124,6 +150,78 @@ function sorted(values: string[]): string[] {
 
 function haveEqualValues(left: string[], right: string[]): boolean {
     return JSON.stringify(sorted(left)) === JSON.stringify(sorted(right));
+}
+
+function evidenceTypeForPath(path: string): z.infer<typeof evidenceTypeSchema> {
+    const extension = extname(path).toLowerCase();
+    if (extension === '.gif') return 'gif';
+    if (['.bmp', '.jpeg', '.jpg', '.png', '.svg', '.webp'].includes(extension)) {
+        return 'screenshot';
+    }
+    if (['.m4v', '.mov', '.mp4', '.webm'].includes(extension)) return 'video';
+    if (['.html', '.htm'].includes(extension)) return 'dom_snapshot';
+    if (['.markdown', '.md'].includes(extension)) return 'markdown';
+    return 'text';
+}
+
+function evidencePath(reference: z.infer<typeof evidenceReferenceSchema>): string {
+    return typeof reference === 'string' ? reference : reference.path;
+}
+
+function requiredEvidenceType(
+    evidence: z.infer<typeof requiredEvidenceSchema>,
+): z.infer<typeof evidenceTypeSchema> {
+    return typeof evidence === 'string' ? evidence : evidence.type;
+}
+
+/**
+ * LobeHub ingest may warn and skip one file-backed artifact while still exiting successfully. The remote evidence
+ * inventory therefore has to match every local case exactly; head, verdict, and check-id parity alone cannot prove that
+ * a reviewer received the screenshots and recordings declared by the finalized report.
+ */
+function assertRemoteEvidenceIntegrity(
+    report: z.infer<typeof localReportSchema>,
+    remoteChecks: Array<z.infer<typeof acceptanceCheckSchema>>,
+): void {
+    const planById = new Map(report.plan.map((item) => [item.id, item]));
+    const remoteById = new Map(remoteChecks.map((check) => [check.id, check]));
+
+    for (const acceptanceCase of report.cases) {
+        const expectedTypes = acceptanceCase.evidence.map((reference) =>
+            evidenceTypeForPath(evidencePath(reference)),
+        );
+        const requiredEvidence = planById.get(acceptanceCase.id)?.requiredEvidence ?? [];
+        for (const requirement of requiredEvidence) {
+            const type = requiredEvidenceType(requirement);
+            if (!expectedTypes.includes(type)) {
+                throw new Error(
+                    `Acceptance local evidence for ${acceptanceCase.id} does not satisfy required ${type} evidence`,
+                );
+            }
+        }
+
+        const remote = remoteById.get(acceptanceCase.id);
+        if (
+            !remote ||
+            !haveEqualValues(
+                remote.evidence.map(({ type }) => type),
+                expectedTypes,
+            )
+        ) {
+            throw new Error(
+                `LobeHub readback evidence does not match the local round for ${acceptanceCase.id}`,
+            );
+        }
+        for (const evidence of remote.evidence) {
+            const hasPayload = Boolean(evidence.content ?? evidence.fileUrl);
+            const requiresFile = ['gif', 'screenshot', 'video'].includes(evidence.type);
+            if (!hasPayload || (requiresFile && (!evidence.fileId || !evidence.fileUrl))) {
+                throw new Error(
+                    `LobeHub readback evidence payload is missing for ${acceptanceCase.id}`,
+                );
+            }
+        }
+    }
 }
 
 /**
@@ -428,12 +526,12 @@ export async function publishAcceptanceRound(
     if (remoteRound.run.context.commit !== input.headSha) {
         throw new Error('LobeHub readback does not match the exact head');
     }
-    const remoteCheckIds = view.checks
-        .filter(({ resultRound }) => resultRound === expectedRound)
-        .map(({ id }) => id);
+    const remoteChecks = view.checks.filter(({ resultRound }) => resultRound === expectedRound);
+    const remoteCheckIds = remoteChecks.map(({ id }) => id);
     if (!haveEqualValues(remoteCheckIds, checkIds)) {
         throw new Error('LobeHub readback check ids do not match the local round');
     }
+    assertRemoteEvidenceIntegrity(report, remoteChecks);
     const expectedVerdict = { fail: 'failed', partial: 'uncertain', pass: 'passed' }[
         report.summary.verdict
     ];

@@ -35,10 +35,10 @@ function report(
     verdict: 'fail' | 'partial' | 'pass' = 'pass',
 ) {
     return {
-        cases: checkIds.map((id) => ({ id })),
+        cases: checkIds.map((id) => ({ evidence: [`assets/${id}.txt`], id })),
         commit: headSha,
         createdAt: '2026-08-12T00:00:00.000Z',
-        plan: checkIds.map((id) => ({ id })),
+        plan: checkIds.map((id) => ({ id, requiredEvidence: ['text'] })),
         requirement: '同一交付只保留一个稳定的 Acceptance lineage。',
         summary: { verdict },
     };
@@ -55,6 +55,40 @@ async function writeRound(
     await writeFile(
         join(directory, 'result.json'),
         `${JSON.stringify(report(headSha, checkIds, verdict), null, 2)}\n`,
+    );
+    return directory;
+}
+
+async function writeRoundWithVisualEvidence(): Promise<string> {
+    const directory = join(TEST_ROOT, 'round-1');
+    await mkdir(join(directory, 'assets'), { recursive: true });
+    await writeFile(join(directory, 'assets', 'desktop.png'), 'visual evidence');
+    await writeFile(
+        join(directory, 'result.json'),
+        `${JSON.stringify(
+            {
+                cases: [
+                    {
+                        evidence: ['assets/desktop.png'],
+                        id: 'desktop-visual-state',
+                    },
+                ],
+                commit: 'head-1',
+                createdAt: '2026-08-12T00:00:00.000Z',
+                plan: [
+                    {
+                        id: 'desktop-visual-state',
+                        requiredEvidence: [
+                            { hint: 'Capture the rendered desktop surface', type: 'screenshot' },
+                        ],
+                    },
+                ],
+                requirement: '桌面视觉结果必须随 Acceptance 报告交付。',
+                summary: { verdict: 'pass' },
+            },
+            null,
+            2,
+        )}\n`,
     );
     return directory;
 }
@@ -91,6 +125,12 @@ function viewJson(
     input: {
         acceptanceId?: string;
         checkIds?: string[];
+        evidence?: Array<{
+            content?: string | null;
+            fileId?: string | null;
+            fileUrl?: string | null;
+            type: 'dom_snapshot' | 'gif' | 'markdown' | 'screenshot' | 'text' | 'video';
+        }>;
         headSha?: string;
         roundIndex?: number;
         verdict?: 'failed' | 'passed' | 'uncertain';
@@ -103,6 +143,9 @@ function viewJson(
     return JSON.stringify({
         acceptance: { id: acceptanceId },
         checks: (input.checkIds ?? ['acceptance-round-lineage']).map((id) => ({
+            evidence: input.evidence ?? [
+                { content: 'Remote evidence receipt', fileId: null, fileUrl: null, type: 'text' },
+            ],
             id,
             resultRound: roundIndex,
         })),
@@ -168,6 +211,85 @@ describe('Go Acceptance round publication', () => {
             roundIndex: 1,
             verifyRunId: 'run-1',
         });
+    });
+
+    it('rejects a remote round that dropped required visual evidence', async () => {
+        const state = publicationState('missing-visual-evidence');
+        const directory = await writeRoundWithVisualEvidence();
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1))
+            .mockResolvedValueOnce(
+                viewJson({ checkIds: ['desktop-visual-state'], headSha: 'head-1' }),
+            );
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).rejects.toThrow('evidence');
+        expect(state.acceptance.publication.history).toEqual([]);
+    });
+
+    it('rejects visual evidence that has a file record but no renderable URL', async () => {
+        const state = publicationState('missing-visual-url');
+        const directory = await writeRoundWithVisualEvidence();
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1))
+            .mockResolvedValueOnce(
+                viewJson({
+                    checkIds: ['desktop-visual-state'],
+                    evidence: [
+                        { content: null, fileId: 'file-1', fileUrl: null, type: 'screenshot' },
+                    ],
+                    headSha: 'head-1',
+                }),
+            );
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).rejects.toThrow('payload is missing');
+        expect(state.acceptance.publication.history).toEqual([]);
+    });
+
+    it('accepts visual evidence only when the remote round has a renderable file', async () => {
+        const state = publicationState('renderable-visual-evidence');
+        const directory = await writeRoundWithVisualEvidence();
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1))
+            .mockResolvedValueOnce(
+                viewJson({
+                    checkIds: ['desktop-visual-state'],
+                    evidence: [
+                        {
+                            content: null,
+                            fileId: 'file-1',
+                            fileUrl: 'https://example.com/desktop.png',
+                            type: 'screenshot',
+                        },
+                    ],
+                    headSha: 'head-1',
+                }),
+            );
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({ acceptanceId: 'acc-1', roundIndex: 1 });
     });
 
     it('bounds a stalled external publication command', async () => {
