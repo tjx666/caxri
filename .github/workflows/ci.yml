@@ -284,6 +284,7 @@ jobs:
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         env:
           CAXRI_CHECKS_REVISION: ${{ github.sha }}
+          CAXRI_GITHUB_TOKEN: ${{ github.token }}
         run: bun run scripts/ci-checks-worktree.ts create
       - name: Report E2E runner route
         run: |

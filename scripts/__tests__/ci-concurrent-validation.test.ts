@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checksWorktreePath } from '../ci-checks-worktree';
+import { authenticatedGitEnvironment, checksWorktreePath } from '../ci-checks-worktree';
 import { isVerificationPassed } from '../ci-concurrent-validation';
 import { platformCheckCommands } from '../ci-platform-checks';
 
@@ -64,5 +64,23 @@ describe('concurrent CI validation', () => {
                 TMPDIR: '/private/tmp/unowned',
             }),
         ).toThrow('Invalid E2E runner owner');
+    });
+
+    it('authenticates a missing synthetic merge fetch without persisting the job token', () => {
+        const environment = authenticatedGitEnvironment({
+            CAXRI_GITHUB_TOKEN: 'job-token',
+            GIT_CONFIG_COUNT: '1',
+            GIT_CONFIG_KEY_0: 'existing.key',
+            GIT_CONFIG_VALUE_0: 'existing-value',
+        });
+
+        expect(environment).toMatchObject({
+            GIT_CONFIG_COUNT: '2',
+            GIT_CONFIG_KEY_0: 'existing.key',
+            GIT_CONFIG_KEY_1: 'http.https://github.com/.extraheader',
+            GIT_CONFIG_VALUE_0: 'existing-value',
+        });
+        expect(environment.GIT_CONFIG_VALUE_1).toMatch(/^AUTHORIZATION: basic /u);
+        expect(environment.GIT_CONFIG_VALUE_1).not.toContain('job-token');
     });
 });
