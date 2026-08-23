@@ -71,6 +71,13 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
             'Terminal progress: in progress',
         );
         await typeTerminal(running.page, oscProgress(1, 33));
+        /**
+         * Inactive tabs dispose their xterm pane and stop parsing OSC 9;4, so the final progress update must become
+         * observable before creating and selecting the next Terminal.
+         */
+        await expect(running.page.locator('.statusbar-terminal-progress')).toHaveAccessibleName(
+            'Terminal progress: 33 percent',
+        );
 
         const existingTerminalIds = (
             await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
