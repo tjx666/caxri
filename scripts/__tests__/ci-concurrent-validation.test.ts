@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 
 import { describe, expect, it } from 'vitest';
@@ -9,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
     authenticatedGitEnvironment,
     checksWorktreePath,
+    createFetchedCheckout,
     sanitizedChildEnvironment,
     verifyRevisionProvenance,
 } from '../ci-checks-worktree';
@@ -152,6 +154,7 @@ describe('concurrent CI validation', () => {
         const fixtureRoot = await mkdtemp(join(tmpdir(), 'caxri-shallow-merge-'));
         const source = join(fixtureRoot, 'source');
         const shallow = join(fixtureRoot, 'shallow');
+        const disposable = join(fixtureRoot, 'disposable');
 
         try {
             await execFileAsync('git', ['init', source]);
@@ -164,6 +167,7 @@ describe('concurrent CI validation', () => {
                 cwd: source,
             });
             const baseRevision = baseOutput.trim();
+            await execFileAsync('git', ['branch', 'base-ref', baseRevision], { cwd: source });
 
             await execFileAsync('git', ['checkout', '-b', 'feature'], { cwd: source });
             await writeFile(join(source, 'fixture.txt'), 'feature\n', 'utf8');
@@ -195,6 +199,29 @@ describe('concurrent CI validation', () => {
             await expect(
                 verifyRevisionProvenance(mergeRevision, baseRevision, headRevision, true, shallow),
             ).resolves.toBeUndefined();
+            await createFetchedCheckout(
+                disposable,
+                {
+                    baseFetchReference: 'refs/heads/base-ref',
+                    expectedBaseRevision: baseRevision,
+                    expectedRevision: mergeRevision,
+                    fetchReference: 'refs/heads/integration',
+                    headRevision,
+                    isMergeRequired: true,
+                    remoteUrl: `file://${source}`,
+                },
+                { ...process.env, CAXRI_GITHUB_TOKEN: 'test-token' },
+            );
+            const { stdout: disposableHead } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+                cwd: disposable,
+            });
+            expect(disposableHead.trim()).toBe(mergeRevision);
+            await expect(
+                access(join(disposable, '.git', 'objects', 'info', 'alternates')),
+            ).rejects.toThrow();
+            await expect(
+                execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd: disposable }),
+            ).rejects.toThrow();
         } finally {
             await rm(fixtureRoot, { recursive: true });
         }

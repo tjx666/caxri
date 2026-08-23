@@ -79,12 +79,16 @@ function validateFetchReference(value: string): string {
     throw new Error('Invalid checks fetch ref');
 }
 
-async function isCommitAvailable(revision: string): Promise<boolean> {
+async function isCommitAvailable(
+    revision: string,
+    repoRoot = projectRoot,
+    environment: NodeJS.ProcessEnv = process.env,
+): Promise<boolean> {
     const commitObject = [revision, '^{commit}'].join('');
     try {
         await execFileAsync('git', ['cat-file', '-e', commitObject], {
-            cwd: projectRoot,
-            env: sanitizedChildEnvironment(process.env),
+            cwd: repoRoot,
+            env: sanitizedChildEnvironment(environment),
         });
         return true;
     } catch {
@@ -95,24 +99,26 @@ async function isCommitAvailable(revision: string): Promise<boolean> {
 async function ensureRevisionAvailable(
     expectedRevision: string | undefined,
     fetchReference: string,
+    repoRoot = projectRoot,
+    environment: NodeJS.ProcessEnv = process.env,
 ): Promise<string> {
     if (expectedRevision && /^0+$/u.test(expectedRevision)) return expectedRevision;
     const mustVerifyRemoteReference = fetchReference.startsWith('refs/pull/');
     if (
         expectedRevision &&
         !mustVerifyRemoteReference &&
-        (await isCommitAvailable(expectedRevision))
+        (await isCommitAvailable(expectedRevision, repoRoot, environment))
     ) {
         return expectedRevision;
     }
 
     await execFileAsync('git', ['fetch', '--no-tags', '--depth=1', 'origin', fetchReference], {
-        cwd: projectRoot,
-        env: authenticatedGitEnvironment(process.env),
+        cwd: repoRoot,
+        env: authenticatedGitEnvironment(environment),
     });
     const { stdout } = await execFileAsync('git', ['rev-parse', 'FETCH_HEAD'], {
-        cwd: projectRoot,
-        env: sanitizedChildEnvironment(process.env),
+        cwd: repoRoot,
+        env: sanitizedChildEnvironment(environment),
     });
     const fetchedRevision = stdout.trim();
     if (!/^[0-9a-f]{40}$/u.test(fetchedRevision))
@@ -120,7 +126,7 @@ async function ensureRevisionAvailable(
     if (expectedRevision && fetchedRevision !== expectedRevision) {
         throw new Error('Fetched checks revision mismatch');
     }
-    if (!(await isCommitAvailable(fetchedRevision))) {
+    if (!(await isCommitAvailable(fetchedRevision, repoRoot, environment))) {
         throw new Error('Fetched checks revision is not a commit');
     }
     return fetchedRevision;
@@ -158,20 +164,66 @@ export async function verifyRevisionProvenance(
     }
 }
 
-async function createSharedCheckout(path: string, revision: string): Promise<void> {
-    await execFileAsync('git', ['clone', '--shared', '--no-checkout', projectRoot, path], {
-        cwd: projectRoot,
-        env: sanitizedChildEnvironment(process.env),
+/**
+ * Fetches both immutable revisions directly into an owned repository. Reusing the E2E checkout's object database is
+ * unsafe because a shared clone does not carry its shallow/promisor metadata and can report `unable to read tree` for a
+ * valid synthetic merge. The command-scoped token is removed with the remote before repository scripts execute.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- regression-tested with a depth-one E2E source checkout
+export async function createFetchedCheckout(
+    path: string,
+    options: {
+        baseFetchReference: string;
+        expectedBaseRevision?: string;
+        expectedRevision: string;
+        fetchReference: string;
+        headRevision: string;
+        isMergeRequired: boolean;
+        remoteUrl: string;
+    },
+    environment: NodeJS.ProcessEnv = process.env,
+): Promise<{ baseRevision: string; revision: string }> {
+    await execFileAsync('git', ['init', path], {
+        cwd: resolve(path, '..'),
+        env: sanitizedChildEnvironment(environment),
     });
+    await execFileAsync('git', ['remote', 'add', 'origin', options.remoteUrl], {
+        cwd: path,
+        env: sanitizedChildEnvironment(environment),
+    });
+    const revision = await ensureRevisionAvailable(
+        options.expectedRevision,
+        options.fetchReference,
+        path,
+        environment,
+    );
     await execFileAsync('git', ['checkout', '--detach', revision], {
         cwd: path,
-        env: sanitizedChildEnvironment(process.env),
+        env: sanitizedChildEnvironment(environment),
+    });
+    const baseRevision = await ensureRevisionAvailable(
+        options.expectedBaseRevision,
+        options.baseFetchReference,
+        path,
+        environment,
+    );
+    await verifyRevisionProvenance(
+        revision,
+        baseRevision,
+        options.headRevision,
+        options.isMergeRequired,
+        path,
+    );
+    await execFileAsync('git', ['remote', 'remove', 'origin'], {
+        cwd: path,
+        env: sanitizedChildEnvironment(environment),
     });
     const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
         cwd: path,
-        env: sanitizedChildEnvironment(process.env),
+        env: sanitizedChildEnvironment(environment),
     });
     if (stdout.trim() !== revision) throw new Error('Checks checkout revision mismatch');
+    return { baseRevision, revision };
 }
 
 async function runInChecksWorktree(
@@ -217,21 +269,25 @@ async function create(): Promise<void> {
         throw new Error('Invalid checks base revision');
     }
     const expectedBaseRevision = baseRevisionValue?.length ? baseRevisionValue : undefined;
-    const fetchedRevision = await ensureRevisionAvailable(
-        revision,
-        validateFetchReference(requiredEnvironment(process.env, 'CAXRI_CHECKS_FETCH_REF')),
-    );
-    const baseRevision = await ensureRevisionAvailable(
+    const { stdout: remoteOutput } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
+        cwd: projectRoot,
+        env: sanitizedChildEnvironment(process.env),
+    });
+    const remoteUrl = remoteOutput.trim();
+    if (!remoteUrl || remoteUrl.includes('\n')) throw new Error('Invalid checks remote URL');
+    const { baseRevision } = await createFetchedCheckout(worktree, {
+        baseFetchReference: validateFetchReference(
+            requiredEnvironment(process.env, 'CAXRI_CHECKS_BASE_FETCH_REF'),
+        ),
         expectedBaseRevision,
-        validateFetchReference(requiredEnvironment(process.env, 'CAXRI_CHECKS_BASE_FETCH_REF')),
-    );
-    await verifyRevisionProvenance(
-        fetchedRevision,
-        baseRevision,
+        expectedRevision: revision,
+        fetchReference: validateFetchReference(
+            requiredEnvironment(process.env, 'CAXRI_CHECKS_FETCH_REF'),
+        ),
         headRevision,
-        isMergeRequired === 'true',
-    );
-    await createSharedCheckout(worktree, fetchedRevision);
+        isMergeRequired: isMergeRequired === 'true',
+        remoteUrl,
+    });
 
     await prepareCaches(worktree);
     await runInChecksWorktree(worktree, 'synthetic merge pnpm registry, unpack, and link', 'pnpm', [
