@@ -24,6 +24,12 @@ _Avoid_: Session Project, Terminal root
 One Shell or Agent CLI process surface inside a Session.
 _Avoid_: Session, pane
 
+**Agent Session ID**:
+The provider-owned conversation identity bound to an Agent Terminal. Caxri may mint this opaque ID
+before launch when the provider supports caller-owned identity; it is distinct from the owning
+Caxri Session ID.
+_Avoid_: Session ID, Terminal ID, transcript path
+
 **Primary Agent**:
 The first Agent Terminal in a Session, which owns that Session's generated title, activity, and attention signals.
 _Avoid_: Active Terminal, selected Agent
