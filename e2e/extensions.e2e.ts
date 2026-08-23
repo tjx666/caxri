@@ -239,7 +239,12 @@ esac
             restoredTree.getByRole('treeitem', { name: '#42 Status B', exact: true }),
         ).toBeVisible();
         await writeFile(statusTitlePath, 'Status C');
-        await running.page.keyboard.press('Meta+Alt+r');
+        /**
+         * The custom shortcut is already proven before relaunch. Use the restored extension's command palette entry
+         * here so this recovery assertion starts a new provider generation only after command registration is ready.
+         */
+        await running.page.keyboard.press('Meta+Shift+P');
+        await running.page.getByText('Refresh Project Status', { exact: true }).click();
         await expect(
             restoredTree.getByRole('treeitem', { name: '#42 Status C', exact: true }),
         ).toBeVisible();
