@@ -9,9 +9,10 @@ import {
     commandCapture,
     publishAcceptanceRound,
     recordOrphanedAcceptance,
+    recordPublishedAcceptance,
 } from '../acceptance-publication';
 import { createResumeCheckpoint } from '../resume';
-import { createInitialState } from '../state-model';
+import { createInitialState, recordPullRequest } from '../state-model';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const TEST_ROOT = join(
@@ -290,6 +291,81 @@ describe('Go Acceptance round publication', () => {
                 runner,
             ),
         ).resolves.toMatchObject({ acceptanceId: 'acc-1', roundIndex: 1 });
+    });
+
+    it('invalidates a pending publication when the pull request head changes', async () => {
+        const state = publicationState('replacement-head');
+        recordPublishedAcceptance(state, {
+            acceptanceId: 'acc-1',
+            checkIds: ['acceptance-round-lineage'],
+            headSha: 'head-1',
+            publishedAt: '2026-08-12T00:00:00.000Z',
+            roundIndex: 1,
+            url: 'https://app.lobehub.com/acceptance/acc-1',
+            verdict: 'pass',
+            verifyRunId: 'run-1',
+        });
+        state.acceptance.publication.pendingAttempt = {
+            acceptanceId: 'acc-1',
+            checkIds: ['acceptance-round-lineage'],
+            createdAt: '2026-08-12T01:00:00.000Z',
+            headSha: 'head-1',
+            reportPath: '.records/go/replacement-head/acceptance/round-2',
+            roundIndex: 2,
+            verdict: 'pass',
+            verifyRunId: 'run-stale',
+        };
+
+        recordPullRequest(state, { headSha: 'head-2', status: 'checks_pending' });
+
+        expect(state.acceptance).toMatchObject({
+            acceptedHeadSha: null,
+            id: 'acc-1',
+            round: 1,
+            status: 'not_started',
+            waivedHeadSha: null,
+            waiverReason: null,
+        });
+        expect(state.acceptance.publication.history).toHaveLength(1);
+        expect(state.acceptance.publication.pendingAttempt).toBeNull();
+
+        const directory = await writeRound(2, 'head-2');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(2))
+            .mockResolvedValueOnce(viewJson({ headSha: 'head-2', roundIndex: 2 }));
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-2', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({ headSha: 'head-2', roundIndex: 2 });
+    });
+
+    it('preserves a replaced-head standalone publication as orphaned history', () => {
+        const state = publicationState('replacement-standalone');
+        state.acceptance.publication.pendingAttempt = {
+            acceptanceId: 'acc-standalone',
+            checkIds: ['acceptance-round-lineage'],
+            createdAt: '2026-08-12T01:00:00.000Z',
+            headSha: 'head-1',
+            reportPath: '.records/go/replacement-standalone/acceptance/round-1',
+            roundIndex: 1,
+            verdict: 'pass',
+            verifyRunId: 'run-standalone',
+        };
+
+        recordPullRequest(state, { headSha: 'head-2', status: 'checks_pending' });
+
+        expect(state.acceptance.publication.pendingAttempt).toBeNull();
+        expect(state.acceptance.publication.orphanedStandalones).toEqual([
+            expect.objectContaining({
+                acceptanceId: 'acc-standalone',
+                verifyRunId: 'run-standalone',
+            }),
+        ]);
     });
 
     it('bounds a stalled external publication command', async () => {
