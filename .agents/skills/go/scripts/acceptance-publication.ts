@@ -417,6 +417,9 @@ export function restartAcceptanceLineage(
     input: { acceptanceId: string; reason: string },
     recordedAt = new Date().toISOString(),
 ): void {
+    if (state.phase !== 'acceptance') {
+        throw new Error('Acceptance lineage restart is allowed only during the Acceptance phase');
+    }
     const acceptanceId = input.acceptanceId.trim();
     if (!acceptanceId || acceptanceId !== state.acceptance.id) {
         throw new Error('Acceptance lineage restart must name the active frozen Acceptance');

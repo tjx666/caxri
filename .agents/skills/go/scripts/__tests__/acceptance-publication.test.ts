@@ -565,6 +565,15 @@ describe('Go Acceptance round publication', () => {
             verifyRunId: 'run-old',
         });
 
+        state.phase = 'delivery';
+        expect(() =>
+            restartAcceptanceLineage(state, {
+                acceptanceId: 'acc-old',
+                reason: '当前认证主体无法追加旧 Acceptance。',
+            }),
+        ).toThrow('Acceptance phase');
+        state.phase = 'acceptance';
+
         expect(() =>
             restartAcceptanceLineage(state, {
                 acceptanceId: 'acc-other',
