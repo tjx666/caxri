@@ -64,6 +64,35 @@ caches live under the same runner-owned root. The workflow does not upload these
 Every source job still runs a fresh frozen-lockfile install, and cleanup removes workspace cache
 links without deleting runner-local toolchains or cache contents.
 
+The runner deletes `_work/_actions` at the start of every job, so that directory is intentionally
+ephemeral and must never be treated as the persistent action cache. External actions are pinned to
+full commit SHAs, and the runner's supported archive cache keeps their GitHub tarballs outside
+`_work`. Configure or refresh it from the current repository checkout with Git transport, which
+does not depend on `codeload.github.com`:
+
+```bash
+bun run scripts/configure-actions-runner-cache.ts --runner-dir "$RUNNER_INSTALL_DIR"
+cd "$RUNNER_INSTALL_DIR"
+./svc.sh stop
+./svc.sh start
+```
+
+The configuration writes `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE` to the runner's `.env` and stores
+archives under `_action-archive-cache` by default. Restarting the listener is required because it
+loads `.env` only at startup. Refresh the cache before merging a workflow change that adds or
+updates an external action pin. Verify the environment assignment and every required archive
+without network access:
+
+```bash
+bun run scripts/configure-actions-runner-cache.ts \
+  --runner-dir "$RUNNER_INSTALL_DIR" \
+  --verify-only
+```
+
+Do not hand-populate `_work/_actions`: even a correctly extracted action and `.completed` marker is
+removed before the next job. A missing archive cache entry falls back to codeload and can therefore
+fail before checkout when the shared egress IP is rate-limited.
+
 ## Preflight and teardown contract
 
 Every self-hosted job that checks out and executes repository source:

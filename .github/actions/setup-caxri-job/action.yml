@@ -45,7 +45,7 @@ runs:
 
     - name: Setup exact Node.js
       if: inputs.setup-toolchain == 'true'
-      uses: actions/setup-node@v7
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
       with:
         node-version: ${{ steps.tool_versions.outputs.node }}
         package-manager-cache: false
@@ -69,7 +69,7 @@ runs:
 
     - name: Install pnpm on cache miss
       if: inputs.setup-toolchain == 'true' && steps.pnpm_toolchain.outputs.cached != 'true'
-      uses: pnpm/setup@v2
+      uses: pnpm/setup@c8e77b72cd6022852162c92aa10e7e72b7209c9b # v2
       with:
         version: ${{ steps.tool_versions.outputs.pnpm }}
         dest: ${{ runner.tool_cache }}/caxri/pnpm/${{ steps.tool_versions.outputs.pnpm }}-node-${{ steps.tool_versions.outputs.node }}
