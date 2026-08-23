@@ -19,6 +19,7 @@ import { createRuntime } from './bootstrap';
 import type { RuntimeRequestEnvelope } from './dispatch';
 import { createDispatcher } from './dispatch';
 import { createRuntimeParentPort } from './port';
+import { resolveE2ETerminalOutputFlushDelay } from './terminal';
 
 const bootStartedAt = performance.now();
 /**
@@ -56,6 +57,7 @@ if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
 const parentPort = createRuntimeParentPort(process);
 const agentEndpointControl = new RuntimeAgentEndpointControlClient(parentPort);
 const agentEndpoints = new RuntimeAgentEndpointLifecycle(agentEndpointControl, userDataPath);
+const outputFlushDelayMs = resolveE2ETerminalOutputFlushDelay(process.env);
 
 await mkdir(userDataPath, { recursive: true });
 const logger = getRuntimeLogger() ?? createBootstrapLogger();
@@ -68,6 +70,7 @@ const runtime = await createRuntime({
     logger,
     agentEndpoints,
     send: (event: RuntimeEvent) => parentPort.send(event),
+    ...(outputFlushDelayMs !== undefined && { terminal: { outputFlushMs: outputFlushDelayMs } }),
 });
 const dispatch = createDispatcher(runtime.handlers, logger);
 

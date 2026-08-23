@@ -159,7 +159,19 @@ test('live Terminal restores the authoritative screen after Renderer output back
         userDataDir: userData,
         providers: { codex: { executableSource: backpressureAgentFixture() } },
     });
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+        env: {
+            /**
+             * Keep the production 256 KiB ceiling while making the fixture's 1.1 MiB burst accumulate in one coalescing
+             * window. The ordinary 16 ms window can drain fast enough on an idle runner to avoid the backpressure this
+             * behavior-level test is required to exercise.
+             */
+            CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS: '1000',
+        },
+    });
     try {
         await createProjectSession(running.page, 'codex');
         const pane = running.page.locator('.terminal-pane');
