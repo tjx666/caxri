@@ -5,6 +5,9 @@ import type { TerminalLinkMatch } from './terminal-links';
 export const MAX_TERMINAL_LINK_ROWS = 16;
 export const MAX_TERMINAL_LINK_LENGTH = 16_384;
 const MAX_RETAINED_OSC_LINKS = 1_000;
+const persistedOscLinks = new Map<string, OscLinkSnapshot[]>();
+
+type BufferType = 'alternate' | 'normal';
 
 interface OscLinkPosition {
     column: number;
@@ -22,6 +25,16 @@ interface TrackedOscLink extends PendingOscLink {
     fingerprint: string;
 }
 
+interface OscLinkSnapshot {
+    bufferType: BufferType;
+    endColumn: number;
+    endCursorOffset: number;
+    fingerprint: string;
+    match: TerminalLinkMatch;
+    startColumn: number;
+    startCursorOffset: number;
+}
+
 interface VisibleOscLink {
     bufferLine: number;
     id: string;
@@ -31,6 +44,29 @@ interface VisibleOscLink {
 interface TerminalOscLinkTracker {
     dispose(): void;
     getViewportLinks(): VisibleOscLink[];
+}
+
+/**
+ * A closed Terminal must not leave hidden OSC targets in Renderer memory. Inactive pane remounts reuse the same id,
+ * while a real close clears the bounded persistence entry after Main confirms the Terminal was removed.
+ */
+export function clearTerminalOscLinkSnapshots(terminalId: string): void {
+    persistedOscLinks.delete(terminalId);
+}
+
+function saveTerminalOscLinkSnapshots(terminalId: string, snapshots: OscLinkSnapshot[]): void {
+    persistedOscLinks.delete(terminalId);
+    if (snapshots.length === 0) return;
+    const retained = snapshots.slice(-MAX_RETAINED_OSC_LINKS);
+    let retainedCount = 0;
+    for (const links of persistedOscLinks.values()) retainedCount += links.length;
+    while (retainedCount + retained.length > MAX_RETAINED_OSC_LINKS) {
+        const oldestTerminalId = persistedOscLinks.keys().next().value;
+        if (oldestTerminalId === undefined) break;
+        retainedCount -= persistedOscLinks.get(oldestTerminalId)?.length ?? 0;
+        persistedOscLinks.delete(oldestTerminalId);
+    }
+    persistedOscLinks.set(terminalId, retained);
 }
 
 /**
@@ -82,8 +118,11 @@ function oscLinkFingerprint(
 export function registerTerminalOscLinkTracker(
     terminal: Terminal,
     matchTarget: (target: string) => TerminalLinkMatch | undefined,
+    persistenceKey?: string,
 ): TerminalOscLinkTracker {
     const trackedOscLinks = new Map<number, TrackedOscLink>();
+    let pendingSnapshots = persistenceKey ? (persistedOscLinks.get(persistenceKey) ?? []) : [];
+    if (persistenceKey) persistedOscLinks.delete(persistenceKey);
     let pendingOscLink: PendingOscLink | undefined;
     const removeOscLink = (id: number): void => {
         const tracked = trackedOscLinks.get(id);
@@ -91,6 +130,17 @@ export function registerTerminalOscLinkTracker(
         trackedOscLinks.delete(id);
         if (!tracked.start.marker.isDisposed) tracked.start.marker.dispose();
         if (!tracked.end.marker.isDisposed) tracked.end.marker.dispose();
+    };
+    const retainOscLink = (tracked: TrackedOscLink): void => {
+        while (trackedOscLinks.size >= MAX_RETAINED_OSC_LINKS) {
+            const oldestId = trackedOscLinks.keys().next().value;
+            if (oldestId === undefined) break;
+            removeOscLink(oldestId);
+        }
+        trackedOscLinks.set(tracked.start.marker.id, tracked);
+        const remove = () => removeOscLink(tracked.start.marker.id);
+        tracked.start.marker.onDispose(remove);
+        tracked.end.marker.onDispose(remove);
     };
     const finishPendingOscLink = (): void => {
         const pending = pendingOscLink;
@@ -110,16 +160,7 @@ export function registerTerminalOscLinkTracker(
             end.marker.dispose();
             return;
         }
-        while (trackedOscLinks.size >= MAX_RETAINED_OSC_LINKS) {
-            const oldestId = trackedOscLinks.keys().next().value;
-            if (oldestId === undefined) break;
-            removeOscLink(oldestId);
-        }
-        const tracked = { ...pending, end, fingerprint };
-        trackedOscLinks.set(pending.start.marker.id, tracked);
-        const remove = () => removeOscLink(pending.start.marker.id);
-        pending.start.marker.onDispose(remove);
-        end.marker.onDispose(remove);
+        retainOscLink({ ...pending, end, fingerprint });
     };
     const parserDisposable = terminal.parser.registerOscHandler(8, (data) => {
         finishPendingOscLink();
@@ -139,8 +180,59 @@ export function registerTerminalOscLinkTracker(
         }
         return false;
     });
+    const bufferType = (buffer: IBuffer): BufferType =>
+        buffer === terminal.buffer.normal ? 'normal' : 'alternate';
+    const restoreActiveBufferSnapshots = (): void => {
+        if (pendingSnapshots.length === 0) return;
+        const activeBuffer = terminal.buffer.active;
+        const activeBufferType = bufferType(activeBuffer);
+        const remaining: OscLinkSnapshot[] = [];
+        for (const snapshot of pendingSnapshots) {
+            if (snapshot.bufferType !== activeBufferType) {
+                remaining.push(snapshot);
+                continue;
+            }
+            const match = matchTarget(snapshot.match.target);
+            if (!match) continue;
+            const startMarker = terminal.registerMarker(snapshot.startCursorOffset);
+            const endMarker = terminal.registerMarker(snapshot.endCursorOffset);
+            const start = { column: snapshot.startColumn, marker: startMarker };
+            const end = { column: snapshot.endColumn, marker: endMarker };
+            const fingerprint = oscLinkFingerprint(terminal, activeBuffer, start, end);
+            if (fingerprint !== snapshot.fingerprint) {
+                startMarker.dispose();
+                endMarker.dispose();
+                continue;
+            }
+            retainOscLink({ buffer: activeBuffer, end, fingerprint, match, start });
+        }
+        pendingSnapshots = remaining;
+    };
+    const createSnapshots = (): OscLinkSnapshot[] => {
+        const snapshots = [...pendingSnapshots];
+        for (const { buffer, end, fingerprint, match, start } of trackedOscLinks.values()) {
+            const currentFingerprint = oscLinkFingerprint(terminal, buffer, start, end);
+            if (currentFingerprint !== fingerprint) continue;
+            const cursorLine = buffer.baseY + buffer.cursorY;
+            snapshots.push({
+                bufferType: bufferType(buffer),
+                endColumn: end.column,
+                endCursorOffset: end.marker.line - cursorLine,
+                fingerprint,
+                match,
+                startColumn: start.column,
+                startCursorOffset: start.marker.line - cursorLine,
+            });
+        }
+        return snapshots.slice(-MAX_RETAINED_OSC_LINKS);
+    };
     return {
         getViewportLinks() {
+            /**
+             * Runtime screen replay finishes after link registration. Recreate xterm markers lazily against the
+             * populated public buffer, then let their offsets track future scrolling exactly like live OSC markers.
+             */
+            restoreActiveBufferSnapshots();
             const activeBuffer = terminal.buffer.active;
             const firstVisibleLine = activeBuffer.viewportY;
             const lastVisibleLine = firstVisibleLine + terminal.rows - 1;
@@ -164,6 +256,7 @@ export function registerTerminalOscLinkTracker(
             return links;
         },
         dispose() {
+            if (persistenceKey) saveTerminalOscLinkSnapshots(persistenceKey, createSnapshots());
             parserDisposable.dispose();
             pendingOscLink?.start.marker.dispose();
             pendingOscLink = undefined;

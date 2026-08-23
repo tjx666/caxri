@@ -9,6 +9,7 @@ import {
     TERMINAL_DEFAULT_WORD_SEPARATORS,
     terminalLinkHintPosition,
 } from '../terminal-links';
+import { clearTerminalOscLinkSnapshots } from '../terminal-osc-link-tracker';
 
 describe('findTerminalLinks', () => {
     it('extracts Markdown URLs after CJK text without including prose punctuation', () => {
@@ -281,12 +282,12 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
             provider = value;
             return { dispose };
         },
-        registerMarker: () => {
+        registerMarker: (cursorYOffset = 0) => {
             const callbacks: Array<() => void> = [];
             const marker = {
                 id: (markerId += 1),
                 isDisposed: false,
-                line: cursorLine,
+                line: cursorLine + cursorYOffset,
                 dispose: () => {
                     if (marker.isDisposed) return;
                     marker.isDisposed = true;
@@ -492,6 +493,40 @@ describe('registerTerminalLinks', () => {
         expect(registration.getViewportLinks()).toMatchObject([
             { target: 'https://example.com/normal-buffer' },
         ]);
+    });
+
+    it('restores OSC 8 targets after an inactive Terminal pane remounts', () => {
+        const terminalId = 'terminal-remount';
+        const firstTerminal = createTerminal('LABEL', cellsFor('LABEL'));
+        const { context } = baseContext();
+        const firstRegistration = registerTerminalLinks(
+            firstTerminal.terminal,
+            context,
+            terminalId,
+        );
+
+        firstTerminal.setCursor(0, 0);
+        firstTerminal.osc8(';https://example.com/remounted');
+        firstTerminal.setCursor(0, 5);
+        firstTerminal.osc8(';');
+        expect(firstRegistration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/remounted' },
+        ]);
+        firstRegistration.dispose();
+
+        const remountedTerminal = createTerminal('LABEL', cellsFor('LABEL'));
+        remountedTerminal.setCursor(0, 5);
+        const remountedRegistration = registerTerminalLinks(
+            remountedTerminal.terminal,
+            context,
+            terminalId,
+        );
+        expect(remountedRegistration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/remounted' },
+        ]);
+
+        remountedRegistration.dispose();
+        clearTerminalOscLinkSnapshots(terminalId);
     });
 
     it('ignores a bare click without the Cmd/Ctrl activation modifier', async () => {
