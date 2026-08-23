@@ -275,9 +275,9 @@ describe('CI workflow contract', () => {
         expect(checksReceiptIndex).toBeGreaterThan(concurrentIndex ?? 0);
         expect(parallelReceiptIndex).toBeGreaterThan(checksReceiptIndex ?? 0);
         expect(desktopReceiptIndex).toBeGreaterThan(parallelReceiptIndex ?? 0);
-        expect(checksWorktree).toContain(
-            "['clone', '--shared', '--no-checkout', projectRoot, path]",
-        );
+        expect(checksWorktree).toContain("['init', path]");
+        expect(checksWorktree).toContain("['remote', 'remove', 'origin']");
+        expect(checksWorktree).not.toContain("'clone', '--shared'");
         expect(checksWorktree).toContain(
             "['fetch', '--no-tags', '--depth=1', 'origin', fetchReference]",
         );
