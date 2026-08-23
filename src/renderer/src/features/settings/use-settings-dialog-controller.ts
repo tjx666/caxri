@@ -14,12 +14,13 @@ import { setSettingsOpen, useDialogStore } from '../../stores/dialogs';
 import { describeFailure, pushToast } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import type { ConfigKind } from './config-edit';
-import { applyFormEdit, CONFIG_FILE_NAMES } from './config-edit';
+import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS } from './config-edit';
 import {
     appendKeybindingSource,
     removeKeybindingSource,
     updateKeybindingSource,
 } from './keybinding-editor';
+import type { ConfigAction } from './settings-drafts';
 import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 
@@ -50,28 +51,88 @@ export function useSettingsDialogController() {
     const handledRequestId = useRef(0);
 
     const [state, dispatch] = useReducer(configReducer, initialConfigState);
-    // `commitSource`/`handleExternalChange` are stable callbacks (empty/narrow dep arrays) that
-    // still need the latest reducer state; a ref synced in an effect (never during render) gives
-    // them that without resubscribing the event listener on every dispatch.
+    // Stable callbacks and Runtime events need the latest reducer state without resubscribing the
+    // event listener on every edit. Every config action advances this ref in dispatch order, while
+    // the effect confirms it from React's committed state.
     const stateReference = useRef(state);
     useEffect(() => {
         stateReference.current = state;
     }, [state]);
+    const dispatchConfig = useCallback((action: ConfigAction): void => {
+        /**
+         * Runtime events can arrive back-to-back before React commits. Advance the event handler's reference through
+         * the same reducer synchronously so a second event observes the first event's baseline without mutating render
+         * state outside React.
+         */
+        stateReference.current = configReducer(stateReference.current, action);
+        dispatch(action);
+    }, []);
+    const setSourceError = useCallback((kind: ConfigKind, error?: string): void => {
+        setSourceErrors((current) => {
+            if (current[kind] === error) return current;
+            const next = { ...current };
+            if (error) next[kind] = error;
+            else delete next[kind];
+            return next;
+        });
+    }, []);
 
     const writeCoordinatorReference = useRef<
         ReturnType<typeof createSettingsWriteCoordinator> | undefined
     >(undefined);
     writeCoordinatorReference.current ??= createSettingsWriteCoordinator({
+        appliedSource: (kind) => stateReference.current[kind].appliedSource,
+        currentSource: (kind) => stateReference.current[kind].source,
         onApplied,
         onError: (error, kind) => {
             // Never applied to state on failure, so the field the user just changed stays exactly as they left it.
             onSettingsError(error, CONFIG_FILE_NAMES[kind]);
         },
+        onExternalChange: (kind, payload) => {
+            if (payload.error) {
+                setSourceError(kind, payload.error);
+                return;
+            }
+            if (kind === 'settings') {
+                const parsed = parseConfigSource('settings', payload.source);
+                dispatchConfig({
+                    type: 'settings/externalChanged',
+                    source: payload.source,
+                    value: parsed.ok ? parsed.value : undefined,
+                });
+                setSourceError('settings', parsed.ok ? undefined : parsed.error);
+                return;
+            }
+            if (kind === 'keybindings') {
+                const parsed = parseConfigSource('keybindings', payload.source);
+                dispatchConfig({
+                    type: 'keybindings/externalChanged',
+                    source: payload.source,
+                    value: parsed.ok ? parsed.value : undefined,
+                });
+                setSourceError('keybindings', parsed.ok ? undefined : parsed.error);
+                return;
+            }
+            const parsed = parseConfigSource('theme', payload.source);
+            dispatchConfig({
+                type: 'theme/externalChanged',
+                source: payload.source,
+                value: parsed.ok ? parsed.value : undefined,
+            });
+            setSourceError('theme', parsed.ok ? undefined : parsed.error);
+        },
+        onOwnEcho: (kind, source, isCurrentDraft) => {
+            if (kind === 'settings') dispatchConfig({ type: 'settings/echoApplied', source });
+            else if (kind === 'keybindings')
+                dispatchConfig({ type: 'keybindings/echoApplied', source });
+            else dispatchConfig({ type: 'theme/echoApplied', source });
+            if (isCurrentDraft) setSourceError(kind);
+        },
         persist: async (kind, source) => {
             if (kind === 'settings') {
                 const result = await caxri.request('settings.update', { source });
                 return () =>
-                    dispatch({
+                    dispatchConfig({
                         type: 'settings/applied',
                         value: result.value,
                         source: result.source,
@@ -80,7 +141,7 @@ export function useSettingsDialogController() {
             if (kind === 'keybindings') {
                 const result = await caxri.request('keybindings.update', { source });
                 return () =>
-                    dispatch({
+                    dispatchConfig({
                         type: 'keybindings/applied',
                         value: result.value,
                         source: result.source,
@@ -89,7 +150,39 @@ export function useSettingsDialogController() {
             }
             const result = await caxri.request('theme.update', { source });
             return () =>
-                dispatch({ type: 'theme/applied', value: result.value, source: result.source });
+                dispatchConfig({
+                    type: 'theme/applied',
+                    value: result.value,
+                    source: result.source,
+                });
+        },
+        read: async (kind) => {
+            if (kind === 'settings') {
+                const result = await caxri.request('settings.get');
+                return () =>
+                    dispatchConfig({
+                        type: 'settings/reconciled',
+                        value: result.value,
+                        source: result.source,
+                    });
+            }
+            if (kind === 'keybindings') {
+                const result = await caxri.request('keybindings.get');
+                return () =>
+                    dispatchConfig({
+                        type: 'keybindings/reconciled',
+                        value: result.value,
+                        source: result.source,
+                        conflicts: result.conflicts,
+                    });
+            }
+            const result = await caxri.request('theme.get');
+            return () =>
+                dispatchConfig({
+                    type: 'theme/reconciled',
+                    value: result.value,
+                    source: result.source,
+                });
         },
     });
     const writeCoordinator = writeCoordinatorReference.current;
@@ -107,7 +200,7 @@ export function useSettingsDialogController() {
                         caxri.request('agentHooks.get'),
                         caxri.request('argv.get'),
                     ]);
-                dispatch({
+                dispatchConfig({
                     type: 'loaded',
                     settings: { value: settingsResult.value, source: settingsResult.source },
                     keybindings: {
@@ -127,7 +220,7 @@ export function useSettingsDialogController() {
         }
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void loadConfig();
-    }, []);
+    }, [dispatchConfig]);
 
     const loadAgentSkillHealth = useCallback((): void => {
         async function loadSkillHealth(): Promise<void> {
@@ -139,16 +232,6 @@ export function useSettingsDialogController() {
         }
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void loadSkillHealth();
-    }, []);
-
-    const setSourceError = useCallback((kind: ConfigKind, error?: string): void => {
-        setSourceErrors((current) => {
-            if (current[kind] === error) return current;
-            const next = { ...current };
-            if (error) next[kind] = error;
-            else delete next[kind];
-            return next;
-        });
     }, []);
 
     /**
@@ -166,7 +249,7 @@ export function useSettingsDialogController() {
                     return;
                 }
                 setSourceError('settings');
-                dispatch({ type: 'settings/sourceParsed', value: result.value });
+                dispatchConfig({ type: 'settings/sourceParsed', value: result.value });
                 if (entry.source !== entry.appliedSource) persistNow('settings', entry.source);
                 return;
             }
@@ -178,7 +261,7 @@ export function useSettingsDialogController() {
                     return;
                 }
                 setSourceError('keybindings');
-                dispatch({ type: 'keybindings/sourceParsed', value: result.value });
+                dispatchConfig({ type: 'keybindings/sourceParsed', value: result.value });
                 if (entry.source !== entry.appliedSource) persistNow('keybindings', entry.source);
                 return;
             }
@@ -189,83 +272,46 @@ export function useSettingsDialogController() {
                 return;
             }
             setSourceError('theme');
-            dispatch({ type: 'theme/sourceParsed', value: result.value });
+            dispatchConfig({ type: 'theme/sourceParsed', value: result.value });
             if (entry.source !== entry.appliedSource) persistNow('theme', entry.source);
         },
-        [persistNow, setSourceError],
+        [dispatchConfig, persistNow, setSourceError],
     );
 
-    /**
-     * Consumes a matching local-write echo without touching the current draft. A genuine external `*.changed` push
-     * replaces the buffer unconditionally and supersedes older local work, matching the app's explicit external-change
-     * rule.
-     */
-    const handleExternalChange = useCallback(
-        (kind: ConfigKind, payload: { source: string; error?: string }): void => {
-            const current = stateReference.current[kind];
-            // Our own write's broadcast echoes back exactly the text we just persisted — skip the
-            // redundant reparse/redispatch instead of treating it as a foreign change. Runtime
-            // emits before the request resolves, so appliedSource alone cannot identify this echo.
-            if (writeCoordinator.isOwnEcho(kind, payload.source)) return;
-            if (payload.source === current.appliedSource) return;
-            writeCoordinator.supersede(kind);
-            if (kind === 'settings') {
-                const parsed = parseConfigSource('settings', payload.source);
-                dispatch({
-                    type: 'settings/externalChanged',
-                    source: payload.source,
-                    value: parsed.ok ? parsed.value : undefined,
-                });
-                setSourceError('settings', payload.error ?? (parsed.ok ? undefined : parsed.error));
+    useEffect(() => {
+        const coordinator = writeCoordinatorReference.current;
+        if (!coordinator) return;
+        return caxri.onEvent((event) => {
+            if (event.event === 'agentHooks.changed') {
+                setAgentHookHealth(event.payload);
                 return;
             }
-            if (kind === 'keybindings') {
-                const parsed = parseConfigSource('keybindings', payload.source);
-                dispatch({
-                    type: 'keybindings/externalChanged',
-                    source: payload.source,
-                    value: parsed.ok ? parsed.value : undefined,
-                });
-                setSourceError(
-                    'keybindings',
-                    payload.error ?? (parsed.ok ? undefined : parsed.error),
-                );
+            // Reducer state is meaningless before the first `load()`, so external pushes that
+            // arrive before the dialog has ever been opened are ignored; the eventual `load()`
+            // reads the current file anyway.
+            if (!loaded) return;
+            if (
+                event.event === 'state.changed' &&
+                event.payload.kind === 'full' &&
+                event.payload.reason === 'unknown'
+            ) {
+                for (const kind of CONFIG_KINDS) {
+                    // eslint-disable-next-line no-void -- each reconciliation reports its own read failure.
+                    void coordinator.reconcile(kind);
+                }
                 return;
             }
-            const parsed = parseConfigSource('theme', payload.source);
-            dispatch({
-                type: 'theme/externalChanged',
-                source: payload.source,
-                value: parsed.ok ? parsed.value : undefined,
-            });
-            setSourceError('theme', payload.error ?? (parsed.ok ? undefined : parsed.error));
-        },
-        [setSourceError, writeCoordinator],
-    );
-
-    useEffect(
-        () =>
-            caxri.onEvent((event) => {
-                if (event.event === 'agentHooks.changed') {
-                    setAgentHookHealth(event.payload);
-                    return;
-                }
-                // Reducer state is meaningless before the first `load()`, so external pushes that
-                // arrive before the dialog has ever been opened are ignored; the eventual `load()`
-                // reads the current file anyway.
-                if (!loaded) return;
-                if (event.event === 'settings.changed') {
-                    handleExternalChange('settings', event.payload);
-                    return;
-                }
-                if (event.event === 'keybindings.changed') {
-                    handleExternalChange('keybindings', event.payload);
-                    return;
-                }
-                if (event.event === 'theme.changed') handleExternalChange('theme', event.payload);
-            }),
-        [handleExternalChange, loaded],
-    );
+            if (event.event === 'settings.changed') {
+                coordinator.handleChanged('settings', event.payload);
+                return;
+            }
+            if (event.event === 'keybindings.changed') {
+                coordinator.handleChanged('keybindings', event.payload);
+                return;
+            }
+            if (event.event === 'theme.changed') coordinator.handleChanged('theme', event.payload);
+        });
+    }, [loaded]);
 
     // Only load once per app session: reopening the dialog after edits must keep the in-memory
     // state instead of re-reading from disk (external changes already stay in sync via the event
@@ -334,9 +380,10 @@ export function useSettingsDialogController() {
     };
 
     const updateSource = (kind: ConfigKind, source: string): void => {
-        if (kind === 'settings') dispatch({ type: 'settings/sourceChanged', source });
-        else if (kind === 'keybindings') dispatch({ type: 'keybindings/sourceChanged', source });
-        else dispatch({ type: 'theme/sourceChanged', source });
+        if (kind === 'settings') dispatchConfig({ type: 'settings/sourceChanged', source });
+        else if (kind === 'keybindings')
+            dispatchConfig({ type: 'keybindings/sourceChanged', source });
+        else dispatchConfig({ type: 'theme/sourceChanged', source });
         const parsed = parseConfigSource(kind, source);
         setSourceError(kind, parsed.ok ? undefined : parsed.error);
     };
@@ -347,7 +394,7 @@ export function useSettingsDialogController() {
     ): void => {
         if (!state.settings.value) return;
         const nextSource = applyFormEdit(state.settings.source, [key], value);
-        dispatch({
+        dispatchConfig({
             type: 'settings/changed',
             value: { ...state.settings.value, [key]: value },
             source: nextSource,
@@ -357,7 +404,7 @@ export function useSettingsDialogController() {
 
     const updateBinding = (index: number, key: string): void => {
         const nextSource = updateKeybindingSource(state.keybindings.source, index, key);
-        dispatch({
+        dispatchConfig({
             type: 'keybindings/changed',
             value: state.keybindings.value.map((binding, at) =>
                 at === index ? { ...binding, key } : binding,
@@ -374,7 +421,7 @@ export function useSettingsDialogController() {
             state.keybindings.value.length,
             binding,
         );
-        dispatch({
+        dispatchConfig({
             type: 'keybindings/changed',
             value: [...state.keybindings.value, binding],
             source: nextSource,
@@ -384,7 +431,7 @@ export function useSettingsDialogController() {
 
     const removeBinding = (index: number): void => {
         const nextSource = removeKeybindingSource(state.keybindings.source, index);
-        dispatch({
+        dispatchConfig({
             type: 'keybindings/changed',
             value: state.keybindings.value.filter((_, at) => at !== index),
             source: nextSource,
@@ -404,7 +451,7 @@ export function useSettingsDialogController() {
         let nextSource = applyFormEdit(state.theme.source, [section, key], value);
         nextSource = applyFormEdit(nextSource, ['source'], 'custom');
         if (wasDracula) nextSource = applyFormEdit(nextSource, ['id'], nextId);
-        dispatch({
+        dispatchConfig({
             type: 'theme/changed',
             value: {
                 ...theme,
@@ -450,7 +497,7 @@ export function useSettingsDialogController() {
             // the generation so a stale response cannot clobber the just-imported theme afterward.
             writeCoordinator.supersede('theme');
             const result = await caxri.request('theme.get');
-            dispatch({ type: 'theme/imported', value: result.value, source: result.source });
+            dispatchConfig({ type: 'theme/imported', value: result.value, source: result.source });
             onApplied();
         } catch (error) {
             onSettingsError(error, 'Theme import failed');

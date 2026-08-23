@@ -129,15 +129,24 @@ describe('settings write coordinator', () => {
         async (kind) => {
             vi.useFakeTimers();
             const firstResponse = Promise.withResolvers<() => void>();
+            const readResponse = Promise.withResolvers<() => void>();
+            const appliedReads: string[] = [];
             const persist = vi
                 .fn()
                 .mockReturnValueOnce(firstResponse.promise)
                 .mockResolvedValueOnce(vi.fn());
             const onError = vi.fn();
+            const onExternalChange = vi.fn();
+            const onOwnEcho = vi.fn();
+            const read = vi.fn().mockReturnValue(readResponse.promise);
             const coordinator = createSettingsWriteCoordinator({
+                currentSource: () => 'second-source',
                 debounceMs: 300,
                 onError,
+                onExternalChange,
+                onOwnEcho,
                 persist,
+                read,
             });
 
             coordinator.persistNow(kind, 'first-source');
@@ -149,11 +158,137 @@ describe('settings write coordinator', () => {
             await Promise.resolve();
 
             expect(onError).toHaveBeenCalledOnce();
-            expect(coordinator.isOwnEcho(kind, 'first-source')).toBe(true);
+            expect(read).toHaveBeenCalledWith(kind);
+            coordinator.handleChanged(kind, { source: 'first-source' });
+            expect(onOwnEcho).toHaveBeenCalledWith(kind, 'first-source', false);
+            expect(onExternalChange).not.toHaveBeenCalled();
+
+            readResponse.resolve(() => appliedReads.push(kind));
+            await readResponse.promise;
+            await Promise.resolve();
+            expect(appliedReads).toEqual([]);
             await vi.advanceTimersByTimeAsync(300);
 
             expect(persist).toHaveBeenNthCalledWith(1, kind, 'first-source');
             expect(persist).toHaveBeenNthCalledWith(2, kind, 'second-source');
+        },
+    );
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        'keeps the next pending %s draft when a local echo arrives during snapshot recovery',
+        async (kind) => {
+            vi.useFakeTimers();
+            const response = Promise.withResolvers<() => void>();
+            const readResponse = Promise.withResolvers<() => void>();
+            const appliedReads: string[] = [];
+            const onExternalChange = vi.fn();
+            const onOwnEcho = vi.fn();
+            const persist = vi
+                .fn()
+                .mockReturnValueOnce(response.promise)
+                .mockResolvedValueOnce(vi.fn());
+            const coordinator = createSettingsWriteCoordinator({
+                currentSource: () => 'second-source',
+                debounceMs: 300,
+                onError: vi.fn(),
+                onExternalChange,
+                onOwnEcho,
+                persist,
+                read: vi.fn().mockReturnValue(readResponse.promise),
+            });
+
+            coordinator.persistNow(kind, 'first-source');
+            coordinator.schedule(kind, 'second-source');
+            const recovery = coordinator.reconcile(kind);
+            coordinator.handleChanged(kind, { source: 'first-source' });
+
+            expect(onOwnEcho).toHaveBeenCalledWith(kind, 'first-source', false);
+            expect(onExternalChange).not.toHaveBeenCalled();
+
+            readResponse.resolve(() => appliedReads.push(kind));
+            await recovery;
+            expect(appliedReads).toEqual([]);
+            await vi.advanceTimersByTimeAsync(300);
+
+            expect(persist).toHaveBeenNthCalledWith(1, kind, 'first-source');
+            expect(persist).toHaveBeenNthCalledWith(2, kind, 'second-source');
+        },
+    );
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        'does not let a %s snapshot recovery gap leave a stale echo token',
+        async (kind) => {
+            const response = Promise.withResolvers<() => void>();
+            const onExternalChange = vi.fn();
+            const read = vi.fn().mockResolvedValue(vi.fn());
+            const coordinator = createSettingsWriteCoordinator({
+                appliedSource: () => 'before-write',
+                onError: vi.fn(),
+                onExternalChange,
+                persist: vi.fn().mockReturnValue(response.promise),
+                read,
+            });
+
+            coordinator.persistNow(kind, 'committed-source');
+            // The local `*.changed` envelope is lost when journal recovery falls back to a snapshot.
+            await coordinator.reconcile(kind);
+            coordinator.handleChanged(kind, { source: 'committed-source' });
+
+            expect(read).toHaveBeenCalledWith(kind);
+            expect(onExternalChange).toHaveBeenCalledWith(kind, {
+                source: 'committed-source',
+            });
+        },
+    );
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        'advances the applied %s baseline for a matching local echo',
+        async (kind) => {
+            const response = Promise.withResolvers<() => void>();
+            const applied = vi.fn();
+            const onOwnEcho = vi.fn();
+            const coordinator = createSettingsWriteCoordinator({
+                currentSource: () => 'local-source',
+                onError: vi.fn(),
+                onOwnEcho,
+                persist: vi.fn().mockReturnValue(response.promise),
+            });
+
+            coordinator.persistNow(kind, 'local-source');
+            coordinator.handleChanged(kind, { source: 'local-source' });
+            response.resolve(applied);
+            await response.promise;
+            await Promise.resolve();
+
+            expect(onOwnEcho).toHaveBeenCalledWith(kind, 'local-source', true);
+            expect(applied).toHaveBeenCalledOnce();
+        },
+    );
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        'does not swallow an error-bearing %s event with the applied source',
+        (kind) => {
+            const onExternalChange = vi.fn();
+            const read = vi.fn().mockResolvedValue(vi.fn());
+            const coordinator = createSettingsWriteCoordinator({
+                appliedSource: () => 'applied-source',
+                onError: vi.fn(),
+                onExternalChange,
+                persist: vi.fn(() => new Promise<() => void>(() => {})),
+                read,
+            });
+
+            coordinator.persistNow(kind, 'applied-source');
+            coordinator.handleChanged(kind, {
+                source: 'applied-source',
+                error: 'watcher failed',
+            });
+
+            expect(read).toHaveBeenCalledWith(kind);
+            expect(onExternalChange).toHaveBeenCalledWith(kind, {
+                source: 'applied-source',
+                error: 'watcher failed',
+            });
         },
     );
 });

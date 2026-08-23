@@ -1,7 +1,7 @@
-import type { AppSettings, ThemeTokens } from '@shared/types';
+import type { AppSettings, Keybinding, ThemeTokens } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
-import type { ConfigState } from '../settings-drafts';
+import type { ConfigAction, ConfigState } from '../settings-drafts';
 import { configReducer, initialConfigState, parseConfigSource } from '../settings-drafts';
 
 const SETTINGS_SOURCE = `{
@@ -29,6 +29,54 @@ function loadedState(): ConfigState {
         keybindings: { value: [], source: 'keybindings baseline', conflicts: [] },
         theme: { value: {} as ThemeTokens, source: 'theme baseline' },
     });
+}
+
+function pendingAction(kind: keyof ConfigState): ConfigAction {
+    if (kind === 'settings')
+        return {
+            type: 'settings/changed',
+            value: { 'terminal.fontSize': 19 } as AppSettings,
+            source: 'settings pending',
+        };
+    if (kind === 'keybindings')
+        return {
+            type: 'keybindings/changed',
+            value: [{ command: 'editor.save', key: 'cmd+s' }],
+            source: 'keybindings pending',
+        };
+    return {
+        type: 'theme/changed',
+        value: { id: 'pending-theme' } as ThemeTokens,
+        source: 'theme pending',
+    };
+}
+
+function echoAction(kind: keyof ConfigState): ConfigAction {
+    if (kind === 'settings') return { type: 'settings/echoApplied', source: 'settings persisted' };
+    if (kind === 'keybindings')
+        return { type: 'keybindings/echoApplied', source: 'keybindings persisted' };
+    return { type: 'theme/echoApplied', source: 'theme persisted' };
+}
+
+function reconciledAction(kind: keyof ConfigState): ConfigAction {
+    if (kind === 'settings')
+        return {
+            type: 'settings/reconciled',
+            value: { 'terminal.fontSize': 15 } as AppSettings,
+            source: 'settings authoritative',
+        };
+    if (kind === 'keybindings')
+        return {
+            type: 'keybindings/reconciled',
+            value: [{ command: 'editor.close', key: 'cmd+w' }] satisfies Keybinding[],
+            source: 'keybindings authoritative',
+            conflicts: [],
+        };
+    return {
+        type: 'theme/reconciled',
+        value: { id: 'authoritative-theme' } as ThemeTokens,
+        source: 'theme authoritative',
+    };
 }
 
 describe('parseConfigSource', () => {
@@ -111,4 +159,44 @@ describe('configReducer source synchronization', () => {
         expect(synchronized.settings.source).toBe(SETTINGS_SOURCE);
         expect(synchronized.settings.appliedSource).toBe('settings baseline');
     });
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        'advances the %s echo baseline without replacing a newer pending draft',
+        (kind) => {
+            const pending = configReducer(loadedState(), pendingAction(kind));
+            const pendingValue = pending[kind].value;
+
+            const echoed = configReducer(pending, echoAction(kind));
+
+            expect(echoed[kind].source).toBe(`${kind} pending`);
+            expect(echoed[kind].value).toBe(pendingValue);
+            expect(echoed[kind].appliedSource).toBe(`${kind} persisted`);
+        },
+    );
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        'keeps the pending %s draft while an authoritative re-read advances its baseline',
+        (kind) => {
+            const pending = configReducer(loadedState(), pendingAction(kind));
+            const pendingValue = pending[kind].value;
+
+            const reconciled = configReducer(pending, reconciledAction(kind));
+
+            expect(reconciled[kind].source).toBe(`${kind} pending`);
+            expect(reconciled[kind].value).toBe(pendingValue);
+            expect(reconciled[kind].appliedSource).toBe(`${kind} authoritative`);
+        },
+    );
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        'replaces a clean %s buffer from the authoritative recovery read',
+        (kind) => {
+            const clean = loadedState();
+            const reconciled = configReducer(clean, reconciledAction(kind));
+
+            expect(reconciled[kind].source).toBe(`${kind} authoritative`);
+            expect(reconciled[kind].appliedSource).toBe(`${kind} authoritative`);
+            expect(reconciled[kind].value).not.toBe(clean[kind].value);
+        },
+    );
 });
