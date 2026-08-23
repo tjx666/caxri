@@ -86,7 +86,7 @@ jobs:
       reused_e2e_head: ${{ steps.policy.outputs.reused_e2e_head }}
     steps:
       - id: checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           # PR workflows otherwise check out GitHub's synthetic merge commit, which cannot carry
@@ -127,7 +127,7 @@ jobs:
       CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-checks
     steps:
       - id: checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # React Doctor reports only issues new relative to the push/PR base; a shallow
           # checkout breaks that base detection and it falls back to reporting every
@@ -231,7 +231,7 @@ jobs:
           test "$RUNNER_OS" = macOS
           test "$RUNNER_ARCH" = ARM64
       - id: checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # PR E2E must execute the same exact pushed head whose immutable receipt and tree were
           # validated by retry-policy. The PR base identity is checked separately by that policy.
@@ -327,7 +327,7 @@ jobs:
           ${{ needs.retry-policy.outputs.e2e_profile == 'optimized' && 'parallel-safe desktop-exclusive' || 'control' }}
       - name: Upload parallel-safe failure artifacts
         if: always() && steps.parallel-safe.outcome == 'failure'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-parallel-safe-failure-artifacts
           path: |
@@ -338,7 +338,7 @@ jobs:
           retention-days: 7
       - name: Upload desktop-exclusive failure artifacts
         if: always() && steps.desktop-exclusive.outcome == 'failure'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-desktop-exclusive-failure-artifacts
           path: |
@@ -349,7 +349,7 @@ jobs:
           retention-days: 7
       - name: Upload control failure artifacts
         if: always() && steps.control.outcome == 'failure'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-control-failure-artifacts
           path: |
@@ -367,7 +367,7 @@ jobs:
             steps.ci-parity.outcome == 'failure' ||
             steps.execution-receipt.outcome == 'failure'
           )
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-auxiliary-failure-artifacts
           path: |
