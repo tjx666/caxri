@@ -68,7 +68,7 @@ while IFS= read -r line; do
       ;;
     *)
       now_ms="$(date +%s)999"
-      /usr/bin/sqlite3 "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', '${CONVERSATION_TITLE}', $now_ms, $now_ms, 0, 0);"
+      /usr/bin/sqlite3 -cmd '.timeout 5000' "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', '${CONVERSATION_TITLE}', $now_ms, $now_ms, 0, 0);"
       printf 'received %s\n' "$line"
       ;;
   esac
