@@ -593,6 +593,7 @@ function exactTerminalLinkTarget(
 export function registerTerminalLinks(
     terminal: Terminal,
     context: TerminalLinkContext,
+    oscPersistenceKey?: string,
 ): TerminalLinkRegistration {
     const hint = createLinkHintController(terminal);
     const disposable = terminal.registerLinkProvider({
@@ -612,8 +613,10 @@ export function registerTerminalLinks(
          */
         allowNonHttpProtocols: true,
     };
-    const oscTracker = registerTerminalOscLinkTracker(terminal, (target) =>
-        exactTerminalLinkTarget(target, context.wordSeparators),
+    const oscTracker = registerTerminalOscLinkTracker(
+        terminal,
+        (target) => exactTerminalLinkTarget(target, context.wordSeparators),
+        oscPersistenceKey,
     );
     return {
         getViewportLinks() {

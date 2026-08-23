@@ -330,6 +330,23 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         await expect(running.page.getByLabel(/^Editor position: Ln 2, Col 3/)).toBeVisible();
 
         await running.page.getByRole('tab', { name: 'Shell' }).click();
+        await running.app.evaluate(() => {
+            const target = globalThis as typeof globalThis & {
+                caxriKeyboardLinkProbe?: { response: number };
+            };
+            target.caxriKeyboardLinkProbe!.response = 0;
+        });
+        await openLink(oscUrl, `Open external link ${oscUrl}`);
+        await expect
+            .poll(() =>
+                running.app.evaluate(() => {
+                    const target = globalThis as typeof globalThis & {
+                        caxriKeyboardLinkProbe?: { opened: string[] };
+                    };
+                    return target.caxriKeyboardLinkProbe?.opened;
+                }),
+            )
+            .toEqual([oscUrl, oscUrl]);
         await openLink(homeLink, `Open file link ${homeLink}`);
         await expect(running.page.getByLabel(/^Editor position: Ln 3, Col 2/)).toBeVisible();
 

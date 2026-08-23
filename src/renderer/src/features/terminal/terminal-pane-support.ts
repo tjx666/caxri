@@ -117,34 +117,38 @@ export function registerTerminalPaneLinks(
     terminal: Terminal,
     latest: () => TerminalLinkSnapshot,
 ): () => void {
-    const registration = registerTerminalLinks(terminal, {
-        get cwd() {
-            return latest().terminalCwd;
+    const registration = registerTerminalLinks(
+        terminal,
+        {
+            get cwd() {
+                return latest().terminalCwd;
+            },
+            get projectRoot() {
+                return latest().projectRoot;
+            },
+            get wordSeparators() {
+                return latest().wordSeparators;
+            },
+            async openFile(path, location) {
+                await openFile(path, location ? { location } : {});
+            },
+            async openHomeFile(target, location) {
+                try {
+                    await caxri.request('terminal.openFileLink', {
+                        terminalId: latest().terminalId,
+                        target,
+                        ...(location && { location }),
+                    });
+                } catch (error) {
+                    onError(errorMessage(error, 'Terminal file link failed'));
+                }
+            },
+            async openUrl(url) {
+                await openExternalUrl(url, onError);
+            },
         },
-        get projectRoot() {
-            return latest().projectRoot;
-        },
-        get wordSeparators() {
-            return latest().wordSeparators;
-        },
-        async openFile(path, location) {
-            await openFile(path, location ? { location } : {});
-        },
-        async openHomeFile(target, location) {
-            try {
-                await caxri.request('terminal.openFileLink', {
-                    terminalId: latest().terminalId,
-                    target,
-                    ...(location && { location }),
-                });
-            } catch (error) {
-                onError(errorMessage(error, 'Terminal file link failed'));
-            }
-        },
-        async openUrl(url) {
-            await openExternalUrl(url, onError);
-        },
-    });
+        latest().terminalId,
+    );
     const unregisterProvider = registerTerminalLinkProvider(latest().terminalId, () =>
         registration.getViewportLinks(),
     );
