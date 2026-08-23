@@ -22,6 +22,7 @@ import {
     validateExistingReportDirectory,
     writeJsonAtomically,
 } from './report-paths';
+import { isAcceptanceCaseId } from './runtime-state';
 import { validateHumanText, validateReportLanguage } from './validate-report';
 
 export type { RebindReportHeadInput } from './report-head';
@@ -58,7 +59,9 @@ const planItemSchema = z.looseObject({
     category: z.string().min(1),
     expected: z.string().min(1),
     fixturePreflight: z.literal('terminal').optional(),
-    id: z.string().min(1),
+    id: z.string().min(1).refine(isAcceptanceCaseId, {
+        message: 'Acceptance case id must use lowercase letters, digits, and hyphens',
+    }),
     method: z.string().min(1),
     requiredEvidence: z.array(requiredEvidenceSchema).min(1),
     stateIsolation: stateIsolationSchema.default({ mode: 'isolated' }),
