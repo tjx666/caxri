@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeShortcut } from '../shortcuts';
+import { formatShortcut, formatShortcutParts, normalizeShortcut } from '../shortcuts';
 
 describe('normalizeShortcut', () => {
     it('lower-cases every part of the chord', () => {
@@ -34,5 +34,18 @@ describe('normalizeShortcut', () => {
     it('is idempotent when applied to an already-normalized chord', () => {
         const normalized = normalizeShortcut('Command+Shift+P');
         expect(normalizeShortcut(normalized)).toBe(normalized);
+    });
+});
+
+describe('shortcut presentation', () => {
+    it('uses macOS modifier order and symbols', () => {
+        expect(formatShortcutParts('command+alt+shift+p')).toEqual(['⌥', '⇧', '⌘', 'P']);
+        expect(formatShortcut('command+alt+shift+p')).toBe('⌥⇧⌘P');
+    });
+
+    it('formats named keys consistently', () => {
+        expect(formatShortcut('ctrl+shift+tab')).toBe('⌃⇧⇥');
+        expect(formatShortcut('cmd+arrowleft')).toBe('⌘←');
+        expect(formatShortcut('escape')).toBe('Esc');
     });
 });

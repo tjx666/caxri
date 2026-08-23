@@ -1,7 +1,7 @@
+import { formatShortcut, formatShortcutParts } from '@shared/shortcuts';
 import type { Keybinding } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
-import { formatShortcut, formatShortcutParts } from '../../../lib/keybindings';
 import {
     appendKeybindingSource,
     buildKeybindingRows,
