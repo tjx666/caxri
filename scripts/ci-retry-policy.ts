@@ -52,9 +52,10 @@ interface GreenReuseResolution extends CIReusableGreenRun {
 }
 
 /**
- * The workflow contract pins this step as the receipt that the checks job used full scope.
+ * The workflow contract pins this step as the receipt that the concurrent E2E job completed every full platform gate
+ * against the synthetic merge commit.
  */
-const fullChecksReceiptStep = 'Run ESLint';
+const fullChecksReceiptStep = 'Verify full platform checks';
 
 export interface RetryPolicyInput {
     baseRunChangedFiles: string[];
@@ -88,7 +89,7 @@ const protectedPathPatterns = [
     /^(?:mise\.toml|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/,
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-bundle-budget|ci-execution-plan|ci-green-reuse|ci-metrics|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|self-hosted-runner)\.ts$/,
+    /^scripts\/(?:ci-bundle-budget|ci-checks-worktree|ci-concurrent-validation|ci-execution-plan|ci-green-reuse|ci-metrics|ci-platform-checks|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|self-hosted-runner)\.ts$/,
     // Every `run-e2e-*` runner and everything under `scripts/fixtures/` participates in E2E job
     // steps (census fixture included), so protect them by prefix instead of enumerating each file
     // and re-creating the omission that let census infrastructure bypass full validation.
@@ -324,14 +325,20 @@ export function extractGreenRunEvidence(
 ): GreenRunEvidence {
     const identity = extractBaseRunIdentity(run.pull_requests, jobs);
     const checks = jobs.find(({ name }) => name === 'checks');
+    const concurrentChecks = jobs
+        .find(({ name }) => name === 'e2e')
+        ?.steps?.find(({ name }) => name === fullChecksReceiptStep);
+    const checksConclusion =
+        checks?.conclusion === 'success' ? checks.conclusion : concurrentChecks?.conclusion;
     const e2e = summarizeE2EJobs(jobs);
     return {
         baseSha: identity.baseSha,
-        checksConclusion: checks?.conclusion,
+        checksConclusion,
         e2eConclusion: e2e.e2eConclusion,
         event: run.event ?? '',
-        fullChecksConclusion: checks?.steps?.find(({ name }) => name === fullChecksReceiptStep)
-            ?.conclusion,
+        fullChecksConclusion:
+            concurrentChecks?.conclusion ??
+            checks?.steps?.find(({ name }) => name === 'Run ESLint')?.conclusion,
         gateConclusion: jobs.find(({ name }) => name === 'CI gate')?.conclusion,
         headSha: run.head_sha ?? '',
         id: run.id ?? 0,
@@ -354,12 +361,17 @@ async function loadBaseRun(repo: string, runId: number): Promise<BaseRunEvidence
         repository?: { full_name?: string };
         path?: string;
     };
-    const jobs = jobsValue as { jobs?: Array<{ conclusion?: string; name?: string }> };
+    const jobs = jobsValue as { jobs?: WorkflowJobRecord[] };
     const identity = extractBaseRunIdentity(run.pull_requests, jobs.jobs);
     const e2e = summarizeE2EJobs(jobs.jobs);
+    const checks = jobs.jobs?.find(({ name }) => name === 'checks');
+    const concurrentChecks = jobs.jobs
+        ?.find(({ name }) => name === 'e2e')
+        ?.steps?.find(({ name }) => name === fullChecksReceiptStep);
     return {
         baseSha: identity.baseSha,
-        checksConclusion: jobs.jobs?.find(({ name }) => name === 'checks')?.conclusion,
+        checksConclusion:
+            checks?.conclusion === 'success' ? checks.conclusion : concurrentChecks?.conclusion,
         ...e2e,
         event: run.event ?? '',
         headSha: run.head_sha ?? '',

@@ -9,7 +9,12 @@ import {
 } from '../../e2e/support/pools';
 import type { E2ETestReceipt } from '../reporters/e2e-receipt-reporter';
 import { createE2EPoolReceipt, stableErrorIdentity } from '../reporters/e2e-receipt-reporter';
-import { combinePoolReceipts, mergeCensusReceipts, parseE2EPool } from '../run-e2e-pools';
+import {
+    combinePoolReceipts,
+    mergeCensusReceipts,
+    parseE2EPool,
+    resolveParallelWorkers,
+} from '../run-e2e-pools';
 
 const allSpecs = [
     'e2e/editor-dotfiles.e2e.ts',
@@ -51,6 +56,15 @@ describe('E2E pools', () => {
         expect(() => parseE2EPool(['--pool', 'unknown'])).toThrow('Usage: run-e2e-pools.ts');
     });
 
+    it('keeps parallel worker experiments bounded and defaults the optimized pool to three', () => {
+        expect(resolveParallelWorkers({})).toBe(3);
+        expect(resolveParallelWorkers({ CAXRI_E2E_PARALLEL_WORKERS: '2' })).toBe(2);
+        expect(resolveParallelWorkers({ CAXRI_E2E_PARALLEL_WORKERS: '4' })).toBe(4);
+        expect(() => resolveParallelWorkers({ CAXRI_E2E_PARALLEL_WORKERS: '1' })).toThrow(
+            'must be 2, 3, or 4',
+        );
+    });
+
     it('keeps unclassified and machine-global specs desktop-exclusive', () => {
         const plan = createE2EPoolPlan(allSpecs, ['e2e/editor-dotfiles.e2e.ts']);
 
@@ -80,15 +94,22 @@ describe('E2E pools', () => {
     it('never classifies known machine-global specs as parallel-safe', () => {
         for (const path of [
             'e2e/bug-report.e2e.ts',
+            'e2e/codex-compaction.e2e.ts',
+            'e2e/desktop-host.e2e.ts',
+            'e2e/editor.performance.e2e.ts',
             'e2e/failure-isolation.e2e.ts',
             'e2e/file-operations.e2e.ts',
+            'e2e/host-platform.e2e.ts',
             'e2e/process-explorer-recovery.e2e.ts',
             'e2e/process-explorer.e2e.ts',
             'e2e/real-agent-smoke.e2e.ts',
             'e2e/screencast.e2e.ts',
             'e2e/session-attention.e2e.ts',
+            'e2e/startup.performance.e2e.ts',
             'e2e/terminal-selection.e2e.ts',
             'e2e/terminal-shortcuts.e2e.ts',
+            'e2e/terminal-webgl.e2e.ts',
+            'e2e/updates.e2e.ts',
             'e2e/window-mode.e2e.ts',
         ]) {
             expect(parallelSafeSpecs, path).not.toContain(path);

@@ -31,6 +31,12 @@ on:
         default: '2'
         type: choice
         options: ['1', '2', '3', '4']
+      e2e_parallel_workers:
+        description: Parallel-safe Playwright worker cap for self-hosted A/B runs
+        required: true
+        default: '3'
+        type: choice
+        options: ['2', '3', '4']
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -118,7 +124,11 @@ jobs:
     needs: retry-policy
     if: >-
       needs.retry-policy.outputs.mode == 'full' &&
-      needs.retry-policy.outputs.checks_scope != 'skipped'
+      needs.retry-policy.outputs.checks_scope != 'skipped' &&
+      (
+        needs.retry-policy.outputs.checks_scope != 'full' ||
+        needs.retry-policy.outputs.e2e_profile != 'optimized'
+      )
     runs-on: [self-hosted, macOS, ARM64, caxri-ci]
     env:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-checks
@@ -196,13 +206,25 @@ jobs:
 
   e2e:
     name: e2e
+    outputs:
+      full_checks_result: ${{ steps.full-checks-receipt.outcome }}
     needs: [retry-policy, checks]
     if: >-
       always() &&
       needs.retry-policy.result == 'success' &&
       needs.retry-policy.outputs.run_e2e == 'true' &&
       (
-        (needs.retry-policy.outputs.mode == 'full' && needs.checks.result == 'success') ||
+        (
+          needs.retry-policy.outputs.mode == 'full' &&
+          (
+            needs.checks.result == 'success' ||
+            (
+              needs.retry-policy.outputs.checks_scope == 'full' &&
+              needs.retry-policy.outputs.e2e_profile == 'optimized' &&
+              needs.checks.result == 'skipped'
+            )
+          )
+        ) ||
         (
           (needs.retry-policy.outputs.mode == 'e2e-only' || needs.retry-policy.outputs.mode == 'e2e-repair') &&
           needs.checks.result == 'skipped'
@@ -212,6 +234,7 @@ jobs:
     env:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
       CAXRI_E2E_AGENT_MODE: blocked
+      CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
       CAXRI_E2E_RUNNER_KIND: self-hosted
       CAXRI_E2E_RUNNER_REASON: >-
         ${{ github.event_name == 'pull_request'
@@ -254,6 +277,14 @@ jobs:
           install-dependencies: 'true'
           install-electron: 'true'
           rebuild-native: 'true'
+      - name: Prepare synthetic-merge checks worktree
+        if: >-
+          needs.retry-policy.outputs.mode == 'full' &&
+          needs.retry-policy.outputs.checks_scope == 'full' &&
+          needs.retry-policy.outputs.e2e_profile == 'optimized'
+        env:
+          CAXRI_CHECKS_REVISION: ${{ github.sha }}
+        run: bun run scripts/ci-checks-worktree.ts create
       - name: Report E2E runner route
         run: |
           {
@@ -270,15 +301,68 @@ jobs:
           RUNNER_LABELS: self-hosted,macOS,ARM64,caxri-e2e
           VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
+          E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
         run: |
           NODE_VERSION="$(node --version)" \
             PNPM_VERSION="$(pnpm --version)" \
             LOCKFILE_SHA256="$(shasum -a 256 pnpm-lock.yaml | awk '{print $1}')" \
-            bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.env.NODE_VERSION, pnpm: process.env.PNPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
+            bun -e 'console.log(`CAXRI_VALIDATION_ENV ${JSON.stringify({ bun: Bun.version, e2eParallelWorkers: process.env.E2E_PARALLEL_WORKERS, e2eProfile: process.env.E2E_PROFILE, exactHead: process.env.CAXRI_EXPECTED_HEAD, lockfileSha256: process.env.LOCKFILE_SHA256, node: process.env.NODE_VERSION, pnpm: process.env.PNPM_VERSION, runnerLabels: process.env.RUNNER_LABELS?.split(","), runnerName: process.env.RUNNER_NAME, vitestMaxWorkers: process.env.VITEST_MAX_WORKERS, vitestPartition: process.env.VITEST_PARTITION })}`)'
+      - id: concurrent-full
+        name: Execute synthetic-merge checks and exact-head E2E concurrently
+        if: >-
+          needs.retry-policy.outputs.mode == 'full' &&
+          needs.retry-policy.outputs.checks_scope == 'full' &&
+          needs.retry-policy.outputs.e2e_profile == 'optimized'
+        env:
+          CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
+          CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
+          ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
+        run: bun run scripts/ci-concurrent-validation.ts run
+      - id: full-checks-receipt
+        name: Verify full platform checks
+        if: >-
+          always() &&
+          needs.retry-policy.outputs.mode == 'full' &&
+          needs.retry-policy.outputs.checks_scope == 'full' &&
+          needs.retry-policy.outputs.e2e_profile == 'optimized'
+        run: bun run scripts/ci-concurrent-validation.ts verify checks
+      - id: auxiliary-receipt
+        name: Verify E2E auxiliary contracts
+        if: >-
+          always() &&
+          needs.retry-policy.outputs.mode == 'full' &&
+          needs.retry-policy.outputs.checks_scope == 'full' &&
+          needs.retry-policy.outputs.e2e_profile == 'optimized'
+        run: bun run scripts/ci-concurrent-validation.ts verify e2e-auxiliary
+      - id: parallel-safe-receipt
+        name: Run parallel-safe pool
+        if: >-
+          always() &&
+          needs.retry-policy.outputs.mode == 'full' &&
+          needs.retry-policy.outputs.checks_scope == 'full' &&
+          needs.retry-policy.outputs.e2e_profile == 'optimized'
+        run: bun run scripts/ci-concurrent-validation.ts verify parallel-safe
+      - id: desktop-exclusive-receipt
+        name: Run desktop-exclusive pool
+        if: >-
+          always() &&
+          needs.retry-policy.outputs.mode == 'full' &&
+          needs.retry-policy.outputs.checks_scope == 'full' &&
+          needs.retry-policy.outputs.e2e_profile == 'optimized'
+        run: bun run scripts/ci-concurrent-validation.ts verify desktop-exclusive
       - name: Verify Electron native modules
+        if: >-
+          needs.retry-policy.outputs.mode != 'full' ||
+          needs.retry-policy.outputs.checks_scope != 'full' ||
+          needs.retry-policy.outputs.e2e_profile != 'optimized'
         run: bun run scripts/ci-metrics.ts --label "Electron native compatibility" -- bun run spike:native
       - name: Build Electron bundles
         id: e2e-build
+        if: >-
+          needs.retry-policy.outputs.mode != 'full' ||
+          needs.retry-policy.outputs.checks_scope != 'full' ||
+          needs.retry-policy.outputs.e2e_profile != 'optimized'
         run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
       - name: Run focused repair specs
         id: focused-repair
@@ -307,7 +391,7 @@ jobs:
         id: parallel-safe
         if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'optimized'
         run: >-
-          bun run scripts/ci-metrics.ts --label "Playwright parallel-safe workers=2" --
+          bun run scripts/ci-metrics.ts --label "Playwright parallel-safe workers=${CAXRI_E2E_PARALLEL_WORKERS}" --
           bun run scripts/run-e2e-pools.ts --pool parallel-safe
       - name: Run desktop-exclusive pool
         id: desktop-exclusive
@@ -326,7 +410,11 @@ jobs:
           bun run scripts/report-e2e-manifest.ts
           ${{ needs.retry-policy.outputs.e2e_profile == 'optimized' && 'parallel-safe desktop-exclusive' || 'control' }}
       - name: Upload parallel-safe failure artifacts
-        if: always() && steps.parallel-safe.outcome == 'failure'
+        if: >-
+          always() && (
+            steps.parallel-safe.outcome == 'failure' ||
+            steps.parallel-safe-receipt.outcome == 'failure'
+          )
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-parallel-safe-failure-artifacts
@@ -337,7 +425,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload desktop-exclusive failure artifacts
-        if: always() && steps.desktop-exclusive.outcome == 'failure'
+        if: >-
+          always() && (
+            steps.desktop-exclusive.outcome == 'failure' ||
+            steps.desktop-exclusive-receipt.outcome == 'failure'
+          )
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-desktop-exclusive-failure-artifacts
@@ -361,6 +453,9 @@ jobs:
       - name: Upload auxiliary E2E failure artifacts
         if: >-
           always() && (
+            steps.concurrent-full.outcome == 'failure' ||
+            steps.full-checks-receipt.outcome == 'failure' ||
+            steps.auxiliary-receipt.outcome == 'failure' ||
             steps.focused-repair.outcome == 'failure' ||
             steps.failure-isolation.outcome == 'failure' ||
             steps.failure-census.outcome == 'failure' ||
@@ -375,6 +470,13 @@ jobs:
             logs/
           if-no-files-found: ignore
           retention-days: 7
+      - name: Remove synthetic-merge checks worktree
+        if: >-
+          always() &&
+          needs.retry-policy.outputs.mode == 'full' &&
+          needs.retry-policy.outputs.checks_scope == 'full' &&
+          needs.retry-policy.outputs.e2e_profile == 'optimized'
+        run: bun run scripts/ci-checks-worktree.ts remove
       - name: Clean self-hosted runner boundary
         if: always()
         run: bun run scripts/self-hosted-runner.ts cleanup
@@ -390,6 +492,8 @@ jobs:
           CHECKS_RESULT: ${{ needs.checks.result }}
           CHECKS_SCOPE: ${{ needs.retry-policy.outputs.checks_scope }}
           E2E_RESULT: ${{ needs.e2e.result }}
+          E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
+          FULL_CHECKS_RESULT: ${{ needs.e2e.outputs.full_checks_result }}
           MODE: ${{ needs.retry-policy.outputs.mode }}
           RETRY_POLICY_RESULT: ${{ needs.retry-policy.result }}
           SHOULD_RUN_E2E: ${{ needs.retry-policy.outputs.run_e2e }}
@@ -416,7 +520,10 @@ jobs:
           test "$TRUSTED_EVENT" = true
           test "$RETRY_POLICY_RESULT" = success
           if test "$MODE" = full; then
-            if test "$CHECKS_SCOPE" = skipped; then
+            if test "$CHECKS_SCOPE" = full && test "$E2E_PROFILE" = optimized; then
+              test "$CHECKS_RESULT" = skipped
+              test "$FULL_CHECKS_RESULT" = success
+            elif test "$CHECKS_SCOPE" = skipped; then
               test "$CHECKS_RESULT" = skipped
             else
               test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
