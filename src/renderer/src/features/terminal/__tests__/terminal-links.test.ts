@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { TerminalLinkContext } from '../terminal-links';
 import {
     findTerminalLinks,
+    MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES,
+    MAX_TERMINAL_DETECTED_LINKS,
     registerTerminalLinks,
     resolveTerminalFilePath,
     TERMINAL_DEFAULT_WORD_SEPARATORS,
@@ -426,6 +428,33 @@ describe('registerTerminalLinks', () => {
         expect(openUrl).toHaveBeenCalledWith('https://example.com');
     });
 
+    it('bounds the picker candidate count across an adversarial visible grid', () => {
+        const terminal = createTerminal('', []);
+        terminal.setSize(80, 250);
+        for (let line = 0; line < 250; line += 1) {
+            terminal.setLine(line, `https://example.com/${line}`);
+        }
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        expect(registration.getViewportLinks()).toHaveLength(MAX_TERMINAL_DETECTED_LINKS);
+    });
+
+    it('bounds aggregate UTF-8 target bytes retained for one picker invocation', () => {
+        const terminal = createTerminal('', []);
+        terminal.setSize(6_000, 5);
+        for (let line = 0; line < 5; line += 1) {
+            terminal.setLine(line, `https://example.com/${'界'.repeat(5_000)}${line}`);
+        }
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+        const targetBytes = registration
+            .getViewportLinks()
+            .reduce((total, link) => total + new TextEncoder().encode(link.target).byteLength, 0);
+
+        expect(targetBytes).toBeLessThanOrEqual(MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES);
+    });
+
     it('observes OSC 8 targets through public parser and marker APIs without consuming them', () => {
         const terminal = createTerminal('descriptive label', cellsFor('descriptive label'));
         const { context, openUrl } = baseContext();
@@ -451,7 +480,7 @@ describe('registerTerminalLinks', () => {
         const terminal = createTerminal('x', cellsFor('x'));
         const { context } = baseContext();
         const registration = registerTerminalLinks(terminal.terminal, context);
-        terminal.setSize(1, 1_001);
+        terminal.setSize(1, 1);
 
         for (let index = 0; index < 1_001; index += 1) {
             terminal.setLine(index, 'x');
@@ -461,9 +490,14 @@ describe('registerTerminalLinks', () => {
             terminal.osc8(';');
         }
 
-        const links = registration.getViewportLinks();
-        expect(links).toHaveLength(1_000);
-        expect(links[0]).toMatchObject({ target: 'https://example.com/osc-target-1' });
+        terminal.setViewport(1);
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/osc-target-1' },
+        ]);
+        terminal.setViewport(1_000);
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/osc-target-1000' },
+        ]);
     });
 
     it('keeps a wrapped OSC 8 label discoverable from a visible continuation row', () => {
