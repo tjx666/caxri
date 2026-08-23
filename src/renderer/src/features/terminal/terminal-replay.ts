@@ -1,3 +1,5 @@
+import type { TerminalOscLinkSnapshot } from '@shared/types';
+
 /**
  * Match Runtime's delivery batch ceiling while also bounding many tiny IPC events.
  */
@@ -16,6 +18,7 @@ export interface TerminalReplayBufferOptions {
 
 export interface TerminalReplaySnapshot {
     cols: number;
+    oscLinks?: readonly TerminalOscLinkSnapshot[];
     payload: string;
     rows: number;
 }
@@ -29,6 +32,10 @@ export interface TerminalReplayCoordinatorOptions extends TerminalReplayBufferOp
      * Locks xterm to the source grid immediately before a serialized framebuffer is parsed.
      */
     prepareSnapshot?: (snapshot: TerminalReplaySnapshot) => void;
+    /**
+     * Restores hyperlink identity after the serialized cells parse but before live output queued behind the snapshot.
+     */
+    restoreSnapshotLinks?: (snapshot: TerminalReplaySnapshot) => void;
     /**
      * Restores normal pane fitting only after the snapshot and queued output have finished parsing.
      */
@@ -78,8 +85,9 @@ export class TerminalReplayBuffer {
             throw new RangeError('Terminal replay item limit must be a positive integer');
     }
 
-    private async restoreOnce(snapshot: string): Promise<void> {
+    private async restoreOnce(snapshot: string, afterSnapshot?: () => void): Promise<void> {
         if (snapshot) await this.write(snapshot);
+        afterSnapshot?.();
         await this.drainPending();
     }
 
@@ -164,8 +172,8 @@ export class TerminalReplayBuffer {
         else this.enqueue(value);
     }
 
-    restore(snapshot: string): Promise<void> {
-        this.restoration ??= this.restoreOnce(snapshot);
+    restore(snapshot: string, afterSnapshot?: () => void): Promise<void> {
+        this.restoration ??= this.restoreOnce(snapshot, afterSnapshot);
         return this.restoration;
     }
 }
@@ -254,7 +262,9 @@ export class TerminalReplayCoordinator {
         this.replayOptions.beginSnapshot?.();
         try {
             if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
-            await this.initialReplay.restore(snapshot?.payload ?? '');
+            await this.initialReplay.restore(snapshot?.payload ?? '', () => {
+                if (snapshot && !this.disposed) this.replayOptions.restoreSnapshotLinks?.(snapshot);
+            });
         } finally {
             this.replayOptions.finishSnapshot?.();
             this.initial.resolve();
@@ -282,7 +292,10 @@ export class TerminalReplayCoordinator {
                 if (this.disposed) return;
                 if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
                 this.reset();
-                await replay.restore(snapshot?.payload ?? '');
+                await replay.restore(snapshot?.payload ?? '', () => {
+                    if (snapshot && !this.disposed)
+                        this.replayOptions.restoreSnapshotLinks?.(snapshot);
+                });
             } catch (error) {
                 // A teardown-time request failure has no surviving view to notify or replay into.
                 // oxlint-disable-next-line typescript/no-unnecessary-condition -- changed across await

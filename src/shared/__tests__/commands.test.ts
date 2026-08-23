@@ -23,6 +23,11 @@ describe('command registry', () => {
             expect.arrayContaining([
                 { key: 'cmd+k', command: 'terminal.clear' },
                 { key: 'cmd+f', command: 'terminal.find' },
+                {
+                    key: 'cmd+shift+o',
+                    command: 'terminal.openDetectedLink',
+                    when: 'terminalFocus',
+                },
                 { key: 'cmd+[', command: 'primarySidebar.toggle' },
                 { key: 'cmd+]', command: 'secondarySidebar.toggle' },
                 { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },

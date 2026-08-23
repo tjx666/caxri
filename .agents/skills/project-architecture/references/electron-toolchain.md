@@ -7,6 +7,11 @@
 
 Use `electron-vite` for separate Main, Headless Host, Extension Host, Preload, Runtime, and Renderer Vite builds, and `electron-builder` for macOS packaging and native dependency rebuilds.
 
+Every local and CI package stages beneath `release.noindex/`. The output root must carry the `.noindex` suffix before
+Electron Builder creates a runnable `.app`; modern macOS can index an ordinary staging directory before a later marker
+or cleanup runs, causing worktree artifacts to appear as duplicate installed Caxri applications. Production,
+E2E-specific, bundle-budget, local-DMG, release-workflow, and self-hosted cleanup paths all share this output boundary.
+
 `ELECTRON_RENDERER_URL` is an unpackaged electron-vite development input only. Packaged Workbench
 and Process Explorer windows always resolve their renderer entry files from the application bundle,
 so an inherited development URL cannot redirect either privileged window.

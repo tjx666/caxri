@@ -2,12 +2,17 @@ import type { ChildProcess } from 'node:child_process';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+    createElectronStopController,
+    createMacosAcceptanceLaunchController,
+    settleMacosAcceptanceLaunch,
+} from '../macos-launch-lifecycle';
 import type { RuntimeState } from '../runtime-state';
 import type { StaleRuntimeDependencies } from '../start-electron';
 import {
     createChildExitPromise,
     createElectronLaunchSpec,
-    createElectronStopController,
+    createMacosAcceptanceLaunchSpec,
     removeStaleRuntime,
     shouldPreserveInheritedRuntimeState,
     waitForCdp,
@@ -193,6 +198,43 @@ describe('Acceptance Electron launcher seams', () => {
         });
     });
 
+    it('launches the unique app through LaunchServices while preserving its environment', () => {
+        const launch = createMacosAcceptanceLaunchSpec({
+            appPath: '/tmp/Caxri Acceptance 01234567.app',
+            environment: { NODE_OPTIONS: '--max-old-space-size=16384', PATH: '/usr/bin' },
+            port: 9333,
+            projectRoot: '/repo',
+            testRootPath: '/project-one',
+            testRootPaths: ['/project-one'],
+            userDataDir: '/tmp/caxri-acceptance-user-case',
+        });
+
+        expect(launch).toEqual({
+            args: [
+                '-n',
+                '-W',
+                '/tmp/Caxri Acceptance 01234567.app',
+                '--args',
+                '/repo',
+                '--remote-debugging-port=9333',
+            ],
+            command: '/usr/bin/open',
+            options: {
+                cwd: '/repo',
+                env: {
+                    NODE_OPTIONS: '--max-old-space-size=16384',
+                    PATH: '/usr/bin',
+                    CAXRI_E2E: '1',
+                    CAXRI_E2E_WINDOW_MODE: 'visible',
+                    CAXRI_TEST_ROOT_PATH: '/project-one',
+                    CAXRI_TEST_ROOT_PATHS: '["/project-one"]',
+                    CAXRI_USER_DATA_DIR: '/tmp/caxri-acceptance-user-case',
+                },
+                stdio: 'inherit',
+            },
+        });
+    });
+
     it('reports both exit and spawn-error outcomes without launching a process', async () => {
         const exited = new FakeChild();
         const exit = createChildExitPromise(childProcess(exited));
@@ -229,6 +271,46 @@ describe('Acceptance Electron launcher seams', () => {
 
         forceStop?.();
         expect(fake.kill).toHaveBeenLastCalledWith('SIGKILL');
+    });
+
+    it('sweeps the unique cloned app when launch stops before PID discovery', async () => {
+        const launchProcess = new FakeChild();
+        const stopUndiscoveredProcesses = vi.fn().mockResolvedValue([]);
+        const controller = createMacosAcceptanceLaunchController(
+            childProcess(launchProcess),
+            '/tmp/profile/apps.noindex/Caxri Acceptance 01234567.app/Contents/MacOS/Electron',
+            {
+                createElectronController: vi.fn(),
+                stopUndiscoveredProcesses,
+            },
+        );
+
+        controller.stop();
+        await controller.cleanup();
+        await controller.cleanup();
+
+        expect(launchProcess.kill).toHaveBeenCalledOnce();
+        expect(launchProcess.kill).toHaveBeenCalledWith('SIGTERM');
+        expect(stopUndiscoveredProcesses).toHaveBeenCalledOnce();
+        expect(stopUndiscoveredProcesses).toHaveBeenCalledWith(
+            '/tmp/profile/apps.noindex/Caxri Acceptance 01234567.app/Contents/MacOS/Electron',
+        );
+    });
+
+    it('preserves the profile and removes signal listeners when the unique-path sweep fails', async () => {
+        const cleanupError = new Error('process listing failed');
+        const cleanup = vi.fn().mockRejectedValue(cleanupError);
+        const removeSignalListeners = vi.fn();
+
+        await expect(
+            settleMacosAcceptanceLaunch(
+                { cleanup },
+                Promise.resolve({ code: null, signal: 'SIGTERM' }),
+                removeSignalListeners,
+            ),
+        ).resolves.toEqual({ cleanupError, isSafeToRemoveProfile: false });
+        expect(cleanup).toHaveBeenCalledOnce();
+        expect(removeSignalListeners).toHaveBeenCalledOnce();
     });
 
     it('waits for CDP readiness and fails closed on early exit or timeout', async () => {

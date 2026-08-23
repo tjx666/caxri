@@ -21,7 +21,7 @@ export function extensionTestPackagingConfig(build: Configuration): Configuratio
         throw new Error('Production extraResources already contain the test-only extension');
 
     return {
-        directories: { output: 'release/e2e' },
+        directories: { output: 'release.noindex/e2e' },
         extraResources: [...build.extraResources, testOnlyExtensionResource],
     };
 }

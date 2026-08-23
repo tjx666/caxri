@@ -296,7 +296,7 @@ export function useTerminalPaneRuntime({
             }
             updateTerminalProgress(terminalId, update);
         });
-        const unregisterLinks = registerTerminalPaneLinks(xterm, () => latestReference.current);
+        const terminalLinks = registerTerminalPaneLinks(xterm, () => latestReference.current);
         xterm.attachCustomKeyEventHandler((event) => {
             const input = terminalKeyboardInput(event, latestReference.current.isAgent);
             if (!input) return true;
@@ -447,6 +447,8 @@ export function useTerminalPaneRuntime({
                     )
                         xterm.resize(cols, rows);
                 },
+                restoreSnapshotLinks: ({ oscLinks }) =>
+                    terminalLinks.restoreOscLinks(oscLinks ?? []),
                 onDroppedOutput: () => backpressureRecovery.current?.request(),
             },
         );
@@ -561,7 +563,7 @@ export function useTerminalPaneRuntime({
             unregisterSelectionHandlers();
             unregisterInputHandlers();
             if (pasteReference.current === pasteFromClipboard) pasteReference.current = undefined;
-            unregisterLinks();
+            terminalLinks.dispose();
             unregisterCommandNavigation();
             commandTracker.dispose();
             commandStatusElement.remove();

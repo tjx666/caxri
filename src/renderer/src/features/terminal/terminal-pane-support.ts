@@ -6,6 +6,7 @@ import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
 import { registerTerminalPasteHandler } from './terminal-actions';
+import { registerTerminalLinkProvider } from './terminal-link-actions';
 import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
 import type { TerminalRendererReason } from './terminal-renderer';
@@ -108,6 +109,11 @@ interface TerminalLinkSnapshot {
     wordSeparators: string;
 }
 
+interface TerminalPaneLinkRegistration {
+    dispose(): void;
+    restoreOscLinks: ReturnType<typeof registerTerminalLinks>['restoreOscLinks'];
+}
+
 /**
  * Wires `registerTerminalLinks` to the pane's live state snapshot: link providers are registered once per attach, so
  * every field reads through `latest()` instead of capturing values that would go stale on session or settings changes.
@@ -115,8 +121,8 @@ interface TerminalLinkSnapshot {
 export function registerTerminalPaneLinks(
     terminal: Terminal,
     latest: () => TerminalLinkSnapshot,
-): () => void {
-    return registerTerminalLinks(terminal, {
+): TerminalPaneLinkRegistration {
+    const registration = registerTerminalLinks(terminal, {
         get cwd() {
             return latest().terminalCwd;
         },
@@ -144,4 +150,14 @@ export function registerTerminalPaneLinks(
             await openExternalUrl(url, onError);
         },
     });
+    const unregisterProvider = registerTerminalLinkProvider(latest().terminalId, () =>
+        registration.getViewportLinks(),
+    );
+    return {
+        dispose() {
+            unregisterProvider();
+            registration.dispose();
+        },
+        restoreOscLinks: (snapshots) => registration.restoreOscLinks(snapshots),
+    };
 }

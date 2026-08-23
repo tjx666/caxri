@@ -33,6 +33,7 @@ import {
     sendTerminalSequence,
     startNewAgentSession,
 } from '../features/terminal/terminal-actions';
+import { openTerminalLinkPicker } from '../features/terminal/terminal-link-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
 import {
     getActivePaneId,
@@ -151,6 +152,10 @@ const commandContext: CommandContext = {
         findActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) findInActiveTerminal(terminalId);
+        },
+        openDetectedLink: () => {
+            const terminalId = activeTerminalId();
+            if (terminalId) openTerminalLinkPicker(terminalId);
         },
         hasActive: () => Boolean(activeTerminalId()),
         hasSelection: () => {

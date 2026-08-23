@@ -14,6 +14,11 @@ import {
     transferDesktopLease,
 } from '../../switch-worktree/scripts/desktop-lease';
 import { assertAcceptanceBuildCommit } from './build-identity';
+import { prepareMacosAcceptanceApp, waitForMacosAcceptanceProcess } from './macos-app-identity';
+import {
+    createMacosAcceptanceLaunchController,
+    settleMacosAcceptanceLaunch,
+} from './macos-launch-lifecycle';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
@@ -26,7 +31,6 @@ import {
     discoverOwnedProcesses,
     errorCode,
     getProcessIdentity,
-    isAlive,
     isOwnedProcess,
     isOwnedRuntime,
     prepareAcceptanceUserData,
@@ -39,6 +43,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const RUNTIME_PATH = join(PROJECT_ROOT, '.records', 'acceptance', 'runtime.json');
 const ELECTRON_PATH = join(PROJECT_ROOT, 'node_modules', '.bin', 'electron');
+const ELECTRON_APP_PATH = join(PROJECT_ROOT, 'node_modules', 'electron', 'dist', 'Electron.app');
 const BUILT_MAIN_PATH = join(PROJECT_ROOT, 'out', 'main', 'index.js');
 const STALE_BUILD_MESSAGE = 'Build output is stale; run `bun run build` before Acceptance';
 const BUILD_INPUT_PATHS = [
@@ -97,6 +102,10 @@ interface ElectronLaunchSpecInput {
     userDataDir: string;
 }
 
+interface MacosAcceptanceLaunchSpecInput extends Omit<ElectronLaunchSpecInput, 'electronPath'> {
+    appPath: string;
+}
+
 interface WaitForCdpDependencies {
     fetch: typeof fetch;
     now: () => number;
@@ -130,16 +139,6 @@ const defaultWaitForOwnedProcessesDependencies: WaitForOwnedProcessesDependencie
     discoverOwnedProcesses,
     now: Date.now,
     sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-};
-
-interface StopControllerDependencies {
-    isAlive: typeof isAlive;
-    scheduleForceStop: (callback: () => void, milliseconds: number) => { unref: () => void };
-}
-
-const defaultStopControllerDependencies: StopControllerDependencies = {
-    isAlive,
-    scheduleForceStop: (callback, milliseconds) => setTimeout(callback, milliseconds),
 };
 
 const defaultWaitForCdpDependencies: WaitForCdpDependencies = {
@@ -230,6 +229,30 @@ export function createElectronLaunchSpec({
     };
 }
 
+/**
+ * LaunchServices registers the cloned bundle's unique identity while the stock `Electron` executable basename keeps
+ * `app.isPackaged` false. `open` inherits the isolated environment without exposing its values in argv and remains
+ * alive with `-W` until the launched app exits, so the existing lifecycle supervision remains deterministic.
+ */
+export function createMacosAcceptanceLaunchSpec({
+    appPath,
+    ...input
+}: MacosAcceptanceLaunchSpecInput) {
+    const electronLaunch = createElectronLaunchSpec(input);
+    return {
+        ...electronLaunch,
+        args: [
+            '-n',
+            '-W',
+            appPath,
+            '--args',
+            electronLaunch.options.cwd,
+            ...electronLaunch.args.slice(1),
+        ],
+        command: '/usr/bin/open',
+    };
+}
+
 export function createChildExitPromise(
     child: ChildProcess,
 ): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
@@ -237,30 +260,6 @@ export function createChildExitPromise(
         child.once('error', reject);
         child.once('exit', (code, signal) => resolve({ code, signal }));
     });
-}
-
-/**
- * Makes shutdown idempotent and escalates only when the exact spawned process is still alive.
- */
-export function createElectronStopController(
-    child: ChildProcess,
-    dependencies: StopControllerDependencies = defaultStopControllerDependencies,
-): { readonly isStopping: boolean; stop: () => void } {
-    let isStopping = false;
-    return {
-        get isStopping() {
-            return isStopping;
-        },
-        stop() {
-            if (isStopping) return;
-            isStopping = true;
-            if (dependencies.isAlive(child.pid)) child.kill('SIGTERM');
-            const forceTimer = dependencies.scheduleForceStop(() => {
-                if (dependencies.isAlive(child.pid)) child.kill('SIGKILL');
-            }, 5_000);
-            forceTimer.unref();
-        },
-    };
 }
 
 const defaultStaleRuntimeDependencies: StaleRuntimeDependencies = {
@@ -453,7 +452,7 @@ async function main(): Promise<void> {
 
     let desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
     try {
-        await access(ELECTRON_PATH);
+        await access(ELECTRON_APP_PATH);
         await assertBuildOutputsFresh({
             inputPaths: BUILD_INPUT_PATHS,
             outputPaths: BUILD_OUTPUT_PATHS,
@@ -524,13 +523,20 @@ async function main(): Promise<void> {
 
         try {
             desktopLease = await beginDesktopLeaseHandoff(desktopLease);
-            const launch = createElectronLaunchSpec({
+            const acceptanceApp = await prepareMacosAcceptanceApp({
+                caseId,
+                sourceAppPath: ELECTRON_APP_PATH,
+                userDataDir,
+            });
+            const launch = createMacosAcceptanceLaunchSpec({
+                appPath: acceptanceApp.appPath,
                 port,
                 testRootPath,
                 testRootPaths,
                 useTestRootFixture: !isUseNativeDialog,
                 userDataDir,
             });
+            const acceptanceExecutablePath = await realpath(acceptanceApp.executablePath);
             const child = spawn(launch.command, launch.args, launch.options);
             const childExit = createChildExitPromise(child);
             async function rejectOnChildExit(): Promise<never> {
@@ -539,13 +545,24 @@ async function main(): Promise<void> {
                     `Electron exited before CDP was ready (${code ?? signal ?? 'unknown'})`,
                 );
             }
-            const stopController = createElectronStopController(child);
-            const { stop } = stopController;
+            const launchController = createMacosAcceptanceLaunchController(
+                child,
+                acceptanceExecutablePath,
+            );
+            const { stop } = launchController;
             process.on('SIGINT', stop);
             process.on('SIGTERM', stop);
             try {
-                const electronPid = child.pid;
-                if (!electronPid) throw new Error('Could not establish Acceptance Electron PID');
+                /**
+                 * `mkdtemp()` reports `/var/folders/...`, while `ps` reports the same executable through macOS's
+                 * canonical `/private/var/folders/...` path. Match the canonical path so an already-launched owned app
+                 * cannot escape supervision because of that filesystem alias.
+                 */
+                const electronPid = await Promise.race([
+                    waitForMacosAcceptanceProcess(acceptanceExecutablePath),
+                    rejectOnChildExit(),
+                ]);
+                launchController.bindElectronPid(electronPid);
                 const electronIdentity = await getProcessIdentity(electronPid);
                 if (!electronIdentity)
                     throw new Error('Could not establish Acceptance Electron identity');
@@ -583,18 +600,25 @@ async function main(): Promise<void> {
                 // control-flow analysis can't see that interruption, but a real shutdown must not
                 // be reported as an unexpected non-zero exit.
                 // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
-                if (code !== 0 && !stopController.isStopping) {
+                if (code !== 0 && !launchController.isStopping) {
                     throw new Error(`Electron exited with code ${code} (${signal ?? 'no signal'})`);
                 }
             } finally {
-                stop();
-                try {
-                    await childExit;
-                } catch {
-                    // Ignored during cleanup; the process is already being torn down.
+                const cleanupResult = await settleMacosAcceptanceLaunch(
+                    launchController,
+                    childExit,
+                    () => {
+                        process.off('SIGINT', stop);
+                        process.off('SIGTERM', stop);
+                    },
+                );
+                if (!cleanupResult.isSafeToRemoveProfile) {
+                    isPreserveOwnedRuntimeState = true;
+                    // Cleanup failure must replace the in-flight launch error because it means an owned process may
+                    // still be alive. Preserving the unique profile path is the recovery contract for that orphan.
+                    // eslint-disable-next-line no-unsafe-finally
+                    throw cleanupResult.cleanupError;
                 }
-                process.off('SIGINT', stop);
-                process.off('SIGTERM', stop);
                 const detachedProcesses = runtime
                     ? await discoverOwnedProcesses(runtime, PROJECT_ROOT)
                     : [];

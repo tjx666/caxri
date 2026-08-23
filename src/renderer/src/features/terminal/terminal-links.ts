@@ -1,8 +1,12 @@
+import type { TerminalOscLinkSnapshot } from '@shared/types';
 import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
-import { sortBy } from 'es-toolkit';
 
-const MAX_LOGICAL_LINE_ROWS = 16;
-const MAX_LOGICAL_LINE_LENGTH = 16_384;
+import {
+    MAX_TERMINAL_LINK_LENGTH as MAX_LOGICAL_LINE_LENGTH,
+    MAX_TERMINAL_LINK_ROWS as MAX_LOGICAL_LINE_ROWS,
+    registerTerminalOscLinkTracker,
+} from './terminal-osc-link-tracker';
+
 const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
@@ -12,6 +16,40 @@ const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`
  * `terminal.wordSeparators` setting overrides it; this constant is only the not-yet-loaded fallback.
  */
 export const TERMINAL_DEFAULT_WORD_SEPARATORS = ' ()[]{}\',"`─‘’“”|';
+
+/**
+ * The picker uses a non-virtualized cmdk list, so both descriptor count and retained target bytes need hard bounds even
+ * when an artificially large Terminal viewport is filled with short links.
+ */
+export const MAX_TERMINAL_DETECTED_LINKS = 200;
+export const MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES = 64 * 1_024;
+
+const terminalLinkTextEncoder = new TextEncoder();
+
+interface TerminalDetectedLinkBudget {
+    links: TerminalDetectedLink[];
+    targetBytes: number;
+    uniqueTargets: Set<string>;
+}
+
+function appendBoundedDetectedLink(
+    budget: TerminalDetectedLinkBudget,
+    key: string,
+    target: string,
+    createLink: () => TerminalDetectedLink,
+): 'accepted' | 'duplicate' | 'exhausted' {
+    if (budget.uniqueTargets.has(key)) return 'duplicate';
+    const candidateBytes = terminalLinkTextEncoder.encode(target).byteLength;
+    if (
+        budget.links.length >= MAX_TERMINAL_DETECTED_LINKS ||
+        budget.targetBytes + candidateBytes > MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES
+    )
+        return 'exhausted';
+    budget.links.push(createLink());
+    budget.uniqueTargets.add(key);
+    budget.targetBytes += candidateBytes;
+    return 'accepted';
+}
 
 export interface TerminalLinkMatch {
     endIndex: number;
@@ -23,6 +61,15 @@ export interface TerminalLinkMatch {
     line?: number;
 }
 
+/**
+ * Content-free work counters used to keep adversarial link scans deterministic in tests. The scanner never records the
+ * Terminal text or matched targets here.
+ */
+export interface TerminalLinkScanMetrics {
+    detectedLinkRangeVisits: number;
+    unsupportedHomeRangeVisits: number;
+}
+
 export interface TerminalLinkContext {
     cwd: string;
     projectRoot: string;
@@ -30,6 +77,21 @@ export interface TerminalLinkContext {
     openFile(path: string, location?: { column: number; line: number }): void;
     openHomeFile(target: string, location?: { column: number; line: number }): void;
     openUrl(url: string): void;
+}
+
+export interface TerminalDetectedLink {
+    accessibleName: string;
+    bufferLine: number;
+    id: string;
+    kind: TerminalLinkMatch['kind'];
+    target: string;
+    activate(): void;
+}
+
+export interface TerminalLinkRegistration {
+    dispose(): void;
+    getViewportLinks(): TerminalDetectedLink[];
+    restoreOscLinks(snapshots: readonly TerminalOscLinkSnapshot[]): void;
 }
 
 type ClosingBracket = ')' | ']' | '}';
@@ -141,6 +203,30 @@ interface RawToken {
 }
 
 /**
+ * Merges the URL and file passes without re-sorting their already ordered results.
+ */
+function mergeTerminalLinks(
+    urls: TerminalLinkMatch[],
+    files: TerminalLinkMatch[],
+): TerminalLinkMatch[] {
+    const links: TerminalLinkMatch[] = [];
+    let urlIndex = 0;
+    let fileIndex = 0;
+    while (urlIndex < urls.length || fileIndex < files.length) {
+        const url = urls.at(urlIndex);
+        const file = files.at(fileIndex);
+        if (url && (!file || url.startIndex <= file.startIndex)) {
+            links.push(url);
+            urlIndex += 1;
+        } else if (file) {
+            links.push(file);
+            fileIndex += 1;
+        }
+    }
+    return links;
+}
+
+/**
  * Splits rendered text into file-path candidates at whitespace and every configured separator, the way VS Code's
  * word-link detection consumes `terminal.integrated.wordSeparators`. Splitting (not trimming) is what detaches a path
  * from glued prose such as `串联 (src/api/x.ts)` — the CJK prefix is not a wrapper character, so wrapper trimming alone
@@ -195,15 +281,19 @@ function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators: string
 export function findTerminalLinks(
     text: string,
     wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
+    metrics?: TerminalLinkScanMetrics,
 ): TerminalLinkMatch[] {
-    const links: TerminalLinkMatch[] = [];
+    const fileLinks: TerminalLinkMatch[] = [];
+    const urlLinks: TerminalLinkMatch[] = [];
     const unsupportedHomes = unsupportedHomeRanges(text);
+    let urlLinkIndex = 0;
+    let unsupportedHomeIndex = 0;
     for (const url of text.matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
         const raw = url[0];
         const rawStart = url.index;
         const trimmed = trimToken(raw);
         if (!trimmed.text) continue;
-        links.push({
+        urlLinks.push({
             endIndex: rawStart + trimmed.endOffset,
             kind: 'url',
             startIndex: rawStart + trimmed.startOffset,
@@ -219,17 +309,32 @@ export function findTerminalLinks(
         if (!trimmed.text) continue;
         const startIndex = rawStart + trimmed.startOffset;
         const endIndex = rawStart + trimmed.endOffset;
-        if (links.some((link) => startIndex < link.endIndex && endIndex > link.startIndex))
-            continue;
-        if (
-            unsupportedHomes.some(
-                (range) => startIndex < range.endIndex && endIndex > range.startIndex,
-            )
-        )
-            continue;
+        while (urlLinks[urlLinkIndex]?.endIndex <= startIndex) {
+            if (metrics) metrics.detectedLinkRangeVisits += 1;
+            urlLinkIndex += 1;
+        }
+        const urlLink = urlLinks.at(urlLinkIndex);
+        if (urlLink) {
+            if (metrics) metrics.detectedLinkRangeVisits += 1;
+            if (startIndex < urlLink.endIndex && endIndex > urlLink.startIndex) continue;
+        }
+        /**
+         * Both collections follow source order. Retire each completed range once, then compare the current token with
+         * at most the next range instead of restarting from the first range.
+         */
+        while (unsupportedHomes[unsupportedHomeIndex]?.endIndex <= startIndex) {
+            if (metrics) metrics.unsupportedHomeRangeVisits += 1;
+            unsupportedHomeIndex += 1;
+        }
+        const unsupportedHome = unsupportedHomes.at(unsupportedHomeIndex);
+        if (unsupportedHome) {
+            if (metrics) metrics.unsupportedHomeRangeVisits += 1;
+            if (startIndex < unsupportedHome.endIndex && endIndex > unsupportedHome.startIndex)
+                continue;
+        }
         const location = parseFileLocation(trimmed.text);
         if (!isLikelyFilePath(location.target)) continue;
-        links.push({
+        fileLinks.push({
             ...location,
             endIndex,
             kind: 'file',
@@ -237,7 +342,7 @@ export function findTerminalLinks(
             text: trimmed.text,
         });
     }
-    return sortBy(links, ['startIndex']);
+    return mergeTerminalLinks(urlLinks, fileLinks);
 }
 
 function normalizeAbsolutePath(path: string): string {
@@ -283,12 +388,11 @@ function hasLinkActivationModifier(event: MouseEvent): boolean {
     return event.metaKey || event.ctrlKey;
 }
 
-function activateLink(
-    event: MouseEvent,
-    match: TerminalLinkMatch,
-    context: TerminalLinkContext,
-): void {
-    if (!hasLinkActivationModifier(event)) return;
+/**
+ * The single authority-neutral activation path shared by pointer links and the keyboard picker. Every branch delegates
+ * to the existing typed callback, so discovering a link never grants the Renderer another filesystem or URL route.
+ */
+function activateLink(match: TerminalLinkMatch, context: TerminalLinkContext): void {
     if (match.kind === 'url') {
         context.openUrl(match.target);
         return;
@@ -305,7 +409,32 @@ function activateLink(
     context.openFile(path, location);
 }
 
+function activateLinkFromPointer(
+    event: MouseEvent,
+    match: TerminalLinkMatch,
+    context: TerminalLinkContext,
+): void {
+    if (hasLinkActivationModifier(event)) activateLink(match, context);
+}
+
+function createDetectedLink(
+    match: TerminalLinkMatch,
+    context: TerminalLinkContext,
+    id: string,
+    bufferLine: number,
+): TerminalDetectedLink {
+    return {
+        accessibleName: `Open ${match.kind === 'url' ? 'external' : 'file'} link ${match.text}`,
+        bufferLine,
+        id,
+        kind: match.kind,
+        target: match.text,
+        activate: () => activateLink(match, context),
+    };
+}
+
 interface LogicalLine {
+    firstBufferLine: number;
     positions: IBufferCellPosition[];
     text: string;
 }
@@ -341,7 +470,7 @@ function readLogicalLine(terminal: Terminal, bufferLineNumber: number): LogicalL
         appendLineCellPositions(line, y, lineText, terminal.cols, positions);
         text += lineText.slice(0, Math.min(lineText.length, MAX_LOGICAL_LINE_LENGTH - text.length));
     }
-    return { positions, text };
+    return { firstBufferLine: first, positions, text };
 }
 
 /**
@@ -436,7 +565,7 @@ function linksForLogicalLine(
         if (!start || !end) return [];
         return [
             {
-                activate: (event) => activateLink(event, match, context),
+                activate: (event) => activateLinkFromPointer(event, match, context),
                 /**
                  * The cursor/underline stay unconditional on hover rather than gated behind a live Cmd/Ctrl check:
                  * xterm only recomputes decorations when a link is (re)provided, so gating on the held modifier would
@@ -455,13 +584,83 @@ function linksForLogicalLine(
     });
 }
 
+function viewportPlainTextLinks(
+    terminal: Terminal,
+    context: TerminalLinkContext,
+): TerminalDetectedLink[] {
+    const buffer = terminal.buffer.active;
+    const firstVisibleLine = buffer.viewportY;
+    const lastVisibleLine = Math.min(buffer.length - 1, firstVisibleLine + terminal.rows - 1);
+    const visitedLogicalLines = new Set<number>();
+    const budget: TerminalDetectedLinkBudget = {
+        links: [],
+        targetBytes: 0,
+        uniqueTargets: new Set(),
+    };
+    for (let line = firstVisibleLine; line <= lastVisibleLine; line += 1) {
+        const logicalLine = readLogicalLine(terminal, line + 1);
+        if (!logicalLine || visitedLogicalLines.has(logicalLine.firstBufferLine)) continue;
+        visitedLogicalLines.add(logicalLine.firstBufferLine);
+        for (const match of findTerminalLinks(logicalLine.text, context.wordSeparators)) {
+            const key = `${match.kind}:${match.text}`;
+            const result = appendBoundedDetectedLink(budget, key, match.text, () =>
+                createDetectedLink(
+                    match,
+                    context,
+                    `plain:${logicalLine.firstBufferLine}:${match.startIndex}:${match.endIndex}`,
+                    logicalLine.firstBufferLine,
+                ),
+            );
+            if (result === 'exhausted') return budget.links;
+        }
+    }
+    return budget.links;
+}
+
+function boundedDetectedLinks(
+    candidates: Array<{
+        bufferLine: number;
+        key: string;
+        target: string;
+        link(): TerminalDetectedLink;
+    }>,
+): TerminalDetectedLink[] {
+    const budget: TerminalDetectedLinkBudget = {
+        links: [],
+        targetBytes: 0,
+        uniqueTargets: new Set(),
+    };
+    const orderedCandidates = candidates.toSorted(
+        (left, right) => left.bufferLine - right.bufferLine,
+    );
+    for (const candidate of orderedCandidates) {
+        const result = appendBoundedDetectedLink(budget, candidate.key, candidate.target, () =>
+            candidate.link(),
+        );
+        if (result === 'exhausted') break;
+    }
+    return budget.links;
+}
+
+function exactTerminalLinkTarget(
+    target: string,
+    wordSeparators: string,
+): TerminalLinkMatch | undefined {
+    return findTerminalLinks(target, wordSeparators).find(
+        (candidate) =>
+            candidate.endIndex === target.length &&
+            (candidate.startIndex === 0 ||
+                CJK_PROSE_BOUNDARIES.has(target[candidate.startIndex - 1])),
+    );
+}
+
 /**
  * Registers plain-text links and the OSC 8 handler through the same guarded activation path.
  */
 export function registerTerminalLinks(
     terminal: Terminal,
     context: TerminalLinkContext,
-): () => void {
+): TerminalLinkRegistration {
     const hint = createLinkHintController(terminal);
     const disposable = terminal.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
@@ -472,22 +671,41 @@ export function registerTerminalLinks(
     });
     terminal.options.linkHandler = {
         activate(event, text) {
-            const match = findTerminalLinks(text, context.wordSeparators).find(
-                (candidate) =>
-                    candidate.endIndex === text.length &&
-                    (candidate.startIndex === 0 ||
-                        CJK_PROSE_BOUNDARIES.has(text[candidate.startIndex - 1])),
-            );
-            if (match) activateLink(event, match, context);
+            const match = exactTerminalLinkTarget(text, context.wordSeparators);
+            if (match) activateLinkFromPointer(event, match, context);
         },
         /**
          * File URLs are allowed into the handler, then constrained by the Runtime-rooted read.
          */
         allowNonHttpProtocols: true,
     };
-    return () => {
-        hint.dispose();
-        terminal.options.linkHandler = null;
-        disposable.dispose();
+    const oscTracker = registerTerminalOscLinkTracker(terminal, (target) =>
+        exactTerminalLinkTarget(target, context.wordSeparators),
+    );
+    return {
+        getViewportLinks() {
+            const plain = viewportPlainTextLinks(terminal, context);
+            return boundedDetectedLinks([
+                ...plain.map((link) => ({
+                    bufferLine: link.bufferLine,
+                    key: `${link.kind}:${link.target}`,
+                    target: link.target,
+                    link: () => link,
+                })),
+                ...oscTracker.getViewportLinks().map(({ bufferLine, id, match }) => ({
+                    bufferLine,
+                    key: `${match.kind}:${match.text}`,
+                    target: match.text,
+                    link: () => createDetectedLink(match, context, id, bufferLine),
+                })),
+            ]);
+        },
+        restoreOscLinks: (snapshots) => oscTracker.restoreOscLinks(snapshots),
+        dispose() {
+            hint.dispose();
+            terminal.options.linkHandler = null;
+            disposable.dispose();
+            oscTracker.dispose();
+        },
     };
 }
