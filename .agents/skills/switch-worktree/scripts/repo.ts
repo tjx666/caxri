@@ -41,6 +41,10 @@ export interface RepoLockOptions {
      * Test seam for pausing after owner metadata is durable but before the lock is published.
      */
     beforeLockPublish?: () => Promise<void>;
+    /**
+     * Isolates an already-independent resource mutation from the repository-wide lock failure domain.
+     */
+    namespace?: string;
 }
 
 const WORKTREE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -198,24 +202,67 @@ export async function withRepoLock<T>(
     options: RepoLockOptions = {},
 ): Promise<T> {
     await mkdir(context.stateDir, { recursive: true });
-    const lockPath = join(context.stateDir, 'operation.lock');
-    const cleanupPath = join(context.stateDir, 'operation-lock-cleanup');
+    if (options.namespace && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(options.namespace)) {
+        throw new CommandError(`Invalid repository lock namespace: ${options.namespace}`);
+    }
+    const lockName = options.namespace ? `operation-${options.namespace}` : 'operation';
+    const lockPath = join(context.stateDir, `${lockName}.lock`);
+    const cleanupPath = join(context.stateDir, `${lockName}-lock-cleanup`);
     const identity = await getProcessIdentity(process.pid);
     if (!identity) throw new CommandError('Could not establish the worktree launcher identity');
 
     const pendingPath = join(
         context.stateDir,
-        `operation-lock-${process.pid}-${randomUUID()}.pending`,
+        `${lockName}-lock-${process.pid}-${randomUUID()}.pending`,
     );
+    let cleanupPendingPath: string | undefined;
     const deadline = Date.now() + 10_000;
     let isAcquired = false;
+    const owner = {
+        identity,
+        pid: process.pid,
+        startedAt: new Date().toISOString(),
+    };
+    const cleanupCandidate = async (): Promise<string> => {
+        if (cleanupPendingPath) return cleanupPendingPath;
+        cleanupPendingPath = join(
+            context.stateDir,
+            `${lockName}-lock-cleanup-${process.pid}-${randomUUID()}.pending`,
+        );
+        await mkdir(cleanupPendingPath);
+        await writeJsonAtomic(join(cleanupPendingPath, 'owner.json'), owner);
+        return cleanupPendingPath;
+    };
+    const didClaimCleanup = async (): Promise<boolean> => {
+        const candidate = await cleanupCandidate();
+        try {
+            /**
+             * The complete owner record moves with the directory. This also atomically replaces the empty marker left
+             * by the pre-owner implementation, while a live owner directory is non-empty and cannot be replaced.
+             */
+            await rename(candidate, cleanupPath);
+            cleanupPendingPath = undefined;
+            return true;
+        } catch (error) {
+            if (!['EEXIST', 'ENOTEMPTY'].includes(errorCode(error) ?? '')) throw error;
+            return false;
+        }
+    };
+    const cleanStaleLock = async (): Promise<void> => {
+        try {
+            const latest = await readLockOwner(lockPath);
+            if (latest && !(await isProcessIdentityAlive(latest.pid, latest.identity))) {
+                await rm(lockPath, { recursive: true });
+            }
+        } catch (error) {
+            if (errorCode(error) !== 'ENOENT') throw error;
+        } finally {
+            await rm(cleanupPath, { force: true, recursive: true });
+        }
+    };
     try {
         await mkdir(pendingPath);
-        await writeJsonAtomic(join(pendingPath, 'owner.json'), {
-            identity,
-            pid: process.pid,
-            startedAt: new Date().toISOString(),
-        });
+        await writeJsonAtomic(join(pendingPath, 'owner.json'), owner);
         await options.beforeLockPublish?.();
         // Every iteration below depends on the durable filesystem state left by the previous
         // one (pending/cleanup markers, lock ownership), so this polling loop is inherently
@@ -223,8 +270,34 @@ export async function withRepoLock<T>(
         /* eslint-disable no-await-in-loop -- sequential lock-acquisition poll, see comment above */
         while (!isAcquired) {
             if (await isPathPresent(cleanupPath)) {
-                if (Date.now() >= deadline) {
-                    throw new CommandError('Timed out waiting for stale worktree lock cleanup');
+                const cleanupOwner = await readLockOwner(cleanupPath);
+                if (!cleanupOwner) {
+                    if (await didClaimCleanup()) {
+                        await cleanStaleLock();
+                        continue;
+                    }
+                } else if (await isProcessIdentityAlive(cleanupOwner.pid, cleanupOwner.identity)) {
+                    if (Date.now() >= deadline) {
+                        throw new CommandError(
+                            `Timed out waiting for repository lock cleanup PID ${cleanupOwner.pid}`,
+                        );
+                    }
+                    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+                    continue;
+                } else {
+                    /**
+                     * A worker can be interrupted after claiming cleanup but before removing the stale lock. Rename its
+                     * marker first so only one contender reclaims it and no late unlink can delete a new owner.
+                     */
+                    const abandonedCleanupPath = `${cleanupPath}.${process.pid}.${randomUUID()}.stale`;
+                    try {
+                        await rename(cleanupPath, abandonedCleanupPath);
+                    } catch (error) {
+                        if (errorCode(error) !== 'ENOENT') throw error;
+                        continue;
+                    }
+                    await rm(abandonedCleanupPath, { recursive: true });
+                    continue;
                 }
                 await new Promise<void>((resolve) => setTimeout(resolve, 25));
                 continue;
@@ -243,43 +316,36 @@ export async function withRepoLock<T>(
                     if (!['EEXIST', 'ENOTEMPTY'].includes(errorCode(error) ?? '')) throw error;
                 }
             }
-            const owner = await readLockOwner(lockPath);
-            if (!owner) {
+            const lockOwner = await readLockOwner(lockPath);
+            if (!lockOwner) {
                 if (Date.now() >= deadline)
                     throw new CommandError('Timed out waiting for repository lock owner metadata');
                 await new Promise<void>((resolve) => setTimeout(resolve, 25));
                 continue;
             }
-            if (await isProcessIdentityAlive(owner.pid, owner.identity)) {
+            if (await isProcessIdentityAlive(lockOwner.pid, lockOwner.identity)) {
                 if (Date.now() >= deadline) {
                     throw new CommandError(
-                        `Timed out waiting for switch-worktree operation PID ${owner.pid}`,
+                        `Timed out waiting for switch-worktree operation PID ${lockOwner.pid}`,
                     );
                 }
                 await new Promise<void>((resolve) => setTimeout(resolve, 25));
                 continue;
             }
-            try {
-                await mkdir(cleanupPath);
-            } catch (cleanupError) {
-                if (errorCode(cleanupError) !== 'EEXIST') throw cleanupError;
+            if (!(await didClaimCleanup())) {
                 await new Promise<void>((resolve) => setTimeout(resolve, 25));
                 continue;
             }
-            try {
-                const latest = await readLockOwner(lockPath);
-                if (latest && !(await isProcessIdentityAlive(latest.pid, latest.identity))) {
-                    await rm(lockPath, { recursive: true });
-                }
-            } catch (cleanupError) {
-                if (errorCode(cleanupError) !== 'ENOENT') throw cleanupError;
-            } finally {
-                await rm(cleanupPath, { force: true, recursive: true });
-            }
+            await cleanStaleLock();
         }
         /* eslint-enable no-await-in-loop */
     } finally {
-        if (!isAcquired) await rm(pendingPath, { force: true, recursive: true });
+        await Promise.all([
+            rm(pendingPath, { force: true, recursive: true }),
+            cleanupPendingPath
+                ? rm(cleanupPendingPath, { force: true, recursive: true })
+                : Promise.resolve(),
+        ]);
     }
     try {
         return await task();

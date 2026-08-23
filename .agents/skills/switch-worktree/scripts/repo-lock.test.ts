@@ -67,6 +67,38 @@ describe('repository lock publication', () => {
         expect(await isPathPresent(lockPath)).toBe(false);
     });
 
+    it('reclaims an interrupted stale-lock cleanup owner', async () => {
+        const context = await repoContext(await createRepo());
+        const lockPath = join(context.stateDir, 'operation.lock');
+        const cleanupPath = join(context.stateDir, 'operation-lock-cleanup');
+        await mkdir(lockPath, { recursive: true });
+        await writeFile(
+            join(lockPath, 'owner.json'),
+            JSON.stringify({
+                identity: 'dead-lock-owner',
+                pid: process.pid,
+                startedAt: new Date().toISOString(),
+            }),
+            'utf8',
+        );
+        await mkdir(cleanupPath);
+        await writeFile(
+            join(cleanupPath, 'owner.json'),
+            JSON.stringify({
+                identity: 'dead-cleanup-owner',
+                pid: process.pid,
+                startedAt: new Date().toISOString(),
+            }),
+            'utf8',
+        );
+
+        await expect(withRepoLock(context, () => Promise.resolve('recovered'))).resolves.toBe(
+            'recovered',
+        );
+        expect(await isPathPresent(lockPath)).toBe(false);
+        expect(await isPathPresent(cleanupPath)).toBe(false);
+    });
+
     it('lets two contenders converge after reclaiming one stale repository lock', async () => {
         const context = await repoContext(await createRepo());
         const lockPath = join(context.stateDir, 'operation.lock');
@@ -100,4 +132,38 @@ describe('repository lock publication', () => {
         expect(await isPathPresent(lockPath)).toBe(false);
         expect(await isPathPresent(cleanupPath)).toBe(false);
     }, 15_000);
+
+    it('replaces the ownerless cleanup marker from an interrupted older worker', async () => {
+        const context = await repoContext(await createRepo());
+        const cleanupPath = join(context.stateDir, 'operation-lock-cleanup');
+        await mkdir(cleanupPath, { recursive: true });
+
+        await expect(withRepoLock(context, () => Promise.resolve('recovered'))).resolves.toBe(
+            'recovered',
+        );
+        expect(await isPathPresent(cleanupPath)).toBe(false);
+    });
+
+    it('lets independent resource namespaces hold locks concurrently', async () => {
+        const context = await repoContext(await createRepo());
+        const releaseFirst = Promise.withResolvers<void>();
+        const firstEntered = Promise.withResolvers<void>();
+        const first = withRepoLock(
+            context,
+            async () => {
+                firstEntered.resolve();
+                await releaseFirst.promise;
+            },
+            { namespace: 'e2e-worker-0' },
+        );
+        await firstEntered.promise;
+
+        await expect(
+            withRepoLock(context, () => Promise.resolve('second'), {
+                namespace: 'e2e-worker-1',
+            }),
+        ).resolves.toBe('second');
+        releaseFirst.resolve();
+        await expect(first).resolves.toBeUndefined();
+    });
 });
