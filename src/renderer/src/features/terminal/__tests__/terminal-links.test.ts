@@ -1,4 +1,4 @@
-import type { ILink, ILinkProvider, IMarker, Terminal } from '@xterm/xterm';
+import type { IBuffer, ILink, ILinkProvider, IMarker, Terminal } from '@xterm/xterm';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalLinkContext } from '../terminal-links';
@@ -203,6 +203,8 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
     const lineCells = [cells];
     const lineWrapped = [false];
     const alternateLineCells = [cellsFor('ALTERNATE')];
+    const bufferChangeCallbacks: Array<(buffer: IBuffer) => void> = [];
+    const markers: IMarker[] = [];
     const dispose = vi.fn();
     const createBufferLine = (
         currentCells: Array<{ chars: string; width: number }>,
@@ -266,6 +268,10 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
             },
             alternate: alternateBuffer,
             normal: normalBuffer,
+            onBufferChange: (callback: (buffer: IBuffer) => void) => {
+                bufferChangeCallbacks.push(callback);
+                return { dispose: vi.fn() };
+            },
         },
         get cols() {
             return terminalColumns;
@@ -298,7 +304,9 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
                     return { dispose: vi.fn() };
                 },
             };
-            return marker as unknown as IMarker;
+            const typedMarker = marker as unknown as IMarker;
+            markers.push(typedMarker);
+            return typedMarker;
         },
         get rows() {
             return terminalRows;
@@ -306,6 +314,9 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
     } as unknown as Terminal;
     return {
         dispose,
+        disposeMarkersAtLine(line: number): void {
+            for (const marker of markers) if (marker.line === line) marker.dispose();
+        },
         links(): Promise<ILink[] | undefined> {
             return new Promise((resolve) => provider?.provideLinks(1, resolve));
         },
@@ -314,12 +325,21 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
             if (result instanceof Promise) throw new Error('Expected synchronous OSC test handler');
             return result;
         },
+        reflowNormal(lines: readonly string[], columns: number): void {
+            lineCells.splice(0, lineCells.length, ...lines.map(cellsFor));
+            lineWrapped.splice(0, lineWrapped.length, ...lines.map((_, index) => index > 0));
+            terminalColumns = columns;
+        },
         setCursor(line: number, column: number): void {
             cursorLine = line;
             cursorColumn = column;
         },
         setActiveBuffer(type: 'alternate' | 'normal'): void {
             activeBuffer = type === 'normal' ? normalBuffer : alternateBuffer;
+            for (const callback of bufferChangeCallbacks) callback(activeBuffer as IBuffer);
+        },
+        setAlternateLine(line: number, value: string): void {
+            alternateLineCells[line] = cellsFor(value);
         },
         setLine(line: number, value: string, isWrapped = false): void {
             lineCells[line] = cellsFor(value);
@@ -464,6 +484,29 @@ describe('registerTerminalLinks', () => {
         ]);
     });
 
+    it('keeps an OSC 8 label when growing columns removes its wrapped endpoint row', () => {
+        const terminal = createTerminal('x'.repeat(20), cellsFor('x'.repeat(20)));
+        terminal.setLine(1, 'x', true);
+        terminal.setSize(20, 2);
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        terminal.setCursor(0, 0);
+        terminal.osc8(';https://example.com/grow-reflow');
+        terminal.setCursor(1, 1);
+        terminal.osc8(';');
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/grow-reflow' },
+        ]);
+
+        terminal.reflowNormal(['x'.repeat(21)], 30);
+        terminal.disposeMarkersAtLine(1);
+
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/grow-reflow' },
+        ]);
+    });
+
     it('drops an OSC 8 target after its visible cells are overwritten', () => {
         const terminal = createTerminal('LABEL', cellsFor('LABEL'));
         const { context } = baseContext();
@@ -517,10 +560,14 @@ describe('registerTerminalLinks', () => {
 
         remountedRegistration.restoreOscLinks([
             {
-                endColumn: 5,
-                endCursorOffset: 0,
-                startColumn: 0,
-                startCursorOffset: 0,
+                buffer: 'normal',
+                endCellOffset: 5,
+                endLogicalLineIndex: 0,
+                endLogicalLineOffset: -1,
+                fingerprint: '5:1625091293',
+                startCellOffset: 0,
+                startLogicalLineIndex: 0,
+                startLogicalLineOffset: -1,
                 target: 'https://example.com/authoritative-after-remount',
             },
         ]);
@@ -529,6 +576,97 @@ describe('registerTerminalLinks', () => {
         ]);
 
         remountedRegistration.dispose();
+    });
+
+    it('defers normal-buffer OSC 8 restoration until an alternate-screen remount returns', () => {
+        const terminal = createTerminal('LABEL', cellsFor('LABEL'));
+        const { context } = baseContext();
+        terminal.setActiveBuffer('alternate');
+        terminal.setCursor(0, 'ALTERNATE'.length);
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        registration.restoreOscLinks([
+            {
+                buffer: 'normal',
+                endCellOffset: 5,
+                endLogicalLineIndex: 0,
+                endLogicalLineOffset: -1,
+                fingerprint: '5:1625091293',
+                startCellOffset: 0,
+                startLogicalLineIndex: 0,
+                startLogicalLineOffset: -1,
+                target: 'https://example.com/normal-after-alternate',
+            },
+        ]);
+        expect(registration.getViewportLinks()).toEqual([]);
+
+        terminal.setCursor(0, 5);
+        terminal.setActiveBuffer('normal');
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/normal-after-alternate' },
+        ]);
+
+        registration.dispose();
+    });
+
+    it('restores an OSC 8 target from an active alternate-buffer snapshot', () => {
+        const terminal = createTerminal('NORMAL', cellsFor('NORMAL'));
+        terminal.setAlternateLine(0, 'LABEL');
+        terminal.setActiveBuffer('alternate');
+        terminal.setCursor(0, 5);
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        registration.restoreOscLinks([
+            {
+                buffer: 'alternate',
+                endCellOffset: 5,
+                endLogicalLineIndex: 0,
+                endLogicalLineOffset: -1,
+                fingerprint: '5:1625091293',
+                startCellOffset: 0,
+                startLogicalLineIndex: 0,
+                startLogicalLineOffset: -1,
+                target: 'https://example.com/alternate-after-remount',
+            },
+        ]);
+
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/alternate-after-remount' },
+        ]);
+        registration.dispose();
+    });
+
+    it('restores a deferred normal-buffer OSC 8 target after inactive-buffer reflow', () => {
+        const terminal = createTerminal('PREFIXLABEL', cellsFor('PREFIXLABEL'));
+        const { context } = baseContext();
+        terminal.setActiveBuffer('alternate');
+        terminal.setCursor(0, 'ALTERNATE'.length);
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        registration.restoreOscLinks([
+            {
+                buffer: 'normal',
+                endCellOffset: 11,
+                endLogicalLineIndex: 0,
+                endLogicalLineOffset: -1,
+                fingerprint: '5:1625091293',
+                startCellOffset: 6,
+                startLogicalLineIndex: 0,
+                startLogicalLineOffset: -1,
+                target: 'https://example.com/normal-after-reflow',
+            },
+        ]);
+        terminal.reflowNormal(['PREFIX', 'LABEL'], 6);
+
+        terminal.setCursor(1, 5);
+        terminal.setActiveBuffer('normal');
+        terminal.setViewport(1);
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/normal-after-reflow' },
+        ]);
+
+        registration.dispose();
     });
 
     it('ignores a bare click without the Cmd/Ctrl activation modifier', async () => {

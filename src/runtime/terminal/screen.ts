@@ -203,9 +203,19 @@ export class TerminalScreenState {
             scrollback = Math.floor(scrollback / 2);
             payload = this.serialize.serialize({ excludeModes: options.excludeModes, scrollback });
         }
-        const oscLinks = this.oscLinks.snapshot();
+        const bounded = boundSnapshot(payload);
+        const normalBufferStartLine = Math.max(
+            0,
+            this.terminal.buffer.normal.length - (scrollback + this.terminal.rows),
+        );
+        /**
+         * OSC targets may contain sensitive data. Only pair them with a serializer range that survived the aggregate
+         * line and byte bounds unchanged; otherwise the Renderer could receive a target whose label was trimmed.
+         */
+        const oscLinks =
+            bounded.payload === payload ? this.oscLinks.snapshot(normalBufferStartLine) : [];
         return {
-            ...boundSnapshot(payload),
+            ...bounded,
             cols: this.terminal.cols,
             ...(oscLinks.length > 0 && { oscLinks }),
             rows: this.terminal.rows,

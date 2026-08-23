@@ -162,10 +162,14 @@ export const terminalRecordSchema = z.object({
 });
 
 export const terminalOscLinkSnapshotSchema = z.object({
-    endColumn: z.number().int().nonnegative().max(1_000),
-    endCursorOffset: z.number().int().min(-10_000).max(10_000),
-    startColumn: z.number().int().nonnegative().max(1_000),
-    startCursorOffset: z.number().int().min(-10_000).max(10_000),
+    buffer: z.enum(['normal', 'alternate']),
+    endCellOffset: z.number().int().nonnegative().max(3_000_000),
+    endLogicalLineIndex: z.number().int().nonnegative().max(2_999),
+    endLogicalLineOffset: z.number().int().min(-3_000).max(-1),
+    fingerprint: z.string().regex(/^\d{1,5}:\d{1,10}$/u),
+    startCellOffset: z.number().int().nonnegative().max(3_000_000),
+    startLogicalLineIndex: z.number().int().nonnegative().max(2_999),
+    startLogicalLineOffset: z.number().int().min(-3_000).max(-1),
     target: z.string().min(1).max(MAX_TERMINAL_LINK_LENGTH),
 });
 
@@ -188,8 +192,9 @@ export const terminalSnapshotSchema = z.object({
     byteCount: z.number(),
     payload: z.string(),
     /**
-     * Runtime-authoritative OSC 8 targets for the serialized active buffer. SerializeAddon preserves the visible cells
-     * but not their hyperlink identities, so the Renderer restores this bounded metadata during the same replay.
+     * Runtime-authoritative OSC 8 targets for the serialized normal and active alternate buffers. SerializeAddon
+     * preserves the visible cells but not their hyperlink identities, so the Renderer restores this bounded metadata
+     * during the same replay.
      */
     oscLinks: terminalOscLinkSnapshotsSchema.optional(),
     updatedAt: z.number(),

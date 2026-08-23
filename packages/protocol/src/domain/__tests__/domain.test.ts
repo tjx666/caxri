@@ -56,10 +56,14 @@ describe('terminalSnapshotSchema OSC link bounds', () => {
         updatedAt: 1,
     };
     const link = {
-        endColumn: 5,
-        endCursorOffset: 0,
-        startColumn: 0,
-        startCursorOffset: 0,
+        buffer: 'normal',
+        endCellOffset: 5,
+        endLogicalLineIndex: 0,
+        endLogicalLineOffset: -1,
+        fingerprint: '5:1625091293',
+        startCellOffset: 0,
+        startLogicalLineIndex: 0,
+        startLogicalLineOffset: -1,
         target: 'https://example.com',
     };
 
@@ -85,6 +89,15 @@ describe('terminalSnapshotSchema OSC link bounds', () => {
                     ...link,
                     target: 'x'.repeat(MAX_TERMINAL_LINK_LENGTH),
                 })),
+            }).success,
+        ).toBe(false);
+    });
+
+    it('rejects an unknown source buffer', () => {
+        expect(
+            terminalSnapshotSchema.safeParse({
+                ...snapshot,
+                oscLinks: [{ ...link, buffer: 'scrollback-cache' }],
             }).success,
         ).toBe(false);
     });

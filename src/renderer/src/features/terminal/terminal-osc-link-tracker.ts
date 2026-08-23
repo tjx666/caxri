@@ -6,7 +6,9 @@ import {
 } from '@shared/ipc';
 import {
     areTerminalOscLinkRangesOverlapping,
-    terminalOscLinkCellSpan,
+    resolveTerminalOscLinkCellOffset,
+    resolveTerminalOscLinkLogicalPosition,
+    terminalOscLinkCellAnchor,
     terminalOscLinkFingerprint,
     terminalOscLinkFingerprintCellCount,
 } from '@shared/terminal-osc-link-fingerprint';
@@ -18,7 +20,7 @@ import type { TerminalLinkMatch } from './terminal-links';
 export { MAX_TERMINAL_LINK_LENGTH, MAX_TERMINAL_LINK_ROWS } from '@shared/ipc';
 
 interface OscLinkPosition {
-    column: number;
+    cellOffset: number;
     marker: IMarker;
 }
 
@@ -57,12 +59,65 @@ function oscLinkFingerprint(
     end: OscLinkPosition,
 ): string | undefined {
     if (start.marker.isDisposed || end.marker.isDisposed) return;
-    return terminalOscLinkFingerprint(
-        terminal.cols,
+    const range = oscLinkRange(terminal, buffer, start, end);
+    if (!range) return;
+    return terminalOscLinkFingerprint(terminal.cols, buffer, range.start, range.end);
+}
+
+function oscLinkRange(
+    terminal: Terminal,
+    buffer: IBuffer,
+    start: OscLinkPosition,
+    end: OscLinkPosition,
+) {
+    if (start.marker.isDisposed || end.marker.isDisposed) return;
+    const startPosition = resolveTerminalOscLinkCellOffset(
         buffer,
-        { column: start.column, line: start.marker.line },
-        { column: end.column, line: end.marker.line },
+        terminal.cols,
+        start.marker.line,
+        start.cellOffset,
     );
+    const endPosition = resolveTerminalOscLinkCellOffset(
+        buffer,
+        terminal.cols,
+        end.marker.line,
+        end.cellOffset,
+    );
+    if (!startPosition || !endPosition) return;
+    return { end: endPosition, start: startPosition };
+}
+
+function resolveOscLinkSnapshot(
+    terminal: Terminal,
+    buffer: IBuffer,
+    snapshot: TerminalOscLinkSnapshot,
+) {
+    for (const anchor of ['start', 'end'] as const) {
+        const start = resolveTerminalOscLinkLogicalPosition(
+            buffer,
+            terminal.cols,
+            {
+                cellOffset: snapshot.startCellOffset,
+                logicalLineIndex: snapshot.startLogicalLineIndex,
+                logicalLineOffset: snapshot.startLogicalLineOffset,
+            },
+            anchor,
+        );
+        const end = resolveTerminalOscLinkLogicalPosition(
+            buffer,
+            terminal.cols,
+            {
+                cellOffset: snapshot.endCellOffset,
+                logicalLineIndex: snapshot.endLogicalLineIndex,
+                logicalLineOffset: snapshot.endLogicalLineOffset,
+            },
+            anchor,
+        );
+        if (!start || !end) continue;
+        const fingerprint = terminalOscLinkFingerprint(terminal.cols, buffer, start, end);
+        if (fingerprint === snapshot.fingerprint) return { end, fingerprint, start };
+    }
+    return;
 }
 
 /**
@@ -73,6 +128,10 @@ export function registerTerminalOscLinkTracker(
     terminal: Terminal,
     matchTarget: (target: string) => TerminalLinkMatch | undefined,
 ): TerminalOscLinkTracker {
+    const pendingRestorations = new Map<
+        TerminalOscLinkSnapshot['buffer'],
+        TerminalOscLinkSnapshot[]
+    >();
     const trackedOscLinks = new Map<number, TrackedOscLink>();
     let retainedCellCount = 0;
     let retainedTargetCharacters = 0;
@@ -87,26 +146,25 @@ export function registerTerminalOscLinkTracker(
         if (!tracked.end.marker.isDisposed) tracked.end.marker.dispose();
     };
     const retainOscLink = (tracked: TrackedOscLink): void => {
+        const trackedRange = oscLinkRange(terminal, tracked.buffer, tracked.start, tracked.end);
+        if (!trackedRange) {
+            tracked.start.marker.dispose();
+            tracked.end.marker.dispose();
+            return;
+        }
         for (const existing of trackedOscLinks.values()) {
             if (existing.buffer !== tracked.buffer) continue;
-            if (
-                areTerminalOscLinkRangesOverlapping(
-                    {
-                        end: { column: existing.end.column, line: existing.end.marker.line },
-                        start: {
-                            column: existing.start.column,
-                            line: existing.start.marker.line,
-                        },
-                    },
-                    {
-                        end: { column: tracked.end.column, line: tracked.end.marker.line },
-                        start: {
-                            column: tracked.start.column,
-                            line: tracked.start.marker.line,
-                        },
-                    },
-                )
-            )
+            const existingRange = oscLinkRange(
+                terminal,
+                existing.buffer,
+                existing.start,
+                existing.end,
+            );
+            if (!existingRange) {
+                removeOscLink(existing.start.marker.id);
+                continue;
+            }
+            if (areTerminalOscLinkRangesOverlapping(existingRange, trackedRange))
                 removeOscLink(existing.start.marker.id);
         }
         while (
@@ -134,9 +192,20 @@ export function registerTerminalOscLinkTracker(
             pending.start.marker.dispose();
             return;
         }
+        const endColumn = pending.buffer.cursorX;
+        const cursorLine = pending.buffer.baseY + pending.buffer.cursorY;
+        const endAnchor = terminalOscLinkCellAnchor(pending.buffer, terminal.cols, {
+            column: endColumn,
+            line: cursorLine,
+        });
+        if (!endAnchor) {
+            pending.start.marker.dispose();
+            return;
+        }
+        const endMarker = terminal.registerMarker(endAnchor.line - cursorLine);
         const end: OscLinkPosition = {
-            column: pending.buffer.cursorX,
-            marker: terminal.registerMarker(),
+            cellOffset: endAnchor.cellOffset,
+            marker: endMarker,
         };
         const fingerprint = oscLinkFingerprint(terminal, pending.buffer, pending.start, end);
         if (!fingerprint) {
@@ -158,54 +227,67 @@ export function registerTerminalOscLinkTracker(
         const match =
             target && target.length <= MAX_TERMINAL_LINK_LENGTH ? matchTarget(target) : undefined;
         if (match) {
+            const buffer = terminal.buffer.active;
+            const column = buffer.cursorX;
+            const cursorLine = buffer.baseY + buffer.cursorY;
+            const anchor = terminalOscLinkCellAnchor(buffer, terminal.cols, {
+                column,
+                line: cursorLine,
+            });
+            if (!anchor) return false;
+            const marker = terminal.registerMarker(anchor.line - cursorLine);
             pendingOscLink = {
-                buffer: terminal.buffer.active,
+                buffer,
                 match,
                 start: {
-                    column: terminal.buffer.active.cursorX,
-                    marker: terminal.registerMarker(),
+                    cellOffset: anchor.cellOffset,
+                    marker,
                 },
             };
         }
         return false;
     });
-    const restoreOscLinks = (snapshots: readonly TerminalOscLinkSnapshot[]): void => {
-        for (const id of trackedOscLinks.keys()) removeOscLink(id);
-        const activeBuffer = terminal.buffer.active;
-        const cursorLine = activeBuffer.baseY + activeBuffer.cursorY;
-        let restoredCells = 0;
-        let restoredTargetCharacters = 0;
+    const restoreBufferSnapshots = (activeBuffer: IBuffer): void => {
+        const buffer =
+            activeBuffer === terminal.buffer.normal
+                ? 'normal'
+                : activeBuffer === terminal.buffer.alternate
+                  ? 'alternate'
+                  : undefined;
+        if (!buffer) return;
+        const snapshots = pendingRestorations.get(buffer);
+        if (!snapshots) return;
+        pendingRestorations.delete(buffer);
         for (const snapshot of snapshots) {
-            const startPosition = {
-                column: snapshot.startColumn,
-                line: cursorLine + snapshot.startCursorOffset,
-            };
-            const endPosition = {
-                column: snapshot.endColumn,
-                line: cursorLine + snapshot.endCursorOffset,
-            };
-            const cellSpan = terminalOscLinkCellSpan(terminal.cols, startPosition, endPosition);
-            if (
-                cellSpan === undefined ||
-                restoredCells + cellSpan > MAX_TERMINAL_OSC_LINK_CELLS ||
-                restoredTargetCharacters + snapshot.target.length >
-                    MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS
-            )
-                continue;
             const match = matchTarget(snapshot.target);
             if (!match) continue;
-            const startMarker = terminal.registerMarker(snapshot.startCursorOffset);
-            const endMarker = terminal.registerMarker(snapshot.endCursorOffset);
-            const start = { column: snapshot.startColumn, marker: startMarker };
-            const end = { column: snapshot.endColumn, marker: endMarker };
+            const resolved = resolveOscLinkSnapshot(terminal, activeBuffer, snapshot);
+            if (!resolved) continue;
+            const { end: endPosition, start: startPosition } = resolved;
+            const cursorLine = activeBuffer.baseY + activeBuffer.cursorY;
+            const startAnchor = terminalOscLinkCellAnchor(
+                activeBuffer,
+                terminal.cols,
+                startPosition,
+            );
+            const endAnchor = terminalOscLinkCellAnchor(activeBuffer, terminal.cols, endPosition);
+            if (!startAnchor || !endAnchor) continue;
+            const startMarker = terminal.registerMarker(startAnchor.line - cursorLine);
+            const endMarker = terminal.registerMarker(endAnchor.line - cursorLine);
+            const start = {
+                cellOffset: snapshot.startCellOffset,
+                marker: startMarker,
+            };
+            const end = {
+                cellOffset: snapshot.endCellOffset,
+                marker: endMarker,
+            };
             const fingerprint = oscLinkFingerprint(terminal, activeBuffer, start, end);
-            if (!fingerprint) {
+            if (fingerprint !== snapshot.fingerprint) {
                 startMarker.dispose();
                 endMarker.dispose();
                 continue;
             }
-            restoredCells += cellSpan;
-            restoredTargetCharacters += snapshot.target.length;
             retainOscLink({
                 buffer: activeBuffer,
                 cellCount: terminalOscLinkFingerprintCellCount(fingerprint),
@@ -216,6 +298,39 @@ export function registerTerminalOscLinkTracker(
             });
         }
     };
+    const restoreOscLinks = (snapshots: readonly TerminalOscLinkSnapshot[]): void => {
+        for (const id of trackedOscLinks.keys()) removeOscLink(id);
+        pendingRestorations.clear();
+        let restoredCells = 0;
+        let restoredTargetCharacters = 0;
+        for (const snapshot of snapshots) {
+            const snapshotBuffer =
+                snapshot.buffer === 'normal' ? terminal.buffer.normal : terminal.buffer.alternate;
+            /**
+             * Resolve and verify the logical coordinate now, but retain it for a second resolution when an inactive
+             * buffer becomes active. xterm can reflow the hidden normal buffer between those points; physical rows and
+             * cursor offsets cannot represent that lifecycle safely.
+             */
+            const resolved = resolveOscLinkSnapshot(terminal, snapshotBuffer, snapshot);
+            if (!resolved) continue;
+            const { fingerprint } = resolved;
+            const cellSpan = terminalOscLinkFingerprintCellCount(snapshot.fingerprint);
+            if (
+                fingerprint !== snapshot.fingerprint ||
+                restoredCells + cellSpan > MAX_TERMINAL_OSC_LINK_CELLS ||
+                restoredTargetCharacters + snapshot.target.length >
+                    MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS
+            )
+                continue;
+            restoredCells += cellSpan;
+            restoredTargetCharacters += snapshot.target.length;
+            const pending = pendingRestorations.get(snapshot.buffer) ?? [];
+            pending.push(snapshot);
+            pendingRestorations.set(snapshot.buffer, pending);
+        }
+        restoreBufferSnapshots(terminal.buffer.active);
+    };
+    const bufferChangeDisposable = terminal.buffer.onBufferChange(restoreBufferSnapshots);
     return {
         getViewportLinks() {
             const activeBuffer = terminal.buffer.active;
@@ -225,16 +340,22 @@ export function registerTerminalOscLinkTracker(
             for (const link of trackedOscLinks.values()) {
                 const { buffer, end, fingerprint, match, start } = link;
                 if (buffer !== activeBuffer) continue;
-                const currentFingerprint = oscLinkFingerprint(terminal, buffer, start, end);
-                if (!currentFingerprint || currentFingerprint !== fingerprint) {
-                    removeOscLink(start.marker.id);
+                const startMarkerId = start.marker.id;
+                const range = oscLinkRange(terminal, buffer, start, end);
+                if (!range) {
+                    removeOscLink(startMarkerId);
                     continue;
                 }
-                if (end.marker.line < firstVisibleLine || start.marker.line > lastVisibleLine)
+                const currentFingerprint = oscLinkFingerprint(terminal, buffer, start, end);
+                if (!currentFingerprint || currentFingerprint !== fingerprint) {
+                    removeOscLink(startMarkerId);
+                    continue;
+                }
+                if (range.end.line < firstVisibleLine || range.start.line > lastVisibleLine)
                     continue;
                 links.push({
-                    bufferLine: start.marker.line,
-                    id: `osc:${start.marker.id}:${match.text}`,
+                    bufferLine: range.start.line,
+                    id: `osc:${startMarkerId}:${match.text}`,
                     match,
                 });
             }
@@ -242,9 +363,11 @@ export function registerTerminalOscLinkTracker(
         },
         restoreOscLinks,
         dispose() {
+            bufferChangeDisposable.dispose();
             parserDisposable.dispose();
             pendingOscLink?.start.marker.dispose();
             pendingOscLink = undefined;
+            pendingRestorations.clear();
             for (const id of trackedOscLinks.keys()) removeOscLink(id);
         },
     };

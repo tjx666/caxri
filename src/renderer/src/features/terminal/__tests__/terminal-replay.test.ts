@@ -245,10 +245,14 @@ describe('TerminalReplayCoordinator', () => {
         const events: string[] = [];
         const oscLinks = [
             {
-                endColumn: 5,
-                endCursorOffset: 0,
-                startColumn: 0,
-                startCursorOffset: 0,
+                buffer: 'normal' as const,
+                endCellOffset: 5,
+                endLogicalLineIndex: 0,
+                endLogicalLineOffset: -1,
+                fingerprint: '5:1625091293',
+                startCellOffset: 0,
+                startLogicalLineIndex: 0,
+                startLogicalLineOffset: -1,
                 target: 'https://example.com/snapshot',
             },
         ];
@@ -272,6 +276,45 @@ describe('TerminalReplayCoordinator', () => {
             'links:https://example.com/snapshot',
             'write:live-output',
         ]);
+    });
+
+    it('does not restore OSC links after pane disposal wins an in-flight snapshot write', async () => {
+        const write = Promise.withResolvers<void>();
+        const restoredTargets: string[] = [];
+        const coordinator = new TerminalReplayCoordinator(
+            () => write.promise,
+            () => {},
+            {
+                restoreSnapshotLinks: ({ oscLinks }) => {
+                    const target = oscLinks?.[0]?.target;
+                    if (target) restoredTargets.push(target);
+                },
+            },
+        );
+        const restoration = coordinator.restoreInitial({
+            cols: 80,
+            oscLinks: [
+                {
+                    buffer: 'normal',
+                    endCellOffset: 5,
+                    endLogicalLineIndex: 0,
+                    endLogicalLineOffset: -1,
+                    fingerprint: '5:1625091293',
+                    startCellOffset: 0,
+                    startLogicalLineIndex: 0,
+                    startLogicalLineOffset: -1,
+                    target: 'https://example.com/late',
+                },
+            ],
+            payload: 'snapshot',
+            rows: 24,
+        });
+
+        coordinator.dispose();
+        write.resolve();
+        await restoration;
+
+        expect(restoredTargets).toEqual([]);
     });
 
     it('settles an early reattachment when disposed before the initial snapshot returns', async () => {

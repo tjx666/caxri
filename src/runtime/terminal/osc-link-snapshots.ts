@@ -8,13 +8,16 @@ import {
 } from '../../shared/ipc';
 import {
     areTerminalOscLinkRangesOverlapping,
+    resolveTerminalOscLinkCellOffset,
+    terminalOscLinkCellAnchor,
     terminalOscLinkFingerprint,
     terminalOscLinkFingerprintCellCount,
+    terminalOscLinkLogicalPosition,
 } from '../../shared/terminal-osc-link-fingerprint';
 import type { TerminalOscLinkSnapshot } from '../../shared/types';
 
 interface OscLinkPosition {
-    column: number;
+    cellOffset: number;
     marker: IMarker;
 }
 
@@ -30,19 +33,38 @@ interface TrackedOscLink extends PendingOscLink {
     fingerprint: string;
 }
 
-function areRangesOverlapping(left: TrackedOscLink, right: TrackedOscLink): boolean {
+function currentRange(
+    columns: number,
+    tracked: Pick<TrackedOscLink, 'buffer' | 'end' | 'start'>,
+): { end: { column: number; line: number }; start: { column: number; line: number } } | undefined {
+    const start = resolveTerminalOscLinkCellOffset(
+        tracked.buffer,
+        columns,
+        tracked.start.marker.line,
+        tracked.start.cellOffset,
+    );
+    const end = resolveTerminalOscLinkCellOffset(
+        tracked.buffer,
+        columns,
+        tracked.end.marker.line,
+        tracked.end.cellOffset,
+    );
+    if (!start || !end) return;
+    return { end, start };
+}
+
+function areRangesOverlapping(
+    columns: number,
+    left: TrackedOscLink,
+    right: TrackedOscLink,
+): boolean {
+    const leftRange = currentRange(columns, left);
+    const rightRange = currentRange(columns, right);
     return (
         left.buffer === right.buffer &&
-        areTerminalOscLinkRangesOverlapping(
-            {
-                end: { column: left.end.column, line: left.end.marker.line },
-                start: { column: left.start.column, line: left.start.marker.line },
-            },
-            {
-                end: { column: right.end.column, line: right.end.marker.line },
-                start: { column: right.start.column, line: right.start.marker.line },
-            },
-        )
+        leftRange !== undefined &&
+        rightRange !== undefined &&
+        areTerminalOscLinkRangesOverlapping(leftRange, rightRange)
     );
 }
 
@@ -63,11 +85,20 @@ export class TerminalOscLinkSnapshots {
             const separator = data.indexOf(';');
             const target = separator === -1 ? '' : data.slice(separator + 1);
             if (target && target.length <= MAX_TERMINAL_LINK_LENGTH) {
+                const buffer = terminal.buffer.active;
+                const column = buffer.cursorX;
+                const cursorLine = buffer.baseY + buffer.cursorY;
+                const anchor = terminalOscLinkCellAnchor(buffer, terminal.cols, {
+                    column,
+                    line: cursorLine,
+                });
+                if (!anchor) return false;
+                const marker = terminal.registerMarker(anchor.line - cursorLine);
                 this.pending = {
-                    buffer: terminal.buffer.active,
+                    buffer,
                     start: {
-                        column: terminal.buffer.active.cursorX,
-                        marker: terminal.registerMarker(),
+                        cellOffset: anchor.cellOffset,
+                        marker,
                     },
                     target,
                 };
@@ -84,41 +115,64 @@ export class TerminalOscLinkSnapshots {
             pending.start.marker.dispose();
             return;
         }
+        const endColumn = pending.buffer.cursorX;
+        const cursorLine = pending.buffer.baseY + pending.buffer.cursorY;
+        const endAnchor = terminalOscLinkCellAnchor(pending.buffer, this.terminal.cols, {
+            column: endColumn,
+            line: cursorLine,
+        });
+        if (!endAnchor) {
+            pending.start.marker.dispose();
+            return;
+        }
+        const endMarker = this.terminal.registerMarker(endAnchor.line - cursorLine);
         const end: OscLinkPosition = {
-            column: pending.buffer.cursorX,
-            marker: this.terminal.registerMarker(),
+            cellOffset: endAnchor.cellOffset,
+            marker: endMarker,
         };
+        const tracked = {
+            ...pending,
+            end,
+        };
+        const range = currentRange(this.terminal.cols, tracked);
+        if (!range) {
+            pending.start.marker.dispose();
+            end.marker.dispose();
+            return;
+        }
         const fingerprint = terminalOscLinkFingerprint(
             this.terminal.cols,
             pending.buffer,
-            { column: pending.start.column, line: pending.start.marker.line },
-            { column: end.column, line: end.marker.line },
+            range.start,
+            range.end,
         );
         if (!fingerprint) {
             pending.start.marker.dispose();
             end.marker.dispose();
             return;
         }
-        const tracked = {
+        const completed = {
             ...pending,
             cellCount: terminalOscLinkFingerprintCellCount(fingerprint),
             end,
             fingerprint,
         };
         for (const existing of this.tracked.values())
-            if (areRangesOverlapping(existing, tracked)) this.remove(existing.start.marker.id);
+            if (areRangesOverlapping(this.terminal.cols, existing, completed))
+                this.remove(existing.start.marker.id);
         while (
             this.tracked.size >= MAX_TERMINAL_OSC_LINKS ||
-            this.cellCount + tracked.cellCount > MAX_TERMINAL_OSC_LINK_CELLS ||
-            this.targetCharacters + tracked.target.length > MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS
+            this.cellCount + completed.cellCount > MAX_TERMINAL_OSC_LINK_CELLS ||
+            this.targetCharacters + completed.target.length >
+                MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS
         ) {
             const oldestId = this.tracked.keys().next().value;
             if (oldestId === undefined) break;
             this.remove(oldestId);
         }
-        this.tracked.set(pending.start.marker.id, tracked);
-        this.cellCount += tracked.cellCount;
-        this.targetCharacters += tracked.target.length;
+        this.tracked.set(pending.start.marker.id, completed);
+        this.cellCount += completed.cellCount;
+        this.targetCharacters += completed.target.length;
         const remove = () => this.remove(pending.start.marker.id);
         pending.start.marker.onDispose(remove);
         end.marker.onDispose(remove);
@@ -134,27 +188,63 @@ export class TerminalOscLinkSnapshots {
         if (!tracked.end.marker.isDisposed) tracked.end.marker.dispose();
     }
 
-    snapshot(): TerminalOscLinkSnapshot[] {
+    snapshot(normalBufferStartLine = 0): TerminalOscLinkSnapshot[] {
         const activeBuffer = this.terminal.buffer.active;
-        const cursorLine = activeBuffer.baseY + activeBuffer.cursorY;
+        const normalBuffer = this.terminal.buffer.normal;
+        const terminalColumns = this.terminal.cols;
         const snapshots: TerminalOscLinkSnapshot[] = [];
         for (const tracked of this.tracked.values()) {
-            if (tracked.buffer !== activeBuffer) continue;
-            const fingerprint = terminalOscLinkFingerprint(
-                this.terminal.cols,
+            const buffer =
+                tracked.buffer === normalBuffer
+                    ? 'normal'
+                    : tracked.buffer === activeBuffer && activeBuffer.type === 'alternate'
+                      ? 'alternate'
+                      : undefined;
+            if (!buffer) continue;
+            const range = currentRange(terminalColumns, tracked);
+            if (!range) {
+                this.remove(tracked.start.marker.id);
+                continue;
+            }
+            const minimumLine = buffer === 'normal' ? normalBufferStartLine : 0;
+            const start = terminalOscLinkLogicalPosition(
                 tracked.buffer,
-                { column: tracked.start.column, line: tracked.start.marker.line },
-                { column: tracked.end.column, line: tracked.end.marker.line },
+                terminalColumns,
+                range.start,
+                minimumLine,
+            );
+            const end = terminalOscLinkLogicalPosition(
+                tracked.buffer,
+                terminalColumns,
+                range.end,
+                minimumLine,
+            );
+            if (!start || !end) continue;
+            const fingerprint = terminalOscLinkFingerprint(
+                terminalColumns,
+                tracked.buffer,
+                range.start,
+                range.end,
             );
             if (fingerprint !== tracked.fingerprint) {
                 this.remove(tracked.start.marker.id);
                 continue;
             }
             snapshots.push({
-                endColumn: tracked.end.column,
-                endCursorOffset: tracked.end.marker.line - cursorLine,
-                startColumn: tracked.start.column,
-                startCursorOffset: tracked.start.marker.line - cursorLine,
+                buffer,
+                endCellOffset: end.cellOffset,
+                /**
+                 * SerializeAddon can restore an inactive normal buffer with a different cursor row, and xterm can
+                 * reflow it again before activation. Dual-ended logical wrapped-line coordinates preserve the label
+                 * identity across cursor drift, trailing viewport changes, and bounded scrollback trims without
+                 * retaining Terminal output.
+                 */
+                endLogicalLineIndex: end.logicalLineIndex,
+                endLogicalLineOffset: end.logicalLineOffset,
+                fingerprint,
+                startCellOffset: start.cellOffset,
+                startLogicalLineIndex: start.logicalLineIndex,
+                startLogicalLineOffset: start.logicalLineOffset,
                 target: tracked.target,
             });
         }
