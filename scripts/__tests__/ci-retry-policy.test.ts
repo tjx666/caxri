@@ -238,6 +238,30 @@ describe('CI retry policy', () => {
         });
     });
 
+    it('does not hide an explicit standalone checks failure behind a concurrent receipt', () => {
+        expect(
+            extractGreenRunEvidence(
+                {
+                    conclusion: 'failure',
+                    event: 'pull_request',
+                    head_sha: 'a'.repeat(40),
+                    id: 790,
+                    path: '.github/workflows/ci.yml',
+                    pull_requests: [],
+                    repository: { full_name: 'tjx666/caxri' },
+                },
+                [
+                    { conclusion: 'failure', name: 'checks' },
+                    {
+                        conclusion: 'success',
+                        name: 'e2e',
+                        steps: [{ conclusion: 'success', name: 'Verify full platform checks' }],
+                    },
+                ],
+            ),
+        ).toMatchObject({ checksConclusion: 'failure', fullChecksConclusion: undefined });
+    });
+
     it('disables rename detection so moving product code into an allowed path cannot hide it', () => {
         expect(greenReuseDiffArguments('ancestor', 'current')).toEqual([
             'diff',

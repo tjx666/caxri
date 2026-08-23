@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { authenticatedGitEnvironment, checksWorktreePath } from '../ci-checks-worktree';
-import { isVerificationPassed } from '../ci-concurrent-validation';
+import {
+    authenticatedGitEnvironment,
+    checksWorktreePath,
+    sanitizedChildEnvironment,
+} from '../ci-checks-worktree';
+import {
+    concurrentValidationProvenance,
+    isVerificationPassed,
+    parseConcurrentValidationReceipt,
+} from '../ci-concurrent-validation';
 import { platformCheckCommands } from '../ci-platform-checks';
 
 const greenReceipt = {
@@ -13,6 +21,15 @@ const greenReceipt = {
     failureIsolation: 0,
     manifest: 0,
     parallelSafe: 0,
+    provenance: {
+        checksRevision: 'b'.repeat(40),
+        exactHead: 'a'.repeat(40),
+        parallelWorkers: 3,
+        profile: 'optimized' as const,
+        runAttempt: '1',
+        runId: '123',
+    },
+    version: 1 as const,
 };
 
 describe('concurrent CI validation', () => {
@@ -49,6 +66,35 @@ describe('concurrent CI validation', () => {
         expect(isVerificationPassed({ ...greenReceipt, failureCensus: 1 }, 'e2e-auxiliary')).toBe(
             false,
         );
+        expect(
+            isVerificationPassed(greenReceipt, 'checks', {
+                ...greenReceipt.provenance,
+                runAttempt: '2',
+            }),
+        ).toBe(false);
+        expect(() => parseConcurrentValidationReceipt({ checks: 0 })).toThrow(
+            'Invalid concurrent validation receipt',
+        );
+    });
+
+    it('derives immutable receipt provenance from the current Actions attempt', () => {
+        expect(
+            concurrentValidationProvenance({
+                CAXRI_CHECKS_REVISION: 'b'.repeat(40),
+                CAXRI_E2E_PARALLEL_WORKERS: '3',
+                CAXRI_E2E_PROFILE: 'optimized',
+                CAXRI_EXPECTED_HEAD: 'a'.repeat(40),
+                GITHUB_RUN_ATTEMPT: '2',
+                GITHUB_RUN_ID: '456',
+            }),
+        ).toEqual({
+            checksRevision: 'b'.repeat(40),
+            exactHead: 'a'.repeat(40),
+            parallelWorkers: 3,
+            profile: 'optimized',
+            runAttempt: '2',
+            runId: '456',
+        });
     });
 
     it('derives the disposable checks checkout only from the owned E2E temp root', () => {
@@ -64,6 +110,12 @@ describe('concurrent CI validation', () => {
                 TMPDIR: '/private/tmp/unowned',
             }),
         ).toThrow('Invalid E2E runner owner');
+        expect(() =>
+            checksWorktreePath({
+                CAXRI_RUNNER_OWNER: 'caxri-123-1-e2e',
+                TMPDIR: '/tmp/foreign-root',
+            }),
+        ).toThrow('does not match the owned short temporary path');
     });
 
     it('authenticates a missing synthetic merge fetch without persisting the job token', () => {
@@ -82,5 +134,8 @@ describe('concurrent CI validation', () => {
         });
         expect(environment.GIT_CONFIG_VALUE_1).toMatch(/^AUTHORIZATION: basic /u);
         expect(environment.GIT_CONFIG_VALUE_1).not.toContain('job-token');
+        expect(
+            sanitizedChildEnvironment({ CAXRI_GITHUB_TOKEN: 'job-token', SAFE_VALUE: 'kept' }),
+        ).toEqual({ SAFE_VALUE: 'kept' });
     });
 });

@@ -324,21 +324,14 @@ export function extractGreenRunEvidence(
     jobs: WorkflowJobRecord[],
 ): GreenRunEvidence {
     const identity = extractBaseRunIdentity(run.pull_requests, jobs);
-    const checks = jobs.find(({ name }) => name === 'checks');
-    const concurrentChecks = jobs
-        .find(({ name }) => name === 'e2e')
-        ?.steps?.find(({ name }) => name === fullChecksReceiptStep);
-    const checksConclusion =
-        checks?.conclusion === 'success' ? checks.conclusion : concurrentChecks?.conclusion;
+    const checksEvidence = resolveChecksEvidence(jobs);
     const e2e = summarizeE2EJobs(jobs);
     return {
         baseSha: identity.baseSha,
-        checksConclusion,
+        checksConclusion: checksEvidence.checksConclusion,
         e2eConclusion: e2e.e2eConclusion,
         event: run.event ?? '',
-        fullChecksConclusion:
-            concurrentChecks?.conclusion ??
-            checks?.steps?.find(({ name }) => name === 'Run ESLint')?.conclusion,
+        fullChecksConclusion: checksEvidence.fullChecksConclusion,
         gateConclusion: jobs.find(({ name }) => name === 'CI gate')?.conclusion,
         headSha: run.head_sha ?? '',
         id: run.id ?? 0,
@@ -346,6 +339,27 @@ export function extractGreenRunEvidence(
         repository: run.repository?.full_name ?? '',
         runConclusion: run.conclusion,
         workflowPath: run.path,
+    };
+}
+
+function resolveChecksEvidence(jobs: WorkflowJobRecord[] | undefined): {
+    checksConclusion?: string;
+    fullChecksConclusion?: string;
+} {
+    const checks = jobs?.find(({ name }) => name === 'checks');
+    if (checks?.conclusion && checks.conclusion !== 'skipped') {
+        return {
+            checksConclusion: checks.conclusion,
+            fullChecksConclusion: checks.steps?.find(({ name }) => name === 'Run ESLint')
+                ?.conclusion,
+        };
+    }
+    const concurrentChecks = jobs
+        ?.find(({ name }) => name === 'e2e')
+        ?.steps?.find(({ name }) => name === fullChecksReceiptStep);
+    return {
+        checksConclusion: concurrentChecks?.conclusion,
+        fullChecksConclusion: concurrentChecks?.conclusion,
     };
 }
 
@@ -364,14 +378,10 @@ async function loadBaseRun(repo: string, runId: number): Promise<BaseRunEvidence
     const jobs = jobsValue as { jobs?: WorkflowJobRecord[] };
     const identity = extractBaseRunIdentity(run.pull_requests, jobs.jobs);
     const e2e = summarizeE2EJobs(jobs.jobs);
-    const checks = jobs.jobs?.find(({ name }) => name === 'checks');
-    const concurrentChecks = jobs.jobs
-        ?.find(({ name }) => name === 'e2e')
-        ?.steps?.find(({ name }) => name === fullChecksReceiptStep);
+    const checksEvidence = resolveChecksEvidence(jobs.jobs);
     return {
         baseSha: identity.baseSha,
-        checksConclusion:
-            checks?.conclusion === 'success' ? checks.conclusion : concurrentChecks?.conclusion,
+        checksConclusion: checksEvidence.checksConclusion,
         ...e2e,
         event: run.event ?? '',
         headSha: run.head_sha ?? '',

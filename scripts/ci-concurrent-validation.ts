@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
@@ -17,6 +17,15 @@ const receiptPath = resolve(
 type ConcurrentValidationComponent =
     'checks' | 'desktop-exclusive' | 'e2e-auxiliary' | 'parallel-safe';
 
+interface ConcurrentValidationProvenance {
+    checksRevision: string;
+    exactHead: string;
+    parallelWorkers: number;
+    profile: 'optimized';
+    runAttempt: string;
+    runId: string;
+}
+
 interface ConcurrentValidationReceipt {
     checks: number;
     ciParity: number | null;
@@ -26,6 +35,87 @@ interface ConcurrentValidationReceipt {
     failureIsolation: number | null;
     manifest: number | null;
     parallelSafe: number | null;
+    provenance: ConcurrentValidationProvenance;
+    version: 1;
+}
+
+type E2EValidationResults = Omit<ConcurrentValidationReceipt, 'checks' | 'provenance' | 'version'>;
+
+function requiredEnvironment(environment: NodeJS.ProcessEnv, key: string): string {
+    const value = environment[key];
+    if (!value || value.includes('\n')) throw new Error(`${key} is required and must be one line`);
+    return value;
+}
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
+export function concurrentValidationProvenance(
+    environment: NodeJS.ProcessEnv,
+): ConcurrentValidationProvenance {
+    const exactHead = requiredEnvironment(environment, 'CAXRI_EXPECTED_HEAD');
+    const checksRevision = requiredEnvironment(environment, 'CAXRI_CHECKS_REVISION');
+    if (!/^[0-9a-f]{40}$/u.test(exactHead) || !/^[0-9a-f]{40}$/u.test(checksRevision)) {
+        throw new Error('Invalid concurrent validation revision');
+    }
+    const parallelWorkers = requiredEnvironment(environment, 'CAXRI_E2E_PARALLEL_WORKERS');
+    if (!['2', '3', '4'].includes(parallelWorkers)) {
+        throw new Error('Invalid concurrent validation worker count');
+    }
+    const profile = requiredEnvironment(environment, 'CAXRI_E2E_PROFILE');
+    if (profile !== 'optimized') throw new Error('Concurrent validation requires optimized E2E');
+    const runAttempt = requiredEnvironment(environment, 'GITHUB_RUN_ATTEMPT');
+    const runId = requiredEnvironment(environment, 'GITHUB_RUN_ID');
+    if (!/^[1-9]\d*$/u.test(runId) || !/^[1-9]\d*$/u.test(runAttempt)) {
+        throw new Error('Invalid concurrent validation run identity');
+    }
+    return {
+        checksRevision,
+        exactHead,
+        parallelWorkers: Number(parallelWorkers),
+        profile,
+        runAttempt,
+        runId,
+    };
+}
+
+function isExitCode(value: unknown): value is number {
+    return Number.isSafeInteger(value) && Number(value) >= 0;
+}
+
+function isOptionalExitCode(value: unknown): value is number | null {
+    return value === null || isExitCode(value);
+}
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
+export function parseConcurrentValidationReceipt(value: unknown): ConcurrentValidationReceipt {
+    if (!value || typeof value !== 'object')
+        throw new Error('Invalid concurrent validation receipt');
+    const receipt = value as Partial<ConcurrentValidationReceipt>;
+    const provenance = (value as { provenance?: Partial<ConcurrentValidationProvenance> })
+        .provenance;
+    if (
+        !provenance ||
+        typeof provenance !== 'object' ||
+        receipt.version !== 1 ||
+        !/^[0-9a-f]{40}$/u.test(provenance.checksRevision ?? '') ||
+        !/^[0-9a-f]{40}$/u.test(provenance.exactHead ?? '') ||
+        ![2, 3, 4].includes(provenance.parallelWorkers ?? 0) ||
+        provenance.profile !== 'optimized' ||
+        !/^[1-9]\d*$/u.test(provenance.runAttempt ?? '') ||
+        !/^[1-9]\d*$/u.test(provenance.runId ?? '') ||
+        !isExitCode(receipt.checks) ||
+        !isExitCode(receipt.e2eSetup) ||
+        ![
+            receipt.ciParity,
+            receipt.desktopExclusive,
+            receipt.failureCensus,
+            receipt.failureIsolation,
+            receipt.manifest,
+            receipt.parallelSafe,
+        ].every(isOptionalExitCode)
+    ) {
+        throw new Error('Invalid concurrent validation receipt');
+    }
+    return receipt as ConcurrentValidationReceipt;
 }
 
 async function run(
@@ -50,7 +140,7 @@ function measured(label: string, command: string, arguments_: string[]): string[
     return ['run', 'scripts/ci-metrics.ts', '--label', label, '--', command, ...arguments_];
 }
 
-async function runE2E(): Promise<Omit<ConcurrentValidationReceipt, 'checks'>> {
+async function runE2E(): Promise<E2EValidationResults> {
     const spike = await run(
         'bun',
         measured('Electron native compatibility', 'bun', ['run', 'spike:native']),
@@ -147,7 +237,9 @@ async function writeReceipt(receipt: ConcurrentValidationReceipt): Promise<void>
 export function isVerificationPassed(
     receipt: ConcurrentValidationReceipt,
     component: ConcurrentValidationComponent,
+    expectedProvenance: ConcurrentValidationProvenance = receipt.provenance,
 ): boolean {
+    if (JSON.stringify(receipt.provenance) !== JSON.stringify(expectedProvenance)) return false;
     if (component === 'checks') return receipt.checks === 0;
     if (component === 'parallel-safe') return receipt.parallelSafe === 0;
     if (component === 'desktop-exclusive') return receipt.desktopExclusive === 0;
@@ -163,17 +255,21 @@ export function isVerificationPassed(
 async function execute(): Promise<void> {
     const checksWorktree = process.env.CAXRI_CHECKS_WORKTREE;
     if (!checksWorktree) throw new Error('CAXRI_CHECKS_WORKTREE is required');
+    const provenance = concurrentValidationProvenance(process.env);
+    await rm(receiptPath, { force: true });
     const checksPromise = run('bun', ['run', 'scripts/ci-platform-checks.ts'], {
         cwd: checksWorktree,
         label: 'Full platform checks',
     });
     const [checks, e2e] = await Promise.all([checksPromise, runE2E()]);
-    await writeReceipt({ checks, ...e2e });
+    await writeReceipt({ checks, ...e2e, provenance, version: 1 });
 }
 
 async function verify(component: ConcurrentValidationComponent): Promise<void> {
-    const receipt = JSON.parse(await readFile(receiptPath, 'utf8')) as ConcurrentValidationReceipt;
-    if (!isVerificationPassed(receipt, component)) {
+    const receipt = parseConcurrentValidationReceipt(
+        JSON.parse(await readFile(receiptPath, 'utf8')),
+    );
+    if (!isVerificationPassed(receipt, component, concurrentValidationProvenance(process.env))) {
         throw new Error(`${component} validation failed: ${JSON.stringify(receipt)}`);
     }
 }
