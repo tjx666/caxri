@@ -50,6 +50,18 @@ const ELEVATED_ARGUMENTS: Record<AgentProvider, ReadonlySet<string>> = {
 };
 
 /**
+ * Endpoint names follow the durable conversation title only after provider metadata has established that conversation.
+ * Before then, the catalog title avoids replaying a stale semantic title into a fresh Agent generation. Endpoint names
+ * are creation-time metadata; Caxri deliberately has no dynamic rename protocol.
+ */
+function agentEndpointName(
+    terminal: Pick<TerminalRecord, 'agentSessionId' | 'title'>,
+    provider: AgentProvider,
+): string {
+    return terminal.agentSessionId ? terminal.title : agentProviderCatalog[provider].displayName;
+}
+
+/**
  * Only exact built-in launch configuration is known-standard; all custom evidence fails closed.
  */
 export function classifyAgentPermission(
@@ -135,7 +147,7 @@ export class RuntimeAgentEndpointLifecycle {
             projectId,
             provider: terminal.kind,
             launchId,
-            name: terminal.title,
+            name: agentEndpointName(terminal, terminal.kind),
             permissionClass: classifyAgentPermission(terminal.kind, settings.launch),
             /**
              * A credential exists for the child env before spawn, but the Host keeps it inert.
