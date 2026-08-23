@@ -174,6 +174,37 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         expect(terminalPaneId).toBeTruthy();
         await expect.poll(() => activePaneId(running.page)).toBe(terminalPaneId);
 
+        await running.page.evaluate(() => {
+            const controls = (
+                globalThis as unknown as {
+                    caxriE2E: { resetSessionStateUpdateCount: () => void };
+                }
+            ).caxriE2E;
+            controls.resetSessionStateUpdateCount();
+        });
+        await fileTab.getByRole('tab').click();
+        await running.page.evaluate(
+            () =>
+                new Promise<void>((resolve) => {
+                    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+                }),
+        );
+        const clickPersistenceCount = await running.page.evaluate(() =>
+            (
+                globalThis as unknown as {
+                    caxriE2E: { sessionStateUpdateCount: () => number };
+                }
+            ).caxriE2E.sessionStateUpdateCount(),
+        );
+        /**
+         * One inactive-pane tab click selects the tab and its pane through one state transition. The pane's focus
+         * capture must not persist the same SessionState first and leave tab selection to persist it a second time.
+         */
+        expect(clickPersistenceCount).toBe(1);
+        await expect.poll(() => activePaneId(running.page)).toBe(documentPaneId);
+        await terminalTab.getByRole('tab').click();
+        await expect.poll(() => activePaneId(running.page)).toBe(terminalPaneId);
+
         /**
          * Every pane's active tab is `tabIndex=0`, so plain `Tab` traversal can put focus in a pane the user has not
          * clicked. That is a real pane change: leaving `activePaneId` behind would point the focus ring, the Status
