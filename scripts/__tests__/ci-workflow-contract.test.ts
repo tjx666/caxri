@@ -41,11 +41,15 @@ describe('CI workflow contract', () => {
     it('uses one shared setup action with runner-local caches and pinned tools', () => {
         expect(workflow.match(/uses: \.\/\.github\/actions\/setup-caxri-job/gu)).toHaveLength(3);
         expect(workflow).not.toContain('actions/cache@');
-        expect(setupAction).toContain('uses: actions/setup-node@v7');
+        expect(setupAction).toContain(
+            'uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7',
+        );
         expect(setupAction).toContain('name: Read mise tool versions');
         expect(setupAction).toContain('node-version: ${{ steps.tool_versions.outputs.node }}');
         expect(setupAction).toContain('package-manager-cache: false');
-        expect(setupAction).toContain('uses: pnpm/setup@v2');
+        expect(setupAction).toContain(
+            'uses: pnpm/setup@c8e77b72cd6022852162c92aa10e7e72b7209c9b # v2',
+        );
         expect(setupAction).toContain('version: ${{ steps.tool_versions.outputs.pnpm }}');
         expect(setupAction).toContain("steps.pnpm_toolchain.outputs.cached != 'true'");
         expect(setupAction).toContain(

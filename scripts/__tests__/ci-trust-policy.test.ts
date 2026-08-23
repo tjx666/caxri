@@ -270,7 +270,9 @@ describe('CI trust policy', () => {
             const guardIndex = steps.findIndex(
                 (step) => step.name === 'Verify runner boundary before checkout',
             );
-            const checkoutIndex = steps.findIndex((step) => step.uses === 'actions/checkout@v7');
+            const checkoutIndex = steps.findIndex((step) =>
+                step.uses?.startsWith('actions/checkout@'),
+            );
             const guard = steps[guardIndex]?.run ?? '';
 
             expect(guardIndex, `${location} pre-checkout runner guard`).toBeGreaterThanOrEqual(0);
