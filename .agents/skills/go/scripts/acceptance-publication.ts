@@ -4,6 +4,7 @@ import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { z } from 'zod';
 
 import { captureCommand } from './command-runner';
+import type { HandoffReportReceipt } from './handoff-report';
 import { PROJECT_ROOT, RECORDS_ROOT } from './paths';
 
 const MAX_CLI_OUTPUT_BYTES = 5 * 1024 * 1024;
@@ -60,6 +61,7 @@ interface PublicationState {
         waivedHeadSha: string | null;
         waiverReason: string | null;
     };
+    handoffReport: HandoffReportReceipt | null;
     phase: string;
     pullRequest: { headSha: string | null };
 }
@@ -450,6 +452,7 @@ export function restartAcceptanceLineage(
     state.acceptance.url = null;
     state.acceptance.waivedHeadSha = null;
     state.acceptance.waiverReason = null;
+    state.handoffReport = null;
 }
 
 export async function publishAcceptanceRound(
