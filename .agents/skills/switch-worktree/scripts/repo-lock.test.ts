@@ -66,4 +66,38 @@ describe('repository lock publication', () => {
         await expect(operation).resolves.toBeUndefined();
         expect(await isPathPresent(lockPath)).toBe(false);
     });
+
+    it('lets two contenders converge after reclaiming one stale repository lock', async () => {
+        const context = await repoContext(await createRepo());
+        const lockPath = join(context.stateDir, 'operation.lock');
+        const cleanupPath = join(context.stateDir, 'operation-lock-cleanup');
+        await mkdir(lockPath, { recursive: true });
+        await writeFile(
+            join(lockPath, 'owner.json'),
+            JSON.stringify({
+                identity: 'stale-process-identity',
+                pid: process.pid,
+                startedAt: new Date().toISOString(),
+            }),
+            'utf8',
+        );
+
+        let activeTasks = 0;
+        let maximumActiveTasks = 0;
+        const runContender = (name: string): Promise<string> =>
+            withRepoLock(context, async () => {
+                activeTasks += 1;
+                maximumActiveTasks = Math.max(maximumActiveTasks, activeTasks);
+                await new Promise<void>((resolve) => setTimeout(resolve, 25));
+                activeTasks -= 1;
+                return name;
+            });
+
+        await expect(Promise.all([runContender('first'), runContender('second')])).resolves.toEqual(
+            expect.arrayContaining(['first', 'second']),
+        );
+        expect(maximumActiveTasks).toBe(1);
+        expect(await isPathPresent(lockPath)).toBe(false);
+        expect(await isPathPresent(cleanupPath)).toBe(false);
+    }, 15_000);
 });
