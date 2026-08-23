@@ -52,7 +52,22 @@ export function createSettingsWriteCoordinator(
         keybindings: 0,
         theme: 0,
     };
+    const reconciliationsInFlight: Record<ConfigKind, number> = {
+        settings: 0,
+        keybindings: 0,
+        theme: 0,
+    };
+    const followUpReconciliation: Record<ConfigKind, boolean> = {
+        settings: false,
+        keybindings: false,
+        theme: false,
+    };
     const inFlightSources: Record<ConfigKind, Map<string, number[]>> = {
+        settings: new Map(),
+        keybindings: new Map(),
+        theme: new Map(),
+    };
+    const untrustedSources: Record<ConfigKind, Map<string, number>> = {
         settings: new Map(),
         keybindings: new Map(),
         theme: new Map(),
@@ -77,20 +92,31 @@ export function createSettingsWriteCoordinator(
         return true;
     };
 
-    const retireOwnWrite = (kind: ConfigKind, source: string, generation: number): void => {
-        const sources = inFlightSources[kind];
-        const remaining = sources.get(source)?.filter((candidate) => candidate !== generation);
-        if (!remaining?.length) sources.delete(source);
-        else sources.set(source, remaining);
-    };
-
+    /**
+     * A retired token remains a one-shot ambiguity marker. Its eventual event may be either a delayed local echo or an
+     * external editor restoring identical text, so matching it must re-read Runtime instead of applying either guess.
+     */
     const retireOwnWritesThrough = (kind: ConfigKind, generation: number): void => {
         const sources = inFlightSources[kind];
         for (const [source, generationsForSource] of sources) {
             const remaining = generationsForSource.filter((candidate) => candidate > generation);
+            const retiredCount = generationsForSource.length - remaining.length;
+            if (retiredCount > 0) {
+                const retiredSources = untrustedSources[kind];
+                retiredSources.set(source, (retiredSources.get(source) ?? 0) + retiredCount);
+            }
             if (remaining.length === 0) sources.delete(source);
             else sources.set(source, remaining);
         }
+    };
+
+    const hasRemovedUntrustedSource = (kind: ConfigKind, source: string): boolean => {
+        const sources = untrustedSources[kind];
+        const count = sources.get(source);
+        if (count === undefined) return false;
+        if (count === 1) sources.delete(source);
+        else sources.set(source, count - 1);
+        return true;
     };
 
     const isOwnEcho = (kind: ConfigKind, source: string): boolean =>
@@ -108,8 +134,15 @@ export function createSettingsWriteCoordinator(
      */
     const supersede = (kind: ConfigKind): void => {
         cancelTimer(kind);
-        inFlightSources[kind].clear();
+        retireOwnWritesThrough(kind, generations[kind]);
         generations[kind] += 1;
+    };
+
+    const shouldRunFollowUpReconciliation = (kind: ConfigKind): boolean => {
+        reconciliationsInFlight[kind] -= 1;
+        if (reconciliationsInFlight[kind] !== 0 || !followUpReconciliation[kind]) return false;
+        followUpReconciliation[kind] = false;
+        return true;
     };
 
     /**
@@ -124,6 +157,7 @@ export function createSettingsWriteCoordinator(
             retireOwnWritesThrough(kind, generation);
             return;
         }
+        reconciliationsInFlight[kind] += 1;
         try {
             const apply = await options.read(kind);
             if (
@@ -135,24 +169,29 @@ export function createSettingsWriteCoordinator(
             options.onError(error, kind);
         } finally {
             retireOwnWritesThrough(kind, generation);
+            if (shouldRunFollowUpReconciliation(kind)) {
+                // eslint-disable-next-line no-void -- the queued read reports failures through onError.
+                void reconcile(kind);
+            }
         }
     };
 
     /**
      * A failed request can still have committed in Runtime. Keep its token recognizable while the authoritative read is
-     * pending, then retire only that request so an older failure never invalidates a newer in-flight write.
+     * pending, then retire every token at or before that request. Any later matching event is ambiguous and converges
+     * through another read, while tokens from genuinely newer writes remain recognizable.
      */
     const reconcileUncertainWrite = async (
         kind: ConfigKind,
-        source: string,
         writeGeneration: number,
     ): Promise<void> => {
         if (!options.read) {
-            retireOwnWrite(kind, source, writeGeneration);
+            retireOwnWritesThrough(kind, writeGeneration);
             return;
         }
         const generation = generations[kind];
         const reconciliationGeneration = ++reconciliationGenerations[kind];
+        reconciliationsInFlight[kind] += 1;
         try {
             const apply = await options.read(kind);
             if (
@@ -163,7 +202,11 @@ export function createSettingsWriteCoordinator(
         } catch (error) {
             options.onError(error, kind);
         } finally {
-            retireOwnWrite(kind, source, writeGeneration);
+            retireOwnWritesThrough(kind, writeGeneration);
+            if (shouldRunFollowUpReconciliation(kind)) {
+                // eslint-disable-next-line no-void -- the queued read reports failures through onError.
+                void reconcile(kind);
+            }
         }
     };
 
@@ -175,14 +218,24 @@ export function createSettingsWriteCoordinator(
             return;
         }
         if (isOwnEcho(kind, payload.source)) {
-            // The echo proves a write committed after any already-issued read. Invalidate only those reads; the write
-            // response still owns its normal apply path and may carry derived data such as keybinding conflicts.
-            reconciliationGenerations[kind] += 1;
+            if (reconciliationsInFlight[kind] > 0) {
+                /**
+                 * A read issued before this echo can contain a stale snapshot. Invalidate it and queue one fresh read
+                 * after every current read settles; the write response still keeps its independent apply path.
+                 */
+                reconciliationGenerations[kind] += 1;
+                followUpReconciliation[kind] = true;
+            }
             options.onOwnEcho?.(
                 kind,
                 payload.source,
                 payload.source === options.currentSource?.(kind),
             );
+            return;
+        }
+        if (hasRemovedUntrustedSource(kind, payload.source)) {
+            // eslint-disable-next-line no-void -- the synchronous event boundary reports read failures through onError.
+            void reconcile(kind);
             return;
         }
         if (payload.source === options.appliedSource?.(kind)) return;
@@ -205,10 +258,10 @@ export function createSettingsWriteCoordinator(
                 /**
                  * A request can reject after Runtime has committed and broadcast the write (for example, when
                  * post-write Settings reconciliation fails). The result is therefore indeterminate: report the request
-                 * error, then re-read that ConfigKind and retire only this write's now-untrustworthy echo marker.
+                 * error, then re-read that ConfigKind and retire every marker no newer than this write.
                  */
                 options.onError(error, kind);
-                await reconcileUncertainWrite(kind, source, generation);
+                await reconcileUncertainWrite(kind, generation);
             }
         })();
     };

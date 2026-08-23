@@ -165,12 +165,55 @@ describe('settings write coordinator', () => {
 
             readResponse.resolve(() => appliedReads.push(kind));
             await readResponse.promise;
-            await Promise.resolve();
-            expect(appliedReads).toEqual([]);
+            await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+            await vi.waitFor(() => expect(appliedReads).toEqual([kind]));
             await vi.advanceTimersByTimeAsync(300);
 
             expect(persist).toHaveBeenNthCalledWith(1, kind, 'first-source');
             expect(persist).toHaveBeenNthCalledWith(2, kind, 'second-source');
+        },
+    );
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        're-reads retired %s sources without cancelling a newer pending draft',
+        async (kind) => {
+            vi.useFakeTimers();
+            const firstResponse = Promise.withResolvers<() => void>();
+            const secondResponse = Promise.withResolvers<() => void>();
+            const persist = vi
+                .fn()
+                .mockReturnValueOnce(firstResponse.promise)
+                .mockReturnValueOnce(secondResponse.promise)
+                .mockResolvedValueOnce(vi.fn());
+            const onExternalChange = vi.fn();
+            const onOwnEcho = vi.fn();
+            const read = vi.fn().mockResolvedValue(vi.fn());
+            const coordinator = createSettingsWriteCoordinator({
+                debounceMs: 300,
+                onError: vi.fn(),
+                onExternalChange,
+                onOwnEcho,
+                persist,
+                read,
+            });
+
+            coordinator.persistNow(kind, 'older-source');
+            coordinator.persistNow(kind, 'confirmed-source');
+            secondResponse.reject(new Error('confirmed write response failed'));
+            await expect(secondResponse.promise).rejects.toThrow('confirmed write response failed');
+            await Promise.resolve();
+            await Promise.resolve();
+            expect(read).toHaveBeenCalledTimes(1);
+
+            coordinator.schedule(kind, 'pending-source');
+            coordinator.handleChanged(kind, { source: 'older-source' });
+            coordinator.handleChanged(kind, { source: 'confirmed-source' });
+
+            expect(read).toHaveBeenCalledTimes(3);
+            expect(onExternalChange).not.toHaveBeenCalled();
+            expect(onOwnEcho).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(300);
+            expect(persist).toHaveBeenNthCalledWith(3, kind, 'pending-source');
         },
     );
 
@@ -207,7 +250,7 @@ describe('settings write coordinator', () => {
 
             readResponse.resolve(() => appliedReads.push(kind));
             await recovery;
-            expect(appliedReads).toEqual([]);
+            await vi.waitFor(() => expect(appliedReads).toEqual([kind]));
             await vi.advanceTimersByTimeAsync(300);
 
             expect(persist).toHaveBeenNthCalledWith(1, kind, 'first-source');
@@ -216,7 +259,35 @@ describe('settings write coordinator', () => {
     );
 
     it.each(['settings', 'keybindings', 'theme'] as const)(
-        'does not let a %s snapshot recovery gap leave a stale echo token',
+        'drops a stale %s recovery read after a newer local echo and follows it with a fresh read',
+        async (kind) => {
+            const persistResponse = Promise.withResolvers<() => void>();
+            const firstRead = Promise.withResolvers<() => void>();
+            const appliedReads: string[] = [];
+            const read = vi
+                .fn()
+                .mockReturnValueOnce(firstRead.promise)
+                .mockResolvedValueOnce(() => appliedReads.push('fresh'));
+            const coordinator = createSettingsWriteCoordinator({
+                currentSource: () => 'committed-source',
+                onError: vi.fn(),
+                onOwnEcho: vi.fn(),
+                persist: vi.fn().mockReturnValue(persistResponse.promise),
+                read,
+            });
+
+            coordinator.persistNow(kind, 'committed-source');
+            const recovery = coordinator.reconcile(kind);
+            coordinator.handleChanged(kind, { source: 'committed-source' });
+            firstRead.resolve(() => appliedReads.push('stale'));
+            await recovery;
+            await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+            await vi.waitFor(() => expect(appliedReads).toEqual(['fresh']));
+        },
+    );
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        're-reads an ambiguous %s source after snapshot recovery retires its token',
         async (kind) => {
             const response = Promise.withResolvers<() => void>();
             const onExternalChange = vi.fn();
@@ -233,11 +304,11 @@ describe('settings write coordinator', () => {
             // The local `*.changed` envelope is lost when journal recovery falls back to a snapshot.
             await coordinator.reconcile(kind);
             coordinator.handleChanged(kind, { source: 'committed-source' });
+            await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2));
 
-            expect(read).toHaveBeenCalledWith(kind);
-            expect(onExternalChange).toHaveBeenCalledWith(kind, {
-                source: 'committed-source',
-            });
+            expect(read).toHaveBeenNthCalledWith(1, kind);
+            expect(read).toHaveBeenNthCalledWith(2, kind);
+            expect(onExternalChange).not.toHaveBeenCalled();
         },
     );
 
