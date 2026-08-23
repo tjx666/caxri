@@ -286,6 +286,7 @@ describe('FileService', () => {
         try {
             const entries = await service.list(session.id);
             expect(entries.map((entry) => entry.name)).toEqual(['stays.txt']);
+            await logger.flush();
             const records = (await readFile(logger.path, 'utf8'))
                 .trim()
                 .split('\n')

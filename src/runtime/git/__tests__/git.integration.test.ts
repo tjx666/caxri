@@ -104,6 +104,7 @@ describe('GitService', () => {
         expect(summary.repositories[0].files.map((file) => file.path)).toEqual(
             expect.arrayContaining(['tracked.txt', 'new.txt']),
         );
+        await logger.flush();
         const records = (await readFile(logger.path, 'utf8'))
             .trim()
             .split('\n')
