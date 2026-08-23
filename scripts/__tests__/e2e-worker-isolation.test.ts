@@ -1,8 +1,13 @@
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { desktopCommandEnvironment } from '../../.agents/skills/switch-worktree/scripts/switch-worktree';
 import {
     e2eWorkerTemporaryDirectory,
+    removeE2EWorkerTemporaryDirectory,
     resolveE2EClipboardPolicy,
     resolveE2EWorkerIsolation,
 } from '../../e2e/support/worker-isolation';
@@ -75,6 +80,76 @@ describe('E2E worker isolation', () => {
             }),
         ).toBe('/tmp/caxri-e2e-parallel-safe-1');
         expect(e2eWorkerTemporaryDirectory('/tmp', {})).toBeUndefined();
+    });
+
+    it('bounds recursive worker cleanup while a late nested file appears', async () => {
+        const parent = await mkdtemp(join(tmpdir(), 'caxri-e2e-worker-cleanup-'));
+        const workerDirectory = join(parent, 'caxri-e2e-parallel-safe-1');
+        const sibling = join(parent, 'preserve.txt');
+        await mkdir(workerDirectory, { recursive: true });
+        await writeFile(sibling, 'preserve', 'utf8');
+        let removeCalls = 0;
+        const delays: number[] = [];
+
+        try {
+            await removeE2EWorkerTemporaryDirectory(workerDirectory, {
+                remove: async (path, options) => {
+                    removeCalls += 1;
+                    expect(path).toBe(workerDirectory);
+                    expect(options).toEqual({ force: true, recursive: true });
+                    if (removeCalls === 1) {
+                        await mkdir(join(workerDirectory, 'shell-integration'), {
+                            recursive: true,
+                        });
+                        await writeFile(
+                            join(workerDirectory, 'shell-integration', 'late.json'),
+                            '{}',
+                            'utf8',
+                        );
+                        throw Object.assign(new Error('late worker entry'), {
+                            code: 'ENOTEMPTY',
+                            path: workerDirectory,
+                        });
+                    }
+                    return rm(path, options);
+                },
+                wait: (delay) => {
+                    delays.push(delay);
+                    return Promise.resolve();
+                },
+            });
+
+            expect(removeCalls).toBe(2);
+            expect(delays).toEqual([100]);
+            await expect(access(workerDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
+            await expect(readFile(sibling, 'utf8')).resolves.toBe('preserve');
+        } finally {
+            await rm(parent, { force: true, recursive: true });
+        }
+    });
+
+    it('propagates the final worker cleanup error unchanged', async () => {
+        const path = '/tmp/caxri-e2e-parallel-safe-1';
+        const failures = Array.from({ length: 4 }, (_, index) =>
+            Object.assign(new Error(`worker cleanup attempt ${index + 1} stayed non-empty`), {
+                code: 'ENOTEMPTY',
+                path,
+            }),
+        );
+        const delays: number[] = [];
+        let attempt = 0;
+
+        await expect(
+            removeE2EWorkerTemporaryDirectory(path, {
+                remove: () => Promise.reject(failures[attempt++]),
+                wait: (delay) => {
+                    delays.push(delay);
+                    return Promise.resolve();
+                },
+            }),
+        ).rejects.toBe(failures.at(-1));
+        expect(attempt).toBe(4);
+        expect(delays).toEqual([100, 200, 300]);
     });
 
     it('fails closed when Playwright does not provide a valid parallel index', () => {

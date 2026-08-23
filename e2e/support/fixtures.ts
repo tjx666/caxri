@@ -1,11 +1,15 @@
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import process from 'node:process';
 
 import { expect, test as base } from '@playwright/test';
 
 import { runWithE2EErrorGate } from './error-gate.ts';
-import { e2eWorkerTemporaryDirectory, resolveE2EWorkerIsolation } from './worker-isolation.ts';
+import {
+    e2eWorkerTemporaryDirectory,
+    removeE2EWorkerTemporaryDirectory,
+    resolveE2EWorkerIsolation,
+} from './worker-isolation.ts';
 
 export { allowE2EErrors } from './error-gate.ts';
 
@@ -55,7 +59,7 @@ export const test = base.extend<E2EFixtures, E2EWorkerFixtures>({
                     else process.env[key] = value;
                 }
                 if (workerDirectory) {
-                    await rm(workerDirectory, { recursive: true, force: true });
+                    await removeE2EWorkerTemporaryDirectory(workerDirectory);
                 }
             } catch (error) {
                 failure ??= error;
