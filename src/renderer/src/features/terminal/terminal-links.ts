@@ -1,5 +1,4 @@
 import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
-import { sortBy } from 'es-toolkit';
 
 const MAX_LOGICAL_LINE_ROWS = 16;
 const MAX_LOGICAL_LINE_LENGTH = 16_384;
@@ -21,6 +20,15 @@ export interface TerminalLinkMatch {
     text: string;
     column?: number;
     line?: number;
+}
+
+/**
+ * Content-free work counters used to keep adversarial link scans deterministic in tests. The scanner never records the
+ * Terminal text or matched targets here.
+ */
+export interface TerminalLinkScanMetrics {
+    detectedLinkRangeVisits: number;
+    unsupportedHomeRangeVisits: number;
 }
 
 export interface TerminalLinkContext {
@@ -141,6 +149,30 @@ interface RawToken {
 }
 
 /**
+ * Merges the URL and file passes without re-sorting their already ordered results.
+ */
+function mergeTerminalLinks(
+    urls: TerminalLinkMatch[],
+    files: TerminalLinkMatch[],
+): TerminalLinkMatch[] {
+    const links: TerminalLinkMatch[] = [];
+    let urlIndex = 0;
+    let fileIndex = 0;
+    while (urlIndex < urls.length || fileIndex < files.length) {
+        const url = urls.at(urlIndex);
+        const file = files.at(fileIndex);
+        if (url && (!file || url.startIndex <= file.startIndex)) {
+            links.push(url);
+            urlIndex += 1;
+        } else if (file) {
+            links.push(file);
+            fileIndex += 1;
+        }
+    }
+    return links;
+}
+
+/**
  * Splits rendered text into file-path candidates at whitespace and every configured separator, the way VS Code's
  * word-link detection consumes `terminal.integrated.wordSeparators`. Splitting (not trimming) is what detaches a path
  * from glued prose such as `串联 (src/api/x.ts)` — the CJK prefix is not a wrapper character, so wrapper trimming alone
@@ -195,15 +227,19 @@ function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators: string
 export function findTerminalLinks(
     text: string,
     wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
+    metrics?: TerminalLinkScanMetrics,
 ): TerminalLinkMatch[] {
-    const links: TerminalLinkMatch[] = [];
+    const fileLinks: TerminalLinkMatch[] = [];
+    const urlLinks: TerminalLinkMatch[] = [];
     const unsupportedHomes = unsupportedHomeRanges(text);
+    let urlLinkIndex = 0;
+    let unsupportedHomeIndex = 0;
     for (const url of text.matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
         const raw = url[0];
         const rawStart = url.index;
         const trimmed = trimToken(raw);
         if (!trimmed.text) continue;
-        links.push({
+        urlLinks.push({
             endIndex: rawStart + trimmed.endOffset,
             kind: 'url',
             startIndex: rawStart + trimmed.startOffset,
@@ -219,17 +255,32 @@ export function findTerminalLinks(
         if (!trimmed.text) continue;
         const startIndex = rawStart + trimmed.startOffset;
         const endIndex = rawStart + trimmed.endOffset;
-        if (links.some((link) => startIndex < link.endIndex && endIndex > link.startIndex))
-            continue;
-        if (
-            unsupportedHomes.some(
-                (range) => startIndex < range.endIndex && endIndex > range.startIndex,
-            )
-        )
-            continue;
+        while (urlLinks[urlLinkIndex]?.endIndex <= startIndex) {
+            if (metrics) metrics.detectedLinkRangeVisits += 1;
+            urlLinkIndex += 1;
+        }
+        const urlLink = urlLinks.at(urlLinkIndex);
+        if (urlLink) {
+            if (metrics) metrics.detectedLinkRangeVisits += 1;
+            if (startIndex < urlLink.endIndex && endIndex > urlLink.startIndex) continue;
+        }
+        /**
+         * Both collections follow source order. Retire each completed range once, then compare the current token with
+         * at most the next range instead of restarting from the first range.
+         */
+        while (unsupportedHomes[unsupportedHomeIndex]?.endIndex <= startIndex) {
+            if (metrics) metrics.unsupportedHomeRangeVisits += 1;
+            unsupportedHomeIndex += 1;
+        }
+        const unsupportedHome = unsupportedHomes.at(unsupportedHomeIndex);
+        if (unsupportedHome) {
+            if (metrics) metrics.unsupportedHomeRangeVisits += 1;
+            if (startIndex < unsupportedHome.endIndex && endIndex > unsupportedHome.startIndex)
+                continue;
+        }
         const location = parseFileLocation(trimmed.text);
         if (!isLikelyFilePath(location.target)) continue;
-        links.push({
+        fileLinks.push({
             ...location,
             endIndex,
             kind: 'file',
@@ -237,7 +288,7 @@ export function findTerminalLinks(
             text: trimmed.text,
         });
     }
-    return sortBy(links, ['startIndex']);
+    return mergeTerminalLinks(urlLinks, fileLinks);
 }
 
 function normalizeAbsolutePath(path: string): string {

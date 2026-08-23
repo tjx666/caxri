@@ -127,6 +127,22 @@ describe('findTerminalLinks', () => {
         ).toEqual([]);
     });
 
+    it('visits unsupported Home ranges at most linearly for mixed-token input', () => {
+        const pairCount = 200;
+        const text = Array.from(
+            { length: pairCount },
+            (_, index) =>
+                `~user${index}/blocked.ts https://example.com/${index} allowed-${index}.ts`,
+        ).join(' ');
+        const metrics = { detectedLinkRangeVisits: 0, unsupportedHomeRangeVisits: 0 };
+
+        expect(findTerminalLinks(text, TERMINAL_DEFAULT_WORD_SEPARATORS, metrics)).toHaveLength(
+            pairCount * 2,
+        );
+        expect(metrics.detectedLinkRangeVisits).toBeLessThanOrEqual(pairCount * 5);
+        expect(metrics.unsupportedHomeRangeVisits).toBeLessThanOrEqual(pairCount * 5);
+    });
+
     it('keeps maximal trailing-bracket trimming bounded', () => {
         const text = `https://example.com/value${')'.repeat(16_000)}`;
         const startedAt = performance.now();
