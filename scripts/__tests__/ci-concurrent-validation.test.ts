@@ -1,9 +1,16 @@
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
 import { describe, expect, it } from 'vitest';
 
 import {
     authenticatedGitEnvironment,
     checksWorktreePath,
     sanitizedChildEnvironment,
+    verifyRevisionProvenance,
 } from '../ci-checks-worktree';
 import {
     concurrentValidationProvenance,
@@ -31,6 +38,8 @@ const greenReceipt = {
     },
     version: 1 as const,
 };
+
+const execFileAsync = promisify(execFile);
 
 describe('concurrent CI validation', () => {
     it('retains every full platform gate in its original fail-fast order', () => {
@@ -137,5 +146,57 @@ describe('concurrent CI validation', () => {
         expect(
             sanitizedChildEnvironment({ CAXRI_GITHUB_TOKEN: 'job-token', SAFE_VALUE: 'kept' }),
         ).toEqual({ SAFE_VALUE: 'kept' });
+    });
+
+    it('verifies raw synthetic merge parents after a depth-one fetch marks the commit shallow', async () => {
+        const fixtureRoot = await mkdtemp(join(tmpdir(), 'caxri-shallow-merge-'));
+        const source = join(fixtureRoot, 'source');
+        const shallow = join(fixtureRoot, 'shallow');
+
+        try {
+            await execFileAsync('git', ['init', source]);
+            await execFileAsync('git', ['config', 'user.name', 'Caxri CI'], { cwd: source });
+            await execFileAsync('git', ['config', 'user.email', 'ci@caxri.test'], { cwd: source });
+            await writeFile(join(source, 'fixture.txt'), 'base\n', 'utf8');
+            await execFileAsync('git', ['add', 'fixture.txt'], { cwd: source });
+            await execFileAsync('git', ['commit', '-m', 'base'], { cwd: source });
+            const { stdout: baseOutput } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+                cwd: source,
+            });
+            const baseRevision = baseOutput.trim();
+
+            await execFileAsync('git', ['checkout', '-b', 'feature'], { cwd: source });
+            await writeFile(join(source, 'fixture.txt'), 'feature\n', 'utf8');
+            await execFileAsync('git', ['commit', '-am', 'feature'], { cwd: source });
+            const { stdout: headOutput } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+                cwd: source,
+            });
+            const headRevision = headOutput.trim();
+
+            await execFileAsync('git', ['checkout', '-b', 'integration', baseRevision], {
+                cwd: source,
+            });
+            await execFileAsync('git', ['merge', '--no-ff', 'feature', '-m', 'synthetic merge'], {
+                cwd: source,
+            });
+            const { stdout: mergeOutput } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+                cwd: source,
+            });
+            const mergeRevision = mergeOutput.trim();
+
+            await execFileAsync('git', ['clone', '--depth=1', `file://${source}`, shallow]);
+            const { stdout: traversalParents } = await execFileAsync(
+                'git',
+                ['show', '-s', '--format=%P', 'HEAD'],
+                { cwd: shallow },
+            );
+            expect(traversalParents.trim()).toBe('');
+
+            await expect(
+                verifyRevisionProvenance(mergeRevision, baseRevision, headRevision, true, shallow),
+            ).resolves.toBeUndefined();
+        } finally {
+            await rm(fixtureRoot, { recursive: true });
+        }
     });
 });
