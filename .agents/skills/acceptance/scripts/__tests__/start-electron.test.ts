@@ -2,6 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import type { DesktopLeaseHandle } from '../../../switch-worktree/scripts/desktop-lease';
 import {
     createElectronStopController,
     createMacosAcceptanceLaunchController,
@@ -15,6 +16,7 @@ import {
     createMacosAcceptanceLaunchSpec,
     removeStaleRuntime,
     shouldPreserveInheritedRuntimeState,
+    transferDesktopLeaseAfterCdp,
     waitForCdp,
     waitForOwnedProcesses,
 } from '../start-electron';
@@ -348,5 +350,35 @@ describe('Acceptance Electron launcher seams', () => {
                 sleep,
             }),
         ).rejects.toThrow('Timed out waiting for CDP on port 9333');
+    });
+
+    it('transfers the desktop lease only after Electron exposes its stable CDP process identity', async () => {
+        const order: string[] = [];
+        const lease = { token: 'lease-token' } as DesktopLeaseHandle;
+        const transferredLease = {
+            ...lease,
+            identity: 'stable Caxri Dev identity',
+            pid: 1234,
+        };
+        const result = await transferDesktopLeaseAfterCdp(lease, 1234, 9333, childProcess(), {
+            getProcessIdentity: vi.fn(() => {
+                order.push('identity');
+                return Promise.resolve('stable Caxri Dev identity');
+            }),
+            transferDesktopLease: vi.fn(() => {
+                order.push('transfer');
+                return Promise.resolve(transferredLease);
+            }),
+            waitForCdp: vi.fn(() => {
+                order.push('cdp');
+                return Promise.resolve();
+            }),
+        });
+
+        expect(order).toEqual(['cdp', 'identity', 'transfer']);
+        expect(result).toEqual({
+            desktopLease: transferredLease,
+            electronIdentity: 'stable Caxri Dev identity',
+        });
     });
 });
