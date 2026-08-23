@@ -150,7 +150,7 @@ function PaneBox({
     const isOnlySessionTerminal = listPaneTerminalIds(layout).length === 1;
     // Workbench-wide for the same reason the tab bar's chrome is: a second tab in *any* pane is something to switch to,
     // so a split whose panes each hold one tab still needs the active accent and the "New Terminal" button.
-    const isSoleWorkbenchTab = listPaneTabs(layout).length === 1;
+    const hasTabsToSwitch = listPaneTabs(layout).length > 1;
     const canPreviewDrop = (event: DragEvent<HTMLElement>): boolean => {
         const isTabDrag = hasPaneTabDragType(event.dataTransfer.types);
         if (!isTabDrag && !(isAcceptsFileDrop && hasDraggedPath(event))) return false;
@@ -216,9 +216,9 @@ function PaneBox({
             onDragEnd={(event) => settlePaneActivation(event.currentTarget)}
         >
             <PaneTabBar
+                hasTabsToSwitch={hasTabsToSwitch}
                 isOnlySessionTerminal={isOnlySessionTerminal}
                 isRootBar={isLeading}
-                isSoleWorkbenchTab={isSoleWorkbenchTab}
                 pane={pane}
                 paneLabel={paneLabel}
             />
