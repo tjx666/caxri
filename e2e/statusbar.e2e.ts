@@ -138,9 +138,10 @@ exec /bin/zsh -l
         /**
          * The View chrome intentionally repeats the title in the tab and panel caption.
          */
-        await expect(
-            running.page.getByRole('tab', { name: 'Source Control', exact: true }),
-        ).toHaveAttribute('aria-selected', 'true');
+        await expect(running.page.getByRole('tab', { name: 'Git', exact: true })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
 
         await writeFile(join(root, 'untracked.txt'), 'new\n', 'utf8');
         await expect(

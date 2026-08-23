@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
+import type { CommandId } from '@shared/commands';
 import type {
     ExtensionBuiltinIconId,
     ViewContainerId,
@@ -8,8 +9,8 @@ import type {
 } from '@shared/views';
 import type { LucideIcon } from 'lucide-react';
 import {
+    Activity,
     AlertTriangle,
-    ChartNoAxesColumnIncreasing,
     Files,
     FlaskConical,
     GitBranch,
@@ -21,7 +22,9 @@ import {
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
 import { Button } from '../../components/ui/button';
+import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { tryCommand } from '../../stores/toasts';
 import { getBuiltinViewComponent } from './builtin-components';
@@ -37,8 +40,33 @@ const builtinIcons = {
 
 const extensionBuiltinIcons = {
     beaker: FlaskConical,
-    status: ChartNoAxesColumnIncreasing,
+    status: Activity,
 } satisfies Record<ExtensionBuiltinIconId, LucideIcon>;
+
+/**
+ * Icon-only SecondarySidebar tabs surface their title (and shortcut, when one is bound) through a tooltip instead of an
+ * inline label. `triggerId` must repeat the tab's own DOM id so Base UI's tooltip store keys to the id the tab
+ * renders.
+ */
+function ContainerTabTooltip({
+    children,
+    commandId,
+    title,
+    triggerId,
+}: {
+    children: ReactElement;
+    commandId: string;
+    title: string;
+    triggerId: string;
+}) {
+    // Builtin container commands are registry-backed CommandIds; extension ones simply have no bound shortcut.
+    const shortcut = useCommandShortcut(commandId as CommandId);
+    return (
+        <Tooltip content={title} shortcut={shortcut} triggerId={triggerId}>
+            {children}
+        </Tooltip>
+    );
+}
 
 function CatalogIcon({ icon }: { icon: ViewIcon }) {
     if (icon.kind === 'resource') return <img alt="" className="size-4" src={icon.dataUrl} />;
@@ -82,17 +110,21 @@ export function ViewContainerSurface({
     const catalog = catalogQuery.data;
     const containers = catalog.containers.filter((container) => container.location === location);
     const resolvedId = resolveViewContainerId(desiredId, location, catalog);
+    const idPrefix = location === 'panel' ? 'panel' : 'secondary-sidebar';
+    const containersById = new Map(containers.map((container) => [container.id, container]));
     const tabs = containers.map((container) => ({
         value: container.id,
         label: container.title,
-        content: (
-            <>
+        // SecondarySidebar tabs are icon-only (the title lives in the tooltip); Panel tabs keep their inline label.
+        content:
+            location === 'panel' ? (
+                <>
+                    <CatalogIcon icon={container.icon} />
+                    <span data-slot="chrome-tab-label">{container.title}</span>
+                </>
+            ) : (
                 <CatalogIcon icon={container.icon} />
-                <span className="max-[1100px]:hidden" data-slot="chrome-tab-label">
-                    {container.title}
-                </span>
-            </>
-        ),
+            ),
     }));
     return (
         <>
@@ -104,16 +136,31 @@ export function ViewContainerSurface({
                             ? 'flex h-9 items-end'
                             : 'grid h-11 flex-1 auto-cols-fr grid-flow-col items-end'
                     }
-                    idPrefix={location === 'panel' ? 'panel' : 'secondary-sidebar'}
-                    indicatorMaxWidth={location === 'secondarySidebar' ? 96 : undefined}
+                    idPrefix={idPrefix}
+                    indicatorMaxWidth={location === 'secondarySidebar' ? 48 : undefined}
                     items={tabs}
                     tabClassName={
-                        location === 'panel'
-                            ? 'h-9 gap-1.5 px-3 text-[11px]'
-                            : 'h-9 w-full gap-1 text-[11px]'
+                        location === 'panel' ? 'h-9 gap-1.5 px-3 text-[11px]' : 'h-9 w-full'
                     }
                     value={resolvedId ?? ''}
                     onValueChange={onSelect}
+                    renderTab={
+                        location === 'secondarySidebar'
+                            ? (item, tab) => {
+                                  const container = containersById.get(item.value);
+                                  if (!container) return tab;
+                                  return (
+                                      <ContainerTabTooltip
+                                          commandId={container.commandId}
+                                          title={container.title}
+                                          triggerId={`${idPrefix}-tab-${container.id}`}
+                                      >
+                                          {tab}
+                                      </ContainerTabTooltip>
+                                  );
+                              }
+                            : undefined
+                    }
                 />
                 {trailing}
             </div>
@@ -127,7 +174,7 @@ export function ViewContainerSurface({
                         key={container.id}
                         active={isActive}
                         className="flex min-h-0 flex-1 flex-col overflow-hidden [&>*]:min-h-0"
-                        idPrefix={location === 'panel' ? 'panel' : 'secondary-sidebar'}
+                        idPrefix={idPrefix}
                         value={container.id}
                     >
                         {isActive && container.error ? (

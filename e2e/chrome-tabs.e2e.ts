@@ -19,9 +19,9 @@ import { stableWidth } from './support/motion-settle.ts';
 const INDICATOR_INSET = 8;
 
 /**
- * Mirrors the `indicatorMaxWidth` the SecondarySidebar passes in `features/secondary-sidebar/secondary-sidebar.tsx`.
+ * Mirrors the `indicatorMaxWidth` the SecondarySidebar passes in `features/view-containers/view-container-surface.tsx`.
  */
-const INDICATOR_MAX_WIDTH = 96;
+const INDICATOR_MAX_WIDTH = 48;
 
 /**
  * The indicator is derived from the tab slot, not the label inside it: inset from both slot edges and centred in it.
@@ -82,7 +82,7 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         });
         const filesTab = secondarySidebarTabs.getByRole('tab', { name: 'Files', exact: true });
         const gitTab = secondarySidebarTabs.getByRole('tab', {
-            name: 'Source Control',
+            name: 'Git',
             exact: true,
         });
         const statusTab = secondarySidebarTabs.getByRole('tab', { name: 'Status', exact: true });
@@ -164,12 +164,14 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         await expect.poll(indicatorWidth).toBe(cappedWidth);
         await gitTab.click();
 
+        /**
+         * SecondarySidebar tabs are icon-only: the title lives in the tab's accessible name and tooltip, never in an
+         * inline label, so resizing the window must not change the tab content or the capped indicator.
+         */
         const originalViewport = running.page.viewportSize() ?? { width: 1280, height: 720 };
-        await running.page.setViewportSize({ width: 1200, height: originalViewport.height });
-        await expect(gitTab.locator('[data-slot="chrome-tab-label"]')).toBeVisible();
-        await expectIndicatorAligned(secondarySidebarTabs, gitTab);
+        await expect(gitTab.locator('[data-slot="chrome-tab-label"]')).toHaveCount(0);
         await running.page.setViewportSize({ width: 1000, height: originalViewport.height });
-        await expect(gitTab.locator('[data-slot="chrome-tab-label"]')).toBeHidden();
+        await expect(gitTab.locator('[data-slot="chrome-tab-label"]')).toHaveCount(0);
         await expectIndicatorAligned(secondarySidebarTabs, gitTab);
         await expect.poll(indicatorWidth).toBe(cappedWidth);
         await running.page.setViewportSize(originalViewport);

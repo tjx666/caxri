@@ -246,7 +246,7 @@ export const commandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'secondarySidebar.showGit',
-        title: 'Show Source Control',
+        title: 'Show Git',
         category: 'Secondary Side Bar',
         description: 'Show Source Control in the Secondary Side Bar',
     },
