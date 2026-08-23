@@ -15,6 +15,7 @@ import {
     splitTerminalToRight,
     waitForNewTerminalId,
 } from './support/helpers.ts';
+import { pollUntil } from './support/polling.ts';
 
 interface TerminalGlyphPixels {
     deviceX: number;
@@ -427,21 +428,26 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
         await pageRequest(running.page, 'theme.update', {
             source: JSON.stringify(contrastingTheme),
         });
-        await expect
-            .poll(() =>
+        const insetColors = await pollUntil(
+            () =>
                 running.page
                     .locator('.terminal-pane')
                     .first()
                     .evaluate((pane) => {
                         const viewport = pane.querySelector('.xterm-scrollable-element');
-                        if (!viewport) throw new Error('Terminal viewport is unavailable');
+                        if (!viewport) return null;
                         return {
                             inset: getComputedStyle(pane).backgroundColor,
                             viewport: getComputedStyle(viewport).backgroundColor,
                         };
                     }),
-            )
-            .toEqual({ inset: 'rgb(48, 64, 80)', viewport: 'rgb(48, 64, 80)' });
+            (colors) => colors.inset === 'rgb(48, 64, 80)' && colors.viewport === 'rgb(48, 64, 80)',
+            { message: 'Terminal inset and viewport colors' },
+        );
+        expect(insetColors).toEqual({
+            inset: 'rgb(48, 64, 80)',
+            viewport: 'rgb(48, 64, 80)',
+        });
 
         const terminalIds = (
             await pageRequest<{ terminals: Array<{ id: string }> }>(running.page, 'app.bootstrap')
