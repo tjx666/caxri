@@ -133,6 +133,7 @@ describe('Git commit history', () => {
             code: 'NOT_FOUND',
         });
 
+        await logger.flush();
         const records = (await readFile(logger.path, 'utf8'))
             .trim()
             .split('\n')

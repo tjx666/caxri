@@ -131,6 +131,7 @@ describe('Git ignored entry batches', () => {
             service.ignoredEntries(plainSession.id, nonGit, ['visible.ts']),
         ).resolves.toEqual({ ignoredNames: new Set(), rulePaths: [] });
 
+        await logger.flush();
         const records = (await readFile(logger.path, 'utf8'))
             .trim()
             .split('\n')
