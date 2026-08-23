@@ -564,6 +564,34 @@ describe('Go Acceptance round publication', () => {
             verdict: 'pass',
             verifyRunId: 'run-old',
         });
+        state.handoffReport = {
+            deliveredAt: '2026-08-11T01:00:00.000Z',
+            evidence: {
+                actionsUse: 'pinned',
+                commitFileMetrics: 'recorded',
+                costCheckpointCount: 1,
+                issueDriftAssessmentCount: 1,
+                issueDriftCommentCount: 0,
+                reviewBaselineId: 'review-001',
+                reviewDecisionCount: 1,
+                reviewLineageComplete: true,
+                reviewPolicyMode: 'light',
+                validationRepairCount: 0,
+            },
+            generatedAt: '2026-08-11T00:30:00.000Z',
+            headSha: 'head-1',
+            path: 'handoff-report.md',
+            sections: [
+                'delivery',
+                'review',
+                'technical-debt',
+                'workflow',
+                'cost',
+                'automation',
+                'boundaries',
+            ],
+            sha256: 'a'.repeat(64),
+        };
 
         state.phase = 'delivery';
         expect(() =>
@@ -598,6 +626,7 @@ describe('Go Acceptance round publication', () => {
         expect(state.acceptance.publication.orphanedStandalones).toEqual([
             expect.objectContaining({ acceptanceId: 'acc-old', verifyRunId: 'run-old' }),
         ]);
+        expect(state.handoffReport).toBeNull();
 
         const directory = await writeRound(1, 'head-1');
         const runner = vi
