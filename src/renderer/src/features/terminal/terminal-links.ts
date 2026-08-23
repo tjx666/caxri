@@ -1,3 +1,4 @@
+import type { TerminalOscLinkSnapshot } from '@shared/types';
 import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
 
 import {
@@ -56,6 +57,7 @@ export interface TerminalDetectedLink {
 export interface TerminalLinkRegistration {
     dispose(): void;
     getViewportLinks(): TerminalDetectedLink[];
+    restoreOscLinks(snapshots: readonly TerminalOscLinkSnapshot[]): void;
 }
 
 type ClosingBracket = ')' | ']' | '}';
@@ -593,7 +595,6 @@ function exactTerminalLinkTarget(
 export function registerTerminalLinks(
     terminal: Terminal,
     context: TerminalLinkContext,
-    oscPersistenceKey?: string,
 ): TerminalLinkRegistration {
     const hint = createLinkHintController(terminal);
     const disposable = terminal.registerLinkProvider({
@@ -613,10 +614,8 @@ export function registerTerminalLinks(
          */
         allowNonHttpProtocols: true,
     };
-    const oscTracker = registerTerminalOscLinkTracker(
-        terminal,
-        (target) => exactTerminalLinkTarget(target, context.wordSeparators),
-        oscPersistenceKey,
+    const oscTracker = registerTerminalOscLinkTracker(terminal, (target) =>
+        exactTerminalLinkTarget(target, context.wordSeparators),
     );
     return {
         getViewportLinks() {
@@ -640,6 +639,7 @@ export function registerTerminalLinks(
                 return true;
             });
         },
+        restoreOscLinks: (snapshots) => oscTracker.restoreOscLinks(snapshots),
         dispose() {
             hint.dispose();
             terminal.options.linkHandler = null;

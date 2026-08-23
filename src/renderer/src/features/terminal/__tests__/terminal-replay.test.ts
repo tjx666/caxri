@@ -241,6 +241,39 @@ describe('TerminalBackpressureRecovery', () => {
 });
 
 describe('TerminalReplayCoordinator', () => {
+    it('restores authoritative OSC links before parsing output queued behind the snapshot', async () => {
+        const events: string[] = [];
+        const oscLinks = [
+            {
+                endColumn: 5,
+                endCursorOffset: 0,
+                startColumn: 0,
+                startCursorOffset: 0,
+                target: 'https://example.com/snapshot',
+            },
+        ];
+        const coordinator = new TerminalReplayCoordinator(
+            (value) => {
+                events.push(`write:${value}`);
+                return Promise.resolve();
+            },
+            () => events.push('reset'),
+            {
+                restoreSnapshotLinks: (snapshot) =>
+                    events.push(`links:${snapshot.oscLinks?.[0]?.target}`),
+            },
+        );
+
+        coordinator.push('live-output');
+        await coordinator.restoreInitial({ cols: 80, oscLinks, payload: 'snapshot', rows: 24 });
+
+        expect(events).toEqual([
+            'write:snapshot',
+            'links:https://example.com/snapshot',
+            'write:live-output',
+        ]);
+    });
+
     it('settles an early reattachment when disposed before the initial snapshot returns', async () => {
         let snapshotLoads = 0;
         const coordinator = new TerminalReplayCoordinator(

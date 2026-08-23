@@ -5,8 +5,11 @@ import {
     gitCommitPageSchema,
     gitPullRequestChangesSchema,
     identifierSchema,
+    MAX_TERMINAL_LINK_LENGTH,
+    MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS,
     pathSchema,
     terminalKindSchema,
+    terminalSnapshotSchema,
     themeImportFormatIds,
     themeTokenSourceIds,
     themeTokensSchema,
@@ -38,6 +41,52 @@ describe('terminalKindSchema', () => {
 
     it('rejects an unregistered terminal kind', () => {
         expect(terminalKindSchema.safeParse('gemini').success).toBe(false);
+    });
+});
+
+describe('terminalSnapshotSchema OSC link bounds', () => {
+    const snapshot = {
+        byteCount: 5,
+        cols: 80,
+        encodingVersion: 3,
+        lineCount: 1,
+        payload: 'LABEL',
+        rows: 24,
+        terminalId: 'terminal-1',
+        updatedAt: 1,
+    };
+    const link = {
+        endColumn: 5,
+        endCursorOffset: 0,
+        startColumn: 0,
+        startCursorOffset: 0,
+        target: 'https://example.com',
+    };
+
+    it('accepts bounded Runtime-authoritative OSC link metadata', () => {
+        expect(terminalSnapshotSchema.safeParse({ ...snapshot, oscLinks: [link] }).success).toBe(
+            true,
+        );
+    });
+
+    it('rejects an oversized target or aggregate target payload', () => {
+        const oversizedTargetCount =
+            Math.floor(MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS / MAX_TERMINAL_LINK_LENGTH) + 1;
+        expect(
+            terminalSnapshotSchema.safeParse({
+                ...snapshot,
+                oscLinks: [{ ...link, target: 'x'.repeat(MAX_TERMINAL_LINK_LENGTH + 1) }],
+            }).success,
+        ).toBe(false);
+        expect(
+            terminalSnapshotSchema.safeParse({
+                ...snapshot,
+                oscLinks: Array.from({ length: oversizedTargetCount }, () => ({
+                    ...link,
+                    target: 'x'.repeat(MAX_TERMINAL_LINK_LENGTH),
+                })),
+            }).success,
+        ).toBe(false);
     });
 });
 

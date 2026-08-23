@@ -40,6 +40,25 @@ describe('TerminalScreenState', () => {
         screen.dispose();
     });
 
+    it('snapshots the current OSC 8 target when the same visible label is replaced', async () => {
+        const screen = new TerminalScreenState('', 20, 4);
+
+        screen.write('\u{1B}]8;;https://example.com/stale\u{7}LABEL\u{1B}]8;;\u{7}');
+        await screen.snapshot();
+        screen.write('\r\u{1B}]8;;https://example.com/authoritative\u{7}LABEL\u{1B}]8;;\u{7}');
+
+        expect((await screen.snapshot()).oscLinks).toEqual([
+            {
+                endColumn: 5,
+                endCursorOffset: 0,
+                startColumn: 0,
+                startCursorOffset: 0,
+                target: 'https://example.com/authoritative',
+            },
+        ]);
+        screen.dispose();
+    });
+
     it('reads a bounded parsed text tail across ANSI styling, carriage returns, and wrapped rows', async () => {
         const screen = new TerminalScreenState('', 80, 4);
 
