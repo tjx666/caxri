@@ -51,11 +51,14 @@ export type PublicationRecord = z.infer<typeof publicationRecordSchema>;
 
 interface PublicationState {
     acceptance: {
+        acceptedHeadSha: string | null;
         id: string | null;
         publication: AcceptancePublication;
         round: number;
         status: string;
         url: string | null;
+        waivedHeadSha: string | null;
+        waiverReason: string | null;
     };
     phase: string;
     pullRequest: { headSha: string | null };
@@ -402,6 +405,48 @@ export function recordOrphanedAcceptance(
     ) {
         state.acceptance.publication.pendingAttempt = null;
     }
+}
+
+/**
+ * Abandons an Acceptance that the current authenticated principal cannot append to while retaining every immutable
+ * publication receipt. This is intentionally explicit: ordinary publication and acceptance updates must never switch a
+ * frozen lineage just because a remote lookup failed.
+ */
+export function restartAcceptanceLineage(
+    state: PublicationState,
+    input: { acceptanceId: string; reason: string },
+    recordedAt = new Date().toISOString(),
+): void {
+    const acceptanceId = input.acceptanceId.trim();
+    if (!acceptanceId || acceptanceId !== state.acceptance.id) {
+        throw new Error('Acceptance lineage restart must name the active frozen Acceptance');
+    }
+    const reason = input.reason.trim();
+    if (!reason) throw new Error('Acceptance lineage restart requires an explicit reason');
+    if (state.acceptance.publication.pendingAttempt) {
+        throw new Error('Resolve or orphan the pending Acceptance publication before restarting');
+    }
+    const latest = state.acceptance.publication.history.findLast(
+        (record) => record.acceptanceId === acceptanceId,
+    );
+    if (!latest || latest.roundIndex !== state.acceptance.round) {
+        throw new Error(
+            'Active Acceptance lineage is missing its latest immutable publication receipt',
+        );
+    }
+
+    recordOrphanedAcceptance(
+        state,
+        { acceptanceId, reason, verifyRunId: latest.verifyRunId },
+        recordedAt,
+    );
+    state.acceptance.acceptedHeadSha = null;
+    state.acceptance.id = null;
+    state.acceptance.round = 0;
+    state.acceptance.status = 'not_started';
+    state.acceptance.url = null;
+    state.acceptance.waivedHeadSha = null;
+    state.acceptance.waiverReason = null;
 }
 
 export async function publishAcceptanceRound(

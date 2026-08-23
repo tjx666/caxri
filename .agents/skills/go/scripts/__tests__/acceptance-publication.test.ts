@@ -10,6 +10,7 @@ import {
     publishAcceptanceRound,
     recordOrphanedAcceptance,
     recordPublishedAcceptance,
+    restartAcceptanceLineage,
 } from '../acceptance-publication';
 import { createResumeCheckpoint } from '../resume';
 import { createInitialState, recordPullRequest } from '../state-model';
@@ -549,6 +550,64 @@ describe('Go Acceptance round publication', () => {
 
         expect(state.acceptance.publication.pendingAttempt).toBeNull();
         expect(state.acceptance.publication.orphanedStandalones).toHaveLength(1);
+    });
+
+    it('restarts an inaccessible frozen lineage without deleting its publication history', async () => {
+        const state = publicationState('restart-lineage');
+        recordPublishedAcceptance(state, {
+            acceptanceId: 'acc-old',
+            checkIds: ['acceptance-round-lineage'],
+            headSha: 'head-old',
+            publishedAt: '2026-08-11T00:00:00.000Z',
+            roundIndex: 1,
+            url: 'https://app.lobehub.com/acceptance/acc-old',
+            verdict: 'pass',
+            verifyRunId: 'run-old',
+        });
+
+        expect(() =>
+            restartAcceptanceLineage(state, {
+                acceptanceId: 'acc-other',
+                reason: '当前认证主体无法追加旧 Acceptance。',
+            }),
+        ).toThrow('active frozen Acceptance');
+
+        restartAcceptanceLineage(state, {
+            acceptanceId: 'acc-old',
+            reason: '当前认证主体无法追加旧 Acceptance。',
+        });
+
+        expect(state.acceptance).toMatchObject({
+            id: null,
+            round: 0,
+            status: 'not_started',
+            url: null,
+        });
+        expect(state.acceptance.publication.history).toEqual([
+            expect.objectContaining({ acceptanceId: 'acc-old', verifyRunId: 'run-old' }),
+        ]);
+        expect(state.acceptance.publication.orphanedStandalones).toEqual([
+            expect.objectContaining({ acceptanceId: 'acc-old', verifyRunId: 'run-old' }),
+        ]);
+
+        const directory = await writeRound(1, 'head-1');
+        const runner = vi
+            .fn()
+            .mockResolvedValueOnce(runListJson())
+            .mockResolvedValueOnce(ingestJson(1, 'acc-new', 'run-new'))
+            .mockResolvedValueOnce(viewJson({ acceptanceId: 'acc-new', verifyRunId: 'run-new' }));
+
+        await expect(
+            publishAcceptanceRound(
+                state,
+                { headSha: 'head-1', reportDirectory: directory },
+                runner,
+            ),
+        ).resolves.toMatchObject({ acceptanceId: 'acc-new', roundIndex: 1 });
+        expect(state.acceptance.publication.history).toEqual([
+            expect.objectContaining({ acceptanceId: 'acc-old' }),
+            expect.objectContaining({ acceptanceId: 'acc-new' }),
+        ]);
     });
 
     it('persists an unresolved ingest and retries only its remote readback', async () => {
