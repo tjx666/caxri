@@ -40,7 +40,7 @@ export function authenticatedGitEnvironment(environment: NodeJS.ProcessEnv): Nod
     const token = requiredEnvironment(environment, 'CAXRI_GITHUB_TOKEN');
     const authorization = Buffer.from(`x-access-token:${token}`).toString('base64');
     return {
-        ...environment,
+        ...sanitizedChildEnvironment(environment),
         GIT_CONFIG_COUNT: String(index + 1),
         [`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraheader',
         [`GIT_CONFIG_VALUE_${index}`]: `AUTHORIZATION: basic ${authorization}`,
@@ -132,6 +132,67 @@ async function ensureRevisionAvailable(
     return fetchedRevision;
 }
 
+async function readMergeBase(
+    revision: string,
+    baseRevision: string,
+    repoRoot: string,
+    environment: NodeJS.ProcessEnv,
+): Promise<string | undefined> {
+    try {
+        const { stdout } = await execFileAsync('git', ['merge-base', baseRevision, revision], {
+            cwd: repoRoot,
+            env: sanitizedChildEnvironment(environment),
+        });
+        const mergeBase = stdout.trim();
+        return /^[0-9a-f]{40}$/u.test(mergeBase) ? mergeBase : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * React Doctor derives changed scope through `git merge-base`. Depth-one fetches deliberately hide parent traversal, so
+ * deepen the two immutable revisions just enough to recover their common history and fail rather than silently falling
+ * back to a full-repository scan when that provenance cannot be established.
+ */
+async function ensureDiffBaseAvailable(
+    revision: string,
+    baseRevision: string,
+    isMergeRequired: boolean,
+    repoRoot: string,
+    environment: NodeJS.ProcessEnv,
+): Promise<void> {
+    let mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment);
+    for (const deepenBy of [1, 32, 128]) {
+        if (mergeBase) break;
+        // eslint-disable-next-line no-await-in-loop -- bounded progressive history fetch avoids a full clone normally
+        await execFileAsync(
+            'git',
+            ['fetch', '--no-tags', `--deepen=${deepenBy}`, 'origin', revision, baseRevision],
+            { cwd: repoRoot, env: authenticatedGitEnvironment(environment) },
+        );
+        // eslint-disable-next-line no-await-in-loop -- re-check after each bounded deepening step
+        mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment);
+    }
+    if (!mergeBase) {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--is-shallow-repository'], {
+            cwd: repoRoot,
+            env: sanitizedChildEnvironment(environment),
+        });
+        if (stdout.trim() === 'true') {
+            await execFileAsync(
+                'git',
+                ['fetch', '--no-tags', '--unshallow', 'origin', revision, baseRevision],
+                { cwd: repoRoot, env: authenticatedGitEnvironment(environment) },
+            );
+            mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment);
+        }
+    }
+    if (!mergeBase || (isMergeRequired && mergeBase !== baseRevision)) {
+        throw new Error('Checks revision does not have the required diff base');
+    }
+}
+
 /**
  * Reads parents from the commit object's immutable headers instead of revision traversal. A depth-one fetch marks
  * GitHub's synthetic merge commit as shallow, so `git show --format=%P` incorrectly reports no parents even though the
@@ -204,6 +265,13 @@ export async function createFetchedCheckout(
     const baseRevision = await ensureRevisionAvailable(
         options.expectedBaseRevision,
         options.baseFetchReference,
+        path,
+        environment,
+    );
+    await ensureDiffBaseAvailable(
+        revision,
+        baseRevision,
+        options.isMergeRequired,
         path,
         environment,
     );
