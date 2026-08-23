@@ -104,9 +104,11 @@ Vite's `.vite` directory is not a reusable production-output cache.
   worker count; a missing, stale, malformed, or non-zero component fails closed.
 - Focused checks, one-worker controls, retry-only runs, and non-full profiles keep their standalone
   paths. Only a full optimized run can replace the standalone checks job with the concurrent path.
-- Vitest defaults to the audited `optimized` partition with two workers. The `legacy` partition and
-  worker caps 1-4 remain workflow-dispatch controls for same-head measurement; real watcher,
-  process-global, bridge, and Git suites stay in `serial-native`.
+- Vitest defaults to the audited `optimized` partition. Automatic standalone checks use two
+  workers; the concurrent full path uses one so the complete Vitest suite leaves CPU headroom for
+  three Electron workers on the same runner. The `legacy` partition and worker caps 1-4 remain
+  workflow-dispatch controls for same-head measurement; real watcher, process-global, bridge, and
+  Git suites stay in `serial-native`.
 
 ## Comparison contract
 

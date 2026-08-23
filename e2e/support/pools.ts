@@ -27,7 +27,8 @@ export const clipboardCapabilitySpecs = [
 /**
  * Specs in this allowlist use only per-launch profiles, roots, logs, PTYs, and fake/blocked Agents. Everything else
  * remains `@desktop-exclusive` by default, especially native focus, clipboard, Process Explorer, Screencast,
- * performance, updater, and real-Agent coverage.
+ * performance, updater, real-Agent coverage, and lifecycle-refresh assertions that are timing-sensitive while the
+ * complete platform suite is saturating the same runner.
  */
 export const parallelSafeSpecs = [
     'e2e/agent-actions.e2e.ts',
@@ -49,7 +50,6 @@ export const parallelSafeSpecs = [
     'e2e/editor-split.e2e.ts',
     'e2e/editor-tabs.e2e.ts',
     'e2e/error-gate.e2e.ts',
-    'e2e/extensions.e2e.ts',
     'e2e/file-icons.e2e.ts',
     'e2e/file-terminal-drag.e2e.ts',
     'e2e/file-tree-git-ignore.e2e.ts',
@@ -82,7 +82,6 @@ export const parallelSafeSpecs = [
     'e2e/trusted-domains.e2e.ts',
     'e2e/work-tab-sizing.e2e.ts',
     'e2e/workbench-recovery.e2e.ts',
-    'e2e/workbench-root.e2e.ts',
 ] as const;
 
 export function createE2EPoolPlan(

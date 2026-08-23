@@ -268,6 +268,10 @@ describe('CI workflow contract', () => {
         expect(e2eJob).toContain('CAXRI_CHECKS_HEAD_REVISION:');
         expect(e2eJob).toContain('CAXRI_CHECKS_REQUIRE_MERGE:');
         expect(e2eJob).toContain('CAXRI_GITHUB_TOKEN: ${{ github.token }}');
+        expect(e2eJob).toContain(
+            "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}",
+        );
+        expect(e2eJob).toContain("VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}");
         expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts create');
         expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts remove');
         expect(e2eJob).toContain('run: bun run scripts/ci-concurrent-validation.ts run');
