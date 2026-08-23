@@ -14,7 +14,11 @@ import {
     transferDesktopLease,
 } from '../../switch-worktree/scripts/desktop-lease';
 import { assertAcceptanceBuildCommit } from './build-identity';
-import { prepareMacosAcceptanceApp, waitForMacosAcceptanceProcess } from './macos-app-identity';
+import {
+    prepareMacosAcceptanceApp,
+    stopMacosAcceptanceProcesses,
+    waitForMacosAcceptanceProcess,
+} from './macos-app-identity';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
@@ -106,6 +110,11 @@ interface MacosAcceptanceLaunchSpecInput extends Omit<ElectronLaunchSpecInput, '
 interface StoppableProcess {
     kill(signal?: NodeJS.Signals | number): boolean;
     pid?: number;
+}
+
+interface MacosAcceptanceLaunchControllerDependencies {
+    createElectronController: (pid: number) => { readonly isStopping: boolean; stop: () => void };
+    stopUndiscoveredProcesses: (executablePath: string) => Promise<unknown>;
 }
 
 interface WaitForCdpDependencies {
@@ -310,6 +319,52 @@ function stoppableProcess(pid: number): StoppableProcess {
             }
         },
         pid,
+    };
+}
+
+const defaultMacosLaunchControllerDependencies: MacosAcceptanceLaunchControllerDependencies = {
+    createElectronController: (pid) => createElectronStopController(stoppableProcess(pid)),
+    stopUndiscoveredProcesses: stopMacosAcceptanceProcesses,
+};
+
+/**
+ * Owns shutdown from the moment `open -W` starts, including the interval before the cloned app's Main PID is known.
+ * Stopping that `open` process alone does not stop the launched app, so pre-bind cleanup also sweeps the unique cloned
+ * executable path and verifies it died. Once bound, ordinary PID-owned TERM/KILL escalation remains authoritative.
+ */
+export function createMacosAcceptanceLaunchController(
+    launchProcess: StoppableProcess,
+    executablePath: string,
+    dependencies: MacosAcceptanceLaunchControllerDependencies = defaultMacosLaunchControllerDependencies,
+) {
+    let electronController: { readonly isStopping: boolean; stop: () => void } | undefined;
+    let isStopping = false;
+    let cleanupPromise: Promise<void> | undefined;
+    const stop = (): void => {
+        if (isStopping) return;
+        isStopping = true;
+        if (electronController) electronController.stop();
+        else launchProcess.kill('SIGTERM');
+    };
+    return {
+        bindElectronPid(pid: number): void {
+            if (electronController) throw new Error('Acceptance Electron PID is already bound');
+            electronController = dependencies.createElectronController(pid);
+            if (isStopping) electronController.stop();
+        },
+        cleanup(): Promise<void> {
+            cleanupPromise ??= (async () => {
+                stop();
+                if (!electronController) {
+                    await dependencies.stopUndiscoveredProcesses(executablePath);
+                }
+            })();
+            return cleanupPromise;
+        },
+        get isStopping(): boolean {
+            return isStopping || electronController?.isStopping === true;
+        },
+        stop,
     };
 }
 
@@ -587,6 +642,7 @@ async function main(): Promise<void> {
                 useTestRootFixture: !isUseNativeDialog,
                 userDataDir,
             });
+            const acceptanceExecutablePath = await realpath(acceptanceApp.executablePath);
             const child = spawn(launch.command, launch.args, launch.options);
             const childExit = createChildExitPromise(child);
             async function rejectOnChildExit(): Promise<never> {
@@ -595,21 +651,24 @@ async function main(): Promise<void> {
                     `Electron exited before CDP was ready (${code ?? signal ?? 'unknown'})`,
                 );
             }
-            /**
-             * `mkdtemp()` reports `/var/folders/...`, while `ps` reports the same executable through macOS's canonical
-             * `/private/var/folders/...` path. Match the canonical path so an already-launched owned app cannot escape
-             * supervision because of that filesystem alias.
-             */
-            const acceptanceExecutablePath = await realpath(acceptanceApp.executablePath);
-            const electronPid = await Promise.race([
-                waitForMacosAcceptanceProcess(acceptanceExecutablePath),
-                rejectOnChildExit(),
-            ]);
-            const stopController = createElectronStopController(stoppableProcess(electronPid));
-            const { stop } = stopController;
+            const launchController = createMacosAcceptanceLaunchController(
+                child,
+                acceptanceExecutablePath,
+            );
+            const { stop } = launchController;
             process.on('SIGINT', stop);
             process.on('SIGTERM', stop);
             try {
+                /**
+                 * `mkdtemp()` reports `/var/folders/...`, while `ps` reports the same executable through macOS's
+                 * canonical `/private/var/folders/...` path. Match the canonical path so an already-launched owned app
+                 * cannot escape supervision because of that filesystem alias.
+                 */
+                const electronPid = await Promise.race([
+                    waitForMacosAcceptanceProcess(acceptanceExecutablePath),
+                    rejectOnChildExit(),
+                ]);
+                launchController.bindElectronPid(electronPid);
                 const electronIdentity = await getProcessIdentity(electronPid);
                 if (!electronIdentity)
                     throw new Error('Could not establish Acceptance Electron identity');
@@ -647,11 +706,11 @@ async function main(): Promise<void> {
                 // control-flow analysis can't see that interruption, but a real shutdown must not
                 // be reported as an unexpected non-zero exit.
                 // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
-                if (code !== 0 && !stopController.isStopping) {
+                if (code !== 0 && !launchController.isStopping) {
                     throw new Error(`Electron exited with code ${code} (${signal ?? 'no signal'})`);
                 }
             } finally {
-                stop();
+                await launchController.cleanup();
                 try {
                     await childExit;
                 } catch {

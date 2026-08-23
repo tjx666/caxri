@@ -8,6 +8,7 @@ import {
     createChildExitPromise,
     createElectronLaunchSpec,
     createElectronStopController,
+    createMacosAcceptanceLaunchController,
     createMacosAcceptanceLaunchSpec,
     removeStaleRuntime,
     shouldPreserveInheritedRuntimeState,
@@ -267,6 +268,30 @@ describe('Acceptance Electron launcher seams', () => {
 
         forceStop?.();
         expect(fake.kill).toHaveBeenLastCalledWith('SIGKILL');
+    });
+
+    it('sweeps the unique cloned app when launch stops before PID discovery', async () => {
+        const launchProcess = new FakeChild();
+        const stopUndiscoveredProcesses = vi.fn().mockResolvedValue([]);
+        const controller = createMacosAcceptanceLaunchController(
+            childProcess(launchProcess),
+            '/tmp/profile/apps.noindex/Caxri Acceptance 01234567.app/Contents/MacOS/Electron',
+            {
+                createElectronController: vi.fn(),
+                stopUndiscoveredProcesses,
+            },
+        );
+
+        controller.stop();
+        await controller.cleanup();
+        await controller.cleanup();
+
+        expect(launchProcess.kill).toHaveBeenCalledOnce();
+        expect(launchProcess.kill).toHaveBeenCalledWith('SIGTERM');
+        expect(stopUndiscoveredProcesses).toHaveBeenCalledOnce();
+        expect(stopUndiscoveredProcesses).toHaveBeenCalledWith(
+            '/tmp/profile/apps.noindex/Caxri Acceptance 01234567.app/Contents/MacOS/Electron',
+        );
     });
 
     it('waits for CDP readiness and fails closed on early exit or timeout', async () => {

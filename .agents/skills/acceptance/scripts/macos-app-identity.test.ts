@@ -4,6 +4,7 @@ import {
     createMacosAcceptanceAppPlan,
     findMacosAcceptanceProcessIds,
     prepareMacosAcceptanceApp,
+    stopMacosAcceptanceProcesses,
 } from './macos-app-identity';
 
 describe('macOS Acceptance app identity', () => {
@@ -114,5 +115,45 @@ describe('macOS Acceptance app identity', () => {
                 executablePath,
             ),
         ).toEqual([41]);
+    });
+
+    it('terminates and confirms every process from an undiscovered unique app launch', async () => {
+        const executablePath = '/tmp/profile/apps.noindex/Caxri.app/Contents/MacOS/Electron';
+        const signalProcess = vi.fn();
+        const listProcesses = vi
+            .fn()
+            .mockResolvedValueOnce(`41 ${executablePath} /repo --remote-debugging-port=9222`)
+            .mockResolvedValueOnce('');
+
+        await expect(
+            stopMacosAcceptanceProcesses(executablePath, {
+                listProcesses,
+                now: () => 0,
+                signalProcess,
+                sleep: vi.fn().mockResolvedValue(undefined),
+            }),
+        ).resolves.toEqual([41]);
+        expect(signalProcess).toHaveBeenCalledWith(41, 'SIGTERM');
+        expect(signalProcess).not.toHaveBeenCalledWith(41, 'SIGKILL');
+    });
+
+    it('terminates a unique app that appears after the first cleanup snapshot', async () => {
+        const executablePath = '/tmp/profile/apps.noindex/Caxri.app/Contents/MacOS/Electron';
+        const signalProcess = vi.fn();
+        const listProcesses = vi
+            .fn()
+            .mockResolvedValueOnce('')
+            .mockResolvedValueOnce(`41 ${executablePath} /repo --remote-debugging-port=9222`)
+            .mockResolvedValueOnce('');
+
+        await expect(
+            stopMacosAcceptanceProcesses(executablePath, {
+                listProcesses,
+                now: () => 0,
+                signalProcess,
+                sleep: vi.fn().mockResolvedValue(undefined),
+            }),
+        ).resolves.toEqual([41]);
+        expect(signalProcess).toHaveBeenCalledWith(41, 'SIGTERM');
     });
 });
