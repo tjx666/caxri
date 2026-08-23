@@ -45,9 +45,12 @@ export const SIZE_BUDGETS: SizeBudget[] = [
     { path: 'out/main', maxBytes: 4 * MiB },
     { path: 'out/preload', maxBytes: 256 * 1_024 },
     { path: 'out/renderer', maxBytes: 37 * MiB },
-    { path: 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar', maxBytes: 41 * MiB },
-    { path: 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar.unpacked', maxBytes: 8 * MiB },
-    { path: 'release/mac-arm64/Caxri.app', maxBytes: 290 * MiB },
+    { path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar', maxBytes: 41 * MiB },
+    {
+        path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar.unpacked',
+        maxBytes: 8 * MiB,
+    },
+    { path: 'release.noindex/mac-arm64/Caxri.app', maxBytes: 290 * MiB },
 ];
 
 /**
@@ -91,15 +94,18 @@ interface ComponentSpec {
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const REPORT_COMPONENTS: ComponentSpec[] = [
-    { label: 'Caxri.app', path: 'release/mac-arm64/Caxri.app' },
+    { label: 'Caxri.app', path: 'release.noindex/mac-arm64/Caxri.app' },
     {
         label: 'Caxri.app › Frameworks (Electron runtime)',
-        path: 'release/mac-arm64/Caxri.app/Contents/Frameworks',
+        path: 'release.noindex/mac-arm64/Caxri.app/Contents/Frameworks',
     },
-    { label: 'app.asar', path: 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar' },
+    {
+        label: 'app.asar',
+        path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar',
+    },
     {
         label: 'app.asar.unpacked (native modules)',
-        path: 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar.unpacked',
+        path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar.unpacked',
     },
     { label: 'out/main', path: 'out/main' },
     { label: 'out/preload', path: 'out/preload' },
@@ -249,8 +255,8 @@ export const PACKAGED_NODE_ENTRIES = [
     'out/main/runtime.js',
 ];
 
-const PACKAGED_EXECUTABLE = 'release/mac-arm64/Caxri.app/Contents/MacOS/Caxri';
-const PACKAGED_ASAR = 'release/mac-arm64/Caxri.app/Contents/Resources/app.asar';
+const PACKAGED_EXECUTABLE = 'release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri';
+const PACKAGED_ASAR = 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar';
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export function findModuleResolutionFailure(stderr: string): string | undefined {
@@ -296,7 +302,7 @@ async function runTimed(budget: TimeBudget): Promise<number> {
 
 async function main(): Promise<void> {
     // Stale packaging output would otherwise contaminate the size measurements below.
-    await rm(resolve('release'), { recursive: true, force: true });
+    await rm(resolve('release.noindex'), { recursive: true, force: true });
 
     const measurements: Measurement[] = [];
     for (const timeBudget of TIME_BUDGETS) {

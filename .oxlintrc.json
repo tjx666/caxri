@@ -23,6 +23,7 @@
         "logs",
         "out",
         "release",
+        "release.noindex",
         "node_modules",
         ".records/**",
         "test-results",

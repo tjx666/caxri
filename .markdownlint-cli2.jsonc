@@ -57,6 +57,7 @@
         "node_modules/**",
         "out/**",
         "release/**",
+        "release.noindex/**",
         "dist/**",
         "logs/**",
         "test-results/**",

@@ -57,10 +57,14 @@ function fakeExecutor(cwd: string, shouldPackageFail = false) {
             }
             if (command === 'bun') {
                 if (shouldPackageFail) return { exitCode: 1, stderr: 'builder failed', stdout: '' };
-                const app = join(cwd, 'release', 'mac-arm64', 'Caxri.app');
+                const app = join(cwd, 'release.noindex', 'mac-arm64', 'Caxri.app');
                 await mkdir(join(app, 'Contents', 'MacOS'), { recursive: true });
                 await Promise.all([
-                    writeFile(join(cwd, 'release', 'Caxri-0.0.7-arm64.dmg'), 'dmg', 'utf8'),
+                    writeFile(
+                        join(cwd, 'release.noindex', 'Caxri-0.0.7-arm64.dmg'),
+                        'dmg',
+                        'utf8',
+                    ),
                     writeFile(join(app, 'Contents', 'Info.plist'), 'plist', 'utf8'),
                     writeFile(join(app, 'Contents', 'MacOS', 'Caxri'), 'binary', 'utf8'),
                 ]);

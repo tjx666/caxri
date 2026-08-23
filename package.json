@@ -229,7 +229,7 @@
             "runAsNode": true
         },
         "directories": {
-            "output": "release"
+            "output": "release.noindex"
         },
         "asar": true,
         "asarUnpack": [

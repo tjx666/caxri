@@ -48,8 +48,8 @@ describe('ci-bundle-budget', () => {
         expect(paths).toContain('out/main');
         expect(paths).toContain('out/preload');
         expect(paths).toContain('out/renderer');
-        expect(paths).toContain('release/mac-arm64/Caxri.app/Contents/Resources/app.asar');
-        expect(paths).toContain('release/mac-arm64/Caxri.app');
+        expect(paths).toContain('release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar');
+        expect(paths).toContain('release.noindex/mac-arm64/Caxri.app');
     });
 
     it('detects missing-module stderr from a packaged Node entry', () => {

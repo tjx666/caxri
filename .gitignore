@@ -5,6 +5,7 @@ out/
 dist/
 /logs/
 /release/
+/release.noindex/
 test-results/
 playwright-report/
 coverage/
