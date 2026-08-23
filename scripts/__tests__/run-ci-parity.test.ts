@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import { ciParityCases, ciParityEnvironment } from '../run-ci-parity';
@@ -26,5 +28,13 @@ describe('CI E2E parity manifest', () => {
             CAXRI_CI_PARITY_CASE: 'transient-enoent',
             CAXRI_E2E_OUTPUT_DIR: 'test-results/ci-parity/transient-enoent',
         });
+    });
+
+    it('keeps every title matcher bound to a test in its declared spec', async () => {
+        for (const parityCase of ciParityCases) {
+            // eslint-disable-next-line no-await-in-loop -- four small source fixtures are checked in manifest order
+            const source = await readFile(new URL(`../../${parityCase.spec}`, import.meta.url));
+            expect(source.toString()).toMatch(new RegExp(parityCase.match, 'u'));
+        }
     });
 });
