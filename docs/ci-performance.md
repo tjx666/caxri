@@ -79,9 +79,14 @@ Vite's `.vite` directory is not a reusable production-output cache.
 
 ## Current single-runner execution contract
 
-- One E2E job checks out, installs, verifies native modules, and builds once. It then runs
-  `parallel-safe` with two namespaced workers followed by `desktop-exclusive` with one worker on
-  the same `m2-24`; a failed first pool does not suppress the second pool.
+- A full ready-PR or `main` run installs once in the E2E job. It creates an owned disposable checkout
+  for GitHub's synthetic merge, then overlaps the unchanged full platform gates in that checkout
+  with exact-head E2E. The platform gates keep their original fail-fast order, while E2E still
+  attempts both pools and the manifest even if another validation surface fails.
+- Exact-head E2E verifies native modules and builds once. It then runs `parallel-safe` with three
+  namespaced workers followed by `desktop-exclusive` with one worker on the same `m2-24`; a failed
+  first pool does not suppress the second pool. The `workflow_dispatch` worker input stays bounded
+  to 2–4 for frozen same-head comparisons.
 - Individually audited tests may move into a dedicated spec in the `parallelSafeSpecs` allowlist.
   Every unclassified spec remains desktop-exclusive, so each logical pool needs only one
   Playwright invocation.
@@ -92,6 +97,12 @@ Vite's `.vite` directory is not a reusable production-output cache.
 - Every required output is checked before every launch. Each Playwright worker performs one full
   recursive build-input scan, then reuses it until a filesystem event or mtime snapshot invalidates
   the cache; watcher failure falls back to scanning.
+- The concurrent orchestrator writes one versioned receipt only after both validation branches
+  finish. Independent checks, parallel-safe, desktop-exclusive, and auxiliary verifier steps bind
+  that receipt to the Actions run attempt, synthetic-merge revision, exact PR head, profile, and
+  worker count; a missing, stale, malformed, or non-zero component fails closed.
+- Focused checks, one-worker controls, retry-only runs, and non-full profiles keep their standalone
+  paths. Only a full optimized run can replace the standalone checks job with the concurrent path.
 - Vitest defaults to the audited `optimized` partition with two workers. The `legacy` partition and
   worker caps 1-4 remain workflow-dispatch controls for same-head measurement; real watcher,
   process-global, bridge, and Git suites stay in `serial-native`.
