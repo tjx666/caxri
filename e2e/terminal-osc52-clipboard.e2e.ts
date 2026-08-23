@@ -35,7 +35,11 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
     const root = join(testDirectory, 'project');
     await mkdir(root);
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        clipboard: true,
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
