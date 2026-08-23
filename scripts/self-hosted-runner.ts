@@ -29,6 +29,7 @@ const generatedWorkspacePaths = [
     'out',
     'playwright-report',
     'release',
+    'release.noindex',
     'test-results',
 ];
 
