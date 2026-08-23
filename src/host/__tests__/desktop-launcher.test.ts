@@ -22,6 +22,8 @@ describe('Host Desktop launcher', () => {
                 cwd: '/Applications/Caxri.app/Contents/MacOS',
             },
             sourceEnvironment: {
+                CAXRI_E2E: '1',
+                CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS: '1000',
                 ELECTRON_RUN_AS_NODE: '1',
                 HOME: '/Users/test',
                 SECRET_TOKEN: 'must-not-cross',
@@ -49,6 +51,8 @@ describe('Host Desktop launcher', () => {
         ];
         const environment = invocation[2].env;
         expect(environment).toMatchObject({
+            CAXRI_E2E: '1',
+            CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS: '1000',
             HOME: '/Users/test',
             CAXRI_USER_DATA_DIR: '/profiles/isolated',
         });

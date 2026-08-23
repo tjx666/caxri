@@ -103,7 +103,21 @@ function mockHostRound(options: HostRoundOptions = {}): FakeHostClient {
 describe('Desktop Host connection facade', () => {
     afterEach(() => {
         vi.useRealTimers();
+        vi.unstubAllEnvs();
         vi.restoreAllMocks();
+    });
+
+    it('forwards the bounded Terminal backpressure seam only through the E2E Host environment', async () => {
+        vi.stubEnv('CAXRI_E2E', '1');
+        vi.stubEnv('CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS', '1000');
+        mockHostRound({ hostBuildId: 'build-a', hostVersion: '0.0.9' });
+        const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
+
+        await connection.start();
+
+        expect(vi.mocked(ensureHost).mock.calls[0]?.[1]?.environment).toMatchObject({
+            CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS: '1000',
+        });
     });
 
     it('returns a classified rejected Promise before Host attachment instead of throwing', async () => {

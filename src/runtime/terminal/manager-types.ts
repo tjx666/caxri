@@ -37,6 +37,10 @@ export interface LiveTerminal {
 }
 
 export interface TerminalManagerOptions {
+    /**
+     * Test seam for deterministic output-queue backpressure. Production uses the fixed 16 ms coalescing window.
+     */
+    outputFlushMs?: number;
     resolveExecutable?: (
         kind: TerminalKind,
         launchSettings?: AgentLaunchSettings,

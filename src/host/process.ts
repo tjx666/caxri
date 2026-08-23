@@ -45,6 +45,13 @@ const cliPath =
     (process.resourcesPath
         ? join(process.resourcesPath, 'cli', 'caxri.cjs')
         : join(hostOutputDirectory, '../../packages/cli/dist/caxri.cjs'));
+const runtimeEnvironment = {
+    ...e2eAgentPolicyEnvironment(readE2EAgentPolicy()),
+    ...(process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS && {
+        CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS:
+            process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS,
+    }),
+};
 
 const app = await startHostApp({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
@@ -67,7 +74,7 @@ const app = await startHostApp({
         }),
     }),
     runtimePath: join(hostOutputDirectory, 'runtime.js'),
-    runtimeEnvironment: e2eAgentPolicyEnvironment(readE2EAgentPolicy()),
+    runtimeEnvironment,
     userDataPath,
     version,
 });
