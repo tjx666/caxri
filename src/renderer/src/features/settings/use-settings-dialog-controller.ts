@@ -196,17 +196,17 @@ export function useSettingsDialogController() {
     );
 
     /**
-     * Reflects an external `*.changed` push (an edit made in an outside editor, or our own write echoing back) into the
-     * dialog, so it never shows stale data — the live-verified bug this closes had the Theme tab keep showing the
-     * previous theme's name and swatches after the active theme changed. Disk changes replace the current buffer
-     * unconditionally, matching the app's explicit external-change rule, and supersede any in-flight write for that
-     * kind.
+     * Consumes a matching local-write echo without touching the current draft. A genuine external `*.changed` push
+     * replaces the buffer unconditionally and supersedes older local work, matching the app's explicit external-change
+     * rule.
      */
     const handleExternalChange = useCallback(
         (kind: ConfigKind, payload: { source: string; error?: string }): void => {
             const current = stateReference.current[kind];
             // Our own write's broadcast echoes back exactly the text we just persisted — skip the
-            // redundant reparse/redispatch instead of treating it as a foreign change.
+            // redundant reparse/redispatch instead of treating it as a foreign change. Runtime
+            // emits before the request resolves, so appliedSource alone cannot identify this echo.
+            if (writeCoordinator.isOwnEcho(kind, payload.source)) return;
             if (payload.source === current.appliedSource) return;
             writeCoordinator.supersede(kind);
             if (kind === 'settings') {
