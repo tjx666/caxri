@@ -178,7 +178,7 @@ function errorCode(error: unknown): string | undefined {
         : undefined;
 }
 
-async function stopE2EHost(userDataDirectory: string): Promise<void> {
+export async function stopE2EHost(userDataDirectory: string): Promise<void> {
     let client: Awaited<ReturnType<typeof connectToHost>> | undefined;
     try {
         client = await connectToHost(userDataDirectory, 2_000);
