@@ -7,6 +7,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { assertBuildOutputsFresh } from '../../../../src/shared/node/build-freshness';
+import type { DesktopLeaseHandle } from '../../switch-worktree/scripts/desktop-lease';
 import {
     acquireDesktopLease,
     beginDesktopLeaseHandoff,
@@ -110,6 +111,12 @@ interface WaitForCdpDependencies {
     fetch: typeof fetch;
     now: () => number;
     sleep: (milliseconds: number) => Promise<void>;
+}
+
+export interface ReadyDesktopLeaseDependencies {
+    getProcessIdentity: typeof getProcessIdentity;
+    transferDesktopLease: typeof transferDesktopLease;
+    waitForCdp: typeof waitForCdp;
 }
 
 export interface StaleRuntimeDependencies {
@@ -428,6 +435,35 @@ export async function waitForCdp(
     throw new Error(`Timed out waiting for CDP on port ${port}`);
 }
 
+const defaultReadyDesktopLeaseDependencies: ReadyDesktopLeaseDependencies = {
+    getProcessIdentity,
+    transferDesktopLease,
+    waitForCdp,
+};
+
+/**
+ * Keeps the launcher's handoff-pending lease until Main has set its macOS development process title and exposed CDP.
+ * Capturing Electron's identity earlier records the executable argv, which becomes stale when `process.title` changes
+ * to `Caxri Dev` and can let a competing desktop worker replace a still-running Acceptance lease.
+ */
+export async function transferDesktopLeaseAfterCdp(
+    desktopLease: DesktopLeaseHandle,
+    electronPid: number,
+    port: number,
+    child: ChildProcess,
+    dependencies: ReadyDesktopLeaseDependencies = defaultReadyDesktopLeaseDependencies,
+): Promise<{ desktopLease: DesktopLeaseHandle; electronIdentity: string }> {
+    await dependencies.waitForCdp(port, child);
+    const electronIdentity = await dependencies.getProcessIdentity(electronPid);
+    if (!electronIdentity) {
+        throw new Error('Could not establish ready Acceptance Electron identity');
+    }
+    return {
+        desktopLease: await dependencies.transferDesktopLease(desktopLease, electronPid),
+        electronIdentity,
+    };
+}
+
 async function main(): Promise<void> {
     const options = parseOptions(process.argv.slice(2));
     if (options.help?.length) {
@@ -563,14 +599,13 @@ async function main(): Promise<void> {
                     rejectOnChildExit(),
                 ]);
                 launchController.bindElectronPid(electronPid);
-                const electronIdentity = await getProcessIdentity(electronPid);
-                if (!electronIdentity)
+                const launchingElectronIdentity = await getProcessIdentity(electronPid);
+                if (!launchingElectronIdentity)
                     throw new Error('Could not establish Acceptance Electron identity');
-                desktopLease = await transferDesktopLease(desktopLease, electronPid);
                 runtime = {
                     acceptanceCase,
                     cdpUrl: `http://127.0.0.1:${port}`,
-                    electronIdentity,
+                    electronIdentity: launchingElectronIdentity,
                     electronPid,
                     launcherIdentity,
                     launcherPid: process.pid,
@@ -585,7 +620,12 @@ async function main(): Promise<void> {
                 };
                 isPreserveOwnedRuntimeState = true;
                 await writeRuntimeState(RUNTIME_PATH, runtime);
-                await Promise.race([waitForCdp(port, child), rejectOnChildExit()]);
+                const readyLease = await Promise.race([
+                    transferDesktopLeaseAfterCdp(desktopLease, electronPid, port, child),
+                    rejectOnChildExit(),
+                ]);
+                desktopLease = readyLease.desktopLease;
+                runtime.electronIdentity = readyLease.electronIdentity;
                 runtime.ownedProcesses = await waitForOwnedProcesses(runtime, PROJECT_ROOT);
                 hasVerifiedOwnedProcesses = true;
                 await writeRuntimeState(RUNTIME_PATH, runtime);
