@@ -195,34 +195,65 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
     let provider: ILinkProvider | undefined;
     let osc8Handler: ((data: string) => boolean | Promise<boolean>) | undefined;
     let markerId = 0;
+    let cursorColumn = text.length;
+    let cursorLine = 0;
+    let terminalColumns = 120;
+    let terminalRows = 1;
+    let viewportLine = 0;
+    const lineCells = [cells];
+    const lineWrapped = [false];
     const dispose = vi.fn();
     const terminal = {
         buffer: {
             active: {
-                getLine: (line: number) =>
-                    line === 0
-                        ? {
-                              getCell: (column: number) => {
-                                  // `.at()` (rather than `[column]`) keeps an out-of-range index's `undefined` case
-                                  // in the type, since this project does not enable `noUncheckedIndexedAccess`.
-                                  const cell = cells.at(column);
-                                  return cell
-                                      ? {
-                                            getChars: () => cell.chars,
-                                            getWidth: () => cell.width,
-                                        }
-                                      : undefined;
-                              },
-                              isWrapped: false,
-                              length: cells.length,
-                              translateToString: () => text,
-                          }
-                        : undefined,
-                length: 1,
-                viewportY: 0,
+                baseY: 0,
+                get cursorX() {
+                    return cursorColumn;
+                },
+                get cursorY() {
+                    return cursorLine;
+                },
+                getLine: (line: number) => {
+                    const currentCells = lineCells.at(line);
+                    if (!currentCells) return;
+                    return {
+                        getCell: (column: number) => {
+                            // `.at()` (rather than `[column]`) keeps an out-of-range index's `undefined` case
+                            // in the type, since this project does not enable `noUncheckedIndexedAccess`.
+                            const cell = currentCells.at(column);
+                            return cell
+                                ? {
+                                      getChars: () => cell.chars,
+                                      getWidth: () => cell.width,
+                                  }
+                                : undefined;
+                        },
+                        isWrapped: lineWrapped.at(line) ?? false,
+                        length: currentCells.length,
+                        translateToString: (
+                            shouldTrimRight = false,
+                            startColumn = 0,
+                            endColumn = currentCells.length,
+                        ) => {
+                            const value = currentCells
+                                .slice(startColumn, endColumn)
+                                .map(({ chars }) => chars)
+                                .join('');
+                            return shouldTrimRight ? value.trimEnd() : value;
+                        },
+                    };
+                },
+                get length() {
+                    return lineCells.length;
+                },
+                get viewportY() {
+                    return viewportLine;
+                },
             },
         },
-        cols: 120,
+        get cols() {
+            return terminalColumns;
+        },
         options: { linkHandler: null },
         parser: {
             registerOscHandler: (identifier: number, handler: typeof osc8Handler) => {
@@ -234,23 +265,53 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
             provider = value;
             return { dispose };
         },
-        registerMarker: () =>
-            ({
-                dispose: vi.fn(),
+        registerMarker: () => {
+            const callbacks: Array<() => void> = [];
+            const marker = {
                 id: (markerId += 1),
                 isDisposed: false,
-                line: 0,
-                onDispose: vi.fn(),
-            }) as unknown as IMarker,
-        rows: 1,
+                line: cursorLine,
+                dispose: () => {
+                    if (marker.isDisposed) return;
+                    marker.isDisposed = true;
+                    marker.line = -1;
+                    for (const callback of callbacks) callback();
+                },
+                onDispose: (callback: () => void) => {
+                    callbacks.push(callback);
+                    return { dispose: vi.fn() };
+                },
+            };
+            return marker as unknown as IMarker;
+        },
+        get rows() {
+            return terminalRows;
+        },
     } as unknown as Terminal;
     return {
         dispose,
         links(): Promise<ILink[] | undefined> {
             return new Promise((resolve) => provider?.provideLinks(1, resolve));
         },
-        osc8(data: string): boolean | Promise<boolean> | undefined {
-            return osc8Handler?.(data);
+        osc8(data: string): boolean | undefined {
+            const result = osc8Handler?.(data);
+            if (result instanceof Promise) throw new Error('Expected synchronous OSC test handler');
+            return result;
+        },
+        setCursor(line: number, column: number): void {
+            cursorLine = line;
+            cursorColumn = column;
+        },
+        setLine(line: number, value: string, isWrapped = false): void {
+            lineCells[line] = cellsFor(value);
+            lineWrapped[line] = isWrapped;
+        },
+        setSize(columns: number, rows: number): void {
+            terminalColumns = columns;
+            terminalRows = rows;
+        },
+        setViewport(line: number): void {
+            viewportLine = line;
         },
         terminal,
     };
@@ -331,7 +392,10 @@ describe('registerTerminalLinks', () => {
         const { context, openUrl } = baseContext();
         const registration = registerTerminalLinks(terminal.terminal, context);
 
+        terminal.setCursor(0, 0);
         expect(terminal.osc8(';https://example.com/osc-target')).toBe(false);
+        terminal.setCursor(0, 'descriptive label'.length);
+        expect(terminal.osc8(';')).toBe(false);
         expect(registration.getViewportLinks()).toMatchObject([
             {
                 accessibleName: 'Open external link https://example.com/osc-target',
@@ -344,20 +408,53 @@ describe('registerTerminalLinks', () => {
         expect(openUrl).toHaveBeenCalledWith('https://example.com/osc-target');
     });
 
-    it('retains every OSC 8 target while its public marker remains in the buffer', async () => {
+    it('bounds same-line OSC 8 targets independently of marker disposal', () => {
         const terminal = createTerminal('descriptive labels', cellsFor('descriptive labels'));
         const { context } = baseContext();
         const registration = registerTerminalLinks(terminal.terminal, context);
 
-        await Promise.all(
-            Array.from({ length: 513 }, (_, index) =>
-                Promise.resolve(terminal.osc8(`;https://example.com/osc-target-${index}`)),
-            ),
-        );
+        for (let index = 0; index < 1_001; index += 1) {
+            terminal.setCursor(0, 0);
+            terminal.osc8(`;https://example.com/osc-target-${index}`);
+            terminal.setCursor(0, 'descriptive labels'.length);
+            terminal.osc8(';');
+        }
 
         const links = registration.getViewportLinks();
-        expect(links).toHaveLength(513);
-        expect(links[0]).toMatchObject({ target: 'https://example.com/osc-target-0' });
+        expect(links).toHaveLength(1_000);
+        expect(links[0]).toMatchObject({ target: 'https://example.com/osc-target-1' });
+    });
+
+    it('keeps a wrapped OSC 8 label discoverable from a visible continuation row', () => {
+        const terminal = createTerminal('ABCDE', cellsFor('ABCDE'));
+        terminal.setLine(1, 'FGHIJ', true);
+        terminal.setSize(5, 1);
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        terminal.setCursor(0, 0);
+        terminal.osc8(';https://example.com/wrapped');
+        terminal.setCursor(1, 5);
+        terminal.osc8(';');
+        terminal.setViewport(1);
+
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/wrapped' },
+        ]);
+    });
+
+    it('drops an OSC 8 target after its visible cells are overwritten', () => {
+        const terminal = createTerminal('LABEL', cellsFor('LABEL'));
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        terminal.setCursor(0, 0);
+        terminal.osc8(';https://example.com/stale');
+        terminal.setCursor(0, 5);
+        terminal.osc8(';');
+        terminal.setLine(0, 'NEWXX');
+
+        expect(registration.getViewportLinks()).toEqual([]);
     });
 
     it('ignores a bare click without the Cmd/Ctrl activation modifier', async () => {
