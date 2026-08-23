@@ -1,8 +1,8 @@
+import { formatShortcut } from '@shared/shortcuts';
 import { describe, expect, it } from 'vitest';
 
 import {
     buildShortcutMap,
-    formatShortcut,
     isKeybindingRecordingEventTarget,
     keyboardEventShortcut,
     resolveShortcutBinding,

@@ -1,8 +1,8 @@
 import type { CommandDefinition } from '@shared/commands';
 import { commandDefinitions, defaultKeybindings } from '@shared/commands';
+import { formatShortcut } from '@shared/shortcuts';
 import type { Keybinding } from '@shared/types';
 
-import { formatShortcut } from '../../lib/keybindings';
 import { applyFormEdit } from './config-edit';
 
 export interface KeybindingRow {

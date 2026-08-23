@@ -88,9 +88,26 @@ describe('application menu', () => {
             (candidate) => candidate.id === 'command.terminal.copy',
         );
 
+        expect(item?.label).toBe('Copy Selection [⌘C]');
         expect(item?.accelerator).toBeUndefined();
         item?.click?.({} as MenuItem, undefined, { triggeredByAccelerator: false });
         expect(dispatchCommand).toHaveBeenCalledWith('terminal.copy', false);
+    });
+
+    it('updates the contextual Terminal copy hint without creating a native accelerator', () => {
+        const template = buildAppMenuTemplate({
+            keybindings: [{ command: 'terminal.copy', key: 'cmd+shift+c' }],
+            dispatchCommand: vi.fn(),
+            openProcessExplorer: vi.fn(),
+        });
+        const item = submenu(template, 'Terminal').find(
+            (candidate) => candidate.id === 'command.terminal.copy',
+        );
+
+        expect(item).toMatchObject({
+            accelerator: undefined,
+            label: 'Copy Selection [⇧⌘C]',
+        });
     });
 
     it('translates DOM key names Electron does not accept as accelerator tokens', () => {
