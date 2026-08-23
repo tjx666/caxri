@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { isClipboardTextEqual, writeTestClipboardText } from './support/clipboard.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
@@ -47,7 +46,7 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
             .locator('.work-tab.active[data-terminal-id]')
             .getAttribute('data-terminal-id');
         if (!firstTerminalId) throw new Error('First Terminal identity was not rendered');
-        await writeTestClipboardText(running.app, running.clipboard, 'OSC52_SENTINEL');
+        await running.clipboard.writeText('OSC52_SENTINEL');
         await running.page.evaluate(() => {
             const clipboard = navigator.clipboard;
             const originalRead = clipboard.readText.bind(clipboard);
@@ -72,7 +71,7 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.disabled, { exact: true }),
         ).toBeVisible();
-        expect(await isClipboardTextEqual(running.app, 'OSC52_SENTINEL')).toBe(true);
+        expect(await running.clipboard.textEquals('OSC52_SENTINEL')).toBe(true);
         expect(
             await running.page.evaluate(
                 () => (globalThis as unknown as { __osc52ReadCount: number }).__osc52ReadCount,
@@ -111,7 +110,7 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.rateLimited, { exact: true }),
         ).toBeVisible();
-        await expect.poll(() => isClipboardTextEqual(running.app, 'FIRST_WRITE')).toBe(true);
+        await expect.poll(() => running.clipboard.textEquals('FIRST_WRITE')).toBe(true);
         await running.clipboard.claimText('FIRST_WRITE');
 
         await running.page.waitForTimeout(1_050);
@@ -124,20 +123,18 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await expect(
             running.page.getByText(OSC52_BLOCKED_TOASTS.malformed, { exact: true }),
         ).toBeVisible();
-        expect(await isClipboardTextEqual(running.app, 'FIRST_WRITE')).toBe(true);
+        expect(await running.clipboard.textEquals('FIRST_WRITE')).toBe(true);
 
         await createAdditionalShellSession(running.page);
         const secondTerminalTab = running.page.locator('.work-tab.active[data-terminal-id]');
         const secondTerminalId = await secondTerminalTab.getAttribute('data-terminal-id');
         expect(secondTerminalId).toBeTruthy();
         await typeTerminal(running.page, osc52(encoded('SECOND_SESSION_WRITE')));
-        await expect
-            .poll(() => isClipboardTextEqual(running.app, 'SECOND_SESSION_WRITE'))
-            .toBe(true);
+        await expect.poll(() => running.clipboard.textEquals('SECOND_SESSION_WRITE')).toBe(true);
         await running.clipboard.claimText('SECOND_SESSION_WRITE');
 
         await running.page.waitForTimeout(1_050);
-        await writeTestClipboardText(running.app, running.clipboard, 'CLOSE_SENTINEL');
+        await running.clipboard.writeText('CLOSE_SENTINEL');
         await typeTerminal(
             running.page,
             `(sleep 0.5; ${osc52(encoded('CLOSED_TERMINAL_WRITE'))}) &`,
@@ -154,7 +151,7 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
             })
             .toBe(false);
         await running.page.waitForTimeout(750);
-        expect(await isClipboardTextEqual(running.app, 'CLOSE_SENTINEL')).toBe(true);
+        expect(await running.clipboard.textEquals('CLOSE_SENTINEL')).toBe(true);
 
         const firstSession = sessionCard(running.page, firstSessionId);
         await firstSession.click();
@@ -168,11 +165,9 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
             String.raw`printf 'SNAPSHOT_REPLAY_VISIBLE\n'; ${osc52(historicalClipboardPayload)}; exit`,
         );
         await expect(running.page.locator('[data-terminal-exit-state="stopped"]')).toBeVisible();
-        await expect
-            .poll(() => isClipboardTextEqual(running.app, 'HISTORICAL_REPLAY_WRITE'))
-            .toBe(true);
+        await expect.poll(() => running.clipboard.textEquals('HISTORICAL_REPLAY_WRITE')).toBe(true);
         await running.clipboard.claimText('HISTORICAL_REPLAY_WRITE');
-        await writeTestClipboardText(running.app, running.clipboard, 'RESTORE_SENTINEL');
+        await running.clipboard.writeText('RESTORE_SENTINEL');
 
         await createAdditionalShellSession(running.page);
         const liveSessionId = await selectedSessionId(running.page);
@@ -187,7 +182,7 @@ test('OSC 52 clipboard writes remain opt-in, bounded, write-only, and lifecycle-
         await firstSession.click();
         await expect(running.page.locator('.xterm-rows')).toContainText('SNAPSHOT_REPLAY_VISIBLE');
         await running.page.waitForTimeout(250);
-        expect(await isClipboardTextEqual(running.app, 'RESTORE_SENTINEL')).toBe(true);
+        expect(await running.clipboard.textEquals('RESTORE_SENTINEL')).toBe(true);
 
         await sessionCard(running.page, liveSessionId).click();
         await expect(running.page.locator('.xterm-helper-textarea')).toBeFocused();

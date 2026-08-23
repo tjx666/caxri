@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ElectronApplication as ElectronApp, Locator, Page } from './support/fixtures.ts';
+import type { E2EApp as ElectronApp } from './support/electron-app.ts';
+import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
