@@ -230,8 +230,19 @@ esac
             env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
         });
         await running.page.getByRole('tab', { name: 'Status', exact: true }).click();
-        await running.page.keyboard.press('Meta+Alt+r');
         const restoredTree = running.page.getByRole('tree', { name: 'Extension View' });
+        /**
+         * Activation restores the tree asynchronously. Wait for that request before forcing another refresh so the
+         * fixture validates refresh persistence instead of racing two provider generations under CI load.
+         */
+        await expect(
+            restoredTree.getByRole('treeitem', { name: '#42 Status B', exact: true }),
+        ).toBeVisible();
+        await writeFile(statusTitlePath, 'Status C');
+        await running.page.keyboard.press('Meta+Alt+r');
+        await expect(
+            restoredTree.getByRole('treeitem', { name: '#42 Status C', exact: true }),
+        ).toBeVisible();
         const restoredDeployments = restoredTree.getByRole('treeitem', {
             name: 'Deployments, 1 on preview',
             exact: true,
