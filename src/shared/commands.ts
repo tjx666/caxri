@@ -146,6 +146,12 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'terminal', group: 1, order: 1 },
     },
     {
+        id: 'terminal.openDetectedLink',
+        title: 'Open Detected Link…',
+        category: 'Terminal',
+        description: 'Search and open links in the visible Terminal without using the pointer',
+    },
+    {
         id: 'terminal.previousCommand',
         title: 'Go to Previous Terminal Command',
         category: 'Terminal',
@@ -412,6 +418,11 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+k', command: 'terminal.clear' },
     { key: 'cmd+c', command: 'terminal.copy' },
     { key: 'cmd+f', command: 'terminal.find' },
+    {
+        key: 'cmd+shift+o',
+        command: 'terminal.openDetectedLink',
+        when: 'terminalFocus',
+    },
     { key: 'ctrl+tab', command: 'workbench.nextTab' },
     { key: 'ctrl+shift+tab', command: 'workbench.previousTab' },
     { key: 'ctrl+alt+tab', command: 'session.switchMru' },

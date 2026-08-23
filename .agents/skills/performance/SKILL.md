@@ -25,7 +25,7 @@ add a focused regression at its owning boundary.
 For a packaged application, run:
 
 ```bash
-CAXRI_BENCHMARK_EXECUTABLE="$PWD/release/mac-arm64/Caxri.app/Contents/MacOS/Caxri" \
+CAXRI_BENCHMARK_EXECUTABLE="$PWD/release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri" \
   CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository \
   bunx playwright test e2e/startup.performance.e2e.ts --reporter=line
 ```

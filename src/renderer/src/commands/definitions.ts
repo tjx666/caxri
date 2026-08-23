@@ -120,6 +120,10 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
         when: (context) => context.terminal.hasActive(),
     }),
+    fromCatalog('terminal.openDetectedLink', (context) => context.terminal.openDetectedLink(), {
+        allowInEditable: true,
+        when: (context) => context.terminal.hasActive(),
+    }),
     fromCatalog('terminal.previousCommand', (context) => context.terminal.navigateCommand(-1), {
         allowInEditable: true,
         when: (context) => context.terminal.hasActive(),

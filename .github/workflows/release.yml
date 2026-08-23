@@ -97,9 +97,9 @@ jobs:
 
       - name: Verify packaged application
         env:
-          CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release/mac-arm64/Caxri.app/Contents/MacOS/Caxri
+          CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri
           CAXRI_BENCHMARK_PROJECT_ROOT: ${{ github.workspace }}
-          CAXRI_PACKAGED_EXECUTABLE: ${{ github.workspace }}/release/mac-arm64/Caxri.app/Contents/MacOS/Caxri
+          CAXRI_PACKAGED_EXECUTABLE: ${{ github.workspace }}/release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri
         run: |
           file "$CAXRI_BENCHMARK_EXECUTABLE" | grep -q 'arm64'
           bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=line
@@ -107,7 +107,7 @@ jobs:
       - name: Verify release artifact
         id: artifact
         run: |
-          dmg="$(find release -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          dmg="$(find release.noindex -maxdepth 1 -type f -name '*.dmg' -print -quit)"
           if [[ -z "$dmg" ]]; then
             echo "No DMG was produced." >&2
             exit 1

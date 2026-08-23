@@ -28,7 +28,8 @@ describe('extension packaging profiles', () => {
         expect(productionSources).toContain('extensions/status');
         expect(productionSources).not.toContain(testOnlyExtensionResource.from);
         expect(testSources).toEqual([...productionSources, testOnlyExtensionResource.from]);
-        expect(testConfig.directories?.output).toBe('release/e2e');
+        expect(manifest.build.directories?.output).toBe('release.noindex');
+        expect(testConfig.directories?.output).toBe('release.noindex/e2e');
     });
 
     it('fails closed when production packaging already contains the fixture', () => {

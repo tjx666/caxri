@@ -20,11 +20,20 @@ substitutes for the real desktop path when the claim is user-visible.
 
 - Exercise Caxri in an isolated Electron instance. Never drive the developer's
   resident app or real user-data directory.
+- A resident Caxri dev app is normal and must remain usable. `start-electron.ts`
+  gives each Acceptance launch its own temporary macOS app bundle identity;
+  never ask the developer to stop their app or fall back to global app-name,
+  frontmost-window, or coordinate targeting.
 - Tell the user immediately before launching because the real desktop window can
   take macOS focus during verification.
 - Use CDP and `agent-browser` for renderer interaction, DOM inspection, and
   screenshots. Use OS capture only when the criterion is specifically about
   Electron or macOS chrome that CDP cannot see.
+- Bootstrap an isolated Project with the default `CAXRI_TEST_ROOT_PATH` fixture.
+  Never pass `--native-dialog` merely to prepare Acceptance state; macOS hosts
+  `NSOpenPanel` content through a separate service, so UI-scripting that chooser
+  is slower and less deterministic than the existing Main-owned fixture. Use
+  `--native-dialog` only when the chooser itself is part of the requirement.
 - Handle native dialogs according to [references/native-dialogs.md](references/native-dialogs.md):
   stub Main's dialog boundary in focused tests, but use semantic macOS Accessibility interaction
   for a real Acceptance path.

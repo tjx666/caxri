@@ -1,9 +1,11 @@
-import type { ILink, ILinkProvider, Terminal } from '@xterm/xterm';
+import type { IBuffer, ILink, ILinkProvider, IMarker, Terminal } from '@xterm/xterm';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalLinkContext } from '../terminal-links';
 import {
     findTerminalLinks,
+    MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES,
+    MAX_TERMINAL_DETECTED_LINKS,
     registerTerminalLinks,
     resolveTerminalFilePath,
     TERMINAL_DEFAULT_WORD_SEPARATORS,
@@ -127,6 +129,22 @@ describe('findTerminalLinks', () => {
         ).toEqual([]);
     });
 
+    it('visits unsupported Home ranges at most linearly for mixed-token input', () => {
+        const pairCount = 200;
+        const text = Array.from(
+            { length: pairCount },
+            (_, index) =>
+                `~user${index}/blocked.ts https://example.com/${index} allowed-${index}.ts`,
+        ).join(' ');
+        const metrics = { detectedLinkRangeVisits: 0, unsupportedHomeRangeVisits: 0 };
+
+        expect(findTerminalLinks(text, TERMINAL_DEFAULT_WORD_SEPARATORS, metrics)).toHaveLength(
+            pairCount * 2,
+        );
+        expect(metrics.detectedLinkRangeVisits).toBeLessThanOrEqual(pairCount * 5);
+        expect(metrics.unsupportedHomeRangeVisits).toBeLessThanOrEqual(pairCount * 5);
+    });
+
     it('keeps maximal trailing-bracket trimming bounded', () => {
         const text = `https://example.com/value${')'.repeat(16_000)}`;
         const startedAt = performance.now();
@@ -177,43 +195,164 @@ describe('resolveTerminalFilePath', () => {
 
 function createTerminal(text: string, cells: Array<{ chars: string; width: number }>) {
     let provider: ILinkProvider | undefined;
+    let osc8Handler: ((data: string) => boolean | Promise<boolean>) | undefined;
+    let markerId = 0;
+    let cursorColumn = text.length;
+    let cursorLine = 0;
+    let terminalColumns = 120;
+    let terminalRows = 1;
+    let viewportLine = 0;
+    const lineCells = [cells];
+    const lineWrapped = [false];
+    const alternateLineCells = [cellsFor('ALTERNATE')];
+    const bufferChangeCallbacks: Array<(buffer: IBuffer) => void> = [];
+    const markers: IMarker[] = [];
     const dispose = vi.fn();
+    const createBufferLine = (
+        currentCells: Array<{ chars: string; width: number }>,
+        isWrapped: boolean,
+    ) => ({
+        getCell: (column: number) => {
+            // `.at()` (rather than `[column]`) keeps an out-of-range index's `undefined` case in the type, since this
+            // project does not enable `noUncheckedIndexedAccess`.
+            const cell = currentCells.at(column);
+            return cell ? { getChars: () => cell.chars, getWidth: () => cell.width } : undefined;
+        },
+        isWrapped,
+        length: currentCells.length,
+        translateToString: (
+            shouldTrimRight = false,
+            startColumn = 0,
+            endColumn = currentCells.length,
+        ) => {
+            const value = currentCells
+                .slice(startColumn, endColumn)
+                .map(({ chars }) => chars)
+                .join('');
+            return shouldTrimRight ? value.trimEnd() : value;
+        },
+    });
+    const createBuffer = (
+        type: 'alternate' | 'normal',
+        currentLines: Array<Array<{ chars: string; width: number }>>,
+    ) => ({
+        baseY: 0,
+        get cursorX() {
+            return cursorColumn;
+        },
+        get cursorY() {
+            return cursorLine;
+        },
+        getLine: (line: number) => {
+            const currentCells = currentLines.at(line);
+            return currentCells
+                ? createBufferLine(
+                      currentCells,
+                      type === 'normal' && (lineWrapped.at(line) ?? false),
+                  )
+                : undefined;
+        },
+        get length() {
+            return currentLines.length;
+        },
+        type,
+        get viewportY() {
+            return viewportLine;
+        },
+    });
+    const normalBuffer = createBuffer('normal', lineCells);
+    const alternateBuffer = createBuffer('alternate', alternateLineCells);
+    let activeBuffer = normalBuffer;
     const terminal = {
         buffer: {
-            active: {
-                getLine: (line: number) =>
-                    line === 0
-                        ? {
-                              getCell: (column: number) => {
-                                  // `.at()` (rather than `[column]`) keeps an out-of-range index's `undefined` case
-                                  // in the type, since this project does not enable `noUncheckedIndexedAccess`.
-                                  const cell = cells.at(column);
-                                  return cell
-                                      ? {
-                                            getChars: () => cell.chars,
-                                            getWidth: () => cell.width,
-                                        }
-                                      : undefined;
-                              },
-                              isWrapped: false,
-                              length: cells.length,
-                              translateToString: () => text,
-                          }
-                        : undefined,
-                length: 1,
+            get active() {
+                return activeBuffer;
+            },
+            alternate: alternateBuffer,
+            normal: normalBuffer,
+            onBufferChange: (callback: (buffer: IBuffer) => void) => {
+                bufferChangeCallbacks.push(callback);
+                return { dispose: vi.fn() };
             },
         },
-        cols: 120,
+        get cols() {
+            return terminalColumns;
+        },
         options: { linkHandler: null },
+        parser: {
+            registerOscHandler: (identifier: number, handler: typeof osc8Handler) => {
+                if (identifier === 8) osc8Handler = handler;
+                return { dispose: vi.fn() };
+            },
+        },
         registerLinkProvider: (value: ILinkProvider) => {
             provider = value;
             return { dispose };
         },
+        registerMarker: (cursorYOffset = 0) => {
+            const callbacks: Array<() => void> = [];
+            const marker = {
+                id: (markerId += 1),
+                isDisposed: false,
+                line: cursorLine + cursorYOffset,
+                dispose: () => {
+                    if (marker.isDisposed) return;
+                    marker.isDisposed = true;
+                    marker.line = -1;
+                    for (const callback of callbacks) callback();
+                },
+                onDispose: (callback: () => void) => {
+                    callbacks.push(callback);
+                    return { dispose: vi.fn() };
+                },
+            };
+            const typedMarker = marker as unknown as IMarker;
+            markers.push(typedMarker);
+            return typedMarker;
+        },
+        get rows() {
+            return terminalRows;
+        },
     } as unknown as Terminal;
     return {
         dispose,
+        disposeMarkersAtLine(line: number): void {
+            for (const marker of markers) if (marker.line === line) marker.dispose();
+        },
         links(): Promise<ILink[] | undefined> {
             return new Promise((resolve) => provider?.provideLinks(1, resolve));
+        },
+        osc8(data: string): boolean | undefined {
+            const result = osc8Handler?.(data);
+            if (result instanceof Promise) throw new Error('Expected synchronous OSC test handler');
+            return result;
+        },
+        reflowNormal(lines: readonly string[], columns: number): void {
+            lineCells.splice(0, lineCells.length, ...lines.map(cellsFor));
+            lineWrapped.splice(0, lineWrapped.length, ...lines.map((_, index) => index > 0));
+            terminalColumns = columns;
+        },
+        setCursor(line: number, column: number): void {
+            cursorLine = line;
+            cursorColumn = column;
+        },
+        setActiveBuffer(type: 'alternate' | 'normal'): void {
+            activeBuffer = type === 'normal' ? normalBuffer : alternateBuffer;
+            for (const callback of bufferChangeCallbacks) callback(activeBuffer as IBuffer);
+        },
+        setAlternateLine(line: number, value: string): void {
+            alternateLineCells[line] = cellsFor(value);
+        },
+        setLine(line: number, value: string, isWrapped = false): void {
+            lineCells[line] = cellsFor(value);
+            lineWrapped[line] = isWrapped;
+        },
+        setSize(columns: number, rows: number): void {
+            terminalColumns = columns;
+            terminalRows = rows;
+        },
+        setViewport(line: number): void {
+            viewportLine = line;
         },
         terminal,
     };
@@ -261,6 +400,309 @@ describe('registerTerminalLinks', () => {
         expect(openUrl).toHaveBeenCalledWith('https://example.com');
     });
 
+    it('exposes current-viewport links with accessible actions that reuse typed activation', () => {
+        const text = 'src/file.ts:12:3 src/file.ts:12:3 https://example.com';
+        const terminal = createTerminal(text, cellsFor(text));
+        const { context, openFile, openUrl } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        const links = registration.getViewportLinks();
+        expect(
+            links.map(({ accessibleName, kind, target }) => ({ accessibleName, kind, target })),
+        ).toEqual([
+            {
+                accessibleName: 'Open file link src/file.ts:12:3',
+                kind: 'file',
+                target: 'src/file.ts:12:3',
+            },
+            {
+                accessibleName: 'Open external link https://example.com',
+                kind: 'url',
+                target: 'https://example.com',
+            },
+        ]);
+
+        links[0].activate();
+        links[1].activate();
+        expect(openFile).toHaveBeenCalledWith('/repo/src/file.ts', { line: 12, column: 3 });
+        expect(openUrl).toHaveBeenCalledWith('https://example.com');
+    });
+
+    it('bounds the picker candidate count across an adversarial visible grid', () => {
+        const terminal = createTerminal('', []);
+        terminal.setSize(80, 250);
+        for (let line = 0; line < 250; line += 1) {
+            terminal.setLine(line, `https://example.com/${line}`);
+        }
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        expect(registration.getViewportLinks()).toHaveLength(MAX_TERMINAL_DETECTED_LINKS);
+    });
+
+    it('bounds aggregate UTF-8 target bytes retained for one picker invocation', () => {
+        const terminal = createTerminal('', []);
+        terminal.setSize(6_000, 5);
+        for (let line = 0; line < 5; line += 1) {
+            terminal.setLine(line, `https://example.com/${'界'.repeat(5_000)}${line}`);
+        }
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+        const targetBytes = registration
+            .getViewportLinks()
+            .reduce((total, link) => total + new TextEncoder().encode(link.target).byteLength, 0);
+
+        expect(targetBytes).toBeLessThanOrEqual(MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES);
+    });
+
+    it('observes OSC 8 targets through public parser and marker APIs without consuming them', () => {
+        const terminal = createTerminal('descriptive label', cellsFor('descriptive label'));
+        const { context, openUrl } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        terminal.setCursor(0, 0);
+        expect(terminal.osc8(';https://example.com/osc-target')).toBe(false);
+        terminal.setCursor(0, 'descriptive label'.length);
+        expect(terminal.osc8(';')).toBe(false);
+        expect(registration.getViewportLinks()).toMatchObject([
+            {
+                accessibleName: 'Open external link https://example.com/osc-target',
+                kind: 'url',
+                target: 'https://example.com/osc-target',
+            },
+        ]);
+
+        registration.getViewportLinks()[0].activate();
+        expect(openUrl).toHaveBeenCalledWith('https://example.com/osc-target');
+    });
+
+    it('bounds OSC 8 targets independently of marker disposal', () => {
+        const terminal = createTerminal('x', cellsFor('x'));
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+        terminal.setSize(1, 1);
+
+        for (let index = 0; index < 1_001; index += 1) {
+            terminal.setLine(index, 'x');
+            terminal.setCursor(index, 0);
+            terminal.osc8(`;https://example.com/osc-target-${index}`);
+            terminal.setCursor(index, 1);
+            terminal.osc8(';');
+        }
+
+        terminal.setViewport(1);
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/osc-target-1' },
+        ]);
+        terminal.setViewport(1_000);
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/osc-target-1000' },
+        ]);
+    });
+
+    it('keeps a wrapped OSC 8 label discoverable from a visible continuation row', () => {
+        const terminal = createTerminal('ABCDE', cellsFor('ABCDE'));
+        terminal.setLine(1, 'FGHIJ', true);
+        terminal.setSize(5, 1);
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        terminal.setCursor(0, 0);
+        terminal.osc8(';https://example.com/wrapped');
+        terminal.setCursor(1, 5);
+        terminal.osc8(';');
+        terminal.setViewport(1);
+
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/wrapped' },
+        ]);
+    });
+
+    it('keeps an OSC 8 label when growing columns removes its wrapped endpoint row', () => {
+        const terminal = createTerminal('x'.repeat(20), cellsFor('x'.repeat(20)));
+        terminal.setLine(1, 'x', true);
+        terminal.setSize(20, 2);
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        terminal.setCursor(0, 0);
+        terminal.osc8(';https://example.com/grow-reflow');
+        terminal.setCursor(1, 1);
+        terminal.osc8(';');
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/grow-reflow' },
+        ]);
+
+        terminal.reflowNormal(['x'.repeat(21)], 30);
+        terminal.disposeMarkersAtLine(1);
+
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/grow-reflow' },
+        ]);
+    });
+
+    it('drops an OSC 8 target after its visible cells are overwritten', () => {
+        const terminal = createTerminal('LABEL', cellsFor('LABEL'));
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        terminal.setCursor(0, 0);
+        terminal.osc8(';https://example.com/stale');
+        terminal.setCursor(0, 5);
+        terminal.osc8(';');
+        terminal.setLine(0, 'NEWXX');
+
+        expect(registration.getViewportLinks()).toEqual([]);
+    });
+
+    it('preserves OSC 8 targets while an alternate buffer is active', () => {
+        const terminal = createTerminal('LABEL', cellsFor('LABEL'));
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        terminal.setCursor(0, 0);
+        terminal.osc8(';https://example.com/normal-buffer');
+        terminal.setCursor(0, 5);
+        terminal.osc8(';');
+        terminal.setActiveBuffer('alternate');
+        expect(registration.getViewportLinks()).toEqual([]);
+
+        terminal.setActiveBuffer('normal');
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/normal-buffer' },
+        ]);
+    });
+
+    it('restores only the Runtime-authoritative OSC 8 target after a pane remount', () => {
+        const firstTerminal = createTerminal('LABEL', cellsFor('LABEL'));
+        const { context } = baseContext();
+        const firstRegistration = registerTerminalLinks(firstTerminal.terminal, context);
+
+        firstTerminal.setCursor(0, 0);
+        firstTerminal.osc8(';https://example.com/stale-before-remount');
+        firstTerminal.setCursor(0, 5);
+        firstTerminal.osc8(';');
+        expect(firstRegistration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/stale-before-remount' },
+        ]);
+        firstRegistration.dispose();
+
+        const remountedTerminal = createTerminal('LABEL', cellsFor('LABEL'));
+        remountedTerminal.setCursor(0, 5);
+        const remountedRegistration = registerTerminalLinks(remountedTerminal.terminal, context);
+        expect(remountedRegistration.getViewportLinks()).toEqual([]);
+
+        remountedRegistration.restoreOscLinks([
+            {
+                buffer: 'normal',
+                endCellOffset: 5,
+                endLogicalLineIndex: 0,
+                endLogicalLineOffset: -1,
+                fingerprint: '5:1625091293',
+                startCellOffset: 0,
+                startLogicalLineIndex: 0,
+                startLogicalLineOffset: -1,
+                target: 'https://example.com/authoritative-after-remount',
+            },
+        ]);
+        expect(remountedRegistration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/authoritative-after-remount' },
+        ]);
+
+        remountedRegistration.dispose();
+    });
+
+    it('defers normal-buffer OSC 8 restoration until an alternate-screen remount returns', () => {
+        const terminal = createTerminal('LABEL', cellsFor('LABEL'));
+        const { context } = baseContext();
+        terminal.setActiveBuffer('alternate');
+        terminal.setCursor(0, 'ALTERNATE'.length);
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        registration.restoreOscLinks([
+            {
+                buffer: 'normal',
+                endCellOffset: 5,
+                endLogicalLineIndex: 0,
+                endLogicalLineOffset: -1,
+                fingerprint: '5:1625091293',
+                startCellOffset: 0,
+                startLogicalLineIndex: 0,
+                startLogicalLineOffset: -1,
+                target: 'https://example.com/normal-after-alternate',
+            },
+        ]);
+        expect(registration.getViewportLinks()).toEqual([]);
+
+        terminal.setCursor(0, 5);
+        terminal.setActiveBuffer('normal');
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/normal-after-alternate' },
+        ]);
+
+        registration.dispose();
+    });
+
+    it('restores an OSC 8 target from an active alternate-buffer snapshot', () => {
+        const terminal = createTerminal('NORMAL', cellsFor('NORMAL'));
+        terminal.setAlternateLine(0, 'LABEL');
+        terminal.setActiveBuffer('alternate');
+        terminal.setCursor(0, 5);
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        registration.restoreOscLinks([
+            {
+                buffer: 'alternate',
+                endCellOffset: 5,
+                endLogicalLineIndex: 0,
+                endLogicalLineOffset: -1,
+                fingerprint: '5:1625091293',
+                startCellOffset: 0,
+                startLogicalLineIndex: 0,
+                startLogicalLineOffset: -1,
+                target: 'https://example.com/alternate-after-remount',
+            },
+        ]);
+
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/alternate-after-remount' },
+        ]);
+        registration.dispose();
+    });
+
+    it('restores a deferred normal-buffer OSC 8 target after inactive-buffer reflow', () => {
+        const terminal = createTerminal('PREFIXLABEL', cellsFor('PREFIXLABEL'));
+        const { context } = baseContext();
+        terminal.setActiveBuffer('alternate');
+        terminal.setCursor(0, 'ALTERNATE'.length);
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        registration.restoreOscLinks([
+            {
+                buffer: 'normal',
+                endCellOffset: 11,
+                endLogicalLineIndex: 0,
+                endLogicalLineOffset: -1,
+                fingerprint: '5:1625091293',
+                startCellOffset: 6,
+                startLogicalLineIndex: 0,
+                startLogicalLineOffset: -1,
+                target: 'https://example.com/normal-after-reflow',
+            },
+        ]);
+        terminal.reflowNormal(['PREFIX', 'LABEL'], 6);
+
+        terminal.setCursor(1, 5);
+        terminal.setActiveBuffer('normal');
+        terminal.setViewport(1);
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/normal-after-reflow' },
+        ]);
+
+        registration.dispose();
+    });
+
     it('ignores a bare click without the Cmd/Ctrl activation modifier', async () => {
         const text = 'https://example.com';
         const terminal = createTerminal(text, cellsFor(text));
@@ -276,7 +718,7 @@ describe('registerTerminalLinks', () => {
         const text = 'src/file.ts:12:3';
         const terminal = createTerminal(text, cellsFor(text));
         const { context, openFile } = baseContext();
-        const unregister = registerTerminalLinks(terminal.terminal, context);
+        const registration = registerTerminalLinks(terminal.terminal, context);
 
         const links = await terminal.links();
         links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
@@ -305,7 +747,7 @@ describe('registerTerminalLinks', () => {
             column: 1,
         });
 
-        unregister();
+        registration.dispose();
         expect(terminal.dispose).toHaveBeenCalledOnce();
         expect(terminal.terminal.options.linkHandler).toBeNull();
     });

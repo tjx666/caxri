@@ -32,6 +32,7 @@ export interface CommandContext {
         clearActive(): void;
         copySelection(): void;
         findActive(): void;
+        openDetectedLink(): void;
         hasActive(): boolean;
         /**
          * True only when the active work item is a Terminal that currently owns a selection.

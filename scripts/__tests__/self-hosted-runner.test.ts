@@ -214,6 +214,49 @@ describe('self-hosted E2E runner ownership', () => {
         }
     });
 
+    it('removes Spotlight-excluded package output before verifying a clean workspace', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-runner-package-cleanup-'));
+        const workspace = join(root, 'workspace');
+        const runnerTemporary = join(root, 'runner-temp');
+        const owner = `caxri-${Date.now()}-${process.pid}-package-cleanup`;
+        const runRoot = join(runnerTemporary, owner);
+        const packageOutput = join(workspace, 'release.noindex');
+        const githubSummary = join(root, 'github-summary');
+
+        try {
+            await mkdir(join(runRoot, 'tmp'), { recursive: true });
+            await mkdir(join(packageOutput, 'mac-arm64', 'Caxri.app'), { recursive: true });
+            await writeFile(join(runRoot, 'owner.json'), `${JSON.stringify({ owner })}\n`);
+            await writeFile(join(packageOutput, 'artifact.txt'), 'generated\n');
+            await writeFile(githubSummary, '');
+            await execFileAsync('git', ['init', '--quiet'], { cwd: workspace });
+            await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+                cwd: workspace,
+            });
+            await execFileAsync('git', ['config', 'user.name', 'Test'], { cwd: workspace });
+            await writeFile(join(workspace, 'tracked.txt'), 'tracked\n');
+            await execFileAsync('git', ['add', 'tracked.txt'], { cwd: workspace });
+            await execFileAsync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: workspace });
+
+            await expect(
+                cleanup(
+                    cleanupFixtureEnvironment({
+                        githubSummary,
+                        owner,
+                        runnerTemp: runnerTemporary,
+                        runRoot,
+                        workspace,
+                    }),
+                    { terminateOwnedProcesses: () => Promise.resolve(0) },
+                ),
+            ).resolves.toBeUndefined();
+
+            await expect(access(packageOutput)).rejects.toMatchObject({ code: 'ENOENT' });
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
     it('preserves a foreign short TMPDIR link and fails closed', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-runner-foreign-link-'));
         const workspace = join(root, 'workspace');

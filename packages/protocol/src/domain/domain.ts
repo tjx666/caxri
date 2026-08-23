@@ -16,6 +16,11 @@ export * from './git.js';
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
 export const MAX_TERMINAL_INPUT_LENGTH = 65_536;
+export const MAX_TERMINAL_LINK_LENGTH = 16_384;
+export const MAX_TERMINAL_LINK_ROWS = 16;
+export const MAX_TERMINAL_OSC_LINKS = 1_000;
+export const MAX_TERMINAL_OSC_LINK_CELLS = 256 * 1_024;
+export const MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS = 256 * 1_024;
 const TERMINAL_SEND_SEQUENCE_COMMAND_ID =
     'workbench.action.terminal.sendSequence' satisfies CommandId;
 
@@ -156,6 +161,28 @@ export const terminalRecordSchema = z.object({
     processId: z.number().optional(),
 });
 
+export const terminalOscLinkSnapshotSchema = z.object({
+    buffer: z.enum(['normal', 'alternate']),
+    endCellOffset: z.number().int().nonnegative().max(3_000_000),
+    endLogicalLineIndex: z.number().int().nonnegative().max(2_999),
+    endLogicalLineOffset: z.number().int().min(-3_000).max(-1),
+    fingerprint: z.string().regex(/^\d{1,5}:\d{1,10}$/u),
+    startCellOffset: z.number().int().nonnegative().max(3_000_000),
+    startLogicalLineIndex: z.number().int().nonnegative().max(2_999),
+    startLogicalLineOffset: z.number().int().min(-3_000).max(-1),
+    target: z.string().min(1).max(MAX_TERMINAL_LINK_LENGTH),
+});
+
+const terminalOscLinkSnapshotsSchema = z
+    .array(terminalOscLinkSnapshotSchema)
+    .max(MAX_TERMINAL_OSC_LINKS)
+    .refine(
+        (links) =>
+            links.reduce((characters, link) => characters + link.target.length, 0) <=
+            MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS,
+        `Terminal OSC link targets must contain at most ${MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS} characters`,
+    );
+
 export const terminalSnapshotSchema = z.object({
     terminalId: z.string(),
     encodingVersion: z.number(),
@@ -164,6 +191,12 @@ export const terminalSnapshotSchema = z.object({
     lineCount: z.number(),
     byteCount: z.number(),
     payload: z.string(),
+    /**
+     * Runtime-authoritative OSC 8 targets for the serialized normal and active alternate buffers. SerializeAddon
+     * preserves the visible cells but not their hyperlink identities, so the Renderer restores this bounded metadata
+     * during the same replay.
+     */
+    oscLinks: terminalOscLinkSnapshotsSchema.optional(),
     updatedAt: z.number(),
 });
 
@@ -686,6 +719,7 @@ export type ProjectRecord = z.infer<typeof projectRecordSchema>;
 export type SessionRecord = z.infer<typeof sessionRecordSchema>;
 export type TerminalRecord = z.infer<typeof terminalRecordSchema>;
 export type TerminalSnapshot = z.infer<typeof terminalSnapshotSchema>;
+export type TerminalOscLinkSnapshot = z.infer<typeof terminalOscLinkSnapshotSchema>;
 export type AgentTranscript = z.infer<typeof agentTranscriptSchema>;
 export type SessionState = z.infer<typeof sessionStateSchema>;
 export type NewWorktreeBehavior = z.infer<typeof newWorktreeBehaviorSchema>;

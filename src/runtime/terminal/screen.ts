@@ -6,6 +6,7 @@ import type { Terminal as HeadlessTerminal } from '@xterm/headless';
 import { Terminal } from '@xterm/headless';
 
 import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from '../snapshot';
+import { TerminalOscLinkSnapshots } from './osc-link-snapshots';
 
 type ScreenOperation =
     | { chunks: string[]; type: 'write' }
@@ -26,6 +27,7 @@ type ScreenOperation =
 
 export type TerminalScreenSnapshot = ReturnType<typeof boundSnapshot> & {
     cols: number;
+    oscLinks?: ReturnType<TerminalOscLinkSnapshots['snapshot']>;
     rows: number;
 };
 
@@ -82,6 +84,7 @@ export class TerminalScreenState {
     private readonly maximumQueuedBytes: number;
     private readonly onOverflow?: (droppedBytes: number) => void;
     private readonly onTitleChange?: TerminalTitleObserver;
+    private readonly oscLinks: TerminalOscLinkSnapshots;
     private readonly operations: ScreenOperation[] = [];
     private queuedWriteBytes = 0;
     private readonly serialize = new SerializeAddon();
@@ -113,6 +116,7 @@ export class TerminalScreenState {
         this.terminal.loadAddon(new Unicode11Addon());
         this.terminal.unicode.activeVersion = '11';
         this.terminal.loadAddon(this.serialize);
+        this.oscLinks = new TerminalOscLinkSnapshots(this.terminal);
         /**
          * Attached before the snapshot replay below so a recovered Terminal re-derives its title from whatever OSC the
          * replay happens to carry. The serializer does not currently emit the window title, so in practice recovery
@@ -199,9 +203,21 @@ export class TerminalScreenState {
             scrollback = Math.floor(scrollback / 2);
             payload = this.serialize.serialize({ excludeModes: options.excludeModes, scrollback });
         }
+        const bounded = boundSnapshot(payload);
+        const normalBufferStartLine = Math.max(
+            0,
+            this.terminal.buffer.normal.length - (scrollback + this.terminal.rows),
+        );
+        /**
+         * OSC targets may contain sensitive data. Only pair them with a serializer range that survived the aggregate
+         * line and byte bounds unchanged; otherwise the Renderer could receive a target whose label was trimmed.
+         */
+        const oscLinks =
+            bounded.payload === payload ? this.oscLinks.snapshot(normalBufferStartLine) : [];
         return {
-            ...boundSnapshot(payload),
+            ...bounded,
             cols: this.terminal.cols,
+            ...(oscLinks.length > 0 && { oscLinks }),
             rows: this.terminal.rows,
         };
     }
@@ -302,6 +318,7 @@ export class TerminalScreenState {
             if (operation.type === 'snapshot' || operation.type === 'text-tail')
                 operation.reject(new Error('Terminal screen was disposed before serialization'));
         }
+        this.oscLinks.dispose();
         this.terminal.dispose();
     }
 

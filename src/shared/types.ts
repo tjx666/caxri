@@ -73,6 +73,7 @@ export {
     type SessionTitleMode,
     type TerminalFailureReason,
     type TerminalKind,
+    type TerminalOscLinkSnapshot,
     type TerminalRecord,
     type TerminalResourceUsage,
     type TerminalSnapshot,
