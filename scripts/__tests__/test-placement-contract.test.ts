@@ -33,9 +33,15 @@ function testTsxFiles(directory: string): string[] {
     const entries = readdirSync(directory, { withFileTypes: true });
     for (const entry of entries) {
         if (
-            ['.git', '.records', 'competitors', 'node_modules', 'out', 'release'].includes(
-                entry.name,
-            )
+            [
+                '.git',
+                '.records',
+                'competitors',
+                'node_modules',
+                'out',
+                'release',
+                'release.noindex',
+            ].includes(entry.name)
         )
             continue;
         const path = join(directory, entry.name);

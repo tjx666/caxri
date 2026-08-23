@@ -35,6 +35,7 @@ export default defineConfig(
         'logs',
         'out',
         'release',
+        'release.noindex',
         'node_modules',
         /**
          * Generated Go and Acceptance evidence can contain temporary TypeScript outside tsconfig.

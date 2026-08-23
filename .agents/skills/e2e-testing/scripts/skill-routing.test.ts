@@ -14,9 +14,15 @@ function contractFiles(directory: string): string[] {
     return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
         if (
             entry.isDirectory() &&
-            new Set(['.git', '.records', 'competitors', 'dist', 'node_modules', 'release']).has(
-                entry.name,
-            )
+            new Set([
+                '.git',
+                '.records',
+                'competitors',
+                'dist',
+                'node_modules',
+                'release',
+                'release.noindex',
+            ]).has(entry.name)
         ) {
             return [];
         }

@@ -91,7 +91,9 @@ describe('shared ESLint preset toolchain contract', () => {
         const eslint = new ESLint({ cwd: root });
 
         await expect(eslint.isPathIgnored(resolve(root, 'out/main/index.js'))).resolves.toBe(true);
-        await expect(eslint.isPathIgnored(resolve(root, 'release/caxri.dmg'))).resolves.toBe(true);
+        await expect(
+            eslint.isPathIgnored(resolve(root, 'release.noindex/caxri.dmg')),
+        ).resolves.toBe(true);
     });
 
     it('bans the @shared/@ Renderer aliases outside the Renderer', async () => {

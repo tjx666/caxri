@@ -15,7 +15,7 @@
 | `docs/`       | Durable product, module, operator, and architecture-debt documentation                     |
 | `licenses/`   | Vendored third-party license texts                                                         |
 
-Generated or local-only roots such as `out/`, `release/`, `logs/`, `test-results/`, `.records/`,
+Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test-results/`, `.records/`,
 `competitors/`, and `node_modules/` are intentionally gitignored and are not source directories.
 
 ## Agent-native development

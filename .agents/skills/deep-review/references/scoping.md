@@ -34,7 +34,7 @@ git diff "$(git merge-base origin/main HEAD)"
 
 ## 3. Size before content
 
-Probe with `--stat` first. Exclude bulk lockfile, snapshot, generated, `out/`, and `release/` content
+Probe with `--stat` first. Exclude bulk lockfile, snapshot, generated, `out/`, and `release.noindex/` content
 from line-count sizing, while retaining the fact that those files changed. Review manifest or build
 declarations that caused generated/lockfile changes.
 

@@ -18,5 +18,7 @@ description: Build Caxri's Electron Main, CommonJS sandboxed Preload, Renderer, 
    `bun run unlink:cli`.
 
 Keep Renderer Node-free and do not replace the CommonJS preload output without revalidating the sandboxed packaged app.
+Use the repository `package*` scripts instead of invoking Electron Builder directly. They write every local package
+beneath `release.noindex/`, so Spotlight never presents worktree artifacts as duplicate installed Caxri applications.
 Keep successful build output compact: retain full output in a task-scoped log when needed, report the
 phase and artifact checks, and surface the complete log only on failure.

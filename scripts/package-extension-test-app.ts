@@ -17,4 +17,4 @@ await build({
     projectDir: process.cwd(),
 });
 
-process.stdout.write('Packaged the explicit E2E extension artifact under release/e2e\n');
+process.stdout.write('Packaged the explicit E2E extension artifact under release.noindex/e2e\n');

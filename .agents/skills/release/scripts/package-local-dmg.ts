@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileAsync } from '../../../../src/shared/node/exec';
 
 const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
+const RELEASE_OUTPUT_DIRECTORY = 'release.noindex';
 const VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Z.-]+)?$/i;
 
 export interface CommandResult {
@@ -286,8 +287,8 @@ export async function packageLocalDmg(
         { ...options, cwd, version },
         executor,
     );
-    const artifactPath = join(cwd, 'release', `Caxri-${version}-arm64.dmg`);
-    const appPath = join(cwd, 'release', 'mac-arm64', 'Caxri.app');
+    const artifactPath = join(cwd, RELEASE_OUTPUT_DIRECTORY, `Caxri-${version}-arm64.dmg`);
+    const appPath = join(cwd, RELEASE_OUTPUT_DIRECTORY, 'mac-arm64', 'Caxri.app');
     const executablePath = join(appPath, 'Contents', 'MacOS', 'Caxri');
     const infoPath = join(appPath, 'Contents', 'Info.plist');
     const artifact = await stat(artifactPath);
