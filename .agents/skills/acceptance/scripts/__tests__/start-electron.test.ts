@@ -2,13 +2,16 @@ import type { ChildProcess } from 'node:child_process';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+    createElectronStopController,
+    createMacosAcceptanceLaunchController,
+    settleMacosAcceptanceLaunch,
+} from '../macos-launch-lifecycle';
 import type { RuntimeState } from '../runtime-state';
 import type { StaleRuntimeDependencies } from '../start-electron';
 import {
     createChildExitPromise,
     createElectronLaunchSpec,
-    createElectronStopController,
-    createMacosAcceptanceLaunchController,
     createMacosAcceptanceLaunchSpec,
     removeStaleRuntime,
     shouldPreserveInheritedRuntimeState,
@@ -292,6 +295,22 @@ describe('Acceptance Electron launcher seams', () => {
         expect(stopUndiscoveredProcesses).toHaveBeenCalledWith(
             '/tmp/profile/apps.noindex/Caxri Acceptance 01234567.app/Contents/MacOS/Electron',
         );
+    });
+
+    it('preserves the profile and removes signal listeners when the unique-path sweep fails', async () => {
+        const cleanupError = new Error('process listing failed');
+        const cleanup = vi.fn().mockRejectedValue(cleanupError);
+        const removeSignalListeners = vi.fn();
+
+        await expect(
+            settleMacosAcceptanceLaunch(
+                { cleanup },
+                Promise.resolve({ code: null, signal: 'SIGTERM' }),
+                removeSignalListeners,
+            ),
+        ).resolves.toEqual({ cleanupError, isSafeToRemoveProfile: false });
+        expect(cleanup).toHaveBeenCalledOnce();
+        expect(removeSignalListeners).toHaveBeenCalledOnce();
     });
 
     it('waits for CDP readiness and fails closed on early exit or timeout', async () => {
