@@ -37,9 +37,31 @@ When the native dialog itself or the complete real user path must be verified:
 
 5. Return to CDP and verify the resulting Renderer and filesystem state.
 
-The helper validates `.records/acceptance/runtime.json`, queries the owned
-Electron process tree once per attempt, recursively resolves nested native
-buttons, rejects multiple matching dialogs, and never uses screen coordinates.
+Do not use a real folder chooser to bootstrap a Project for an unrelated case.
+`start-electron.ts` supplies the selected Project through `CAXRI_TEST_ROOT_PATH`
+by default, exercising the existing Main-owned authorization fixture without an
+`NSOpenPanel`. Pass `--native-dialog` only when the chooser is itself named by
+the Acceptance requirement. Electron implements a parented file chooser as an
+AppKit sheet, while modern macOS hosts its content through
+`com.apple.appkit.xpc.openAndSavePanelService`; treating that remote UI as setup
+adds timing and Accessibility ownership that the product behavior under test
+does not need.
+
+The helper validates `.records/acceptance/runtime.json`, queries only the owned
+Electron Main PID, checks `AXDefaultButton` and `AXCancelButton` first, and falls
+back to a depth- and element-bounded direct-child traversal that never enters
+file-browser content roles. It rejects incomplete or multiple matches and never
+uses screen coordinates. `inspect` remains read-only; only an exact `click`
+match may bring the isolated app to the front.
+
+The Acceptance launcher clones Electron beneath the profile's `apps.noindex/`
+root with a unique temporary bundle identity and starts that clone through
+LaunchServices. It deliberately keeps the main
+executable named `Electron`, preserving `app.isPackaged === false` and the normal
+unpackaged build paths while making the PID-owned Accessibility query distinct
+from a concurrently running Caxri dev app. Treat any regression to a shared
+`com.github.Electron` identity as a harness defect; never work around it by
+stopping the developer's app.
 Every Accessibility query has a hard timeout. macOS must grant Accessibility
 permission to the terminal process running the helper; missing permission fails
 with a direct remediation message instead of hanging.

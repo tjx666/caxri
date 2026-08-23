@@ -8,6 +8,7 @@ import {
     createChildExitPromise,
     createElectronLaunchSpec,
     createElectronStopController,
+    createMacosAcceptanceLaunchSpec,
     removeStaleRuntime,
     shouldPreserveInheritedRuntimeState,
     waitForCdp,
@@ -190,6 +191,43 @@ describe('Acceptance Electron launcher seams', () => {
         expect(launch.options.env).toMatchObject({
             CAXRI_E2E: '1',
             CAXRI_USER_DATA_DIR: '/tmp/caxri-acceptance-user-case',
+        });
+    });
+
+    it('launches the unique app through LaunchServices while preserving its environment', () => {
+        const launch = createMacosAcceptanceLaunchSpec({
+            appPath: '/tmp/Caxri Acceptance 01234567.app',
+            environment: { NODE_OPTIONS: '--max-old-space-size=16384', PATH: '/usr/bin' },
+            port: 9333,
+            projectRoot: '/repo',
+            testRootPath: '/project-one',
+            testRootPaths: ['/project-one'],
+            userDataDir: '/tmp/caxri-acceptance-user-case',
+        });
+
+        expect(launch).toEqual({
+            args: [
+                '-n',
+                '-W',
+                '/tmp/Caxri Acceptance 01234567.app',
+                '--args',
+                '/repo',
+                '--remote-debugging-port=9333',
+            ],
+            command: '/usr/bin/open',
+            options: {
+                cwd: '/repo',
+                env: {
+                    NODE_OPTIONS: '--max-old-space-size=16384',
+                    PATH: '/usr/bin',
+                    CAXRI_E2E: '1',
+                    CAXRI_E2E_WINDOW_MODE: 'visible',
+                    CAXRI_TEST_ROOT_PATH: '/project-one',
+                    CAXRI_TEST_ROOT_PATHS: '["/project-one"]',
+                    CAXRI_USER_DATA_DIR: '/tmp/caxri-acceptance-user-case',
+                },
+                stdio: 'inherit',
+            },
         });
     });
 
