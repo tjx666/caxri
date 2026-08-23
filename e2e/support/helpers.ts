@@ -27,13 +27,15 @@ import {
     selectE2ERealAgentStateEnvironment,
 } from './agent-environment.ts';
 import { assertE2EBuildIsFresh } from './build-freshness.ts';
-import type { ClipboardFixture, ClipboardSnapshot } from './clipboard.ts';
+import type { ClipboardCapability, ClipboardFixture, ClipboardSnapshot } from './clipboard.ts';
 import {
     armClipboardRestoreOnQuit,
+    createClipboardCapability,
     restoreClipboard,
     snapshotClipboard,
     writeClipboardFixture,
 } from './clipboard.ts';
+import type { E2EApp } from './electron-app.ts';
 import { registerE2ELaunch } from './error-gate.ts';
 import { resolveE2EClipboardPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
@@ -93,13 +95,13 @@ export interface LaunchCaxriOptions {
 }
 
 export interface RunningCaxri {
-    app: ElectronApplication;
-    clipboard?: ClipboardSnapshot;
+    app: E2EApp;
+    clipboard?: ClipboardCapability;
     page: Page;
 }
 
 export interface RunningCaxriWithClipboard extends RunningCaxri {
-    clipboard: ClipboardSnapshot;
+    clipboard: ClipboardCapability;
 }
 
 type E2EAgentMode =
@@ -447,7 +449,8 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         }
         return {
             app,
-            ...(clipboardSnapshot && clipboard && { clipboard: clipboardSnapshot }),
+            ...(clipboardSnapshot &&
+                clipboard && { clipboard: createClipboardCapability(app, clipboardSnapshot) }),
             page,
         };
     } catch (error) {

@@ -11,7 +11,6 @@ import {
     isClipboardFixtureCurrent,
     snapshotClipboard,
     writeClipboardFixture,
-    writeTestClipboardText,
 } from './support/clipboard.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri } from './support/helpers.ts';
@@ -37,11 +36,7 @@ async function verifyFormatRoundTrip(closeMode: 'native-quit' | 'playwright-clos
             formatCount: 4,
             itemCount: 2,
         });
-        await writeTestClipboardText(
-            running.app,
-            running.clipboard,
-            'CAXRI_E2E_CLIPBOARD_REPLACEMENT',
-        );
+        await running.clipboard.writeText('CAXRI_E2E_CLIPBOARD_REPLACEMENT');
 
         if (closeMode === 'playwright-close') {
             await running.app.close();
@@ -89,11 +84,7 @@ test('an external pasteboard generation is preserved during teardown', async () 
     let wasExternalWritePreserved: boolean;
     let isClosed = false;
     try {
-        await writeTestClipboardText(
-            running.app,
-            running.clipboard,
-            'CAXRI_E2E_TEST_OWNED_GENERATION',
-        );
+        await running.clipboard.writeText('CAXRI_E2E_TEST_OWNED_GENERATION');
         externalGeneration = (await writeClipboardFixture('external-write')).generation;
         await running.app.close();
         isClosed = true;

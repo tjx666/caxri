@@ -80,4 +80,4 @@ export const test = base.extend<E2EFixtures, E2EWorkerFixtures>({
 export const errorGateSelfTest = base;
 
 export { expect };
-export type { ElectronApplication, Locator, Page, TestInfo } from '@playwright/test';
+export type { Locator, Page, TestInfo } from '@playwright/test';
