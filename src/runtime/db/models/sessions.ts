@@ -246,7 +246,13 @@ export class SessionsModel {
 
     private readState(row: SessionStateRow): SessionState {
         const parsed = parseSessionState(row, () => this.defaultPaneLayout(row.sessionId));
-        if ('state' in parsed) return parsed.state;
+        if ('state' in parsed) {
+            const paneLayout = this.pruneClosedTerminalTabs(row.sessionId, parsed.state.paneLayout);
+            if (paneLayout === parsed.state.paneLayout) return parsed.state;
+            const repaired = { ...parsed.state, paneLayout };
+            this.updateState(repaired);
+            return repaired;
+        }
         const repaired = this.defaultState(row.sessionId);
         this.updateState(repaired);
         this.onStateRepair?.({

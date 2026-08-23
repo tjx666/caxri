@@ -195,6 +195,11 @@ SQLite runs only in the Runtime and uses WAL, foreign keys, transactions, and bu
 - `session_state`: versioned open editor tabs, active tab, desired Secondary Sidebar ViewContainer ID, recursive Terminal split layout, and the last durable file-mutation editor-remap operation ID so at-least-once recovery stays idempotent across Renderer reloads; invalid JSON, invalid shapes, or unsupported versions repair to a default layout and emit a content-free warning instead of failing bootstrap
 - `app_state`: last selected Project and Session, window state, active theme, and schema version
 
+A successfully parsed Workbench Root snapshot is also checked against the Session's current durable
+Terminal ownership. Historical tabs for deleted Terminals are pruned on first read and that Root is
+rewritten immediately, while sibling Root snapshots, extension Tree View state, and editor-remap
+identity remain intact.
+
 Snapshots retain at most 2,000 lines and 2 MiB per Terminal. Each live PTY owns a Runtime-side headless xterm screen whose ordered write and resize queue preserves cursor-addressed state. A live attach first moves that screen and PTY to the receiving Renderer grid, then crosses an exact queue barrier and replays a bounded serialized screen before later output. A Renderer subscribes before attaching, then replays that bounded snapshot ahead of output received during attachment. Bytes already represented by that snapshot are removed from the live-output queue before replay to prevent duplication. Detached Terminals retain the parsed screen in memory without broadcasting output to an invisible view. Exit, restart, and orderly or terminate shutdown persist that same parsed screen plus its exact source grid as encoding 3 after excluding interaction modes; raw PTY bytes are never durable recovery data. Renderer recovery disconnects normal resize observation, restores the serialized framebuffer at that source grid, waits for xterm parsing and buffered output to finish, then fits once to the current pane and resumes observation. Older, malformed, or unknown encodings fail closed and restore an empty screen. An unclean Runtime loss can therefore lose the current generation's latest visual history instead of replaying unsafe raw input. Snapshots are UI restoration data, not proof that a process survived.
 
 ## PTY lifecycle and backpressure
