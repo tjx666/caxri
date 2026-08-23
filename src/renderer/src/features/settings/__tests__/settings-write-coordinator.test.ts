@@ -123,4 +123,37 @@ describe('settings write coordinator', () => {
             expect(applied).toEqual(['second-source']);
         },
     );
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        'keeps the next pending %s draft when the previous response fails before its delayed echo',
+        async (kind) => {
+            vi.useFakeTimers();
+            const firstResponse = Promise.withResolvers<() => void>();
+            const persist = vi
+                .fn()
+                .mockReturnValueOnce(firstResponse.promise)
+                .mockResolvedValueOnce(vi.fn());
+            const onError = vi.fn();
+            const coordinator = createSettingsWriteCoordinator({
+                debounceMs: 300,
+                onError,
+                persist,
+            });
+
+            coordinator.persistNow(kind, 'first-source');
+            coordinator.schedule(kind, 'second-source');
+            firstResponse.reject(new Error('response failed after Runtime broadcast'));
+            await expect(firstResponse.promise).rejects.toThrow(
+                'response failed after Runtime broadcast',
+            );
+            await Promise.resolve();
+
+            expect(onError).toHaveBeenCalledOnce();
+            expect(coordinator.isOwnEcho(kind, 'first-source')).toBe(true);
+            await vi.advanceTimersByTimeAsync(300);
+
+            expect(persist).toHaveBeenNthCalledWith(1, kind, 'first-source');
+            expect(persist).toHaveBeenNthCalledWith(2, kind, 'second-source');
+        },
+    );
 });
