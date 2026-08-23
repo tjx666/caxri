@@ -66,17 +66,33 @@ describe('concurrent CI validation', () => {
     });
 
     it('fails each independently receipted validation surface closed', () => {
-        expect(isVerificationPassed(greenReceipt, 'checks')).toBe(true);
-        expect(isVerificationPassed(greenReceipt, 'parallel-safe')).toBe(true);
-        expect(isVerificationPassed(greenReceipt, 'desktop-exclusive')).toBe(true);
-        expect(isVerificationPassed(greenReceipt, 'e2e-auxiliary')).toBe(true);
-        expect(isVerificationPassed({ ...greenReceipt, checks: 1 }, 'checks')).toBe(false);
-        expect(isVerificationPassed({ ...greenReceipt, parallelSafe: null }, 'parallel-safe')).toBe(
-            false,
+        expect(isVerificationPassed(greenReceipt, 'checks', greenReceipt.provenance)).toBe(true);
+        expect(isVerificationPassed(greenReceipt, 'parallel-safe', greenReceipt.provenance)).toBe(
+            true,
         );
-        expect(isVerificationPassed({ ...greenReceipt, failureCensus: 1 }, 'e2e-auxiliary')).toBe(
-            false,
+        expect(
+            isVerificationPassed(greenReceipt, 'desktop-exclusive', greenReceipt.provenance),
+        ).toBe(true);
+        expect(isVerificationPassed(greenReceipt, 'e2e-auxiliary', greenReceipt.provenance)).toBe(
+            true,
         );
+        expect(
+            isVerificationPassed({ ...greenReceipt, checks: 1 }, 'checks', greenReceipt.provenance),
+        ).toBe(false);
+        expect(
+            isVerificationPassed(
+                { ...greenReceipt, parallelSafe: null },
+                'parallel-safe',
+                greenReceipt.provenance,
+            ),
+        ).toBe(false);
+        expect(
+            isVerificationPassed(
+                { ...greenReceipt, failureCensus: 1 },
+                'e2e-auxiliary',
+                greenReceipt.provenance,
+            ),
+        ).toBe(false);
         expect(
             isVerificationPassed(greenReceipt, 'checks', {
                 ...greenReceipt.provenance,
@@ -137,6 +153,7 @@ describe('concurrent CI validation', () => {
             GIT_CONFIG_VALUE_0: 'existing-value',
         });
 
+        expect(environment.CAXRI_GITHUB_TOKEN).toBeUndefined();
         expect(environment).toMatchObject({
             GIT_CONFIG_COUNT: '2',
             GIT_CONFIG_KEY_0: 'existing.key',
@@ -216,6 +233,12 @@ describe('concurrent CI validation', () => {
                 cwd: disposable,
             });
             expect(disposableHead.trim()).toBe(mergeRevision);
+            const { stdout: mergeBase } = await execFileAsync(
+                'git',
+                ['merge-base', baseRevision, 'HEAD'],
+                { cwd: disposable },
+            );
+            expect(mergeBase.trim()).toBe(baseRevision);
             await expect(
                 access(join(disposable, '.git', 'objects', 'info', 'alternates')),
             ).rejects.toThrow();

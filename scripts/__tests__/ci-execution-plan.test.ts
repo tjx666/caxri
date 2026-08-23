@@ -144,4 +144,33 @@ describe('CI execution plan', () => {
             runE2E: true,
         });
     });
+
+    it('never selects concurrent full checks without the E2E job that owns them', () => {
+        const inputs = [
+            {
+                changedFiles: ['src/runtime/index.ts'],
+                eventName: 'pull_request',
+                pullRequestDraft: false,
+            },
+            {
+                changedFiles: ['src/main/index.ts'],
+                eventName: 'push',
+                isReleaseCommit: false,
+            },
+            {
+                changedFiles: [],
+                dispatchE2EProfile: 'optimized' as const,
+                eventName: 'workflow_dispatch',
+            },
+        ];
+
+        for (const input of inputs) {
+            const plan = evaluateCIExecutionPlan(input);
+            expect(plan).toMatchObject({
+                checksScope: 'full',
+                e2eProfile: 'optimized',
+                runE2E: true,
+            });
+        }
+    });
 });

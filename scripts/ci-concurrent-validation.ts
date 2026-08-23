@@ -237,7 +237,7 @@ async function writeReceipt(receipt: ConcurrentValidationReceipt): Promise<void>
 export function isVerificationPassed(
     receipt: ConcurrentValidationReceipt,
     component: ConcurrentValidationComponent,
-    expectedProvenance: ConcurrentValidationProvenance = receipt.provenance,
+    expectedProvenance: ConcurrentValidationProvenance,
 ): boolean {
     if (JSON.stringify(receipt.provenance) !== JSON.stringify(expectedProvenance)) return false;
     if (component === 'checks') return receipt.checks === 0;
