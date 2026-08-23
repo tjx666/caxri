@@ -15,6 +15,7 @@ import {
 } from './support/clipboard.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri } from './support/helpers.ts';
+import { resolveE2EWorkerIsolation } from './support/worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -25,6 +26,7 @@ async function verifyFormatRoundTrip(closeMode: 'native-quit' | 'playwright-clos
     await mkdir(root);
 
     const running = await launchCaxri({
+        clipboard: true,
         clipboardFixture: 'custom-formats',
         testRootPath: root,
         userDataDir: userData,
@@ -77,7 +79,11 @@ test('an external pasteboard generation is preserved during teardown', async () 
     const root = join(testDirectory, 'project');
     await mkdir(root);
 
-    const running = await launchCaxri({ testRootPath: root, userDataDir: userData });
+    const running = await launchCaxri({
+        clipboard: true,
+        testRootPath: root,
+        userDataDir: userData,
+    });
     const recoverySnapshot = await snapshotClipboard();
     let externalGeneration: number | undefined;
     let wasExternalWritePreserved: boolean;
@@ -99,10 +105,15 @@ test('an external pasteboard generation is preserved during teardown', async () 
                 // The shared error gate reports content-free cleanup failures.
             }
         }
+        const workerIsolation = resolveE2EWorkerIsolation(process.env);
         const recoveryLease = await acquireDesktopLease(
             projectRoot,
             'Electron E2E clipboard fixture recovery',
             process.pid,
+            {
+                coordinatorToken: workerIsolation.coordinatorToken,
+                namespace: workerIsolation.leaseNamespace,
+            },
         );
         try {
             wasExternalWritePreserved = await isClipboardFixtureCurrent('external-write');

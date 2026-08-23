@@ -106,6 +106,15 @@ bun run build
 bunx playwright test <failed-files...> -g '<failed test>' --workers=1 --repeat-each=3 --reporter=line
 ```
 
+When one local command launches more than one Electron instance, wrap the entire command in the
+worktree desktop coordinator. Holding the coordinator across every repetition prevents a sibling
+worktree from acquiring the root lease between Playwright launches:
+
+```bash
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts desktop --label focused-repeat -- \
+  bunx playwright test <failed-files...> -g '<failed test>' --workers=1 --repeat-each=3 --reporter=line
+```
+
 Preserve the relevant CI viewport, font/locale/shell behavior, and long temporary-path conditions.
 Inject slowness at the owning async boundary or wait for an observable product invariant. Never use
 machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change as the fix.

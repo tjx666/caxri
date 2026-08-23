@@ -76,7 +76,11 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         writeFile(join(sourceFolder, 'nested', 'value.txt'), 'nested\n', 'utf8'),
     ]);
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        clipboard: true,
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
         await running.app.evaluate(({ dialog, shell }) => {
             const { rename } = process.getBuiltinModule('node:fs').promises;

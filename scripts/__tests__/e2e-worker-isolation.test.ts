@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { desktopCommandEnvironment } from '../../.agents/skills/switch-worktree/scripts/switch-worktree';
 import {
     e2eWorkerTemporaryDirectory,
+    resolveE2EClipboardPolicy,
     resolveE2EWorkerIsolation,
 } from '../../e2e/support/worker-isolation';
 
@@ -38,6 +39,19 @@ describe('E2E worker isolation', () => {
     it('uses the repository-wide lease outside the parallel-safe pool', () => {
         expect(resolveE2EWorkerIsolation({})).toEqual({});
         expect(resolveE2EWorkerIsolation({ CAXRI_E2E_POOL: 'desktop-exclusive' })).toEqual({});
+    });
+
+    it('skips clipboard protection only for parallel-safe launches and rejects clipboard access there', () => {
+        expect(resolveE2EClipboardPolicy({}, false)).toEqual({ protectClipboard: true });
+        expect(resolveE2EClipboardPolicy({ CAXRI_E2E_POOL: 'desktop-exclusive' }, false)).toEqual({
+            protectClipboard: true,
+        });
+        expect(resolveE2EClipboardPolicy({ CAXRI_E2E_POOL: 'parallel-safe' }, false)).toEqual({
+            protectClipboard: false,
+        });
+        expect(() => resolveE2EClipboardPolicy({ CAXRI_E2E_POOL: 'parallel-safe' }, true)).toThrow(
+            'clipboard access is not parallel-safe',
+        );
     });
 
     it('nests a focused E2E launch beneath the switch-worktree desktop coordinator', () => {

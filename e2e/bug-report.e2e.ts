@@ -120,6 +120,7 @@ test('Bug report delivers an opted-in screenshot through Codex image paste', asy
 
     const running = await launchCaxri({
         agentMode,
+        clipboard: true,
         userDataDir: userData,
         testRootPath: root,
     });

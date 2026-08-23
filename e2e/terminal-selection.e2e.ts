@@ -137,6 +137,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
     await Promise.all([chmod(multilineOutput, 0o700), chmod(splitOutput, 0o700)]);
 
     const running = await launchCaxri({
+        clipboard: true,
         userDataDir: userData,
         testRootPath: root,
         windowMode: 'visible',

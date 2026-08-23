@@ -25,7 +25,11 @@ test('Terminal search highlights and navigates matches without intercepting Edit
     );
     await writeFile(join(root, 'searchable.ts'), 'const needle = true;\n', 'utf8');
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        clipboard: true,
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
