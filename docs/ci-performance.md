@@ -80,9 +80,10 @@ Vite's `.vite` directory is not a reusable production-output cache.
 ## Current single-runner execution contract
 
 - A full ready-PR or `main` run installs once in the E2E job. It creates an owned disposable checkout
-  for GitHub's synthetic merge, then overlaps the unchanged full platform gates in that checkout
-  with exact-head E2E. The platform gates keep their original fail-fast order, while E2E still
-  attempts both pools and the manifest even if another validation surface fails.
+  for the platform-check revision: GitHub's synthetic merge on a PR, or the exact push on `main`.
+  The unchanged full platform gates in that checkout overlap exact-head E2E. The platform gates keep
+  their original fail-fast order, while E2E still attempts both pools and the manifest even if
+  another validation surface fails.
 - Exact-head E2E verifies native modules and builds once. It then runs `parallel-safe` with three
   namespaced workers followed by `desktop-exclusive` with one worker on the same `m2-24`; a failed
   first pool does not suppress the second pool. The `workflow_dispatch` worker input stays bounded
@@ -99,7 +100,7 @@ Vite's `.vite` directory is not a reusable production-output cache.
   the cache; watcher failure falls back to scanning.
 - The concurrent orchestrator writes one versioned receipt only after both validation branches
   finish. Independent checks, parallel-safe, desktop-exclusive, and auxiliary verifier steps bind
-  that receipt to the Actions run attempt, synthetic-merge revision, exact PR head, profile, and
+  that receipt to the Actions run attempt, platform-check revision, exact head, profile, and
   worker count; a missing, stale, malformed, or non-zero component fails closed.
 - Focused checks, one-worker controls, retry-only runs, and non-full profiles keep their standalone
   paths. Only a full optimized run can replace the standalone checks job with the concurrent path.
