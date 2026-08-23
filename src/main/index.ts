@@ -21,7 +21,6 @@ import { decideCrashRecovery } from './crash-policy';
 import { createDesktopOperationHandler } from './desktop-operations';
 import { createMainEventRelay } from './event-relay';
 import { launchExternalEditor } from './external-editor';
-import { applyGpuStabilityWorkarounds } from './gpu-stability';
 import { DesktopHostConnection, resolveDesktopLaunch } from './host-connection';
 import { shouldContinueStartup } from './host-startup';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
@@ -64,8 +63,6 @@ process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_CO
 if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
 // Must settle before Chromium, logging, Host attachment, or the single-instance lock captures launch identity.
 const runtimeProfile = configureRuntimeProfile(app, process.env);
-// Chromium switches must be appended before `app.whenReady()`.
-applyGpuStabilityWorkarounds(app.commandLine, process.platform);
 const ownsProfileInstance = hasProfileSingleInstanceLock(app, runtimeProfile);
 if (!ownsProfileInstance) app.quit();
 
@@ -655,8 +652,8 @@ if (ownsProfileInstance) {
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .catch(() => {});
-    // GPU/utility-process exits never reach `render-process-gone`; log them so GPU-backend crashes
-    // (e.g. the Skia Graphite issue behind `applyGpuStabilityWorkarounds`) are diagnosable from logs.
+    // GPU/utility-process exits never reach `render-process-gone`; log them so native child-process
+    // crashes remain diagnosable from the Main log.
     app.on('child-process-gone', (_event, details) => {
         if (details.reason === 'clean-exit') return;
         mainLogger?.write('error', logEventCatalog.app.childProcessGone, {
