@@ -57,7 +57,7 @@ fi
 printf 'Fake Codex ready\n'
 while IFS= read -r line; do
   now_ms="$(date +%s)999"
-  /usr/bin/sqlite3 "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', '[Image #1] hello', $now_ms, $now_ms, 0, 0);"
+  /usr/bin/sqlite3 -cmd '.timeout 5000' "$CODEX_SQLITE_HOME/state_9.sqlite" "INSERT OR REPLACE INTO threads VALUES ('current-agent-session', '${canonicalRoot}', '[Image #1] hello', $now_ms, $now_ms, 0, 0);"
   printf 'received %s\n' "$line"
 done
 `,
@@ -84,7 +84,12 @@ done
         await expect
             .poll(async () =>
                 (
-                    await execFileAsync('sqlite3', [database, 'SELECT title FROM threads;'])
+                    await execFileAsync('sqlite3', [
+                        '-cmd',
+                        '.timeout 5000',
+                        database,
+                        'SELECT title FROM threads;',
+                    ])
                 ).stdout.trim(),
             )
             .toContain('hello');
