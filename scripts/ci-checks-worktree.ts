@@ -205,6 +205,7 @@ export async function verifyRevisionProvenance(
     headRevision: string,
     isMergeRequired: boolean,
     repoRoot = projectRoot,
+    environment: NodeJS.ProcessEnv = process.env,
 ): Promise<void> {
     if (!isMergeRequired) {
         if (revision !== headRevision) throw new Error('Exact checks revision does not match head');
@@ -212,7 +213,7 @@ export async function verifyRevisionProvenance(
     }
     const { stdout } = await execFileAsync('git', ['cat-file', 'commit', revision], {
         cwd: repoRoot,
-        env: sanitizedChildEnvironment(process.env),
+        env: sanitizedChildEnvironment(environment),
     });
     const headerEnd = stdout.indexOf('\n\n');
     const headers = headerEnd === -1 ? stdout : stdout.slice(0, headerEnd);
@@ -281,6 +282,7 @@ export async function createFetchedCheckout(
         options.headRevision,
         options.isMergeRequired,
         path,
+        environment,
     );
     await execFileAsync('git', ['remote', 'remove', 'origin'], {
         cwd: path,
@@ -299,17 +301,18 @@ async function runInChecksWorktree(
     label: string,
     command: string,
     arguments_: string[],
+    environment: NodeJS.ProcessEnv,
 ): Promise<void> {
     const result = await runChildProcess(
         'bun',
         ['run', 'scripts/ci-metrics.ts', '--label', label, '--', command, ...arguments_],
-        { cwd: worktree, env: sanitizedChildEnvironment(process.env), stdio: 'inherit' },
+        { cwd: worktree, env: sanitizedChildEnvironment(environment), stdio: 'inherit' },
     );
     if (result !== 0) throw new Error(`${label} failed with exit ${result}`);
 }
 
-async function prepareCaches(worktree: string): Promise<void> {
-    const cacheRoot = join(requiredEnvironment(process.env, 'RUNNER_TOOL_CACHE'), 'caxri');
+async function prepareCaches(worktree: string, environment: NodeJS.ProcessEnv): Promise<void> {
+    const cacheRoot = join(requiredEnvironment(environment, 'RUNNER_TOOL_CACHE'), 'caxri');
     const cacheDirectory = join(worktree, '.cache');
     await mkdir(cacheDirectory, { recursive: true });
     await Promise.all([
@@ -318,68 +321,82 @@ async function prepareCaches(worktree: string): Promise<void> {
     ]);
 }
 
-async function create(): Promise<void> {
-    const revision = requiredEnvironment(process.env, 'CAXRI_CHECKS_REVISION');
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- the concurrent runner overlaps checkout preparation with E2E setup
+export async function prepareChecksWorktree(
+    environment: NodeJS.ProcessEnv = process.env,
+): Promise<{ baseRevision: string; worktree: string }> {
+    const revision = requiredEnvironment(environment, 'CAXRI_CHECKS_REVISION');
     if (!/^[0-9a-f]{40}$/u.test(revision)) throw new Error('Invalid CAXRI_CHECKS_REVISION');
-    const headRevision = requiredEnvironment(process.env, 'CAXRI_CHECKS_HEAD_REVISION');
+    const headRevision = requiredEnvironment(environment, 'CAXRI_CHECKS_HEAD_REVISION');
     if (!/^[0-9a-f]{40}$/u.test(headRevision)) throw new Error('Invalid checks head revision');
-    const isMergeRequired = requiredEnvironment(process.env, 'CAXRI_CHECKS_REQUIRE_MERGE');
+    const isMergeRequired = requiredEnvironment(environment, 'CAXRI_CHECKS_REQUIRE_MERGE');
     if (isMergeRequired !== 'true' && isMergeRequired !== 'false') {
         throw new Error('Invalid CAXRI_CHECKS_REQUIRE_MERGE');
     }
-    const worktree = checksWorktreePath(process.env);
+    const worktree = checksWorktreePath(environment);
     if (await isPathPresent(worktree)) {
         throw new Error(`Checks worktree already exists: ${worktree}`);
     }
 
-    const baseRevisionValue = process.env.CAXRI_CHECKS_BASE_REVISION?.trim();
+    const baseRevisionValue = environment.CAXRI_CHECKS_BASE_REVISION?.trim();
     if (baseRevisionValue && !/^[0-9a-f]{40}$/u.test(baseRevisionValue)) {
         throw new Error('Invalid checks base revision');
     }
     const expectedBaseRevision = baseRevisionValue?.length ? baseRevisionValue : undefined;
     const { stdout: remoteOutput } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
         cwd: projectRoot,
-        env: sanitizedChildEnvironment(process.env),
+        env: sanitizedChildEnvironment(environment),
     });
     const remoteUrl = remoteOutput.trim();
     if (!remoteUrl || remoteUrl.includes('\n')) throw new Error('Invalid checks remote URL');
-    const { baseRevision } = await createFetchedCheckout(worktree, {
-        baseFetchReference: validateFetchReference(
-            requiredEnvironment(process.env, 'CAXRI_CHECKS_BASE_FETCH_REF'),
-        ),
-        expectedBaseRevision,
-        expectedRevision: revision,
-        fetchReference: validateFetchReference(
-            requiredEnvironment(process.env, 'CAXRI_CHECKS_FETCH_REF'),
-        ),
-        headRevision,
-        isMergeRequired: isMergeRequired === 'true',
-        remoteUrl,
-    });
+    const { baseRevision } = await createFetchedCheckout(
+        worktree,
+        {
+            baseFetchReference: validateFetchReference(
+                requiredEnvironment(environment, 'CAXRI_CHECKS_BASE_FETCH_REF'),
+            ),
+            expectedBaseRevision,
+            expectedRevision: revision,
+            fetchReference: validateFetchReference(
+                requiredEnvironment(environment, 'CAXRI_CHECKS_FETCH_REF'),
+            ),
+            headRevision,
+            isMergeRequired: isMergeRequired === 'true',
+            remoteUrl,
+        },
+        environment,
+    );
 
-    await prepareCaches(worktree);
-    await runInChecksWorktree(worktree, 'synthetic merge pnpm registry, unpack, and link', 'pnpm', [
-        'install',
-        '--frozen-lockfile',
-        '--ignore-scripts',
-        '--prefer-offline',
-        '--no-runtime',
-    ]);
-    await runInChecksWorktree(worktree, 'synthetic merge Electron download', 'pnpm', [
-        'rebuild',
-        'electron',
-    ]);
-    await runInChecksWorktree(worktree, 'synthetic merge Electron native rebuild', 'bun', [
-        'run',
-        'rebuild',
-    ]);
+    await prepareCaches(worktree, environment);
+    await runInChecksWorktree(
+        worktree,
+        'synthetic merge pnpm registry, unpack, and link',
+        'pnpm',
+        ['install', '--frozen-lockfile', '--ignore-scripts', '--prefer-offline', '--no-runtime'],
+        environment,
+    );
+    await runInChecksWorktree(
+        worktree,
+        'synthetic merge Electron download',
+        'pnpm',
+        ['rebuild', 'electron'],
+        environment,
+    );
+    await runInChecksWorktree(
+        worktree,
+        'synthetic merge Electron native rebuild',
+        'bun',
+        ['run', 'rebuild'],
+        environment,
+    );
 
-    const githubEnvironment = requiredEnvironment(process.env, 'GITHUB_ENV');
+    const githubEnvironment = requiredEnvironment(environment, 'GITHUB_ENV');
     await appendFile(
         githubEnvironment,
         `CAXRI_CHECKS_WORKTREE=${worktree}\nCAXRI_REACT_DOCTOR_BASE=${baseRevision}\n`,
         'utf8',
     );
+    return { baseRevision, worktree };
 }
 
 async function remove(): Promise<void> {
@@ -391,7 +408,7 @@ async function remove(): Promise<void> {
 
 async function main(): Promise<void> {
     const [command] = process.argv.slice(2);
-    if (command === 'create') await create();
+    if (command === 'create') await prepareChecksWorktree();
     else if (command === 'remove') await remove();
     else throw new Error('Usage: ci-checks-worktree.ts <create|remove>');
 }

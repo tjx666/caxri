@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
+import { prepareChecksWorktree, sanitizedChildEnvironment } from './ci-checks-worktree';
 import { runChildProcess } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -121,11 +122,12 @@ export function parseConcurrentValidationReceipt(value: unknown): ConcurrentVali
 async function run(
     command: string,
     arguments_: string[],
-    options: { cwd?: string; label: string },
+    options: { cwd?: string; environment?: NodeJS.ProcessEnv; label: string },
 ): Promise<number> {
     try {
         const result = await runChildProcess(command, arguments_, {
             cwd: options.cwd ?? projectRoot,
+            env: options.environment,
             stdio: 'inherit',
         });
         if (result !== 0) console.error(`${options.label} failed with exit ${result}.`);
@@ -140,17 +142,19 @@ function measured(label: string, command: string, arguments_: string[]): string[
     return ['run', 'scripts/ci-metrics.ts', '--label', label, '--', command, ...arguments_];
 }
 
-async function runE2E(): Promise<E2EValidationResults> {
+async function runE2E(environment: NodeJS.ProcessEnv): Promise<E2EValidationResults> {
     const spike = await run(
         'bun',
         measured('Electron native compatibility', 'bun', ['run', 'spike:native']),
         {
+            environment,
             label: 'Electron native compatibility',
         },
     );
     const build =
         spike === 0
             ? await run('bun', measured('Electron Vite build', 'bun', ['run', 'build']), {
+                  environment,
                   label: 'Electron Vite build',
               })
             : 1;
@@ -173,9 +177,10 @@ async function runE2E(): Promise<E2EValidationResults> {
             'run',
             'scripts/run-e2e-failure-isolation.ts',
         ]),
-        { label: 'Desktop worker interruption recovery' },
+        { environment, label: 'Desktop worker interruption recovery' },
     );
     const failureCensus = await run('bun', ['run', 'scripts/run-e2e-census-fixture.ts'], {
+        environment,
         label: 'Bounded E2E failure census',
     });
     const parallelWorkers = process.env.CAXRI_E2E_PARALLEL_WORKERS ?? '3';
@@ -187,7 +192,7 @@ async function runE2E(): Promise<E2EValidationResults> {
             '--pool',
             'parallel-safe',
         ]),
-        { label: 'Parallel-safe E2E pool' },
+        { environment, label: 'Parallel-safe E2E pool' },
     );
     const desktopExclusive = await run(
         'bun',
@@ -197,7 +202,7 @@ async function runE2E(): Promise<E2EValidationResults> {
             '--pool',
             'desktop-exclusive',
         ]),
-        { label: 'Desktop-exclusive E2E pool' },
+        { environment, label: 'Desktop-exclusive E2E pool' },
     );
     const ciParity =
         process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
@@ -207,13 +212,13 @@ async function runE2E(): Promise<E2EValidationResults> {
                       'run',
                       'scripts/run-ci-parity.ts',
                   ]),
-                  { label: 'Deterministic CI-parity cases' },
+                  { environment, label: 'Deterministic CI-parity cases' },
               )
             : 0;
     const manifest = await run(
         'bun',
         ['run', 'scripts/report-e2e-manifest.ts', 'parallel-safe', 'desktop-exclusive'],
-        { label: 'E2E execution receipt' },
+        { environment, label: 'E2E execution receipt' },
     );
     return {
         ciParity,
@@ -253,15 +258,27 @@ export function isVerificationPassed(
 }
 
 async function execute(): Promise<void> {
-    const checksWorktree = process.env.CAXRI_CHECKS_WORKTREE;
-    if (!checksWorktree) throw new Error('CAXRI_CHECKS_WORKTREE is required');
     const provenance = concurrentValidationProvenance(process.env);
     await rm(receiptPath, { force: true });
-    const checksPromise = run('bun', ['run', 'scripts/ci-platform-checks.ts'], {
-        cwd: checksWorktree,
-        label: 'Full platform checks',
-    });
-    const [checks, e2e] = await Promise.all([checksPromise, runE2E()]);
+    /**
+     * Keep the command-scoped checkout token out of every E2E and repository validation child.
+     */
+    const safeEnvironment = sanitizedChildEnvironment(process.env);
+    const checksPromise = (async (): Promise<number> => {
+        try {
+            const { baseRevision, worktree } = await prepareChecksWorktree(process.env);
+            return await run('bun', ['run', 'scripts/ci-platform-checks.ts'], {
+                cwd: worktree,
+                environment: { ...safeEnvironment, CAXRI_REACT_DOCTOR_BASE: baseRevision },
+                label: 'Full platform checks',
+            });
+        } catch (error) {
+            console.error('Full platform checks could not prepare:', error);
+            return 1;
+        }
+    })();
+    const e2ePromise = runE2E(safeEnvironment);
+    const [checks, e2e] = await Promise.all([checksPromise, e2ePromise]);
     await writeReceipt({ checks, ...e2e, provenance, version: 1 });
 }
 
