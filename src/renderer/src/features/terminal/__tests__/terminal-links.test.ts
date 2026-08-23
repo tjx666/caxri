@@ -202,54 +202,70 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
     let viewportLine = 0;
     const lineCells = [cells];
     const lineWrapped = [false];
+    const alternateLineCells = [cellsFor('ALTERNATE')];
     const dispose = vi.fn();
+    const createBufferLine = (
+        currentCells: Array<{ chars: string; width: number }>,
+        isWrapped: boolean,
+    ) => ({
+        getCell: (column: number) => {
+            // `.at()` (rather than `[column]`) keeps an out-of-range index's `undefined` case in the type, since this
+            // project does not enable `noUncheckedIndexedAccess`.
+            const cell = currentCells.at(column);
+            return cell ? { getChars: () => cell.chars, getWidth: () => cell.width } : undefined;
+        },
+        isWrapped,
+        length: currentCells.length,
+        translateToString: (
+            shouldTrimRight = false,
+            startColumn = 0,
+            endColumn = currentCells.length,
+        ) => {
+            const value = currentCells
+                .slice(startColumn, endColumn)
+                .map(({ chars }) => chars)
+                .join('');
+            return shouldTrimRight ? value.trimEnd() : value;
+        },
+    });
+    const createBuffer = (
+        type: 'alternate' | 'normal',
+        currentLines: Array<Array<{ chars: string; width: number }>>,
+    ) => ({
+        baseY: 0,
+        get cursorX() {
+            return cursorColumn;
+        },
+        get cursorY() {
+            return cursorLine;
+        },
+        getLine: (line: number) => {
+            const currentCells = currentLines.at(line);
+            return currentCells
+                ? createBufferLine(
+                      currentCells,
+                      type === 'normal' && (lineWrapped.at(line) ?? false),
+                  )
+                : undefined;
+        },
+        get length() {
+            return currentLines.length;
+        },
+        type,
+        get viewportY() {
+            return viewportLine;
+        },
+    });
+    const normalBuffer = createBuffer('normal', lineCells);
+    const alternateBuffer = createBuffer('alternate', alternateLineCells);
+    let activeBuffer = normalBuffer;
     const terminal = {
         buffer: {
-            active: {
-                baseY: 0,
-                get cursorX() {
-                    return cursorColumn;
-                },
-                get cursorY() {
-                    return cursorLine;
-                },
-                getLine: (line: number) => {
-                    const currentCells = lineCells.at(line);
-                    if (!currentCells) return;
-                    return {
-                        getCell: (column: number) => {
-                            // `.at()` (rather than `[column]`) keeps an out-of-range index's `undefined` case
-                            // in the type, since this project does not enable `noUncheckedIndexedAccess`.
-                            const cell = currentCells.at(column);
-                            return cell
-                                ? {
-                                      getChars: () => cell.chars,
-                                      getWidth: () => cell.width,
-                                  }
-                                : undefined;
-                        },
-                        isWrapped: lineWrapped.at(line) ?? false,
-                        length: currentCells.length,
-                        translateToString: (
-                            shouldTrimRight = false,
-                            startColumn = 0,
-                            endColumn = currentCells.length,
-                        ) => {
-                            const value = currentCells
-                                .slice(startColumn, endColumn)
-                                .map(({ chars }) => chars)
-                                .join('');
-                            return shouldTrimRight ? value.trimEnd() : value;
-                        },
-                    };
-                },
-                get length() {
-                    return lineCells.length;
-                },
-                get viewportY() {
-                    return viewportLine;
-                },
+            get active() {
+                return activeBuffer;
             },
+            alternate: alternateBuffer,
+            normal: normalBuffer,
         },
         get cols() {
             return terminalColumns;
@@ -301,6 +317,9 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
         setCursor(line: number, column: number): void {
             cursorLine = line;
             cursorColumn = column;
+        },
+        setActiveBuffer(type: 'alternate' | 'normal'): void {
+            activeBuffer = type === 'normal' ? normalBuffer : alternateBuffer;
         },
         setLine(line: number, value: string, isWrapped = false): void {
             lineCells[line] = cellsFor(value);
@@ -455,6 +474,24 @@ describe('registerTerminalLinks', () => {
         terminal.setLine(0, 'NEWXX');
 
         expect(registration.getViewportLinks()).toEqual([]);
+    });
+
+    it('preserves OSC 8 targets while an alternate buffer is active', () => {
+        const terminal = createTerminal('LABEL', cellsFor('LABEL'));
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        terminal.setCursor(0, 0);
+        terminal.osc8(';https://example.com/normal-buffer');
+        terminal.setCursor(0, 5);
+        terminal.osc8(';');
+        terminal.setActiveBuffer('alternate');
+        expect(registration.getViewportLinks()).toEqual([]);
+
+        terminal.setActiveBuffer('normal');
+        expect(registration.getViewportLinks()).toMatchObject([
+            { target: 'https://example.com/normal-buffer' },
+        ]);
     });
 
     it('ignores a bare click without the Cmd/Ctrl activation modifier', async () => {

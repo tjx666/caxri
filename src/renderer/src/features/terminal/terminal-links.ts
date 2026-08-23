@@ -1,8 +1,11 @@
-import type { IBufferCellPosition, IBufferLine, ILink, IMarker, Terminal } from '@xterm/xterm';
+import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
 
-const MAX_LOGICAL_LINE_ROWS = 16;
-const MAX_LOGICAL_LINE_LENGTH = 16_384;
-const MAX_RETAINED_OSC_LINKS = 1_000;
+import {
+    MAX_TERMINAL_LINK_LENGTH as MAX_LOGICAL_LINE_LENGTH,
+    MAX_TERMINAL_LINK_ROWS as MAX_LOGICAL_LINE_ROWS,
+    registerTerminalOscLinkTracker,
+} from './terminal-osc-link-tracker';
+
 const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
@@ -584,99 +587,6 @@ function exactTerminalLinkTarget(
     );
 }
 
-interface OscLinkPosition {
-    column: number;
-    marker: IMarker;
-}
-
-interface PendingOscLink {
-    match: TerminalLinkMatch;
-    start: OscLinkPosition;
-}
-
-interface TrackedOscLink extends PendingOscLink {
-    end: OscLinkPosition;
-    fingerprint: string;
-}
-
-function oscLinkMatch(data: string, wordSeparators: string): TerminalLinkMatch | undefined {
-    const separator = data.indexOf(';');
-    if (separator === -1) return;
-    const target = data.slice(separator + 1);
-    if (!target || target.length > MAX_LOGICAL_LINE_LENGTH) return;
-    return exactTerminalLinkTarget(target, wordSeparators);
-}
-
-/**
- * Produces a content-free, bounded fingerprint for the public buffer cells covered by an OSC 8 label. It lets the
- * picker reject overwritten labels without retaining Terminal output or relying on xterm's private link internals.
- */
-function oscLinkFingerprint(
-    terminal: Terminal,
-    start: OscLinkPosition,
-    end: OscLinkPosition,
-): string | undefined {
-    if (start.marker.isDisposed || end.marker.isDisposed) return;
-    const startLine = start.marker.line;
-    const endLine = end.marker.line;
-    if (
-        startLine < 0 ||
-        endLine < startLine ||
-        (endLine === startLine && end.column <= start.column) ||
-        endLine - startLine + 1 > MAX_LOGICAL_LINE_ROWS
-    )
-        return;
-    let cellCount = 0;
-    let hash = 2_166_136_261;
-    for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
-        const line = terminal.buffer.active.getLine(lineNumber);
-        if (!line) return;
-        const firstColumn = lineNumber === startLine ? start.column : 0;
-        const lastColumn =
-            lineNumber === endLine ? end.column : Math.min(line.length, terminal.cols);
-        if (lastColumn < firstColumn) return;
-        cellCount += lastColumn - firstColumn;
-        if (cellCount > MAX_LOGICAL_LINE_LENGTH) return;
-        const text = line.translateToString(false, firstColumn, lastColumn);
-        for (const character of text) {
-            hash ^= character.codePointAt(0) ?? 0;
-            hash = Math.imul(hash, 16_777_619);
-        }
-        hash ^= 10;
-        hash = Math.imul(hash, 16_777_619);
-    }
-    return `${cellCount}:${hash >>> 0}`;
-}
-
-function visibleOscLinks(
-    terminal: Terminal,
-    context: TerminalLinkContext,
-    tracked: Iterable<TrackedOscLink>,
-    remove: (id: number) => void,
-): TerminalDetectedLink[] {
-    const firstVisibleLine = terminal.buffer.active.viewportY;
-    const lastVisibleLine = firstVisibleLine + terminal.rows - 1;
-    const links: TerminalDetectedLink[] = [];
-    for (const link of tracked) {
-        const { end, fingerprint, match, start } = link;
-        const currentFingerprint = oscLinkFingerprint(terminal, start, end);
-        if (!currentFingerprint || currentFingerprint !== fingerprint) {
-            remove(start.marker.id);
-            continue;
-        }
-        if (end.marker.line < firstVisibleLine || start.marker.line > lastVisibleLine) continue;
-        links.push(
-            createDetectedLink(
-                match,
-                context,
-                `osc:${start.marker.id}:${match.text}`,
-                start.marker.line,
-            ),
-        );
-    }
-    return links;
-}
-
 /**
  * Registers plain-text links and the OSC 8 handler through the same guarded activation path.
  */
@@ -685,40 +595,6 @@ export function registerTerminalLinks(
     context: TerminalLinkContext,
 ): TerminalLinkRegistration {
     const hint = createLinkHintController(terminal);
-    const trackedOscLinks = new Map<number, TrackedOscLink>();
-    let pendingOscLink: PendingOscLink | undefined;
-    const removeOscLink = (id: number): void => {
-        const tracked = trackedOscLinks.get(id);
-        if (!tracked) return;
-        trackedOscLinks.delete(id);
-        if (!tracked.start.marker.isDisposed) tracked.start.marker.dispose();
-        if (!tracked.end.marker.isDisposed) tracked.end.marker.dispose();
-    };
-    const finishPendingOscLink = (): void => {
-        const pending = pendingOscLink;
-        pendingOscLink = undefined;
-        if (!pending) return;
-        const end: OscLinkPosition = {
-            column: terminal.buffer.active.cursorX,
-            marker: terminal.registerMarker(),
-        };
-        const fingerprint = oscLinkFingerprint(terminal, pending.start, end);
-        if (!fingerprint) {
-            pending.start.marker.dispose();
-            end.marker.dispose();
-            return;
-        }
-        while (trackedOscLinks.size >= MAX_RETAINED_OSC_LINKS) {
-            const oldestId = trackedOscLinks.keys().next().value;
-            if (oldestId === undefined) break;
-            removeOscLink(oldestId);
-        }
-        const tracked = { ...pending, end, fingerprint };
-        trackedOscLinks.set(pending.start.marker.id, tracked);
-        const remove = () => removeOscLink(pending.start.marker.id);
-        pending.start.marker.onDispose(remove);
-        end.marker.onDispose(remove);
-    };
     const disposable = terminal.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
             const logicalLine = readLogicalLine(terminal, bufferLineNumber);
@@ -736,40 +612,20 @@ export function registerTerminalLinks(
          */
         allowNonHttpProtocols: true,
     };
-    /**
-     * The public parser observer runs before xterm's builtin OSC 8 handler and returns false so xterm still owns the
-     * hyperlink. Public start/end markers preserve wrapped ranges, a content-free fingerprint rejects overwritten
-     * cells, and an independent cap handles controls that repeat without advancing scrollback. The URI-only cache is
-     * transient, never logged or persisted, and exists solely to make custom OSC labels discoverable in the viewport.
-     */
-    const oscDisposable = terminal.parser.registerOscHandler(8, (data) => {
-        finishPendingOscLink();
-        const match = oscLinkMatch(data, context.wordSeparators);
-        if (match) {
-            pendingOscLink = {
-                match,
-                start: {
-                    column: terminal.buffer.active.cursorX,
-                    marker: terminal.registerMarker(),
-                },
-            };
-        }
-        return false;
-    });
+    const oscTracker = registerTerminalOscLinkTracker(terminal, (target) =>
+        exactTerminalLinkTarget(target, context.wordSeparators),
+    );
     return {
         getViewportLinks() {
             const plain = viewportPlainTextLinks(terminal, context);
             const known = new Set(
                 plain.map(({ bufferLine, kind, target }) => `${bufferLine}:${kind}:${target}`),
             );
-            const osc = visibleOscLinks(
-                terminal,
-                context,
-                trackedOscLinks.values(),
-                removeOscLink,
-            ).filter(
-                ({ bufferLine, kind, target }) => !known.has(`${bufferLine}:${kind}:${target}`),
-            );
+            const osc: TerminalDetectedLink[] = [];
+            for (const { bufferLine, id, match } of oscTracker.getViewportLinks()) {
+                const link = createDetectedLink(match, context, id, bufferLine);
+                if (!known.has(`${link.bufferLine}:${link.kind}:${link.target}`)) osc.push(link);
+            }
             const ordered = [...plain, ...osc].toSorted(
                 (left, right) => left.bufferLine - right.bufferLine,
             );
@@ -785,10 +641,7 @@ export function registerTerminalLinks(
             hint.dispose();
             terminal.options.linkHandler = null;
             disposable.dispose();
-            oscDisposable.dispose();
-            pendingOscLink?.start.marker.dispose();
-            pendingOscLink = undefined;
-            for (const id of trackedOscLinks.keys()) removeOscLink(id);
+            oscTracker.dispose();
         },
     };
 }
