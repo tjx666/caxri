@@ -83,6 +83,9 @@ disables screenshots and traces, and never falls back to another provider.
   them with the rendered xterm grid. Extra intermediate `SIGWINCH` values are valid.
 - Treat only an expected transient filesystem `ENOENT` as pending. Propagate permission, malformed
   data, and other IO errors immediately.
+- An `expect.poll` callback must return a pending sentinel for an expected transient state instead of
+  throwing. Use `e2e/support/polling.ts` only when callback errors are explicitly classified as
+  retryable; its timeout keeps the most recent callback error in the failure text.
 - Match Terminal text across rendered rows when long CI paths or narrow panes can wrap it. Do not
   assume a logical token belongs to one DOM row.
 - Publish repository and desktop ownership only after complete owner metadata is durable. Await
@@ -101,6 +104,15 @@ deterministic repetitions:
 ```bash
 bun run build
 bunx playwright test <failed-files...> -g '<failed test>' --workers=1 --repeat-each=3 --reporter=line
+```
+
+When one local command launches more than one Electron instance, wrap the entire command in the
+worktree desktop coordinator. Holding the coordinator across every repetition prevents a sibling
+worktree from acquiring the root lease between Playwright launches:
+
+```bash
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts desktop --label focused-repeat -- \
+  bunx playwright test <failed-files...> -g '<failed test>' --workers=1 --repeat-each=3 --reporter=line
 ```
 
 Preserve the relevant CI viewport, font/locale/shell behavior, and long temporary-path conditions.

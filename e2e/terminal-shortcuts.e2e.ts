@@ -264,6 +264,7 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
 
     const running = await launchCaxri({
         agentMode,
+        clipboard: true,
         userDataDir: userData,
         testRootPath: root,
     });

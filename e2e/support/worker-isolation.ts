@@ -6,6 +6,25 @@ export interface E2EWorkerIsolation {
     workerNamespace?: string;
 }
 
+export interface E2EClipboardPolicy {
+    protectClipboard: boolean;
+}
+
+/**
+ * Parallel-safe workers must never contend for the machine-global pasteboard. Desktop-exclusive, control, and focused
+ * launches retain the existing snapshot/restore guarantee; a spec that needs the clipboard must stay on those paths.
+ */
+export function resolveE2EClipboardPolicy(
+    environment: NodeJS.ProcessEnv,
+    requiresClipboardAccess: boolean,
+): E2EClipboardPolicy {
+    const isParallelSafe = environment.CAXRI_E2E_POOL === 'parallel-safe';
+    if (isParallelSafe && requiresClipboardAccess) {
+        throw new Error('E2E clipboard access is not parallel-safe');
+    }
+    return { protectClipboard: !isParallelSafe };
+}
+
 export function e2eWorkerTemporaryDirectory(
     parent: string,
     isolation: E2EWorkerIsolation,
