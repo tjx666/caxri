@@ -80,6 +80,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 clearActive: record('terminal.clear'),
                 copySelection: record('terminal.copySelection'),
                 findActive: record('terminal.find'),
+                openDetectedLink: record('terminal.openDetectedLink'),
                 hasActive: () => true,
                 hasSelection: () => true,
                 navigateCommand: record('terminal.navigateCommand'),

@@ -1,4 +1,4 @@
-import type { ILink, ILinkProvider, Terminal } from '@xterm/xterm';
+import type { ILink, ILinkProvider, IMarker, Terminal } from '@xterm/xterm';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalLinkContext } from '../terminal-links';
@@ -193,6 +193,8 @@ describe('resolveTerminalFilePath', () => {
 
 function createTerminal(text: string, cells: Array<{ chars: string; width: number }>) {
     let provider: ILinkProvider | undefined;
+    let osc8Handler: ((data: string) => boolean | Promise<boolean>) | undefined;
+    let markerId = 0;
     const dispose = vi.fn();
     const terminal = {
         buffer: {
@@ -217,19 +219,38 @@ function createTerminal(text: string, cells: Array<{ chars: string; width: numbe
                           }
                         : undefined,
                 length: 1,
+                viewportY: 0,
             },
         },
         cols: 120,
         options: { linkHandler: null },
+        parser: {
+            registerOscHandler: (identifier: number, handler: typeof osc8Handler) => {
+                if (identifier === 8) osc8Handler = handler;
+                return { dispose: vi.fn() };
+            },
+        },
         registerLinkProvider: (value: ILinkProvider) => {
             provider = value;
             return { dispose };
         },
+        registerMarker: () =>
+            ({
+                dispose: vi.fn(),
+                id: (markerId += 1),
+                isDisposed: false,
+                line: 0,
+                onDispose: vi.fn(),
+            }) as unknown as IMarker,
+        rows: 1,
     } as unknown as Terminal;
     return {
         dispose,
         links(): Promise<ILink[] | undefined> {
             return new Promise((resolve) => provider?.provideLinks(1, resolve));
+        },
+        osc8(data: string): boolean | Promise<boolean> | undefined {
+            return osc8Handler?.(data);
         },
         terminal,
     };
@@ -277,6 +298,68 @@ describe('registerTerminalLinks', () => {
         expect(openUrl).toHaveBeenCalledWith('https://example.com');
     });
 
+    it('exposes current-viewport links with accessible actions that reuse typed activation', () => {
+        const text = 'src/file.ts:12:3 src/file.ts:12:3 https://example.com';
+        const terminal = createTerminal(text, cellsFor(text));
+        const { context, openFile, openUrl } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        const links = registration.getViewportLinks();
+        expect(
+            links.map(({ accessibleName, kind, target }) => ({ accessibleName, kind, target })),
+        ).toEqual([
+            {
+                accessibleName: 'Open file link src/file.ts:12:3',
+                kind: 'file',
+                target: 'src/file.ts:12:3',
+            },
+            {
+                accessibleName: 'Open external link https://example.com',
+                kind: 'url',
+                target: 'https://example.com',
+            },
+        ]);
+
+        links[0].activate();
+        links[1].activate();
+        expect(openFile).toHaveBeenCalledWith('/repo/src/file.ts', { line: 12, column: 3 });
+        expect(openUrl).toHaveBeenCalledWith('https://example.com');
+    });
+
+    it('observes OSC 8 targets through public parser and marker APIs without consuming them', () => {
+        const terminal = createTerminal('descriptive label', cellsFor('descriptive label'));
+        const { context, openUrl } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        expect(terminal.osc8(';https://example.com/osc-target')).toBe(false);
+        expect(registration.getViewportLinks()).toMatchObject([
+            {
+                accessibleName: 'Open external link https://example.com/osc-target',
+                kind: 'url',
+                target: 'https://example.com/osc-target',
+            },
+        ]);
+
+        registration.getViewportLinks()[0].activate();
+        expect(openUrl).toHaveBeenCalledWith('https://example.com/osc-target');
+    });
+
+    it('retains every OSC 8 target while its public marker remains in the buffer', async () => {
+        const terminal = createTerminal('descriptive labels', cellsFor('descriptive labels'));
+        const { context } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, context);
+
+        await Promise.all(
+            Array.from({ length: 513 }, (_, index) =>
+                Promise.resolve(terminal.osc8(`;https://example.com/osc-target-${index}`)),
+            ),
+        );
+
+        const links = registration.getViewportLinks();
+        expect(links).toHaveLength(513);
+        expect(links[0]).toMatchObject({ target: 'https://example.com/osc-target-0' });
+    });
+
     it('ignores a bare click without the Cmd/Ctrl activation modifier', async () => {
         const text = 'https://example.com';
         const terminal = createTerminal(text, cellsFor(text));
@@ -292,7 +375,7 @@ describe('registerTerminalLinks', () => {
         const text = 'src/file.ts:12:3';
         const terminal = createTerminal(text, cellsFor(text));
         const { context, openFile } = baseContext();
-        const unregister = registerTerminalLinks(terminal.terminal, context);
+        const registration = registerTerminalLinks(terminal.terminal, context);
 
         const links = await terminal.links();
         links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
@@ -321,7 +404,7 @@ describe('registerTerminalLinks', () => {
             column: 1,
         });
 
-        unregister();
+        registration.dispose();
         expect(terminal.dispose).toHaveBeenCalledOnce();
         expect(terminal.terminal.options.linkHandler).toBeNull();
     });

@@ -30,6 +30,7 @@ import {
 } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { terminalFontFamily } from './terminal-fonts';
+import { TerminalLinkPicker } from './terminal-link-picker';
 import { TERMINAL_DEFAULT_WORD_SEPARATORS } from './terminal-links';
 import type { TerminalSearchOptions } from './terminal-search';
 import {
@@ -38,6 +39,7 @@ import {
     terminalSearchReducer,
 } from './terminal-search';
 import { TerminalSearchBar } from './terminal-search-bar';
+import { useTerminalLinkPicker } from './use-terminal-link-picker';
 import { useTerminalPaneRuntime } from './use-terminal-pane-runtime';
 
 interface TerminalPaneProperties {
@@ -202,6 +204,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         terminalTheme,
         wordSeparators,
     });
+    const linkPicker = useTerminalLinkPicker(terminalId, focusTerminal);
 
     useEffect(
         () => registerTerminalFocusHandler(terminalId, focusTerminal),
@@ -323,6 +326,12 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                     onToggle={(option) => dispatchSearch({ type: 'toggle', option })}
                 />
             )}
+            <TerminalLinkPicker
+                isOpen={linkPicker.isOpen}
+                links={linkPicker.links}
+                onOpenChange={linkPicker.onOpenChange}
+                onSelect={linkPicker.selectLink}
+            />
             <TerminalRecoveryBar
                 failureReason={terminal?.failureReason}
                 processState={processState}
