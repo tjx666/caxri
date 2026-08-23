@@ -206,7 +206,9 @@ export function useSettingsDialogController() {
         (kind: ConfigKind, payload: { source: string; error?: string }): void => {
             const current = stateReference.current[kind];
             // Our own write's broadcast echoes back exactly the text we just persisted — skip the
-            // redundant reparse/redispatch instead of treating it as a foreign change.
+            // redundant reparse/redispatch instead of treating it as a foreign change. Runtime
+            // emits before the request resolves, so appliedSource alone cannot identify this echo.
+            if (writeCoordinator.isOwnEcho(kind, payload.source)) return;
             if (payload.source === current.appliedSource) return;
             writeCoordinator.supersede(kind);
             if (kind === 'settings') {

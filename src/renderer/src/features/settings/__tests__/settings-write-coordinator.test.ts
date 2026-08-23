@@ -84,9 +84,43 @@ describe('settings write coordinator', () => {
 
         coordinator.persistNow('settings', 'in-flight');
         coordinator.supersede('settings');
+        expect(coordinator.isOwnEcho('settings', 'in-flight')).toBe(false);
         inFlight.resolve(applied);
         await inFlight.promise;
         await Promise.resolve();
         expect(applied).not.toHaveBeenCalled();
     });
+
+    it.each(['settings', 'keybindings', 'theme'] as const)(
+        'keeps the next pending %s draft when the previous write echoes before its response',
+        async (kind) => {
+            vi.useFakeTimers();
+            const applied: string[] = [];
+            const firstResponse = Promise.withResolvers<() => void>();
+            const persist = vi
+                .fn()
+                .mockReturnValueOnce(firstResponse.promise)
+                .mockResolvedValueOnce(() => applied.push('second-source'));
+            const coordinator = createSettingsWriteCoordinator({
+                debounceMs: 300,
+                onError: vi.fn(),
+                persist,
+            });
+
+            coordinator.persistNow(kind, 'first-source');
+            coordinator.schedule(kind, 'second-source');
+
+            expect(coordinator.isOwnEcho(kind, 'first-source')).toBe(true);
+            firstResponse.resolve(() => applied.push('first-source'));
+            await firstResponse.promise;
+            await Promise.resolve();
+            expect(applied).toEqual([]);
+
+            await vi.advanceTimersByTimeAsync(300);
+
+            expect(persist).toHaveBeenNthCalledWith(1, kind, 'first-source');
+            expect(persist).toHaveBeenNthCalledWith(2, kind, 'second-source');
+            expect(applied).toEqual(['second-source']);
+        },
+    );
 });
