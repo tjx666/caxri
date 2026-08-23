@@ -126,21 +126,33 @@ async function ensureRevisionAvailable(
     return fetchedRevision;
 }
 
-async function verifyRevisionProvenance(
+/**
+ * Reads parents from the commit object's immutable headers instead of revision traversal. A depth-one fetch marks
+ * GitHub's synthetic merge commit as shallow, so `git show --format=%P` incorrectly reports no parents even though the
+ * raw commit object still records both the reviewed base and exact PR head.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- regression-tested with a depth-one synthetic merge clone
+export async function verifyRevisionProvenance(
     revision: string,
     baseRevision: string,
     headRevision: string,
     isMergeRequired: boolean,
+    repoRoot = projectRoot,
 ): Promise<void> {
     if (!isMergeRequired) {
         if (revision !== headRevision) throw new Error('Exact checks revision does not match head');
         return;
     }
-    const { stdout } = await execFileAsync('git', ['show', '-s', '--format=%P', revision], {
-        cwd: projectRoot,
+    const { stdout } = await execFileAsync('git', ['cat-file', 'commit', revision], {
+        cwd: repoRoot,
         env: sanitizedChildEnvironment(process.env),
     });
-    const parents = stdout.trim().split(/\s+/u);
+    const headerEnd = stdout.indexOf('\n\n');
+    const headers = headerEnd === -1 ? stdout : stdout.slice(0, headerEnd);
+    const parents = headers
+        .split('\n')
+        .filter((line) => line.startsWith('parent '))
+        .map((line) => line.slice('parent '.length));
     if (parents.length !== 2 || parents[0] !== baseRevision || parents[1] !== headRevision) {
         throw new Error('Synthetic merge parents do not match the PR base and head');
     }
