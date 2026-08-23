@@ -308,21 +308,22 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: b
  * tab components differ only in what they render inside the same `WorkTab`.
  */
 export function PaneTabBar({
+    hasTabsToSwitch,
     isOnlySessionTerminal,
     isRootBar,
-    isSoleWorkbenchTab,
     pane,
     paneLabel,
 }: {
+    /**
+     * Whether the Workbench holds more than one tab. Both affordances a tab bar adds on top of the tabs themselves —
+     * the active accent and the "New Terminal" button — are noise below that: with one tab there is nothing to switch
+     * between and with none there is nothing to mark, and the empty pane offers its own "New Terminal" button. iTerm2
+     * likewise shows neither until a second tab exists, and `cmd+t` plus the application menu keep the command
+     * reachable meanwhile.
+     */
+    hasTabsToSwitch: boolean;
     isOnlySessionTerminal: boolean;
     isRootBar: boolean;
-    /**
-     * Whether this bar's only tab is also the Workbench's only tab. Both affordances a tab bar adds on top of the tab
-     * itself — the active accent and the "New Terminal" button — are noise at that point: there is nothing to switch
-     * between, and iTerm2 likewise shows neither until a second tab exists. `cmd+t` and the application menu keep "New
-     * Terminal" reachable meanwhile.
-     */
-    isSoleWorkbenchTab: boolean;
     pane: PaneNode;
     paneLabel: string;
 }) {
@@ -523,7 +524,7 @@ export function PaneTabBar({
                                     isOnlySessionTerminal={isOnlySessionTerminal}
                                     onNavigate={(key) => navigate(tab.id, key)}
                                     paneId={pane.id}
-                                    showActiveAccent={!isSoleWorkbenchTab}
+                                    showActiveAccent={hasTabsToSwitch}
                                     tab={tab}
                                 />
                             ))}
@@ -531,7 +532,7 @@ export function PaneTabBar({
                     </LazyMotion>
                 </div>
             </div>
-            {!isSoleWorkbenchTab && (
+            {hasTabsToSwitch && (
                 <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
                     <CommandTooltip commandId="terminal.new">
                         <Button
@@ -548,12 +549,12 @@ export function PaneTabBar({
                     </CommandTooltip>
                 </div>
             )}
-            {/* Evenly divided tabs would otherwise reach the window's right edge and leave this frameless window with
-                no draggable chrome at all. This corner inherits the bar's drag region and is the only remaining way to
-                move the window by its title area, so it stays just wide enough to grab. It sits after the "+" button,
-                matching iTerm2: tabs run straight into "+", and the leftover strip is the corner, not a gap wedged
-                between the last tab and the button. */}
-            {isRootBar && (
+            {/* Evenly divided tabs reach the window's right edge, so with the primarySidebar hidden this bar is the
+                whole titlebar and nothing in it would be draggable. The corner inherits the bar's drag region and
+                stays just wide enough to grab. It exists only for that state: `primary-sidebar-title` is a drag
+                region of its own, so while the sidebar is open the window already moves from there and reserving a
+                second strip would only wedge dead space beside "+" — iTerm2 ends its bar at the button too. */}
+            {isRootBar && !isPrimarySidebarVisible && (
                 <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-8 flex-none" />
             )}
         </div>

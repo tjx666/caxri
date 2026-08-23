@@ -499,8 +499,10 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         // Tabs run straight into "+" the way iTerm2 does, with no dead strip wedged between the last tab and the
         // button, so the button stays reachable instead of scrolling out of view behind evenly divided Terminals.
         expect(metrics[2].left - metrics[1].right).toBeLessThanOrEqual(1);
-        // The leftover corner past "+" is the frameless window's only draggable chrome, so it must stay grabbable.
-        expect(metrics[0].right - metrics[2].right).toBeGreaterThanOrEqual(24);
+        // "+" also ends the bar. The window still moves by its titlebar because `primary-sidebar-title` above is a
+        // drag region of its own; the bar reserves a grabbable corner only once the sidebar is hidden and it is the
+        // whole titlebar (`work-tab-sizing.e2e.ts`).
+        expect(metrics[0].right - metrics[2].right).toBeLessThanOrEqual(1);
         const isActionsOutsideScrollRail = await running.page
             .locator('.work-tab-scroll')
             .evaluate((element) => !element.contains(document.querySelector('.tab-actions')));

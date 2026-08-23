@@ -207,8 +207,8 @@ async function stopE2EHost(userDataDirectory: string): Promise<void> {
 /**
  * Opens a new Terminal in the active pane through the `terminal.new` keybinding.
  *
- * The tab bar's "+" button is deliberately not the path here: it is hidden while the Workbench holds a single tab (see
- * `PaneTabBar`'s `isSoleWorkbenchTab`), so a spec that clicks it right after `createProjectSession` would be asserting
+ * The tab bar's "+" button is deliberately not the path here: it is hidden until the Workbench holds a second tab (see
+ * `PaneTabBar`'s `hasTabsToSwitch`), so a spec that clicks it right after `createProjectSession` would be asserting
  * against chrome that is not there. `cmd+t` is reachable at every tab count and is the same command the button
  * invokes.
  */

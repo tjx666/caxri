@@ -505,3 +505,47 @@ test('a drag hover preview activates a Terminal tab without pulling focus into i
         await removeQuitTestDirectory(testDirectory);
     }
 });
+
+test('the bar hides "+" with no tabs at all and reserves its drag corner only without the primarySidebar', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-drag-corner-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const rootInput = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', rootInput]);
+    const root = await realpath(rootInput);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const actions = running.page.locator('.work-tabs .tab-actions');
+        const dragCorner = running.page.locator('.work-tabs-drag-handle');
+        await expect(running.page.locator('.work-tabs .work-tab')).toHaveCount(1);
+        await waitForTabMotionToSettle(running.page);
+
+        // `primary-sidebar-title` is a drag region of its own, so while the sidebar is open the window already moves
+        // from there and a second reserved strip would only wedge dead space beside the tabs.
+        await expect(dragCorner).toHaveCount(0);
+        await expect(actions).toHaveCount(0);
+
+        // Hidden, the bar becomes the whole titlebar: evenly divided tabs would reach the window's right edge and
+        // leave nothing to grab, so the corner appears exactly there.
+        await running.page.keyboard.press('Meta+BracketLeft');
+        await expect(running.page.locator('.primary-sidebar-title')).toHaveCount(0);
+        await expect(dragCorner).toHaveCount(1);
+        await expect(dragCorner).toHaveJSProperty('offsetWidth', 32);
+        await running.page.keyboard.press('Meta+BracketLeft');
+        await expect(dragCorner).toHaveCount(0);
+
+        // Closing the last Terminal used to bring "+" back, because the rule keyed off "exactly one tab" and an empty
+        // Workbench is not one tab. The empty pane offers its own New Terminal button, so the bar stays bare.
+        const onlyTab = running.page.locator('.work-tabs .work-tab').first();
+        // The close affordance only materializes on hover (`tab-close` is `opacity-0 pointer-events-none` until then).
+        await onlyTab.hover();
+        await onlyTab.getByRole('button', { name: 'Close Terminal' }).click();
+        await expect(running.page.getByText('No Terminal in this Session.')).toBeVisible();
+        await expect(running.page.locator('.work-tabs .work-tab')).toHaveCount(0);
+        await expect(actions).toHaveCount(0);
+    } finally {
+        await closeAppQuietly(running.app);
+        await removeQuitTestDirectory(testDirectory);
+    }
+});
