@@ -496,10 +496,11 @@ describe('switch-worktree shared ownership', () => {
             install: fakeInstall,
         });
         const startedPath = join(fixture.temporary, 'dev-started.txt');
+        const releasePath = join(fixture.temporary, 'dev-release.txt');
         const program =
-            "require('node:fs').writeFileSync(process.argv[1], 'started'); setTimeout(() => {}, 200)";
+            "const fs = require('node:fs'); fs.writeFileSync(process.argv[1], 'started'); const timer = setInterval(() => { if (fs.existsSync(process.argv[2])) { clearInterval(timer); } }, 10)";
         const first = developmentWorktree(created.path, {
-            args: ['-e', program, startedPath],
+            args: ['-e', program, startedPath, releasePath],
             command: process.execPath,
         });
         // Polls until the child process's fixture file appears; inherently sequential.
@@ -509,12 +510,16 @@ describe('switch-worktree shared ownership', () => {
         }
         /* eslint-enable no-await-in-loop */
 
-        await expect(
-            developmentWorktree(created.path, {
-                args: ['-e', '', join(fixture.temporary, 'should-not-run.txt')],
-                command: process.execPath,
-            }),
-        ).rejects.toThrow('Development instance already running');
+        try {
+            await expect(
+                developmentWorktree(created.path, {
+                    args: ['-e', '', join(fixture.temporary, 'should-not-run.txt')],
+                    command: process.execPath,
+                }),
+            ).rejects.toThrow('Development instance already running');
+        } finally {
+            await writeFile(releasePath, 'release\n', 'utf8');
+        }
         await expect(first).resolves.toBe(0);
     });
 
