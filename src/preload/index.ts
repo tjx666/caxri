@@ -18,6 +18,13 @@ import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
  * Electron's sandboxed preload loader cannot require.
  */
 const rendererErrorChannel = 'caxri:renderer-error';
+/**
+ * Electron's sandbox exposes its limited `process` global but cannot load `node:process`; importing that module makes
+ * the entire CommonJS preload fail before the bridge is installed.
+ */
+// eslint-disable-next-line n/prefer-global/process -- required by Electron's sandboxed preload runtime
+const isE2E = process.env.CAXRI_E2E === '1';
+const e2eRequestState = { sessionStateUpdateCount: 0 };
 
 /**
  * Forwards a structured request and hands the reply envelope back untouched. Main answers with `{ id, ok, result |
@@ -28,6 +35,7 @@ async function request<M extends CaxriMethod>(
     method: M,
     ...arguments_: ParametersArgument<M>
 ): Promise<MethodReply<M>> {
+    if (isE2E && method === 'session.updateState') e2eRequestState.sessionStateUpdateCount += 1;
     /**
      * The payload crosses a process boundary as unknown; the method table owns its static shape.
      */
@@ -80,3 +88,16 @@ const bridge: CaxriBridge = {
 };
 
 contextBridge.exposeInMainWorld('caxri', bridge);
+
+if (isE2E) {
+    /**
+     * This narrow E2E-only seam counts the exact persistence request guarded by the pane-tab regression. It is not a
+     * general IPC recorder and never exposes request arguments, replies, or production diagnostics.
+     */
+    contextBridge.exposeInMainWorld('caxriE2E', {
+        resetSessionStateUpdateCount: () => {
+            e2eRequestState.sessionStateUpdateCount = 0;
+        },
+        sessionStateUpdateCount: () => e2eRequestState.sessionStateUpdateCount,
+    });
+}
