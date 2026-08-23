@@ -87,6 +87,11 @@ After a passing round:
    Inside Go, publish only through `state.ts acceptance-publish`; it forces
    `--acceptance` after round one and reads the remote round back before updating
    the ledger. Record accidental standalone history with `acceptance-orphan`.
+   If the authenticated principal can read a public frozen Acceptance but cannot
+   append to it, confirm the ownership mismatch and absence of a pending attempt,
+   then use `acceptance-restart-lineage` with the active id and an explicit reason.
+   The command preserves the old publication receipt as orphan history and resets
+   only the active lineage; publish the replacement from a fresh `round-1` directory.
 2. Transition to `acceptance_handoff`. Run the read-only workflow and cost audit,
    then generate `handoff-report.md` for the exact PR head.
 3. Deliver the report's complete summary with the stable Acceptance URL. Record
