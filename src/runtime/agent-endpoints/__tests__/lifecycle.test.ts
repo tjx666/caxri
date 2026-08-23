@@ -15,7 +15,11 @@ import type { TerminalRecord } from '../../../shared/types';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { classifyAgentPermission, RuntimeAgentEndpointLifecycle } from '../lifecycle';
 
-function terminal(kind: 'codex' | 'shell' = 'codex', id = 'terminal-1'): TerminalRecord {
+function terminal(
+    kind: 'codex' | 'shell' = 'codex',
+    id = 'terminal-1',
+    metadata: Partial<Pick<TerminalRecord, 'agentSessionId' | 'title'>> = {},
+): TerminalRecord {
     return {
         id,
         sessionId: 'session-1',
@@ -29,6 +33,7 @@ function terminal(kind: 'codex' | 'shell' = 'codex', id = 'terminal-1'): Termina
         lastProcessState: 'starting',
         createdAt: 1,
         updatedAt: 1,
+        ...metadata,
     };
 }
 
@@ -121,6 +126,54 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             }),
         ).resolves.toEqual({});
         expect(begin).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses the provider name before metadata and the conversation title on restart', async () => {
+        const begin = vi.fn<
+            (parameters: AgentEndpointBeginParameters) => Promise<AgentEndpointBeginResult>
+        >((parameters) =>
+            Promise.resolve({
+                ref: {
+                    hostId: 'host-1',
+                    endpointId: `${parameters.terminalId}-endpoint`,
+                    generation: 1,
+                },
+                token: 'ab'.repeat(32),
+                expiresAt: 10_000,
+            }),
+        );
+        const retire = vi.fn(() => Promise.resolve(true));
+        const lifecycle = new RuntimeAgentEndpointLifecycle(
+            {
+                activate: vi.fn(() => Promise.resolve(true)),
+                begin,
+                messaging: vi.fn(() => Promise.resolve(true)),
+                retire,
+            },
+            '/profile',
+            probe(),
+        );
+        const settings = structuredClone(defaultAgentProviderSettings.codex);
+
+        await lifecycle.environment(
+            terminal('codex', 'terminal-1', { title: 'Stale conversation title' }),
+            'project-1',
+            settings,
+        );
+        await lifecycle.environment(
+            terminal('codex', 'terminal-1', {
+                agentSessionId: 'codex-session-1',
+                title: 'Ship the release notes',
+            }),
+            'project-1',
+            settings,
+        );
+
+        expect(begin.mock.calls.map(([parameters]) => parameters.name)).toEqual([
+            'Codex',
+            'Ship the release notes',
+        ]);
+        expect(retire).toHaveBeenCalledOnce();
     });
 
     it('retires the exact prior launch before reusing a durable Terminal ID', async () => {
