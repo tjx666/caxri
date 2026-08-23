@@ -14,6 +14,7 @@ import {
     beginDesktopLeaseHandoff,
     inspectDesktopLease,
     reclaimDesktopLeasesByOwner,
+    reclaimStaleCiDesktopLeases,
     releaseDesktopLease,
     transferDesktopLease,
 } from './desktop-lease';
@@ -69,6 +70,67 @@ describe('desktop lease worker namespaces', () => {
             await expect(assertDesktopLeasesReleased(root)).rejects.toThrow('is stale');
             await expect(reclaimDesktopLeasesByOwner(root, 'caxri-42-1-control')).resolves.toBe(1);
             await expect(assertDesktopLeasesReleased(root)).resolves.toBeUndefined();
+        } finally {
+            if (previousOwner === undefined) delete process.env.CAXRI_DESKTOP_LEASE_OWNER;
+            else process.env.CAXRI_DESKTOP_LEASE_OWNER = previousOwner;
+        }
+    });
+
+    it('reclaims only dead leases from a previous checked-in CI job owner', async () => {
+        const root = await createRepo();
+        const previousOwner = process.env.CAXRI_DESKTOP_LEASE_OWNER;
+        process.env.CAXRI_DESKTOP_LEASE_OWNER = 'caxri-42-1-e2e';
+        try {
+            const coordinator = await acquireDesktopLease(root, 'stale CI coordinator');
+            const worker = await acquireDesktopLease(root, 'stale CI worker', process.pid, {
+                coordinatorToken: coordinator.token,
+                namespace: 'e2e-worker-0',
+            });
+            const storedCoordinator = JSON.parse(
+                await readFile(coordinator.leasePath, 'utf8'),
+            ) as DesktopLeaseHandle;
+            const storedWorker = JSON.parse(
+                await readFile(worker.leasePath, 'utf8'),
+            ) as DesktopLeaseHandle;
+            await Promise.all([
+                writeJsonAtomic(coordinator.leasePath, {
+                    ...storedCoordinator,
+                    identity: 'dead-coordinator-identity',
+                }),
+                writeJsonAtomic(worker.leasePath, {
+                    ...storedWorker,
+                    identity: 'dead-worker-identity',
+                }),
+            ]);
+
+            await expect(reclaimStaleCiDesktopLeases(root)).resolves.toBe(2);
+            await expect(assertDesktopLeasesReleased(root)).resolves.toBeUndefined();
+        } finally {
+            if (previousOwner === undefined) delete process.env.CAXRI_DESKTOP_LEASE_OWNER;
+            else process.env.CAXRI_DESKTOP_LEASE_OWNER = previousOwner;
+        }
+    });
+
+    it('keeps a stale manual lease fail-closed during CI recovery', async () => {
+        const root = await createRepo();
+        const lease = await acquireDesktopLease(root, 'manual desktop');
+        const stored = JSON.parse(await readFile(lease.leasePath, 'utf8')) as DesktopLeaseHandle;
+        await writeJsonAtomic(lease.leasePath, { ...stored, identity: 'dead-manual-identity' });
+
+        await expect(reclaimStaleCiDesktopLeases(root)).resolves.toBe(0);
+        await expect(assertDesktopLeasesReleased(root)).rejects.toThrow('is stale');
+    });
+
+    it('refuses to reclaim a live lease from a checked-in CI job owner', async () => {
+        const root = await createRepo();
+        const previousOwner = process.env.CAXRI_DESKTOP_LEASE_OWNER;
+        process.env.CAXRI_DESKTOP_LEASE_OWNER = 'caxri-42-1-checks';
+        try {
+            const lease = await acquireDesktopLease(root, 'live CI desktop');
+            activeLeases.push(lease);
+            await expect(reclaimStaleCiDesktopLeases(root)).rejects.toThrow(
+                'Refusing to reclaim live desktop lease live CI desktop',
+            );
         } finally {
             if (previousOwner === undefined) delete process.env.CAXRI_DESKTOP_LEASE_OWNER;
             else process.env.CAXRI_DESKTOP_LEASE_OWNER = previousOwner;

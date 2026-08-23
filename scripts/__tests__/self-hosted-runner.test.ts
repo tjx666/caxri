@@ -79,6 +79,8 @@ describe('self-hosted E2E runner ownership', () => {
         const runRoot = join(runnerTemporary, owner);
         const githubEnvironment = join(root, 'github-env');
         const githubSummary = join(root, 'github-summary');
+        const leaseStateDirectory = join(workspace, '.git', 'caxri-worktree-state');
+        const staleLeasePath = join(leaseStateDirectory, 'desktop-lease.json');
 
         try {
             await mkdir(workspace, { recursive: true });
@@ -93,6 +95,20 @@ describe('self-hosted E2E runner ownership', () => {
             await writeFile(join(workspace, 'fixture.txt'), 'fixture\n');
             await execFileAsync('git', ['add', 'fixture.txt'], { cwd: workspace });
             await execFileAsync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: workspace });
+            await mkdir(leaseStateDirectory, { recursive: true });
+            await writeFile(
+                staleLeasePath,
+                JSON.stringify({
+                    acquiredAt: new Date().toISOString(),
+                    identity: 'dead-previous-ci-owner',
+                    label: 'stale previous CI coordinator',
+                    owner: 'caxri-41-1-e2e',
+                    pid: process.pid,
+                    token: 'stale-token',
+                    worktreeId: 'stale-worktree',
+                    worktreePath: workspace,
+                }),
+            );
             const { stdout: head } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
                 cwd: workspace,
             });
@@ -131,6 +147,7 @@ describe('self-hosted E2E runner ownership', () => {
             ).rejects.toThrow('EEXIST');
 
             await expect(access(runRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+            await expect(access(staleLeasePath)).rejects.toMatchObject({ code: 'ENOENT' });
             await expect(access(temporaryLink)).resolves.toBeUndefined();
         } finally {
             await rm(temporaryLink, { recursive: true, force: true });
