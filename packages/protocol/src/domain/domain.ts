@@ -9,7 +9,7 @@ import type { CommandId } from './commands.js';
 import { gitCommitSchema } from './git.js';
 import { paneLayoutSchema } from './pane-layout.js';
 import { projectIconSchema } from './project-customization.js';
-import { viewContainerIdSchema } from './views.js';
+import { extensionTreeViewStatesSchema, viewContainerIdSchema } from './views.js';
 
 export * from './git.js';
 
@@ -193,6 +193,10 @@ export const sessionStateSchema = z.object({
      * IDs remain valid so a temporarily missing extension can reclaim the selection when it returns.
      */
     desiredSecondarySidebarViewContainerId: viewContainerIdSchema,
+    /**
+     * Bounded stable-id state for extension trees, scoped by Session, Workbench Root, and View.
+     */
+    extensionTreeViewStates: extensionTreeViewStatesSchema.optional(),
     /**
      * The Workbench split tree: the single source of truth for which Terminals and documents are open, how they are
      * arranged, and which one each pane shows. Terminal processes stay Session-global; only their placement is

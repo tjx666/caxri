@@ -239,21 +239,23 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     },
                 },
             );
-        if (
-            event.event === 'projectStatus.changed' ||
-            (event.event === 'state.changed' &&
-                event.payload.kind === 'full' &&
-                [
-                    'session.select',
-                    'session.create',
-                    'session.delete',
-                    'session.workbenchRoot',
-                ].includes(event.payload.reason))
-        ) {
-            const refresh = extensionService?.activeContextChanged();
+        const extensionRefresh =
+            event.event === 'projectStatus.changed'
+                ? extensionService?.projectStatusChanged()
+                : event.event === 'state.changed' &&
+                    event.payload.kind === 'full' &&
+                    [
+                        'session.select',
+                        'session.create',
+                        'session.delete',
+                        'session.workbenchRoot',
+                    ].includes(event.payload.reason)
+                  ? extensionService?.activeContextChanged()
+                  : undefined;
+        if (extensionRefresh) {
             // The Runtime event callback cannot await the best-effort extension refresh.
             // eslint-disable-next-line unicorn/prefer-await
-            refresh?.catch((error: unknown) =>
+            extensionRefresh.catch((error: unknown) =>
                 logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
                     fields: { message: error instanceof Error ? error.message : String(error) },
                 }),
@@ -678,8 +680,11 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     const bootstrap = await supervisor.request('app.bootstrap');
                     return bootstrap.projects.map(({ id }) => id);
                 },
-                projectStatus: (sessionId) =>
-                    supervisor.request('projectStatus.summary', { sessionId }),
+                projectStatus: (sessionId, refreshToken) =>
+                    supervisor.request('projectStatus.summary', {
+                        sessionId,
+                        ...(refreshToken && { refreshToken }),
+                    }),
             });
             extensionService.onCatalogChanged((payload) =>
                 server?.broadcast({ event: 'viewContainers.catalogChanged', payload }),

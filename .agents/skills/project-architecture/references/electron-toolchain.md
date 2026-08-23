@@ -28,6 +28,13 @@ prevents workspace-link traversal from accidentally shipping the standalone CLI.
 pnpm's isolated layout; electron-builder flattens the packaged dependency graph into its ASAR-facing
 `node_modules` layout so the existing ASAR unpack rules keep matching native modules.
 
+Bundled extensions are independent `extensions/*` workspace packages with package-local TypeScript
+programs and a development-only `caxri: workspace:*` dependency. Their ESM bundles keep `caxri`
+external so the Extension Host remains the only runtime API provider. Production packaging copies
+only product extensions such as Status; `testOnly` Fixture is added only by the explicit
+`package:e2e` profile into a separate output directory. Runtime `testOnly` filtering is defense in
+depth, not the release-artifact boundary.
+
 The Electron `RunAsNode` fuse remains enabled deliberately. Both the provider lifecycle-hook bridge
 and the profile-scoped Headless Host execute the packaged Caxri binary with
 `ELECTRON_RUN_AS_NODE=1`; the Host then separately supervises `out/main/runtime.js` and

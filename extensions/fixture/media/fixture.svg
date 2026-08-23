@@ -2,12 +2,12 @@
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="currentColor"
+    stroke="#8b5cf6"
     stroke-width="1.8"
     stroke-linecap="round"
     stroke-linejoin="round"
 >
     <path d="M9 3h6" />
     <path d="M10 9 6 18a2 2 0 0 0 2 3h8a2 2 0 0 0 2-3l-4-9V3h-4v6Z" />
-    <path d="M8 16h8" />
+    <path d="M8 16h8" stroke="#22c55e" />
 </svg>

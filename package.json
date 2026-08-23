@@ -25,7 +25,7 @@
         "typecheck:api": "bun run --cwd packages/api typecheck",
         "typecheck:protocol": "bun run --cwd packages/protocol typecheck",
         "typecheck:cli": "bun run --cwd packages/cli typecheck",
-        "typecheck:extensions": "tsc --noEmit -p extensions/tsconfig.json",
+        "typecheck:extensions": "pnpm --recursive --filter './extensions/*' run typecheck",
         "test": "vitest run",
         "test:workspaces": "bun run test:api && bun run test:protocol && bun run test:cli",
         "test:api": "bun run --cwd packages/api test",
@@ -42,13 +42,14 @@
         "build:api": "bun run --cwd packages/api build",
         "build:protocol": "bun run --cwd packages/protocol build",
         "build:cli": "bun run --cwd packages/cli build",
-        "build:extensions": "bun run scripts/build-extensions.ts",
+        "build:extensions": "pnpm --recursive --filter './extensions/*' run build",
         "link:cli": "bun run build:cli && bun run packages/cli/scripts/link-global.ts",
         "unlink:cli": "pnpm remove --global @caxri/cli",
         "uninstall:caxri": "bun run scripts/uninstall-caxri.ts",
         "install:caxri": "bun run scripts/install-caxri.ts",
         "build:desktop": "electron-vite build",
         "package": "bun run build && electron-builder --mac dir",
+        "package:e2e": "bun run build && bun run scripts/package-extension-test-app.ts",
         "package:dmg": "bun run build && electron-builder --mac dmg --publish never",
         "postinstall": "electron-rebuild --only better-sqlite3,node-pty --parallel",
         "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
@@ -89,7 +90,6 @@
                     ".agents/skills/go/scripts/start.ts",
                     ".agents/skills/go/scripts/state.ts",
                     ".agents/skills/go/scripts/xterm-beta-line.ts",
-                    "extensions/*/src/extension.ts",
                     "scripts/reporters/e2e-receipt-reporter.ts",
                     "scripts/fixtures/e2e-census.fixture.ts",
                     "scripts/fixtures/playwright-census.config.ts",
@@ -123,6 +123,16 @@
                 "entry": [
                     "src/bin.ts"
                 ]
+            },
+            "extensions/fixture": {
+                "entry": [
+                    "src/extension.ts"
+                ]
+            },
+            "extensions/status": {
+                "entry": [
+                    "src/extension.ts"
+                ]
             }
         }
     },
@@ -151,6 +161,7 @@
         "@types/node": "26.1.2",
         "@types/react": "19.2.18",
         "@types/react-dom": "19.2.4",
+        "@types/semver": "catalog:",
         "@typescript/native": "npm:typescript@7.0.2",
         "@vitejs/plugin-react": "6.0.5",
         "@xterm/addon-clipboard": "0.3.0-beta.301",
@@ -198,6 +209,7 @@
         "react": "19.2.8",
         "react-doctor": "0.9.5",
         "react-dom": "19.2.8",
+        "semver": "catalog:",
         "sonda": "catalog:",
         "string-width": "^8.2.0",
         "tailwind-merge": "3.6.0",
@@ -238,15 +250,6 @@
             {
                 "from": "extensions/status",
                 "to": "extensions/status",
-                "filter": [
-                    "package.json",
-                    "dist/**",
-                    "media/**"
-                ]
-            },
-            {
-                "from": "extensions/fixture",
-                "to": "extensions/fixture",
                 "filter": [
                     "package.json",
                     "dist/**",

@@ -61,8 +61,7 @@ import {
     extensionErrorSchema,
     extensionIdSchema,
     MAX_EXTENSION_COMMAND_ARGUMENTS,
-    MAX_VIEW_TREE_ITEMS,
-    treeItemSchema,
+    treeChildrenResultSchema,
     viewCatalogSnapshotSchema,
     viewIdSchema,
 } from '../domain/views.js';
@@ -154,7 +153,7 @@ export const methods = {
             requestId: identifierSchema,
             sessionId: identifierSchema.optional(),
         }),
-        result: z.object({ items: z.array(treeItemSchema).max(MAX_VIEW_TREE_ITEMS) }),
+        result: treeChildrenResultSchema,
     },
     'viewContainers.executeCommand': {
         ...hostControl,

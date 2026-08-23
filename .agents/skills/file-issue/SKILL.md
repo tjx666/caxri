@@ -42,6 +42,48 @@ change, state that explicitly instead of inventing a visual claim.
 `验收标准` defines what must be true. `Acceptance 方案` defines how the final reviewer will see or
 otherwise verify that truth. Do not replace either section with the other.
 
+## Refactor parity contract
+
+Treat an issue as a refactor when it replaces, reorganizes, or reimplements an existing product or
+architecture path while intending to preserve its nearest user-visible behavior. This includes
+process/package/protocol ownership moves with no direct UI change; a label or proposed commit type
+does not override the behavior-preservation requirement.
+
+Every refactor issue must put these exact fields in `Acceptance 方案`:
+
+- **证据模式** — `视觉` or `非视觉`.
+- **最近用户可见行为** — name the closest observable behavior, including for architecture-only work.
+- **保留行为** — enumerate the old product behaviors that must survive; proving only that the new
+  architecture or UI exists is insufficient.
+- **前后基线** — name the surfaces/states or structured receipts captured before the refactor and
+  replayed after it. “对比截图” or a new-head-only screenshot is not a plan.
+- **固定环境** — visual parity uses the same Project/fixture, persisted state, theme, window size,
+  and viewport. Non-visual parity freezes the Project/fixture, persisted state, configuration, and
+  app version, and explicitly marks irrelevant desktop dimensions.
+- **交互重放** — enumerate applicable click, double-click, keyboard, Refresh, Retry, navigation,
+  restart, and state-restoration actions. Non-visual work enumerates its equivalent API/CLI and
+  failure-injection sequence. If no interaction applies, use `不适用：<reason>` or
+  `not applicable: <reason>`; bare `N/A` is invalid.
+- **时序证据** — use GIF/video for visible order over time and structured logs/event receipts when
+  UI cannot faithfully show the claim. Settled screenshots do not replace sequence evidence. If
+  the behavior has no temporal claim, use the same explicit not-applicable form with a reason.
+- **Intentional differences / 非目标** — state every allowed observable difference. Any other
+  observable difference is a regression and blocks Acceptance.
+
+Architecture refactors may use `非视觉` structured before/after receipts, but CI, unit tests, a
+successful build, or “the new UI is visible” never substitute for parity evidence. Refactor issues
+must be created through the wrapper below, not a separate raw `gh issue create`; it freezes the
+validated content and passes that exact snapshot to GitHub:
+
+```bash
+bun run .agents/skills/file-issue/scripts/create-refactor-issue.ts \
+  --repo tjx666/caxri --title "$title" --body-file "$body_file" \
+  --label enhancement --label skill --label acceptance
+```
+
+Use `validate-refactor-acceptance.ts --body-file "$body_file"` only for draft-only checks that do
+not create an issue.
+
 Code references (`path:line`) are welcome when they anchor the diagnosis or design — but keep them to load-bearing ones; broad file inventories go stale.
 
 ## Mechanics
@@ -50,6 +92,8 @@ Code references (`path:line`) are welcome when they anchor the diagnosis or desi
   Keep code, identifiers, paths, commands, enum values, and quoted upstream errors in English.
   This applies to every issue comment, not only comments created during filing.
 - Never pass the body inline with `--body` and `\n` escapes — that ships literal `\n` into the issue. Write the body to a temp file and use `gh issue create --body-file`, or a real heredoc.
+- For a refactor issue, use `create-refactor-issue.ts`; do not split validation and creation into
+  separate commands.
 - Link related issues and PRs with `#NN` references; if the issue is spun out of another one, name it in the 问题 section. Do not close or edit the parent.
 
 ## Labels

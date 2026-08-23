@@ -137,6 +137,17 @@ reason without replacing the frozen lineage. When ingest succeeds but readback
 fails, `resume` points to the persisted pending attempt and the same command
 retries only remote readback.
 
+When the current authenticated principal can read the public frozen Acceptance
+but cannot append to it, first verify the ownership mismatch and that no pending
+publication exists. Restart the active lineage explicitly; the old publication
+history remains immutable and the replacement report starts again at round one:
+
+```bash
+bun run .agents/skills/go/scripts/state.ts acceptance-restart-lineage \
+  --state "$STATE" --acceptance-id "acc-old" \
+  --reason "The authenticated principal cannot append the frozen Acceptance."
+```
+
 After a passing Acceptance round, move to `acceptance_handoff`, generate the
 report, deliver the same summary with its stable Acceptance URL, and only then
 record delivery and enter `waiting_acceptance`:

@@ -8,6 +8,9 @@ describe('Go state CLI help', () => {
             'ci|evidence|fixture|gates|remote_state',
         );
         expect(stateCliHelp('phase')).toContain('acceptance_handoff');
+        expect(stateCliHelp('acceptance-restart-lineage')).toContain(
+            '--acceptance-id ID --reason TEXT',
+        );
         expect(stateCliHelp()).toContain('state.ts help <command>');
     });
 

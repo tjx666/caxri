@@ -4,7 +4,7 @@ import type { ProjectStatusSummary } from '../../../packages/protocol/src/domain
 import type {
     ExtensionCapability,
     ExtensionError,
-    TreeItemDto,
+    TreeChildrenResult,
     ViewCatalogSnapshot,
 } from '../../../packages/protocol/src/domain/views';
 import type {
@@ -20,6 +20,8 @@ import type { DiscoveredExtension } from './discovery';
 import { discoverExtensions } from './discovery';
 import { ExtensionHostSupervisor } from './supervisor';
 
+type DiscoveryResult = Awaited<ReturnType<typeof discoverExtensions>>;
+
 export interface ExtensionServiceOptions {
     appVersion: string;
     commit: string;
@@ -30,7 +32,7 @@ export interface ExtensionServiceOptions {
     logger: StructuredLogger;
     activeContext(): Promise<{ projectId?: string; sessionId?: string }>;
     projectIds(): Promise<string[]>;
-    projectStatus(sessionId: string): Promise<ProjectStatusSummary>;
+    projectStatus(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary>;
 }
 
 function extensionFailure(error: unknown): ExtensionError {
@@ -94,7 +96,7 @@ interface ExtensionGrant {
 export class ExtensionService extends EventTarget {
     private catalogSnapshot?: ViewCatalogSnapshot;
     private discovered: DiscoveredExtension[] = [];
-    private rejected: Awaited<ReturnType<typeof discoverExtensions>>['rejected'] = [];
+    private rejected: DiscoveryResult['rejected'] = [];
     private readonly states = new Map<string, CatalogExtensionState>();
     private readonly grants = new Map<string, ExtensionGrant>();
     private revision = 0;
@@ -103,6 +105,33 @@ export class ExtensionService extends EventTarget {
 
     constructor(private readonly options: ExtensionServiceOptions) {
         super();
+    }
+
+    private applyDiscovery(result: DiscoveryResult, shouldAdvanceGenerations: boolean): void {
+        const previousStates = new Map(this.states);
+        this.discovered = result.extensions;
+        this.rejected = result.rejected;
+        this.states.clear();
+        this.grants.clear();
+        for (const extension of this.discovered) {
+            const generation = shouldAdvanceGenerations
+                ? (previousStates.get(extension.extensionId)?.generation ?? 0) + 1
+                : 1;
+            this.states.set(extension.extensionId, { generation, lifecycle: 'discovered' });
+            // Bundled extensions are trusted, but declarations still do not become authority until recorded here.
+            this.grants.set(extension.extensionId, {
+                apiToken: randomUUID(),
+                capabilities: new Set(grantsForExtension(extension)),
+                projectIds: new Set(extension.source === 'bundled' ? this.projectIds : []),
+            });
+            this.options.logger.write('info', logEventCatalog.extensionHost.discovered, {
+                fields: {
+                    extensionId: extension.extensionId,
+                    source: extension.source,
+                    version: extension.manifest.version,
+                },
+            });
+        }
     }
 
     private registrations(): ExtensionHostRegistration[] {
@@ -129,11 +158,14 @@ export class ExtensionService extends EventTarget {
         return registrations;
     }
 
-    private async projectStatusForStableContext(active: {
-        projectId?: string;
-        sessionId: string;
-    }): Promise<ExtensionProjectStatusSummary> {
-        const result = await this.options.projectStatus(active.sessionId);
+    private async projectStatusForStableContext(
+        active: {
+            projectId?: string;
+            sessionId: string;
+        },
+        refreshToken?: string,
+    ): Promise<ExtensionProjectStatusSummary> {
+        const result = await this.options.projectStatus(active.sessionId, refreshToken);
         return this.projectStatusIfContextUnchanged(active, result);
     }
 
@@ -248,24 +280,7 @@ export class ExtensionService extends EventTarget {
             appVersion: this.options.appVersion,
             includeTestOnly: this.options.includeTestOnly,
         });
-        this.discovered = result.extensions;
-        this.rejected = result.rejected;
-        for (const extension of this.discovered) {
-            this.states.set(extension.extensionId, { generation: 1, lifecycle: 'discovered' });
-            // Bundled extensions are trusted, but declarations still do not become authority until recorded here.
-            this.grants.set(extension.extensionId, {
-                apiToken: randomUUID(),
-                capabilities: new Set(grantsForExtension(extension)),
-                projectIds: new Set(extension.source === 'bundled' ? this.projectIds : []),
-            });
-            this.options.logger.write('info', logEventCatalog.extensionHost.discovered, {
-                fields: {
-                    extensionId: extension.extensionId,
-                    source: extension.source,
-                    version: extension.manifest.version,
-                },
-            });
-        }
+        this.applyDiscovery(result, false);
         await this.rebuildCatalog();
         this.supervisor = new ExtensionHostSupervisor({
             appVersion: this.options.appVersion,
@@ -302,10 +317,13 @@ export class ExtensionService extends EventTarget {
                             code: 'PROJECT_SCOPE_DENIED',
                         },
                     );
-                return this.projectStatusForStableContext({
-                    sessionId: active.sessionId,
-                    ...(active.projectId && { projectId: active.projectId }),
-                });
+                return this.projectStatusForStableContext(
+                    {
+                        sessionId: active.sessionId,
+                        ...(active.projectId && { projectId: active.projectId }),
+                    },
+                    request.params.refreshToken,
+                );
             },
         });
         this.supervisor.onEvent((event) => {
@@ -384,15 +402,31 @@ export class ExtensionService extends EventTarget {
         viewId: string;
         parentHandle?: string;
         requestId: string;
-    }): Promise<{ items: TreeItemDto[] }> {
+    }): Promise<TreeChildrenResult> {
         const extension = this.extensionForView(parameters.viewId);
         await this.activate(extension, `onView:${parameters.viewId}`);
         const generation = this.states.get(extension.extensionId)!.generation;
-        return (await this.supervisor?.request('treeChildren', {
-            extensionId: extension.extensionId,
-            generation,
-            ...parameters,
-        })) as { items: TreeItemDto[] };
+        try {
+            return (await this.supervisor?.request('treeChildren', {
+                extensionId: extension.extensionId,
+                generation,
+                ...parameters,
+            })) as TreeChildrenResult;
+        } catch (error) {
+            if (extensionFailure(error).code !== 'GENERATION_EXPIRED') throw error;
+            /**
+             * A provider refresh can invalidate either an in-flight root request or a branch handle before its
+             * debounced treeChanged event reaches the Renderer. Recover both races with a current root snapshot while
+             * preserving strict Extension Host rejection for every other failure.
+             */
+            const root = (await this.supervisor?.request('treeChildren', {
+                extensionId: extension.extensionId,
+                generation,
+                viewId: parameters.viewId,
+                requestId: parameters.requestId,
+            })) as TreeChildrenResult;
+            return { ...root, ...(parameters.parentHandle && { reset: true }) };
+        }
     }
 
     async executeCommand(commandId: string, arguments_: unknown[]): Promise<{ executed: true }> {
@@ -422,13 +456,52 @@ export class ExtensionService extends EventTarget {
         await this.supervisor?.request('activeContextChanged', {});
     }
 
+    async projectStatusChanged(): Promise<void> {
+        await this.supervisor?.request('projectStatusChanged', {});
+    }
+
     async retry(extensionId: string): Promise<{ accepted: boolean; error?: ExtensionError }> {
         const state = this.states.get(extensionId);
-        if (!state)
+        const rejected = this.rejected.find((extension) => extension.extensionId === extensionId);
+        if (!state && !rejected)
             return {
                 accepted: false,
                 error: { code: 'MANIFEST_INVALID', message: 'Extension not found' },
             };
+        if (rejected) {
+            const result = await discoverExtensions({
+                roots: this.options.extensionRoots,
+                appVersion: this.options.appVersion,
+                includeTestOnly: this.options.includeTestOnly,
+            });
+            const stillRejected = result.rejected.find(
+                (extension) => extension.extensionId === extensionId,
+            );
+            if (stillRejected) {
+                this.rejected = this.rejected.map((extension) =>
+                    extension.extensionId === extensionId ? stillRejected : extension,
+                );
+                await this.rebuildCatalog(extensionId);
+                return { accepted: false, error: stillRejected.error };
+            }
+            this.applyDiscovery(result, true);
+            try {
+                await this.supervisor?.restart();
+                await this.rebuildCatalog(extensionId);
+                return { accepted: true };
+            } catch (error) {
+                const failure = extensionFailure(error);
+                for (const [currentExtensionId, currentState] of this.states)
+                    this.states.set(currentExtensionId, {
+                        ...currentState,
+                        lifecycle: 'error',
+                        error: failure,
+                    });
+                await this.rebuildCatalog(extensionId);
+                return { accepted: false, error: failure };
+            }
+        }
+        if (!state) throw new Error(`Extension retry state is missing: ${extensionId}`);
         for (const [currentExtensionId, currentState] of this.states)
             this.states.set(currentExtensionId, {
                 generation: currentState.generation + 1,
