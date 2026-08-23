@@ -117,7 +117,11 @@ describe('Go local CI fallback', () => {
         const workflow = await readFile(resolve(projectRoot, '.github/workflows/ci.yml'), 'utf8');
         const steps = parse(workflow) as ActionsWorkflow;
         const checkSteps = steps.jobs?.checks?.steps ?? [];
-        const nonCommandActions = checkSteps.flatMap((step) => (step.uses ? [step.uses] : []));
+        const nonCommandActions = checkSteps.flatMap((step) =>
+            // Third-party actions are pinned to an immutable commit SHA, and local ones carry no ref at all. This
+            // contract is about which actions the job runs, so drop the ref rather than re-pin it on every bump.
+            step.uses ? [step.uses.split('@', 1)[0]] : [],
+        );
         const commands = checkSteps
             .filter((step) => step.if === fullChecksCondition && step.run)
             .map((step) =>
@@ -125,7 +129,7 @@ describe('Go local CI fallback', () => {
             );
 
         expect(nonCommandActions).toEqual([
-            'actions/checkout@v7',
+            'actions/checkout',
             './.github/actions/verify-trust-boundary',
             './.github/actions/setup-caxri-job',
         ]);
