@@ -113,12 +113,23 @@ describe('desktop lease worker namespaces', () => {
 
     it('keeps a stale manual lease fail-closed during CI recovery', async () => {
         const root = await createRepo();
-        const lease = await acquireDesktopLease(root, 'manual desktop');
-        const stored = JSON.parse(await readFile(lease.leasePath, 'utf8')) as DesktopLeaseHandle;
-        await writeJsonAtomic(lease.leasePath, { ...stored, identity: 'dead-manual-identity' });
+        const previousOwner = process.env.CAXRI_DESKTOP_LEASE_OWNER;
+        delete process.env.CAXRI_DESKTOP_LEASE_OWNER;
+        try {
+            const lease = await acquireDesktopLease(root, 'manual desktop');
+            const stored = JSON.parse(
+                await readFile(lease.leasePath, 'utf8'),
+            ) as DesktopLeaseHandle;
+            await writeJsonAtomic(lease.leasePath, {
+                ...stored,
+                identity: 'dead-manual-identity',
+            });
 
-        await expect(reclaimStaleCiDesktopLeases(root)).resolves.toBe(0);
-        await expect(assertDesktopLeasesReleased(root)).rejects.toThrow('is stale');
+            await expect(reclaimStaleCiDesktopLeases(root)).resolves.toBe(0);
+            await expect(assertDesktopLeasesReleased(root)).rejects.toThrow('is stale');
+        } finally {
+            if (previousOwner !== undefined) process.env.CAXRI_DESKTOP_LEASE_OWNER = previousOwner;
+        }
     });
 
     it('refuses to reclaim a live lease from a checked-in CI job owner', async () => {
