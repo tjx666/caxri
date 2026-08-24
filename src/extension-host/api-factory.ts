@@ -3,6 +3,14 @@ import { randomUUID } from 'node:crypto';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
+import type { TreeItemDto } from '@caxri/protocol';
+import {
+    MAX_VIEW_TREE_DEPTH,
+    MAX_VIEW_TREE_HANDLES,
+    MAX_VIEW_TREE_ITEMS,
+    MAX_VIEW_TREE_PAYLOAD_BYTES,
+    treeItemSchema,
+} from '@caxri/protocol';
 import type {
     CaxriApi,
     DisposableLike,
@@ -20,14 +28,6 @@ import {
     TreeItemCollapsibleState,
 } from 'caxri';
 
-import type { TreeItemDto } from '../../packages/protocol/src/domain/views';
-import {
-    MAX_VIEW_TREE_DEPTH,
-    MAX_VIEW_TREE_HANDLES,
-    MAX_VIEW_TREE_ITEMS,
-    MAX_VIEW_TREE_PAYLOAD_BYTES,
-    treeItemSchema,
-} from '../../packages/protocol/src/domain/views';
 import type {
     ExtensionHostApiRequest,
     ExtensionHostMessage,

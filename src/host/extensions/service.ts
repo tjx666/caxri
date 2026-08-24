@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-import type { ProjectStatusSummary } from '../../../packages/protocol/src/domain/domain';
 import type {
     ExtensionCapability,
     ExtensionError,
+    ProjectStatusSummary,
     TreeChildrenResult,
     ViewCatalogSnapshot,
-} from '../../../packages/protocol/src/domain/views';
+} from '@caxri/protocol';
+
 import type {
     ExtensionHostApiRequest,
     ExtensionHostRegistration,

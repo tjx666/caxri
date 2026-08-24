@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
@@ -88,6 +88,15 @@ function isProtocolCompatibilityReExport(source: string): boolean {
     return /^export \* from ['"]\.\.\/\.\.\/\.\.\/packages\/protocol\/src\/(?:index|(?:agent|configuration|desktop|domain|registry|transport)\/[a-z0-9-]+)(?:\.js)?['"];\n?$/u.test(
         source,
     );
+}
+
+function protocolDeepImports(source: string): string[] {
+    const pattern =
+        /(?:from\s+|import\s*(?:\(\s*)?|require\s*\(\s*)['"]([^'"]*packages\/protocol\/src(?:\/[^'"]*)?|@caxri\/protocol\/[^'"]+)['"]/gu;
+    return source
+        .matchAll(pattern)
+        .map((match) => match[1])
+        .toArray();
 }
 
 describe('pnpm workspace contract', () => {
@@ -237,6 +246,42 @@ describe('pnpm workspace contract', () => {
         for (const file of sourceFiles) {
             expect(isProtocolCompatibilityReExport(readFileSync(file, 'utf8')), file).toBe(true);
         }
+    });
+
+    it('keeps Host and Extension Host production imports on the protocol package root', () => {
+        const allowedControlImports = new Map([
+            [
+                'src/host/agent-endpoints/registry.ts',
+                '../../../packages/protocol/src/agent/agent-endpoint-control',
+            ],
+            [
+                'src/host/runtime-supervisor.ts',
+                '../../packages/protocol/src/agent/agent-endpoint-control',
+            ],
+        ]);
+        expect(
+            protocolDeepImports(`
+import '../../packages/protocol/src/domain/views';
+export type { TreeItemDto } from '@caxri/protocol/domain/views';
+const dynamicProtocol = import('@caxri/protocol/src/index');
+const requiredProtocol = require('../../packages/protocol/src/index');
+`),
+        ).toEqual([
+            '../../packages/protocol/src/domain/views',
+            '@caxri/protocol/domain/views',
+            '@caxri/protocol/src/index',
+            '../../packages/protocol/src/index',
+        ]);
+        const violations = ['src/host', 'src/extension-host']
+            .flatMap((directory) => productionTypeScriptFiles(join(root, directory)))
+            .flatMap((file) => {
+                const filePath = relative(root, file);
+                return protocolDeepImports(readFileSync(file, 'utf8'))
+                    .filter((specifier) => allowedControlImports.get(filePath) !== specifier)
+                    .map((specifier) => `${filePath} -> ${specifier}`);
+            });
+
+        expect(violations).toEqual([]);
     });
 
     it('keeps root production dependencies limited to native Desktop modules', () => {
