@@ -106,6 +106,7 @@ describe('FileService watcher and polling behavior', () => {
 
         const listings = await Promise.all([service.list(session.id), service.list(session.id)]);
         expect(listings[0]).toEqual(listings[1]);
+        await logger.flush();
         const records = (await readFile(logger.path, 'utf8'))
             .trim()
             .split('\n')

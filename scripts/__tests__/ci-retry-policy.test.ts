@@ -201,6 +201,67 @@ describe('CI retry policy', () => {
         });
     });
 
+    it('uses the concurrent synthetic-merge receipt when standalone checks are skipped', () => {
+        expect(
+            extractGreenRunEvidence(
+                {
+                    conclusion: 'success',
+                    event: 'pull_request',
+                    head_sha: 'a'.repeat(40),
+                    id: 789,
+                    path: '.github/workflows/ci.yml',
+                    pull_requests: [],
+                    repository: { full_name: 'tjx666/caxri' },
+                },
+                [
+                    {
+                        conclusion: 'success',
+                        name: `retry-policy / pr-17 / base-${'b'.repeat(40)}`,
+                    },
+                    { conclusion: 'skipped', name: 'checks' },
+                    {
+                        conclusion: 'success',
+                        name: 'e2e',
+                        steps: [
+                            { conclusion: 'success', name: 'Verify full platform checks' },
+                            { conclusion: 'success', name: 'Run parallel-safe pool' },
+                            { conclusion: 'success', name: 'Run desktop-exclusive pool' },
+                        ],
+                    },
+                    { conclusion: 'success', name: 'CI gate' },
+                ],
+            ),
+        ).toMatchObject({
+            checksConclusion: 'success',
+            e2eConclusion: 'success',
+            fullChecksConclusion: 'success',
+        });
+    });
+
+    it('does not hide an explicit standalone checks failure behind a concurrent receipt', () => {
+        expect(
+            extractGreenRunEvidence(
+                {
+                    conclusion: 'failure',
+                    event: 'pull_request',
+                    head_sha: 'a'.repeat(40),
+                    id: 790,
+                    path: '.github/workflows/ci.yml',
+                    pull_requests: [],
+                    repository: { full_name: 'tjx666/caxri' },
+                },
+                [
+                    { conclusion: 'failure', name: 'checks' },
+                    {
+                        conclusion: 'success',
+                        name: 'e2e',
+                        steps: [{ conclusion: 'success', name: 'Verify full platform checks' }],
+                    },
+                ],
+            ),
+        ).toMatchObject({ checksConclusion: 'failure', fullChecksConclusion: undefined });
+    });
+
     it('disables rename detection so moving product code into an allowed path cannot hide it', () => {
         expect(greenReuseDiffArguments('ancestor', 'current')).toEqual([
             'diff',
@@ -238,9 +299,12 @@ describe('CI retry policy', () => {
             '.agents/skills/switch-worktree/scripts/desktop-lease.ts',
             'e2e/support/pools.ts',
             'e2e/support/worker-isolation.ts',
+            'scripts/ci-checks-worktree.ts',
+            'scripts/ci-concurrent-validation.ts',
             'scripts/ci-execution-plan.ts',
             'scripts/ci-green-reuse.ts',
             'scripts/ci-metrics.ts',
+            'scripts/ci-platform-checks.ts',
             'scripts/ci-retry-policy.ts',
             'scripts/report-e2e-manifest.ts',
             'scripts/reporters/e2e-receipt-reporter.ts',

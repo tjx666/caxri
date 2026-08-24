@@ -21,9 +21,17 @@ import {
 } from './reporters/e2e-receipt-reporter';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const parallelWorkers = 2;
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
 export type E2EPool = 'control' | 'desktop-exclusive' | 'parallel-safe';
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
+export function resolveParallelWorkers(environment: NodeJS.ProcessEnv): number {
+    const value = environment.CAXRI_E2E_PARALLEL_WORKERS ?? '3';
+    if (!['2', '3', '4'].includes(value)) {
+        throw new Error('CAXRI_E2E_PARALLEL_WORKERS must be 2, 3, or 4');
+    }
+    return Number(value);
+}
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
 export function parseE2EPool(arguments_: readonly string[]): E2EPool {
@@ -207,7 +215,7 @@ async function runPool(
     return { receipt: finalReceipt, result: finalReceipt.status === 'passed' ? 0 : result || 1 };
 }
 
-async function assertParallelLeasesReleased(): Promise<void> {
+async function assertParallelLeasesReleased(parallelWorkers: number): Promise<void> {
     const namespaces = Array.from(
         { length: parallelWorkers },
         (_value, index) => `e2e-worker-${index}`,
@@ -229,6 +237,7 @@ async function appendSummary(
     pool: E2EPool,
     receipt: E2EPoolReceipt,
     result: number,
+    parallelWorkers: number,
 ): Promise<void> {
     const summary = process.env.GITHUB_STEP_SUMMARY;
     if (!summary) return;
@@ -261,6 +270,7 @@ async function appendSummary(
 
 async function main(): Promise<void> {
     const pool = parseE2EPool(process.argv.slice(2));
+    const parallelWorkers = resolveParallelWorkers(process.env);
     const plan = createE2EPoolPlan(await discoverE2ESpecs());
     const invocations =
         pool === 'control'
@@ -285,11 +295,11 @@ async function main(): Promise<void> {
         } finally {
             await releaseDesktopLease(coordinator);
         }
-        await assertParallelLeasesReleased();
+        await assertParallelLeasesReleased(parallelWorkers);
     } else {
         execution = await runPool(invocations, pool, 1);
     }
-    await appendSummary(plan, pool, execution.receipt, execution.result);
+    await appendSummary(plan, pool, execution.receipt, execution.result, parallelWorkers);
     if (execution.result !== 0) process.exitCode = 1;
 }
 

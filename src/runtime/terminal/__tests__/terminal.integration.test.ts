@@ -13,6 +13,16 @@ import { TerminalManager } from '..';
 import { TERMINAL_IMAGE_RECOVERY_PLACEHOLDER } from '../image-recovery';
 
 const temporaryDirectories: string[] = [];
+const temporaryLoggers: StructuredLogger[] = [];
+
+/**
+ * Tracks buffered loggers so teardown flushes async appends before removing each temporary profile.
+ */
+function createTestLogger(logDirectory: string): StructuredLogger {
+    const logger = new StructuredLogger(logDirectory);
+    temporaryLoggers.push(logger);
+    return logger;
+}
 
 function createFakePty() {
     let onData: ((data: string) => void) | undefined;
@@ -54,6 +64,9 @@ function createFakePty() {
 
 afterEach(async () => {
     vi.unstubAllEnvs();
+    const pendingLoggers = [...temporaryLoggers];
+    temporaryLoggers.length = 0;
+    await Promise.all(pendingLoggers.map((logger) => logger.flush()));
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
@@ -76,7 +89,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             {
                 lifecycleEnvironment: () => ({
                     CAXRI_HOOK_LAUNCH_ID: `launch-${(generation += 1)}`,
@@ -121,7 +134,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             {
                 agentLaunchSettings: () => ({
                     executable: '/bin/echo',
@@ -175,7 +188,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             {
                 agentLaunchSettings: () => ({
                     executable: 'codex',
@@ -228,7 +241,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             {
                 agentEnvironment: () => Promise.resolve({ PATH: '/usr/bin' }),
                 agentLaunchSettings: () => launch,
@@ -265,7 +278,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/echo'),
                 spawn: () => failed.process,
@@ -295,7 +308,7 @@ describe('TerminalManager', () => {
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => fake.process,
@@ -333,7 +346,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             {
                 resolveExecutable: () => executable.promise,
                 spawn: () => fake.process,
@@ -370,7 +383,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => executable.promise, spawn },
         );
         let isCurrent = true;
@@ -396,7 +409,7 @@ describe('TerminalManager', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         let output = '';
-        const logger = new StructuredLogger(join(directory, 'logs'));
+        const logger = createTestLogger(join(directory, 'logs'));
         const write = vi.spyOn(logger, 'write');
         const manager = new TerminalManager(
             database,
@@ -438,7 +451,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
@@ -466,7 +479,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
@@ -492,7 +505,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
 
@@ -517,7 +530,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
 
@@ -545,7 +558,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
         let shouldStart = true;
@@ -584,7 +597,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn },
         );
         const cancellation = new AbortController();
@@ -626,7 +639,7 @@ describe('TerminalManager', () => {
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
@@ -651,7 +664,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/zsh'), spawn: () => fake.process },
         );
 
@@ -676,7 +689,7 @@ describe('TerminalManager', () => {
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
             },
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { onOutputActivity },
         );
 
@@ -711,7 +724,7 @@ describe('TerminalManager', () => {
         const manager = new TerminalManager(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            createTestLogger(join(directory, 'logs')),
             { resolveExecutable: () => Promise.resolve('/bin/echo'), spawn: () => fake.process },
         );
 

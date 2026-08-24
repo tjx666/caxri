@@ -11,6 +11,7 @@ import {
     openPanelView,
     pageRequest,
     waitForCreatedSession,
+    waitForRuntimeReady,
 } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -47,6 +48,14 @@ test('Agent identities stay consistent across every shared surface', async () =>
 
         const sessionId = await waitForCreatedSession(running.page);
         await pageRequest(running.page, 'terminal.create', { kind: 'claude', sessionId });
+        /**
+         * This spec deliberately creates the secondary Terminal through IPC because the UI only exposes a generic Shell
+         * action. A just-created Session can still be establishing its Renderer event subscription, so project the
+         * Runtime-owned layout through the same bootstrap path used after an ordinary Renderer restart instead of
+         * making icon coverage depend on whether that internal `state.changed` event raced the subscription.
+         */
+        await running.page.reload();
+        await waitForRuntimeReady(running.page);
 
         await expect(
             running.page.locator('.work-tab').locator('[data-agent-icon="codex"]'),
