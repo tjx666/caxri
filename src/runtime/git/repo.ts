@@ -245,6 +245,8 @@ export class GitRepoService {
     private readonly statuses = new RepoStatusStore<RepoStatus>();
     private readonly childCache = new Map<string, ChildCacheEntry>();
     private readonly refreshNonces = new Map<string, number>();
+    private readonly sessionGenerations = new Map<string, number>();
+    private nextSessionGeneration = 0;
     private metadataWatcher?: GitMetadataWatcher;
 
     constructor(
@@ -364,6 +366,7 @@ export class GitRepoService {
     private async loadSummary(
         sessionId: string,
         reason: 'request' | 'refresh',
+        sessionGeneration: number,
     ): Promise<GitSummary> {
         const startedAt = performance.now();
         const trace: SummaryTrace = {
@@ -375,9 +378,29 @@ export class GitRepoService {
             statusJoined: 0,
             statusCoalesced: 0,
         };
-        const summary = await this.produceSummary(sessionId, trace, {
-            force: reason === 'refresh',
-        });
+        let summary: GitSummary;
+        try {
+            summary = await this.produceSummary(sessionId, trace, {
+                force: reason === 'refresh',
+                sessionGeneration,
+            });
+        } catch (error) {
+            if (this.sessionGenerations.get(sessionId) === sessionGeneration) {
+                this.sessionGenerations.delete(sessionId);
+                this.refreshNonces.delete(sessionId);
+            } else {
+                this.retainReferencedRepositoryState();
+            }
+            throw error;
+        }
+        const isCurrentSessionGeneration =
+            this.sessionGenerations.get(sessionId) === sessionGeneration;
+        if (!isCurrentSessionGeneration) {
+            this.retainReferencedRepositoryState();
+        } else if (!summary.isRepository) {
+            this.sessionGenerations.delete(sessionId);
+            this.refreshNonces.delete(sessionId);
+        }
         this.options.logger.write('info', logEventCatalog.git.summary, {
             durationMs: performance.now() - startedAt,
             fields: {
@@ -453,7 +476,7 @@ export class GitRepoService {
     private async produceSummary(
         sessionId: string,
         trace: SummaryTrace,
-        options: { force: boolean },
+        options: { force: boolean; sessionGeneration: number },
     ): Promise<GitSummary> {
         const { root: projectRoot } = await this.paths.resolveSessionPath(sessionId);
         try {
@@ -552,7 +575,8 @@ export class GitRepoService {
                     files,
                 };
             });
-            this.registerProjection(sessionId, projectRoot, topology.repositoryKey, roots);
+            if (this.sessionGenerations.get(sessionId) === options.sessionGeneration)
+                this.registerProjection(sessionId, projectRoot, topology.repositoryKey, roots);
             return { isRepository: true, repositories };
         } catch (error) {
             /**
@@ -582,6 +606,17 @@ export class GitRepoService {
         // downgrade to the watcher's own polling fallback and are logged there.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void this.metadataWatcher?.watch(repoKey, projectRoot, rootPaths);
+    }
+
+    /**
+     * Drops repository-shared snapshots created by stale Session work only when no live projection still references
+     * them. This preserves sibling Sessions while preventing a late producer from retaining its deleted owner.
+     */
+    private retainReferencedRepositoryState(): void {
+        const referencedRoots = this.options.tracker.referencedRoots();
+        this.statuses.retainOnly(referencedRoots);
+        for (const root of this.childCache.keys())
+            if (!referencedRoots.has(root)) this.childCache.delete(root);
     }
 
     /**
@@ -626,12 +661,10 @@ export class GitRepoService {
      * Session references (Project/Session deletion, authorization change).
      */
     evictSessions(sessionIds: readonly string[]): void {
+        for (const sessionId of sessionIds) this.sessionGenerations.delete(sessionId);
         this.options.tracker.evictSessions(sessionIds);
         for (const sessionId of sessionIds) this.refreshNonces.delete(sessionId);
-        const referencedRoots = this.options.tracker.referencedRoots();
-        this.statuses.retainOnly(referencedRoots);
-        for (const root of this.childCache.keys())
-            if (!referencedRoots.has(root)) this.childCache.delete(root);
+        this.retainReferencedRepositoryState();
         // Fire-and-forget: eviction must never block on watcher teardown; failures downgrade to
         // the watcher's own polling fallback and are logged there.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -643,16 +676,21 @@ export class GitRepoService {
      * (fresh topology and status) instead of joining cached snapshots.
      */
     summary(sessionId: string, refresh = 0): Promise<GitSummary> {
+        let sessionGeneration = this.sessionGenerations.get(sessionId);
+        if (sessionGeneration === undefined) {
+            sessionGeneration = ++this.nextSessionGeneration;
+            this.sessionGenerations.set(sessionId, sessionGeneration);
+        }
         const lastNonce = this.refreshNonces.get(sessionId) ?? 0;
         const isForce = refresh > lastNonce;
         if (isForce) this.refreshNonces.set(sessionId, refresh);
-        const key = `${sessionId}#${refresh}`;
+        const key = `${sessionId}#${sessionGeneration}#${refresh}`;
         if (this.summaries.has(key))
             this.options.logger.write('debug', logEventCatalog.git.summary, {
                 fields: { outcome: 'joined', reason: isForce ? 'refresh' : 'request' },
             });
         return this.summaries.run(key, () =>
-            this.loadSummary(sessionId, isForce ? 'refresh' : 'request'),
+            this.loadSummary(sessionId, isForce ? 'refresh' : 'request', sessionGeneration),
         );
     }
 

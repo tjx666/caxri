@@ -3,16 +3,27 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { execFileAsync } from '../../../shared/node/exec';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
 import { ProjectRootResolver } from '../../project-roots';
 import { describeGitFailure, GitService } from '..';
+import type { GitMetadataWatcher } from '../metadata-watcher';
 
 const temporaryDirectories: string[] = [];
 const gitServices: GitService[] = [];
+
+interface GitServiceInternals {
+    metadataWatcher: GitMetadataWatcher;
+    repositoryService: {
+        childCache: Map<string, unknown>;
+        sessionGenerations: Map<string, number>;
+        statuses: { snapshots: Map<string, unknown> };
+    };
+}
 
 /**
  * Registers a GitService so afterEach can close it before the temp directories are removed; otherwise an in-flight
@@ -141,6 +152,85 @@ describe('GitService', () => {
             original: '',
             modified: 'new\n',
         });
+        database.close();
+    });
+
+    it('does not restore an evicted Session projection when an older summary finishes', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-eviction-'));
+        temporaryDirectories.push(directory);
+        await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
+        await execFileAsync('git', ['config', 'user.email', 'test@example.com'], {
+            cwd: directory,
+        });
+        await execFileAsync('git', ['config', 'user.name', 'Caxri Test'], { cwd: directory });
+        await writeFile(join(directory, 'tracked.txt'), 'initial\n', 'utf8');
+        await execFileAsync('git', ['add', 'tracked.txt'], { cwd: directory });
+        await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: directory });
+
+        const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
+        const project = database.createProject(directory);
+        const session = database.createSession(project.id, 'shell').session;
+        const sibling = database.createSession(project.id, 'shell').session;
+        const resolutionStarted = Promise.withResolvers<void>();
+        const releaseResolution = Promise.withResolvers<void>();
+        let shouldBlock = false;
+        const paths = new ProjectRootResolver(database, {
+            beforeRootRealpath: async () => {
+                if (!shouldBlock) return;
+                shouldBlock = false;
+                resolutionStarted.resolve();
+                await releaseResolution.promise;
+            },
+        });
+        const events: RuntimeEvent[] = [];
+        const logger = new StructuredLogger(join(directory, '.logs'));
+        const service = new GitService(paths, logger, {
+            emit: (event) => events.push(event),
+        });
+        const git = trackGitService(service);
+
+        await git.summary(sibling.id);
+        const internals = service as unknown as GitServiceInternals;
+        const watch = vi.spyOn(internals.metadataWatcher, 'watch');
+        shouldBlock = true;
+        const staleSummary = git.summary(session.id);
+        await resolutionStarted.promise;
+        git.evictSessions([session.id]);
+        releaseResolution.resolve();
+        await staleSummary;
+        git.observeFilesChanged({ sessionId: session.id, changes: [{ path: 'tracked.txt' }] });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        expect(events).toEqual([]);
+        expect(watch).not.toHaveBeenCalled();
+        expect(internals.repositoryService.statuses.snapshots.size).toBe(1);
+        expect(internals.repositoryService.childCache.size).toBe(1);
+
+        const replacement = database.createSession(project.id, 'shell').session;
+        await git.summary(replacement.id);
+        git.observeFilesChanged({ sessionId: replacement.id, changes: [{ path: 'tracked.txt' }] });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        expect(events).toHaveLength(1);
+        const [event] = events;
+        expect(event.event).toBe('git.changed');
+        if (event.event === 'git.changed')
+            expect(event.payload.sessionIds).toEqual([sibling.id, replacement.id]);
+        database.close();
+    });
+
+    it('releases lifecycle state after a failed Session summary', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-git-missing-session-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const service = new GitService(
+            new ProjectRootResolver(database),
+            new StructuredLogger(join(directory, '.logs')),
+        );
+        const git = trackGitService(service);
+
+        await expect(git.summary('missing-session')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        const internals = service as unknown as GitServiceInternals;
+        expect(internals.repositoryService.sessionGenerations.size).toBe(0);
         database.close();
     });
 
