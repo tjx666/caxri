@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import Database from 'better-sqlite3';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     findResourceTabs,
@@ -79,6 +79,23 @@ describe('CaxriDatabase', () => {
         expect(
             listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
         ).toEqual([]);
+        database.close();
+    });
+
+    it('reuses already loaded Terminal records when listing all Session states', async () => {
+        const directory = await temporaryDirectory('caxri-db-session-state-ownership-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(directory);
+        database.createSession(project.id, 'shell');
+        database.createSession(project.id, 'shell');
+        database.createSession(project.id, null);
+        const terminalRecords = database.listTerminals();
+        const prepare = vi.spyOn(database.database, 'prepare');
+
+        expect(database.listSessionStates(terminalRecords)).toHaveLength(3);
+        expect(
+            prepare.mock.calls.filter(([statement]) => statement.includes('from "terminals"')),
+        ).toHaveLength(0);
         database.close();
     });
 
@@ -530,9 +547,9 @@ describe('CaxriDatabase', () => {
         expect(database.getTerminal(terminal.id)?.title).toBe('Ship the release notes');
 
         /**
-         * A promoted Shell keeps emitting OSC titles from its prompt, and an Agent CLI paints its own status line into
-         * the window title too. Both keep updating the live column; neither may touch the conversation name, which is
-         * what the tab shows for an Agent Terminal (`terminalDisplayTitle`).
+         * This direct repository call deliberately bypasses the production OSC listener to verify the low-level column
+         * separation. The listener discards Agent-bound OSC before this provider-agnostic setter; even a direct write
+         * here must not touch the conversation name shown for an Agent Terminal (`terminalDisplayTitle`).
          */
         expect(database.setTerminalPtyTitle(terminal.id, '~/project')).toBe(true);
         expect(database.getTerminal(terminal.id)?.title).toBe('Ship the release notes');

@@ -88,8 +88,8 @@ function PathBrowserContent({
     const selected = isResultsReady ? matches[effectiveSelectedIndex] : undefined;
     const activeOptionId = selected ? `${listboxId}-option-${effectiveSelectedIndex}` : undefined;
     const candidateToCreate = useMemo(
-        () => pathBrowserCreateCandidate(query, matches.length, isTruncated),
-        [query, matches.length, isTruncated],
+        () => pathBrowserCreateCandidate(query, matches.length, isTruncated, isResultsReady),
+        [query, matches.length, isTruncated, isResultsReady],
     );
 
     useEffect(() => {
