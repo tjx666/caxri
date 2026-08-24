@@ -349,6 +349,121 @@ describe('ConfigurationService', () => {
         await service.close();
     });
 
+    it('does not commit an external read that settles after close', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-close-read-'));
+        temporaryDirectories.push(directory);
+        const events: RuntimeEvent[] = [];
+        const lateRead = Promise.withResolvers<string>();
+        const readStarted = Promise.withResolvers<void>();
+        let shouldDelaySettingsRead = false;
+        const service = new ConfigService(directory, (event) => events.push(event), undefined, {
+            readConfigSource: async (path) => {
+                if (shouldDelaySettingsRead && path.endsWith('settings.jsonc')) {
+                    readStarted.resolve();
+                    return lateRead.promise;
+                }
+                return readFile(path, 'utf8');
+            },
+        });
+        await service.initialize();
+        const before = service.getSettings();
+        events.length = 0;
+        shouldDelaySettingsRead = true;
+        const externalChange = (
+            service as unknown as { onExternalChange(path: string): Promise<void> }
+        ).onExternalChange(service.settingsPath);
+        await readStarted.promise;
+
+        await service.close();
+        lateRead.resolve(
+            `${JSON.stringify({ ...before.value, 'terminal.fontSize': 18 }, null, 2)}\n`,
+        );
+        await externalChange;
+
+        expect(service.getSettings()).toEqual(before);
+        expect(service.getErrors()).toEqual([]);
+        expect(events).toEqual([]);
+    });
+
+    it('does not commit an external read error that settles after close', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-close-read-error-'));
+        temporaryDirectories.push(directory);
+        const events: RuntimeEvent[] = [];
+        const lateRead = Promise.withResolvers<string>();
+        const readStarted = Promise.withResolvers<void>();
+        let shouldDelaySettingsRead = false;
+        const service = new ConfigService(directory, (event) => events.push(event), undefined, {
+            readConfigSource: async (path) => {
+                if (shouldDelaySettingsRead && path.endsWith('settings.jsonc')) {
+                    readStarted.resolve();
+                    return lateRead.promise;
+                }
+                return readFile(path, 'utf8');
+            },
+        });
+        await service.initialize();
+        const before = service.getSettings();
+        events.length = 0;
+        shouldDelaySettingsRead = true;
+        const externalChange = (
+            service as unknown as { onExternalChange(path: string): Promise<void> }
+        ).onExternalChange(service.settingsPath);
+        await readStarted.promise;
+
+        await service.close();
+        lateRead.reject(new Error('late read failure'));
+        await externalChange;
+
+        expect(service.getSettings()).toEqual(before);
+        expect(service.getErrors()).toEqual([]);
+        expect(events).toEqual([]);
+    });
+
+    it('fences an in-flight write and the Settings mutations queued behind it on close', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-close-write-'));
+        temporaryDirectories.push(directory);
+        const events: RuntimeEvent[] = [];
+        const writeRelease = Promise.withResolvers<void>();
+        const writeStarted = Promise.withResolvers<void>();
+        let shouldDelayWrites = false;
+        let delayedWriteCount = 0;
+        const service = new ConfigService(directory, (event) => events.push(event), undefined, {
+            writeConfigSource: async (path, source) => {
+                if (shouldDelayWrites) {
+                    delayedWriteCount += 1;
+                    writeStarted.resolve();
+                    await writeRelease.promise;
+                }
+                await writeFile(path, source, 'utf8');
+            },
+        });
+        await service.initialize();
+        const before = service.getSettings();
+        const firstSource = `${JSON.stringify({ ...before.value, 'terminal.fontSize': 17 }, null, 2)}\n`;
+        const secondSource = `${JSON.stringify({ ...before.value, 'terminal.fontSize': 18 }, null, 2)}\n`;
+        events.length = 0;
+        shouldDelayWrites = true;
+        const firstMutation = service.updateSettings(firstSource);
+        await writeStarted.promise;
+        const queuedMutation = service.updateSettings(secondSource);
+
+        await service.close();
+        writeRelease.resolve();
+        const results = await Promise.allSettled([firstMutation, queuedMutation]);
+
+        expect(results).toMatchObject([
+            { status: 'rejected', reason: { code: 'UNAVAILABLE' } },
+            { status: 'rejected', reason: { code: 'UNAVAILABLE' } },
+        ]);
+        expect(delayedWriteCount).toBe(1);
+        expect(service.getSettings()).toEqual(before);
+        expect(service.getErrors()).toEqual([]);
+        expect(events).toEqual([]);
+        await expect(service.updateTheme(service.getTheme().source)).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+        });
+    });
+
     it('keeps theme state, source, file, and events unchanged after a low-contrast import', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-theme-contrast-'));
         temporaryDirectories.push(directory);
