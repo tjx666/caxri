@@ -30,6 +30,7 @@ import {
 } from './terminal-actions';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { terminalFontFamily } from './terminal-fonts';
+import { openTerminalLinkPicker } from './terminal-link-actions';
 import { TerminalLinkPicker } from './terminal-link-picker';
 import { TERMINAL_DEFAULT_WORD_SEPARATORS } from './terminal-links';
 import type { TerminalSearchOptions } from './terminal-search';
@@ -190,6 +191,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         active,
         attachEpoch,
         copyOnSelect: isCopyOnSelect,
+        dangerColor: theme?.colors.danger,
         fontFamily,
         fontSize,
         gpuAcceleration,
@@ -199,12 +201,14 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         processState,
         projectRoot: session?.rootPath ?? '',
         scrollback,
+        successColor: theme?.colors.success,
         terminalCwd: terminal?.cwd ?? '',
         terminalId,
         terminalTheme,
         wordSeparators,
     });
     const linkPicker = useTerminalLinkPicker(terminalId, focusTerminal);
+    const openDetectedLinkShortcut = useCommandShortcut('terminal.openDetectedLink');
 
     useEffect(
         () => registerTerminalFocusHandler(terminalId, focusTerminal),
@@ -308,6 +312,12 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                     <ContextMenuItem onClick={() => findInActiveTerminal(terminalId)}>
                         Find in Terminal
                     </ContextMenuItem>
+                    <ContextMenuItem
+                        hint={openDetectedLinkShortcut}
+                        onClick={() => openTerminalLinkPicker(terminalId)}
+                    >
+                        Open Detected Link…
+                    </ContextMenuItem>
                 </ContextMenuContent>
             </ContextMenu>
             {searchState.open && (
@@ -329,6 +339,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             <TerminalLinkPicker
                 isOpen={linkPicker.isOpen}
                 links={linkPicker.links}
+                status={linkPicker.status}
                 onOpenChange={linkPicker.onOpenChange}
                 onSelect={linkPicker.selectLink}
             />

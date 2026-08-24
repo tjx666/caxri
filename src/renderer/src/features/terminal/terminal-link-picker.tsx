@@ -7,11 +7,13 @@ import {
     CommandList,
 } from '../../components/ui/command';
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
-import type { TerminalDetectedLink } from './terminal-links';
+import type { TerminalDetectedLink, TerminalLinkScanStatus } from './terminal-links';
+import { MAX_TERMINAL_DETECTED_LINKS } from './terminal-links';
 
 interface TerminalLinkPickerProperties {
     isOpen: boolean;
     links: TerminalDetectedLink[];
+    status: TerminalLinkScanStatus;
     onOpenChange: (isOpen: boolean) => void;
     onSelect: (link: TerminalDetectedLink) => void;
 }
@@ -57,6 +59,7 @@ export function TerminalLinkPicker({
     onOpenChange,
     onSelect,
     isOpen,
+    status,
 }: TerminalLinkPickerProperties) {
     const urls = links.filter((link) => link.kind === 'url');
     const files = links.filter((link) => link.kind === 'file');
@@ -68,11 +71,16 @@ export function TerminalLinkPicker({
             >
                 <DialogTitle className="sr-only">Open Detected Link</DialogTitle>
                 <Command className="w-full" label="Open Detected Link">
-                    <CommandInput autoFocus placeholder="Search links in the visible Terminal…" />
+                    <CommandInput autoFocus placeholder="Search links in the Terminal…" />
                     <CommandList>
-                        <CommandEmpty>No link found in the visible Terminal.</CommandEmpty>
+                        <CommandEmpty>No links found in the Terminal buffer.</CommandEmpty>
                         <TerminalLinkGroup heading="URLs" links={urls} onSelect={onSelect} />
                         <TerminalLinkGroup heading="Files" links={files} onSelect={onSelect} />
+                        {status === 'exhausted' && (
+                            <div className="px-2 py-1.5 text-[11px] text-muted">
+                                Showing the first {MAX_TERMINAL_DETECTED_LINKS} links.
+                            </div>
+                        )}
                     </CommandList>
                 </Command>
             </DialogContent>

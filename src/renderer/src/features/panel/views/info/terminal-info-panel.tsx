@@ -9,6 +9,7 @@ import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery } from '../../../../queries/client';
 import { useSelectedSession, useSessionTerminals } from '../../../../stores/selectors';
 import { openEditorTab } from '../../../editor/document-actions';
+import { FAILURE_REASON_LABELS } from '../../../terminal/terminal-exit-presentation';
 
 function processStateLabel(state: TerminalRecord['lastProcessState']): string {
     return capitalize(state);
@@ -89,9 +90,19 @@ export function TerminalInfoPanel() {
                     >
                         <div className="terminal-info-title flex items-center gap-2">
                             <AgentIdentityIcon identity={terminal.kind} size={15} />
-                            <strong className="min-w-0 flex-1 truncate font-semibold">
-                                {terminal.title}
-                            </strong>
+                            <div className="min-w-0 flex-1">
+                                <strong className="block truncate font-semibold">
+                                    {terminal.title}
+                                </strong>
+                                {terminal.ptyTitle && terminal.ptyTitle !== terminal.title && (
+                                    <span
+                                        className="block truncate text-[11px] text-muted"
+                                        title={terminal.ptyTitle}
+                                    >
+                                        {terminal.ptyTitle}
+                                    </span>
+                                )}
+                            </div>
                             {isPrimary && (
                                 <span className="flex-none rounded bg-elevated px-1 text-[10px] text-muted">
                                     Title source
@@ -126,7 +137,7 @@ export function TerminalInfoPanel() {
                                 <>
                                     <dt className="text-muted">Failure</dt>
                                     <dd className="m-0 min-w-0 [overflow-wrap:anywhere] text-danger">
-                                        {terminal.failureReason}
+                                        {FAILURE_REASON_LABELS[terminal.failureReason]}
                                     </dd>
                                 </>
                             )}

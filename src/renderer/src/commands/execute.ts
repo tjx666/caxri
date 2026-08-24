@@ -1,7 +1,7 @@
 import './definitions';
 
 import type { CommandId } from '@shared/commands';
-import { paneSplitBlockedReason } from '@shared/pane-layout';
+import { listPaneTerminalIds, paneSplitBlockedReason } from '@shared/pane-layout';
 
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
 import { toggleScreencastMode } from '../features/screencast/screencast';
@@ -15,6 +15,7 @@ import {
     chooseProjectDirectory,
     deleteSelectedProject,
     deleteSelectedSession,
+    moveTerminalToNewSession,
     navigateSessionHistory,
     openSelectedProjectInExternalEditor,
     selectAdjacentSession,
@@ -36,6 +37,8 @@ import {
 import { openTerminalLinkPicker } from '../features/terminal/terminal-link-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
 import {
+    canFocusPaneInDirection,
+    focusPaneInDirection,
     getActivePaneId,
     getActivePaneTab,
     getPaneLayout,
@@ -208,6 +211,25 @@ const commandContext: CommandContext = {
         splitActive: (direction) => {
             const target = activePaneTarget();
             if (target) splitPaneTab(target.tabId, target.paneId, direction);
+        },
+        canFocusPaneInDirection,
+        focusPaneInDirection,
+        /**
+         * Mirrors the tab context menu's own disabled reason (`pane-tab-bar.tsx`'s `isOnlySessionTerminal`): moving a
+         * Session's last Terminal into a new Session would leave the old one with nothing in it.
+         */
+        canMoveActiveTerminalToNewSession: () => {
+            const layout = getPaneLayout();
+            const tab = getActivePaneTab();
+            if (!layout || tab?.resource.kind !== 'terminal') return false;
+            return listPaneTerminalIds(layout).length > 1;
+        },
+        moveActiveTerminalToNewSession: () => {
+            const tab = getActivePaneTab();
+            if (tab?.resource.kind !== 'terminal') return;
+            const layout = getPaneLayout();
+            const isOnlySessionTerminal = !layout || listPaneTerminalIds(layout).length <= 1;
+            moveTerminalToNewSession(tab.resource.terminalId, isOnlySessionTerminal);
         },
     },
     editor: {

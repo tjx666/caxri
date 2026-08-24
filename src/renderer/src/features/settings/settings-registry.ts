@@ -193,6 +193,7 @@ const rows: SettingRowDescriptor[] = [
         ...specRow('security.trustedDomains'),
         binding: { type: 'trusted-domains' },
     },
+    specRow('git.fetchGitHubAvatars'),
     {
         id: 'security.remoteDebugging',
         category: 'security',

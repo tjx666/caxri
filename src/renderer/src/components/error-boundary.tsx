@@ -1,6 +1,14 @@
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
 
+import { Check, X } from 'lucide-react';
+
+import type { CopyFeedbackStatus } from './copy-feedback';
+import {
+    COPY_FEEDBACK_RESET_MS,
+    copyButtonLabel,
+    writeToClipboardWithFeedback,
+} from './copy-feedback';
 import { Button } from './ui/button';
 
 interface ErrorBoundaryProperties {
@@ -25,6 +33,11 @@ interface ErrorBoundaryProperties {
 
 interface ErrorBoundaryState {
     componentStack?: string;
+    /**
+     * Feedback state for the "Copy details" button; the crash fallback has no toast host, so the button acknowledges
+     * the clipboard result itself (see `copy-feedback.ts`).
+     */
+    copyStatus: CopyFeedbackStatus;
     error?: unknown;
     hasError: boolean;
 }
@@ -71,15 +84,25 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
         location.reload();
     };
 
+    /**
+     * Pending timer that reverts the button label back to idle; re-clicking before it fires clears and restarts it so
+     * rapid re-clicks never leave a stale "Copied"/"Copy failed" label stuck on screen.
+     */
+    private copyResetTimeout: ReturnType<typeof setTimeout> | undefined;
+
     private handleCopy = (): void => {
-        // Fire-and-forget: clipboard denial has no in-app recovery and the details stay on screen.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void navigator.clipboard.writeText(
-            formatErrorDetails(this.state.error, this.state.componentStack),
-        );
+        if (this.copyResetTimeout !== undefined) clearTimeout(this.copyResetTimeout);
+        const text = formatErrorDetails(this.state.error, this.state.componentStack);
+        // eslint-disable-next-line no-void -- resolved via the .then below, never rejects
+        void writeToClipboardWithFeedback(navigator.clipboard, text).then((status) => {
+            this.setState({ copyStatus: status });
+            this.copyResetTimeout = setTimeout(() => {
+                this.setState({ copyStatus: 'idle' });
+            }, COPY_FEEDBACK_RESET_MS);
+        });
     };
 
-    state: ErrorBoundaryState = { hasError: false };
+    state: ErrorBoundaryState = { copyStatus: 'idle', hasError: false };
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
         // Main mirrors renderer `console.error` calls into `logs/main.jsonl` (see
@@ -93,10 +116,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
         this.setState({ componentStack: errorInfo.componentStack ?? undefined });
     }
 
+    componentWillUnmount(): void {
+        if (this.copyResetTimeout !== undefined) clearTimeout(this.copyResetTimeout);
+    }
+
     render(): ReactNode {
         if (!this.state.hasError) return this.props.children;
-        const { componentStack, error } = this.state;
+        const { componentStack, copyStatus, error } = this.state;
         const message = error === undefined ? '' : describeThrown(error);
+        const copyLabel = copyButtonLabel(copyStatus, 'Copy details');
         return (
             <main className="renderer-crash-screen flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background px-6 text-foreground">
                 <div className="flex w-full max-w-2xl min-w-0 flex-col gap-3">
@@ -122,8 +150,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
                             {this.props.reloadLabel ?? 'Reload'}
                         </Button>
                         {error !== undefined && (
-                            <Button type="button" variant="secondary" onClick={this.handleCopy}>
-                                Copy details
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={this.handleCopy}
+                                className={copyStatus === 'failed' ? 'text-danger' : undefined}
+                            >
+                                {copyStatus === 'copied' && <Check size={13} />}
+                                {copyStatus === 'failed' && <X size={13} />}
+                                {copyLabel}
                             </Button>
                         )}
                     </div>
