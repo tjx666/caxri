@@ -18,6 +18,8 @@ interface TranscriptWatchEntry {
 }
 
 interface PendingTranscriptInstall {
+    generation: number;
+    invalidationGeneration: number;
     location: AgentTranscriptLocation;
     promise: Promise<void>;
 }
@@ -46,11 +48,24 @@ async function transcriptSignature(path: string): Promise<string> {
  */
 export class AgentTranscriptWatcher {
     private closed = false;
+    private closePromise?: Promise<void>;
     private readonly entries = new Map<string, TranscriptWatchEntry>();
+    private generationCounter = 0;
     private readonly generations = new Map<string, number>();
     private readonly installs = new Map<string, PendingTranscriptInstall>();
 
     constructor(private readonly options: AgentTranscriptWatcherOptions) {}
+
+    private advanceGeneration(terminalId: string): number {
+        this.generationCounter += 1;
+        this.generations.set(terminalId, this.generationCounter);
+        return this.generationCounter;
+    }
+
+    private pruneGeneration(terminalId: string): void {
+        if (this.entries.has(terminalId) || this.installs.has(terminalId)) return;
+        this.generations.delete(terminalId);
+    }
 
     private emitChange(entry: TranscriptWatchEntry): void {
         if (this.closed || this.entries.get(entry.terminalId) !== entry) return;
@@ -125,37 +140,51 @@ export class AgentTranscriptWatcher {
         if (entry?.sourcePath === location.path && entry.sourceRoot === location.root) return;
         const pending = this.installs.get(terminalId);
         if (pending) {
+            const invalidationGeneration = pending.invalidationGeneration;
             await pending.promise;
             // Another lifecycle call can close the watcher while the install promise is pending.
             // oxlint-disable-next-line typescript/no-unnecessary-condition -- concurrent lifecycle mutation across await
             if (this.closed) return;
+            if (pending.invalidationGeneration !== invalidationGeneration) return;
             const latest = this.options.locationForTerminal(terminalId);
             if (
                 latest &&
-                (latest.path !== pending.location.path || latest.root !== pending.location.root)
+                (invalidationGeneration !== pending.generation ||
+                    latest.path !== pending.location.path ||
+                    latest.root !== pending.location.root)
             )
                 await this.watch(terminalId);
             return;
         }
-        const generation = (this.generations.get(terminalId) ?? 0) + 1;
-        this.generations.set(terminalId, generation);
+        const generation = this.advanceGeneration(terminalId);
         const install = this.install(terminalId, location, generation);
-        const pendingInstall = { location, promise: install };
+        const pendingInstall = {
+            generation,
+            invalidationGeneration: generation,
+            location,
+            promise: install,
+        };
         this.installs.set(terminalId, pendingInstall);
         try {
             await install;
         } finally {
             if (this.installs.get(terminalId) === pendingInstall) this.installs.delete(terminalId);
+            this.pruneGeneration(terminalId);
         }
     }
 
     forgetTerminal(terminalId: string): void {
-        this.generations.set(terminalId, (this.generations.get(terminalId) ?? 0) + 1);
+        const pending = this.installs.get(terminalId);
+        if (this.generations.has(terminalId)) {
+            const generation = this.advanceGeneration(terminalId);
+            if (pending) pending.invalidationGeneration = generation;
+        }
         const entry = this.entries.get(terminalId);
         this.entries.delete(terminalId);
         // Fire-and-forget: lifecycle handlers are synchronous and WatchHub disposal is idempotent.
         // eslint-disable-next-line no-void -- synchronous lifecycle boundary, see comment above
         if (entry) void entry.handle.dispose();
+        this.pruneGeneration(terminalId);
     }
 
     forgetSession(sessionId: string): void {
@@ -163,17 +192,24 @@ export class AgentTranscriptWatcher {
             this.forgetTerminal(terminalId);
     }
 
-    async close(): Promise<void> {
-        if (this.closed) return;
+    close(): Promise<void> {
+        if (this.closePromise) return this.closePromise;
         this.closed = true;
         const terminalIds = new Set([...this.entries.keys(), ...this.installs.keys()]);
-        for (const terminalId of terminalIds)
-            this.generations.set(terminalId, (this.generations.get(terminalId) ?? 0) + 1);
+        for (const terminalId of terminalIds) this.advanceGeneration(terminalId);
         const entries = this.entries.values().toArray();
         this.entries.clear();
-        await Promise.all([
-            ...entries.map((entry) => entry.handle.dispose()),
-            ...this.installs.values().map((install) => install.promise),
-        ]);
+        this.closePromise = (async () => {
+            try {
+                await Promise.all([
+                    ...entries.map((entry) => entry.handle.dispose()),
+                    ...this.installs.values().map((install) => install.promise),
+                ]);
+            } finally {
+                this.installs.clear();
+                this.generations.clear();
+            }
+        })();
+        return this.closePromise;
     }
 }
