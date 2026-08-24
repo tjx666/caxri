@@ -130,3 +130,33 @@ lobehub acceptance run list --json
   contain plausible DOM text.
 - Do not resize the Electron window after the scenario begins unless resizing is
   the behavior under test; it can invalidate state and evidence.
+
+## 7. Project learning log
+
+These files hold Caxri-specific field knowledge behind the rules above. Read the
+entries relevant to the planned round before improvising a new setup or evidence
+method:
+
+- [`common-mistakes.md`](common-mistakes.md): mistakes that consumed
+  or invalidated an Acceptance run.
+- [`probe-mock-patterns.md`](probe-mock-patterns.md): reusable
+  deterministic probe and mock techniques.
+- [`references/desktop-runtime.md`](references/desktop-runtime.md):
+  desktop ownership, lifecycle, build freshness, and focus facts.
+- [`references/fixtures.md`](references/fixtures.md): Project roots,
+  state isolation, and deterministic fixture contracts.
+
+The reusable Acceptance workflow remains in `.agents/skills/acceptance/`;
+project-specific observations belong here so the skill does not become an
+unstructured incident log.
+
+**Where new learnings go:**
+
+- A mistake that cost a run goes to `common-mistakes.md`.
+- A reusable probe or mock technique goes to `probe-mock-patterns.md`.
+- An environment, lifecycle, or fixture fact goes to the matching
+  `references/` file.
+
+Stop the owned desktop before updating these files. Add only facts confirmed by
+an actual run or repository contract, merge duplicate advice, and link back to
+the canonical skill rule when a field note explains why that rule exists.

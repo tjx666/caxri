@@ -61,7 +61,12 @@ substitutes for the real desktop path when the claim is user-visible.
 ## Prepare
 
 1. Read `.agents/acceptance/PROJECT.md` for the exact build, isolated launch,
-   stop, CDP, and logging commands. Fix adapter drift when observed.
+   stop, CDP, and logging commands. Then read
+   [`.agents/acceptance/common-mistakes.md`](../../acceptance/common-mistakes.md)
+   before planning the round, load the matching project field notes indexed by
+   `PROJECT.md`, and search
+   [`.agents/acceptance/probe-mock-patterns.md`](../../acceptance/probe-mock-patterns.md)
+   before authoring a new probe or mock. Fix adapter drift when observed.
 2. Confirm LobeHub CLI authentication with `lobehub whoami --json`. Do
    not guess an `auth status` subcommand; the Go intake snapshot runs this same
    fail-closed probe automatically.
@@ -165,6 +170,14 @@ human acceptance. When Go owns the delivery, return the published round to Go;
 the Go ledger, not the Acceptance report, owns the compact workflow-observation
 summary shown beside that URL.
 
+After the owned desktop has stopped, record only verified, reusable project
+learnings using the routing rules in `.agents/acceptance/PROJECT.md`: a mistake
+that cost a run belongs in `common-mistakes.md`, a reusable probe or mock belongs
+in `probe-mock-patterns.md`, and an environment or fixture fact belongs in the
+matching project reference. Do not turn a one-off failure or an unverified
+hypothesis into guidance, and do not keep the desktop session open while editing
+the learning log.
+
 ## Reference map
 
 - Electron workflow: [surfaces/electron.md](surfaces/electron.md)
@@ -173,3 +186,7 @@ summary shown beside that URL.
 - Native dialogs: [references/native-dialogs.md](references/native-dialogs.md)
 - Report schema: [references/report.md](references/report.md)
 - Temporal capture: [references/recording-cdp.md](references/recording-cdp.md)
+- Project mistakes: [../../acceptance/common-mistakes.md](../../acceptance/common-mistakes.md)
+- Project probe/mock patterns:
+  [../../acceptance/probe-mock-patterns.md](../../acceptance/probe-mock-patterns.md)
+- Project field notes: [../../acceptance/references/](../../acceptance/references/)
