@@ -38,6 +38,21 @@ interface GitPanelReadyController {
 
 export type GitPanelController = GitPanelEmptyController | GitPanelReadyController;
 
+interface GitPanelRefreshActions {
+    invalidateCommitDetails: () => void;
+    refreshPullRequest: () => void;
+    refreshWorkingTree: () => void;
+}
+
+export function refreshGitPanel(mode: GitPanelMode, actions: GitPanelRefreshActions): void {
+    if (mode === 'pull-request') {
+        actions.refreshPullRequest();
+        return;
+    }
+    if (mode === 'commit') actions.invalidateCommitDetails();
+    actions.refreshWorkingTree();
+}
+
 /**
  * Owns Session-scoped navigation, Git summary refresh, and repository jump sequencing. The panel view renders the
  * resulting state without duplicating query keys, timers, or scope transitions in JSX.
@@ -114,18 +129,16 @@ export function useGitPanelController(): GitPanelController {
                 ?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
         });
     };
-    const refresh = (): void => {
-        if (mode === 'pull-request') {
-            setPullRequestRefresh((value) => value + 1);
-            return;
-        }
-        // Commit mode reads HEAD from `git.summary` but must also retry a cached `git.commitDetails` failure.
-        if (mode === 'commit') {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard
-            void queryClient.invalidateQueries({ queryKey: ['git.commitDetails'] });
-        }
-        setWorkingRefresh((value) => value + 1);
-    };
+    const refresh = (): void =>
+        refreshGitPanel(mode, {
+            // Commit mode reads HEAD from `git.summary` but must also retry a cached `git.commitDetails` failure.
+            invalidateCommitDetails: () => {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard
+                void queryClient.invalidateQueries({ queryKey: ['git.commitDetails'] });
+            },
+            refreshPullRequest: () => setPullRequestRefresh((value) => value + 1),
+            refreshWorkingTree: () => setWorkingRefresh((value) => value + 1),
+        });
 
     return {
         activeDiff,

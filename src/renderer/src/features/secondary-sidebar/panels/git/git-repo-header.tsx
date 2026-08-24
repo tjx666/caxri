@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { ChevronDown, ChevronRight, FolderGit2 } from 'lucide-react';
 
 import { Button } from '../../../../components/ui/button';
@@ -5,6 +7,7 @@ import { Tooltip } from '../../../../components/ui/tooltip';
 import { FileSubmoduleIcon } from '../../../../icons/codicons/file-submodule-icon';
 import { SyncIcon } from '../../../../icons/codicons/sync-icon';
 import { describeAheadBehind, describePullRequestSummary } from './git-repo-summary-text';
+import { syncRepo } from './git-working-tree-actions';
 import type { GitRepoSectionController } from './use-git-repo-section-controller';
 
 export function GitRepoHeader({ controller }: { controller: GitRepoSectionController }) {
@@ -15,10 +18,22 @@ export function GitRepoHeader({ controller }: { controller: GitRepoSectionContro
         mode,
         pullRequest,
         repository,
-        sync,
-        syncing,
+        sessionId,
         toggleExpanded,
     } = controller;
+    /**
+     * Keep transient progress local to the header so spinner updates do not rebuild an expanded repository tree.
+     */
+    const [syncing, setSyncing] = useState(false);
+    const runSync = async (): Promise<void> => {
+        if (syncing) return;
+        setSyncing(true);
+        try {
+            await syncRepo(sessionId, repository);
+        } finally {
+            setSyncing(false);
+        }
+    };
 
     return (
         /* The toggle stays a plain button (its class and title anchor the E2E selectors) and the Sync action is a
@@ -84,7 +99,10 @@ export function GitRepoHeader({ controller }: { controller: GitRepoSectionContro
                         variant="ghost"
                         aria-label={`Sync Changes in ${repository.name}`}
                         disabled={syncing}
-                        onClick={sync}
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- syncRepo reports failures through tryCommand
+                            void runSync();
+                        }}
                     >
                         <SyncIcon size={13} className={syncing ? 'animate-spin' : undefined} />
                     </Button>

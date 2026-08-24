@@ -9,6 +9,7 @@ import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../sto
 import type { EditRequest, FocusTarget } from './directory-entries';
 import { BUSY_DISABLED_REASON } from './directory-entries';
 import { cancelFileOperation, moveFile, pasteFile } from './file-actions';
+import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
 import type { PendingFileOperation } from './file-operation-state';
 import {
@@ -31,6 +32,58 @@ import {
 function discard(promise: Promise<unknown>): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void promise;
+}
+
+interface ProjectRootFileActionContext {
+    isBlocked: boolean;
+    projectId: string;
+    rootPath: string;
+    sessionId: string;
+}
+
+interface ProjectRootFileActionDependencies {
+    draggedPath: (event: DragEvent) => string | undefined;
+    getClipboard: () => FileClipboardEntry | undefined;
+    move: (
+        sessionId: string,
+        source: string,
+        directory: string,
+    ) => Promise<{ path: string } | undefined>;
+    paste: (
+        sessionId: string,
+        projectId: string,
+        directory: string,
+        clipboard: FileClipboardEntry,
+    ) => Promise<{ path: string } | undefined>;
+    selectPath: (path: string) => void;
+}
+
+export async function pasteIntoProjectRoot(
+    context: ProjectRootFileActionContext,
+    dependencies: ProjectRootFileActionDependencies,
+): Promise<void> {
+    const clipboard = dependencies.getClipboard();
+    if (!clipboard) return;
+    const pasted = await dependencies.paste(
+        context.sessionId,
+        context.projectId,
+        context.rootPath,
+        clipboard,
+    );
+    if (pasted) dependencies.selectPath(pasted.path);
+}
+
+export async function dropIntoProjectRoot(
+    event: DragEvent,
+    context: ProjectRootFileActionContext,
+    dependencies: ProjectRootFileActionDependencies,
+): Promise<void> {
+    event.preventDefault();
+    if (context.isBlocked) return;
+    const source = dependencies.draggedPath(event);
+    if (!source) return;
+    const moved = await dependencies.move(context.sessionId, source, context.rootPath);
+    if (moved) dependencies.selectPath(moved.path);
 }
 
 /**
@@ -165,19 +218,18 @@ export function useFileTreePanelController(): FileTreePanelController | undefine
         projectId,
         session.rootPath,
     );
-    const performPasteIntoProjectRoot = async (): Promise<void> => {
-        const currentClipboard = useFileClipboardStore.getState().entry;
-        if (!currentClipboard) return;
-        const pasted = await pasteFile(session.id, projectId, session.rootPath, currentClipboard);
-        if (pasted) setSelectedPath(pasted.path);
+    const rootActionContext = {
+        isBlocked: isRootPasteBlocked,
+        projectId,
+        rootPath: session.rootPath,
+        sessionId: session.id,
     };
-    const performDropIntoProjectRoot = async (event: DragEvent): Promise<void> => {
-        event.preventDefault();
-        if (isRootPasteBlocked) return;
-        const source = dragPath(event);
-        if (!source) return;
-        const moved = await moveFile(session.id, source, session.rootPath);
-        if (moved) setSelectedPath(moved.path);
+    const rootActionDependencies = {
+        draggedPath: dragPath,
+        getClipboard: () => useFileClipboardStore.getState().entry,
+        move: moveFile,
+        paste: pasteFile,
+        selectPath: (path: string) => setSelectedPath(path),
     };
 
     return {
@@ -192,7 +244,8 @@ export function useFileTreePanelController(): FileTreePanelController | undefine
         collapseRevision,
         createRootFile: () => startCreatingRootItem('file'),
         createRootFolder: () => startCreatingRootItem('directory'),
-        dropIntoProjectRoot: (event) => discard(performDropIntoProjectRoot(event)),
+        dropIntoProjectRoot: (event) =>
+            discard(dropIntoProjectRoot(event, rootActionContext, rootActionDependencies)),
         editing,
         expandedPaths: new Set(expandedByScope[scopeId]),
         fileCaptionRef: (node) => {
@@ -209,7 +262,8 @@ export function useFileTreePanelController(): FileTreePanelController | undefine
             event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
         },
-        pasteIntoProjectRoot: () => discard(performPasteIntoProjectRoot()),
+        pasteIntoProjectRoot: () =>
+            discard(pasteIntoProjectRoot(rootActionContext, rootActionDependencies)),
         pendingOperation,
         project,
         projectId,
