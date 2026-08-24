@@ -6,7 +6,7 @@ import process from 'node:process';
 import { connectToHost } from '@caxri/cli';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
-import type { ElectronApplication as ElectronApp } from './support/fixtures.ts';
+import type { E2EApp as ElectronApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxriApp, openAddProjectDialog, waitForRuntimeReady } from './support/helpers.ts';
 

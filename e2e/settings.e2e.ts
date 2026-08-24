@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { writeTestClipboardText } from './support/clipboard.ts';
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import type { RunningCaxriWithClipboard } from './support/helpers.ts';
@@ -26,7 +25,7 @@ async function replaceMonacoText(
     editor: Locator,
     source: string,
 ): Promise<void> {
-    await writeTestClipboardText(running.app, running.clipboard, source);
+    await running.clipboard.writeText(source);
     await editor.locator('.monaco-editor').click({ position: { x: 120, y: 24 } });
     await page.keyboard.press('Meta+A');
     await page.keyboard.press('Meta+V');

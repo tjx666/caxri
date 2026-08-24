@@ -10,6 +10,21 @@ export interface E2EPoolPlan {
 }
 
 /**
+ * Specs that request the protected clipboard capability. They remain desktop-exclusive, while the launch helper also
+ * rejects the capability at runtime if a parallel-safe worker ever reaches one through a future classification edit.
+ */
+export const clipboardCapabilitySpecs = [
+    'e2e/bug-report.e2e.ts',
+    'e2e/clipboard-restoration.e2e.ts',
+    'e2e/file-operations.e2e.ts',
+    'e2e/settings.e2e.ts',
+    'e2e/terminal-osc52-clipboard.e2e.ts',
+    'e2e/terminal-search.e2e.ts',
+    'e2e/terminal-selection.e2e.ts',
+    'e2e/terminal-shortcuts.e2e.ts',
+] as const;
+
+/**
  * Specs in this allowlist use only per-launch profiles, roots, logs, PTYs, and fake/blocked Agents. Everything else
  * remains `@desktop-exclusive` by default, especially native focus, clipboard, Process Explorer, Screencast,
  * performance, updater, and real-Agent coverage.

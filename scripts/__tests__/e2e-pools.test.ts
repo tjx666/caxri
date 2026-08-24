@@ -1,8 +1,12 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 
 import { describe, expect, it } from 'vitest';
 
-import { createE2EPoolPlan, parallelSafeSpecs } from '../../e2e/support/pools';
+import {
+    clipboardCapabilitySpecs,
+    createE2EPoolPlan,
+    parallelSafeSpecs,
+} from '../../e2e/support/pools';
 import type { E2ETestReceipt } from '../reporters/e2e-receipt-reporter';
 import { createE2EPoolReceipt, stableErrorIdentity } from '../reporters/e2e-receipt-reporter';
 import { combinePoolReceipts, mergeCensusReceipts, parseE2EPool } from '../run-e2e-pools';
@@ -91,40 +95,11 @@ describe('E2E pools', () => {
         }
     });
 
-    it('keeps every clipboard-capable spec desktop-exclusive', async () => {
-        const specNames = (await readdir(new URL('../../e2e', import.meta.url))).filter((name) =>
-            name.endsWith('.e2e.ts'),
-        );
-        const clipboardSpecs: string[] = [];
-        const specSources = await Promise.all(
-            specNames.map(async (name) => ({
-                path: `e2e/${name}`,
-                source: await readFile(new URL(`../../e2e/${name}`, import.meta.url), 'utf8'),
-            })),
-        );
-        for (const { path, source } of specSources) {
-            if (!(
-                source.includes("from './support/clipboard.ts'") ||
-                source.includes('clipboardFixture:') ||
-                source.includes('running.clipboard') ||
-                /\(\{\s*clipboard\s*[,}]/u.test(source)
-            )) {
-                continue;
-            }
-
-            clipboardSpecs.push(path);
+    it('keeps every declared clipboard capability spec desktop-exclusive', () => {
+        expect(new Set(clipboardCapabilitySpecs).size).toBe(clipboardCapabilitySpecs.length);
+        for (const path of clipboardCapabilitySpecs) {
             expect(parallelSafeSpecs, path).not.toContain(path);
         }
-        expect(clipboardSpecs.toSorted((left, right) => left.localeCompare(right))).toEqual([
-            'e2e/bug-report.e2e.ts',
-            'e2e/clipboard-restoration.e2e.ts',
-            'e2e/file-operations.e2e.ts',
-            'e2e/settings.e2e.ts',
-            'e2e/terminal-osc52-clipboard.e2e.ts',
-            'e2e/terminal-search.e2e.ts',
-            'e2e/terminal-selection.e2e.ts',
-            'e2e/terminal-shortcuts.e2e.ts',
-        ]);
     });
 
     it('partitions the current repository manifest without duplicates or omissions', async () => {

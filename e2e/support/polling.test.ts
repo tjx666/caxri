@@ -3,21 +3,65 @@ import { describe, expect, it } from 'vitest';
 import { pollUntil } from './polling.ts';
 
 describe('pollUntil', () => {
-    it('retries callback errors until a matching value is available', async () => {
+    it('retries explicitly classified callback errors until a matching value is available', async () => {
         let attempts = 0;
+        const transient = new Error('transient read');
 
         const value = await pollUntil(
             () => {
                 attempts += 1;
-                if (attempts < 3) throw new Error(`transient attempt ${attempts}`);
+                if (attempts < 3) throw transient;
                 return 42;
             },
             (candidate) => candidate === 42,
-            { intervals: [1], timeout: 100 },
+            {
+                intervals: [1],
+                isRetryableError: (error) => error === transient,
+                timeout: 100,
+            },
         );
 
         expect(value).toBe(42);
         expect(attempts).toBe(3);
+    });
+
+    it('propagates an unclassified callback error on the first attempt', async () => {
+        const failure = new Error('permission denied');
+        let attempts = 0;
+
+        await expect(
+            pollUntil(
+                () => {
+                    attempts += 1;
+                    throw failure;
+                },
+                () => true,
+                { intervals: [1], timeout: 100 },
+            ),
+        ).rejects.toBe(failure);
+        expect(attempts).toBe(1);
+    });
+
+    it('propagates an unclassified error after a retryable error', async () => {
+        const transient = new Error('transient read');
+        const failure = new Error('page closed');
+        let attempts = 0;
+
+        await expect(
+            pollUntil(
+                () => {
+                    attempts += 1;
+                    throw attempts === 1 ? transient : failure;
+                },
+                () => true,
+                {
+                    intervals: [1],
+                    isRetryableError: (error) => error === transient,
+                    timeout: 100,
+                },
+            ),
+        ).rejects.toBe(failure);
+        expect(attempts).toBe(2);
     });
 
     it('treats null and undefined samples as pending', async () => {
@@ -42,7 +86,7 @@ describe('pollUntil', () => {
                     throw new Error(`still unavailable ${attempts}`);
                 },
                 () => true,
-                { intervals: [1], timeout: 20 },
+                { intervals: [1], isRetryableError: () => true, timeout: 20 },
             ),
         ).rejects.toThrow(/Last callback error: still unavailable \d+/);
         expect(attempts).toBeGreaterThan(1);
@@ -59,7 +103,7 @@ describe('pollUntil', () => {
                     return null;
                 },
                 () => true,
-                { intervals: [1], timeout: 20 },
+                { intervals: [1], isRetryableError: () => true, timeout: 20 },
             ),
         ).rejects.toThrow('Last callback error: initial transient failure');
         expect(attempts).toBeGreaterThan(1);
