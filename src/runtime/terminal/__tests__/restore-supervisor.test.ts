@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TerminalRestoreSupervisor } from '../restore-supervisor';
 
+function retainedGenerationCount(supervisor: TerminalRestoreSupervisor): number {
+    return (
+        supervisor as unknown as {
+            generations: Map<string, number>;
+        }
+    ).generations.size;
+}
+
 describe('TerminalRestoreSupervisor', () => {
     it('bounds active restores and skips queued work from stale Session generations', async () => {
         const supervisor = new TerminalRestoreSupervisor(2);
@@ -109,5 +117,103 @@ describe('TerminalRestoreSupervisor', () => {
 
         expect(await supervisor.restore('session-b', [])).toEqual([]);
         expect(await staleSession).toEqual([false]);
+    });
+
+    it('retains a permanent-delete fence only until pending restore work settles', async () => {
+        const supervisor = new TerminalRestoreSupervisor(2);
+        const oldRestoreStarted = Promise.withResolvers<void>();
+        const releaseOldRestore = Promise.withResolvers<void>();
+        const oldRestore = supervisor.restore('session-reused', [
+            async (isCurrent) => {
+                oldRestoreStarted.resolve();
+                await releaseOldRestore.promise;
+                return isCurrent();
+            },
+        ]);
+        await oldRestoreStarted.promise;
+
+        supervisor.forget('session-reused');
+        expect(retainedGenerationCount(supervisor)).toBe(1);
+
+        await expect(
+            supervisor.restore('session-reused', [() => Promise.resolve(true)]),
+        ).resolves.toEqual([true]);
+        releaseOldRestore.resolve();
+
+        await expect(oldRestore).resolves.toEqual([false]);
+        expect(retainedGenerationCount(supervisor)).toBe(0);
+    });
+
+    it('skips semaphore work queued before a Session is permanently forgotten', async () => {
+        const supervisor = new TerminalRestoreSupervisor(1);
+        const firstStarted = Promise.withResolvers<void>();
+        const releaseFirst = Promise.withResolvers<void>();
+        let queuedStarts = 0;
+        const restoring = supervisor.restore('session-deleted', [
+            async (isCurrent) => {
+                firstStarted.resolve();
+                await releaseFirst.promise;
+                return isCurrent();
+            },
+            () => {
+                queuedStarts += 1;
+                return Promise.resolve(true);
+            },
+        ]);
+        await firstStarted.promise;
+
+        supervisor.forget('session-deleted');
+        releaseFirst.resolve();
+
+        await expect(restoring).resolves.toEqual([false, false]);
+        expect(queuedStarts).toBe(0);
+        expect(retainedGenerationCount(supervisor)).toBe(0);
+    });
+
+    it('does not retain generations for empty restores and permanently forgotten Sessions', async () => {
+        const supervisor = new TerminalRestoreSupervisor();
+        await Promise.all(
+            Array.from({ length: 1_000 }, async (_, index) => {
+                const sessionId = `session-${index}`;
+                await supervisor.restore(sessionId, []);
+                supervisor.forget(sessionId);
+            }),
+        );
+        supervisor.cancel('session-never-restored');
+
+        expect(retainedGenerationCount(supervisor)).toBe(0);
+    });
+
+    it('releases generation state after a failed restore', async () => {
+        const supervisor = new TerminalRestoreSupervisor();
+
+        await expect(
+            supervisor.restore('session-failed', [() => Promise.reject(new Error('failed'))]),
+        ).rejects.toThrow('failed');
+
+        expect(retainedGenerationCount(supervisor)).toBe(0);
+    });
+
+    it('allows an archived Session to restore again after cancellation', async () => {
+        const supervisor = new TerminalRestoreSupervisor(1);
+        const restoreStarted = Promise.withResolvers<void>();
+        const releaseRestore = Promise.withResolvers<void>();
+        const archivedRestore = supervisor.restore('session-archived', [
+            async (isCurrent) => {
+                restoreStarted.resolve();
+                await releaseRestore.promise;
+                return isCurrent();
+            },
+        ]);
+        await restoreStarted.promise;
+
+        supervisor.cancel('session-archived');
+        releaseRestore.resolve();
+
+        await expect(archivedRestore).resolves.toEqual([false]);
+        await expect(
+            supervisor.restore('session-archived', [() => Promise.resolve(true)]),
+        ).resolves.toEqual([true]);
+        expect(retainedGenerationCount(supervisor)).toBe(0);
     });
 });

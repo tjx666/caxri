@@ -16,11 +16,46 @@ export class TerminalRestoreSupervisor {
     private activeSessionId?: string;
     private activeAbortController?: AbortController;
     private closed = false;
+    private generationCounter = 0;
     private readonly generations = new Map<string, number>();
+    private readonly pendingRestores = new Map<string, number>();
     private readonly restores: AsyncSemaphore;
 
     constructor(maximum = MAX_CONCURRENT_TERMINAL_RESTORES) {
         this.restores = new AsyncSemaphore(maximum);
+    }
+
+    private advanceGeneration(sessionId: string): number {
+        this.generationCounter += 1;
+        this.generations.set(sessionId, this.generationCounter);
+        return this.generationCounter;
+    }
+
+    private beginRestore(sessionId: string): void {
+        this.pendingRestores.set(sessionId, (this.pendingRestores.get(sessionId) ?? 0) + 1);
+    }
+
+    private finishRestore(sessionId: string): void {
+        const pending = this.pendingRestores.get(sessionId);
+        if (pending === undefined) return;
+        if (pending > 1) this.pendingRestores.set(sessionId, pending - 1);
+        else this.pendingRestores.delete(sessionId);
+        this.pruneGeneration(sessionId);
+    }
+
+    private pruneGeneration(sessionId: string): void {
+        if (this.activeSessionId === sessionId || this.pendingRestores.has(sessionId)) return;
+        this.generations.delete(sessionId);
+    }
+
+    private invalidate(sessionId: string): void {
+        if (this.generations.has(sessionId)) this.advanceGeneration(sessionId);
+        if (this.activeSessionId === sessionId) {
+            this.activeAbortController?.abort();
+            this.activeAbortController = undefined;
+            this.activeSessionId = undefined;
+        }
+        this.pruneGeneration(sessionId);
     }
 
     async restore(
@@ -38,14 +73,15 @@ export class TerminalRestoreSupervisor {
         const abortController = new AbortController();
         this.activeAbortController = abortController;
         this.activeSessionId = sessionId;
-        const generation = (this.generations.get(sessionId) ?? 0) + 1;
-        this.generations.set(sessionId, generation);
+        const generation = this.advanceGeneration(sessionId);
 
         if (operations.length === 0) {
             this.activeAbortController = undefined;
             this.activeSessionId = undefined;
+            this.pruneGeneration(sessionId);
             return [];
         }
+        this.beginRestore(sessionId);
 
         const isCurrent = (): boolean =>
             !this.closed &&
@@ -67,15 +103,19 @@ export class TerminalRestoreSupervisor {
                 this.activeAbortController = undefined;
                 this.activeSessionId = undefined;
             }
+            this.finishRestore(sessionId);
         }
     }
 
     cancel(sessionId: string): void {
-        this.generations.set(sessionId, (this.generations.get(sessionId) ?? 0) + 1);
-        if (this.activeSessionId !== sessionId) return;
-        this.activeAbortController?.abort();
-        this.activeAbortController = undefined;
-        this.activeSessionId = undefined;
+        this.invalidate(sessionId);
+    }
+
+    /**
+     * Permanently retires a deleted Session while pending operations retain only the fence needed to settle safely.
+     */
+    forget(sessionId: string): void {
+        this.invalidate(sessionId);
     }
 
     close(): void {
@@ -84,5 +124,6 @@ export class TerminalRestoreSupervisor {
         this.activeAbortController = undefined;
         this.activeSessionId = undefined;
         this.generations.clear();
+        this.pendingRestores.clear();
     }
 }
