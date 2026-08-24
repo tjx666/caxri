@@ -37,6 +37,7 @@ export const hostForwardedMethods = [
     'git.overview',
     'git.pullRequestChanges',
     'git.pullRequestDiffDocument',
+    'git.remoteHost',
     'git.summary',
     'git.switchBranch',
     'git.sync',

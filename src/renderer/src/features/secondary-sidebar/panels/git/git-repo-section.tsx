@@ -24,6 +24,7 @@ import {
     openPullRequestChangesDiff,
     openPullRequestFileDiff,
 } from './git-diff-actions';
+import { describeAheadBehind, describePullRequestSummary } from './git-repo-summary-text';
 import { buildGitFileTree, commitFilesToStatuses } from './git-tree';
 import { GitTreeItems } from './git-tree-items';
 import { discardAllChanges, discardFileChanges, syncRepo } from './git-working-tree-actions';
@@ -54,7 +55,7 @@ function GitRepoHeader({
         if (syncing) return;
         setSyncing(true);
         try {
-            await syncRepo(sessionId, repository.id);
+            await syncRepo(sessionId, repository);
         } finally {
             setSyncing(false);
         }
@@ -92,6 +93,11 @@ function GitRepoHeader({
                 </span>
                 <span
                     className="git-repository-meta flex min-w-0 flex-1 items-center justify-end gap-1 text-[11px] text-muted"
+                    aria-label={
+                        pullRequest
+                            ? describePullRequestSummary(pullRequest)
+                            : describeAheadBehind(repository.ahead, repository.behind)
+                    }
                     title={
                         pullRequest
                             ? `Pull request #${pullRequest.number}: ${pullRequest.baseRefName} ← ${pullRequest.headRefName}`

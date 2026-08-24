@@ -33,6 +33,7 @@ import { toGitError } from './errors';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
 import { GitPullRequestService } from './pull-request';
+import { parseGitRemoteHost } from './remote-host';
 import { computeRepoId, GitRepoService } from './repo';
 import { RepoTopologyRegistry } from './topology';
 import { GitWorkingTreeService } from './working-tree';
@@ -165,6 +166,13 @@ export class GitService {
     private readonly topologyRegistry: RepoTopologyRegistry;
     private readonly changeTracker: GitChangeTracker;
     private readonly metadataWatcher: GitMetadataWatcher;
+    /**
+     * `origin` remote host per repository root, resolved once and kept for the Runtime's lifetime: the commit-avatar
+     * privacy gate (`git.remoteHost`) must never re-spawn Git on every commit row render, and a remote host changing
+     * mid-session is rare enough that a Runtime restart picking it up is an acceptable trade-off.
+     */
+    private readonly remoteHostByRoot = new Map<string, string | null>();
+    private readonly remoteHostRequests = new SingleFlight<string, string | null>();
 
     constructor(
         private readonly paths: ProjectRootResolver,
@@ -546,6 +554,27 @@ export class GitService {
         return this.pullRequestService.changes(parameters);
     }
 
+    /**
+     * Best-effort `origin` remote host for the commit-avatar privacy gate. Reads local Git config only (`remote
+     * get-url`, never a network call) and caches the result per repository root so repeated Git panel renders cost zero
+     * extra Git spawns.
+     */
+    async remoteHost(
+        parameters: RuntimeMethodParameters<'git.remoteHost'>,
+    ): Promise<string | null> {
+        const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
+        const cached = this.remoteHostByRoot.get(repo.rootPath);
+        if (cached !== undefined) return cached;
+        return this.remoteHostRequests.run(repo.rootPath, async () => {
+            const output = await this.git(repo.rootPath, ['remote', 'get-url', 'origin'], {
+                allowFailure: true,
+            });
+            const host = parseGitRemoteHost(output);
+            this.remoteHostByRoot.set(repo.rootPath, host);
+            return host;
+        });
+    }
+
     pullRequestDiffDocument(parameters: RuntimeMethodParameters<'git.pullRequestDiffDocument'>) {
         return this.pullRequestService.diffDocument(parameters);
     }
@@ -565,6 +594,7 @@ export class GitService {
      */
     async close(): Promise<void> {
         this.pullRequestService.clear();
+        this.remoteHostByRoot.clear();
         this.changeTracker.close();
         await this.metadataWatcher.close();
     }

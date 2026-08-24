@@ -2,15 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { relativeTime } from '@caxri/utils';
 import type { GitCommit, GitRepositorySummary } from '@shared/types';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useNow } from '@/hooks/use-now';
 
 import { DisclosureMotion } from '../../../../components/disclosure-motion';
 import { Button } from '../../../../components/ui/button';
-import { Input } from '../../../../components/ui/input';
+import { Input, InputGroup } from '../../../../components/ui/input';
 import { Spinner } from '../../../../components/ui/spinner';
+import { Tooltip } from '../../../../components/ui/tooltip';
 import { caxri } from '../../../../lib/caxri';
 import { cn } from '../../../../lib/utilities';
 import { useCaxriQuery } from '../../../../queries/client';
@@ -115,6 +116,8 @@ function CommitRow({
                         author={commit.author}
                         className="mt-0.5"
                         email={commit.authorEmail}
+                        repository={repository}
+                        sessionId={sessionId}
                         size={18}
                     />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -249,15 +252,29 @@ export function CommitHistory({
                 {() => (
                     <div>
                         <div className="border-y border-border p-1.5">
-                            <Input
-                                appearance="workbench"
-                                className="w-full text-foreground"
-                                aria-label={`History path for ${repository.name}`}
-                                placeholder="History path (optional)"
-                                size="compact"
-                                value={path}
-                                onChange={(event) => setPath(event.currentTarget.value)}
-                            />
+                            <InputGroup appearance="workbench" size="dense">
+                                <Input
+                                    appearance="embedded"
+                                    className="flex-1 text-foreground"
+                                    aria-label={`History path for ${repository.name}`}
+                                    placeholder="History path (optional)"
+                                    size="dense"
+                                    value={path}
+                                    onChange={(event) => setPath(event.currentTarget.value)}
+                                />
+                                {path.length > 0 && (
+                                    <Tooltip content="Clear History Path">
+                                        <button
+                                            type="button"
+                                            className="grid size-5 shrink-0 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground"
+                                            aria-label="Clear history path"
+                                            onClick={() => setPath('')}
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    </Tooltip>
+                                )}
+                            </InputGroup>
                         </div>
                         {error ? (
                             <div className="px-3 py-2 text-[11px] text-danger">{error}</div>

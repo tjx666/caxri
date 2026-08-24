@@ -13,6 +13,7 @@ import { cn } from '../../../../lib/utilities';
 import { queryClient, useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
 import { useSelectedSession } from '../../../../stores/selectors';
 import { useActivePaneTab } from '../../../workbench/pane-actions';
+import { describeGitPanelError } from './git-panel-error';
 import type { GitPanelMode } from './git-repo-section';
 import { GitRepoSection } from './git-repo-section';
 import { submoduleRepositoriesByPath } from './git-tree';
@@ -95,7 +96,9 @@ export function GitPanel() {
         );
     if (!summary.isRepository)
         return (
-            <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">{summary.error}</Empty>
+            <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
+                {describeGitPanelError(summary.error ?? '')}
+            </Empty>
         );
     if (summary.repositories.length === 0)
         return (
