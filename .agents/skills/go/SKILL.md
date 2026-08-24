@@ -44,6 +44,12 @@ surfaced in the handoff report. Add a deduplicated `token_waste` or `workflow`
 note as soon as a costly repeat or stable script candidate is observed; do not
 reconstruct the audit by rereading the transcript at the end.
 
+Treat the ledger as a cooperative consistency and resume contract. It validates recorded state
+transitions, exact-head and source fingerprints, and receipt lineage; it does not execute the
+recorded commands, derive review findings, attest facts omitted by the caller, or provide an
+adversarial security boundary. Actual command output, independent review or Acceptance, and remote
+GitHub/LobeHub readback remain the corresponding evidence sources.
+
 ## Phase 0: admit work before starting the Goal
 
 Read [references/intake.md](references/intake.md) in full.

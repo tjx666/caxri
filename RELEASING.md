@@ -1,10 +1,12 @@
 # Releasing Caxri
 
-Caxri currently publishes an unsigned Apple Silicon DMG for personal use. A normal commit runs the
-self-hosted CI checks only. A commit whose subject is exactly
-`release: v<package-version>` also runs the full macOS E2E suite on the repository self-hosted
-`m2-24` runner; after that CI succeeds, the same runner builds the DMG and creates the matching Git
-tag and GitHub Release.
+Caxri currently publishes an unsigned Apple Silicon DMG for personal use. The event- and
+change-specific CI profile, including whether E2E runs, is owned by the decision matrix in
+[`docs/ci-performance.md`](docs/ci-performance.md). A commit whose subject is exactly
+`release: v<package-version>` selects the full checks and control E2E profile on the repository
+self-hosted runner; after that CI succeeds, the same runner builds the DMG and creates the matching
+Git tag and GitHub Release. Runner labels, availability, and recovery are owned by
+[`docs/self-hosted-runner.md`](docs/self-hosted-runner.md).
 
 ## Create a release
 
@@ -28,9 +30,8 @@ when the tag already exists. It builds an arm64 DMG, launches the packaged appli
 startup benchmark, verifies the disk image, writes a SHA-256 checksum, and publishes both files to
 GitHub Releases without repeating the CI gates.
 
-Every CI and Release stage requires the online `m2-24` runner. There is no GitHub-hosted fallback:
-an offline runner leaves the workflow queued. The Release job uses a short-lived `contents: write`
-token and does not persist checkout credentials.
+Every CI and Release stage follows the self-hosted availability contract above. The Release job
+uses a short-lived `contents: write` token and does not persist checkout credentials.
 
 ## Install a release
 

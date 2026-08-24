@@ -128,20 +128,17 @@ because loaded-runner races can expose stale async state and hidden warmup surfa
 cannot reproduce. Prefer stable observable locators and explicit busy-to-ready transitions over
 arbitrary delays.
 
-Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an ad-hoc command:
+Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an ad-hoc command.
+`docs/ci-performance.md` owns the current profile, pool, receipt, and comparison contract; use the
+following controls when collecting a new comparison:
 
-- `e2e_profile=control` runs the exact full manifest with one worker.
-- `e2e_profile=optimized` runs the explicit `parallelSafeSpecs` allowlist with two workers, then
-  the fail-closed `desktop-exclusive` remainder with one worker in the same E2E job. Move
-  individually audited safe tests into a dedicated allowlisted spec instead of splitting one spec
-  across pools.
-- Both profiles install and build once. The optimized job attempts both logical pools after a pool
-  failure, publishes an actual-execution receipt and per-pool artifacts, and workflow dispatches
-  run the deterministic CI-parity cases through `scripts/run-ci-parity.ts`.
-- Run each profile until it has three consecutive green samples on the same Node/pnpm/lockfile,
-  runner label, test manifest, and workflow parameters. Record every non-green attempt.
-- Adopt optimized only when it preserves isolation and test counts and improves median feedback.
-  Otherwise restore one worker and publish the reject decision.
+- Select the documented control or optimized profile through `e2e_profile`; do not reproduce its
+  pool orchestration with an ad-hoc command.
+- Workflow dispatches run deterministic CI-parity cases through `scripts/run-ci-parity.ts` and
+  preserve the profile receipts defined by the authority document.
+- Follow the authority document's frozen sample count, dispatch order, non-green treatment, adoption
+  threshold, and stop condition. Do not extend a declared experiment until it becomes green or
+  replace a red sample outside its documented infrastructure-failure rule.
 
 ## Controlled PR retries
 
@@ -173,10 +170,9 @@ pushing, never as a reason to iterate through full runs.
 
 Never run `bun run test:e2e` locally during an ordinary run. When focused coverage is insufficient,
 use an authorized topic branch and draft PR; GitHub Actions runs checks and the full Electron suite
-on the repository self-hosted `m2-24` runner. Platform checks and the final gate use `caxri-ci`, full
-Electron E2E uses `caxri-e2e`, and release packaging uses `caxri-release`; there is no GitHub-hosted
-fallback. Inspect failures, repair the same branch, and wait for replacement checks. Do not merge or
-close without delivery authorization.
+on the repository self-hosted `m2-24` runner. `docs/self-hosted-runner.md` owns its labels, offline
+behavior, and recovery contract. Inspect failures, repair the same branch, and wait for replacement
+checks. Do not merge or close without delivery authorization.
 
 Use `bun run --silent test:smoke` for the cheap post-change Electron launch gate when broad desktop
 startup confidence is useful but focused product E2E is unnecessary. Keep implementation subagents
