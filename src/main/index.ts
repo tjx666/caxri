@@ -14,7 +14,7 @@ import { isMainRequest } from '../shared/ipc/methods';
 import { readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
-import type { PersistedWindowState } from '../shared/types';
+import type { Keybinding, PersistedWindowState } from '../shared/types';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
@@ -27,6 +27,7 @@ import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { resolveLogLevel } from './log-level';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
+import { createMenuRefreshController } from './menu-refresh';
 import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
 import { loadRendererEntry } from './renderer-entry';
@@ -98,6 +99,10 @@ if (ownsProfileInstance) {
         requestedMode: process.env.CAXRI_E2E_WINDOW_MODE,
     });
     const e2eAgentPolicy = readE2EAgentPolicy();
+    const menuRefreshController = createMenuRefreshController({
+        applyKeybindings: installMenu,
+        loadKeybindings: loadMenuKeybindings,
+    });
     const eventRelay = createMainEventRelay({
         deliver: (message) => {
             if (mainWindow && !mainWindow.isDestroyed())
@@ -105,10 +110,9 @@ if (ownsProfileInstance) {
         },
         loadState: () => supervisor.request('app.bootstrap'),
         logger: () => mainLogger,
-        // `onKeybindingsChanged` is a synchronous listener; a failed menu rebuild is not user-actionable
+        // `onMenuRefreshRequested` is a synchronous listener; the controller preserves the installed menu on failure
         // here, so this is deliberately fire-and-forget rather than awaited.
-        // eslint-disable-next-line unicorn/prefer-await -- see comment above
-        onKeybindingsChanged: () => installMenu().catch(() => {}),
+        onMenuRefreshRequested: () => menuRefreshController.refresh(),
     });
     function createMainLogger(): StructuredLogger {
         return new StructuredLogger(
@@ -485,16 +489,32 @@ if (ownsProfileInstance) {
         });
     }
 
-    async function loadKeybindings() {
-        try {
-            return (await supervisor.request('keybindings.get')).value;
-        } catch {
-            return [];
+    let isMenuKeybindingFailureInjected = false;
+    async function loadMenuKeybindings(): Promise<Keybinding[]> {
+        const keybindings = (await supervisor.request('keybindings.get')).value;
+        const failureKey =
+            process.env.CAXRI_E2E === '1'
+                ? process.env.CAXRI_E2E_FAIL_MENU_KEYBINDINGS_GET_COPY_KEY
+                : undefined;
+        if (
+            !isMenuKeybindingFailureInjected &&
+            failureKey &&
+            keybindings.some(
+                (binding) => binding.command === 'terminal.copy' && binding.key === failureKey,
+            )
+        ) {
+            /**
+             * Acceptance needs a deterministic one-shot read failure after the new value is durable. Matching the
+             * configured fixture key avoids startup-attempt counting, which varies when Runtime is already ready.
+             */
+            isMenuKeybindingFailureInjected = true;
+            process.env.CAXRI_E2E_MENU_KEYBINDINGS_GET_FAILURE_INJECTED = '1';
+            throw new CaxriError('UNAVAILABLE', 'Injected E2E menu keybinding read failure');
         }
+        return keybindings;
     }
 
-    async function installMenu(): Promise<void> {
-        const keybindings = await loadKeybindings();
+    function installMenu(keybindings: Keybinding[]): void {
         Menu.setApplicationMenu(
             Menu.buildFromTemplate(
                 buildAppMenuTemplate({
@@ -646,7 +666,7 @@ if (ownsProfileInstance) {
                 return;
             installIpc();
             processExplorer.installIpc();
-            await installMenu();
+            await menuRefreshController.refresh();
             await openMainWindow();
             secondInstanceFocus.ready();
         })
