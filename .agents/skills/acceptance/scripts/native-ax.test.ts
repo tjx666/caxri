@@ -80,6 +80,7 @@ describe('Acceptance native Accessibility transport', () => {
         expect(source).toContain('AXUIElementSetMessagingTimeout');
         expect(source).toContain('CGSSessionScreenIsLocked');
         expect(source).toContain('kAXDefaultButtonAttribute');
+        expect(source).toContain('kAXSelectedAttribute');
         expect(source).toContain('kAXSelectedChildrenAttribute');
         expect(source).toContain('panelMaxElements = 2_048');
         expect(source).not.toContain('System Events');
