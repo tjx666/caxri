@@ -36,6 +36,14 @@ function transcriptLocation(path: string, root = dirname(path), baseRoot = dirna
     return { baseRoot, path, root };
 }
 
+function retainedGenerationCount(watcher: AgentTranscriptWatcher): number {
+    return (
+        watcher as unknown as {
+            generations: Map<string, number>;
+        }
+    ).generations.size;
+}
+
 afterEach(async () => {
     const cleanupDirectories = [...directories];
     directories.length = 0;
@@ -286,7 +294,162 @@ describe('AgentTranscriptWatcher', () => {
         await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledOnce());
 
         expect(emit).not.toHaveBeenCalled();
+        expect(retainedGenerationCount(watcher)).toBe(0);
         await watcher.close();
+        await watchHub.close();
+    });
+
+    it('retains a forgotten generation only until a pending install settles', async () => {
+        const path = await transcriptFixture();
+        const subscription = Promise.withResolvers<{ unsubscribe(): Promise<void> }>();
+        const unsubscribe = vi.fn(() => Promise.resolve());
+        const subscribe = vi.fn(
+            () => subscription.promise,
+        ) as unknown as typeof parcelWatcher.subscribe;
+        const watchHub = new WatchHub({ subscribe });
+        const emit = vi.fn();
+        const watcher = new AgentTranscriptWatcher({
+            emit,
+            locationForTerminal: () => transcriptLocation(path),
+            terminalIdsForSession: () => ['terminal-a'],
+            watchHub,
+        });
+        const installing = watcher.watch('terminal-a');
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+
+        watcher.forgetTerminal('terminal-a');
+        expect(retainedGenerationCount(watcher)).toBe(1);
+        subscription.resolve({ unsubscribe });
+        await installing;
+
+        expect(unsubscribe).toHaveBeenCalledOnce();
+        expect(emit).not.toHaveBeenCalled();
+        expect(retainedGenerationCount(watcher)).toBe(0);
+        await watcher.close();
+        await watchHub.close();
+    });
+
+    it('does not revive a waiter that started before its pending install was forgotten', async () => {
+        const path = await transcriptFixture();
+        const subscription = Promise.withResolvers<{ unsubscribe(): Promise<void> }>();
+        const unsubscribe = vi.fn(() => Promise.resolve());
+        const subscribe = vi.fn(
+            () => subscription.promise,
+        ) as unknown as typeof parcelWatcher.subscribe;
+        const watchHub = new WatchHub({ subscribe });
+        const emit = vi.fn();
+        const watcher = new AgentTranscriptWatcher({
+            emit,
+            locationForTerminal: () => transcriptLocation(path),
+            terminalIdsForSession: () => ['terminal-a'],
+            watchHub,
+        });
+        const installing = watcher.watch('terminal-a');
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+        const duplicateWaiter = watcher.watch('terminal-a');
+
+        watcher.forgetTerminal('terminal-a');
+        subscription.resolve({ unsubscribe });
+        await Promise.all([installing, duplicateWaiter]);
+
+        expect(subscribe).toHaveBeenCalledOnce();
+        expect(unsubscribe).toHaveBeenCalledOnce();
+        expect(emit).not.toHaveBeenCalled();
+        expect(retainedGenerationCount(watcher)).toBe(0);
+        await watcher.close();
+        await watchHub.close();
+    });
+
+    it('keeps a reused Terminal ID isolated from its forgotten pending install', async () => {
+        const path = await transcriptFixture();
+        const firstSubscription = Promise.withResolvers<{ unsubscribe(): Promise<void> }>();
+        const callbacks: SubscribeCallback[] = [];
+        const unsubscribe = vi.fn(() => Promise.resolve());
+        let subscriptionCount = 0;
+        const subscribe = vi.fn((_root: string, callback: SubscribeCallback) => {
+            callbacks.push(callback);
+            subscriptionCount += 1;
+            return subscriptionCount === 1
+                ? firstSubscription.promise
+                : Promise.resolve({ unsubscribe });
+        }) as unknown as typeof parcelWatcher.subscribe;
+        const watchHub = new WatchHub({ subscribe });
+        const emit = vi.fn();
+        const watcher = new AgentTranscriptWatcher({
+            emit,
+            locationForTerminal: () => transcriptLocation(path),
+            terminalIdsForSession: () => ['terminal-a'],
+            watchHub,
+        });
+        const forgottenInstall = watcher.watch('terminal-a');
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+        watcher.forgetTerminal('terminal-a');
+        const reusedInstall = watcher.watch('terminal-a');
+
+        firstSubscription.resolve({ unsubscribe });
+        await Promise.all([forgottenInstall, reusedInstall]);
+        callbacks[0]?.(null, [{ path, type: 'update' }]);
+        callbacks[1]?.(null, [{ path, type: 'update' }]);
+
+        expect(subscribe).toHaveBeenCalledTimes(2);
+        expect(emit).toHaveBeenCalledOnce();
+        expect(retainedGenerationCount(watcher)).toBe(1);
+        watcher.forgetTerminal('terminal-a');
+        await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledTimes(2));
+        expect(retainedGenerationCount(watcher)).toBe(0);
+        await watcher.close();
+        await watchHub.close();
+    });
+
+    it('does not retain generations across Terminal watch and forget churn', async () => {
+        const path = await transcriptFixture();
+        const { subscribe } = nativeSubscribe();
+        const watchHub = new WatchHub({ subscribe });
+        const watcher = new AgentTranscriptWatcher({
+            emit: vi.fn(),
+            locationForTerminal: () => transcriptLocation(path),
+            terminalIdsForSession: () => [],
+            watchHub,
+        });
+
+        await Promise.all(
+            Array.from({ length: 256 }, async (_, index) => {
+                const terminalId = `terminal-${index}`;
+                await watcher.watch(terminalId);
+                watcher.forgetTerminal(terminalId);
+            }),
+        );
+
+        expect(retainedGenerationCount(watcher)).toBe(0);
+        await watcher.close();
+        expect(retainedGenerationCount(watcher)).toBe(0);
+        await watchHub.close();
+    });
+
+    it('clears generation state after a pending install settles during close', async () => {
+        const path = await transcriptFixture();
+        const subscription = Promise.withResolvers<{ unsubscribe(): Promise<void> }>();
+        const unsubscribe = vi.fn(() => Promise.resolve());
+        const subscribe = vi.fn(
+            () => subscription.promise,
+        ) as unknown as typeof parcelWatcher.subscribe;
+        const watchHub = new WatchHub({ subscribe });
+        const watcher = new AgentTranscriptWatcher({
+            emit: vi.fn(),
+            locationForTerminal: () => transcriptLocation(path),
+            terminalIdsForSession: () => ['terminal-a'],
+            watchHub,
+        });
+        const installing = watcher.watch('terminal-a');
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+
+        const closing = watcher.close();
+        expect(watcher.close()).toBe(closing);
+        subscription.resolve({ unsubscribe });
+        await Promise.all([installing, closing]);
+
+        expect(unsubscribe).toHaveBeenCalledOnce();
+        expect(retainedGenerationCount(watcher)).toBe(0);
         await watchHub.close();
     });
 });
