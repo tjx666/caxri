@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { monacoBaseThemeFor, relativeLuminance } from './editor-theme-base';
+import { monacoBaseThemeFor } from './editor-theme-base';
 
 describe('monacoBaseThemeFor', () => {
     it('picks vs-dark for a dark theme background (Dracula)', () => {
@@ -19,15 +19,5 @@ describe('monacoBaseThemeFor', () => {
         const first = monacoBaseThemeFor('#808080');
         const second = monacoBaseThemeFor('#808080');
         expect(first).toBe(second);
-    });
-});
-
-describe('relativeLuminance', () => {
-    it('returns 0 for black', () => {
-        expect(relativeLuminance('#000000')).toBe(0);
-    });
-
-    it('returns 1 for white', () => {
-        expect(relativeLuminance('#ffffff')).toBeCloseTo(1, 5);
     });
 });

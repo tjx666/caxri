@@ -410,6 +410,34 @@ export function recordOrphanedAcceptance(
 }
 
 /**
+ * Rolls back one locally announced, but never published, round to the latest immutable receipt. The command is
+ * intentionally narrower than a generic round override: it only repairs the pre-publication operator mistake of
+ * incrementing `acceptance.round` before `acceptance-publish` owns that transition.
+ */
+export function reconcileUnpublishedAcceptanceRound(
+    state: PublicationState,
+    input: { reason: string; round: number },
+): void {
+    if (state.phase !== 'acceptance' || state.acceptance.status !== 'running') {
+        throw new Error('Acceptance round reconciliation requires a running Acceptance phase');
+    }
+    if (state.acceptance.publication.pendingAttempt) {
+        throw new Error(
+            'Resolve or orphan the pending Acceptance publication before reconciliation',
+        );
+    }
+    const reason = input.reason.trim();
+    if (!reason) throw new Error('Acceptance round reconciliation requires an explicit reason');
+    const latestRound = state.acceptance.publication.history.at(-1)?.roundIndex ?? 0;
+    if (input.round !== latestRound || state.acceptance.round !== latestRound + 1) {
+        throw new Error(
+            'Acceptance round reconciliation must target the latest immutable publication after one unpublished increment',
+        );
+    }
+    state.acceptance.round = input.round;
+}
+
+/**
  * Abandons an Acceptance that the current authenticated principal cannot append to while retaining every immutable
  * publication receipt. This is intentionally explicit: ordinary publication and acceptance updates must never switch a
  * frozen lineage just because a remote lookup failed.

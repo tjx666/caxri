@@ -56,6 +56,45 @@ async function animationNameOf(locator: Locator): Promise<string> {
     return locator.evaluate((element) => getComputedStyle(element).animationName);
 }
 
+/**
+ * Captures the tab's transient accessibility-safe exit state in the browser process. A Playwright positional locator
+ * such as `.last()` can retarget the surviving sibling after the exiting tab is removed, and a loaded runner can miss
+ * the short exit window before the next protocol round trip.
+ */
+async function startWorkTabExitProbe(tab: Locator): Promise<void> {
+    await tab.evaluate((element) => {
+        const probe = { observed: false };
+        const observer = new MutationObserver(() => {
+            if (element.getAttribute('aria-hidden') !== 'true' || !element.hasAttribute('inert'))
+                return;
+            probe.observed = true;
+            observer.disconnect();
+        });
+        observer.observe(element, {
+            attributeFilter: ['aria-hidden', 'inert'],
+            attributes: true,
+        });
+        Object.defineProperty(globalThis, 'workTabExitProbe', {
+            configurable: true,
+            value: { observer, probe },
+        });
+    });
+}
+
+async function wasWorkTabExitObserved(page: Page): Promise<boolean> {
+    return page.evaluate(() => {
+        const state = (
+            globalThis as unknown as {
+                workTabExitProbe?: {
+                    probe: { observed: boolean };
+                };
+            }
+        ).workTabExitProbe;
+        if (!state) throw new Error('Work tab exit probe was not started');
+        return state.probe.observed;
+    });
+}
+
 async function animationStateOf(locator: Locator) {
     const state = await locator.evaluate((element) => {
         const style = getComputedStyle(element);
@@ -178,11 +217,13 @@ test('Work tabs animate presence with motion-token durations and switch Sessions
             .toBeGreaterThan(0.9);
         await expect(addedTab).toHaveCSS('opacity', '1');
 
+        await startWorkTabExitProbe(addedTab);
         await addedTab.hover();
         await addedTab.getByRole('button', { name: 'Close Terminal' }).click();
         // The exiting tab is marked inert/aria-hidden immediately, then removed from the DOM
-        // once the exit animation settles.
-        await expect(addedTab).toHaveAttribute('aria-hidden', 'true');
+        // once the exit animation settles. Observe that transient state in the browser so the
+        // locator cannot retarget the surviving tab after an event-loop stall.
+        await expect.poll(() => wasWorkTabExitObserved(running.page)).toBe(true);
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1, {
             timeout: exitMs + 2_000,
         });

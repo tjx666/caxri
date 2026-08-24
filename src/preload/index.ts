@@ -82,7 +82,10 @@ const bridge: CaxriBridge = {
         }
         return () => {
             eventListeners.delete(listener);
-            if (eventListeners.size === 0) ipcRenderer.removeListener('caxri:event', eventHandler);
+            if (eventListeners.size === 0) {
+                ipcRenderer.removeListener('caxri:event', eventHandler);
+                eventClient.stop();
+            }
         };
     },
 };

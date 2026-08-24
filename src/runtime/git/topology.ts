@@ -61,6 +61,10 @@ export class RepoTopologyRegistry {
             generation: topology.generation,
             topology,
         });
+        const currentRoots = new Set(topology.worktrees.map((worktree) => worktree.rootPath));
+        for (const [rootPath, repoKey] of this.rootIndex)
+            if (repoKey === topology.repositoryKey && !currentRoots.has(rootPath))
+                this.rootIndex.delete(rootPath);
         for (const worktree of topology.worktrees)
             this.rootIndex.set(worktree.rootPath, topology.repositoryKey);
         while (this.entries.size > MAX_TOPOLOGIES) {

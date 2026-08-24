@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { RuntimeEvent } from '../../registry/events';
 import { createRecoveringEventClient } from '../event-client';
+import type { EventRecovery } from '../event-journal';
 
-describe('createRecoveringEventClient error handling', () => {
+describe('createRecoveringEventClient', () => {
     it('reports a failed recovery through onError instead of throwing out of start()', async () => {
         const errors: unknown[] = [];
         const client = createRecoveringEventClient({
@@ -44,5 +45,73 @@ describe('createRecoveringEventClient error handling', () => {
                 payload: { terminalId: 'terminal-1', data: 'direct bytes' },
             },
         ]);
+    });
+
+    it('discards a detached recovery without advancing the durable cursor', async () => {
+        const firstRecovery = Promise.withResolvers<EventRecovery>();
+        const secondRecovery = Promise.withResolvers<EventRecovery>();
+        const recoveries = [firstRecovery, secondRecovery];
+        const recoveryCursors: number[] = [];
+        const emitted: RuntimeEvent[] = [];
+        const firstEvent = {
+            protocolVersion: 2 as const,
+            cursor: 1,
+            event: {
+                event: 'state.changed' as const,
+                payload: { kind: 'full' as const, reason: 'project.create' as const },
+            },
+        };
+        const secondEvent = {
+            protocolVersion: 2 as const,
+            cursor: 2,
+            event: {
+                event: 'state.changed' as const,
+                payload: { kind: 'full' as const, reason: 'session.create' as const },
+            },
+        };
+        const client = createRecoveringEventClient({
+            emit: (event) => {
+                emitted.push(event);
+            },
+            recover: (afterCursor) => {
+                recoveryCursors.push(afterCursor);
+                const recovery = recoveries.shift();
+                if (!recovery) throw new Error('Unexpected recovery request');
+                return recovery.promise;
+            },
+        });
+
+        const detachedStart = client.start();
+        client.stop();
+        const attachedStart = client.start();
+
+        expect(recoveryCursors).toEqual([0, 0]);
+
+        firstRecovery.resolve({ kind: 'events', cursor: 1, events: [firstEvent] });
+        await detachedStart;
+        client.receive(secondEvent);
+
+        expect(emitted).toEqual([]);
+
+        secondRecovery.resolve({ kind: 'events', cursor: 1, events: [firstEvent] });
+        await attachedStart;
+
+        expect(emitted).toEqual([firstEvent.event, secondEvent.event]);
+
+        client.stop();
+        client.receive({
+            event: 'terminal.output',
+            payload: { terminalId: 'terminal-1', data: 'detached bytes' },
+        });
+        client.receive({
+            protocolVersion: 2,
+            cursor: 3,
+            event: {
+                event: 'state.changed',
+                payload: { kind: 'full', reason: 'project.create' },
+            },
+        });
+
+        expect(emitted).toEqual([firstEvent.event, secondEvent.event]);
     });
 });

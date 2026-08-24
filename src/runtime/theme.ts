@@ -1,5 +1,6 @@
 import { extname } from 'node:path';
 
+import { contrastRatio } from '@caxri/utils';
 import { parse as parsePlist } from 'plist';
 import YAML from 'yaml';
 
@@ -7,6 +8,7 @@ import YAML from 'yaml';
  * The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
  */
 import { themeTokensSchema as themeSchema } from '../shared/ipc/domain';
+import { CaxriError } from '../shared/ipc/errors';
 import { parseJsonc } from '../shared/node/jsonc';
 import { themeImportFormats } from '../shared/theme-import';
 import type { ThemeTokens } from '../shared/types';
@@ -22,6 +24,13 @@ type ThemeImportFormat = (typeof themeImportFormats)[number];
  * `files/documents.ts` and `MAX_CONFIGURABLE_FILE_BYTES` in `shared/ipc/domain.ts`).
  */
 export const MAX_THEME_IMPORT_FILE_BYTES = 1 * 1024 * 1024;
+const MIN_MUTED_CONTRAST = 4.5;
+const APP_COLOR_SURFACES = ['background', 'surface', 'elevated'] as const;
+const APP_COLOR_SURFACE_LABELS = {
+    background: 'editor background',
+    elevated: 'raised panel background',
+    surface: 'sidebar and status bar background',
+} satisfies Record<(typeof APP_COLOR_SURFACES)[number], string>;
 
 /**
  * Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers.
@@ -265,6 +274,23 @@ export function parseCaxriTheme(source: string): ThemeTokens {
     return themeSchema.parse(parseJsonc(source));
 }
 
+function opaqueColor(value: string): string | undefined {
+    if (value.length === 7) return value;
+    return value.toLowerCase().endsWith('ff') ? value.slice(0, 7) : undefined;
+}
+
+function assertImportedThemeContrast(theme: ThemeTokens): void {
+    const muted = opaqueColor(theme.colors.muted);
+    for (const surface of APP_COLOR_SURFACES) {
+        const backdrop = opaqueColor(theme.colors[surface]);
+        if (muted && backdrop && contrastRatio(muted, backdrop) >= MIN_MUTED_CONTRAST) continue;
+        throw new CaxriError(
+            'VALIDATION',
+            `Secondary text in the imported theme must have at least ${MIN_MUTED_CONTRAST}:1 contrast against the ${APP_COLOR_SURFACE_LABELS[surface]}. Choose a lighter or darker secondary text color and try again.`,
+        );
+    }
+}
+
 /**
  * VS Code files aren't distinguished by content sniffing: a full Caxri theme export and a VS Code color theme are both
  * plain JSON. Try parsing as a Caxri theme first, and only fall back to the VS Code token mapping when that validation
@@ -273,9 +299,13 @@ export function parseCaxriTheme(source: string): ThemeTokens {
 function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
     const value = parseJsonc(source);
     const parsed = themeSchema.safeParse(value);
-    return parsed.success
-        ? { ...parsed.data, source: 'custom' }
-        : parseVsCode(value as Record<string, unknown>, name);
+    if (!parsed.success) {
+        const theme = parseVsCode(value as Record<string, unknown>, name);
+        assertImportedThemeContrast(theme);
+        return theme;
+    }
+    assertImportedThemeContrast(parsed.data);
+    return { ...parsed.data, source: 'custom' };
 }
 
 /**

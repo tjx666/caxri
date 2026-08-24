@@ -21,6 +21,14 @@ afterEach(async () => {
 });
 
 describe('E2E build freshness inputs', () => {
+    it('declares the Extension Host bundle as a required output', () => {
+        const root = '/project';
+
+        expect(createE2EBuildFreshnessOptions(root).outputPaths).toEqual(
+            expect.arrayContaining([join(root, 'out', 'main', 'extension-host.js')]),
+        );
+    });
+
     it('declares every Desktop-consumed workspace source boundary', () => {
         const root = '/project';
 
@@ -65,6 +73,32 @@ describe('E2E build freshness inputs', () => {
         await expect(assertBuildOutputsFresh(focusedOptions)).resolves.toBeUndefined();
 
         await setMtime(source, 30);
+        await expect(assertBuildOutputsFresh(focusedOptions)).rejects.toThrow(options.staleMessage);
+    });
+
+    it('accepts fresh fixture media and rejects it after the media changes', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-e2e-build-freshness-'));
+        temporaryDirectories.push(root);
+        const options = createE2EBuildFreshnessOptions(root);
+        const mediaRoot = join(root, 'extensions', 'fixture', 'media');
+        const mediaFile = join(mediaRoot, 'fixture.svg');
+        const output = join(root, 'out', 'renderer', 'index.html');
+        const inputPaths = options.inputPaths.filter((path) => path === mediaRoot);
+
+        expect(inputPaths).toEqual([mediaRoot]);
+        await Promise.all(
+            [mediaFile, output].map(async (path) => {
+                await mkdir(dirname(path), { recursive: true });
+                await writeFile(path, 'fixture');
+            }),
+        );
+        await setMtime(mediaFile, 10);
+        await setMtime(output, 20);
+
+        const focusedOptions = { ...options, inputPaths, outputPaths: [output] };
+        await expect(assertBuildOutputsFresh(focusedOptions)).resolves.toBeUndefined();
+
+        await setMtime(mediaFile, 30);
         await expect(assertBuildOutputsFresh(focusedOptions)).rejects.toThrow(options.staleMessage);
     });
 });

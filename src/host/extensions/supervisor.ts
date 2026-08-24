@@ -5,11 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import process from 'node:process';
 
-import {
-    MAX_VIEW_TREE_ITEMS,
-    MAX_VIEW_TREE_PAYLOAD_BYTES,
-    treeItemSchema,
-} from '../../../packages/protocol/src/domain/views';
+import { MAX_VIEW_TREE_ITEMS, MAX_VIEW_TREE_PAYLOAD_BYTES, treeItemSchema } from '@caxri/protocol';
+
 import type {
     ExtensionHostApiRequest,
     ExtensionHostMessage,

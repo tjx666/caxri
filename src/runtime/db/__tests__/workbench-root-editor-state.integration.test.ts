@@ -223,6 +223,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             expect.arrayContaining([created.terminal!.id, laterTerminal.id]),
         );
 
+        const statesBeforeDelete = readStoredRootStates(database, created.session.id);
         database.deleteProject(worktree.id);
         expect(database.getSession(created.session.id)).toMatchObject({
             projectId: owner.id,
@@ -233,6 +234,37 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             cwd: ownerRoot,
             id: created.terminal!.id,
         });
+        const statesAfterDelete = readStoredRootStates(database, created.session.id);
+        expect(statesAfterDelete[owner.id]).toEqual(statesBeforeDelete[owner.id]);
+        expect(statesAfterDelete[worktree.id]).toBeUndefined();
+        database.close();
+    });
+
+    it('prunes a deleted Project before validating an oversized historical Root map', async () => {
+        const directory = await temporaryDirectory('caxri-db-workbench-root-prune-');
+        const ownerRoot = join(directory, 'owner');
+        const deletedRoot = join(directory, 'deleted');
+        await Promise.all([mkdir(ownerRoot), mkdir(deletedRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const deleted = database.createProject(deletedRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const ownerState = readStoredRootStates(database, created.session.id)[owner.id];
+        const historicalStates: Record<string, StoredRootState> = { [owner.id]: ownerState };
+        for (let index = 0; index < 1_023; index += 1)
+            historicalStates[`historical-${index}`] = ownerState;
+        historicalStates[deleted.id] = ownerState;
+        database.database
+            .prepare('UPDATE session_state SET workbench_state_json = ? WHERE session_id = ?')
+            .run(JSON.stringify(historicalStates), created.session.id);
+
+        database.deleteProject(deleted.id);
+
+        const retainedStates = readStoredRootStates(database, created.session.id);
+        const expectedStates = { ...historicalStates };
+        delete expectedStates[deleted.id];
+        expect(retainedStates).toEqual(expectedStates);
+        expect(Object.keys(retainedStates)).toHaveLength(1_024);
         database.close();
     });
 
