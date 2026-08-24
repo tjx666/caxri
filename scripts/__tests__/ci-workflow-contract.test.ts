@@ -77,7 +77,7 @@ describe('CI workflow contract', () => {
         );
         expect(setupAction).toContain('pnpm rebuild electron');
         expect(setupAction).toContain('bun run rebuild');
-        expect(bunVersion).toBe('1.3.14');
+        expect(bunVersion).toBe('1.4.0');
         expect(workflow).toContain('Electron native compatibility');
         expect(workflow).toContain('bun run spike:native');
         expect(workflow).toContain(
