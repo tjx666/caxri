@@ -26,7 +26,7 @@ export function createMenuRefreshController(
             const observedGeneration = requestedGeneration;
             try {
                 // Sequential by design: each trailing pass must observe the newest state after the previous read.
-                // eslint-disable-next-line no-await-in-loop
+                // eslint-disable-next-line no-await-in-loop -- the trailing pass must remain ordered
                 options.applyKeybindings(await options.loadKeybindings());
             } catch {
                 /**
