@@ -57,10 +57,18 @@ interface ConfigServiceOptions {
      */
     fallbackPollIntervalMs?: number;
     /**
+     * Controlled filesystem seam for lifecycle tests; production retains the bounded reader.
+     */
+    readConfigSource?: (path: string) => Promise<string>;
+    /**
      * Shared Runtime watch registry. Production passes the Runtime-wide hub; tests may omit it, in which case the
      * service owns a private hub with equivalent behavior.
      */
     watchHub?: WatchHub;
+    /**
+     * Controlled filesystem seam for lifecycle tests; production retains atomic replacement.
+     */
+    writeConfigSource?: (path: string, source: string) => Promise<void>;
 }
 
 async function readBoundedConfigSource(path: string): Promise<string> {
@@ -127,7 +135,10 @@ export class ConfigService {
     private readonly settingsListeners = new Set<(settings: AppSettings) => void>();
     private settingsMutationTail: Promise<void> = Promise.resolve();
     private closed = false;
+    private closePromise?: Promise<void>;
     private readonly fallbackPollIntervalMs: number;
+    private readonly readConfigSource: (path: string) => Promise<string>;
+    private readonly writeConfigSource: (path: string, source: string) => Promise<void>;
     readonly settingsPath: string;
     readonly keybindingsPath: string;
     readonly themePath: string;
@@ -141,6 +152,8 @@ export class ConfigService {
         this.fallbackPollIntervalMs = options.fallbackPollIntervalMs ?? FALLBACK_POLL_INTERVAL_MS;
         this.ownsWatchHub = !options.watchHub;
         this.watchHub = options.watchHub ?? new WatchHub({ logger });
+        this.readConfigSource = options.readConfigSource ?? readBoundedConfigSource;
+        this.writeConfigSource = options.writeConfigSource ?? atomicWrite;
         this.configDirectory = join(userDataPath, 'config');
         this.settingsPath = join(this.configDirectory, 'settings.jsonc');
         this.keybindingsPath = join(this.configDirectory, 'keybindings.jsonc');
@@ -148,15 +161,19 @@ export class ConfigService {
     }
 
     private async loadOrCreate(kind: ConfigKind): Promise<void> {
+        this.assertOpen();
         const path = this.pathFor(kind);
         let source: string;
         try {
-            source = await readBoundedConfigSource(path);
+            source = await this.readConfigSource(path);
+            this.assertOpen();
             this.rejectedSourceRevisions.delete(path);
         } catch (error) {
+            this.assertOpen();
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                 source = this.sourceFor(kind);
-                await atomicWrite(path, source);
+                await this.writeConfigSource(path, source);
+                this.assertOpen();
                 return;
             }
             this.rememberRejectedSource(path, error);
@@ -165,13 +182,25 @@ export class ConfigService {
         }
         try {
             const prepared = this.prepare(kind, source);
-            if (prepared.source !== source) await atomicWrite(path, prepared.source);
+            if (prepared.source !== source) {
+                await this.writeConfigSource(path, prepared.source);
+                this.assertOpen();
+            }
             prepared.apply();
             this.observedSources.set(path, prepared.source);
             this.errors.delete(kind);
         } catch (error) {
+            this.assertOpen();
             this.recordConfigurationError(kind, error);
         }
+    }
+
+    private assertOpen(): void {
+        if (this.closed) throw new CaxriError('UNAVAILABLE', 'Configuration service is closed');
+    }
+
+    private isClosed(): boolean {
+        return this.closed;
     }
 
     private recordConfigurationError(kind: ConfigKind, error: unknown): void {
@@ -298,16 +327,19 @@ export class ConfigService {
     }
 
     private async onExternalChange(path: string): Promise<void> {
+        if (this.isClosed()) return;
         const kind = this.kindForPath(path);
         if (!kind) return;
         try {
-            const source = await readBoundedConfigSource(path);
+            const source = await this.readConfigSource(path);
+            if (this.isClosed()) return;
             this.rejectedSourceRevisions.delete(path);
             if (source === this.observedSources.get(path)) return;
             this.observedSources.set(path, source);
             const prepared = this.prepare(kind, source);
             if (prepared.source !== source) {
-                await atomicWrite(path, prepared.source);
+                await this.writeConfigSource(path, prepared.source);
+                if (this.isClosed()) return;
                 this.observedSources.set(path, prepared.source);
             }
             if (prepared.source === this.sourceFor(kind)) return;
@@ -316,6 +348,7 @@ export class ConfigService {
             this.emitChange(kind, prepared.source);
             if (kind === 'settings') this.notifySettings();
         } catch (error) {
+            if (this.isClosed()) return;
             if (this.rememberRejectedSource(path, error)) return;
             this.recordConfigurationError(kind, error);
         }
@@ -332,9 +365,11 @@ export class ConfigService {
     }
 
     private async update(kind: ConfigKind, source: string): Promise<void> {
+        this.assertOpen();
         const prepared = this.prepare(kind, source);
         const path = this.pathFor(kind);
-        await atomicWrite(path, prepared.source);
+        await this.writeConfigSource(path, prepared.source);
+        this.assertOpen();
         this.observedSources.set(path, prepared.source);
         this.rejectedSourceRevisions.delete(path);
         prepared.apply();
@@ -361,7 +396,9 @@ export class ConfigService {
     private mutateSettings<T>(operation: () => Promise<T>): Promise<T> {
         const previousTail = this.settingsMutationTail;
         const result = (async () => {
+            this.assertOpen();
             await previousTail;
+            this.assertOpen();
             return operation();
         })();
         this.settingsMutationTail = (async () => {
@@ -389,13 +426,16 @@ export class ConfigService {
     }
 
     async initialize(): Promise<void> {
+        this.assertOpen();
         await mkdir(dirname(this.settingsPath), { recursive: true });
+        this.assertOpen();
         await this.loadOrCreate('settings');
         await this.loadOrCreate('keybindings');
         await this.loadOrCreate('theme');
         const watchedDirectory = await realpath(this.configDirectory);
+        this.assertOpen();
         const startedAt = performance.now();
-        this.watchHandle = await this.watchHub.register({
+        const watchHandle = await this.watchHub.register({
             label: 'config',
             root: watchedDirectory,
             onEvents: (events) => {
@@ -421,9 +461,14 @@ export class ConfigService {
                 pollOnce: () => this.pollConfigSourcesOnce(),
             },
         });
+        if (this.closed) {
+            await watchHandle.dispose();
+            this.assertOpen();
+        }
+        this.watchHandle = watchHandle;
         this.logger?.write('info', logEventCatalog.configuration.watcherReady, {
             durationMs: performance.now() - startedAt,
-            fields: { backend: this.watchHandle.mode },
+            fields: { backend: watchHandle.mode },
         });
     }
 
@@ -521,19 +566,24 @@ export class ConfigService {
     }
 
     async importTheme(path: string): Promise<ThemeTokens> {
+        this.assertOpen();
         const theme = await importTheme(path, this.theme);
         await this.update('theme', serializeTheme(theme));
         return theme;
     }
 
-    async close(): Promise<void> {
+    close(): Promise<void> {
+        if (this.closePromise) return this.closePromise;
         this.closed = true;
         for (const timer of this.watchTimers.values()) clearTimeout(timer);
         this.watchTimers.clear();
         this.settingsListeners.clear();
         const handle = this.watchHandle;
         this.watchHandle = undefined;
-        await handle?.dispose();
-        if (this.ownsWatchHub) await this.watchHub.close();
+        this.closePromise = (async () => {
+            await handle?.dispose();
+            if (this.ownsWatchHub) await this.watchHub.close();
+        })();
+        return this.closePromise;
     }
 }
