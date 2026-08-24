@@ -4,6 +4,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { runNativeAx } from './native-ax';
+import { assertNativeDialogAuthorization } from './native-dialog-authorization';
 import { isOwnedRuntime, runtimeStateSchema } from './runtime-state';
 
 type OpenPanelCommand = 'choose-path' | 'click' | 'inspect';
@@ -21,6 +22,7 @@ const PROJECT_ROOT = resolve(dirname(SCRIPT_PATH), '../../../..');
 const RUNTIME_PATH = join(PROJECT_ROOT, '.records', 'acceptance', 'runtime.json');
 const MAX_DIALOG_TIMEOUT_MS = 120_000;
 const HELP = `Inspect or operate one macOS open panel owned by the isolated Acceptance app.
+Requires CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request from the current request.
 
 Usage:
   open-panel.ts inspect --title "Import Theme" --button "Open" [--timeout-ms 10000]
@@ -88,6 +90,7 @@ async function main(): Promise<void> {
         console.log(HELP);
         return;
     }
+    assertNativeDialogAuthorization();
     const runtime = runtimeStateSchema.parse(JSON.parse(await readFile(RUNTIME_PATH, 'utf8')));
     if (!(await isOwnedRuntime(runtime))) {
         throw new Error('Acceptance runtime state does not belong to a live owned process');

@@ -26,12 +26,11 @@ inspect `http://127.0.0.1:$PORT/json/list` and reject `devtools://` targets.
 5. Copy any required Main or Runtime log excerpt into `$ARTIFACT_DIR` before
    stopping the app; the adapter removes its isolated user-data directory.
 
-CDP excludes macOS-owned window chrome and system dialogs. When a criterion
-depends on a native dialog, trigger it once, inspect exactly one matching sheet
-or app-modal window, capture the smallest safe macOS-level observation if
-required, click its semantic Accessibility button, and then verify the result through CDP. Follow
-[../references/native-dialogs.md](../references/native-dialogs.md); never retry
-the Renderer action while a sheet may already be open or use coordinates.
+CDP excludes macOS-owned window chrome and system dialogs. Native dialogs are manual Acceptance
+boundaries by default: use a deterministic Main stub to prove the product state on either side, and
+give the dialog-specific observation to the user. Do not trigger system UI. Only a current user
+request explicitly asking the agent to verify a native dialog permits the fail-closed exception in
+[../references/native-dialogs.md](../references/native-dialogs.md).
 
 ## Finish
 

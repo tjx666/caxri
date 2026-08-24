@@ -33,10 +33,9 @@ report artifact; serialize the smallest relevant Renderer subtree by following
 - Inspect every image, clip, and generated document before citing it.
 - Never upload credentials, cookies, tokens, private user data, unrelated host
   windows, notifications, or a developer's resident Caxri state.
-- Use macOS-level screenshots only for native chrome that CDP cannot capture,
-  crop them to the owned isolated app, and interact with native sheets or
-  app-modal windows through the semantic helper in
-  [native-dialogs.md](native-dialogs.md).
+- Native sheets and app-modal windows are manual evidence by default. Do not capture or interact with
+  them; hand the exact checklist to the user. The narrow exception in
+  [native-dialogs.md](native-dialogs.md) requires an explicit current user request.
 - Prefer a focused artifact over an unfiltered log or full-session recording.
 - Reference the smallest sufficient evidence set. Do not attach reasoning and
   execution text for an interaction already proven by its focused recording and

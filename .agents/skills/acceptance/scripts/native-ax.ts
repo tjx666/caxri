@@ -8,6 +8,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { execFileAsync } from '../../../../src/shared/node/exec';
+import { assertNativeDialogAuthorization } from './native-dialog-authorization';
 
 export interface NativeAxResult {
     code?: string;
@@ -174,6 +175,7 @@ export async function runNativeAx(
         title?: string;
     },
 ): Promise<NativeAxResult> {
+    assertNativeDialogAuthorization();
     const binaryPath = await resolveNativeAxBinary();
     const arguments_ = nativeAxArguments(command, options);
     let stdout = '';

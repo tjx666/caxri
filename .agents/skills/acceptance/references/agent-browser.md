@@ -95,8 +95,8 @@ Open and visually inspect every image before recording a verdict.
 ## Boundaries
 
 - CDP sees Renderer content, not macOS-owned window chrome or dialogs.
-- Follow [native-dialogs.md](native-dialogs.md) when a real Acceptance path
-  crosses a native sheet or app-modal window.
+- Stop before a native sheet or app-modal window and hand it to the user. Follow
+  [native-dialogs.md](native-dialogs.md) only for an explicit current-request exception.
 - A DOM snapshot supports structure but does not replace visual evidence for a
   layout claim.
 - A static screenshot does not prove behavior over time; follow

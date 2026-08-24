@@ -41,14 +41,12 @@ substitutes for the real desktop path when the claim is user-visible.
 - Use CDP and `agent-browser` for renderer interaction, DOM inspection, and
   screenshots. Use OS capture only when the criterion is specifically about
   Electron or macOS chrome that CDP cannot see.
-- Bootstrap an isolated Project with the default `CAXRI_TEST_ROOT_PATH` fixture.
-  Never pass `--native-dialog` merely to prepare Acceptance state; macOS hosts
-  `NSOpenPanel` content through a separate service, so UI-scripting that chooser
-  is slower and less deterministic than the existing Main-owned fixture. Use
-  `--native-dialog` only when the chooser itself is part of the requirement.
-- Handle native dialogs according to [references/native-dialogs.md](references/native-dialogs.md):
-  stub Main's dialog boundary in focused tests, but use semantic macOS Accessibility interaction
-  for a real Acceptance path.
+- Bootstrap every isolated Project with the default `CAXRI_TEST_ROOT_PATH` fixture. Native macOS
+  dialogs are manual Acceptance boundaries by default: do not trigger, inspect, click, record, or
+  retry one. Stub Main's dialog result for automated coverage and hand dialog-specific checks to the
+  user. Only a current user request that explicitly asks the agent to verify a native dialog permits
+  the fail-closed exception in [references/native-dialogs.md](references/native-dialogs.md); general
+  Acceptance, `$go`, or complete-real-path wording does not.
 - Read every screenshot or recording before citing it. A file existing is not
   evidence that the expected UI rendered.
 - Keep focused regression tests separate from acceptance evidence. Tests prove a
@@ -98,9 +96,9 @@ Read [references/report.md](references/report.md) before authoring the report an
    `--cleanup-reused-user-data`. Confirm the CDP target is the Caxri renderer,
    not DevTools or a stale resident build.
 2. Drive the smallest real user path that proves each plan item. Follow
-   [surfaces/electron.md](surfaces/electron.md). Inspect and click a native sheet
-   or app-modal window exactly once by its semantic button name; never retry the
-   Renderer action or click screen coordinates.
+   [surfaces/electron.md](surfaces/electron.md). Stop before a native sheet or app-modal window and
+   hand that step to the user unless the current request explicitly authorizes agent verification;
+   deterministic fixtures prove the product behavior on either side of that manual boundary.
 3. Capture evidence while testing:
    - settled UI state: screenshot plus DOM snapshot when useful;
    - behavior over time: GIF or video following
@@ -149,6 +147,8 @@ the commands in [references/report.md](references/report.md).
   commit, and push before starting the next round.
 - Repair adapter, fixture, capture, or report defects as verification
   infrastructure; do not mislabel them as Caxri product bugs.
+- Never turn a native-dialog manual handoff into an adapter-repair loop. Without an explicit current
+  user request for agent-driven native verification, stop at the deterministic Main boundary.
 - After one honest blocked round caused by an infeasible evidence method,
   publish that observation, repair the plan or adapter at the owning boundary,
   and retry once. Do not keep improvising progressively finer timing probes for
