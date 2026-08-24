@@ -1,0 +1,183 @@
+import { useState } from 'react';
+
+import type { GitDiffTab } from '@shared/git-diff';
+import type {
+    GitCommitDetails,
+    GitFileStatus,
+    GitPullRequestChanges,
+    GitRepositorySummary,
+} from '@shared/types';
+
+import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
+
+import { useCaxriQuery, useToastOnQueryError } from '../../../../queries/client';
+import {
+    openGitChangesDiff,
+    openGitCommitFileDiff,
+    openGitFileDiff,
+    openPullRequestChangesDiff,
+    openPullRequestFileDiff,
+} from './git-diff-actions';
+import type { GitPanelMode } from './git-panel-state';
+import {
+    gitRepoDisplayedCount,
+    gitRepoEmptyMessage,
+    gitRepoFilesForMode,
+    selectedGitRepoPath,
+} from './git-repo-section-state';
+import type { GitFileTreeNode } from './git-tree';
+import { buildGitFileTree } from './git-tree';
+import { discardAllChanges, discardFileChanges, syncRepo } from './git-working-tree-actions';
+
+function discard(promise: Promise<unknown>): void {
+    // eslint-disable-next-line no-void -- Git action helpers report failures through tryCommand
+    void promise;
+}
+
+export interface GitRepoSectionProperties {
+    activeDiff?: GitDiffTab;
+    expanded: boolean;
+    expandedDirectories: Readonly<Record<string, boolean | undefined>>;
+    flashed: boolean;
+    mode: GitPanelMode;
+    onExpandedChange: (isExpanded: boolean) => void;
+    onFocusRepository: (repoId: string) => void;
+    pullRequestRefresh: number;
+    repository: GitRepositorySummary;
+    sessionId: string;
+    setDirectoryExpanded: (key: string, isExpanded: boolean) => void;
+    submodulesByPath: ReadonlyMap<string, GitRepositorySummary>;
+}
+
+export interface GitRepoSectionController extends GitRepoSectionProperties {
+    changesExpanded: boolean;
+    discardAll: () => void;
+    discardFile: (file: GitFileStatus) => void;
+    displayedCount: number;
+    emptyMessage: string;
+    files: GitFileStatus[];
+    latestCommit: GitCommitDetails | undefined;
+    openChanges: () => void;
+    openFile: (path: string) => void;
+    pullRequest: GitPullRequestChanges | null | undefined;
+    reduceMotion: boolean;
+    selectedPath: string | undefined;
+    sync: () => void;
+    syncing: boolean;
+    toggleChangesExpanded: () => void;
+    toggleExpanded: () => void;
+    buildTreeNodes: () => GitFileTreeNode[];
+}
+
+/**
+ * Owns repository-specific queries, mode projection, and action sequencing. The repository section view receives one
+ * render-ready result while Runtime remains the authority behind every Git action and query.
+ */
+export function useGitRepoSectionController(
+    properties: GitRepoSectionProperties,
+): GitRepoSectionController {
+    const {
+        activeDiff,
+        expanded,
+        mode,
+        onExpandedChange,
+        pullRequestRefresh,
+        repository,
+        sessionId,
+    } = properties;
+    // Local like the Commits disclosure in `commit-history.tsx`; not persisted across Session switches.
+    const [changesExpanded, setChangesExpanded] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+    const reduceMotion = useShouldReduceMotion();
+    const pullRequestQuery = useCaxriQuery(
+        'git.pullRequestChanges',
+        {
+            sessionId,
+            repositoryId: repository.id,
+            refresh: pullRequestRefresh,
+        },
+        { enabled: mode === 'pull-request' },
+    );
+    useToastOnQueryError(
+        pullRequestQuery.isError,
+        pullRequestQuery.error,
+        'Pull request refresh failed',
+    );
+    const pullRequest = mode === 'pull-request' ? pullRequestQuery.data : undefined;
+    const headSha = repository.head;
+    const latestCommitQuery = useCaxriQuery(
+        'git.commitDetails',
+        {
+            sessionId,
+            repositoryId: repository.id,
+            // Placeholder satisfies the params schema while the query is disabled without a HEAD.
+            sha: headSha ?? '0000000000000000000000000000000000000000',
+        },
+        { enabled: mode === 'commit' && Boolean(headSha) },
+    );
+    useToastOnQueryError(
+        latestCommitQuery.isError,
+        latestCommitQuery.error,
+        'Last commit load failed',
+    );
+    const latestCommit = mode === 'commit' ? latestCommitQuery.data : undefined;
+    const files = gitRepoFilesForMode(mode, repository.files, latestCommit, pullRequest);
+    /**
+     * Working-tree count uses `changedFileCount`: Runtime may truncate `files[]` while this authoritative count keeps
+     * reporting the complete change set, matching the Status Bar projection.
+     */
+    const displayedCount = gitRepoDisplayedCount(mode, repository.changedFileCount, files);
+    const selectedPath = selectedGitRepoPath(mode, activeDiff, repository.id, headSha);
+    const emptyMessage = gitRepoEmptyMessage({
+        headSha,
+        latestCommit,
+        latestCommitError: latestCommitQuery.isError,
+        mode,
+        pullRequest,
+        pullRequestError: pullRequestQuery.isError,
+    });
+    const runSync = async (): Promise<void> => {
+        if (syncing) return;
+        setSyncing(true);
+        try {
+            await syncRepo(sessionId, repository);
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    return {
+        ...properties,
+        buildTreeNodes: () => buildGitFileTree(files),
+        changesExpanded,
+        discardAll: () => discard(discardAllChanges(sessionId, repository)),
+        discardFile: (file) => discard(discardFileChanges(sessionId, repository, file)),
+        displayedCount,
+        emptyMessage,
+        files,
+        latestCommit,
+        openChanges: () => {
+            if (mode === 'pull-request') {
+                openPullRequestChangesDiff(repository.id, repository.name);
+            } else if (mode === 'working') {
+                openGitChangesDiff(repository.id, repository.name);
+            }
+        },
+        openFile: (path) => {
+            if (mode === 'pull-request') {
+                openPullRequestFileDiff(repository.id, path);
+            } else if (mode === 'commit') {
+                if (headSha) openGitCommitFileDiff(repository.id, headSha, path);
+            } else {
+                openGitFileDiff(repository.id, path);
+            }
+        },
+        pullRequest,
+        reduceMotion,
+        selectedPath,
+        sync: () => discard(runSync()),
+        syncing,
+        toggleChangesExpanded: () => setChangesExpanded((value) => !value),
+        toggleExpanded: () => onExpandedChange(!expanded),
+    };
+}
