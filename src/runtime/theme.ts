@@ -26,6 +26,11 @@ type ThemeImportFormat = (typeof themeImportFormats)[number];
 export const MAX_THEME_IMPORT_FILE_BYTES = 1 * 1024 * 1024;
 const MIN_MUTED_CONTRAST = 4.5;
 const APP_COLOR_SURFACES = ['background', 'surface', 'elevated'] as const;
+const APP_COLOR_SURFACE_LABELS = {
+    background: 'editor background',
+    elevated: 'raised panel background',
+    surface: 'sidebar and status bar background',
+} satisfies Record<(typeof APP_COLOR_SURFACES)[number], string>;
 
 /**
  * Official Dracula OSS palette, normalized once for app, terminal, and Monaco consumers.
@@ -281,7 +286,7 @@ function assertImportedThemeContrast(theme: ThemeTokens): void {
         if (muted && backdrop && contrastRatio(muted, backdrop) >= MIN_MUTED_CONTRAST) continue;
         throw new CaxriError(
             'VALIDATION',
-            `Imported theme colors.muted must have at least ${MIN_MUTED_CONTRAST}:1 contrast against colors.${surface}`,
+            `Secondary text in the imported theme must have at least ${MIN_MUTED_CONTRAST}:1 contrast against the ${APP_COLOR_SURFACE_LABELS[surface]}. Choose a lighter or darker secondary text color and try again.`,
         );
     }
 }

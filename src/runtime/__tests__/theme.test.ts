@@ -194,6 +194,11 @@ describe('theme import mapping', () => {
     it('rejects a full Caxri theme when muted misses AA on any app surface', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-contrast-'));
         temporaryDirectories.push(directory);
+        const surfaceLabels = {
+            background: 'editor background',
+            elevated: 'raised panel background',
+            surface: 'sidebar and status bar background',
+        } as const;
         await Promise.all(
             (['background', 'surface', 'elevated'] as const).map(async (surface) => {
                 const path = join(directory, `${surface}.json`);
@@ -202,7 +207,7 @@ describe('theme import mapping', () => {
                 await writeFile(path, JSON.stringify(theme), 'utf8');
                 await expect(importTheme(path, draculaTheme)).rejects.toMatchObject({
                     code: 'VALIDATION',
-                    message: expect.stringContaining(`colors.${surface}`) as string,
+                    message: `Secondary text in the imported theme must have at least 4.5:1 contrast against the ${surfaceLabels[surface]}. Choose a lighter or darker secondary text color and try again.`,
                 } satisfies Partial<CaxriError>);
             }),
         );
@@ -232,7 +237,7 @@ describe('theme import mapping', () => {
         await writeFile(belowBoundaryPath, JSON.stringify(theme), 'utf8');
         await expect(importTheme(belowBoundaryPath, draculaTheme)).rejects.toMatchObject({
             code: 'VALIDATION',
-            message: expect.stringContaining('colors.background') as string,
+            message: expect.stringContaining('editor background') as string,
         } satisfies Partial<CaxriError>);
 
         const opaqueAlphaPath = join(directory, 'opaque-alpha.json');
@@ -260,7 +265,7 @@ describe('theme import mapping', () => {
 
         await expect(importTheme(path, draculaTheme)).rejects.toMatchObject({
             code: 'VALIDATION',
-            message: expect.stringContaining('colors.background') as string,
+            message: expect.stringContaining('editor background') as string,
         } satisfies Partial<CaxriError>);
     });
 });
