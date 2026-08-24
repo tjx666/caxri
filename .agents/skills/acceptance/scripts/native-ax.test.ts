@@ -80,11 +80,22 @@ describe('Acceptance native Accessibility transport', () => {
         expect(source).toContain('AXUIElementSetMessagingTimeout');
         expect(source).toContain('CGSSessionScreenIsLocked');
         expect(source).toContain('kAXDefaultButtonAttribute');
-        expect(source).toContain('kAXSelectedAttribute');
         expect(source).toContain('kAXSelectedChildrenAttribute');
         expect(source).toContain('panelMaxElements = 2_048');
         expect(source).not.toContain('System Events');
         expect(source).not.toContain('CGEventPost');
         expect(source).not.toContain('keystroke');
+    });
+
+    it('supports both row-owned and parent-owned open-panel selection within a bounded ancestor walk', async () => {
+        const source = await readFile(NATIVE_AX_SOURCE_PATH, 'utf8');
+        const selectionImplementation = source.slice(
+            source.indexOf('private func selectFileElement'),
+            source.indexOf('private func targetAncestors'),
+        );
+
+        expect(selectionImplementation).toContain('for _ in 0..<12');
+        expect(selectionImplementation).toContain('kAXSelectedAttribute');
+        expect(selectionImplementation).toContain('kAXSelectedChildrenAttribute');
     });
 });
