@@ -27,11 +27,26 @@ import {
 } from './git-repo-section-state';
 import type { GitFileTreeNode } from './git-tree';
 import { buildGitFileTree } from './git-tree';
-import { discardAllChanges, discardFileChanges, syncRepo } from './git-working-tree-actions';
+import { discardAllChanges, discardFileChanges } from './git-working-tree-actions';
 
 function discard(promise: Promise<unknown>): void {
     // eslint-disable-next-line no-void -- Git action helpers report failures through tryCommand
     void promise;
+}
+
+interface GitRepoDiffActionContext {
+    headSha: string | undefined;
+    mode: GitPanelMode;
+    repositoryId: string;
+    repositoryName: string;
+}
+
+interface GitRepoDiffActionDependencies {
+    openCommitFile: typeof openGitCommitFileDiff;
+    openPullRequestChanges: typeof openPullRequestChangesDiff;
+    openPullRequestFile: typeof openPullRequestFileDiff;
+    openWorkingChanges: typeof openGitChangesDiff;
+    openWorkingFile: typeof openGitFileDiff;
 }
 
 export interface GitRepoSectionProperties {
@@ -62,11 +77,34 @@ export interface GitRepoSectionController extends GitRepoSectionProperties {
     pullRequest: GitPullRequestChanges | null | undefined;
     reduceMotion: boolean;
     selectedPath: string | undefined;
-    sync: () => void;
-    syncing: boolean;
     toggleChangesExpanded: () => void;
     toggleExpanded: () => void;
     buildTreeNodes: () => GitFileTreeNode[];
+}
+
+export function createGitRepoDiffActions(
+    context: GitRepoDiffActionContext,
+    dependencies: GitRepoDiffActionDependencies,
+): Pick<GitRepoSectionController, 'openChanges' | 'openFile'> {
+    return {
+        openChanges: () => {
+            if (context.mode === 'pull-request') {
+                dependencies.openPullRequestChanges(context.repositoryId, context.repositoryName);
+            } else if (context.mode === 'working') {
+                dependencies.openWorkingChanges(context.repositoryId, context.repositoryName);
+            }
+        },
+        openFile: (path) => {
+            if (context.mode === 'pull-request') {
+                dependencies.openPullRequestFile(context.repositoryId, path);
+            } else if (context.mode === 'commit') {
+                if (context.headSha)
+                    dependencies.openCommitFile(context.repositoryId, context.headSha, path);
+            } else {
+                dependencies.openWorkingFile(context.repositoryId, path);
+            }
+        },
+    };
 }
 
 /**
@@ -87,7 +125,6 @@ export function useGitRepoSectionController(
     } = properties;
     // Local like the Commits disclosure in `commit-history.tsx`; not persisted across Session switches.
     const [changesExpanded, setChangesExpanded] = useState(true);
-    const [syncing, setSyncing] = useState(false);
     const reduceMotion = useShouldReduceMotion();
     const pullRequestQuery = useCaxriQuery(
         'git.pullRequestChanges',
@@ -136,16 +173,21 @@ export function useGitRepoSectionController(
         pullRequest,
         pullRequestError: pullRequestQuery.isError,
     });
-    const runSync = async (): Promise<void> => {
-        if (syncing) return;
-        setSyncing(true);
-        try {
-            await syncRepo(sessionId, repository);
-        } finally {
-            setSyncing(false);
-        }
-    };
-
+    const diffActions = createGitRepoDiffActions(
+        {
+            headSha,
+            mode,
+            repositoryId: repository.id,
+            repositoryName: repository.name,
+        },
+        {
+            openCommitFile: openGitCommitFileDiff,
+            openPullRequestChanges: openPullRequestChangesDiff,
+            openPullRequestFile: openPullRequestFileDiff,
+            openWorkingChanges: openGitChangesDiff,
+            openWorkingFile: openGitFileDiff,
+        },
+    );
     return {
         ...properties,
         buildTreeNodes: () => buildGitFileTree(files),
@@ -156,27 +198,10 @@ export function useGitRepoSectionController(
         emptyMessage,
         files,
         latestCommit,
-        openChanges: () => {
-            if (mode === 'pull-request') {
-                openPullRequestChangesDiff(repository.id, repository.name);
-            } else if (mode === 'working') {
-                openGitChangesDiff(repository.id, repository.name);
-            }
-        },
-        openFile: (path) => {
-            if (mode === 'pull-request') {
-                openPullRequestFileDiff(repository.id, path);
-            } else if (mode === 'commit') {
-                if (headSha) openGitCommitFileDiff(repository.id, headSha, path);
-            } else {
-                openGitFileDiff(repository.id, path);
-            }
-        },
+        ...diffActions,
         pullRequest,
         reduceMotion,
         selectedPath,
-        sync: () => discard(runSync()),
-        syncing,
         toggleChangesExpanded: () => setChangesExpanded((value) => !value),
         toggleExpanded: () => onExpandedChange(!expanded),
     };
