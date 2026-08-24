@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { isClipboardTextEqual, writeTestClipboardText } from './support/clipboard.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
@@ -37,7 +36,7 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         const terminalRows = running.page.locator('.xterm-rows');
         const terminalInput = running.page.locator('.xterm-helper-textarea');
         await expect(terminalRows).toContainText('needle NEEDLE needled');
-        await writeTestClipboardText(running.app, running.clipboard, 'CLIPBOARD_SENTINEL');
+        await running.clipboard.writeText('CLIPBOARD_SENTINEL');
 
         await terminalInput.press('Meta+f');
         const search = running.page.getByRole('search', { name: 'Terminal buffer search' });
@@ -64,7 +63,7 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         );
         expect(decorationEvidence.every(({ height, width }) => height > 0 && width > 0)).toBe(true);
         expect(new Set(decorationEvidence.map(({ color }) => color)).size).toBeGreaterThan(1);
-        expect(await isClipboardTextEqual(running.app, 'CLIPBOARD_SENTINEL')).toBe(true);
+        expect(await running.clipboard.textEquals('CLIPBOARD_SENTINEL')).toBe(true);
 
         await searchInput.press('Enter');
         await expect(search).toContainText('2/4');
@@ -111,7 +110,7 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         await searchInput.press('Escape');
         await expect(search).toHaveCount(0);
         await expect(terminalInput).toBeFocused();
-        expect(await isClipboardTextEqual(running.app, 'CLIPBOARD_SENTINEL')).toBe(true);
+        expect(await running.clipboard.textEquals('CLIPBOARD_SENTINEL')).toBe(true);
 
         await running.page.getByRole('treeitem', { name: 'searchable.ts', exact: true }).click();
         const editor = running.page.locator('.monaco-editor').first();

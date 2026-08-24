@@ -2,9 +2,8 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ElectronApplication } from 'playwright';
-
 import { execFileAsync } from '../src/shared/node/exec.ts';
+import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { publishFullScreenState } from './support/full-screen-state.ts';
 import {
@@ -23,7 +22,7 @@ const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
 /**
  * Closes the Electron app during teardown without letting an already-closed app fail the test.
  */
-async function closeAppQuietly(app: ElectronApplication): Promise<void> {
+async function closeAppQuietly(app: E2EApp): Promise<void> {
     try {
         await app.close();
     } catch {
@@ -31,7 +30,7 @@ async function closeAppQuietly(app: ElectronApplication): Promise<void> {
     }
 }
 
-async function stubMessageBoxResponse(app: ElectronApplication, response: number): Promise<void> {
+async function stubMessageBoxResponse(app: E2EApp, response: number): Promise<void> {
     await app.evaluate(({ dialog }, nextResponse) => {
         Reflect.set(globalThis, '__caxriE2EMessageBoxCallCount', 0);
         dialog.showMessageBox = () => {
@@ -46,7 +45,7 @@ async function stubMessageBoxResponse(app: ElectronApplication, response: number
  * A row that remains visible does not prove its canceled deletion request completed. Wait until Main consumes the
  * native-dialog response before replacing the stub for a subsequent request.
  */
-async function waitForMessageBoxCall(app: ElectronApplication): Promise<void> {
+async function waitForMessageBoxCall(app: E2EApp): Promise<void> {
     await expect
         .poll(() =>
             app.evaluate(

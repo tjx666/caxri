@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export interface E2EWorkerIsolation {
@@ -8,6 +9,17 @@ export interface E2EWorkerIsolation {
 
 export interface E2EClipboardPolicy {
     protectClipboard: boolean;
+}
+
+interface E2EWorkerCleanupDependencies {
+    remove?: typeof rm;
+    wait?: (delay: number) => Promise<void>;
+}
+
+function errorCode(error: unknown): string | undefined {
+    return typeof error === 'object' && error !== null && 'code' in error
+        ? String(Reflect.get(error, 'code'))
+        : undefined;
 }
 
 /**
@@ -32,6 +44,33 @@ export function e2eWorkerTemporaryDirectory(
     return isolation.workerNamespace
         ? join(parent, `caxri-e2e-${isolation.workerNamespace}`)
         : undefined;
+}
+
+/**
+ * The worker fixture runs only after every launch finalizer has awaited Electron and Host shutdown, but macOS can still
+ * expose a last directory entry while Node's recursive traversal is finishing. Retry only that observed `ENOTEMPTY` on
+ * the exact worker-owned root for a small bounded window; every other error and the final failed attempt propagate
+ * unchanged.
+ */
+export async function removeE2EWorkerTemporaryDirectory(
+    directory: string,
+    dependencies: E2EWorkerCleanupDependencies = {},
+): Promise<void> {
+    const remove = dependencies.remove ?? rm;
+    const wait =
+        dependencies.wait ??
+        ((delay: number) => new Promise<void>((resolve) => setTimeout(resolve, delay)));
+    for (let attempt = 0; ; attempt += 1) {
+        try {
+            // eslint-disable-next-line no-await-in-loop -- each retry depends on the previous filesystem result
+            await remove(directory, { force: true, recursive: true });
+            return;
+        } catch (error) {
+            if (errorCode(error) !== 'ENOTEMPTY' || attempt >= 3) throw error;
+            // eslint-disable-next-line no-await-in-loop -- bounded linear backoff between cleanup attempts
+            await wait(100 * (attempt + 1));
+        }
+    }
 }
 
 /**

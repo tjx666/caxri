@@ -2,12 +2,13 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ElectronApplication, Page } from 'playwright';
+import type { Page } from 'playwright';
 
+import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
-async function closeAppQuietly(app: ElectronApplication): Promise<void> {
+async function closeAppQuietly(app: E2EApp): Promise<void> {
     try {
         await app.close();
     } catch {

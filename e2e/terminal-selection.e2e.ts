@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { isClipboardTextEqual, writeTestClipboardText } from './support/clipboard.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -165,14 +164,14 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
             );
             expect(wrappedBounds.end.y).toBeGreaterThan(wrappedBounds.start.y);
         }
-        await writeTestClipboardText(running.app, running.clipboard, 'BEFORE_SELECTION');
+        await running.clipboard.writeText('BEFORE_SELECTION');
         await selectTerminalText(running.page, firstTerminalId, firstLine, lastLine);
         await expect
-            .poll(() => isClipboardTextEqual(running.app, `${firstLine}\n${lastLine}`))
+            .poll(() => running.clipboard.textEquals(`${firstLine}\n${lastLine}`))
             .toBe(true);
         await running.clipboard.claimText(`${firstLine}\n${lastLine}`);
 
-        await writeTestClipboardText(running.app, running.clipboard, 'KEEP_ON_EMPTY');
+        await running.clipboard.writeText('KEEP_ON_EMPTY');
         const firstBounds = await terminalTextBounds(running.page, firstTerminalId, firstLine);
         await running.page.mouse.click(
             firstBounds.start.x + 2,
@@ -183,7 +182,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         );
         await firstInput.focus();
         await firstInput.press('Meta+C');
-        await expect.poll(() => isClipboardTextEqual(running.app, 'KEEP_ON_EMPTY')).toBe(true);
+        await expect.poll(() => running.clipboard.textEquals('KEEP_ON_EMPTY')).toBe(true);
 
         await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
@@ -194,7 +193,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         );
         await expect(secondRows).toContainText(splitText);
         await selectTerminalText(running.page, secondTerminalId, splitText, splitText);
-        await expect.poll(() => isClipboardTextEqual(running.app, splitText)).toBe(true);
+        await expect.poll(() => running.clipboard.textEquals(splitText)).toBe(true);
         await running.clipboard.claimText(splitText);
 
         const secondInput = running.page.locator(
@@ -211,30 +210,26 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
          * `PANE_TWO`'s bounds against a viewport the pasted command is still scrolling, so the mouse could land a row
          * off and select nothing at all.
          */
-        await writeTestClipboardText(running.app, running.clipboard, 'COPY_COMMAND_SENTINEL');
+        await running.clipboard.writeText('COPY_COMMAND_SENTINEL');
         await secondInput.focus();
-        expect(await isClipboardTextEqual(running.app, 'COPY_COMMAND_SENTINEL')).toBe(true);
+        expect(await running.clipboard.textEquals('COPY_COMMAND_SENTINEL')).toBe(true);
         await secondInput.focus();
         await expect(secondInput).toBeFocused();
         await secondInput.press('Meta+C');
-        await expect.poll(() => isClipboardTextEqual(running.app, splitText)).toBe(true);
+        await expect.poll(() => running.clipboard.textEquals(splitText)).toBe(true);
         await running.clipboard.claimText(splitText);
 
         await running.page.getByRole('treeitem', { name: 'editor-copy.ts', exact: true }).click();
         const editor = running.page.locator('.monaco-editor').first();
         await expect(editor).toBeVisible();
         await editor.click({ position: { x: 120, y: 24 } });
-        await writeTestClipboardText(running.app, running.clipboard, 'EDITOR_COPY_SENTINEL');
+        await running.clipboard.writeText('EDITOR_COPY_SENTINEL');
         await running.page.keyboard.press('Meta+A');
         await running.page.keyboard.press('Meta+C');
-        await expect.poll(() => isClipboardTextEqual(running.app, editorCopyText)).toBe(true);
+        await expect.poll(() => running.clipboard.textEquals(editorCopyText)).toBe(true);
         await running.clipboard.claimText(editorCopyText);
 
-        await writeTestClipboardText(
-            running.app,
-            running.clipboard,
-            String.raw`printf 'PASTE_STILL_WORKS\n'`,
-        );
+        await running.clipboard.writeText(String.raw`printf 'PASTE_STILL_WORKS\n'`);
         await running.page
             .locator(`.work-tab[data-terminal-id="${secondTerminalId}"] [role="tab"]`)
             .click();

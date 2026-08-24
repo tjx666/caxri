@@ -27,6 +27,17 @@ export interface ClipboardRestoreOutcome {
     status: 'restored' | 'skipped-external-write';
 }
 
+export interface ClipboardCapability {
+    readonly metadata: ClipboardMetadata;
+    claimImage: () => Promise<void>;
+    claimText: (expectedText: string) => Promise<void>;
+    hasImage: () => Promise<boolean>;
+    restoreOutcome: () => Promise<ClipboardRestoreOutcome | undefined>;
+    textEquals: (expectedText: string) => Promise<boolean>;
+    writePngBase64: (value: string) => Promise<void>;
+    writeText: (value: string) => Promise<void>;
+}
+
 export interface ClipboardNativeAdapter {
     claimImage: () => Promise<number>;
     claimText: (expectedText: string) => Promise<number>;
@@ -390,25 +401,40 @@ export async function restoreClipboard(snapshot: ClipboardSnapshot): Promise<voi
 }
 
 /**
- * Compares inside Electron so real clipboard text never crosses into Playwright assertions or failure artifacts.
+ * Binds native clipboard access to the protected snapshot owned by one declared E2E launch. Callers receive this narrow
+ * capability instead of the raw Electron application, so aliases and indirect helpers cannot bypass pool classification
+ * through `app.evaluate`. Text comparisons stay inside Electron so clipboard contents never cross into assertion
+ * artifacts.
  */
-export async function isClipboardTextEqual(
-    app: ElectronApplication,
-    expectedText: string,
-): Promise<boolean> {
-    return app.evaluate(
-        ({ clipboard }, expected) => clipboard.readText() === expected,
-        expectedText,
-    );
-}
-
-export async function writeTestClipboardText(
+export function createClipboardCapability(
     app: ElectronApplication,
     snapshot: ClipboardSnapshot,
-    text: string,
-): Promise<void> {
-    await app.evaluate(({ clipboard }, value) => clipboard.writeText(value), text);
-    await snapshot.claimText(text);
+): ClipboardCapability {
+    return {
+        claimImage: () => snapshot.claimImage(),
+        claimText: (expectedText) => snapshot.claimText(expectedText),
+        hasImage: () => app.evaluate(({ clipboard }) => !clipboard.readImage().isEmpty()),
+        metadata: snapshot.metadata,
+        restoreOutcome: () => snapshot.restoreOutcome(),
+        textEquals: (expectedText) =>
+            app.evaluate(
+                ({ clipboard }, expected) => clipboard.readText() === expected,
+                expectedText,
+            ),
+        writePngBase64: async (value) => {
+            await app.evaluate(({ clipboard, nativeImage }, pngBase64) => {
+                clipboard.clear();
+                const image = nativeImage.createFromBuffer(Buffer.from(pngBase64, 'base64'));
+                if (image.isEmpty()) throw new Error('Image clipboard fixture is empty');
+                clipboard.writeImage(image);
+            }, value);
+            await snapshot.claimImage();
+        },
+        writeText: async (value) => {
+            await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), value);
+            await snapshot.claimText(value);
+        },
+    };
 }
 
 export async function writeClipboardFixture(

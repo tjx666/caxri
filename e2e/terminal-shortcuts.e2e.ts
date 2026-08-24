@@ -1,11 +1,9 @@
-import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
-import { writeTestClipboardText } from './support/clipboard.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -318,22 +316,13 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
         await input.press('Meta+ArrowRight');
         await expect(rows).toContainText('INPUT_HEX:05');
 
-        await running.app.evaluate(({ clipboard, nativeImage }) => {
-            clipboard.clear();
-            const image = nativeImage.createFromBuffer(
-                Buffer.from(
-                    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-                    'base64',
-                ),
-            );
-            if (image.isEmpty()) throw new Error('Image clipboard fixture is empty');
-            clipboard.writeImage(image);
-        });
-        await running.clipboard.claimImage();
+        await running.clipboard.writePngBase64(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        );
         await input.press('Meta+V');
         await expect(rows).toContainText('INPUT_HEX:16');
 
-        await writeTestClipboardText(running.app, running.clipboard, 'TEXT_PASTE');
+        await running.clipboard.writeText('TEXT_PASTE');
         await input.press('Meta+V');
         await expect(rows).toContainText('INPUT_HEX:544558545f5041535445');
 

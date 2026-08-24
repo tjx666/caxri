@@ -2,6 +2,10 @@ import { expect } from '@playwright/test';
 
 export interface PollUntilOptions {
     intervals?: number[];
+    /**
+     * Returns true only for a callback failure that the caller owns as an expected convergence state.
+     */
+    isRetryableError?: (error: unknown) => boolean;
     message?: string;
     timeout?: number;
 }
@@ -20,9 +24,10 @@ export async function pollUntil<T>(
     isMatch: (value: T) => boolean,
     options?: PollUntilOptions,
 ): Promise<T> {
+    const { isRetryableError, ...pollOptions } = options ?? {};
     let matchedValue: T | undefined;
     let lastCallbackError: unknown;
-    let nonRetryableError: unknown;
+    let terminalError: { value: unknown } | undefined;
 
     try {
         await expect
@@ -31,6 +36,17 @@ export async function pollUntil<T>(
                 try {
                     value = await read();
                 } catch (error) {
+                    let isRetryable: boolean;
+                    try {
+                        isRetryable = isRetryableError?.(error) ?? false;
+                    } catch (classifierError) {
+                        terminalError = { value: classifierError };
+                        throw classifierError;
+                    }
+                    if (!isRetryable) {
+                        terminalError = { value: error };
+                        throw error;
+                    }
                     lastCallbackError = error;
                     return false;
                 }
@@ -38,15 +54,15 @@ export async function pollUntil<T>(
                 try {
                     if (!isMatch(value)) return false;
                 } catch (error) {
-                    nonRetryableError = error;
+                    terminalError = { value: error };
                     throw error;
                 }
                 matchedValue = value;
                 return true;
-            }, options)
+            }, pollOptions)
             .toBe(true);
     } catch (error) {
-        if (nonRetryableError !== undefined) throw error;
+        if (terminalError) throw terminalError.value;
         if (lastCallbackError !== undefined) {
             throw new Error(
                 `${errorMessage(error)}\nLast callback error: ${errorMessage(lastCallbackError)}`,

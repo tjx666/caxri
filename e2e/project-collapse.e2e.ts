@@ -3,13 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import Database from 'better-sqlite3';
-import type { ElectronApplication } from 'playwright';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
+import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
-async function closeAppQuietly(app: ElectronApplication): Promise<void> {
+async function closeAppQuietly(app: E2EApp): Promise<void> {
     try {
         await app.close();
     } catch {

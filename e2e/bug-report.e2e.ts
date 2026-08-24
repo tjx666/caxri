@@ -145,9 +145,7 @@ test('Bug report delivers an opted-in screenshot through Codex image paste', asy
 
         await dialog.getByRole('button', { name: 'Send to Agent' }).click();
         await expect(dialog).toHaveCount(0);
-        await expect
-            .poll(() => running.app.evaluate(({ clipboard }) => !clipboard.readImage().isEmpty()))
-            .toBe(true);
+        await expect.poll(() => running.clipboard.hasImage()).toBe(true);
         await running.clipboard.claimImage();
         let agentInput = '';
         await expect

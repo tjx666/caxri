@@ -3,9 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
-import type { ElectronApplication } from 'playwright';
-
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
@@ -14,7 +13,7 @@ import {
     pageRequest,
 } from './support/helpers.ts';
 
-async function closeAppQuietly(app: ElectronApplication): Promise<void> {
+async function closeAppQuietly(app: E2EApp): Promise<void> {
     try {
         await app.close();
     } catch {

@@ -274,7 +274,7 @@ export async function withRepoLock<T>(
             } catch (cleanupError) {
                 if (errorCode(cleanupError) !== 'ENOENT') throw cleanupError;
             } finally {
-                await rm(cleanupPath);
+                await rm(cleanupPath, { force: true, recursive: true });
             }
         }
         /* eslint-enable no-await-in-loop */

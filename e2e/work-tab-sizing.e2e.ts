@@ -2,9 +2,10 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ElectronApplication, Page } from 'playwright';
+import type { Page } from 'playwright';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
+import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
@@ -17,7 +18,7 @@ import {
 /**
  * Closes the Electron app during teardown without letting an already-closed app fail the test.
  */
-async function closeAppQuietly(app: ElectronApplication): Promise<void> {
+async function closeAppQuietly(app: E2EApp): Promise<void> {
     try {
         await app.close();
     } catch {
