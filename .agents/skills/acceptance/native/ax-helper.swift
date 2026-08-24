@@ -472,30 +472,51 @@ private func fileBrowser(
     ) { reader.role($0) == "AXBrowser" }.element
 }
 
+/**
+ * AppKit exposes browser selection differently across Finder view modes: rows may own AXSelected directly, while
+ * outline-like containers own AXSelectedChildren. Try both semantic forms while walking the bounded ancestor chain.
+ */
 private func selectFileElement(
     _ item: AXUIElement,
     reader: AccessibilityReader
 ) -> AXError {
-    var selectedChild = item
-    var parent: AXUIElement? = reader.value(item, kAXParentAttribute as CFString)
-    for _ in 0..<6 {
-        guard let candidate = parent else { break }
+    var candidate: AXUIElement? = item
+    for _ in 0..<12 {
+        guard let element = candidate else { break }
+        var selectedSettable = DarwinBoolean(false)
+        let selectedSettableError = AXUIElementIsAttributeSettable(
+            element,
+            kAXSelectedAttribute as CFString,
+            &selectedSettable
+        )
+        if selectedSettableError == .cannotComplete { reader.sawCannotComplete = true }
+        if selectedSettableError == .success, selectedSettable.boolValue {
+            return AXUIElementSetAttributeValue(
+                element,
+                kAXSelectedAttribute as CFString,
+                kCFBooleanTrue
+            )
+        }
+
+        guard let parent: AXUIElement = reader.value(
+            element,
+            kAXParentAttribute as CFString
+        ) else { break }
         var settable = DarwinBoolean(false)
         let settableError = AXUIElementIsAttributeSettable(
-            candidate,
+            parent,
             kAXSelectedChildrenAttribute as CFString,
             &settable
         )
         if settableError == .cannotComplete { reader.sawCannotComplete = true }
         if settableError == .success, settable.boolValue {
             return AXUIElementSetAttributeValue(
-                candidate,
+                parent,
                 kAXSelectedChildrenAttribute as CFString,
-                [selectedChild] as CFArray
+                [element] as CFArray
             )
         }
-        selectedChild = candidate
-        parent = reader.value(candidate, kAXParentAttribute as CFString)
+        candidate = parent
     }
     return .attributeUnsupported
 }
