@@ -79,6 +79,22 @@ describe('RepoTopologyRegistry', () => {
         expect(calls()).toBe(4);
     });
 
+    it('removes stale root indexes when a refreshed topology loses a worktree', async () => {
+        let roots = [primaryRoot, linkedRoot];
+        const { calls, registry } = createRegistry(() => roots);
+        const first = await registry.topology(primaryRoot);
+        const linked = first.worktrees.find((worktree) => worktree.rootPath.endsWith('/linked'))!;
+
+        roots = [primaryRoot];
+        registry.invalidate(first.repositoryKey);
+        await registry.topology(primaryRoot);
+
+        expect(registry.repositoryKeyForRoot(linked.rootPath)).toBeUndefined();
+        expect(registry.isFresh(linked.rootPath)).toBe(false);
+        await registry.topology(linked.rootPath);
+        expect(calls()).toBe(6);
+    });
+
     it('always reloads under force', async () => {
         const { calls, registry } = createRegistry(() => [primaryRoot]);
         await registry.topology(primaryRoot);
