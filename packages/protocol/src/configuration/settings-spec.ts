@@ -267,6 +267,16 @@ export const settingsSpec = [
         placeholder: 'Monaco default',
     },
     {
+        kind: 'boolean',
+        key: 'git.fetchGitHubAvatars',
+        title: 'Fetch commit avatars from GitHub',
+        description:
+            'Look up commit author avatars on GitHub; author emails are sent to github.com. Only used in repositories with a GitHub remote.',
+        category: 'security',
+        keywords: ['avatar', 'github', 'commit', 'author', 'privacy', 'email'],
+        default: true,
+    },
+    {
         kind: 'complex',
         key: 'security.trustedDomains',
         title: 'Trusted domains',

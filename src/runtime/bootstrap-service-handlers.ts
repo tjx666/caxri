@@ -45,6 +45,7 @@ type ServiceHandlerMethods =
     | 'git.diffDocument'
     | 'git.pullRequestChanges'
     | 'git.pullRequestDiffDocument'
+    | 'git.remoteHost'
     | 'git.commits'
     | 'git.commitDetails'
     | 'git.commitDiffDocument'
@@ -166,6 +167,7 @@ export function createServiceHandlers(services: {
             git.diffDocument(sessionId, repositoryId, path),
         'git.pullRequestChanges': (parameters) => git.pullRequestChanges(parameters),
         'git.pullRequestDiffDocument': (parameters) => git.pullRequestDiffDocument(parameters),
+        'git.remoteHost': (parameters) => git.remoteHost(parameters),
         'git.commits': (parameters) => git.commits(parameters),
         'git.commitDetails': (parameters) => git.commitDetails(parameters),
         'git.commitDiffDocument': (parameters) => git.commitDiffDocument(parameters),
