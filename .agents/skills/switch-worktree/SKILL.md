@@ -98,6 +98,15 @@ Never bypass the lease for a task that launches Electron, takes screenshots, ope
 or measures desktop performance. A verified live owner blocks the second task; a stale PID is
 reclaimed only when its process start identity no longer matches.
 
+The lease serializes repository-owned Electron desktop jobs between agent sessions. It does not
+reserve the developer's macOS keyboard focus or active application: those are user-global resources
+outside repository process coordination. Acquiring the lease therefore never authorizes taking or
+retaining foreground control. Prepare visible or native actions while backgrounded, then limit each
+foreground interval to one pre-authored interaction, its capture or readback, and immediate
+dismissal. If the result is unexpected, dismiss the owned native UI and stop the owned launch before
+investigating. Never iterate on Accessibility actions, synthesized input, or timing while the app
+remains frontmost, and never manipulate which developer application should regain focus.
+
 ## Remove safely
 
 Run removal from another associated checkout:

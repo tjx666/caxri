@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { execFileAsync } from '../../../../src/shared/node/exec';
 
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
+const ACCEPTANCE_CASE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
 const PROCESS_PROBE_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const PROCESS_PROBE_TIMEOUT_MS = 2_000;
 const acceptanceCaseModeSchema = z.enum(['isolated', 'restart']);
@@ -68,8 +69,12 @@ interface PrepareUserDataOptions {
     reuseUserDataDir?: string;
 }
 
+export function isAcceptanceCaseId(caseId: string): boolean {
+    return ACCEPTANCE_CASE_ID_PATTERN.test(caseId);
+}
+
 function normalizeCaseId(caseId: string = 'unscoped'): string {
-    if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u.test(caseId)) {
+    if (!isAcceptanceCaseId(caseId)) {
         throw new Error('Acceptance case id must use lowercase letters, digits, and hyphens');
     }
     return caseId;

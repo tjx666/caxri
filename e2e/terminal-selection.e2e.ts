@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import type { E2EApp as ElectronApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -109,6 +110,27 @@ async function terminalIds(page: Page): Promise<string[]> {
     return bootstrap.terminals.map((terminal) => terminal.id);
 }
 
+async function terminalCopyMenuItem(
+    app: ElectronApp,
+): Promise<{ accelerator: string | null; label: string } | undefined> {
+    return app.evaluate(({ Menu }) => {
+        const item = Menu.getApplicationMenu()?.getMenuItemById('command.terminal.copy');
+        return item ? { accelerator: item.accelerator, label: item.label } : undefined;
+    });
+}
+
+async function clickTerminalCopyMenuItem(app: ElectronApp): Promise<void> {
+    await app.evaluate(({ BrowserWindow, Menu }) => {
+        const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+        const item = Menu.getApplicationMenu()?.getMenuItemById('command.terminal.copy');
+        if (!item) {
+            throw new Error('Terminal copy menu item is unavailable');
+        }
+        const click = item.click as (...arguments_: unknown[]) => void;
+        click(item, window, { triggeredByAccelerator: false });
+    });
+}
+
 test('Cmd+C copies the focused Editor or Terminal selection across split panes', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-selection-e2e-'));
     const isCiParity = process.env.CAXRI_CI_PARITY_CASE === 'long-path-wrapped-terminal';
@@ -143,6 +165,12 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
     });
     let isClosed = false;
     try {
+        await expect
+            .poll(() => terminalCopyMenuItem(running.app))
+            .toEqual({
+                accelerator: null,
+                label: 'Copy Selection [⌘C]',
+            });
         if (isCiParity) {
             await running.app.evaluate(({ BrowserWindow }) =>
                 BrowserWindow.getAllWindows()[0]?.setBounds({ width: 720, height: 640 }),
@@ -231,6 +259,91 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         await running.page.keyboard.press('Meta+C');
         await expect.poll(() => running.clipboard.textEquals(editorCopyText)).toBe(true);
         await running.clipboard.claimText(editorCopyText);
+
+        /**
+         * An ordinary input is the fourth focus surface in the #264 priority contract. A background Terminal selection
+         * must not replace the input's selected text when the user presses Cmd+C.
+         */
+        await running.page.keyboard.press('Meta+,');
+        const settingsDialog = running.page.getByRole('dialog');
+        const settingsSearch = settingsDialog.getByLabel('Search settings');
+        const inputCopyText = 'INPUT_COPY_TARGET';
+        await settingsSearch.fill(inputCopyText);
+        await settingsSearch.press('Meta+A');
+        await running.clipboard.writeText('INPUT_COPY_SENTINEL');
+        await settingsSearch.press('Meta+C');
+        await expect.poll(() => running.clipboard.textEquals(inputCopyText)).toBe(true);
+        await running.clipboard.claimText(inputCopyText);
+        await running.page.keyboard.press('Escape');
+        await expect(settingsDialog).toHaveCount(0);
+
+        const keybindings = await pageRequest<{
+            value: Array<{ command: string; key: string; when?: 'terminalFocus' }>;
+        }>(running.page, 'keybindings.get');
+        const customCopyKeybindings = keybindings.value.map((binding) =>
+            binding.command === 'terminal.copy' ? { ...binding, key: 'cmd+shift+c' } : binding,
+        );
+        await pageRequest(running.page, 'keybindings.update', {
+            source: JSON.stringify(customCopyKeybindings, null, 2),
+        });
+        await expect
+            .poll(() => terminalCopyMenuItem(running.app))
+            .toEqual({
+                accelerator: null,
+                label: 'Copy Selection [⇧⌘C]',
+            });
+
+        await running.page.keyboard.press('Meta+,');
+        const keybindingsDialog = running.page.getByRole('dialog');
+        await keybindingsDialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        const keybindingsSearch = keybindingsDialog.getByLabel('Search keyboard shortcuts');
+        await keybindingsSearch.fill('terminal.copy');
+        await expect(keybindingsDialog.locator('[data-shortcut="cmd+shift+c"]')).toBeVisible();
+        await keybindingsSearch.press('Meta+A');
+        await running.clipboard.writeText('REBIND_INPUT_COPY_SENTINEL');
+        await keybindingsSearch.press('Meta+C');
+        await expect.poll(() => running.clipboard.textEquals('terminal.copy')).toBe(true);
+        await running.clipboard.claimText('terminal.copy');
+        await running.page.keyboard.press('Escape');
+        await expect(keybindingsDialog).toHaveCount(0);
+
+        await running.page
+            .locator(`.work-tab[data-terminal-id="${secondTerminalId}"] [role="tab"]`)
+            .click();
+        await expect(secondRows).toContainText(splitText);
+        await selectTerminalText(running.page, secondTerminalId, splitText, splitText);
+        await expect.poll(() => running.clipboard.textEquals(splitText)).toBe(true);
+        await running.clipboard.claimText(splitText);
+        await running.clipboard.writeText('CUSTOM_COPY_COMMAND_SENTINEL');
+        await secondInput.focus();
+        await secondInput.press('Meta+Shift+C');
+        await expect.poll(() => running.clipboard.textEquals(splitText)).toBe(true);
+        await running.clipboard.claimText(splitText);
+
+        /**
+         * Invoke the built application menu item separately from its displayed label and keyboard route. The acceptance
+         * pass covers the physical macOS menu click; this assertion keeps the Main-to-Renderer command dispatch and
+         * focused Terminal clipboard behavior under deterministic Electron regression coverage.
+         */
+        await running.clipboard.writeText('NATIVE_TERMINAL_MENU_COPY_SENTINEL');
+        await secondInput.focus();
+        await clickTerminalCopyMenuItem(running.app);
+        await expect.poll(() => running.clipboard.textEquals(splitText)).toBe(true);
+        await running.clipboard.claimText(splitText);
+
+        await pageRequest(running.page, 'keybindings.update', {
+            source: JSON.stringify(
+                customCopyKeybindings.filter((binding) => binding.command !== 'terminal.copy'),
+                null,
+                2,
+            ),
+        });
+        await expect
+            .poll(() => terminalCopyMenuItem(running.app))
+            .toEqual({
+                accelerator: null,
+                label: 'Copy Selection',
+            });
 
         await running.clipboard.writeText(String.raw`printf 'PASTE_STILL_WORKS\n'`);
         await running.page
