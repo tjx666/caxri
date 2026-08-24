@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import type { ExtensionTreeViewState, TreeItemDto } from '@shared/views';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -36,13 +36,11 @@ import {
     isTreeItemFocused,
     keyboardTreeRowAction,
     pointerTreeRowAction,
-    reconcileTreeItems,
-    replaceTreeChildren,
     toggleTreeItem,
 } from './extension-tree-state';
+import { ROOT_HANDLE, useExtensionTreeChildren } from './use-extension-tree-children';
 import { useExtensionTreeState } from './use-extension-tree-state';
 
-const ROOT_HANDLE = '__caxri_tree_root__';
 const themeIcons = {
     'check': Check,
     'circle-check': CircleCheck,
@@ -228,139 +226,11 @@ function ExtensionTreeViewContent({
     viewId: string;
 }) {
     const scrollElement = useRef<HTMLDivElement>(null);
-    const requests = useRef(new Map<string, string>());
-    const childrenReference = useRef<ReadonlyMap<string, readonly TreeItemDto[]>>(new Map());
-    const [children, setChildren] = useState<ReadonlyMap<string, readonly TreeItemDto[]>>(
-        () => childrenReference.current,
-    );
-    const [errors, setErrors] = useState<ReadonlyMap<string, string>>(() => new Map());
-    const [loading, setLoading] = useState<ReadonlySet<string>>(() => new Set([ROOT_HANDLE]));
     const [treeState, updateTreeState] = useExtensionTreeState(scope, persisted);
-
-    const replaceLoadedChildren = useCallback(
-        (parentHandle: string, items: readonly TreeItemDto[]): void => {
-            const replacement = replaceTreeChildren(childrenReference.current, parentHandle, items);
-            childrenReference.current = replacement.children;
-            setChildren(replacement.children);
-            if (replacement.retiredHandles.size === 0) return;
-
-            for (const handle of replacement.retiredHandles) {
-                const requestId = requests.current.get(handle);
-                if (!requestId) continue;
-                requests.current.delete(handle);
-                // eslint-disable-next-line no-void -- refreshed descendants invalidate their in-flight requests
-                void caxri.request('viewContainers.cancelRequest', { requestId });
-            }
-            setErrors((current) => {
-                const next = new Map(current);
-                for (const handle of replacement.retiredHandles) next.delete(handle);
-                return next;
-            });
-            setLoading((current) => {
-                const next = new Set(current);
-                for (const handle of replacement.retiredHandles) next.delete(handle);
-                return next;
-            });
-        },
-        [],
+    const { children, errors, loading, loadChildren, requests } = useExtensionTreeChildren(
+        viewId,
+        updateTreeState,
     );
-
-    const resetLoadedChildren = useCallback((): void => {
-        for (const requestId of requests.current.values()) {
-            // eslint-disable-next-line no-void -- a root refresh invalidates every in-flight branch request
-            void caxri.request('viewContainers.cancelRequest', { requestId });
-        }
-        requests.current.clear();
-        const empty = new Map<string, readonly TreeItemDto[]>();
-        childrenReference.current = empty;
-        setChildren(empty);
-        setErrors(new Map());
-        setLoading(new Set());
-    }, []);
-
-    const loadChildren = useCallback(
-        async (parentHandle: string): Promise<void> => {
-            const previousRequestId = requests.current.get(parentHandle);
-            if (previousRequestId) {
-                // eslint-disable-next-line no-void -- cancellation is best-effort and the next request owns loading state
-                void caxri.request('viewContainers.cancelRequest', {
-                    requestId: previousRequestId,
-                });
-            }
-            const requestId = crypto.randomUUID();
-            requests.current.set(parentHandle, requestId);
-            setLoading((current) => new Set(current).add(parentHandle));
-            setErrors((current) => {
-                const next = new Map(current);
-                next.delete(parentHandle);
-                return next;
-            });
-            try {
-                const result = await caxri.request('viewContainers.treeChildren', {
-                    viewId,
-                    requestId,
-                    ...(parentHandle !== ROOT_HANDLE && { parentHandle }),
-                });
-                if (requests.current.get(parentHandle) !== requestId) return;
-                if (result.reset) resetLoadedChildren();
-                const resultParentHandle = result.reset ? ROOT_HANDLE : parentHandle;
-                replaceLoadedChildren(resultParentHandle, result.items);
-                updateTreeState((current) => {
-                    let next = reconcileTreeItems(current, result.items);
-                    if (resultParentHandle === ROOT_HANDLE && !next.focusedKey && result.items[0])
-                        next = focusTreeItem(next, result.items[0]);
-                    return next;
-                });
-            } catch (error) {
-                if (requests.current.get(parentHandle) !== requestId) return;
-                setErrors((current) =>
-                    new Map(current).set(
-                        parentHandle,
-                        error instanceof Error ? error.message : String(error),
-                    ),
-                );
-            } finally {
-                if (requests.current.get(parentHandle) === requestId) {
-                    requests.current.delete(parentHandle);
-                    setLoading((current) => {
-                        const next = new Set(current);
-                        next.delete(parentHandle);
-                        return next;
-                    });
-                }
-            }
-        },
-        [replaceLoadedChildren, resetLoadedChildren, updateTreeState, viewId],
-    );
-
-    useEffect(() => {
-        // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
-        void loadChildren(ROOT_HANDLE);
-        const unsubscribe = caxri.onEvent((event) => {
-            if (event.event !== 'viewContainers.treeChanged' || event.payload.viewId !== viewId)
-                return;
-            if (!event.payload.handles) {
-                resetLoadedChildren();
-                // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
-                void loadChildren(ROOT_HANDLE);
-                return;
-            }
-            const handles = event.payload.handles;
-            for (const handle of handles) {
-                // eslint-disable-next-line no-void -- each changed branch reports failures in the tree's error row
-                void loadChildren(handle);
-            }
-        });
-        const activeRequests = requests.current;
-        return () => {
-            unsubscribe();
-            for (const requestId of activeRequests.values()) {
-                // eslint-disable-next-line no-void -- cancellation is best-effort during unmount
-                void caxri.request('viewContainers.cancelRequest', { requestId });
-            }
-            activeRequests.clear();
-        };
-    }, [loadChildren, resetLoadedChildren, viewId]);
 
     const rows = useMemo(
         () => flattenRows(children, errors, (item) => isTreeItemExpanded(treeState, item), loading),
@@ -378,7 +248,7 @@ function ExtensionTreeViewContent({
             // eslint-disable-next-line no-void -- restored/provider expansion reports failures in its tree branch
             void loadChildren(handle);
         }
-    }, [children, errors, loadChildren, loading, treeState]);
+    }, [children, errors, loadChildren, loading, requests, treeState]);
     const virtualizer = useVirtualizer({
         count: rows.length,
         estimateSize: () => 28,

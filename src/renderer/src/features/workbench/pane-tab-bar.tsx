@@ -1,4 +1,3 @@
-import type { DragEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { pathBasename } from '@caxri/utils';
@@ -32,29 +31,11 @@ import {
     terminalProgressLabel,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
-import { movePaneTab, selectPaneTab } from './pane-actions';
-import { PANE_TAB_DRAG_TYPE, resolveTabDropIndex } from './pane-drop-zone';
+import { selectPaneTab } from './pane-actions';
+import { PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { PaneTabMenu } from './pane-tab-menu';
 import { useScrollEdges } from './tab-scroll-edges';
-
-function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
-    return event.dataTransfer.types.includes(PANE_TAB_DRAG_TYPE);
-}
-
-/**
- * How long a drag has to linger over another tab before that tab's pane treats it as selected, previewing its content
- * the way VS Code does while a tab drag is still in progress (`multiEditorTabsControl.ts`,
- * `DRAG_OVER_OPEN_TAB_THRESHOLD`). The value matches VS Code's deliberately unhurried 1.5s: a shorter delay flips the
- * content under a cursor that is only passing over a tab on its way to the drop position. Mirrors
- * `AUTO_COLLAPSE_IDLE_DELAY_MS`'s naming (`use-project-collapse.ts`).
- */
-const TAB_DRAG_HOVER_SWITCH_DELAY_MS = 1500;
-
-function paneTabIdAt(target: EventTarget | null): string | undefined {
-    return target instanceof Element
-        ? (target.closest<HTMLElement>('[data-pane-tab-id]')?.dataset.paneTabId ?? undefined)
-        : undefined;
-}
+import { usePaneTabDrag } from './use-pane-tab-drag';
 
 /**
  * Agent activity for the Terminal that owns the selected Session's title, or `undefined` for a Shell and for a
@@ -310,7 +291,6 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: b
  */
 export function PaneTabBar({
     hasTabsToSwitch,
-    isActivePane,
     isOnlySessionTerminal,
     isRootBar,
     pane,
@@ -324,21 +304,12 @@ export function PaneTabBar({
      * reachable meanwhile.
      */
     hasTabsToSwitch: boolean;
-    /**
-     * Whether this pane owns `activePaneId` — DESIGN.md principle 2's "one durable accent focus per screen": the tab
-     * border and the pane ring express the same focus and count as one. After a split, only the focused pane's active
-     * tab wears the accent border; an unfocused pane's active tab keeps its selection fill (VS Code's unfocused editor
-     * group behavior) but drops the accent, so two panes never both claim the screen's one accent at once.
-     */
-    isActivePane: boolean;
     isOnlySessionTerminal: boolean;
     isRootBar: boolean;
     pane: PaneNode;
     paneLabel: string;
 }) {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
-    const [isDropTarget, setIsDropTarget] = useState(false);
-    const [dropIndicatorLeft, setDropIndicatorLeft] = useState<number | undefined>(undefined);
     const barReference = useRef<HTMLDivElement>(null);
     /**
      * `overflow-x-auto` gives no visual cue that there are more tabs off to a side; a gradient fade — shown only on the
@@ -352,37 +323,22 @@ export function PaneTabBar({
         scrollStartSentinel,
         scrollEndSentinel,
     );
-    const hoverTabIdReference = useRef<string | undefined>(undefined);
-    const hoverTimeoutReference = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const {
+        dropIndicatorLeft,
+        isDropTarget,
+        onDragEnter,
+        onDragLeave,
+        onDragOver,
+        onDragStart,
+        onDrop,
+    } = usePaneTabDrag(pane, barReference);
     /**
-     * `dataTransfer.getData` cannot be read during `dragover` (only `types` is exposed before `drop`), so — mirroring
-     * `draggedProjectId` in `use-project-order.ts` — the id is captured off the bubbled `dragstart` DOM event instead,
-     * which lets `dragover` exclude the dragged tab's own (unmoved) rect from both the insertion-line geometry and the
-     * hover-preview target, the same way `onDrop` below already excludes it from its own rects.
+     * Whether this pane owns `activePaneId` — DESIGN.md principle 2's "one durable accent focus per screen": the tab
+     * border and the pane ring express the same focus and count as one. After a split, only the focused pane's active
+     * tab wears the accent border; an unfocused pane's active tab keeps its selection fill (VS Code's unfocused editor
+     * group behavior) but drops the accent, so two panes never both claim the screen's one accent at once.
      */
-    const draggedTabIdReference = useRef<string | undefined>(undefined);
-    const clearHoverSwitch = (): void => {
-        hoverTabIdReference.current = undefined;
-        clearTimeout(hoverTimeoutReference.current);
-        hoverTimeoutReference.current = undefined;
-    };
-    useEffect(() => {
-        /**
-         * `dragend` fires on the drag source and only bubbles through its own bar's ancestors, so a drag cancelled
-         * (Escape, dropped outside any bar) while over a _different_ pane's bar would otherwise leave that other bar's
-         * insertion line and pending hover-switch timer stuck. A window-level listener clears every bar's state.
-         */
-        const onWindowDragEnd = (): void => {
-            setDropIndicatorLeft(undefined);
-            clearHoverSwitch();
-            draggedTabIdReference.current = undefined;
-        };
-        addEventListener('dragend', onWindowDragEnd);
-        return () => {
-            removeEventListener('dragend', onWindowDragEnd);
-            clearHoverSwitch();
-        };
-    }, []);
+    const isActivePane = useSessionState()?.paneLayout.activePaneId === pane.id;
     const activeTabId =
         pane.tabs.find((tab) => tab.id === pane.activeTabId)?.id ?? pane.tabs[0]?.id;
     /**
@@ -414,23 +370,6 @@ export function PaneTabBar({
         }
         selectPaneTab(target);
     };
-    /**
-     * Activating a tab under a live drag must not hand it the keyboard: VS Code previews the dragged-over editor with
-     * `openEditor(..., { preserveFocus: true })` (`multiEditorTabsControl.ts`). A previewed Terminal would otherwise
-     * pull focus into xterm mid-drag, so it reuses `navigate`'s marker — Document tabs never move focus on activation
-     * and are left alone.
-     */
-    const previewTab = (tabId: string): void => {
-        const tab = pane.tabs.find((candidate) => candidate.id === tabId);
-        if (tab?.resource.kind === 'terminal') {
-            const element = document.querySelector<HTMLElement>(`#${CSS.escape(workTabId(tabId))}`);
-            if (element) {
-                element.dataset.preserveTerminalFocus = 'true';
-                element.focus();
-            }
-        }
-        selectPaneTab(tabId);
-    };
     return (
         <div
             className={cn(
@@ -442,75 +381,11 @@ export function PaneTabBar({
                 isDropTarget && 'bg-elevated',
             )}
             data-pane-tab-bar={pane.id}
-            onDragStart={(event) => {
-                draggedTabIdReference.current = paneTabIdAt(event.target);
-            }}
-            onDragEnter={(event) => {
-                if (!canAcceptDrop(event)) return;
-                event.preventDefault();
-                setIsDropTarget(true);
-            }}
-            onDragLeave={(event) => {
-                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-                setIsDropTarget(false);
-                setDropIndicatorLeft(undefined);
-                clearHoverSwitch();
-            }}
-            onDragOver={(event) => {
-                if (!canAcceptDrop(event)) return;
-                event.preventDefault();
-                event.dataTransfer.dropEffect = 'move';
-                /**
-                 * Lingering over another tab previews its content, matching VS Code: the drop still lands where the
-                 * insertion line points, but the user can see what they are dropping next to while the drag is live.
-                 */
-                const hoveredTabId = paneTabIdAt(event.target);
-                const hoverSwitchTargetId =
-                    hoveredTabId !== draggedTabIdReference.current ? hoveredTabId : undefined;
-                if (hoverSwitchTargetId !== hoverTabIdReference.current) {
-                    hoverTabIdReference.current = hoverSwitchTargetId;
-                    clearTimeout(hoverTimeoutReference.current);
-                    hoverTimeoutReference.current = hoverSwitchTargetId
-                        ? setTimeout(
-                              () => previewTab(hoverSwitchTargetId),
-                              TAB_DRAG_HOVER_SWITCH_DELAY_MS,
-                          )
-                        : undefined;
-                }
-                const scrollElement = barReference.current;
-                if (!scrollElement) return;
-                const tabElements =
-                    scrollElement.querySelectorAll<HTMLElement>('[data-pane-tab-id]');
-                const tabRects: DOMRect[] = [];
-                for (const element of tabElements) {
-                    if (element.dataset.paneTabId !== draggedTabIdReference.current)
-                        tabRects.push(element.getBoundingClientRect());
-                }
-                if (tabRects.length === 0) return;
-                const index = resolveTabDropIndex(tabRects, event.clientX);
-                const targetRect = index === undefined ? tabRects.at(-1) : tabRects[index];
-                if (!targetRect) return;
-                const scrollRect = scrollElement.getBoundingClientRect();
-                const edgeX = index === undefined ? targetRect.right : targetRect.left;
-                setDropIndicatorLeft(edgeX - scrollRect.left + scrollElement.scrollLeft);
-            }}
-            onDrop={(event) => {
-                setIsDropTarget(false);
-                setDropIndicatorLeft(undefined);
-                clearHoverSwitch();
-                draggedTabIdReference.current = undefined;
-                const tabId = event.dataTransfer.getData(PANE_TAB_DRAG_TYPE);
-                if (!tabId) return;
-                event.preventDefault();
-                const tabElements =
-                    barReference.current?.querySelectorAll<HTMLElement>('[data-pane-tab-id]') ?? [];
-                const tabRects: DOMRect[] = [];
-                for (const element of tabElements) {
-                    if (element.dataset.paneTabId !== tabId)
-                        tabRects.push(element.getBoundingClientRect());
-                }
-                movePaneTab(tabId, pane.id, resolveTabDropIndex(tabRects, event.clientX));
-            }}
+            onDragStart={onDragStart}
+            onDragEnter={onDragEnter}
+            onDragLeave={onDragLeave}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
         >
             <div className="relative flex min-w-0 flex-1">
                 <div
