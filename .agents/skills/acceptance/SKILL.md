@@ -28,12 +28,16 @@ substitutes for the real desktop path when the claim is user-visible.
   take macOS focus during verification.
 - Follow the desktop lease's
   [human-focus boundary](../switch-worktree/SKILL.md#serialize-desktop-work).
-  Finish fixture inputs, capture paths, and the exact native action before launch.
-  The launch may show the window, but remaining CDP setup and evidence authoring
-  must not activate or repeatedly reassert it. A deliberate frontmost interval
-  contains one pre-authored native interaction, its capture or readback, and
-  immediate dismissal. On the first unexpected result, close the owned native UI
-  and stop the owned launch before investigating.
+  Before calling `start-electron.ts`, resolve every fixture input, artifact path,
+  interaction, expected result, and cleanup command for the current case. Once the
+  launch begins, do not look up tool schemas or CLI help, author scripts or evidence,
+  or take exploratory captures. React to the adapter's `status: ready` receipt
+  without adding a fixed post-readiness wait. Read-only CDP work must not call
+  `Page.bringToFront`, `Target.activateTarget`, synthesize input, or otherwise
+  reassert the app. A deliberate frontmost interval contains one pre-authored
+  native interaction, its capture or readback, and immediate dismissal. On the
+  first observation that does not match the pre-authored expectation, close the
+  owned native UI and stop the owned launch before investigating.
 - Use CDP and `agent-browser` for renderer interaction, DOM inspection, and
   screenshots. Use OS capture only when the criterion is specifically about
   Electron or macOS chrome that CDP cannot see.
@@ -88,7 +92,7 @@ Read [references/report.md](references/report.md) before authoring the report an
 
 ## Execute the desktop round
 
-1. Build and launch from the adapter. Run every state-mutating case in a fresh
+1. Pass the pre-launch boundary above, then build and launch from the adapter. Run every state-mutating case in a fresh
    launch with `--report-dir <round> --case-id <stable-id>`. Only a declared restart case may use
    `--case-mode restart --reuse-user-data`; its final launch must pass
    `--cleanup-reused-user-data`. Confirm the CDP target is the Caxri renderer,
