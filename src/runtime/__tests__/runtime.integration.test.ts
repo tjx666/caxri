@@ -767,6 +767,7 @@ describe('Session state recovery', () => {
                 created.terminal!.id,
             ]);
 
+            await logger.flush();
             const records = (await readFile(logger.path, 'utf8'))
                 .trim()
                 .split('\n')

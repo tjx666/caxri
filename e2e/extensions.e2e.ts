@@ -230,8 +230,24 @@ esac
             env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
         });
         await running.page.getByRole('tab', { name: 'Status', exact: true }).click();
-        await running.page.keyboard.press('Meta+Alt+r');
         const restoredTree = running.page.getByRole('tree', { name: 'Extension View' });
+        /**
+         * Activation restores the tree asynchronously. Wait for that request before forcing another refresh so the
+         * fixture validates refresh persistence instead of racing two provider generations under CI load.
+         */
+        await expect(
+            restoredTree.getByRole('treeitem', { name: '#42 Status B', exact: true }),
+        ).toBeVisible();
+        await writeFile(statusTitlePath, 'Status C');
+        /**
+         * The custom shortcut is already proven before relaunch. Use the restored extension's command palette entry
+         * here so this recovery assertion starts a new provider generation only after command registration is ready.
+         */
+        await running.page.keyboard.press('Meta+Shift+P');
+        await running.page.getByText('Refresh Project Status', { exact: true }).click();
+        await expect(
+            restoredTree.getByRole('treeitem', { name: '#42 Status C', exact: true }),
+        ).toBeVisible();
         const restoredDeployments = restoredTree.getByRole('treeitem', {
             name: 'Deployments, 1 on preview',
             exact: true,

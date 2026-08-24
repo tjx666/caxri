@@ -31,7 +31,11 @@ function stubHandlers(overrides: Partial<Record<RuntimeMethod, unknown>> = {}): 
     return { ...table, ...overrides } as unknown as RuntimeHandlers;
 }
 
+/**
+ * Request completion does not imply that buffered log records are durable yet.
+ */
 async function logRecords(logger: StructuredLogger) {
+    await logger.flush();
     const source = (await readFile(logger.path, 'utf8')).trim();
     return source
         ? source.split('\n').map(

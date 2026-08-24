@@ -13,6 +13,7 @@ import {
 } from '../../shared/node/e2e-agent-policy';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
+import { clearScheduledTimer } from '../../shared/node/timer';
 import type {
     TerminalFailureReason,
     TerminalRecord,
@@ -53,14 +54,6 @@ import { createTerminalTitleListener } from './terminal-title';
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 const ptyLogEvents = logEventCatalog.pty;
 
-/**
- * Clears an optional timer and returns its replacement.
- */
-function clearScheduledTimer(timer: NodeJS.Timeout | undefined): undefined {
-    if (timer) clearTimeout(timer);
-    return;
-}
-
 export class TerminalManager {
     private readonly terminals = new Map<string, LiveTerminal>();
     private readonly attached = new Set<string>();
@@ -82,6 +75,7 @@ export class TerminalManager {
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
     private readonly shellIntegration?: TerminalManagerOptions['shellIntegration'];
     private readonly terminalColors?: TerminalManagerOptions['terminalColors'];
+    private readonly outputFlushMs: number;
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -99,6 +93,9 @@ export class TerminalManager {
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onOutputActivity = options.onOutputActivity;
         this.onStateChanged = options.onStateChanged;
+        this.outputFlushMs = options.outputFlushMs ?? 16;
+        if (!Number.isSafeInteger(this.outputFlushMs) || this.outputFlushMs < 1)
+            throw new RangeError('Terminal output flush delay must be a positive integer');
         this.snapshots = new TerminalSnapshotPersistence(database, logger);
         this.spawnProcess = options.spawn ?? pty.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
@@ -327,7 +324,7 @@ export class TerminalManager {
             const droppedBytes = live.imageOutput.push(filtered, live.outputQueue);
             live.droppedBytes += droppedBytes;
             live.metricDroppedBytes += droppedBytes;
-            live.outputTimer ??= setTimeout(() => this.flushOutput(live), 16);
+            live.outputTimer ??= setTimeout(() => this.flushOutput(live), this.outputFlushMs);
         }
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
     }

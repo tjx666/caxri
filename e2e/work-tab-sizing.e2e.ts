@@ -66,6 +66,20 @@ async function waitForTabMotionToSettle(page: Page): Promise<void> {
     await page.waitForTimeout(settleMs + 50);
 }
 
+/**
+ * Opening the next file before the previous double-click creates its tab can replace or lose an input under CI load.
+ * Bind each fixture action to the observable tab count so the later drag assertions start from the intended documents.
+ */
+async function openDocumentTabs(page: Page, fileNames: readonly string[]): Promise<void> {
+    const documentTabs = page.locator('.work-tabs .work-tab:not([data-terminal-id])');
+    for (const [index, name] of fileNames.entries()) {
+        // eslint-disable-next-line no-await-in-loop -- each open is causally ordered by the rendered tab receipt
+        await page.getByRole('treeitem', { name, exact: true }).dblclick();
+        // eslint-disable-next-line no-await-in-loop -- the next double-click must not race the current tab creation
+        await expect(documentTabs).toHaveCount(index + 1);
+    }
+}
+
 test('Terminal tabs fill the bar, Document tabs size to content, and the bar scrolls once both overflow', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-mixed-width-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -86,10 +100,7 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
         const terminalTabs = strip.locator('.work-tab[data-terminal-id]');
         const documentTabs = strip.locator('.work-tab:not([data-terminal-id])');
 
-        for (const name of fileNames) {
-            // eslint-disable-next-line no-await-in-loop -- each open depends on the file tree settling from the previous one
-            await running.page.getByRole('treeitem', { name, exact: true }).dblclick();
-        }
+        await openDocumentTabs(running.page, fileNames);
         await expect(documentTabs).toHaveCount(2);
         await waitForTabMotionToSettle(running.page);
 
@@ -233,10 +244,7 @@ test('dragging a work tab within its pane bar drops it at the pointed-at positio
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        for (const name of fileNames) {
-            // eslint-disable-next-line no-await-in-loop -- each open depends on the file tree settling from the previous one
-            await running.page.getByRole('treeitem', { name, exact: true }).dblclick();
-        }
+        await openDocumentTabs(running.page, fileNames);
         const documentTabs = running.page.locator('.work-tabs .work-tab:not([data-terminal-id])');
         await expect(documentTabs).toHaveCount(3);
         await waitForTabMotionToSettle(running.page);
@@ -301,10 +309,7 @@ test('dragging a work tab over a sibling shows an insertion line and previews th
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
-        for (const name of fileNames) {
-            // eslint-disable-next-line no-await-in-loop -- each open depends on the file tree settling from the previous one
-            await running.page.getByRole('treeitem', { name, exact: true }).dblclick();
-        }
+        await openDocumentTabs(running.page, fileNames);
         const documentTabs = running.page.locator('.work-tabs .work-tab:not([data-terminal-id])');
         await expect(documentTabs).toHaveCount(3);
         await waitForTabMotionToSettle(running.page);

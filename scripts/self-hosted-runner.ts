@@ -17,6 +17,7 @@ import process from 'node:process';
 import {
     assertDesktopLeasesReleased,
     reclaimDesktopLeasesByOwner,
+    reclaimStaleCiDesktopLeases,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
 import type { AgentProvider } from '../src/shared/agents';
 import { agentProviderIds } from '../src/shared/agents';
@@ -266,6 +267,7 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
         throw new Error('Self-hosted checkout does not match the exact expected head');
     }
     await assertCleanWorkspace(workspace);
+    await reclaimStaleCiDesktopLeases(workspace);
     await assertDesktopLeasesReleased(workspace);
 
     const runRoot = join(runnerTemporary, owner);

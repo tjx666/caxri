@@ -222,7 +222,10 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         await running.page.getByRole('treeitem', { name: 'editor-copy.ts', exact: true }).click();
         const editor = running.page.locator('.monaco-editor').first();
         await expect(editor).toBeVisible();
-        await editor.click({ position: { x: 120, y: 24 } });
+        /**
+         * The 720px parity window leaves only about 104px of Editor visible beside the open Secondary Sidebar.
+         */
+        await editor.click({ position: { x: 20, y: 24 } });
         await running.clipboard.writeText('EDITOR_COPY_SENTINEL');
         await running.page.keyboard.press('Meta+A');
         await running.page.keyboard.press('Meta+C');

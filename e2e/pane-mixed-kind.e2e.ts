@@ -204,6 +204,18 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         await expect.poll(() => activePaneId(running.page)).toBe(documentPaneId);
         await terminalTab.getByRole('tab').click();
         await expect.poll(() => activePaneId(running.page)).toBe(terminalPaneId);
+        /**
+         * PaneBox keeps the pointer-click path marked through the next animation frame so its following focus event
+         * does not persist the same selection twice. Let that click lifecycle retire before exercising programmatic
+         * focus; otherwise a fast runner can incorrectly classify this independent focus as part of the preceding
+         * click.
+         */
+        await running.page.evaluate(
+            () =>
+                new Promise<void>((resolve) => {
+                    requestAnimationFrame(() => resolve());
+                }),
+        );
 
         /**
          * Every pane's active tab is `tabIndex=0`, so plain `Tab` traversal can put focus in a pane the user has not

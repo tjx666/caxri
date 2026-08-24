@@ -221,6 +221,10 @@ export class DesktopHostConnection extends EventTarget {
                 ...(process.env.CAXRI_E2E_WORKER_NAMESPACE && {
                     CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE,
                 }),
+                ...(process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS && {
+                    CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS:
+                        process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS,
+                }),
                 ...(process.env.CAXRI_TEST_ROOT_PATH && {
                     CAXRI_TEST_ROOT_PATH: process.env.CAXRI_TEST_ROOT_PATH,
                 }),
