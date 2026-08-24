@@ -199,7 +199,6 @@ describe('GitService', () => {
         releaseResolution.resolve();
         await staleSummary;
         git.observeFilesChanged({ sessionId: session.id, changes: [{ path: 'tracked.txt' }] });
-        await new Promise((resolve) => setTimeout(resolve, 200));
 
         expect(events).toEqual([]);
         expect(watch).not.toHaveBeenCalled();
@@ -209,7 +208,7 @@ describe('GitService', () => {
         const replacement = database.createSession(project.id, 'shell').session;
         await git.summary(replacement.id);
         git.observeFilesChanged({ sessionId: replacement.id, changes: [{ path: 'tracked.txt' }] });
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await vi.waitFor(() => expect(events).toHaveLength(1));
         expect(events).toHaveLength(1);
         const [event] = events;
         expect(event.event).toBe('git.changed');
