@@ -46,15 +46,16 @@ export interface PathBrowserCreateCandidate {
  * The `bodil/vscode-file-browser` signature affordance: once filtering proves nothing in the current directory matches,
  * typing a name offers to create it — a trailing `/` is the folder signal (matching Tab-completion's own
  * directory-suffix convention). Only offered on an authoritative empty result: a truncated scan might still contain a
- * match Caxri never fetched, so offering to create there could shadow an existing file instead of genuinely making a
- * new one.
+ * match Caxri never fetched, and a debounced query can temporarily expose zero matches before its result is ready.
+ * Offering to create in either state could shadow an existing file instead of genuinely making a new one.
  */
 export function pathBrowserCreateCandidate(
     query: string,
     matchCount: number,
     isTruncated: boolean,
+    isResultsReady: boolean,
 ): PathBrowserCreateCandidate | undefined {
-    if (isTruncated || !query || matchCount > 0) return undefined;
+    if (!isResultsReady || isTruncated || !query || matchCount > 0) return undefined;
     const kind: PathBrowserCreateCandidate['kind'] = query.endsWith('/') ? 'directory' : 'file';
     const name = kind === 'directory' ? query.slice(0, -1) : query;
     if (!name || name === '.' || name === '..' || name.includes('/')) return undefined;
