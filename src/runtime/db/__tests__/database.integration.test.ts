@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import Database from 'better-sqlite3';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { listPaneTerminalIds } from '../../../shared/pane-layout';
 import { CURRENT_SCHEMA_VERSION } from '../connection';
@@ -554,7 +554,7 @@ describe('CaxriDatabaseConnection', () => {
         database.close();
     });
 
-    it('loads all Session states in one ordered query', async () => {
+    it('loads all Session states with one Terminal ownership query', async () => {
         const directory = await temporaryDirectory('caxri-db-session-states-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const project = database.projects.create(directory);
@@ -570,9 +570,14 @@ describe('CaxriDatabaseConnection', () => {
         database.sessions.insertInitialState(first.id, insertTerminal(first.id).id);
         database.sessions.insertInitialState(second.id, insertTerminal(second.id).id);
 
+        const prepare = vi.spyOn(database.database, 'prepare');
+
         expect(database.sessions.listStates().map((state) => state.sessionId)).toEqual(
             database.sessions.list().map((session) => session.id),
         );
+        expect(
+            prepare.mock.calls.filter(([statement]) => statement.includes('from "terminals"')),
+        ).toHaveLength(1);
         database.close();
     });
 });

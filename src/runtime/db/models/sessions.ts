@@ -213,21 +213,39 @@ export class SessionsModel {
      * that has never been arranged shows, and what a Session falls back to after an unreadable state row: no Terminal
      * may be missing from a Root's snapshot, or its PTY would keep running with nothing showing it.
      */
-    private defaultPaneLayout(sessionId: string): SessionState['paneLayout'] {
-        const sessionTerminals = this.database
+    private orderedTerminalIds(sessionId: string): string[] {
+        return this.database
             .select({ id: terminals.id })
             .from(terminals)
             .where(eq(terminals.sessionId, sessionId))
             .orderBy(asc(terminals.orderIndex), asc(terminals.id))
+            .all()
+            .map((terminal) => terminal.id);
+    }
+
+    private orderedTerminalIdsBySession(): ReadonlyMap<string, readonly string[]> {
+        const terminalIdsBySession = new Map<string, string[]>();
+        const rows = this.database
+            .select({ id: terminals.id, sessionId: terminals.sessionId })
+            .from(terminals)
+            .orderBy(asc(terminals.sessionId), asc(terminals.orderIndex), asc(terminals.id))
             .all();
-        return sessionTerminals.reduce(
-            (layout, terminal) =>
-                openResource(layout, { kind: 'terminal', terminalId: terminal.id }),
+        for (const terminal of rows) {
+            const terminalIds = terminalIdsBySession.get(terminal.sessionId);
+            if (terminalIds) terminalIds.push(terminal.id);
+            else terminalIdsBySession.set(terminal.sessionId, [terminal.id]);
+        }
+        return terminalIdsBySession;
+    }
+
+    private defaultPaneLayout(terminalIds: readonly string[]): SessionState['paneLayout'] {
+        return terminalIds.reduce(
+            (layout, terminalId) => openResource(layout, { kind: 'terminal', terminalId }),
             createPaneLayout(),
         );
     }
 
-    private defaultState(sessionId: string): SessionState {
+    private defaultState(sessionId: string, terminalIds: readonly string[]): SessionState {
         const session = this.database
             .select({
                 projectId: sessions.projectId,
@@ -240,21 +258,25 @@ export class SessionsModel {
             sessionId,
             workbenchProjectId: session?.workbenchProjectId ?? session?.projectId ?? '',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
-            paneLayout: this.defaultPaneLayout(sessionId),
+            paneLayout: this.defaultPaneLayout(terminalIds),
         };
     }
 
-    private readState(row: SessionStateRow): SessionState {
-        const parsed = parseSessionState(row, () => this.defaultPaneLayout(row.sessionId));
+    private readState(row: SessionStateRow, terminalIds?: readonly string[]): SessionState {
+        const ownedTerminalIds = terminalIds ?? this.orderedTerminalIds(row.sessionId);
+        const parsed = parseSessionState(row, () => this.defaultPaneLayout(ownedTerminalIds));
         if ('state' in parsed) {
-            const paneLayout = this.pruneClosedTerminalTabs(row.sessionId, parsed.state.paneLayout);
+            const paneLayout = this.pruneClosedTerminalTabs(
+                parsed.state.paneLayout,
+                ownedTerminalIds,
+            );
             if (paneLayout === parsed.state.paneLayout) return parsed.state;
             const repaired = { ...parsed.state, paneLayout };
-            this.updateState(repaired);
+            this.updateState(repaired, ownedTerminalIds);
             return repaired;
         }
-        const repaired = this.defaultState(row.sessionId);
-        this.updateState(repaired);
+        const repaired = this.defaultState(row.sessionId, ownedTerminalIds);
+        this.updateState(repaired, ownedTerminalIds);
         this.onStateRepair?.({
             sessionId: row.sessionId,
             stateVersion: row.stateVersion,
@@ -269,17 +291,10 @@ export class SessionsModel {
      * otherwise resurrect its tab here, leaving a permanently blank pane that no close can reach.
      */
     private pruneClosedTerminalTabs(
-        sessionId: string,
         paneLayout: SessionState['paneLayout'],
+        terminalIds: readonly string[],
     ): SessionState['paneLayout'] {
-        const owned = new Set(
-            this.database
-                .select({ id: terminals.id })
-                .from(terminals)
-                .where(eq(terminals.sessionId, sessionId))
-                .all()
-                .map((row) => row.id),
-        );
+        const owned = new Set(terminalIds);
         let pruned = paneLayout;
         for (const terminalId of listPaneTerminalIds(paneLayout))
             if (!owned.has(terminalId)) pruned = removePaneTerminal(pruned, terminalId);
@@ -588,14 +603,14 @@ export class SessionsModel {
             .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
             .where(eq(sessionStateTable.sessionId, sessionId))
             .get();
-        if (!row) return this.defaultState(sessionId);
+        if (!row) return this.defaultState(sessionId, this.orderedTerminalIds(sessionId));
         return this.readState(row);
     }
 
     /**
      * Loads every 1:1 Session state row in the same stable order as {@link list}.
      */
-    listStates(): SessionState[] {
+    listStates(terminalIdsBySession = this.orderedTerminalIdsBySession()): SessionState[] {
         const rows = this.database
             .select({
                 sessionId: sessionStateTable.sessionId,
@@ -610,7 +625,9 @@ export class SessionsModel {
             .innerJoin(sessions, eq(sessions.id, sessionStateTable.sessionId))
             .orderBy(asc(sessions.createdAt), asc(sessions.id))
             .all();
-        return rows.map((row) => this.readState(row));
+        return rows.map((row) =>
+            this.readState(row, terminalIdsBySession.get(row.sessionId) ?? []),
+        );
     }
 
     insertInitialState(sessionId: string, terminalId?: string): void {
@@ -631,7 +648,7 @@ export class SessionsModel {
             .run();
     }
 
-    updateState(state: SessionState): void {
+    updateState(state: SessionState, terminalIds?: readonly string[]): void {
         const binding = this.getWorkbenchBinding(state.sessionId);
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
         if (binding.workbenchProjectId !== state.workbenchProjectId)
@@ -641,7 +658,10 @@ export class SessionsModel {
             .from(sessionStateTable)
             .where(eq(sessionStateTable.sessionId, state.sessionId))
             .get();
-        const paneLayout = this.pruneClosedTerminalTabs(state.sessionId, state.paneLayout);
+        const paneLayout = this.pruneClosedTerminalTabs(
+            state.paneLayout,
+            terminalIds ?? this.orderedTerminalIds(state.sessionId),
+        );
         // Only the selected Root's snapshot is rewritten; every other Root keeps the arrangement it was left in.
         const workbenchStates: WorkbenchEditorStates = {
             ...(existing && parseWorkbenchEditorStates(existing.workbenchStateJson)),

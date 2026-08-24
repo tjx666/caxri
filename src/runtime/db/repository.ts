@@ -694,8 +694,15 @@ export class CaxriDatabase {
         this.db.snapshots.save(snapshot);
     }
 
-    listSessionStates(): SessionState[] {
-        return this.db.sessions.listStates();
+    listSessionStates(terminalRecords?: readonly TerminalRecord[]): SessionState[] {
+        if (!terminalRecords) return this.db.sessions.listStates();
+        const terminalIdsBySession = new Map<string, string[]>();
+        for (const terminal of terminalRecords) {
+            const terminalIds = terminalIdsBySession.get(terminal.sessionId);
+            if (terminalIds) terminalIds.push(terminal.id);
+            else terminalIdsBySession.set(terminal.sessionId, [terminal.id]);
+        }
+        return this.db.sessions.listStates(terminalIdsBySession);
     }
 
     getSessionState(sessionId: string): SessionState {
