@@ -47,22 +47,21 @@ test('Agent identities stay consistent across every shared surface', async () =>
         await projectDialog.getByRole('button', { name: 'Codex' }).click();
 
         const sessionId = await waitForCreatedSession(running.page);
+        const workTabs = running.page.locator('.work-tab');
+        await expect(workTabs.locator('[data-agent-icon="codex"]')).toBeVisible();
         await pageRequest(running.page, 'terminal.create', { kind: 'claude', sessionId });
         /**
          * This spec deliberately creates the secondary Terminal through IPC because the UI only exposes a generic Shell
-         * action. A just-created Session can still be establishing its Renderer event subscription, so project the
-         * Runtime-owned layout through the same bootstrap path used after an ordinary Renderer restart instead of
-         * making icon coverage depend on whether that internal `state.changed` event raced the subscription.
+         * action. `waitForCreatedSession` proves the durable record and Session card, but a loaded parallel worker can
+         * observe those before the first Workbench tab has rendered. Waiting for both tabs makes that projection the
+         * observable boundary before reload, rather than racing reload against the initial Session projection.
          */
+        await expect(workTabs.locator('[data-agent-icon="claude"]')).toBeVisible();
         await running.page.reload();
         await waitForRuntimeReady(running.page);
 
-        await expect(
-            running.page.locator('.work-tab').locator('[data-agent-icon="codex"]'),
-        ).toBeVisible();
-        await expect(
-            running.page.locator('.work-tab').locator('[data-agent-icon="claude"]'),
-        ).toBeVisible();
+        await expect(workTabs.locator('[data-agent-icon="codex"]')).toBeVisible();
+        await expect(workTabs.locator('[data-agent-icon="claude"]')).toBeVisible();
         await expect(
             running.page
                 .locator(`.session-card[data-session-id="${sessionId}"]`)
