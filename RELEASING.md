@@ -1,10 +1,11 @@
 # Releasing Caxri
 
-Caxri currently publishes an unsigned Apple Silicon DMG for personal use. A normal commit runs the
-self-hosted CI checks only. A commit whose subject is exactly
-`release: v<package-version>` also runs the full macOS E2E suite on the repository self-hosted
-runner; after that CI succeeds, the same runner builds the DMG and creates the matching Git tag and
-GitHub Release. Runner labels, availability, and recovery are owned by
+Caxri currently publishes an unsigned Apple Silicon DMG for personal use. The event- and
+change-specific CI profile, including whether E2E runs, is owned by the decision matrix in
+[`docs/ci-performance.md`](docs/ci-performance.md). A commit whose subject is exactly
+`release: v<package-version>` selects the full checks and control E2E profile on the repository
+self-hosted runner; after that CI succeeds, the same runner builds the DMG and creates the matching
+Git tag and GitHub Release. Runner labels, availability, and recovery are owned by
 [`docs/self-hosted-runner.md`](docs/self-hosted-runner.md).
 
 ## Create a release
