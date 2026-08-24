@@ -249,16 +249,34 @@ export async function withRepoLock<T>(
         }
     };
     const cleanStaleLock = async (): Promise<void> => {
+        let staleLockError: Error | undefined;
         try {
             const latest = await readLockOwner(lockPath);
             if (latest && !(await isProcessIdentityAlive(latest.pid, latest.identity))) {
                 await rm(lockPath, { recursive: true });
             }
         } catch (error) {
-            if (errorCode(error) !== 'ENOENT') throw error;
-        } finally {
-            await rm(cleanupPath, { force: true, recursive: true });
+            if (errorCode(error) !== 'ENOENT') {
+                staleLockError =
+                    error instanceof Error
+                        ? error
+                        : new Error('Failed to clean stale worktree lock');
+            }
         }
+        /**
+         * Retire the published marker atomically before deleting its owner record. Otherwise another contender can
+         * replace the briefly ownerless directory while `rm` is traversing it and make the cleanup fail ENOTEMPTY.
+         */
+        const retiredCleanupPath = `${cleanupPath}.${process.pid}.${randomUUID()}.complete`;
+        let isRetired = false;
+        try {
+            await rename(cleanupPath, retiredCleanupPath);
+            isRetired = true;
+        } catch (error) {
+            if (errorCode(error) !== 'ENOENT') throw error;
+        }
+        if (isRetired) await rm(retiredCleanupPath, { force: true, recursive: true });
+        if (staleLockError) throw staleLockError;
     };
     try {
         await mkdir(pendingPath);
