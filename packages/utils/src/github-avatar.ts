@@ -9,9 +9,10 @@ const GITHUB_NOREPLY_PATTERN = /^(?:(\d+)\+)?([\w-]+(?:\[bot\])?)@users\.noreply
  * avatar; any other email goes through GitHub's email lookup endpoint, which serves the linked account's avatar or a
  * generated identicon fallback. Returns `undefined` for an empty email so callers render their own placeholder.
  *
- * Deliberate owner decision (2026-08): sending ordinary author emails to GitHub's lookup endpoint matches GitLens's
- * default behavior and maximizes avatar coverage; the privacy trade-off was reviewed and accepted, so do not re-flag it
- * or add an opt-out without a new product decision.
+ * Revised owner decision (2026-08): sending ordinary author emails to GitHub's lookup endpoint matches GitLens's
+ * default behavior, but it is a real network disclosure of the author's email. Callers must gate this behind
+ * {@link shouldFetchGitHubAvatar} — the `git.fetchGitHubAvatars` setting and a confirmed `github.com` remote — instead
+ * of calling it unconditionally.
  */
 export function gitHubAvatarUrl(email: string, size: number): string | undefined {
     const trimmed = email.trim();
@@ -23,4 +24,17 @@ export function gitHubAvatarUrl(email: string, size: number): string | undefined
             : `https://avatars.githubusercontent.com/${noreply[2]}?s=${size}&v=4`;
     }
     return `https://avatars.githubusercontent.com/u/e?email=${encodeURIComponent(trimmed)}&s=${size}`;
+}
+
+/**
+ * Gate for {@link gitHubAvatarUrl}: an author email only ever reaches github.com when the user opted in via
+ * `git.fetchGitHubAvatars` AND the repository's remote host is exactly `github.com`. Unknown hosts, missing remotes,
+ * and GitHub Enterprise custom domains are conservatively treated as "do not fetch" — this function never assumes an
+ * unfamiliar host behaves like github.com's public avatar/email-lookup endpoints.
+ */
+export function shouldFetchGitHubAvatar(
+    remoteHost: string | null | undefined,
+    isSettingEnabled: boolean,
+): boolean {
+    return isSettingEnabled && remoteHost === 'github.com';
 }

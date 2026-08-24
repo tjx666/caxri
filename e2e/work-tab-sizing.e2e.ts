@@ -159,7 +159,7 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
     }
 });
 
-test('the tab bar drops its active accent and "+" button only while the whole Workbench holds a single tab', async () => {
+test('the tab bar hides the "+" button only at a single Workbench-wide tab and accents only the focused pane', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-sole-tab-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -203,20 +203,28 @@ test('the tab bar drops its active accent and "+" button only while the whole Wo
         expect(activeAccent).toBeGreaterThan(0);
 
         /**
-         * Splitting leaves one tab in each pane. The rule is Workbench-wide, not per-pane: a pane holding its only tab
-         * still has a sibling pane to be distinguished from, so both affordances must survive the split.
+         * Splitting leaves one tab in each pane. The "+" rule is Workbench-wide, not per-pane: a pane holding its only
+         * tab still has a sibling pane to be distinguished from, so the button survives in both panes. The accent is
+         * stricter — it marks the focused pane's active tab only, so exactly one of the two active tabs carries it
+         * (`pane-tab-bar.tsx` gates `showActiveAccent` on `isActivePane`).
          */
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator('.work-tabs')).toHaveCount(2);
         await expect(tabs).toHaveCount(2);
         await waitForTabMotionToSettle(running.page);
         await expect(newTerminal).toHaveCount(2);
-        expect(
-            await running.page
-                .locator('.work-tab[data-tab-active="true"]')
-                .first()
-                .evaluate(accentHeight),
-        ).toBeGreaterThan(0);
+        const accentedActiveTabs = await running.page
+            .locator('.work-tab[data-tab-active="true"]')
+            .evaluateAll(
+                (elements) =>
+                    elements.filter(
+                        (element) =>
+                            // eslint-disable-next-line unicorn/prefer-number-coercion -- the computed height carries a "px" suffix, which `Number()` cannot parse
+                            (Number.parseFloat(getComputedStyle(element, '::before').height) || 0) >
+                            0,
+                    ).length,
+            );
+        expect(accentedActiveTabs).toBe(1);
         for (const label of ['Open tabs in pane 1 of 2', 'Open tabs in pane 2 of 2']) {
             // eslint-disable-next-line no-await-in-loop -- two independent visibility assertions, sequencing is irrelevant
             await expect(

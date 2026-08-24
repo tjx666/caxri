@@ -87,6 +87,19 @@ export const gitMethods = {
         }),
         result: z.null(),
     },
+    'git.remoteHost': {
+        ...hostRead,
+        params: z.object({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+        }),
+        /**
+         * Lower-cased `origin` remote host, or `null` when the remote is missing or unparseable. Gates whether the Git
+         * panel's commit avatars may resolve through GitHub (see `shouldFetchGitHubAvatar` in `@caxri/utils`); this
+         * command never sends anything to the remote itself, it only reads local Git config.
+         */
+        result: z.string().nullable(),
+    },
     'git.discard': {
         ...desktopWrite,
         params: z.object({

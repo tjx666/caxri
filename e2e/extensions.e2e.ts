@@ -147,7 +147,7 @@ esac
         await expect(statusTab.locator('img')).toHaveCount(0);
         await expect(statusTab.locator('svg')).toHaveCount(1);
 
-        const tree = running.page.getByRole('tree', { name: 'Extension View' });
+        const tree = running.page.getByRole('tree', { name: 'Project Status' });
         const repo = tree.getByRole('treeitem', { name: 'project', exact: true });
         await expect(repo).toBeVisible();
         await expect(repo).toHaveAttribute('aria-expanded', 'true');
@@ -230,7 +230,7 @@ esac
             env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
         });
         await running.page.getByRole('tab', { name: 'Status', exact: true }).click();
-        const restoredTree = running.page.getByRole('tree', { name: 'Extension View' });
+        const restoredTree = running.page.getByRole('tree', { name: 'Project Status' });
         /**
          * Activation restores the tree asynchronously. Wait for that request before forcing another refresh so the
          * fixture validates refresh persistence instead of racing two provider generations under CI load.
@@ -291,7 +291,7 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         await fixtureTab.click();
         await expect(running.page.getByText('Loading view…', { exact: true })).toBeVisible();
 
-        const tree = running.page.getByRole('tree', { name: 'Extension View' });
+        const tree = running.page.getByRole('tree', { name: 'Fixture Tree' });
         const lazy = tree.getByRole('treeitem', { name: 'Lazy children', exact: true });
         await expect(lazy).toBeVisible();
         expect(await tree.getByRole('treeitem').count()).toBeLessThan(80);
@@ -416,7 +416,7 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
             userDataDir: userData,
             testRootPath: root,
         });
-        const restoredTree = running.page.getByRole('tree', { name: 'Extension View' });
+        const restoredTree = running.page.getByRole('tree', { name: 'Fixture Tree' });
         await expect(
             restoredTree.getByRole('treeitem', { name: 'Lazy children', exact: true }),
         ).toHaveAttribute('aria-expanded', 'true');

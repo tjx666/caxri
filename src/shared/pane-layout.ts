@@ -469,3 +469,125 @@ export function resizeSplit(layout: PaneLayout, splitId: string, ratio: number):
         ),
     };
 }
+
+/**
+ * The four directions keyboard pane-focus movement travels. Shares its vocabulary with {@link PaneSplitSide} — both
+ * describe one of the tree's two axes — but is kept as its own type since a focus move never creates a pane the way a
+ * split does.
+ */
+export type PaneFocusDirection = 'down' | 'left' | 'right' | 'up';
+
+interface PaneRect {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+}
+
+const FULL_RECT: PaneRect = { x0: 0, y0: 0, x1: 1, y1: 1 };
+
+/**
+ * Assigns every pane a fractional rectangle in `[0, 1]` window space by walking the split tree once, applying each
+ * split's own `ratio` the same way `PaneSplitView` resolves it into `flexBasis`. The layout tree carries no pixel
+ * geometry of its own — panes are laid out by flexbox, not stored coordinates — so this is the only place that turns
+ * the tree shape back into rectangles an adjacency search can compare.
+ */
+function computePaneRects(
+    node: PaneLayoutNode,
+    rect: PaneRect,
+    rects: Map<string, PaneRect>,
+): void {
+    if (node.type === 'pane') {
+        rects.set(node.id, rect);
+        return;
+    }
+    const isHorizontal = node.direction === 'horizontal';
+    const split = isHorizontal
+        ? rect.x0 + node.ratio * (rect.x1 - rect.x0)
+        : rect.y0 + node.ratio * (rect.y1 - rect.y0);
+    const firstRect = isHorizontal ? { ...rect, x1: split } : { ...rect, y1: split };
+    const secondRect = isHorizontal ? { ...rect, x0: split } : { ...rect, y0: split };
+    computePaneRects(node.first, firstRect, rects);
+    computePaneRects(node.second, secondRect, rects);
+}
+
+/**
+ * Floating-point slack for comparing rectangle edges derived from chained `ratio` multiplications; two edges meant to
+ * coincide (a split's shared seam) can differ by a few ULPs after several nested splits.
+ */
+const RECT_EPSILON = 1e-6;
+
+interface DirectionCandidate {
+    isMatch: boolean;
+    distance: number;
+    overlap: number;
+}
+
+/**
+ * Whether `rect` sits on the correct side of `current` for `direction`, together with the edge-to-edge distance between
+ * them and how much they overlap on the perpendicular axis. Pulled out of {@link adjacentPaneId}'s loop so its `switch`
+ * does not sit inside a nested loop.
+ */
+function directionCandidate(
+    current: PaneRect,
+    rect: PaneRect,
+    direction: PaneFocusDirection,
+): DirectionCandidate {
+    switch (direction) {
+        case 'left':
+            return {
+                isMatch: rect.x1 <= current.x0 + RECT_EPSILON,
+                distance: current.x0 - rect.x1,
+                overlap: Math.min(rect.y1, current.y1) - Math.max(rect.y0, current.y0),
+            };
+        case 'right':
+            return {
+                isMatch: rect.x0 >= current.x1 - RECT_EPSILON,
+                distance: rect.x0 - current.x1,
+                overlap: Math.min(rect.y1, current.y1) - Math.max(rect.y0, current.y0),
+            };
+        case 'up':
+            return {
+                isMatch: rect.y1 <= current.y0 + RECT_EPSILON,
+                distance: current.y0 - rect.y1,
+                overlap: Math.min(rect.x1, current.x1) - Math.max(rect.x0, current.x0),
+            };
+        case 'down':
+            return {
+                isMatch: rect.y0 >= current.y1 - RECT_EPSILON,
+                distance: rect.y0 - current.y1,
+                overlap: Math.min(rect.x1, current.x1) - Math.max(rect.x0, current.x0),
+            };
+    }
+}
+
+/**
+ * The pane geometrically adjacent to `paneId` in `direction`, or `undefined` when there is none — a single pane, or
+ * `paneId` already sits at that edge of the Workbench.
+ *
+ * Mirrors VS Code's grid navigation (`gridview.ts` `getNeighborViews`): a candidate must share the perpendicular axis
+ * (its rectangle overlaps `paneId`'s along the axis the move does not travel) and sit on the correct side of the
+ * travelling axis; among candidates, the nearest edge wins, and a tie prefers the pane with the larger perpendicular
+ * overlap — the one a straight keyboard move is most likely to mean.
+ */
+export function adjacentPaneId(
+    layout: PaneLayout,
+    paneId: string,
+    direction: PaneFocusDirection,
+): string | undefined {
+    const rects = new Map<string, PaneRect>();
+    computePaneRects(layout.root, FULL_RECT, rects);
+    const current = rects.get(paneId);
+    if (!current) return undefined;
+    let best: { id: string; distance: number; overlap: number } | undefined;
+    for (const [id, rect] of rects) {
+        if (id === paneId) continue;
+        const { isMatch, distance, overlap } = directionCandidate(current, rect, direction);
+        if (!isMatch || overlap <= RECT_EPSILON) continue;
+        const isCloser = !best || distance < best.distance - RECT_EPSILON;
+        const isTieWithMoreOverlap =
+            best && Math.abs(distance - best.distance) <= RECT_EPSILON && overlap > best.overlap;
+        if (isCloser || isTieWithMoreOverlap) best = { id, distance, overlap };
+    }
+    return best?.id;
+}

@@ -63,3 +63,52 @@ describe('cursor-follow log stream accumulation', () => {
         expect(cleared.gap).toBe(false);
     });
 });
+
+describe('gap dismiss epoch', () => {
+    it('bumps the epoch when a fresh page (new cursor) reports a gap', () => {
+        const first = appendLogPage(
+            emptyLogStream,
+            page([record('a')], { nextCursor: 'c1', gap: true }),
+        );
+        expect(first.gapEpoch).toBe(1);
+    });
+
+    it('does not bump the epoch again for a repeated poll of the same cursor', () => {
+        const first = appendLogPage(
+            emptyLogStream,
+            page([record('a')], { nextCursor: 'c1', gap: true }),
+        );
+        // Same cursor, still reporting gap: true (server keeps flagging the same already-seen page).
+        const repeated = appendLogPage(first, page([], { nextCursor: 'c1', gap: true }));
+        expect(repeated.gapEpoch).toBe(1);
+    });
+
+    it('bumps the epoch again for a second, independent gap on a later cursor', () => {
+        const first = appendLogPage(
+            emptyLogStream,
+            page([record('a')], { nextCursor: 'c1', gap: true }),
+        );
+        const clean = appendLogPage(first, page([record('b')], { nextCursor: 'c2' }));
+        expect(clean.gapEpoch).toBe(1);
+        const secondGap = appendLogPage(
+            clean,
+            page([record('c')], { nextCursor: 'c3', gap: true }),
+        );
+        expect(secondGap.gapEpoch).toBe(2);
+        expect(secondGap.gap).toBe(true);
+    });
+
+    it('bumps (not resets) the epoch on clear, so a stale dismissal cannot hide a later gap', () => {
+        const withGap = appendLogPage(
+            emptyLogStream,
+            page([record('a')], { nextCursor: 'c1', gap: true }),
+        );
+        const cleared = clearLogStream(withGap);
+        expect(cleared.gapEpoch).toBe(2);
+        const newGap = appendLogPage(
+            cleared,
+            page([record('b')], { nextCursor: 'c2', gap: true }),
+        );
+        expect(newGap.gapEpoch).toBe(3);
+    });
+});

@@ -37,6 +37,23 @@ async function activeTerminalId(page: Page): Promise<string> {
     return terminalId;
 }
 
+/**
+ * Resolves the runtime rgb() value of a theme token so decoration-color assertions track the active theme instead of a
+ * hardcoded hex (`terminal-commands.ts` derives failed/succeeded gutter colors from `--danger` / `--success`).
+ */
+async function themeTokenColor(page: Page, token: '--danger' | '--success'): Promise<string> {
+    return page.evaluate((tokenName) => {
+        const probe = document.createElement('span');
+        probe.style.color = getComputedStyle(document.documentElement)
+            .getPropertyValue(tokenName)
+            .trim();
+        document.body.append(probe);
+        const color = getComputedStyle(probe).color;
+        probe.remove();
+        return color;
+    }, token);
+}
+
 async function typeInTerminal(page: Page, terminalId: string, command: string): Promise<void> {
     const input = page.locator(
         `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`,
@@ -245,7 +262,7 @@ test('command gutter paints running, succeeded, and failed phases without moving
             'failed',
         );
         expect(failedPixels.changedPixels, JSON.stringify(failedPixels)).toBeGreaterThan(16);
-        expect(failedPixels.computedColor).toBe('rgb(241, 76, 76)');
+        expect(failedPixels.computedColor).toBe(await themeTokenColor(running.page, '--danger'));
 
         await typeInTerminal(running.page, terminalId, 'true');
         await expectCommandState(surface, {
@@ -261,7 +278,9 @@ test('command gutter paints running, succeeded, and failed phases without moving
         );
         expect(succeededPixels.changedPixels, JSON.stringify(succeededPixels)).toBeGreaterThan(32);
         expect(succeededPixels.centerChanged, JSON.stringify(succeededPixels)).toBe(true);
-        expect(succeededPixels.computedColor).toBe('rgb(27, 129, 168)');
+        expect(succeededPixels.computedColor).toBe(
+            await themeTokenColor(running.page, '--success'),
+        );
 
         expect(await terminalLayoutEvidence(surface)).toEqual(layoutBefore);
         await expect(

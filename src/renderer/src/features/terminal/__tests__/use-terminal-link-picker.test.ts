@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalDetectedLink } from '../terminal-links';
+import type { TerminalLinkPickerState } from '../use-terminal-link-picker';
 import { terminalLinkPickerReducer } from '../use-terminal-link-picker';
+
+const initialState: TerminalLinkPickerState = { isOpen: false, links: [], status: 'complete' };
 
 describe('terminalLinkPickerReducer', () => {
     it('drops detected targets when the picker closes', () => {
@@ -13,14 +16,35 @@ describe('terminalLinkPickerReducer', () => {
             kind: 'url',
             target: 'https://example.com/?token=secret',
         };
-        const open = terminalLinkPickerReducer(
-            { isOpen: false, links: [] },
-            { type: 'open', links: [sensitiveLink] },
-        );
+        const open = terminalLinkPickerReducer(initialState, { type: 'open' });
+        const scanned = terminalLinkPickerReducer(open, {
+            type: 'update',
+            links: [sensitiveLink],
+            status: 'complete',
+        });
 
-        expect(terminalLinkPickerReducer(open, { type: 'close' })).toEqual({
+        expect(terminalLinkPickerReducer(scanned, { type: 'close' })).toEqual({
             isOpen: false,
             links: [],
+            status: 'complete',
         });
+    });
+
+    it('opens with an empty, scanning state before the first chunk arrives', () => {
+        expect(terminalLinkPickerReducer(initialState, { type: 'open' })).toEqual({
+            isOpen: true,
+            links: [],
+            status: 'scanning',
+        });
+    });
+
+    it('ignores a stale scan update once the picker has closed', () => {
+        expect(
+            terminalLinkPickerReducer(initialState, {
+                type: 'update',
+                links: [],
+                status: 'complete',
+            }),
+        ).toBe(initialState);
     });
 });

@@ -6,6 +6,7 @@ import {
     activePane,
     activeTab,
     addPaneTerminalSilently,
+    adjacentPaneId,
     closeTab,
     closeTabs,
     createPaneLayout,
@@ -362,5 +363,86 @@ describe('pane layout reducer', () => {
         expect(splitTabIntoPane(layout, 'missing', activePane(layout).id, 'right', id)).toBe(
             layout,
         );
+    });
+});
+
+describe('adjacentPaneId', () => {
+    it('reports no neighbor for a single-pane layout in any direction', () => {
+        const id = ids();
+        const layout = createPaneLayout(file('a.ts'), id);
+        const paneId = activePane(layout).id;
+        expect(adjacentPaneId(layout, paneId, 'left')).toBeUndefined();
+        expect(adjacentPaneId(layout, paneId, 'right')).toBeUndefined();
+        expect(adjacentPaneId(layout, paneId, 'up')).toBeUndefined();
+        expect(adjacentPaneId(layout, paneId, 'down')).toBeUndefined();
+    });
+
+    /**
+     * Builds a three-pane layout shaped like an L: `topLeft` and `bottomLeft` stacked in a vertical split, that stack
+     * split horizontally against `right`, which spans the full height of the right column.
+     *
+     *     +----------+----------+
+     *     | topLeft  |          |
+     *     +----------+  right   |
+     *     |bottomLeft|          |
+     *     +----------+----------+
+     */
+    function buildLShapedLayout(): {
+        layout: PaneLayout;
+        topLeft: string;
+        bottomLeft: string;
+        right: string;
+    } {
+        const id = ids();
+        let layout = createPaneLayout(file('a.ts'), id);
+        const topLeft = activePane(layout).id;
+        layout = openResource(layout, file('b.ts'), { paneId: topLeft }, id);
+        const rightTab = activeTab(layout)!;
+        layout = valid(splitTabIntoPane(layout, rightTab.id, topLeft, 'right', id));
+        const right = activePane(layout).id;
+        layout = openResource(layout, file('c.ts'), { paneId: topLeft }, id);
+        const bottomTab = activeTab(layout)!;
+        layout = valid(splitTabIntoPane(layout, bottomTab.id, topLeft, 'down', id));
+        const bottomLeft = activePane(layout).id;
+        return { layout, topLeft, bottomLeft, right };
+    }
+
+    it('finds the pane across a horizontal split', () => {
+        const { layout, topLeft, right } = buildLShapedLayout();
+        expect(adjacentPaneId(layout, topLeft, 'right')).toBe(right);
+        expect(adjacentPaneId(layout, right, 'left')).toBe(topLeft);
+    });
+
+    it('finds the pane across a vertical split', () => {
+        const { layout, topLeft, bottomLeft } = buildLShapedLayout();
+        expect(adjacentPaneId(layout, topLeft, 'down')).toBe(bottomLeft);
+        expect(adjacentPaneId(layout, bottomLeft, 'up')).toBe(topLeft);
+    });
+
+    it('reaches the full-height pane from either half of the split column beside it', () => {
+        const { layout, bottomLeft, right } = buildLShapedLayout();
+        expect(adjacentPaneId(layout, bottomLeft, 'right')).toBe(right);
+    });
+
+    it('breaks a tie between equally overlapping candidates by tree order', () => {
+        const { layout, topLeft, right } = buildLShapedLayout();
+        // `right` spans both `topLeft` and `bottomLeft` with an identical 50% perpendicular overlap; `topLeft` comes
+        // first in tree order and wins the tie.
+        expect(adjacentPaneId(layout, right, 'left')).toBe(topLeft);
+    });
+
+    it('reports no neighbor past the edge of the Workbench', () => {
+        const { layout, topLeft, bottomLeft, right } = buildLShapedLayout();
+        expect(adjacentPaneId(layout, topLeft, 'left')).toBeUndefined();
+        expect(adjacentPaneId(layout, topLeft, 'up')).toBeUndefined();
+        expect(adjacentPaneId(layout, bottomLeft, 'down')).toBeUndefined();
+        expect(adjacentPaneId(layout, right, 'right')).toBeUndefined();
+        expect(adjacentPaneId(layout, right, 'up')).toBeUndefined();
+        expect(adjacentPaneId(layout, right, 'down')).toBeUndefined();
+    });
+
+    it('is undefined for an unknown pane id', () => {
+        const { layout } = buildLShapedLayout();
+        expect(adjacentPaneId(layout, 'missing', 'left')).toBeUndefined();
     });
 });
