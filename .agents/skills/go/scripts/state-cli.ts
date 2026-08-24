@@ -1,5 +1,6 @@
 import {
     publishAcceptanceRound,
+    reconcileUnpublishedAcceptanceRound,
     recordOrphanedAcceptance,
     restartAcceptanceLineage,
 } from './acceptance-publication';
@@ -154,6 +155,7 @@ const COMMAND_USAGE: Record<string, string> = {
         'acceptance --state PATH [--status STATUS] [--id ID] [--url URL] [--round N] [--accepted-head-sha SHA] [--waived-head-sha SHA --waiver-reason TEXT]',
     'acceptance-orphan':
         'acceptance-orphan --state PATH --acceptance-id ID --reason TEXT [--verify-run-id ID]',
+    'acceptance-reconcile-round': 'acceptance-reconcile-round --state PATH --round N --reason TEXT',
     'acceptance-restart-lineage':
         'acceptance-restart-lineage --state PATH --acceptance-id ID --reason TEXT',
     'acceptance-publish': 'acceptance-publish --state PATH --report-dir DIR --head-sha SHA',
@@ -596,6 +598,20 @@ export async function runStateCli(argv: string[]): Promise<void> {
                     reason: one(options, 'reason', true)!,
                     verifyRunId: one(options, 'verify-run-id'),
                 });
+
+                break;
+            }
+            case 'acceptance-reconcile-round': {
+                const reason = one(options, 'reason', true)!;
+                reconcileUnpublishedAcceptanceRound(state, {
+                    reason,
+                    round: integer(options, 'round', true)!,
+                });
+                addEvent(
+                    state,
+                    'acceptance',
+                    `Reconciled unpublished round to ${state.acceptance.round}: ${reason}`,
+                );
 
                 break;
             }
