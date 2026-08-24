@@ -173,6 +173,28 @@ export const commandDefinitions: CommandDefinition[] = [
             when: (context) => context.workbench.canSplitActive(),
         }),
     ),
+    /**
+     * `allowInEditable` lets pane-focus movement reach through a focused xterm, matching iTerm2: split view is
+     * otherwise mouse-only while a Terminal owns focus.
+     */
+    ...(
+        [
+            ['workbench.focusPaneLeft', 'left'],
+            ['workbench.focusPaneRight', 'right'],
+            ['workbench.focusPaneUp', 'up'],
+            ['workbench.focusPaneDown', 'down'],
+        ] as const
+    ).map(([id, direction]) =>
+        fromCatalog(id, (context) => context.workbench.focusPaneInDirection(direction), {
+            allowInEditable: true,
+            when: (context) => context.workbench.canFocusPaneInDirection(direction),
+        }),
+    ),
+    fromCatalog(
+        'workbench.moveActiveTerminalToNewSession',
+        (context) => context.workbench.moveActiveTerminalToNewSession(),
+        { when: (context) => context.workbench.canMoveActiveTerminalToNewSession() },
+    ),
     fromCatalog('secondarySidebar.showFiles', (context) =>
         context.secondarySidebar.activateViewContainer('caxri.files'),
     ),
