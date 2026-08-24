@@ -110,6 +110,22 @@ describe('application menu', () => {
         });
     });
 
+    it('omits an empty contextual Terminal copy hint', () => {
+        const template = buildAppMenuTemplate({
+            keybindings: [{ command: 'terminal.copy', key: '+' }],
+            dispatchCommand: vi.fn(),
+            openProcessExplorer: vi.fn(),
+        });
+        const item = submenu(template, 'Terminal').find(
+            (candidate) => candidate.id === 'command.terminal.copy',
+        );
+
+        expect(item).toMatchObject({
+            accelerator: undefined,
+            label: 'Copy Selection',
+        });
+    });
+
     it('translates DOM key names Electron does not accept as accelerator tokens', () => {
         // `ARROWLEFT` is not an Electron token, so an unmapped arrow silently leaves the menu item without a working
         // accelerator while the Renderer's own DOM shortcut keeps firing — the failure is invisible from the Renderer.

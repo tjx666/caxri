@@ -127,7 +127,7 @@ async function clickTerminalCopyMenuItem(app: ElectronApp): Promise<void> {
             throw new Error('Terminal copy menu item is unavailable');
         }
         const click = item.click as (...arguments_: unknown[]) => void;
-        click({ triggeredByAccelerator: false }, window, window.webContents);
+        click(item, window, { triggeredByAccelerator: false });
     });
 }
 
@@ -305,6 +305,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         await expect.poll(() => running.clipboard.textEquals('terminal.copy')).toBe(true);
         await running.clipboard.claimText('terminal.copy');
         await running.page.keyboard.press('Escape');
+        await expect(keybindingsDialog).toHaveCount(0);
 
         await running.page
             .locator(`.work-tab[data-terminal-id="${secondTerminalId}"] [role="tab"]`)

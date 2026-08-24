@@ -82,7 +82,9 @@ function commandAccelerator(
 function commandLabel(definition: CommandDefinition, keybindings: readonly Keybinding[]): string {
     if (definition.id !== 'terminal.copy') return definition.title;
     const binding = keybindings.find((candidate) => candidate.command === definition.id);
-    return binding ? `${definition.title} [${formatShortcut(binding.key)}]` : definition.title;
+    if (!binding) return definition.title;
+    const shortcut = formatShortcut(binding.key);
+    return shortcut ? `${definition.title} [${shortcut}]` : definition.title;
 }
 
 /**
