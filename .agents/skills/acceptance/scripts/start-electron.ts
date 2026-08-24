@@ -223,6 +223,7 @@ export function createElectronLaunchSpec({
             cwd: projectRoot,
             env: {
                 ...environment,
+                CAXRI_ACCEPTANCE: '1',
                 CAXRI_E2E: '1',
                 CAXRI_E2E_WINDOW_MODE: 'visible',
                 ...(useTestRootFixture && {
