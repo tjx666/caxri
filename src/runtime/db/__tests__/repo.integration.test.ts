@@ -547,9 +547,9 @@ describe('CaxriDatabase', () => {
         expect(database.getTerminal(terminal.id)?.title).toBe('Ship the release notes');
 
         /**
-         * A promoted Shell keeps emitting OSC titles from its prompt, and an Agent CLI paints its own status line into
-         * the window title too. Both keep updating the live column; neither may touch the conversation name, which is
-         * what the tab shows for an Agent Terminal (`terminalDisplayTitle`).
+         * This direct repository call deliberately bypasses the production OSC listener to verify the low-level column
+         * separation. The listener discards Agent-bound OSC before this provider-agnostic setter; even a direct write
+         * here must not touch the conversation name shown for an Agent Terminal (`terminalDisplayTitle`).
          */
         expect(database.setTerminalPtyTitle(terminal.id, '~/project')).toBe(true);
         expect(database.getTerminal(terminal.id)?.title).toBe('Ship the release notes');
