@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
+import { useState } from 'react';
 
 import type { CommandId } from '@shared/commands';
 import type {
@@ -94,6 +95,9 @@ export function ViewContainerSurface({
     onSelect: (id: ViewContainerId) => void;
     trailing?: ReactNode;
 }) {
+    const [retryingExtensionIds, setRetryingExtensionIds] = useState<ReadonlySet<string>>(
+        () => new Set(),
+    );
     const catalogQuery = useCaxriQuery('viewContainers.catalog', {});
     if (catalogQuery.isPending)
         return (
@@ -182,36 +186,67 @@ export function ViewContainerSurface({
                                 <AlertTriangle className="text-danger" size={18} />
                                 <p className="font-medium text-foreground">Extension unavailable</p>
                                 <p>{container.error.message}</p>
-                                {container.source.kind === 'extension' && (
-                                    <Button
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={() => {
-                                            // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand() reports its own errors
-                                            void tryCommand(
-                                                'Unable to retry extension',
-                                                async () => {
-                                                    if (container.source.kind !== 'extension')
-                                                        return;
-                                                    const result = await caxri.request(
-                                                        'extensions.retry',
-                                                        {
-                                                            extensionId:
-                                                                container.source.extensionId,
+                                {container.source.kind === 'extension' &&
+                                    (() => {
+                                        const extensionId = container.source.extensionId;
+                                        const isRetrying = retryingExtensionIds.has(extensionId);
+                                        return (
+                                            <Button
+                                                disabled={isRetrying}
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => {
+                                                    // Disabling for the duration of the request (rather than only until the
+                                                    // catalog refetches) prevents a double-click from firing a second
+                                                    // `extensions.retry` while the first is still outstanding.
+                                                    setRetryingExtensionIds((current) =>
+                                                        new Set(current).add(extensionId),
+                                                    );
+                                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, tryCommand() reports its own errors
+                                                    void tryCommand(
+                                                        'Unable to retry extension',
+                                                        async () => {
+                                                            try {
+                                                                const result = await caxri.request(
+                                                                    'extensions.retry',
+                                                                    { extensionId },
+                                                                );
+                                                                if (
+                                                                    !result.accepted &&
+                                                                    result.error
+                                                                )
+                                                                    throw Object.assign(
+                                                                        new Error(
+                                                                            result.error.message,
+                                                                        ),
+                                                                        { code: result.error.code },
+                                                                    );
+                                                            } finally {
+                                                                setRetryingExtensionIds(
+                                                                    (current) => {
+                                                                        const next = new Set(
+                                                                            current,
+                                                                        );
+                                                                        next.delete(extensionId);
+                                                                        return next;
+                                                                    },
+                                                                );
+                                                            }
                                                         },
                                                     );
-                                                    if (!result.accepted && result.error)
-                                                        throw Object.assign(
-                                                            new Error(result.error.message),
-                                                            { code: result.error.code },
-                                                        );
-                                                },
-                                            );
-                                        }}
-                                    >
-                                        Retry
-                                    </Button>
-                                )}
+                                                }}
+                                            >
+                                                {isRetrying && (
+                                                    <LoaderCircle
+                                                        aria-hidden="true"
+                                                        className="animate-spin"
+                                                        size={13}
+                                                    />
+                                                )}
+                                                Retry
+                                            </Button>
+                                        );
+                                    })()}
                             </div>
                         ) : (
                             isActive &&
@@ -223,7 +258,10 @@ export function ViewContainerSurface({
                                         view.viewKind.component,
                                     );
                                     content = <Component />;
-                                } else content = <ExtensionTreeView viewId={view.id} />;
+                                } else
+                                    content = (
+                                        <ExtensionTreeView title={view.title} viewId={view.id} />
+                                    );
                                 return (
                                     <div
                                         key={view.id}

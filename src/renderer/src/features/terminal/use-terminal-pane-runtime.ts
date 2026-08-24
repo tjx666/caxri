@@ -10,6 +10,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { Terminal } from '@xterm/xterm';
 
+import { useLatestReference } from '@/hooks/use-latest-reference';
 import { useOnVisible } from '@/hooks/use-on-visible';
 
 import { caxri } from '../../lib/caxri';
@@ -23,6 +24,8 @@ import {
     formatTerminalCommandCompletionStatus,
     registerTerminalCommandNavigation,
     terminalCommandDecorationDefaultColor,
+    terminalCommandDecorationFailedColor,
+    terminalCommandDecorationSucceededColor,
     TerminalCommandTracker,
 } from './terminal-commands';
 import { loadTerminalFonts } from './terminal-fonts';
@@ -59,6 +62,10 @@ interface TerminalPaneRuntimeOptions {
     active: boolean;
     attachEpoch: number;
     copyOnSelect: boolean;
+    /**
+     * `--danger` token, resolved to hex by the theme store; see `terminalCommandDecorationFailedColor`.
+     */
+    dangerColor: string | undefined;
     fontFamily: string;
     fontSize: number;
     gpuAcceleration: TerminalGpuAcceleration;
@@ -68,6 +75,10 @@ interface TerminalPaneRuntimeOptions {
     processState: ProcessState;
     projectRoot: string;
     scrollback: number;
+    /**
+     * `--success` token, resolved to hex by the theme store; see `terminalCommandDecorationSucceededColor`.
+     */
+    successColor: string | undefined;
     terminalCwd: string;
     terminalId: string;
     terminalTheme: ThemeTokens['terminal'] | undefined;
@@ -80,6 +91,7 @@ export function useTerminalPaneRuntime({
     active,
     attachEpoch,
     copyOnSelect,
+    dangerColor,
     fontFamily,
     fontSize,
     gpuAcceleration,
@@ -89,6 +101,7 @@ export function useTerminalPaneRuntime({
     processState,
     projectRoot,
     scrollback,
+    successColor,
     terminalCwd,
     terminalId,
     terminalTheme,
@@ -111,9 +124,10 @@ export function useTerminalPaneRuntime({
     const [searchResults, setSearchResults] = useState<TerminalSearchResults>(emptySearchResults);
     const attachedEpochReference = useRef(attachEpoch);
     const previousProcessStateReference = useRef(processState);
-    const latestReference = useRef({
+    const latestReference = useLatestReference({
         active,
         copyOnSelect,
+        dangerColor,
         fontFamily,
         fontSize,
         gpuAcceleration,
@@ -123,47 +137,12 @@ export function useTerminalPaneRuntime({
         processState,
         projectRoot,
         scrollback,
+        successColor,
         terminalCwd,
         terminalId,
         terminalTheme,
         wordSeparators,
     });
-
-    useEffect(() => {
-        latestReference.current = {
-            active,
-            copyOnSelect,
-            fontFamily,
-            fontSize,
-            gpuAcceleration,
-            imagePasteInput,
-            isAgent,
-            osc52ClipboardWrite,
-            processState,
-            projectRoot,
-            scrollback,
-            terminalCwd,
-            terminalId,
-            terminalTheme,
-            wordSeparators,
-        };
-    }, [
-        active,
-        copyOnSelect,
-        fontFamily,
-        fontSize,
-        gpuAcceleration,
-        imagePasteInput,
-        isAgent,
-        osc52ClipboardWrite,
-        processState,
-        projectRoot,
-        scrollback,
-        terminalCwd,
-        terminalId,
-        terminalTheme,
-        wordSeparators,
-    ]);
 
     useEffect(() => {
         let isCanceled = false;
@@ -235,11 +214,13 @@ export function useTerminalPaneRuntime({
         let previousCompletedCommandCount = 0;
         const commandTracker = new TerminalCommandTracker(
             xterm,
-            // VS Code's fixed `terminalCommandDecoration.*` colors, not the terminal palette (see terminal-commands.ts)
+            // VS Code registers a `terminalCommandDecoration.*` color per theme (dark/light/HC) rather than one fixed
+            // hex; deriving these from the workbench `--danger` / `--success` tokens is the token-driven equivalent
+            // (see terminal-commands.ts).
             {
-                failed: '#F14C4C',
+                failed: terminalCommandDecorationFailedColor(latest.dangerColor),
                 running: terminalCommandDecorationDefaultColor(latest.terminalTheme?.foreground),
-                succeeded: '#1B81A8',
+                succeeded: terminalCommandDecorationSucceededColor(latest.successColor),
             },
             ({ commandCount, completedCount, lastExitStatus }) => {
                 container.dataset.terminalCommandCount = String(commandCount);
@@ -587,6 +568,7 @@ export function useTerminalPaneRuntime({
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void detachTerminalQuietly(terminalId);
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
     }, [fontsReady, terminalId]);
 
     useEffect(() => {
@@ -636,6 +618,7 @@ export function useTerminalPaneRuntime({
         // Effects cannot be async themselves; the failure path above already reports the error.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void reattach();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
     }, [attachEpoch, terminalId]);
 
     useEffect(() => {
@@ -773,6 +756,7 @@ export function useTerminalPaneRuntime({
                 });
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
         [],
     );
     const focusTerminal = useCallback((): void => xtermReference.current?.focus(), []);

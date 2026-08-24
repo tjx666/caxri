@@ -1,11 +1,15 @@
 import type { TerminalOscLinkSnapshot } from '@shared/types';
 import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
 
+import type { TerminalLinkScanner } from './terminal-link-scanner';
+import { createTerminalLinkScanner } from './terminal-link-scanner';
 import {
     MAX_TERMINAL_LINK_LENGTH as MAX_LOGICAL_LINE_LENGTH,
     MAX_TERMINAL_LINK_ROWS as MAX_LOGICAL_LINE_ROWS,
     registerTerminalOscLinkTracker,
 } from './terminal-osc-link-tracker';
+
+export type { TerminalLinkScanner, TerminalLinkScanStatus } from './terminal-link-scanner';
 
 const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
@@ -26,13 +30,13 @@ export const MAX_TERMINAL_DETECTED_LINK_TARGET_BYTES = 64 * 1_024;
 
 const terminalLinkTextEncoder = new TextEncoder();
 
-interface TerminalDetectedLinkBudget {
+export interface TerminalDetectedLinkBudget {
     links: TerminalDetectedLink[];
     targetBytes: number;
     uniqueTargets: Set<string>;
 }
 
-function appendBoundedDetectedLink(
+export function appendBoundedDetectedLink(
     budget: TerminalDetectedLinkBudget,
     key: string,
     target: string,
@@ -89,6 +93,12 @@ export interface TerminalDetectedLink {
 }
 
 export interface TerminalLinkRegistration {
+    /**
+     * Creates a fresh, single-use scan across the visible viewport and then the retained scrollback (most recent
+     * first). Call `scanNextChunk()` repeatedly until its `status` is no longer `'scanning'`; see
+     * `createTerminalLinkScanner` for the budget and chunking contract.
+     */
+    createLinkScanner(): TerminalLinkScanner;
     dispose(): void;
     getViewportLinks(): TerminalDetectedLink[];
     restoreOscLinks(snapshots: readonly TerminalOscLinkSnapshot[]): void;
@@ -417,7 +427,7 @@ function activateLinkFromPointer(
     if (hasLinkActivationModifier(event)) activateLink(match, context);
 }
 
-function createDetectedLink(
+export function createDetectedLink(
     match: TerminalLinkMatch,
     context: TerminalLinkContext,
     id: string,
@@ -443,7 +453,10 @@ interface LogicalLine {
  * Rebuilds one bounded wrapped line and maps UTF-16 offsets back to xterm cells. CJK and emoji before a link occupy a
  * different number of terminal cells than JavaScript code units.
  */
-function readLogicalLine(terminal: Terminal, bufferLineNumber: number): LogicalLine | undefined {
+export function readLogicalLine(
+    terminal: Terminal,
+    bufferLineNumber: number,
+): LogicalLine | undefined {
     const buffer = terminal.buffer.active;
     const requested = bufferLineNumber - 1;
     if (requested < 0 || requested >= buffer.length) return;
@@ -683,6 +696,9 @@ export function registerTerminalLinks(
         exactTerminalLinkTarget(target, context.wordSeparators),
     );
     return {
+        createLinkScanner() {
+            return createTerminalLinkScanner(terminal, context, oscTracker.getAllLinks());
+        },
         getViewportLinks() {
             const plain = viewportPlainTextLinks(terminal, context);
             return boundedDetectedLinks([

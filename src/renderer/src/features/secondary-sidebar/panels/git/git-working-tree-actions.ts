@@ -3,7 +3,7 @@ import type { GitFileStatus, GitRepositorySummary } from '@shared/types';
 
 import { caxri } from '../../../../lib/caxri';
 import { queryClient } from '../../../../queries/client';
-import { tryCommand } from '../../../../stores/toasts';
+import { pushToast, tryCommand } from '../../../../stores/toasts';
 
 /**
  * Session-scoped Git reads a working-tree mutation can stale. The Runtime's `git.changed` event usually invalidates
@@ -36,13 +36,26 @@ async function invalidateWorkingTreeQueries(sessionId: string): Promise<void> {
 }
 
 /**
+ * Sync's only visible feedback used to be a failure toast — a clean sync (or a "nothing to do" no-op) left the user
+ * guessing whether the click did anything. `ahead`/`behind` from _before_ the sync already answers that: if both were
+ * zero there was nothing to pull or push, otherwise the sync moved at least one ref.
+ */
+export function describeSyncOutcome(ahead: number, behind: number): string {
+    return ahead === 0 && behind === 0 ? 'Already up to date' : 'Synced with remote';
+}
+
+/**
  * VS Code-style Sync Changes: pull the upstream, then push local commits.
  */
-export async function syncRepo(sessionId: string, repoId: string): Promise<void> {
+export async function syncRepo(
+    sessionId: string,
+    repo: Pick<GitRepositorySummary, 'ahead' | 'behind' | 'id'>,
+): Promise<void> {
     const result = await tryCommand('Sync failed', () =>
-        caxri.request('git.sync', { sessionId, repositoryId: repoId }),
+        caxri.request('git.sync', { sessionId, repositoryId: repo.id }),
     );
     if (result === undefined) return;
+    pushToast('success', describeSyncOutcome(repo.ahead, repo.behind));
     await invalidateWorkingTreeQueries(sessionId);
 }
 

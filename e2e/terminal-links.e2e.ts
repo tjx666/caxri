@@ -266,7 +266,7 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
             await running.page.keyboard.press('Meta+Shift+O');
             const dialog = running.page.getByRole('dialog');
             await expect(dialog.getByRole('heading', { name: 'Open Detected Link' })).toBeVisible();
-            const search = dialog.getByPlaceholder('Search links in the visible Terminal…');
+            const search = dialog.getByPlaceholder('Search links in the Terminal…');
             await search.fill(target);
             await expect(
                 dialog.getByRole('option', { name: accessibleName, exact: true }),
