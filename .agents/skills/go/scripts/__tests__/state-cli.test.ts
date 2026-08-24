@@ -11,6 +11,7 @@ describe('Go state CLI help', () => {
         expect(stateCliHelp('acceptance-restart-lineage')).toContain(
             '--acceptance-id ID --reason TEXT',
         );
+        expect(stateCliHelp('acceptance-reconcile-round')).toContain('--round N --reason TEXT');
         expect(stateCliHelp()).toContain('state.ts help <command>');
     });
 
