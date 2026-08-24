@@ -33,10 +33,12 @@ and agent adapters. Acceptance uses the real macOS Electron desktop surface.
   The final root remains selected after the queue is exhausted, so Acceptance never falls through
   to a native dialog.
 
-- **Real directory picker:** add `--native-dialog` to keep `CAXRI_E2E` process isolation while
-  omitting the deterministic test-root environment. Use this only when the planned criterion crosses
-  the macOS picker itself, then interact through the semantic native-dialog helper. `--test-root`
-  still identifies the authorized fixture root for lifecycle records but is not returned automatically.
+- **Native dialogs:** these are manual Acceptance boundaries by default. Keep the deterministic
+  test-root environment and stub Main's dialog result for automated coverage. Hand dialog-specific
+  checks to the user. Only when the current user request explicitly asks the agent to verify native
+  UI may the agent prefix each native command with
+  `CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request` and add `--native-dialog`;
+  the launcher and native helpers otherwise fail closed.
 
 - **Restart with the same isolated profile:** create an empty temporary directory whose basename
   starts with `caxri-acceptance-user-<profile-id-length>-<profile-id>-`, pass the same `--case-id`,
@@ -86,10 +88,8 @@ lobehub acceptance run list --json
 - **Evidence:** renderer screenshot and DOM snapshot for settled UI; CDP frame
   recording for temporal behavior; focused test or log artifacts as supporting
   text evidence.
-- **Native dialogs:** inspect and click exactly one Accessibility button in an
-  owned sheet or app-modal window with
-  `bun run .agents/skills/acceptance/scripts/native-dialog.ts`; never use screen
-  coordinates or re-trigger the command while a dialog may be open.
+- **Native dialogs:** stop before system UI and hand the check to the user. The semantic helper is an
+  explicit-user-request exception only; never infer authorization from a general Acceptance run.
 - **Resident app:** never attach to or close a developer-owned Caxri instance.
 
 ## 5. Project probes and navigation

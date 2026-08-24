@@ -1,126 +1,82 @@
 # Native macOS dialogs
 
-CDP and Playwright observe the Electron Renderer, not an `NSAlert` owned by
-macOS. The alert may be a sheet attached to a Caxri window or an app-modal
-window when `dialog.showMessageBox` has no parent. Handle both at the narrowest
-layer that proves the claim.
+CDP and Playwright observe the Electron Renderer, not an `NSAlert`, `NSOpenPanel`, or `NSSavePanel`
+owned by macOS. Agent-driven native dialog interaction is therefore a manual Acceptance boundary by
+default.
 
-## Focused regression tests
+## Default policy: hand native UI to the user
 
-Stub `dialog.showMessageBox` through Playwright's Main-process evaluation and
-return the intended response. This is the deterministic pattern already used by
-Caxri's focused Electron E2E specs. Assert the resulting product state in the
-Renderer, Runtime, or filesystem; do not try to automate macOS UI in a routine
-regression test.
+An agent must not trigger, inspect, select within, click, record, or retry a native macOS dialog.
+This applies to routine regression tests, visual Acceptance, `$go`, broad "test everything" requests,
+and complete-real-path wording. None of those requests authorizes taking the user's focus or driving
+system UI.
 
-## Real Acceptance
+When a product flow crosses a native dialog:
 
-When the native dialog itself or the complete real user path must be verified:
+1. Verify the behavior before and after the dialog through deterministic Main fixtures or stubs.
+2. If the dialog itself changed, give the user a short manual checklist covering the exact trigger,
+   expected title/options, cancel behavior, confirm behavior, and resulting product state.
+3. Never claim that the native surface passed from stubbed evidence. Record the manual boundary or
+   wait for the user's result.
+4. If a native dialog appears unexpectedly, stop the owned Acceptance launch immediately. Do not
+   tune Accessibility timeouts, repair the adapter, or retry the trigger inside the feature delivery.
 
-1. Compile/warm the helper cache and fail fast on permission, ownership, AX
-   readiness, or a locked desktop before consuming the case trigger:
+## Deterministic automated coverage
 
-   ```bash
-   bun run .agents/skills/acceptance/scripts/native-dialog.ts preflight
-   ```
+Stub `dialog.showMessageBox`, `dialog.showOpenDialog`, or `dialog.showSaveDialog` through
+Playwright's Main-process evaluation and return the intended response. Assert the resulting product
+state in the Renderer, Runtime, configuration, or filesystem. This is the fast, deterministic
+pattern already used by Caxri's focused Electron E2E specs.
 
-2. Trigger the action once through the Renderer.
-3. Inspect the owned isolated app for exactly one sheet or app-modal window
-   containing the semantic button name:
+Use `CAXRI_TEST_ROOT_PATH` / `CAXRI_TEST_ROOT_PATHS` for Project selection. The Acceptance launcher
+supplies these by default, so setup never falls through to a folder chooser. For file import/export,
+stage a fixture and stub the Main dialog result to that exact path; exercise validation, error
+feedback, atomicity, and persistence after the boundary without automating the macOS window.
 
-   ```bash
-   bun run .agents/skills/acceptance/scripts/native-dialog.ts inspect \
-     --button "Move to Trash"
-   ```
+## Explicit user-request exception
 
-4. Capture the smallest macOS-level screenshot only when the plan requires
-   visual proof of the sheet. Ensure it contains no unrelated desktop content.
-5. Click the button by its Accessibility name:
+Only a current user request that explicitly asks the agent to verify a native dialog authorizes the
+exception below. A general Acceptance request does not. Record that authorization in the local
+Acceptance evidence before launch, pre-author one interaction and its cleanup, and prefix every
+native command with the fail-closed marker. Do not export it into a persistent shell.
 
-   ```bash
-   bun run .agents/skills/acceptance/scripts/native-dialog.ts click \
-     --button "Move to Trash"
-   ```
-
-6. Return to CDP and verify the resulting Renderer and filesystem state.
-
-For an `NSOpenPanel`, AppKit may render the chooser through
-`com.apple.appkit.xpc.openAndSavePanelService`, but its semantic Accessibility
-nodes remain attached beneath the owned Electron application's `AXChildren`
-tree. Use the dedicated helper; never query or guess the service PID:
+For a folder chooser, pass `--native-dialog` to `start-electron.ts`; otherwise retain the deterministic
+test-root fixture and trigger the specifically requested dialog once. Warm and validate Accessibility
+before consuming the trigger:
 
 ```bash
-bun run .agents/skills/acceptance/scripts/open-panel.ts inspect \
+CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request \
+  bun run .agents/skills/acceptance/scripts/native-dialog.ts preflight
+```
+
+An ordinary alert uses its exact semantic button:
+
+```bash
+CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request \
+  bun run .agents/skills/acceptance/scripts/native-dialog.ts inspect --button "Move to Trash"
+CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request \
+  bun run .agents/skills/acceptance/scripts/native-dialog.ts click --button "Move to Trash"
+```
+
+An open panel uses its exact product title, semantic `Open` action, and a real non-hidden fixture
+inside the current Acceptance worktree:
+
+```bash
+CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request \
+  bun run .agents/skills/acceptance/scripts/open-panel.ts inspect \
   --title "Import Theme" --button "Open"
-bun run .agents/skills/acceptance/scripts/open-panel.ts choose-path \
+CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request \
+  bun run .agents/skills/acceptance/scripts/open-panel.ts choose-path \
   --title "Import Theme" --button "Open" \
   --path test-results/acceptance-native/fixture.json
-bun run .agents/skills/acceptance/scripts/open-panel.ts inspect \
-  --title "Import Theme" --button "Open"
-bun run .agents/skills/acceptance/scripts/open-panel.ts click \
+CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request \
+  bun run .agents/skills/acceptance/scripts/open-panel.ts click \
   --title "Import Theme" --button "Open"
 ```
 
-`choose-path` accepts only a real, non-hidden file inside the current
-Acceptance worktree. The helper selects the deepest provable sidebar ancestor,
-walks exact absolute `AXURL` values through the chooser's file browser, and
-leaves the final `Open` action to the exact `AXDefaultButton`. Stage chooser
-fixtures under the gitignored `test-results/acceptance-native/` directory;
-`.records/` is hidden from the normal chooser and is reserved for evidence.
-Never substitute an XPC PID, a title-only match, a keyboard shortcut, or a
-coordinate click.
-
-Do not use a real folder chooser to bootstrap a Project for an unrelated case.
-`start-electron.ts` supplies the selected Project through `CAXRI_TEST_ROOT_PATH`
-by default, exercising the existing Main-owned authorization fixture without an
-`NSOpenPanel`. Pass `--native-dialog` only when the chooser is itself named by
-the Acceptance requirement. Electron implements a parented file chooser as an
-AppKit sheet, while modern macOS hosts its content through
-`com.apple.appkit.xpc.openAndSavePanelService`; treating that remote UI as setup
-adds timing and Accessibility ownership that the product behavior under test
-does not need.
-
-Both helpers validate `.records/acceptance/runtime.json`, query only the owned
-Electron Main PID, and call ApplicationServices directly through the repository
-Swift helper. Ordinary dialogs check `AXDefaultButton` and `AXCancelButton`
-first, then use a depth- and element-bounded traversal that never enters file
-browser content roles. Open panels require one `AXSheet` with
-`AXIdentifier=open-panel`, the exact product title, and one
-`AXDefaultButton`/`OKButton`. Both reject incomplete or multiple matches and
-never use AppleScript, screen coordinates, global keyboard events, or
-frontmost-app guessing.
-
-The wrapper compiles the single Swift source once per source/toolchain/platform
-hash into `~/.cache/caxri/acceptance/native-ax/`; later invocations reuse the
-binary across worktrees. The native process applies a finite AX messaging
-timeout and returns one structured JSON response that distinguishes permission,
-target-lifecycle, traversal, ambiguity, timeout, selection, and action failures.
-An `AXPress` is issued at most once. If AppKit reports `cannotComplete`, treat
-the action as uncertain, inspect product state, and never retry it blindly.
-
-The Acceptance launcher clones Electron beneath the profile's `apps.noindex/`
-root with a unique temporary bundle identity and starts that clone through
-LaunchServices. It deliberately keeps the main
-executable named `Electron`, preserving `app.isPackaged === false` and the normal
-unpackaged build paths while making the PID-owned Accessibility query distinct
-from a concurrently running Caxri dev app. Treat any regression to a shared
-`com.github.Electron` identity as a harness defect; never work around it by
-stopping the developer's app.
-Every Accessibility query has a hard timeout. macOS must grant Accessibility
-permission to the terminal process running the helper; missing permission fails
-with a direct remediation message instead of hanging.
-
-## Failure rules
-
-- Never re-trigger a menu command while waiting for its dialog; stacked dialogs
-  make both evidence and interaction ambiguous.
-- Stop before the native trigger when `NSWorkspace` reports `loginwindow` as
-  frontmost or host screenshots are black. A locked macOS session can launch an
-  AppKit service without creating an interactive chooser, so this is an
-  environment block rather than a product failure.
-- Never use coordinate clicks. Window movement, scaling, and a negative desktop
-  origin make them unreliable.
-- Do not replace a real Acceptance path with a stub. The stub belongs only to
-  focused deterministic regression coverage.
-- Do not use host-screen video for Renderer behavior. Native window capture can
-  expose unrelated windows, while Terminal GPU content can record as black.
+The helpers and launcher refuse these paths unless the exact authorization marker is present. They
+query only the owned Electron Main PID, require exact semantic matches, bound every AX call, and issue
+`AXPress` at most once. Never use screen coordinates, global keyboard events, an XPC service PID,
+frontmost-app guessing, or a second trigger. On the first unexpected result, close the owned UI, stop
+the launch, and return the remaining check to the user instead of repairing or retrying the native
+adapter.

@@ -20,6 +20,7 @@ import {
     createMacosAcceptanceLaunchController,
     settleMacosAcceptanceLaunch,
 } from './macos-launch-lifecycle';
+import { assertNativeDialogAuthorization } from './native-dialog-authorization';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
@@ -193,7 +194,7 @@ function help(): string {
 Options:
   --port N               CDP port (default: 9222)
   --test-root PATH       Project root selected in Caxri; repeat to queue roots (default: repository root)
-  --native-dialog        Use the real macOS directory picker instead of the deterministic test-root fixture
+  --native-dialog        Explicit-current-request exception: use the real macOS picker
   --case-id ID           Stable lowercase id for this isolated Acceptance case
   --report-dir DIR       Frozen round containing this case plan and lifecycle evidence
   --case-mode MODE       isolated (default) or restart
@@ -216,6 +217,7 @@ export function createElectronLaunchSpec({
     useTestRootFixture = true,
     userDataDir,
 }: ElectronLaunchSpecInput) {
+    if (!useTestRootFixture) assertNativeDialogAuthorization(environment);
     return {
         args: ['.', `--remote-debugging-port=${port}`],
         command: electronPath,
@@ -486,6 +488,7 @@ async function main(): Promise<void> {
     const reuseUserDataDirectory = stringOption(options, 'reuse-user-data');
     const isCleanupReusable = hasBooleanOption(options, 'cleanup-reused-user-data');
     const isUseNativeDialog = hasBooleanOption(options, 'native-dialog');
+    if (isUseNativeDialog) assertNativeDialogAuthorization();
 
     let desktopLease = await acquireDesktopLease(PROJECT_ROOT, 'Acceptance');
     try {

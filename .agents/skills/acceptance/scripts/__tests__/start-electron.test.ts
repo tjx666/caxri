@@ -181,10 +181,28 @@ describe('Acceptance Electron launcher seams', () => {
         });
     });
 
-    it('can leave directory selection on the real native dialog boundary', () => {
+    it('rejects the real native dialog boundary without current-request user authorization', () => {
+        expect(() =>
+            createElectronLaunchSpec({
+                electronPath: '/repo/node_modules/.bin/electron',
+                environment: { PATH: '/usr/bin' },
+                port: 9333,
+                projectRoot: '/repo',
+                testRootPath: '/project-one',
+                testRootPaths: ['/project-one'],
+                useTestRootFixture: false,
+                userDataDir: '/tmp/caxri-acceptance-user-case',
+            }),
+        ).toThrow('Native dialog automation requires an explicit user request');
+    });
+
+    it('can leave directory selection on the explicitly authorized native dialog boundary', () => {
         const launch = createElectronLaunchSpec({
             electronPath: '/repo/node_modules/.bin/electron',
-            environment: { PATH: '/usr/bin' },
+            environment: {
+                PATH: '/usr/bin',
+                CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION: 'explicit-user-request',
+            },
             port: 9333,
             projectRoot: '/repo',
             testRootPath: '/project-one',
@@ -197,6 +215,7 @@ describe('Acceptance Electron launcher seams', () => {
         expect(launch.options.env).not.toHaveProperty('CAXRI_TEST_ROOT_PATHS');
         expect(launch.options.env).toMatchObject({
             CAXRI_ACCEPTANCE: '1',
+            CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION: 'explicit-user-request',
             CAXRI_E2E: '1',
             CAXRI_USER_DATA_DIR: '/tmp/caxri-acceptance-user-case',
         });

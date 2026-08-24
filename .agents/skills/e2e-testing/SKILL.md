@@ -15,8 +15,8 @@ boundary:
 
 - A user-visible flow spanning process boundaries (Renderer → IPC → Main/Runtime → back into the
   UI), where every layer can pass its unit tests while the wiring between them is wrong.
-- Native desktop capability with no faithful mock: window lifecycle, native menus and dialogs,
-  focus, keyboard shortcuts as wired, a real PTY running real processes.
+- Native desktop capability with no faithful mock: window lifecycle, native menus, focus, keyboard
+  shortcuts as wired, and a real PTY running real processes. Native dialogs are the exception below.
 - Persistence and recovery across a process restart — Session/layout/Terminal restore, Runtime
   crash and reconnect. The restart itself is the behavior under test.
 - A small set of critical-journey smokes (launch → Project → Session → Terminal/Agent) whose
@@ -63,6 +63,10 @@ extracted below the boundary and tested there; if yes, extract it instead.
 
 Use the launch helpers instead of the developer's real profile:
 
+- Native macOS dialogs are manual verification boundaries by default. Stub `dialog.showMessageBox`,
+  `dialog.showOpenDialog`, or `dialog.showSaveDialog` in Main and assert the resulting product state;
+  never trigger or drive system UI from an E2E spec. Only a current user request explicitly asking
+  the agent to verify a native dialog permits the guarded Acceptance exception.
 - `CAXRI_E2E=1` enables unpackaged test-only boundaries.
 - `CAXRI_USER_DATA_DIR=<tmpdir>` isolates Electron user data.
 - `CAXRI_TEST_ROOT_PATH=<dir>` supplies one deterministic directory-picker root only when

@@ -190,6 +190,10 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
 
 ## Testing requirements
 
+- macOS native dialogs are manual verification boundaries by default. Automated tests and
+  Acceptance must stub Electron Main's dialog result or use deterministic fixtures, then assert the
+  product state on either side. Agents must not trigger, inspect, click, capture, or retry native
+  system UI unless the user's current request explicitly asks the agent to verify that dialog.
 - New features ship with behavior-level tests for the functionality they add, at the narrowest
   owning surface: Vitest unit/integration coverage (`unit-testing`) for logic below the desktop
   boundary, Playwright workflows (`e2e-testing`) only for user-visible Electron behavior; the
