@@ -299,7 +299,11 @@ function assertImportedThemeContrast(theme: ThemeTokens): void {
 function parseVsCodeOrCustom(source: string, name: string): ThemeTokens {
     const value = parseJsonc(source);
     const parsed = themeSchema.safeParse(value);
-    if (!parsed.success) return parseVsCode(value as Record<string, unknown>, name);
+    if (!parsed.success) {
+        const theme = parseVsCode(value as Record<string, unknown>, name);
+        assertImportedThemeContrast(theme);
+        return theme;
+    }
     assertImportedThemeContrast(parsed.data);
     return { ...parsed.data, source: 'custom' };
 }
