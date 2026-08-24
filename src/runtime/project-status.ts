@@ -279,6 +279,8 @@ export class ProjectStatusService {
     private readonly overviewRequests = new SingleFlight<string, ProjectStatusOverview>();
     private readonly refreshes = new SingleFlight<string, void>();
     private readonly summaries = new Map<string, SummaryCacheEntry>();
+    private readonly sessionGenerations = new Map<string, number>();
+    private nextSessionGeneration = 0;
     /**
      * LRU-bounded (see `VERCEL_LINK_CACHE_LIMIT`) so this process-lifetime cache can't grow unbounded.
      */
@@ -672,17 +674,25 @@ export class ProjectStatusService {
      * Refreshes delivery metadata outside the request path. The fingerprint check prevents a slow result for an old
      * branch or workbench root from replacing a newer Session context.
      */
-    private async refreshSummary(sessionId: string, prepared: PreparedSummary): Promise<void> {
+    private async refreshSummary(
+        sessionId: string,
+        prepared: PreparedSummary,
+        sessionGeneration: number,
+    ): Promise<void> {
         const fingerprint = prepared.fingerprint;
-        if (!fingerprint) return;
-        const refreshKey = `${sessionId}\0${fingerprint}`;
+        if (!fingerprint || this.sessionGenerations.get(sessionId) !== sessionGeneration) return;
+        const refreshKey = `${sessionId}\0${sessionGeneration}\0${fingerprint}`;
         try {
             await this.refreshes.run(refreshKey, async () => {
                 const startedAt = performance.now();
                 const repositories = await Promise.all(
                     prepared.repositories.map((repo) => this.refreshRepository(repo)),
                 );
-                if (this.summaries.get(sessionId)?.fingerprint !== fingerprint) return;
+                if (
+                    this.sessionGenerations.get(sessionId) !== sessionGeneration ||
+                    this.summaries.get(sessionId)?.fingerprint !== fingerprint
+                )
+                    return;
                 const value = { repositories, refreshedAt: this.now() };
                 const hasFailures = repositories.some((repo) => repo.errors.length > 0);
                 const ttl = hasFailures
@@ -708,6 +718,7 @@ export class ProjectStatusService {
                 this.options.emit?.({ event: 'projectStatus.changed', payload: { sessionId } });
             });
         } catch (error) {
+            if (this.sessionGenerations.get(sessionId) !== sessionGeneration) return;
             this.logger.write('error', logEventCatalog.projectStatus.refreshFailed, {
                 fields: { code: error instanceof CaxriError ? error.code : 'INTERNAL' },
             });
@@ -716,11 +727,14 @@ export class ProjectStatusService {
 
     private async loadSummary(
         sessionId: string,
+        sessionGeneration: number,
         refreshToken?: string,
     ): Promise<ProjectStatusSummary> {
         const startedAt = performance.now();
         const prepared = await this.prepareSummary(sessionId);
+        if (this.sessionGenerations.get(sessionId) !== sessionGeneration) return prepared.summary;
         if (!prepared.fingerprint) {
+            this.sessionGenerations.delete(sessionId);
             this.summaries.delete(sessionId);
             return prepared.summary;
         }
@@ -733,11 +747,11 @@ export class ProjectStatusService {
         if (isForceRefresh) cached = { ...cached, refreshToken };
         this.rememberSummary(sessionId, cached);
         const source = cached.value ? (cached.expiresAt > this.now() ? 'fresh' : 'stale') : 'local';
-        if (isForceRefresh) await this.refreshSummary(sessionId, prepared);
+        if (isForceRefresh) await this.refreshSummary(sessionId, prepared, sessionGeneration);
         else if (source !== 'fresh') {
             // The cache event owns UI convergence for automatic stale-while-revalidate loads.
             // eslint-disable-next-line no-void -- background refresh logs its own failure
-            void this.refreshSummary(sessionId, prepared);
+            void this.refreshSummary(sessionId, prepared, sessionGeneration);
         }
         this.logger.write('info', logEventCatalog.projectStatus.summary, {
             durationMs: performance.now() - startedAt,
@@ -753,13 +767,28 @@ export class ProjectStatusService {
      * Prevents a late external refresh from recreating status for a Session that has already been deleted.
      */
     evictSessions(sessionIds: readonly string[]): void {
-        for (const sessionId of sessionIds) this.summaries.delete(sessionId);
+        for (const sessionId of sessionIds) {
+            this.sessionGenerations.delete(sessionId);
+            this.summaries.delete(sessionId);
+        }
     }
 
-    summary(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary> {
-        return this.requests.run(`${sessionId}\0${refreshToken ?? ''}`, () =>
-            this.loadSummary(sessionId, refreshToken),
-        );
+    async summary(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary> {
+        let generation = this.sessionGenerations.get(sessionId);
+        if (generation === undefined) {
+            generation = ++this.nextSessionGeneration;
+            this.sessionGenerations.set(sessionId, generation);
+        }
+        try {
+            return await this.requests.run(
+                `${sessionId}\0${generation}\0${refreshToken ?? ''}`,
+                () => this.loadSummary(sessionId, generation, refreshToken),
+            );
+        } catch (error) {
+            if (this.sessionGenerations.get(sessionId) === generation)
+                this.sessionGenerations.delete(sessionId);
+            throw error;
+        }
     }
 
     overview(sessionId: string): Promise<ProjectStatusOverview> {

@@ -198,6 +198,39 @@ describe('ProjectStatusService', () => {
         expect(emitted).not.toHaveBeenCalled();
     });
 
+    it('does not restore an evicted Session cache after local preparation finishes', async () => {
+        const pendingSummary = Promise.withResolvers<GitSummary>();
+        const emitted = vi.fn();
+        const git = vi.fn((sessionId: string) =>
+            sessionId === 'session-a' ? pendingSummary.promise : Promise.resolve(gitSummary),
+        );
+        const runner = vi.fn<ProjectStatusRunner>(() => Promise.resolve(''));
+        const service = new ProjectStatusService({ summary: git }, await logger(), runner, {
+            emit: emitted,
+        });
+
+        await service.summary('session-b');
+        await vi.waitFor(() => expect(emitted).toHaveBeenCalledOnce());
+        emitted.mockClear();
+        const stale = service.summary('session-a');
+        await vi.waitFor(() => expect(git).toHaveBeenCalledWith('session-a'));
+        service.evictSessions(['session-a']);
+        pendingSummary.resolve(gitSummary);
+        await stale;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const summaries = (service as unknown as { summaries: Map<string, unknown> }).summaries;
+        expect(summaries.has('session-a')).toBe(false);
+        expect(summaries.has('session-b')).toBe(true);
+        expect(emitted).not.toHaveBeenCalled();
+
+        await service.summary('session-b', 'refresh-live-sibling');
+        expect(emitted).toHaveBeenCalledWith({
+            event: 'projectStatus.changed',
+            payload: { sessionId: 'session-b' },
+        });
+    });
+
     it('loads a lightweight primary repository overview without Linear or Vercel', async () => {
         const summaryWithChanges: GitSummary = {
             ...gitSummary,
