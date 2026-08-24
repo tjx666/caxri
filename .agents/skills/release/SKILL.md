@@ -27,14 +27,15 @@ Do not include logs, diagnostics, user roots, terminal output, or credentials in
 ## GitHub Release
 
 - `.github/workflows/release.yml` is the only remote release path. An exact
-  `release: v<package-version>` commit pushed to `main` first runs the self-hosted macOS CI checks
-  and full E2E suite on `m2-24`; only a successful CI `workflow_run` may
-  start self-hosted packaging.
-- A normal commit must run the self-hosted macOS CI checks without E2E, packaging, or publishing.
+  `release: v<package-version>` commit pushed to `main` must satisfy the release preparation in
+  `RELEASING.md` and the exact-release CI profile in `docs/ci-performance.md`; only a successful CI
+  `workflow_run` for the same commit may start packaging.
+- Normal commits follow the event plan in `docs/ci-performance.md`; source pushes may run optimized
+  E2E, but they never package or publish a release.
 - The release workflow validates the version and tag, trusts the successful CI gates for the same
   commit SHA, builds and probes the unsigned Apple Silicon DMG, verifies it, and publishes the DMG
-  and SHA-256 checksum without repeating the full test suite. It uses the `caxri-release` runner
-  capability and has no automatic GitHub-hosted macOS fallback.
+  and SHA-256 checksum without repeating the full test suite. Runner routing, availability, trust,
+  and recovery follow `docs/self-hosted-runner.md`.
 - Follow `RELEASING.md` when preparing the release commit. Creating or pushing that commit still
   requires explicit user authorization because the push triggers the remote release.
 - After the GitHub Release publishes successfully, install it locally by default with
