@@ -35,6 +35,7 @@ import {
 import { movePaneTab, selectPaneTab } from './pane-actions';
 import { PANE_TAB_DRAG_TYPE, resolveTabDropIndex } from './pane-drop-zone';
 import { PaneTabMenu } from './pane-tab-menu';
+import { useScrollEdges } from './tab-scroll-edges';
 
 function canAcceptDrop(event: DragEvent<HTMLElement>): boolean {
     return event.dataTransfer.types.includes(PANE_TAB_DRAG_TYPE);
@@ -309,6 +310,7 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: b
  */
 export function PaneTabBar({
     hasTabsToSwitch,
+    isActivePane,
     isOnlySessionTerminal,
     isRootBar,
     pane,
@@ -322,6 +324,13 @@ export function PaneTabBar({
      * reachable meanwhile.
      */
     hasTabsToSwitch: boolean;
+    /**
+     * Whether this pane owns `activePaneId` — DESIGN.md principle 2's "one durable accent focus per screen": the tab
+     * border and the pane ring express the same focus and count as one. After a split, only the focused pane's active
+     * tab wears the accent border; an unfocused pane's active tab keeps its selection fill (VS Code's unfocused editor
+     * group behavior) but drops the accent, so two panes never both claim the screen's one accent at once.
+     */
+    isActivePane: boolean;
     isOnlySessionTerminal: boolean;
     isRootBar: boolean;
     pane: PaneNode;
@@ -331,6 +340,18 @@ export function PaneTabBar({
     const [isDropTarget, setIsDropTarget] = useState(false);
     const [dropIndicatorLeft, setDropIndicatorLeft] = useState<number | undefined>(undefined);
     const barReference = useRef<HTMLDivElement>(null);
+    /**
+     * `overflow-x-auto` gives no visual cue that there are more tabs off to a side; a gradient fade — shown only on the
+     * edge that actually hides content — is the standard affordance (browser tab strips, VS Code's own editor tabs).
+     * `useScrollEdges` watches these two zero-width sentinels rendered at either end of the scrollable content.
+     */
+    const scrollStartSentinel = useRef<HTMLSpanElement>(null);
+    const scrollEndSentinel = useRef<HTMLSpanElement>(null);
+    const { canScrollEnd, canScrollStart } = useScrollEdges(
+        barReference,
+        scrollStartSentinel,
+        scrollEndSentinel,
+    );
     const hoverTabIdReference = useRef<string | undefined>(undefined);
     const hoverTimeoutReference = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     /**
@@ -491,46 +512,82 @@ export function PaneTabBar({
                 movePaneTab(tabId, pane.id, resolveTabDropIndex(tabRects, event.clientX));
             }}
         >
-            <div
-                ref={barReference}
-                className="work-tab-scroll relative flex min-w-0 flex-1 overflow-x-auto"
-            >
-                {dropIndicatorLeft !== undefined && (
+            <div className="relative flex min-w-0 flex-1">
+                <div
+                    ref={barReference}
+                    className="work-tab-scroll relative flex min-w-0 flex-1 overflow-x-auto"
+                >
+                    {dropIndicatorLeft !== undefined && (
+                        <div
+                            aria-hidden="true"
+                            className="work-tab-drop-marker pointer-events-none absolute top-1 bottom-1 z-10 w-0.5 bg-accent"
+                            style={{ left: dropIndicatorLeft }}
+                        >
+                            <span className="absolute -top-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-accent" />
+                        </div>
+                    )}
+                    <div
+                        /**
+                         * `min-w-full` (not `w-full`) lets evenly divided tabs claim the whole rail while still
+                         * allowing the list to grow past it once enough tabs hit their minimum width, which is what
+                         * hands overflow back to the scroll container above.
+                         */
+                        className="work-tab-list flex h-11 min-w-full items-stretch"
+                        role="tablist"
+                        aria-label={`Open tabs in ${paneLabel}`}
+                        aria-orientation="horizontal"
+                    >
+                        {/* Zero-width markers `useScrollEdges` watches to tell whether content has scrolled past
+                            either end of the list; they carry no visual weight of their own. */}
+                        <span
+                            ref={scrollStartSentinel}
+                            aria-hidden="true"
+                            className="w-px flex-none self-stretch"
+                        />
+                        <LazyMotion strict features={domAnimation}>
+                            <AnimatePresence initial={false}>
+                                {pane.tabs.map((tab) => (
+                                    <PaneTabEntry
+                                        key={tab.id}
+                                        active={tab.id === activeTabId}
+                                        isOnlySessionTerminal={isOnlySessionTerminal}
+                                        onNavigate={(key) => navigate(tab.id, key)}
+                                        paneId={pane.id}
+                                        showActiveAccent={hasTabsToSwitch && isActivePane}
+                                        tab={tab}
+                                    />
+                                ))}
+                            </AnimatePresence>
+                        </LazyMotion>
+                        <span
+                            ref={scrollEndSentinel}
+                            aria-hidden="true"
+                            className="w-px flex-none self-stretch"
+                        />
+                    </div>
+                </div>
+                {/* Fade cues only appear on an edge that actually hides tabs, and each edge fades to whatever
+                    background the bar itself currently wears (the drop-target tint included) so the cue never draws
+                    a visible seam against it. `motion-safe:` keeps the appear/disappear crossfade off entirely under
+                    reduced motion (DESIGN.md's motion layer contract), leaving an instant show/hide. */}
+                {canScrollStart && (
                     <div
                         aria-hidden="true"
-                        className="work-tab-drop-marker pointer-events-none absolute top-1 bottom-1 z-10 w-0.5 bg-accent"
-                        style={{ left: dropIndicatorLeft }}
-                    >
-                        <span className="absolute -top-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-accent" />
-                    </div>
+                        className={cn(
+                            'pointer-events-none absolute inset-y-0 left-0 z-[4] w-6 bg-gradient-to-r to-transparent motion-safe:transition-opacity motion-safe:duration-150',
+                            isDropTarget ? 'from-elevated' : 'from-surface',
+                        )}
+                    />
                 )}
-                <div
-                    /**
-                     * `min-w-full` (not `w-full`) lets evenly divided tabs claim the whole rail while still allowing
-                     * the list to grow past it once enough tabs hit their minimum width, which is what hands overflow
-                     * back to the scroll container above.
-                     */
-                    className="work-tab-list flex h-11 min-w-full items-stretch"
-                    role="tablist"
-                    aria-label={`Open tabs in ${paneLabel}`}
-                    aria-orientation="horizontal"
-                >
-                    <LazyMotion strict features={domAnimation}>
-                        <AnimatePresence initial={false}>
-                            {pane.tabs.map((tab) => (
-                                <PaneTabEntry
-                                    key={tab.id}
-                                    active={tab.id === activeTabId}
-                                    isOnlySessionTerminal={isOnlySessionTerminal}
-                                    onNavigate={(key) => navigate(tab.id, key)}
-                                    paneId={pane.id}
-                                    showActiveAccent={hasTabsToSwitch}
-                                    tab={tab}
-                                />
-                            ))}
-                        </AnimatePresence>
-                    </LazyMotion>
-                </div>
+                {canScrollEnd && (
+                    <div
+                        aria-hidden="true"
+                        className={cn(
+                            'pointer-events-none absolute inset-y-0 right-0 z-[4] w-6 bg-gradient-to-l to-transparent motion-safe:transition-opacity motion-safe:duration-150',
+                            isDropTarget ? 'from-elevated' : 'from-surface',
+                        )}
+                    />
+                )}
             </div>
             {hasTabsToSwitch && (
                 <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">

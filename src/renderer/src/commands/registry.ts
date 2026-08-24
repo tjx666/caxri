@@ -53,6 +53,19 @@ export interface CommandContext {
          */
         canSplitActive(): boolean;
         splitActive(side: 'down' | 'left' | 'right' | 'up'): void;
+        /**
+         * True only when moving keyboard focus in `direction` would land on a different pane. Matches the focus
+         * commands' `when` gate, so the palette never offers a move that would silently no-op at a single pane or the
+         * edge of the Workbench.
+         */
+        canFocusPaneInDirection(direction: 'down' | 'left' | 'right' | 'up'): boolean;
+        focusPaneInDirection(direction: 'down' | 'left' | 'right' | 'up'): void;
+        /**
+         * True only when the active tab is a Terminal that is not its Session's only Terminal — the same disabled
+         * reason the tab's context menu shows for "Move to New Session".
+         */
+        canMoveActiveTerminalToNewSession(): boolean;
+        moveActiveTerminalToNewSession(): void;
     };
     editor: { saveActive(): void };
     secondarySidebar: {

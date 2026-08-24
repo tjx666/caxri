@@ -217,6 +217,7 @@ function PaneBox({
         >
             <PaneTabBar
                 hasTabsToSwitch={hasTabsToSwitch}
+                isActivePane={isActivePane}
                 isOnlySessionTerminal={isOnlySessionTerminal}
                 isRootBar={isLeading}
                 pane={pane}

@@ -1,7 +1,8 @@
-import type { PaneSplitSide } from '@shared/pane-layout';
+import type { PaneFocusDirection, PaneSplitSide } from '@shared/pane-layout';
 import {
     activePane,
     activeTab,
+    adjacentPaneId,
     findResourceTabs,
     listPanes,
     moveTab,
@@ -13,6 +14,8 @@ import type { PaneLayout, PaneResource, PaneTab } from '@shared/types';
 
 import { getSessionState, useSessionState } from '../../stores/selectors';
 import { patchSessionState } from '../../stores/workbench';
+import { workTabId } from '../tabs/work-tab-accessibility';
+import { focusTerminalById } from '../terminal/terminal-actions';
 
 /**
  * The single write path for every Workbench layout mutation. Callers describe the edit with the pure reducer in
@@ -83,4 +86,38 @@ export function getActivePaneId(): string | undefined {
 export function findPaneTabId(resource: PaneResource): string | undefined {
     const layout = getPaneLayout();
     return layout ? findResourceTabs(layout, resource)[0]?.tab.id : undefined;
+}
+
+/**
+ * Whether {@link focusPaneInDirection} would move focus anywhere for `direction` — the `when` gate behind
+ * `workbench.focusPaneLeft/Right/Up/Down`, so the command palette and native menu never offer a move that would
+ * silently no-op at a single pane or the edge of the Workbench.
+ */
+export function canFocusPaneInDirection(direction: PaneFocusDirection): boolean {
+    const layout = getPaneLayout();
+    if (!layout) return false;
+    return adjacentPaneId(layout, activePane(layout).id, direction) !== undefined;
+}
+
+/**
+ * Moves keyboard focus and `activePaneId` to the pane geometrically adjacent to the active one, then hands focus to
+ * that pane's own active tab content — a Terminal reclaims xterm focus, a document reclaims its tab (mirroring
+ * `useTabFocusRecovery`'s DOM lookup, the existing pattern for restoring focus to a tab after a layout edit takes it
+ * away). A single pane, or `direction` pointing off the edge of the Workbench, leaves focus untouched.
+ */
+export function focusPaneInDirection(direction: PaneFocusDirection): void {
+    const layout = getPaneLayout();
+    if (!layout) return;
+    const targetId = adjacentPaneId(layout, activePane(layout).id, direction);
+    if (!targetId) return;
+    focusPane(targetId);
+    const target = listPanes(layout).find((pane) => pane.id === targetId);
+    const tab =
+        target?.tabs.find((candidate) => candidate.id === target.activeTabId) ?? target?.tabs.at(0);
+    if (!tab) return;
+    if (tab.resource.kind === 'terminal') {
+        focusTerminalById(tab.resource.terminalId);
+        return;
+    }
+    document.querySelector<HTMLElement>(`#${CSS.escape(workTabId(tab.id))}`)?.focus();
 }

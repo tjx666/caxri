@@ -149,7 +149,8 @@ export const commandDefinitions: CommandDefinition[] = [
         id: 'terminal.openDetectedLink',
         title: 'Open Detected Link…',
         category: 'Terminal',
-        description: 'Search and open links in the visible Terminal without using the pointer',
+        description: 'Search and open links detected in the Terminal without using the pointer',
+        nativeMenu: { menu: 'terminal', group: 1, order: 4 },
     },
     {
         id: 'terminal.previousCommand',
@@ -243,6 +244,36 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Split Down',
         category: 'Workbench',
         description: 'Split the active tab into a new pane below',
+    },
+    {
+        id: 'workbench.focusPaneLeft',
+        title: 'Focus Pane to the Left',
+        category: 'Workbench',
+        description: 'Move keyboard focus to the pane to the left of the current one',
+    },
+    {
+        id: 'workbench.focusPaneRight',
+        title: 'Focus Pane to the Right',
+        category: 'Workbench',
+        description: 'Move keyboard focus to the pane to the right of the current one',
+    },
+    {
+        id: 'workbench.focusPaneUp',
+        title: 'Focus Pane Above',
+        category: 'Workbench',
+        description: 'Move keyboard focus to the pane above the current one',
+    },
+    {
+        id: 'workbench.focusPaneDown',
+        title: 'Focus Pane Below',
+        category: 'Workbench',
+        description: 'Move keyboard focus to the pane below the current one',
+    },
+    {
+        id: 'workbench.moveActiveTerminalToNewSession',
+        title: 'Move to New Session',
+        category: 'Workbench',
+        description: "Move the active Terminal into a new Session in the Terminal's Project",
     },
     {
         id: 'secondarySidebar.showFiles',
@@ -436,6 +467,21 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+arrowup', command: 'terminal.previousCommand' },
     { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
+    /**
+     * `Cmd+\` is the iTerm2/Terminal.app convention for splitting a pane; only the rightward direction gets a default
+     * chord, the same way `terminal.new`'s `Cmd+T` leaves the other three split directions palette-only.
+     */
+    { key: 'cmd+\\', command: 'workbench.splitRight' },
+    /**
+     * `Cmd+Option+Arrow` moves keyboard focus between panes, iTerm2 style. `Cmd+K` chords already belong to Terminal
+     * Clear (`terminal.clear`) and `Cmd+<number>` is taken by the Secondary Side Bar/Panel view-container shortcuts, so
+     * neither of VS Code's own pane-navigation families is free here. `allowInEditable` lets the chord reach through a
+     * focused xterm — split view is otherwise mouse-only while a Terminal owns focus.
+     */
+    { key: 'cmd+alt+arrowleft', command: 'workbench.focusPaneLeft' },
+    { key: 'cmd+alt+arrowright', command: 'workbench.focusPaneRight' },
+    { key: 'cmd+alt+arrowup', command: 'workbench.focusPaneUp' },
+    { key: 'cmd+alt+arrowdown', command: 'workbench.focusPaneDown' },
     { key: 'cmd+w', command: 'workbench.closeActiveTab' },
     { key: 'cmd+s', command: 'editor.save' },
     { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
