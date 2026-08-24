@@ -1,26 +1,28 @@
-import type { TerminalDetectedLink } from './terminal-links';
+import type { TerminalLinkScanner } from './terminal-links';
 
-type TerminalLinkProvider = () => TerminalDetectedLink[];
+type TerminalLinkScannerFactory = () => TerminalLinkScanner;
 
-const linkProviders = new Map<string, TerminalLinkProvider>();
+const linkScannerFactories = new Map<string, TerminalLinkScannerFactory>();
 const pickerHandlers = new Map<string, () => void>();
 
 /**
  * Bridges the pane-owned xterm buffer to the pane-owned React picker without copying Terminal content into a global
- * store. The provider is invoked only when the user opens the command and returns a transient viewport snapshot.
+ * store. The factory is invoked only when the user opens the picker and returns a fresh, single-use scanner over a
+ * transient viewport + scrollback snapshot (`terminal-links.ts`'s `createTerminalLinkScanner`).
  */
-export function registerTerminalLinkProvider(
+export function registerTerminalLinkScanner(
     terminalId: string,
-    provider: TerminalLinkProvider,
+    factory: TerminalLinkScannerFactory,
 ): () => void {
-    linkProviders.set(terminalId, provider);
+    linkScannerFactories.set(terminalId, factory);
     return () => {
-        if (linkProviders.get(terminalId) === provider) linkProviders.delete(terminalId);
+        if (linkScannerFactories.get(terminalId) === factory)
+            linkScannerFactories.delete(terminalId);
     };
 }
 
-export function getTerminalDetectedLinks(terminalId: string): TerminalDetectedLink[] {
-    return linkProviders.get(terminalId)?.() ?? [];
+export function createTerminalLinkScanner(terminalId: string): TerminalLinkScanner | undefined {
+    return linkScannerFactories.get(terminalId)?.();
 }
 
 /**
