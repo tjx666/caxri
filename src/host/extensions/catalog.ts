@@ -10,7 +10,7 @@ import type {
     ViewCatalogSnapshot,
     ViewContainerDescriptor,
     ViewDescriptor,
-} from '../../../packages/protocol/src/domain/views';
+} from '@caxri/protocol';
 import {
     MAX_VIEW_CATALOG_COMMANDS,
     MAX_VIEW_CATALOG_CONTAINERS,
@@ -19,7 +19,8 @@ import {
     MAX_VIEW_ICON_DATA_URL_LENGTH,
     SHOW_VIEW_CONTAINER_COMMAND_PREFIX,
     viewCatalogSnapshotSchema,
-} from '../../../packages/protocol/src/domain/views';
+} from '@caxri/protocol';
+
 import type { DiscoveredExtension, RejectedExtension } from './discovery';
 
 const builtinContainers: ViewContainerDescriptor[] = [

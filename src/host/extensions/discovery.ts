@@ -4,16 +4,9 @@ import type { Dirent } from 'node:fs';
 import { open, readdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
+import type { ExtensionError, ExtensionManifest } from '@caxri/protocol';
+import { extensionIdSchema, extensionManifestSchema } from '@caxri/protocol';
 import { satisfies } from 'semver';
-
-import type {
-    ExtensionError,
-    ExtensionManifest,
-} from '../../../packages/protocol/src/domain/views';
-import {
-    extensionIdSchema,
-    extensionManifestSchema,
-} from '../../../packages/protocol/src/domain/views';
 
 export interface DiscoveredExtension {
     extensionId: string;
