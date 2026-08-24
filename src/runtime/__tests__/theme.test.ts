@@ -70,6 +70,29 @@ describe('theme import mapping', () => {
         expect(theme.warnings).not.toHaveLength(0);
     });
 
+    it('rejects a VS Code theme when mapped app surfaces make the fallback muted color miss AA', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-contrast-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'light.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Light',
+                colors: {
+                    'activityBar.background': '#ffffff',
+                    'editor.background': '#ffffff',
+                    'sideBar.background': '#ffffff',
+                },
+            }),
+            'utf8',
+        );
+
+        await expect(importTheme(path, draculaTheme)).rejects.toMatchObject({
+            code: 'VALIDATION',
+            message: expect.stringContaining('editor background') as string,
+        } satisfies Partial<CaxriError>);
+    });
+
     it('uses the active app and editor tokens for a terminal-only Warp theme', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-warp-'));
         temporaryDirectories.push(directory);
@@ -108,13 +131,13 @@ describe('theme import mapping', () => {
         const path = join(directory, 'theme.json');
         await writeFile(
             target,
-            JSON.stringify({ name: 'Linked Theme', colors: { 'editor.background': '#234567' } }),
+            JSON.stringify({ name: 'Linked Theme', colors: { 'editor.background': '#101112' } }),
             'utf8',
         );
         await symlink(target, path);
 
         await expect(importTheme(path, draculaTheme)).resolves.toMatchObject({
-            editor: { background: '#234567' },
+            editor: { background: '#101112' },
             source: 'vscode',
         });
     });
