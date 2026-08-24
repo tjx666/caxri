@@ -140,6 +140,20 @@ function parseWorkbenchEditorStates(source: string): WorkbenchEditorStates | und
     }
 }
 
+function pruneWorkbenchEditorState(source: string, projectId: string): string | undefined {
+    try {
+        const parsed = JSON.parse(source) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+        const candidate = { ...(parsed as Record<string, unknown>) };
+        if (!Object.hasOwn(candidate, projectId)) return;
+        delete candidate[projectId];
+        if (!workbenchEditorStatesSchema.safeParse(candidate).success) return;
+        return JSON.stringify(candidate);
+    } catch {
+        return;
+    }
+}
+
 /**
  * Remaps one stored editor path after a Project root move. Note the parallel implementation for the `paneLayout` tree:
  * `remapPaneLayoutPaths` in `src/shared/pane-layout.ts` does a pure string-prefix rewrite (browser-safe, no
@@ -435,6 +449,22 @@ export class SessionsModel {
      * Clears explicit bindings before an authorized Project row can be deleted.
      */
     resetWorkbenchProject(projectId: string): string[] {
+        const stateRows = this.database
+            .select({
+                sessionId: sessionStateTable.sessionId,
+                workbenchStateJson: sessionStateTable.workbenchStateJson,
+            })
+            .from(sessionStateTable)
+            .all();
+        for (const row of stateRows) {
+            const pruned = pruneWorkbenchEditorState(row.workbenchStateJson, projectId);
+            if (pruned !== undefined)
+                this.database
+                    .update(sessionStateTable)
+                    .set({ workbenchStateJson: pruned })
+                    .where(eq(sessionStateTable.sessionId, row.sessionId))
+                    .run();
+        }
         const sessionIds = this.database
             .select({ id: sessions.id })
             .from(sessions)
