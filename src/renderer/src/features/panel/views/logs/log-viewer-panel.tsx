@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { LogLevel, LogProcess, LogQueryRecord } from '@shared/types';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Trash2 } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
@@ -16,8 +16,11 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '../../../../components/ui/toggle-group';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utilities';
-import { isLogFilterMatch, logRecordHaystack, parseLogFilter } from './log-filter';
+import { filterLogRecords, parseLogFilter } from './log-filter';
 import { useLogStream } from './use-log-stream';
+
+const FILTER_GRAMMAR_HINT =
+    'Comma-separates patterns as OR (a, b). Prefix a pattern with ! to exclude it (!a). Wrap a pattern in double quotes to match a literal comma or leading ! ("a,b", !"c").';
 
 const ALL_PROCESSES = '__all__';
 
@@ -94,19 +97,25 @@ export function LogViewerPanel() {
     const [filterText, setFilterText] = useState('');
     const [expandedId, setExpandedId] = useState<string>();
     const [follow, setFollow] = useState(true);
+    // The epoch the user last dismissed the gap banner at (see `log-stream.ts`'s `gapEpoch` doc
+    // comment); the banner re-shows once `stream.gapEpoch` moves past it.
+    const [dismissedGapEpoch, setDismissedGapEpoch] = useState(0);
     const scrollReference = useRef<HTMLDivElement>(null);
 
     const process = processValue === ALL_PROCESSES ? undefined : (processValue as LogProcess);
     const stream = useLogStream(process);
 
     const filter = useMemo(() => parseLogFilter(filterText), [filterText]);
-    const visible = useMemo(() => {
-        const levels = new Set(activeLevels);
-        return stream.records.filter(
-            (record) =>
-                levels.has(record.level) && isLogFilterMatch(logRecordHaystack(record), filter),
-        );
-    }, [stream.records, activeLevels, filter]);
+    const visible = useMemo(
+        () => filterLogRecords(stream.records, activeLevels, filter),
+        [stream.records, activeLevels, filter],
+    );
+    const hasActiveFilter = filterText.trim() !== '' || activeLevels.length !== LEVELS.length;
+    const clearFilters = (): void => {
+        setFilterText('');
+        setActiveLevels([...LEVELS]);
+    };
+    const showGapBanner = stream.gap && stream.gapEpoch > dismissedGapEpoch;
 
     // TanStack Virtual is knowingly incompatible with React Compiler memoization; the compiler
     // skips this component, which is the library's documented, expected behavior.
@@ -165,14 +174,16 @@ export function LogViewerPanel() {
                     </Tooltip>
                 </div>
                 <div className="flex items-center gap-1">
-                    <Input
-                        aria-label="Filter log records"
-                        className="flex-1"
-                        placeholder="Filter (e.g. text, !exclude)"
-                        size="compact"
-                        value={filterText}
-                        onChange={(event) => setFilterText(event.currentTarget.value)}
-                    />
+                    <Tooltip content={FILTER_GRAMMAR_HINT}>
+                        <Input
+                            aria-label="Filter log records"
+                            className="flex-1"
+                            placeholder="Filter (e.g. text, !exclude)"
+                            size="compact"
+                            value={filterText}
+                            onChange={(event) => setFilterText(event.currentTarget.value)}
+                        />
+                    </Tooltip>
                     <ToggleGroup
                         aria-label="Level filter"
                         multiple
@@ -190,16 +201,57 @@ export function LogViewerPanel() {
                         ))}
                     </ToggleGroup>
                 </div>
+                {(hasActiveFilter || visible.length !== stream.records.length) && (
+                    <div className="flex items-center gap-2 text-[11px] text-muted">
+                        {visible.length !== stream.records.length && (
+                            <span>
+                                {visible.length} of {stream.records.length}
+                            </span>
+                        )}
+                        {hasActiveFilter && (
+                            <Button
+                                className="h-auto min-h-0 px-0 py-0 text-[11px] text-muted underline enabled:hover:bg-transparent enabled:hover:text-foreground"
+                                size="sm"
+                                variant="ghost"
+                                onClick={clearFilters}
+                            >
+                                Clear filters
+                            </Button>
+                        )}
+                    </div>
+                )}
             </div>
-            {stream.gap && (
-                <div className="flex-none border-b border-border px-2 py-1 text-[11px] text-warning">
-                    Some records rotated out before they could be fetched.
+            {showGapBanner && (
+                <div className="flex flex-none items-center gap-2 border-b border-border px-2 py-1 text-[11px] text-warning">
+                    <span className="flex-1">
+                        Some records rotated out before they could be fetched.
+                    </span>
+                    <Button
+                        aria-label="Dismiss dropped-records notice"
+                        className="text-warning enabled:hover:bg-[color-mix(in_srgb,var(--warning)_18%,transparent)]"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setDismissedGapEpoch(stream.gapEpoch)}
+                    >
+                        <X aria-hidden="true" size={13} />
+                    </Button>
                 </div>
             )}
             <div ref={scrollReference} className="min-h-0 flex-1 overflow-auto" onScroll={handleScroll}>
                 {visible.length === 0 ? (
-                    <div className="px-3 py-4 text-center text-[12px] text-muted">
-                        {stream.isLoading ? 'Loading logs…' : 'No log records match.'}
+                    <div className="flex flex-col items-center gap-1 px-3 py-4 text-center text-[12px] text-muted">
+                        {stream.isLoading ? (
+                            'Loading logs…'
+                        ) : hasActiveFilter ? (
+                            <>
+                                <span>No log records match the filter text or level toggles.</span>
+                                <Button size="sm" variant="ghost" onClick={clearFilters}>
+                                    Clear filters
+                                </Button>
+                            </>
+                        ) : (
+                            'No log records match.'
+                        )}
                     </div>
                 ) : (
                     <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>

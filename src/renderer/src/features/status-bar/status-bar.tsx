@@ -25,6 +25,7 @@ import {
     Workflow,
 } from 'lucide-react';
 
+import { useContainerWidth } from '@/hooks/use-container-width';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useNow } from '@/hooks/use-now';
 import { usePolledQuery } from '@/hooks/use-polled-query';
@@ -63,6 +64,7 @@ import {
     useTerminalProgress,
 } from '../terminal/terminal-progress';
 import { useActivePaneTab } from '../workbench/pane-actions';
+import { resolveChipVisibility } from './chip-priority';
 
 /**
  * No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
@@ -189,7 +191,19 @@ function ActiveFileStatus({
 
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
 
-function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
+function ActiveTerminalStatus({
+    showChildProcessCount,
+    showMemory,
+    terminalId,
+}: {
+    /**
+     * Priority-hidden first as the status bar narrows (see `chip-priority.ts`): both metrics duplicate a live reading
+     * already available in Process Explorer, so hiding them loses no information the user cannot get elsewhere.
+     */
+    showChildProcessCount: boolean;
+    showMemory: boolean;
+    terminalId: string;
+}) {
     const terminal = useTerminal(terminalId);
     const isCompacting = terminal?.agentOperation === 'compacting';
     const progress = useTerminalProgress(terminalId);
@@ -251,7 +265,7 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
              * reading for the active Terminal; clicking it is a convenience shortcut, not a required affordance, which is why it is
              * allowed to disappear on editor/diff tabs where there is no Terminal metric to show.
              */}
-            {usage && (
+            {usage && showMemory && (
                 <StatusItem
                     ariaLabel={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
                     icon={MemoryStick}
@@ -261,7 +275,7 @@ function ActiveTerminalStatus({ terminalId }: { terminalId: string }) {
                     {usage.memoryMb} MB
                 </StatusItem>
             )}
-            {usage && childLabel && (
+            {usage && childLabel && showChildProcessCount && (
                 <StatusItem
                     ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
                     icon={Workflow}
@@ -540,7 +554,10 @@ function BranchPicker({
                     </SelectItem>
                 ))}
                 {branchesQuery.isLoading && (
-                    <div className="px-2 py-1.5 text-[12px] text-muted">Loading branches…</div>
+                    <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] text-muted">
+                        <LoaderCircle className="animate-spin" size={12} />
+                        Loading branches…
+                    </div>
                 )}
             </SelectContent>
         </Select>
@@ -628,7 +645,8 @@ function WorkbenchRootPicker({ branch, sessionId }: { branch?: string; sessionId
                     Authorize another worktree…
                 </SelectItem>
                 {rootsQuery.isLoading && (
-                    <div className="px-2 py-1.5 text-[12px] text-muted">
+                    <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] text-muted">
+                        <LoaderCircle className="animate-spin" size={12} />
                         Loading Workbench Roots…
                     </div>
                 )}
@@ -650,12 +668,15 @@ export function StatusBar() {
     const runtimeStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
     const degraded = runtimeStatus ? DEGRADED_STATES[runtimeStatus] : undefined;
     const activeResource = useActivePaneTab()?.resource;
+    const [containerReference, containerWidth] = useContainerWidth<HTMLElement>();
+    const chipVisibility = resolveChipVisibility(containerWidth);
     return (
         /**
          * `data-runtime-status` is the stable readiness signal: it is present in every visual state, including the
          * healthy one that renders no chip at all.
          */
         <footer
+            ref={containerReference}
             className="statusbar col-span-full flex items-center gap-2 bg-surface px-2 text-[11px] text-muted"
             data-runtime-status={runtimeStatus ?? 'starting'}
         >
@@ -687,7 +708,7 @@ export function StatusBar() {
                         sessionId={sessionId}
                     />
                 )}
-                {repo?.pullRequest && (
+                {repo?.pullRequest && chipVisibility.pullRequest && (
                     <StatusItem
                         icon={GitPullRequest}
                         href={repo.pullRequest.url}
@@ -711,10 +732,12 @@ export function StatusBar() {
             {/*
              * `min-w-0` lets this side actually shrink instead of pushing width past the window
              * edge — `<body>` has `overflow-x: hidden`, so a `flex-none` sibling here used to be
-             * silently clipped below ~752px viewport width with no way to reach it. `overflow-x-
-             * auto` turns that clip into a real (if last-resort) scroll affordance: the browser's
-             * native horizontal scrollbar only appears once this row can no longer fit, and stays
-             * absent at every ordinary window width.
+             * silently clipped below ~752px viewport width with no way to reach it. The chip-
+             * priority resolution above (`chip-priority.ts`) now hides the lowest-value chips first
+             * as the footer narrows, so information stays reachable without a scrollbar for every
+             * ordinary window width; `overflow-x-auto` stays only as the last-resort fallback for
+             * the pathological case where even the never-hide chips (degraded/runtime state,
+             * active Agent operation) don't fit.
              */}
             <div className="statusbar-actions flex min-w-0 shrink items-center gap-2 overflow-x-auto">
                 {degraded && (
@@ -735,7 +758,11 @@ export function StatusBar() {
                         />
                     )}
                 {activeResource?.kind === 'terminal' && (
-                    <ActiveTerminalStatus terminalId={activeResource.terminalId} />
+                    <ActiveTerminalStatus
+                        showChildProcessCount={chipVisibility.childProcessCount}
+                        showMemory={chipVisibility.memory}
+                        terminalId={activeResource.terminalId}
+                    />
                 )}
             </div>
         </footer>

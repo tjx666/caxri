@@ -11,6 +11,11 @@ export interface LogStream {
      * True once the server reported that records rotated out between polls, so the view is missing history.
      */
     gap: boolean;
+    /**
+     * Generation counter for {@link gap}; see `log-stream.ts`'s `LogStreamState` doc comment. The panel compares this
+     * against the epoch it was dismissed at to decide whether the gap banner should still show.
+     */
+    gapEpoch: number;
     isLoading: boolean;
     clear(): void;
 }
@@ -36,7 +41,10 @@ export function useLogStream(process: LogProcess | undefined): LogStream {
     if (streamedProcess !== process) {
         setStreamedProcess(process);
         setFoldedPage(undefined);
-        setState(emptyLogStream);
+        // Restarting the stream for the new process filter is itself a new viewing session, so the
+        // gap epoch is bumped (not reset to 0, for the same reason `clearLogStream` bumps rather
+        // than resets — see its doc comment) rather than dropped back to `emptyLogStream`'s.
+        setState((current) => ({ ...emptyLogStream, gapEpoch: current.gapEpoch + 1 }));
     }
 
     const query = usePolledQuery(
@@ -58,6 +66,7 @@ export function useLogStream(process: LogProcess | undefined): LogStream {
     return {
         records: state.records,
         gap: state.gap,
+        gapEpoch: state.gapEpoch,
         isLoading: state.records.length === 0 && query.isPending,
         clear: () => setState(clearLogStream),
     };

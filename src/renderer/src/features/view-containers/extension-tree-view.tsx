@@ -184,7 +184,7 @@ function unloadedExpandedHandles(
     return handles;
 }
 
-export function ExtensionTreeView({ viewId }: { viewId: string }) {
+export function ExtensionTreeView({ title, viewId }: { title: string; viewId: string }) {
     const sessionState = useSessionState();
     const sessionId = sessionState?.sessionId;
     const workbenchProjectId = sessionState?.workbenchProjectId;
@@ -210,6 +210,7 @@ export function ExtensionTreeView({ viewId }: { viewId: string }) {
             key={`${scope.sessionId}\0${scope.workbenchProjectId}\0${viewId}`}
             persisted={sessionState?.extensionTreeViewStates?.[viewId]}
             scope={scope}
+            title={title}
             viewId={viewId}
         />
     );
@@ -218,10 +219,12 @@ export function ExtensionTreeView({ viewId }: { viewId: string }) {
 function ExtensionTreeViewContent({
     persisted,
     scope,
+    title,
     viewId,
 }: {
     persisted?: ExtensionTreeViewState;
     scope: { sessionId: string; workbenchProjectId: string; viewId: string };
+    title: string;
     viewId: string;
 }) {
     const scrollElement = useRef<HTMLDivElement>(null);
@@ -423,7 +426,7 @@ function ExtensionTreeViewContent({
     return (
         <div ref={scrollElement} className="min-h-0 flex-1 overflow-auto">
             <ul
-                aria-label="Extension View"
+                aria-label={title}
                 className="relative"
                 role="tree"
                 style={{ height: `${virtualizer.getTotalSize()}px` }}
@@ -442,8 +445,14 @@ function ExtensionTreeViewContent({
                             style={{ transform: `translateY(${virtualRow.start}px)` }}
                         >
                             {row.kind === 'loading' ? (
+                                // `role="treeitem"` (rather than the `li`'s own `role="none"`) keeps the placeholder
+                                // discoverable by the same tree/treeitem contract the interactive rows below use, so
+                                // screen reader users don't hit a silent gap while a branch is fetching.
                                 <div
+                                    aria-label="Loading…"
+                                    aria-level={row.depth + 1}
                                     className="flex h-7 items-center gap-2 text-xs text-muted"
+                                    role="treeitem"
                                     style={{ paddingLeft: `${8 + row.depth * 14}px` }}
                                 >
                                     <LoaderCircle className="animate-spin" size={14} /> Loading
@@ -451,7 +460,10 @@ function ExtensionTreeViewContent({
                                 </div>
                             ) : row.kind === 'error' ? (
                                 <div
+                                    aria-label={`Unable to load view: ${row.message}`}
+                                    aria-level={row.depth + 1}
                                     className="flex h-7 items-center gap-2 text-xs text-danger"
+                                    role="treeitem"
                                     style={{ paddingLeft: `${8 + row.depth * 14}px` }}
                                 >
                                     <AlertTriangle size={14} />
@@ -471,7 +483,10 @@ function ExtensionTreeViewContent({
                                 </div>
                             ) : row.kind === 'empty' ? (
                                 <div
+                                    aria-label="No items in this view."
+                                    aria-level={row.depth + 1}
                                     className="flex h-7 items-center text-xs text-muted"
+                                    role="treeitem"
                                     style={{ paddingLeft: `${8 + row.depth * 14}px` }}
                                 >
                                     No items in this view.
