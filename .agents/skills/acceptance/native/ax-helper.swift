@@ -475,6 +475,8 @@ private func fileBrowser(
 /**
  * AppKit exposes browser selection differently across Finder view modes: rows may own AXSelected directly, while
  * outline-like containers own AXSelectedChildren. Try both semantic forms while walking the bounded ancestor chain.
+ * Column views can also apply a selection while returning kAXErrorIllegalArgument, so a verified target postcondition
+ * is authoritative whenever the transport return and observable state disagree.
  */
 private func selectFileElement(
     _ item: AXUIElement,
@@ -491,11 +493,17 @@ private func selectFileElement(
         )
         if selectedSettableError == .cannotComplete { reader.sawCannotComplete = true }
         if selectedSettableError == .success, selectedSettable.boolValue {
-            return AXUIElementSetAttributeValue(
+            let selectionError = AXUIElementSetAttributeValue(
                 element,
                 kAXSelectedAttribute as CFString,
                 kCFBooleanTrue
             )
+            if selectionError == .cannotComplete { reader.sawCannotComplete = true }
+            if selectionError == .success
+                || (reader.value(item, kAXSelectedAttribute as CFString) ?? false)
+            {
+                return .success
+            }
         }
 
         guard let parent: AXUIElement = reader.value(
@@ -510,11 +518,17 @@ private func selectFileElement(
         )
         if settableError == .cannotComplete { reader.sawCannotComplete = true }
         if settableError == .success, settable.boolValue {
-            return AXUIElementSetAttributeValue(
+            let selectionError = AXUIElementSetAttributeValue(
                 parent,
                 kAXSelectedChildrenAttribute as CFString,
                 [element] as CFArray
             )
+            if selectionError == .cannotComplete { reader.sawCannotComplete = true }
+            if selectionError == .success
+                || (reader.value(item, kAXSelectedAttribute as CFString) ?? false)
+            {
+                return .success
+            }
         }
         candidate = parent
     }
