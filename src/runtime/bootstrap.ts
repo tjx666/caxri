@@ -582,7 +582,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
                 ),
             ];
             for (const session of ownedSessions) {
-                terminalRestores.cancel(session.id);
+                terminalRestores.forget(session.id);
                 coordinator.forgetSession(session.id);
                 transcripts.forgetSession(session.id);
                 terminals.terminateSession(session.id);
@@ -673,7 +673,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
             return session;
         },
         'session.delete': ({ sessionId }) => {
-            terminalRestores.cancel(sessionId);
+            terminalRestores.forget(sessionId);
             coordinator.forgetSession(sessionId);
             transcripts.forgetSession(sessionId);
             terminals.terminateSession(sessionId);

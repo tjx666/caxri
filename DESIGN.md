@@ -62,7 +62,9 @@ The status bar uses `--surface` + top hairline — never an accent fill.
 palette's comment color for it. The built-in palette is asserted against that floor in
 `runtime/__tests__/theme.test.ts`, which also pins `styles/theme.css` to the same values so the
 pre-Runtime first frame cannot drift. Imported themes are held to the same floor as a
-requirement, but nothing validates them at import time yet (see Known gaps).
+requirement: app-color imports (full Caxri JSON and VS Code themes) are rejected before activation
+when `--muted` misses the floor on any chrome surface, while terminal-only imports preserve the
+active app and editor tokens.
 
 ### Type scale (root 13px)
 
@@ -349,9 +351,6 @@ endorsement; resolving one requires updating the sections above in the same chan
   hand-roll `color-mix` recipes (status bar, project rows, process explorer, panel divider).
   Until dedicated state tokens land, reuse the closest existing recipe instead of inventing
   another formula.
-- **Imported-theme contrast** — the `--muted` WCAG AA floor is asserted only for the built-in
-  palette; imported themes are not validated at import time, so a low-contrast theme currently
-  imports without warning.
 - **Panel toggle shortcuts** — `Command+[` / `Command+]` collide with editor indent/navigate
   muscle memory and, per the global-shortcut rule, cannot fire while focus is in Monaco or
   xterm — where focus usually rests. Rebinding (e.g. `Command+B` for the PrimarySidebar) is an open
