@@ -47,6 +47,10 @@ extracted below the boundary and tested there; if yes, extract it instead.
    before temporary profiles disappear.
 4. Focused launches use hidden windows. Use `windowMode: 'visible'` only for native focus or pointer
    behavior. Every launch acquires the repository-wide desktop lease through `e2e/support/helpers.ts`.
+   Visible native work must also follow the lease's
+   [human-focus boundary](../switch-worktree/SKILL.md#serialize-desktop-work): prepare the exact action
+   before choosing visible mode and launching, then stop the owned launch before diagnosing an
+   unexpected result.
 5. Ordinary launches use blocked Agent discovery. Agent specs explicitly choose a shared fake mode
    or the manual Codex-only real smoke; never inherit host Agent state by accident.
 6. A deliberate error must consume one exact `allowE2EErrors(...)` tuple. Wildcards, message

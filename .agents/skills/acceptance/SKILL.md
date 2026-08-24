@@ -26,6 +26,14 @@ substitutes for the real desktop path when the claim is user-visible.
   frontmost-window, or coordinate targeting.
 - Tell the user immediately before launching because the real desktop window can
   take macOS focus during verification.
+- Follow the desktop lease's
+  [human-focus boundary](../switch-worktree/SKILL.md#serialize-desktop-work).
+  Finish fixture inputs, capture paths, and the exact native action before launch.
+  The launch may show the window, but remaining CDP setup and evidence authoring
+  must not activate or repeatedly reassert it. A deliberate frontmost interval
+  contains one pre-authored native interaction, its capture or readback, and
+  immediate dismissal. On the first unexpected result, close the owned native UI
+  and stop the owned launch before investigating.
 - Use CDP and `agent-browser` for renderer interaction, DOM inspection, and
   screenshots. Use OS capture only when the criterion is specifically about
   Electron or macOS chrome that CDP cannot see.
