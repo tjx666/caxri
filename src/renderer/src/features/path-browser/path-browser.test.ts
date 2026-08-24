@@ -48,29 +48,33 @@ describe('path browser navigation', () => {
     });
 
     it('offers to create a file for a plain name once nothing matches', () => {
-        expect(pathBrowserCreateCandidate('notes.md', 0, false)).toEqual({
+        expect(pathBrowserCreateCandidate('notes.md', 0, false, true)).toEqual({
             kind: 'file',
             name: 'notes.md',
         });
     });
 
     it('offers to create a folder when the name ends with a trailing slash', () => {
-        expect(pathBrowserCreateCandidate('drafts/', 0, false)).toEqual({
+        expect(pathBrowserCreateCandidate('drafts/', 0, false, true)).toEqual({
             kind: 'directory',
             name: 'drafts',
         });
     });
 
     it('never offers to create while an existing match is still possible', () => {
-        expect(pathBrowserCreateCandidate('README.md', 1, false)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('missing', 0, true)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('', 0, false)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('README.md', 1, false, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('missing', 0, true, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('', 0, false, true)).toBeUndefined();
+    });
+
+    it('never offers to create before the current query result is authoritative', () => {
+        expect(pathBrowserCreateCandidate('README.md', 0, false, false)).toBeUndefined();
     });
 
     it('rejects names that are not a single path segment', () => {
-        expect(pathBrowserCreateCandidate('.', 0, false)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('..', 0, false)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('nested/name', 0, false)).toBeUndefined();
-        expect(pathBrowserCreateCandidate('/', 0, false)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('.', 0, false, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('..', 0, false, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('nested/name', 0, false, true)).toBeUndefined();
+        expect(pathBrowserCreateCandidate('/', 0, false, true)).toBeUndefined();
     });
 });

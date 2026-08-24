@@ -27,6 +27,7 @@
                 "files": [
                     "packages/cli/src/skills/execute.ts",
                     "packages/cli/src/skills/filesystem.ts",
+                    "src/main/menu-refresh.ts",
                     "src/renderer/src/lib/monaco.ts",
                     "src/runtime/agents/hooks/manager.ts",
                     "src/runtime/files/mutation-journal.ts",

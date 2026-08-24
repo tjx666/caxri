@@ -199,13 +199,14 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         const settings = configuration.getSettings();
         const keybindings = configuration.getKeybindings();
         const theme = configuration.getTheme();
+        const terminalRecords = database.listTerminals();
         return {
             projects: database.listProjects(),
             sessions: database.listSessions(),
-            terminals: database.listTerminals().map(liveTerminalRecord),
+            terminals: terminalRecords.map(liveTerminalRecord),
             selectedProjectId: database.getAppState('lastSelectedProjectId') ?? undefined,
             selectedSessionId: database.getAppState('lastSelectedSessionId') ?? undefined,
-            sessionStates: database.listSessionStates(),
+            sessionStates: database.listSessionStates(terminalRecords),
             settings: settings.value,
             keybindings: keybindings.value,
             keybindingConflicts: keybindings.conflicts,

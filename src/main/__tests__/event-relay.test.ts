@@ -12,7 +12,7 @@ describe('Main event relay', () => {
             loadState: () =>
                 Promise.resolve({ projects: [], sessions: [], terminals: [] } as never),
             logger: () => {},
-            onKeybindingsChanged: vi.fn(),
+            onMenuRefreshRequested: vi.fn(),
         });
         const replacement = {
             event: 'host.connectionChanged',
@@ -46,7 +46,7 @@ describe('Main event relay', () => {
                     terminals: [{ id: 'terminal-1' }],
                 } as never),
             logger: () => {},
-            onKeybindingsChanged: vi.fn(),
+            onMenuRefreshRequested: vi.fn(),
         });
 
         relay.send({
@@ -77,5 +77,34 @@ describe('Main event relay', () => {
             events: [{ cursor: 1 }],
         });
         expect(JSON.stringify(await relay.recover(0))).not.toContain('session.delete');
+    });
+
+    it('requests menu convergence after configuration changes and connection recovery', () => {
+        const onMenuRefreshRequested = vi.fn();
+        const relay = createMainEventRelay({
+            deliver: vi.fn(),
+            loadState: () =>
+                Promise.resolve({ projects: [], sessions: [], terminals: [] } as never),
+            logger: () => {},
+            onMenuRefreshRequested,
+        });
+
+        relay.send({ event: 'keybindings.changed', payload: { source: '[]' } });
+        relay.send({
+            event: 'host.connectionChanged',
+            payload: { attempt: 1, downtimeMs: 10, isHostReplaced: false, status: 'reconnected' },
+        });
+        relay.send({ event: 'runtime.status', payload: { restartCount: 1, status: 'ready' } });
+        relay.send({ event: 'keybindings.changed', payload: { error: 'invalid', source: '[]' } });
+        relay.send({
+            event: 'host.connectionChanged',
+            payload: { status: 'replaced' },
+        });
+        relay.send({
+            event: 'runtime.status',
+            payload: { restartCount: 2, status: 'restarting' },
+        });
+
+        expect(onMenuRefreshRequested).toHaveBeenCalledTimes(3);
     });
 });
