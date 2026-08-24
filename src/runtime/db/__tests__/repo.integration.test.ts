@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import Database from 'better-sqlite3';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     findResourceTabs,
@@ -79,6 +79,23 @@ describe('CaxriDatabase', () => {
         expect(
             listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
         ).toEqual([]);
+        database.close();
+    });
+
+    it('reuses already loaded Terminal records when listing all Session states', async () => {
+        const directory = await temporaryDirectory('caxri-db-session-state-ownership-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(directory);
+        database.createSession(project.id, 'shell');
+        database.createSession(project.id, 'shell');
+        database.createSession(project.id, null);
+        const terminalRecords = database.listTerminals();
+        const prepare = vi.spyOn(database.database, 'prepare');
+
+        expect(database.listSessionStates(terminalRecords)).toHaveLength(3);
+        expect(
+            prepare.mock.calls.filter(([statement]) => statement.includes('from "terminals"')),
+        ).toHaveLength(0);
         database.close();
     });
 
