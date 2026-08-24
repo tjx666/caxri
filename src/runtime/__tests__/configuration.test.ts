@@ -14,6 +14,7 @@ import type { RuntimeEvent } from '../../shared/ipc';
 import { MAX_TERMINAL_INPUT_LENGTH } from '../../shared/ipc';
 import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
 import { ConfigService } from '../config';
+import { draculaTheme } from '../theme';
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => {
@@ -345,6 +346,27 @@ describe('ConfigurationService', () => {
         await mkdir(service.settingsPath);
         await expect(service.updateSettings(source)).rejects.toThrow();
         expect(service.getSettings()).toEqual(before);
+        await service.close();
+    });
+
+    it('keeps theme state, source, file, and events unchanged after a low-contrast import', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-theme-contrast-'));
+        temporaryDirectories.push(directory);
+        const events: RuntimeEvent[] = [];
+        const service = new ConfigService(directory, (event) => events.push(event));
+        await service.initialize();
+        events.length = 0;
+        const before = service.getTheme();
+        const beforeFile = await readFile(service.themePath, 'utf8');
+        const imported = structuredClone(draculaTheme);
+        imported.colors.muted = imported.colors.surface;
+        const path = join(directory, 'low-contrast.json');
+        await writeFile(path, JSON.stringify(imported), 'utf8');
+
+        await expect(service.importTheme(path)).rejects.toMatchObject({ code: 'VALIDATION' });
+        expect(service.getTheme()).toEqual(before);
+        expect(await readFile(service.themePath, 'utf8')).toBe(beforeFile);
+        expect(events).toEqual([]);
         await service.close();
     });
 

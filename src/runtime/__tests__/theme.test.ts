@@ -3,6 +3,7 @@ import { appendFile, mkdtemp, open, readFile, rm, symlink, writeFile } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { contrastRatio } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { CaxriError } from '../../shared/ipc/errors';
@@ -189,32 +190,86 @@ describe('theme import mapping', () => {
         expect(theme.source).toBe('vscode');
         expect(theme.editor.background).toBe('#123456');
     });
-});
 
-/**
- * WCAG 2.1 relative luminance of an `#rrggbb` color.
- */
-function relativeLuminance(hex: string): number {
-    const channels = [1, 3, 5].map((offset) => {
-        const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
-        return value <= 0.039_28 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    it('rejects a full Caxri theme when muted misses AA on any app surface', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-contrast-'));
+        temporaryDirectories.push(directory);
+        await Promise.all(
+            (['background', 'surface', 'elevated'] as const).map(async (surface) => {
+                const path = join(directory, `${surface}.json`);
+                const theme = structuredClone(draculaTheme);
+                theme.colors[surface] = theme.colors.muted;
+                await writeFile(path, JSON.stringify(theme), 'utf8');
+                await expect(importTheme(path, draculaTheme)).rejects.toMatchObject({
+                    code: 'VALIDATION',
+                    message: expect.stringContaining(`colors.${surface}`) as string,
+                } satisfies Partial<CaxriError>);
+            }),
+        );
     });
-    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-}
 
-function contrastRatio(foreground: string, background: string): number {
-    const [lighter, darker] = [
-        relativeLuminance(foreground),
-        relativeLuminance(background),
-    ].toSorted((a, b) => b - a);
-    return (lighter + 0.05) / (darker + 0.05);
-}
+    it('accepts a full Caxri theme whose muted color clears the AA boundary', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-contrast-valid-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'valid.json');
+        const theme = structuredClone(draculaTheme);
+        theme.colors = {
+            ...theme.colors,
+            background: '#ffffff',
+            surface: '#ffffff',
+            elevated: '#ffffff',
+            muted: '#767676',
+        };
+        await writeFile(path, JSON.stringify(theme), 'utf8');
+
+        await expect(importTheme(path, draculaTheme)).resolves.toMatchObject({
+            colors: { muted: '#767676' },
+            source: 'custom',
+        });
+
+        const belowBoundaryPath = join(directory, 'below-boundary.json');
+        theme.colors.muted = '#777777';
+        await writeFile(belowBoundaryPath, JSON.stringify(theme), 'utf8');
+        await expect(importTheme(belowBoundaryPath, draculaTheme)).rejects.toMatchObject({
+            code: 'VALIDATION',
+            message: expect.stringContaining('colors.background') as string,
+        } satisfies Partial<CaxriError>);
+
+        const opaqueAlphaPath = join(directory, 'opaque-alpha.json');
+        theme.colors.muted = '#767676FF';
+        theme.colors.background = '#ffffffFF';
+        await writeFile(opaqueAlphaPath, JSON.stringify(theme), 'utf8');
+        await expect(importTheme(opaqueAlphaPath, draculaTheme)).resolves.toMatchObject({
+            colors: { background: '#ffffffFF', muted: '#767676FF' },
+        });
+    });
+
+    it('rejects translucent app text whose opaque RGB would appear to pass', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-contrast-alpha-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'translucent.json');
+        const theme = structuredClone(draculaTheme);
+        theme.colors = {
+            ...theme.colors,
+            background: '#000000',
+            surface: '#000000',
+            elevated: '#000000',
+            muted: '#ffffff80',
+        };
+        await writeFile(path, JSON.stringify(theme), 'utf8');
+
+        await expect(importTheme(path, draculaTheme)).rejects.toMatchObject({
+            code: 'VALIDATION',
+            message: expect.stringContaining('colors.background') as string,
+        } satisfies Partial<CaxriError>);
+    });
+});
 
 describe('built-in theme contrast', () => {
     /**
      * `muted` is the UI's secondary-text role, not a syntax color, so it must stay readable on every chrome surface.
-     * Imported themes clone this palette and never override `muted`, which makes this single constant the contrast
-     * floor for all 133 `text-muted` call sites in the Renderer.
+     * This built-in value also remains the fallback for terminal-only imports; full app-theme imports enforce the same
+     * floor before activation.
      */
     it('keeps muted secondary text at WCAG AA on every chrome surface', () => {
         const { muted, background, surface, elevated } = draculaTheme.colors;
