@@ -105,6 +105,16 @@ afterAll(async () => {
 });
 
 describe('Acceptance report scaffold', () => {
+    it('rejects a case id that the isolated Electron launcher cannot own', async () => {
+        const directory = await reportDirectory();
+
+        await expect(
+            initialize(directory, {
+                plan: [{ ...plan[0], id: 'ACC-274-MENU-HINT' }],
+            }),
+        ).rejects.toThrow('Acceptance case id must use lowercase letters, digits, and hyphens');
+    });
+
     it('reports an actionable error for generated TODO placeholders', async () => {
         const directory = await reportDirectory();
         await initialize(directory);

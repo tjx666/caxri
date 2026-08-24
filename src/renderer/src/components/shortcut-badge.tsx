@@ -1,4 +1,5 @@
-import { formatShortcut, formatShortcutParts } from '../lib/keybindings';
+import { formatShortcut, formatShortcutParts } from '@shared/shortcuts';
+
 import { cn } from '../lib/utilities';
 import { Kbd } from './ui/kbd';
 

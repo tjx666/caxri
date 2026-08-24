@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 
+import { formatShortcutParts } from '@shared/shortcuts';
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
 
 import { useNow } from '@/hooks/use-now';
@@ -8,7 +9,7 @@ import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Kbd } from '../../components/ui/kbd';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { formatShortcutParts, useCommandShortcut } from '../../lib/keybindings';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import { ProjectIcon } from '../primary-sidebar/project-icon';
