@@ -249,6 +249,10 @@ function ExtensionTreeViewContent({
             void loadChildren(handle);
         }
     }, [children, errors, loadChildren, loading, requests, treeState]);
+
+    // TanStack Virtual is knowingly incompatible with React Compiler memoization; the compiler
+    // skips this component, which is the library's documented, expected behavior.
+    // eslint-disable-next-line react-hooks/incompatible-library -- see above
     const virtualizer = useVirtualizer({
         count: rows.length,
         estimateSize: () => 28,
