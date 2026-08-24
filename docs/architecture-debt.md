@@ -7,7 +7,7 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
 | **Last full audit**      | 2026-08-16 @ `19474c0` (`main`)                                                                        |
-| **Targeted review base** | 2026-08-23 @ `6e8ecb7` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
+| **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
 | **Full-audit scope**     | Repository-wide revalidation of every prior OPEN entry plus Host, protocol, CLI, and Agent deltas      |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
@@ -248,7 +248,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 
 - **Summary:** The original claim that `check --test` silently misses `project-status-runner.test.ts` is no longer true because static direct-import discovery includes that suite.
 - **Evidence:** `.agents/skills/quality-check/scripts/check.ts:338-455` resolves Renderer aliases and scans static direct imports across `src`, skills, scripts, and packages; `src/runtime/__tests__/project-status-runner.test.ts:3-4` directly imports `../project-status-external`. Exact-stem candidate generation remains intentionally narrower.
-- **First seen:** 2026-08-13 @ 940d949 · **Last verified stale:** 2026-08-23 @ 6e8ecb7
+- **First seen:** 2026-08-13 @ 940d949 · **Last verified stale:** 2026-08-24 @ 87b613a
 - **Disposition:** Do not add broad hyphenated-sibling inference. The distinct alias-import and `packages/cli` discovery gaps remain tracked by [issue caxri#159](https://github.com/tjx666/caxri/issues/159).
 
 ---
