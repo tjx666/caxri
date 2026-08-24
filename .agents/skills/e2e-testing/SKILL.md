@@ -136,10 +136,9 @@ following controls when collecting a new comparison:
   pool orchestration with an ad-hoc command.
 - Workflow dispatches run deterministic CI-parity cases through `scripts/run-ci-parity.ts` and
   preserve the profile receipts defined by the authority document.
-- Run each profile until it has three consecutive green samples on the same Node/pnpm/lockfile,
-  runner label, test manifest, and workflow parameters. Record every non-green attempt.
-- Adopt optimized only when it preserves isolation and test counts and improves median feedback.
-  Otherwise restore one worker and publish the reject decision.
+- Follow the authority document's frozen sample count, dispatch order, non-green treatment, adoption
+  threshold, and stop condition. Do not extend a declared experiment until it becomes green or
+  replace a red sample outside its documented infrastructure-failure rule.
 
 ## Controlled PR retries
 

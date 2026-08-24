@@ -65,8 +65,10 @@ Node uses the standard Actions tool cache. pnpm and the Bun binary use versioned
 `RUNNER_TOOL_CACHE/caxri`; the Bun binary must match `.bun-version`, remains separate from `~/.bun`,
 and the job fails closed if it is missing or stale. The pnpm store, Electron, ESLint, and Prettier
 caches live under the same runner-owned root. The workflow does not upload these caches to GitHub.
-Every source job still runs a fresh frozen-lockfile install, and cleanup removes workspace cache
-links without deleting runner-local toolchains or cache contents.
+Checks, E2E, and Release jobs that consume the dependency graph run a fresh frozen-lockfile install.
+The retry-policy job intentionally uses only runner-pinned Bun and repository source while deriving
+the execution plan. Cleanup removes workspace cache links without deleting runner-local toolchains
+or cache contents.
 
 The runner deletes `_work/_actions` at the start of every job, so that directory is intentionally
 ephemeral and must never be treated as the persistent action cache. External actions are pinned to
@@ -105,8 +107,8 @@ Every self-hosted job that checks out and executes repository source:
    workspace, and free repository desktop lease before installing dependencies;
 2. assigns a bounded run owner to every inherited process and desktop lease;
 3. isolates temporary files and provider state under the job's `RUNNER_TEMP` directory;
-4. records runner identity, exact head, route reason, manifest hash/test count, timings, and cleanup
-   status in the job summary;
+4. records runner identity and exact head; each job adds the route, timing, cache, manifest, and test
+   count fields that apply to its role, while cleanup failures remain visible in the job summary;
 5. terminates only processes carrying the exact run owner, reclaims only dead leases carrying that
    owner, removes only a matching marked temporary root and known generated workspace outputs, and
    fails if any lease or source-workspace change remains.
@@ -155,20 +157,25 @@ When the machine is permanently unavailable or cannot be trusted for reuse:
 1. remove its repository registration in **Settings -> Actions -> Runners**; if the machine cannot
    be reached, treat the remaining registration as lost rather than trying to recover a removal
    token from it;
-2. provision a replacement macOS ARM64 machine and runner user, then use GitHub's current
-   repository registration command with the same capability labels: `self-hosted`, `macOS`,
-   `ARM64`, `caxri-ci`, `caxri-e2e`, and `caxri-release`; unchanged labels require no workflow YAML
-   edit;
+2. provision a replacement macOS ARM64 machine and runner user, then register it with a temporary
+   non-routing label and keep its listener stopped; do not add `caxri-ci`, `caxri-e2e`, or
+   `caxri-release` yet;
 3. configure and verify the runner-local action archive cache with the commands in
-   [Toolchain and caches](#toolchain-and-caches), then start the per-user launchd service;
-4. repeat the complete frozen-head validation matrix above before admitting normal PR or Release
-   traffic.
+   [Toolchain and caches](#toolchain-and-caches) while the listener remains stopped;
+4. open a controlled admission window: freeze pushes, PR reruns, and manual dispatches; cancel every
+   queued CI and Release run; then verify that no matching work remains queued before adding the
+   standard labels `self-hosted`, `macOS`, `ARM64`, `caxri-ci`, `caxri-e2e`, and `caxri-release`;
+5. start the per-user launchd service and dispatch only the complete frozen-head validation matrix
+   above. If any unrelated job appears, stop the listener, remove the capability labels, and restart
+   the admission window;
+6. restore normal repository traffic and retrigger cancelled work only after the complete matrix
+   passes. A failed matrix returns the runner to its stopped, non-routing state.
 
-During replacement, keep matching CI and Release jobs queued. Local lint, typecheck, unit, build,
-or focused E2E results are provisional local evidence; they are not GitHub checks, exact-head CI,
-or a reason to add a temporary hosted fallback. If the capability labels must change, review the
-workflow and its contract tests as a separate repository change after the replacement is
-available.
+During replacement, keep normal CI and Release traffic held rather than leaving matching jobs
+queued for an unvalidated listener. Local lint, typecheck, unit, build, or focused E2E results are
+provisional local evidence; they are not GitHub checks, exact-head CI, or a reason to add a temporary
+hosted fallback. If the capability labels must change permanently, review the workflow and its
+contract tests as a separate repository change after the replacement is available.
 
 To remove a healthy runner intentionally:
 
