@@ -17,7 +17,7 @@ export interface MainEventRelayOptions {
     deliver(message: unknown): void;
     loadState(): Promise<BootstrapState>;
     logger(): EventLogger | undefined;
-    onKeybindingsChanged(): void;
+    onMenuRefreshRequested(): void;
 }
 
 /**
@@ -79,8 +79,12 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
                         },
                     );
             options.deliver(isTransientRuntimeEvent(event) ? event : journal.publish(event));
-            if (event.event === 'keybindings.changed' && !event.payload.error)
-                options.onKeybindingsChanged();
+            if (
+                (event.event === 'keybindings.changed' && !event.payload.error) ||
+                (event.event === 'runtime.status' && event.payload.status === 'ready') ||
+                (event.event === 'host.connectionChanged' && event.payload.status === 'reconnected')
+            )
+                options.onMenuRefreshRequested();
         },
     };
 }
