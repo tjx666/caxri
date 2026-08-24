@@ -15,6 +15,7 @@ import { readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
 import type { Keybinding, PersistedWindowState } from '../shared/types';
+import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
@@ -536,6 +537,13 @@ if (ownsProfileInstance) {
     app.whenReady()
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .then(async () => {
+            if (
+                shouldEnableAcceptanceAccessibility({
+                    environment: process.env,
+                    platform: process.platform,
+                })
+            )
+                app.setAccessibilitySupportEnabled(true);
             const developmentDockIconPath = resolveDevelopmentDockIconPath({
                 currentDirectory,
                 isPackaged: app.isPackaged,

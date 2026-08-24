@@ -169,6 +169,7 @@ describe('Acceptance Electron launcher seams', () => {
                 cwd: '/repo',
                 env: {
                     PATH: '/usr/bin',
+                    CAXRI_ACCEPTANCE: '1',
                     CAXRI_E2E: '1',
                     CAXRI_E2E_WINDOW_MODE: 'visible',
                     CAXRI_TEST_ROOT_PATH: '/project-one',
@@ -195,6 +196,7 @@ describe('Acceptance Electron launcher seams', () => {
         expect(launch.options.env).not.toHaveProperty('CAXRI_TEST_ROOT_PATH');
         expect(launch.options.env).not.toHaveProperty('CAXRI_TEST_ROOT_PATHS');
         expect(launch.options.env).toMatchObject({
+            CAXRI_ACCEPTANCE: '1',
             CAXRI_E2E: '1',
             CAXRI_USER_DATA_DIR: '/tmp/caxri-acceptance-user-case',
         });
@@ -226,6 +228,7 @@ describe('Acceptance Electron launcher seams', () => {
                 env: {
                     NODE_OPTIONS: '--max-old-space-size=16384',
                     PATH: '/usr/bin',
+                    CAXRI_ACCEPTANCE: '1',
                     CAXRI_E2E: '1',
                     CAXRI_E2E_WINDOW_MODE: 'visible',
                     CAXRI_TEST_ROOT_PATH: '/project-one',
