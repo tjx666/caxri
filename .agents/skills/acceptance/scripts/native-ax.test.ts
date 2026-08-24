@@ -97,5 +97,8 @@ describe('Acceptance native Accessibility transport', () => {
         expect(selectionImplementation).toContain('for _ in 0..<12');
         expect(selectionImplementation).toContain('kAXSelectedAttribute');
         expect(selectionImplementation).toContain('kAXSelectedChildrenAttribute');
+        expect(selectionImplementation).toContain(
+            'reader.value(item, kAXSelectedAttribute as CFString) ?? false',
+        );
     });
 });
