@@ -1,7 +1,7 @@
 import type { LogQueryRecord } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
-import { isLogFilterMatch, logRecordHaystack, parseLogFilter } from './log-filter';
+import { filterLogRecords, isLogFilterMatch, logRecordHaystack, parseLogFilter } from './log-filter';
 
 const record: LogQueryRecord = {
     id: 'a'.repeat(24),
@@ -50,5 +50,39 @@ describe('VS Code-style log text filter', () => {
     it('searches structured fields and the correlation id', () => {
         expect(isLogFilterMatch(logRecordHaystack(record), parseLogFilter('queuems'))).toBe(true);
         expect(isLogFilterMatch(logRecordHaystack(record), parseLogFilter('request-7'))).toBe(true);
+    });
+});
+
+describe('filterLogRecords', () => {
+    const other: LogQueryRecord = {
+        ...record,
+        id: 'b'.repeat(24),
+        level: 'debug',
+        event: 'watcher.tick',
+        correlationId: undefined,
+        fields: undefined,
+    };
+
+    it('keeps only records whose level is toggled on', () => {
+        expect(filterLogRecords([record, other], ['warn'], parseLogFilter(''))).toEqual([record]);
+    });
+
+    it('combines the level toggle with the text filter', () => {
+        expect(filterLogRecords([record, other], ['warn', 'debug'], parseLogFilter('ipc'))).toEqual(
+            [record],
+        );
+    });
+
+    it('returns every record when no level or text filter narrows the result', () => {
+        expect(filterLogRecords([record, other], ['warn', 'debug'], parseLogFilter(''))).toEqual([
+            record,
+            other,
+        ]);
+    });
+
+    it('returns an empty result when the text filter matches nothing', () => {
+        expect(
+            filterLogRecords([record, other], ['warn', 'debug'], parseLogFilter('missing')),
+        ).toEqual([]);
     });
 });

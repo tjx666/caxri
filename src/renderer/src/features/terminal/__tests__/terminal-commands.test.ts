@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     terminalCommandDecorationDefaultColor,
+    terminalCommandDecorationFailedColor,
+    terminalCommandDecorationSucceededColor,
+    terminalCommandDecorationTooltip,
     TerminalCommandTracker,
 } from '../terminal-commands';
 
@@ -128,6 +131,32 @@ describe('TerminalCommandTracker', () => {
         expect(terminalCommandDecorationDefaultColor('#aabbcc')).toBe('#aabbcc40');
         expect(terminalCommandDecorationDefaultColor(undefined)).toBe('#ffffff40');
         expect(terminalCommandDecorationDefaultColor('red')).toBe('#ffffff40');
+    });
+
+    it('derives the failed/succeeded gutter colors from the workbench --danger/--success tokens', () => {
+        expect(terminalCommandDecorationFailedColor('#aa1122')).toBe('#aa1122');
+        expect(terminalCommandDecorationFailedColor(undefined)).toBe('#ff5555');
+        expect(terminalCommandDecorationFailedColor('red')).toBe('#ff5555');
+        expect(terminalCommandDecorationSucceededColor('#22aa11')).toBe('#22aa11');
+        expect(terminalCommandDecorationSucceededColor(undefined)).toBe('#50fa7b');
+        expect(terminalCommandDecorationSucceededColor('green')).toBe('#50fa7b');
+    });
+
+    it('builds the decoration hover tooltip from phase and exit status', () => {
+        expect(terminalCommandDecorationTooltip('running')).toBe('Command running');
+        expect(terminalCommandDecorationTooltip('succeeded', 0)).toBe('Command succeeded (exit 0)');
+        expect(terminalCommandDecorationTooltip('failed', 23)).toBe('Command failed (exit 23)');
+    });
+
+    it('sets an exit-status tooltip on the rendered decoration element', async () => {
+        const host = createTerminalHost();
+        new TerminalCommandTracker(host.terminal, colors, vi.fn());
+
+        await host.handlers.get(133)?.('C');
+        expect(host.decorations[0].element.title).toBe('Command running');
+
+        await host.handlers.get(133)?.('D;1');
+        expect(host.decorations.at(-1)!.element.title).toBe('Command failed (exit 1)');
     });
 
     it('navigates content-free command start markers in both directions', async () => {

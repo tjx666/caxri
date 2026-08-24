@@ -1,4 +1,4 @@
-import type { LogQueryRecord } from '@shared/types';
+import type { LogLevel, LogQueryRecord } from '@shared/types';
 
 /**
  * Parsed VS Code Output-panel style text filter: comma-separated patterns combined with OR, a `!` prefix excludes, and
@@ -66,4 +66,19 @@ export function isLogFilterMatch(haystack: string, filter: ParsedLogFilter): boo
     if (filter.excludes.some((pattern) => haystack.includes(pattern))) return false;
     if (filter.includes.length === 0) return true;
     return filter.includes.some((pattern) => haystack.includes(pattern));
+}
+
+/**
+ * Applies the level toggles and text filter together, in the order the panel needs for both its record list and its
+ * "N of M" count. Extracted from the panel component so the count computation is unit-testable without rendering.
+ */
+export function filterLogRecords<T extends LogQueryRecord>(
+    records: readonly T[],
+    activeLevels: readonly LogLevel[],
+    filter: ParsedLogFilter,
+): T[] {
+    const levels = new Set(activeLevels);
+    return records.filter(
+        (record) => levels.has(record.level) && isLogFilterMatch(logRecordHaystack(record), filter),
+    );
 }

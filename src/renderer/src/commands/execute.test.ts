@@ -94,6 +94,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 cycleTab: record('workbench.cycleTab'),
                 canSplitActive: () => true,
                 splitActive: record('workbench.splitActive'),
+                canFocusPaneInDirection: () => true,
+                focusPaneInDirection: record('workbench.focusPaneInDirection'),
+                canMoveActiveTerminalToNewSession: () => true,
+                moveActiveTerminalToNewSession: record('workbench.moveActiveTerminalToNewSession'),
             },
             editor: { saveActive: record('editor.save') },
             secondarySidebar: {

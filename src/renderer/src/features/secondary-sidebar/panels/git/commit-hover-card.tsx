@@ -77,7 +77,13 @@ export function CommitHoverCard({
                 side="left"
             >
                 <div className="flex items-center gap-2.5">
-                    <CommitAvatar author={commit.author} email={commit.authorEmail} size={30} />
+                    <CommitAvatar
+                        author={commit.author}
+                        email={commit.authorEmail}
+                        repository={repository}
+                        sessionId={sessionId}
+                        size={30}
+                    />
                     <div className="min-w-0">
                         <div className="truncate text-[12px] font-semibold text-foreground">
                             {commit.author}

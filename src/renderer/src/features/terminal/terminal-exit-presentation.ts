@@ -12,8 +12,9 @@ export interface TerminalExitPresentation {
 
 /**
  * Actionable copy for each distinct `failed` cause; keep the generic fallback below in sync with unmapped codes.
+ * Exported so other Terminal surfaces (e.g. the Info panel) render the same human copy instead of the raw enum value.
  */
-const FAILURE_REASON_LABELS: Record<TerminalFailureReason, string> = {
+export const FAILURE_REASON_LABELS: Record<TerminalFailureReason, string> = {
     working_directory_unavailable: 'Working directory no longer exists',
     executable_not_found: 'Agent CLI executable was not found',
     spawn_failed: 'Terminal process could not be started',

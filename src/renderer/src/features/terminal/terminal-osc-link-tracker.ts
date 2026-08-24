@@ -44,6 +44,13 @@ interface VisibleOscLink {
 
 interface TerminalOscLinkTracker {
     dispose(): void;
+    /**
+     * Every currently valid tracked link on the active buffer, unfiltered by viewport visibility. The tracker already
+     * retains only a bounded, revalidated set (`MAX_TERMINAL_OSC_LINKS`), so returning all of them costs no extra
+     * Terminal text scan and lets the scrollback link scan (`terminal-links.ts`) include OSC 8 hyperlinks above the
+     * viewport.
+     */
+    getAllLinks(): VisibleOscLink[];
     getViewportLinks(): VisibleOscLink[];
     restoreOscLinks(snapshots: readonly TerminalOscLinkSnapshot[]): void;
 }
@@ -331,35 +338,43 @@ export function registerTerminalOscLinkTracker(
         restoreBufferSnapshots(terminal.buffer.active);
     };
     const bufferChangeDisposable = terminal.buffer.onBufferChange(restoreBufferSnapshots);
-    return {
-        getViewportLinks() {
-            const activeBuffer = terminal.buffer.active;
-            const firstVisibleLine = activeBuffer.viewportY;
-            const lastVisibleLine = firstVisibleLine + terminal.rows - 1;
-            const links: VisibleOscLink[] = [];
-            for (const link of trackedOscLinks.values()) {
-                const { buffer, end, fingerprint, match, start } = link;
-                if (buffer !== activeBuffer) continue;
-                const startMarkerId = start.marker.id;
-                const range = oscLinkRange(terminal, buffer, start, end);
-                if (!range) {
-                    removeOscLink(startMarkerId);
-                    continue;
-                }
-                const currentFingerprint = oscLinkFingerprint(terminal, buffer, start, end);
-                if (!currentFingerprint || currentFingerprint !== fingerprint) {
-                    removeOscLink(startMarkerId);
-                    continue;
-                }
-                if (range.end.line < firstVisibleLine || range.start.line > lastVisibleLine)
-                    continue;
-                links.push({
-                    bufferLine: range.start.line,
-                    id: `osc:${startMarkerId}:${match.text}`,
-                    match,
-                });
+    /**
+     * Shared by `getViewportLinks` and `getAllLinks`: walks every tracked link on the active buffer, dropping any whose
+     * markers or fingerprint no longer resolve, and optionally narrows to a visible line range.
+     */
+    const collectValidOscLinks = (range?: { max: number; min: number }): VisibleOscLink[] => {
+        const activeBuffer = terminal.buffer.active;
+        const links: VisibleOscLink[] = [];
+        for (const link of trackedOscLinks.values()) {
+            const { buffer, end, fingerprint, match, start } = link;
+            if (buffer !== activeBuffer) continue;
+            const startMarkerId = start.marker.id;
+            const linkRange = oscLinkRange(terminal, buffer, start, end);
+            if (!linkRange) {
+                removeOscLink(startMarkerId);
+                continue;
             }
-            return links;
+            const currentFingerprint = oscLinkFingerprint(terminal, buffer, start, end);
+            if (!currentFingerprint || currentFingerprint !== fingerprint) {
+                removeOscLink(startMarkerId);
+                continue;
+            }
+            if (range && (linkRange.end.line < range.min || linkRange.start.line > range.max))
+                continue;
+            links.push({
+                bufferLine: linkRange.start.line,
+                id: `osc:${startMarkerId}:${match.text}`,
+                match,
+            });
+        }
+        return links;
+    };
+    return {
+        getAllLinks: () => collectValidOscLinks(),
+        getViewportLinks() {
+            const firstVisibleLine = terminal.buffer.active.viewportY;
+            const lastVisibleLine = firstVisibleLine + terminal.rows - 1;
+            return collectValidOscLinks({ min: firstVisibleLine, max: lastVisibleLine });
         },
         restoreOscLinks,
         dispose() {

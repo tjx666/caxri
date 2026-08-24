@@ -5,6 +5,7 @@ import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
 import { Field, FieldLabel } from '../../components/ui/field';
 import { ThemePreview } from './theme-preview';
+import { humanizeThemeTokenLabel } from './theme-token-labels';
 
 interface ThemeFormProperties {
     theme: ThemeTokens;
@@ -36,11 +37,14 @@ export function ThemeForm({ theme, onColorChange, onImport }: ThemeFormPropertie
                         </legend>
                         {Object.entries(theme[section]).map(([key, value]) => (
                             <Field key={key} orientation="horizontal" className="mb-3">
-                                <FieldLabel htmlFor={`theme-${section}-${key}`}>{key}</FieldLabel>
+                                <FieldLabel htmlFor={`theme-${section}-${key}`} title={key}>
+                                    {humanizeThemeTokenLabel(key)}
+                                </FieldLabel>
                                 <span className="flex items-center gap-2">
                                     <input
                                         id={`theme-${section}-${key}`}
-                                        aria-label={`${section} ${key} color`}
+                                        aria-label={`${section} ${humanizeThemeTokenLabel(key)} color`}
+                                        title={key}
                                         type="color"
                                         className="size-7 rounded border border-border bg-transparent p-0"
                                         value={value.slice(0, 7)}

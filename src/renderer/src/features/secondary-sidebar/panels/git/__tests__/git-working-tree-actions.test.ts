@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve({})),
     invalidateQueries: vi.fn(),
+    pushToast: vi.fn(),
     tryCommand: vi.fn(async (...[, run]: [string, () => Promise<unknown>]): Promise<unknown> => {
         try {
             return await run();
@@ -16,19 +17,42 @@ vi.mock('../../../../../lib/caxri', () => ({ caxri: { request: mocks.caxriReques
 vi.mock('../../../../../queries/client', () => ({
     queryClient: { invalidateQueries: mocks.invalidateQueries },
 }));
-vi.mock('../../../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
+vi.mock('../../../../../stores/toasts', () => ({
+    pushToast: mocks.pushToast,
+    tryCommand: mocks.tryCommand,
+}));
 
-import { discardAllChanges, discardFileChanges, syncRepo } from '../git-working-tree-actions';
+import {
+    describeSyncOutcome,
+    discardAllChanges,
+    discardFileChanges,
+    syncRepo,
+} from '../git-working-tree-actions';
 
 const SESSION_ID = 'session-1';
-const REPO = { id: 'repo-1', name: 'caxri', changedFileCount: 2 };
+const REPO = { id: 'repo-1', name: 'caxri', changedFileCount: 2, ahead: 0, behind: 0 };
+
+describe('describeSyncOutcome', () => {
+    it('reports up to date when nothing was ahead or behind', () => {
+        expect(describeSyncOutcome(0, 0)).toBe('Already up to date');
+    });
+
+    it('reports a sync happened when local commits were ahead', () => {
+        expect(describeSyncOutcome(2, 0)).toBe('Synced with remote');
+    });
+
+    it('reports a sync happened when the remote was ahead', () => {
+        expect(describeSyncOutcome(0, 3)).toBe('Synced with remote');
+    });
+});
 
 describe('syncRepo', () => {
     it('sends a git.sync request and invalidates working-tree queries on success', async () => {
         mocks.caxriRequest.mockClear();
         mocks.invalidateQueries.mockClear();
+        mocks.pushToast.mockClear();
 
-        await syncRepo(SESSION_ID, REPO.id);
+        await syncRepo(SESSION_ID, REPO);
 
         expect(mocks.caxriRequest).toHaveBeenCalledWith('git.sync', {
             sessionId: SESSION_ID,
@@ -37,14 +61,34 @@ describe('syncRepo', () => {
         expect(mocks.invalidateQueries).toHaveBeenCalledTimes(1);
     });
 
-    it('does not invalidate queries when the sync request fails', async () => {
+    it('toasts "Already up to date" when nothing was ahead or behind before the sync', async () => {
+        mocks.caxriRequest.mockClear();
+        mocks.pushToast.mockClear();
+
+        await syncRepo(SESSION_ID, REPO);
+
+        expect(mocks.pushToast).toHaveBeenCalledWith('success', 'Already up to date');
+    });
+
+    it('toasts "Synced with remote" when the repository was ahead or behind before the sync', async () => {
+        mocks.caxriRequest.mockClear();
+        mocks.pushToast.mockClear();
+
+        await syncRepo(SESSION_ID, { ...REPO, ahead: 1, behind: 2 });
+
+        expect(mocks.pushToast).toHaveBeenCalledWith('success', 'Synced with remote');
+    });
+
+    it('does not invalidate queries or toast success when the sync request fails', async () => {
         mocks.caxriRequest.mockClear();
         mocks.invalidateQueries.mockClear();
+        mocks.pushToast.mockClear();
         mocks.caxriRequest.mockRejectedValueOnce(new Error('boom'));
 
-        await syncRepo(SESSION_ID, REPO.id);
+        await syncRepo(SESSION_ID, REPO);
 
         expect(mocks.invalidateQueries).not.toHaveBeenCalled();
+        expect(mocks.pushToast).not.toHaveBeenCalled();
     });
 });
 

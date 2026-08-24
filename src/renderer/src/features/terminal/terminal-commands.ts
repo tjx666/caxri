@@ -14,13 +14,49 @@ interface TerminalCommandColors {
     succeeded: string;
 }
 
+const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+
+/**
+ * Dark-theme fallbacks used only until the active theme resolves a usable hex `--danger` / `--success` value (e.g. the
+ * first frame before the theme store hydrates).
+ */
+const FALLBACK_FAILED_COLOR = '#ff5555';
+const FALLBACK_SUCCEEDED_COLOR = '#50fa7b';
+
+/**
+ * VS Code registers a distinct `terminalCommandDecoration.errorBackground` / `successBackground` per theme (dark,
+ * light, high-contrast) rather than one fixed hex; deriving these from the active theme's `--danger` / `--success`
+ * tokens is the faithful token-driven equivalent — every imported theme gets matching gutter colors instead of one
+ * color baked in for every theme.
+ */
+export function terminalCommandDecorationFailedColor(danger: string | undefined): string {
+    return danger && HEX_COLOR_PATTERN.test(danger) ? danger : FALLBACK_FAILED_COLOR;
+}
+
+export function terminalCommandDecorationSucceededColor(success: string | undefined): string {
+    return success && HEX_COLOR_PATTERN.test(success) ? success : FALLBACK_SUCCEEDED_COLOR;
+}
+
 /**
  * VS Code's `terminalCommandDecoration.defaultBackground`: the terminal foreground at 25% alpha, so the running/unknown
  * placeholder stays subtle on any theme. Falls back to VS Code's dark-theme value when the theme has no usable hex
  * foreground.
  */
 export function terminalCommandDecorationDefaultColor(foreground: string | undefined): string {
-    return foreground && /^#[0-9a-f]{6}$/i.test(foreground) ? `${foreground}40` : '#ffffff40';
+    return foreground && HEX_COLOR_PATTERN.test(foreground) ? `${foreground}40` : '#ffffff40';
+}
+
+/**
+ * Hover copy for the command decoration's `title` tooltip. Exit status is only meaningful once a command has finished,
+ * so a running command never claims an exit code.
+ */
+export function terminalCommandDecorationTooltip(
+    phase: 'failed' | 'running' | 'succeeded',
+    exitStatus?: number,
+): string {
+    if (phase === 'running') return 'Command running';
+    if (phase === 'succeeded') return 'Command succeeded (exit 0)';
+    return `Command failed (exit ${exitStatus ?? 'unknown'})`;
 }
 
 interface CommandBoundary {
@@ -156,7 +192,9 @@ export class TerminalCommandTracker {
 
     /**
      * VS Code-style command decoration: a 16px glyph in the terminal's left gutter, drawn by CSS from the phase data
-     * attribute (hollow circle while running, filled circle on success, cross on failure).
+     * attribute (hollow circle while running, filled circle on success, cross on failure). The element accepts pointer
+     * events only so its native `title` can show the command's exit status on hover; it has no click handler, so it
+     * never steals focus or intercepts a click intended for the terminal underneath.
      */
     private decorate(
         marker: IMarker,
@@ -171,6 +209,7 @@ export class TerminalCommandTracker {
             element.style.color = color;
             element.style.marginLeft = `${DECORATION_MARGIN_LEFT_PX}px`;
             element.style.width = `${DECORATION_WIDTH_PX}px`;
+            element.title = terminalCommandDecorationTooltip(phase, exitStatus);
             if (exitStatus !== undefined)
                 element.dataset.terminalCommandExitStatus = String(exitStatus);
         });
