@@ -286,7 +286,7 @@ export function WorkTab({
                     aria-describedby={descriptions.length > 0 ? descriptions.join(' ') : undefined}
                     aria-selected={isVisuallyActive}
                     tabIndex={isVisuallyActive ? 0 : -1}
-                    className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit"
+                    className="tab-select flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-2 text-left text-[11px] text-inherit focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
                     onBlur={(event) => delete event.currentTarget.dataset.preserveTerminalFocus}
                     onClick={onSelect}
                     onKeyDown={onKeyDown}

@@ -202,6 +202,33 @@ test('the tab bar hides the "+" button only at a single Workbench-wide tab and a
             .evaluate(accentHeight);
         expect(activeAccent).toBeGreaterThan(0);
 
+        const activeTabButton = running.page.locator(
+            '.work-tab[data-tab-active="true"] .tab-select',
+        );
+        await activeTabButton.focus();
+        await expect(activeTabButton).toBeFocused();
+        await activeTabButton.press('ArrowLeft');
+        await expect(activeTabButton).toBeFocused();
+        const focusPresentation = await activeTabButton.evaluate((element) => {
+            const style = getComputedStyle(element);
+            return {
+                color: style.outlineColor,
+                expectedColor: getComputedStyle(document.documentElement).color,
+                focusVisible: element.matches(':focus-visible'),
+                offset: style.outlineOffset,
+                style: style.outlineStyle,
+                width: style.outlineWidth,
+            };
+        });
+        expect(focusPresentation).toEqual({
+            color: focusPresentation.expectedColor,
+            expectedColor: focusPresentation.expectedColor,
+            focusVisible: true,
+            offset: '-2px',
+            style: 'solid',
+            width: '1px',
+        });
+
         /**
          * Splitting leaves one tab in each pane. The "+" rule is Workbench-wide, not per-pane: a pane holding its only
          * tab still has a sibling pane to be distinguished from, so the button survives in both panes. The accent is
