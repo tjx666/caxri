@@ -11,21 +11,35 @@ skill owns placement inside those roots.
 
 ## 1. Pick the tree
 
-| Work                          | Live here                |
-| ----------------------------- | ------------------------ |
-| Host                          | `src/host/`              |
-| Desktop Main                  | `src/main/`              |
-| Preload                       | `src/preload/`           |
-| Renderer                      | `src/renderer/src/`      |
-| Runtime                       | `src/runtime/`           |
-| Browser-safe shared contracts | `src/shared/`            |
-| Node-only shared helpers      | `src/shared/node/`       |
-| Protocol schemas and registry | `packages/protocol/src/` |
-| Browser-safe pure utilities   | `packages/utils/src/`    |
-| CLI adapter                   | `packages/cli/src/`      |
+The accepted target topology has one independently runnable product per `apps/*` workspace and only
+importable boundaries under `packages/*`:
 
-`src/shared/ipc/` is a compatibility re-export layer; it must not define a second method or schema
-table. Renderer never imports Node, Electron, or native APIs. Playwright support stays in
+| Work                          | Target path                   |
+| ----------------------------- | ----------------------------- |
+| Desktop                       | `apps/desktop/`               |
+| Server                        | `apps/server/`                |
+| CLI                           | `apps/cli/`                   |
+| Shared Client                 | `packages/client/src/`        |
+| Protocol schemas and registry | `packages/protocol/src/`      |
+| Extension API                 | `packages/extension-api/src/` |
+| Browser-safe pure utilities   | `packages/utils/src/`         |
+
+Do not create an empty future application. Until an owning A2 migration batch moves a product, edit
+its current root and move the file with its owner:
+
+| Current path                                       | Target owner      | Removal batch |
+| -------------------------------------------------- | ----------------- | ------------- |
+| `packages/cli/`                                    | `apps/cli/`       | A2c           |
+| `packages/api/`                                    | `extension-api`   | A2b           |
+| `src/main/`, `src/preload/`, `src/renderer/`       | `apps/desktop/`   | A2d           |
+| `src/host/`, `src/runtime/`, `src/extension-host/` | `apps/server/`    | A2e           |
+| `src/shared/ipc/`                                  | `protocol`        | A2b           |
+| other `src/shared/` modules                        | package/app owner | A2b/A2d/A2e   |
+
+The executable source of truth for these allowances is `scripts/architecture-boundaries.ts`.
+`caxri/architecture-boundaries` rejects application-to-application source imports, package-private
+imports, and platform dependencies in browser-safe packages; `import-x/no-cycle` protects target
+workspaces. Renderer never imports Node.js, Electron, or native APIs. Playwright support stays in
 `e2e/support/`. Contributor skills live at `.agents/skills/<name>/`.
 
 ## 2. Place React components

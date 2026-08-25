@@ -1,21 +1,32 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
+import {
+    appBoundaries,
+    legacyOwnershipRoots,
+    packageBoundaries,
+    transitionalCycleAllowances,
+    transitionalImportAllowances,
+} from '../architecture-boundaries';
+
 const root = resolve(import.meta.dirname, '../..');
 const nativeDesktopDependencies = ['@parcel/watcher', 'better-sqlite3', 'electron', 'node-pty'];
 
 interface PackageManifest {
+    bin?: unknown;
     build?: { files?: string[] };
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
+    main?: string;
     name?: string;
     packageManager?: string;
     private?: boolean;
     scripts?: Record<string, string>;
+    exports?: Record<string, unknown>;
     devEngines?: { packageManager?: unknown };
     workspaces?: unknown;
 }
@@ -112,12 +123,13 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.packageManager).toBeUndefined();
         expect(rootManifest.devEngines?.packageManager).toBeUndefined();
         expect(rootManifest.workspaces).toBeUndefined();
-        expect(workspace.packages).toEqual(['extensions/*', 'packages/*']);
+        expect(workspace.packages).toEqual(['apps/*', 'extensions/*', 'packages/*']);
         expect(workspace.catalog).toEqual({
             '@types/semver': '^7.8.0',
             '@types/ws': '^8.18.1',
             '@yutengjing/eslint-config-typescript': '^4.0.0',
             '@yutengjing/prettier-config': '^2.0.0',
+            'eslint-plugin-import-x': '^4.17.1',
             'markdownlint': '^0.41.1',
             'markdownlint-cli2': '^0.23.2',
             'oxlint': '^1.78.0',
@@ -143,6 +155,85 @@ describe('pnpm workspace contract', () => {
                 .map((path) => basename(path))
                 .toSorted((left, right) => left.localeCompare(right)),
         ).toEqual(['pnpm-lock.yaml']);
+    });
+
+    it('defines the target ownership graph without empty application workspaces', () => {
+        expect(appBoundaries.map(({ root }) => root)).toEqual([
+            'apps/desktop',
+            'apps/server',
+            'apps/cli',
+        ]);
+        expect(packageBoundaries.map(({ root }) => root)).toEqual([
+            'packages/client',
+            'packages/protocol',
+            'packages/extension-api',
+            'packages/utils',
+        ]);
+
+        const appsRoot = join(root, 'apps');
+        if (!existsSync(appsRoot)) return;
+        const appEntries = readdirSync(appsRoot, { withFileTypes: true });
+        for (const entry of appEntries) {
+            if (!entry.isDirectory()) continue;
+            const packageManifest = manifest(join(appsRoot, entry.name, 'package.json'));
+            expect(
+                packageManifest.bin ??
+                    packageManifest.main ??
+                    packageManifest.scripts?.start ??
+                    packageManifest.scripts?.dev,
+                `apps/${entry.name} must be independently runnable`,
+            ).toBeDefined();
+        }
+    });
+
+    it('keeps packages importable only through explicit exports', () => {
+        const packageEntries = readdirSync(join(root, 'packages'), { withFileTypes: true });
+        for (const entry of packageEntries) {
+            if (!entry.isDirectory()) continue;
+            const packageManifest = manifest(join(root, 'packages', entry.name, 'package.json'));
+            expect(packageManifest.exports, `packages/${entry.name}`).toBeDefined();
+            expect(
+                Object.keys(packageManifest.exports ?? {}),
+                `packages/${entry.name}`,
+            ).not.toEqual(expect.arrayContaining(['./src/*', './*']));
+        }
+    });
+
+    it('binds every current-layout allowance to its removal batch', () => {
+        const allowedBatches = ['A2b', 'A2c', 'A2d', 'A2e', 'A2f'];
+        const allowances = [
+            ...legacyOwnershipRoots,
+            ...transitionalImportAllowances,
+            ...transitionalCycleAllowances,
+        ];
+
+        expect(allowances.length).toBeGreaterThan(0);
+        for (const allowance of allowances) {
+            const label = 'id' in allowance ? allowance.id : allowance.root;
+            expect(allowedBatches, label).toContain(allowance.removeInBatch);
+        }
+        for (const allowance of transitionalImportAllowances) {
+            expect(allowance.importer, allowance.id).not.toMatch(/[?*]/u);
+            const importerSource = readFileSync(join(root, allowance.importer), 'utf8');
+            for (const specifier of allowance.specifiers) {
+                expect(specifier, allowance.id).not.toMatch(/[?*]/u);
+                expect(importerSource, allowance.id).toContain(specifier);
+            }
+        }
+    });
+
+    it('pre-registers target source discovery in TypeScript', () => {
+        const nodeConfig = readFileSync(join(root, 'tsconfig.node.json'), 'utf8');
+        const webConfig = readFileSync(join(root, 'tsconfig.web.json'), 'utf8');
+
+        expect(nodeConfig).toContain('"apps/desktop/src/main/**/*.ts"');
+        expect(nodeConfig).toContain('"apps/server/**/*.ts"');
+        expect(nodeConfig).not.toContain('"apps/**/*.tsx"');
+        expect(webConfig).toContain('"apps/desktop/src/renderer/**/*.tsx"');
+        expect(webConfig).toContain('"packages/client/src/connection/**/*.ts"');
+        expect(webConfig).toContain('"packages/client/src/state/**/*.ts"');
+        expect(webConfig).not.toContain('"packages/client/src/**/*.ts"');
+        expect(webConfig).toContain('"packages/extension-api/src/**/*.ts"');
     });
 
     it('keeps tests, Electron support, protocol, and CLI domains in predictable directories', () => {
@@ -198,6 +289,20 @@ describe('pnpm workspace contract', () => {
     it('routes workspace tests through named Vitest projects', () => {
         expect(protocolManifest.scripts?.test).toContain('--project protocol');
         expect(cliManifest.scripts?.test).toContain('--project cli');
+        expect(rootManifest.scripts?.['typecheck:api']).toBe('pnpm --filter caxri run typecheck');
+        expect(rootManifest.scripts?.['test:protocol']).toBe(
+            'pnpm --filter @caxri/protocol run test',
+        );
+        expect(rootManifest.scripts?.['build:cli']).toBe('pnpm --filter @caxri/cli run build');
+        expect(rootManifest.scripts?.['typecheck:workspaces']).toBe(
+            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' run typecheck",
+        );
+        expect(rootManifest.scripts?.['test:workspaces']).toBe(
+            "pnpm --recursive --filter './apps/*' --filter './packages/*' run test",
+        );
+        expect(rootManifest.scripts?.['build:workspaces']).toBe(
+            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --if-present run build",
+        );
         expect(rootManifest.scripts?.['link:cli']).toBe(
             'bun run build:cli && bun run packages/cli/scripts/link-global.ts',
         );

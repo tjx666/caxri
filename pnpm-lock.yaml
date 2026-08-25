@@ -18,6 +18,9 @@ catalogs:
     '@yutengjing/prettier-config':
       specifier: ^2.0.0
       version: 2.0.0
+    eslint-plugin-import-x:
+      specifier: ^4.17.1
+      version: 4.17.1
     markdownlint:
       specifier: ^0.41.1
       version: 0.41.1
@@ -216,6 +219,9 @@ importers:
       eslint:
         specifier: 10.8.1
         version: 10.8.1(jiti@2.7.0)(supports-color@7.2.0)
+      eslint-plugin-import-x:
+        specifier: 'catalog:'
+        version: 4.17.1(@typescript-eslint/utils@8.67.0(@typescript/typescript6@6.0.2)(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       eslint-plugin-react-hooks:
         specifier: 7.1.1
         version: 7.1.1(eslint@10.8.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)

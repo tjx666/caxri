@@ -1,14 +1,15 @@
 import type { Buffer } from 'node:buffer';
+import { execFile } from 'node:child_process';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { extname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 import ts from 'typescript';
 
-import { execFileAsync } from '../../../../src/shared/node/exec';
-
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+const execFileAsync = promisify(execFile);
 const CODE_EXTENSIONS = new Set(['.cjs', '.js', '.jsx', '.mjs', '.ts', '.tsx']);
 /**
  * Type-aware linting (oxlint + tsgolint) only understands files that belong to a TypeScript program; plain JS files
@@ -36,6 +37,7 @@ export type DirtyLayer =
     | 'Preload'
     | 'Host'
     | 'Runtime'
+    | 'Server'
     | 'IPC'
     | 'Shared'
     | 'CLI'
@@ -61,6 +63,7 @@ const DIRTY_LAYER_ORDER: DirtyLayer[] = [
     'Preload',
     'Host',
     'Runtime',
+    'Server',
     'IPC',
     'Shared',
     'CLI',
@@ -73,6 +76,11 @@ const DIRTY_LAYER_ORDER: DirtyLayer[] = [
 
 function dirtyLayerForFile(file: string): DirtyLayer {
     const normalized = file.replaceAll('\\', '/');
+    if (normalized.startsWith('apps/desktop/src/renderer/')) return 'Renderer';
+    if (normalized.startsWith('apps/desktop/src/main/')) return 'Main';
+    if (normalized.startsWith('apps/desktop/src/preload/')) return 'Preload';
+    if (normalized.startsWith('apps/server/')) return 'Server';
+    if (normalized.startsWith('apps/cli/')) return 'CLI';
     if (normalized.startsWith('src/renderer/')) return 'Renderer';
     if (normalized.startsWith('src/main/')) return 'Main';
     if (normalized.startsWith('src/preload/')) return 'Preload';
@@ -81,6 +89,12 @@ function dirtyLayerForFile(file: string): DirtyLayer {
     if (normalized.startsWith('packages/protocol/') || normalized.startsWith('src/shared/ipc/'))
         return 'IPC';
     if (normalized.startsWith('packages/utils/') || normalized.startsWith('src/shared/'))
+        return 'Shared';
+    if (
+        normalized.startsWith('packages/client/') ||
+        normalized.startsWith('packages/extension-api/') ||
+        normalized.startsWith('packages/api/')
+    )
         return 'Shared';
     if (normalized.startsWith('packages/cli/')) return 'CLI';
     if (normalized.startsWith('e2e/')) return 'e2e';
@@ -341,8 +355,17 @@ export function testCandidatesForFile(file: string): string[] {
  */
 export const IMPORT_PATH_ALIASES: ReadonlyArray<{ prefix: string; target: string }> = [
     { prefix: '@/', target: 'src/renderer/src/' },
+    { prefix: '@/', target: 'apps/desktop/src/renderer/src/' },
     { prefix: '@shared/', target: 'src/shared/' },
 ];
+
+export const VITEST_SOURCE_ROOTS = [
+    'apps',
+    'src',
+    '.agents/skills',
+    'scripts',
+    'packages',
+] as const;
 
 /**
  * Returns whether a test directly imports or re-exports a source file through a relative or tsconfig-alias static
@@ -373,23 +396,32 @@ export function hasDirectSourceImport(
                 : undefined;
         if (!moduleSpecifier || !ts.isStringLiteral(moduleSpecifier)) continue;
         const specifier = moduleSpecifier.text;
-        let imported: string;
+        let importedCandidates: string[];
         if (specifier.startsWith('./') || specifier.startsWith('../')) {
-            imported = posix.normalize(posix.join(posix.dirname(normalizedTest), specifier));
+            importedCandidates = [
+                posix.normalize(posix.join(posix.dirname(normalizedTest), specifier)),
+            ];
         } else {
-            const alias = IMPORT_PATH_ALIASES.find(({ prefix }) => specifier.startsWith(prefix));
-            if (!alias) continue;
-            imported = posix.normalize(alias.target + specifier.slice(alias.prefix.length));
+            const aliases = IMPORT_PATH_ALIASES.filter(({ prefix }) =>
+                specifier.startsWith(prefix),
+            );
+            if (aliases.length === 0) continue;
+            importedCandidates = aliases.map((alias) =>
+                posix.normalize(alias.target + specifier.slice(alias.prefix.length)),
+            );
         }
-        const importedExtension = extname(imported);
-        const importedWithoutExtension = importedExtension
-            ? imported.slice(0, -importedExtension.length)
-            : imported;
-        if (
-            imported === normalizedSource ||
-            importedWithoutExtension === sourceWithoutExtension ||
-            importedWithoutExtension === `${sourceWithoutExtension}/index`
-        ) {
+        const isDirectImport = importedCandidates.some((imported) => {
+            const importedExtension = extname(imported);
+            const importedWithoutExtension = importedExtension
+                ? imported.slice(0, -importedExtension.length)
+                : imported;
+            return (
+                imported === normalizedSource ||
+                importedWithoutExtension === sourceWithoutExtension ||
+                importedWithoutExtension === `${sourceWithoutExtension}/index`
+            );
+        });
+        if (isDirectImport) {
             return true;
         }
     }
@@ -438,9 +470,7 @@ export async function directImportTestCandidates(
 
     const tests = (
         await Promise.all(
-            ['src', '.agents/skills', 'scripts', 'packages'].map((directory) =>
-                walkVitestTestFiles(root, directory),
-            ),
+            VITEST_SOURCE_ROOTS.map((directory) => walkVitestTestFiles(root, directory)),
         )
     ).flat();
     const contents = await Promise.all(

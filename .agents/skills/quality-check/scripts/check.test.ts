@@ -16,6 +16,7 @@ import {
     selectE2ESpecs,
     selectedTestCandidates,
     testCandidatesForFile,
+    VITEST_SOURCE_ROOTS,
 } from './check';
 
 describe('dirty layer report', () => {
@@ -87,6 +88,23 @@ describe('dirty layer report', () => {
         ).toEqual({
             layers: ['skills', 'docs'],
             suggestedGates: [],
+        });
+    });
+
+    it('classifies target application and package paths before source moves', () => {
+        expect(
+            dirtyLayerReportForFiles(
+                [
+                    'apps/desktop/src/renderer/src/app.tsx',
+                    'apps/server/src/core/app.ts',
+                    'apps/cli/src/application.ts',
+                    'packages/client/src/index.ts',
+                ],
+                true,
+            ),
+        ).toEqual({
+            layers: ['Renderer', 'Server', 'Shared', 'CLI'],
+            suggestedGates: ['bun run doctor:changed', 'bun run knip'],
         });
     });
 });
@@ -346,7 +364,22 @@ describe('direct import test selection', () => {
                 target: targets[0].replace(/^\.\//, '').replace(/\*$/, ''),
             }),
         );
-        expect([...IMPORT_PATH_ALIASES]).toEqual(expected);
+        expect([...IMPORT_PATH_ALIASES]).toEqual([
+            expected[0],
+            { prefix: '@/', target: 'apps/desktop/src/renderer/src/' },
+            expected[1],
+        ]);
+    });
+
+    it('resolves Renderer aliases before and after the Desktop source move', () => {
+        expect(
+            hasDirectSourceImport(
+                'apps/desktop/src/renderer/src/stores/workbench.test.ts',
+                `import { useSessionViewStore } from '@/stores/session-view';`,
+                'apps/desktop/src/renderer/src/stores/session-view.ts',
+            ),
+        ).toBe(true);
+        expect(VITEST_SOURCE_ROOTS).toContain('apps');
     });
 
     it('selects a test whose only link to the source is an alias import', async () => {

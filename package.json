@@ -21,16 +21,16 @@
         "doctor": "react-doctor --no-score --blocking warning",
         "doctor:changed": "bun run scripts/doctor-changed.ts",
         "typecheck": "bun run typecheck:workspaces && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-        "typecheck:workspaces": "bun run typecheck:api && bun run typecheck:protocol && bun run typecheck:cli && bun run typecheck:extensions",
-        "typecheck:api": "bun run --cwd packages/api typecheck",
-        "typecheck:protocol": "bun run --cwd packages/protocol typecheck",
-        "typecheck:cli": "bun run --cwd packages/cli typecheck",
+        "typecheck:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' run typecheck",
+        "typecheck:api": "pnpm --filter caxri run typecheck",
+        "typecheck:protocol": "pnpm --filter @caxri/protocol run typecheck",
+        "typecheck:cli": "pnpm --filter @caxri/cli run typecheck",
         "typecheck:extensions": "pnpm --recursive --filter './extensions/*' run typecheck",
         "test": "vitest run",
-        "test:workspaces": "bun run test:api && bun run test:protocol && bun run test:cli",
-        "test:api": "bun run --cwd packages/api test",
-        "test:protocol": "bun run --cwd packages/protocol test",
-        "test:cli": "bun run --cwd packages/cli test",
+        "test:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' run test",
+        "test:api": "pnpm --filter caxri run test",
+        "test:protocol": "pnpm --filter @caxri/protocol run test",
+        "test:cli": "pnpm --filter @caxri/cli run test",
         "test:watch": "vitest",
         "refactor:parity": "bun run scripts/refactor-parity.ts",
         "test:e2e": "bun run build && playwright test",
@@ -39,10 +39,10 @@
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
         "build": "bun run build:workspaces && bun run build:desktop",
-        "build:workspaces": "bun run build:api && bun run build:protocol && bun run build:cli && bun run build:extensions",
-        "build:api": "bun run --cwd packages/api build",
-        "build:protocol": "bun run --cwd packages/protocol build",
-        "build:cli": "bun run --cwd packages/cli build",
+        "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --if-present run build",
+        "build:api": "pnpm --filter caxri run build",
+        "build:protocol": "pnpm --filter @caxri/protocol run build",
+        "build:cli": "pnpm --filter @caxri/cli run build",
         "build:extensions": "pnpm --recursive --filter './extensions/*' run build",
         "link:cli": "bun run build:cli && bun run packages/cli/scripts/link-global.ts",
         "unlink:cli": "pnpm remove --global @caxri/cli",
@@ -113,6 +113,7 @@
                     "scripts/fixtures/eslint/use-wrong-casing-hook-fixture.ts",
                     "scripts/fixtures/eslint/wrong-casing-component-fixture.tsx",
                     "scripts/fixtures/eslint/feature-structure/**/*.ts",
+                    "scripts/fixtures/eslint/architecture/**/*.ts",
                     "scripts/run-e2e-failure-isolation.ts",
                     "scripts/run-e2e-pools.ts"
                 ],
@@ -121,7 +122,7 @@
                     ".agents/skills/design-prototype/assets/**"
                 ]
             },
-            "packages/cli": {
+            "*/cli": {
                 "entry": [
                     "src/bin.ts"
                 ]
@@ -199,6 +200,7 @@
         "electron-vite": "6.0.0-beta.1",
         "es-toolkit": "1.50.0",
         "eslint": "10.8.1",
+        "eslint-plugin-import-x": "catalog:",
         "eslint-plugin-react-hooks": "7.1.1",
         "eslint-plugin-react-refresh": "0.5.3",
         "jsonc-parser": "3.3.1",

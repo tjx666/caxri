@@ -1,0 +1,263 @@
+import { isBuiltin } from 'node:module';
+import { dirname, posix, relative } from 'node:path';
+
+import type { Rule } from 'eslint';
+import type { Node } from 'estree';
+
+import {
+    appBoundaries,
+    browserUnsafeImports,
+    legacyOwnershipRoots,
+    packageBoundaries,
+    transitionalImportAllowances,
+} from '../architecture-boundaries';
+
+interface ImportOwner {
+    id: string;
+    kind: 'application' | 'extension' | 'package' | 'shared';
+    root: string;
+}
+
+const fixturePrefix = 'scripts/fixtures/eslint/architecture/';
+const sourceExtensionPattern = /\.[cm]?[jt]sx?$/u;
+
+function normalizeRepoPath(path: string): string {
+    const normalized = path.replaceAll('\\', '/');
+    const fixtureIndex = normalized.indexOf(fixturePrefix);
+    return fixtureIndex === -1 ? normalized : normalized.slice(fixtureIndex + fixturePrefix.length);
+}
+
+function isPathInside(root: string, path: string): boolean {
+    return path === root || path.startsWith(`${root}/`);
+}
+
+function ownerForPath(path: string): ImportOwner | undefined {
+    for (const boundary of appBoundaries) {
+        if (isPathInside(boundary.root, path)) {
+            return { id: boundary.id, kind: 'application', root: boundary.root };
+        }
+    }
+    for (const boundary of packageBoundaries) {
+        if (isPathInside(boundary.root, path)) {
+            return { id: boundary.id, kind: 'package', root: boundary.root };
+        }
+    }
+    for (const boundary of legacyOwnershipRoots) {
+        if (isPathInside(boundary.root, path)) {
+            return { id: boundary.owner, kind: boundary.kind, root: boundary.root };
+        }
+    }
+    if (path.startsWith('extensions/')) {
+        return { id: 'extension', kind: 'extension', root: path.split('/').slice(0, 2).join('/') };
+    }
+    return undefined;
+}
+
+function ownerForBareSpecifier(specifier: string): ImportOwner | undefined {
+    for (const boundary of appBoundaries) {
+        for (const packageName of boundary.packageNames) {
+            if (specifier === packageName || specifier.startsWith(`${packageName}/`)) {
+                return { id: boundary.id, kind: 'application', root: boundary.root };
+            }
+        }
+    }
+    for (const boundary of packageBoundaries) {
+        for (const packageName of boundary.packageNames) {
+            if (specifier === packageName || specifier.startsWith(`${packageName}/`)) {
+                return { id: boundary.id, kind: 'package', root: boundary.root };
+            }
+        }
+    }
+    return undefined;
+}
+
+function targetPath(importer: string, specifier: string): string | undefined {
+    if (!specifier.startsWith('.')) return undefined;
+    return posix
+        .normalize(posix.join(dirname(importer), specifier))
+        .replace(sourceExtensionPattern, '');
+}
+
+function isPackageSubpathPublic(packageId: string, specifier: string): boolean {
+    const boundary = packageBoundaries.find(({ id }) => id === packageId);
+    if (!boundary) return true;
+    const packageName = boundary.packageNames.find(
+        (candidate) => specifier === candidate || specifier.startsWith(`${candidate}/`),
+    );
+    if (!packageName) return true;
+    const subpath =
+        specifier === packageName ? '.' : `./${specifier.slice(packageName.length + 1)}`;
+    return boundary.publicSubpaths.includes(subpath);
+}
+
+function isBrowserSafePackageSource(path: string): boolean {
+    const boundary = packageBoundaries.find(
+        ({ browserSafe, root }) => browserSafe && isPathInside(root, path),
+    );
+    if (!boundary) return false;
+    return (boundary.browserUnsafeSourceRoots ?? []).every((root) => !isPathInside(root, path));
+}
+
+function isBrowserUnsafeSpecifier(specifier: string): boolean {
+    if (isBuiltin(specifier)) return true;
+    return browserUnsafeImports.some(
+        (candidate) => specifier === candidate || specifier.startsWith(`${candidate}/`),
+    );
+}
+
+function isAllowedTransition(importer: string, specifier: string): boolean {
+    return transitionalImportAllowances.some(
+        (allowance) => allowance.importer === importer && allowance.specifiers.includes(specifier),
+    );
+}
+
+function isBrowserConsumer(path: string): boolean {
+    return (
+        isBrowserSafePackageSource(path) ||
+        isPathInside('src/renderer', path) ||
+        isPathInside('apps/desktop/src/renderer', path)
+    );
+}
+
+function isPlatformClientTarget(specifier: string, resolvedTarget: string | undefined): boolean {
+    return (
+        specifier === '@caxri/client/supervise' ||
+        specifier.startsWith('@caxri/client/supervise/') ||
+        (resolvedTarget !== undefined &&
+            isPathInside('packages/client/src/supervise', resolvedTarget))
+    );
+}
+
+function isAllowedPackageDependency(importer: ImportOwner, targetPackageId: string): boolean {
+    if (importer.kind === 'extension') return targetPackageId === 'extension-api';
+    if (importer.kind === 'shared') return true;
+    const boundary =
+        importer.kind === 'application'
+            ? appBoundaries.find(({ id }) => id === importer.id)
+            : packageBoundaries.find(({ id }) => id === importer.id);
+    const packageId = packageBoundaries.find(({ id }) => id === targetPackageId)?.id;
+    return packageId ? (boundary?.allowedPackages.includes(packageId) ?? false) : false;
+}
+
+/**
+ * Enforces the dependency direction defined by the accepted Server repository topology.
+ */
+const rule: Rule.RuleModule = {
+    meta: {
+        type: 'problem',
+        docs: { description: 'enforce Caxri application and package ownership boundaries' },
+        schema: [],
+        messages: {
+            applicationImport:
+                "Application '{{importer}}' must not import application '{{target}}' source; depend on a public package contract instead.",
+            packageImportsApplication:
+                "Package '{{importer}}' must not depend on application '{{target}}'; packages are lower-level reusable boundaries.",
+            packagePrivateImport:
+                "Import '{{specifier}}' bypasses package '{{target}}' exports; use a reviewed public package export.",
+            browserUnsafeImport:
+                "Browser-safe package source must not import '{{specifier}}'; move platform code behind an explicit environment-specific boundary.",
+            forbiddenPackageDependency:
+                "'{{importer}}' must not depend on package '{{target}}' in the target ownership graph.",
+            platformClientImport:
+                "Browser code must not import '{{specifier}}'; @caxri/client/supervise is platform-only.",
+        },
+    },
+    create(context) {
+        const importer = normalizeRepoPath(relative(context.cwd, context.filename));
+        const importerOwner = ownerForPath(importer);
+
+        function inspect(node: Node, specifier: string): void {
+            if (isAllowedTransition(importer, specifier)) return;
+
+            const resolvedTarget = targetPath(importer, specifier);
+            if (isBrowserConsumer(importer) && isPlatformClientTarget(specifier, resolvedTarget)) {
+                context.report({ node, messageId: 'platformClientImport', data: { specifier } });
+                return;
+            }
+
+            if (isBrowserSafePackageSource(importer) && isBrowserUnsafeSpecifier(specifier)) {
+                context.report({ node, messageId: 'browserUnsafeImport', data: { specifier } });
+                return;
+            }
+
+            const targetOwner = resolvedTarget
+                ? ownerForPath(resolvedTarget)
+                : ownerForBareSpecifier(specifier);
+            if (!targetOwner) return;
+
+            if (
+                targetOwner.kind === 'application' &&
+                importerOwner?.kind === 'application' &&
+                importerOwner.id !== targetOwner.id
+            ) {
+                context.report({
+                    node,
+                    messageId: 'applicationImport',
+                    data: { importer: importerOwner.id, target: targetOwner.id },
+                });
+                return;
+            }
+
+            if (targetOwner.kind === 'application' && importerOwner?.kind === 'package') {
+                context.report({
+                    node,
+                    messageId: 'packageImportsApplication',
+                    data: { importer: importerOwner.id, target: targetOwner.id },
+                });
+                return;
+            }
+
+            if (targetOwner.kind !== 'package' || importerOwner?.id === targetOwner.id) return;
+            if (importerOwner && !isAllowedPackageDependency(importerOwner, targetOwner.id)) {
+                context.report({
+                    node,
+                    messageId: 'forbiddenPackageDependency',
+                    data: { importer: importerOwner.id, target: targetOwner.id },
+                });
+                return;
+            }
+            const isPhysicalExportsBypass =
+                resolvedTarget && isPathInside(`${targetOwner.root}/src`, resolvedTarget);
+            const isNamedExportsBypass =
+                !resolvedTarget && !isPackageSubpathPublic(targetOwner.id, specifier);
+            if (isPhysicalExportsBypass || isNamedExportsBypass) {
+                context.report({
+                    node,
+                    messageId: 'packagePrivateImport',
+                    data: { specifier, target: targetOwner.id },
+                });
+            }
+        }
+
+        return {
+            ExportAllDeclaration(node) {
+                inspect(node, String(node.source.value));
+            },
+            ExportNamedDeclaration(node) {
+                if (node.source) inspect(node, String(node.source.value));
+            },
+            ImportDeclaration(node) {
+                inspect(node, String(node.source.value));
+            },
+            CallExpression(node) {
+                const firstArgument = node.arguments[0];
+                if (
+                    node.callee.type === 'Identifier' &&
+                    node.callee.name === 'require' &&
+                    node.arguments.length > 0 &&
+                    firstArgument.type === 'Literal' &&
+                    typeof firstArgument.value === 'string'
+                ) {
+                    inspect(node, firstArgument.value);
+                }
+            },
+            ImportExpression(node) {
+                if (node.source.type === 'Literal' && typeof node.source.value === 'string') {
+                    inspect(node, node.source.value);
+                }
+            },
+        };
+    },
+};
+
+export default rule;
