@@ -142,6 +142,17 @@
             ],
             "evidenceMode": "non-visual",
             "id": "performance-budgets",
+            "requiredMetrics": [
+                "command-queue-and-database-round-trip",
+                "open-file-descriptors",
+                "packaged-startup",
+                "reconnect-recovery",
+                "runtime-memory",
+                "terminal-backpressure-dropped-bytes",
+                "terminal-echo",
+                "terminal-ready",
+                "watcher-ready"
+            ],
             "surface": "Performance"
         }
     ],

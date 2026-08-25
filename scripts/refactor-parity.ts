@@ -15,9 +15,9 @@ function help(): string {
     return `Architecture refactor parity runner
 
 Usage:
-  refactor-parity record --baseline-id ID --artifact PATH --catalog PATH --receipt PATH --normalization PATH --allowlist PATH --output-root PATH [--startup-executable PATH]
+  refactor-parity record --baseline-id ID --artifact PATH --source-marker PATH --catalog PATH --receipt PATH --normalization PATH --allowlist PATH --output-root PATH --startup-executable PATH
   refactor-parity verify-baseline --baseline PATH
-  refactor-parity compare --baseline PATH --candidate-receipt PATH --batch BATCH [--output PATH]`;
+  refactor-parity compare --baseline PATH --candidate-artifact PATH --candidate-source-marker PATH --candidate-receipt PATH --batch BATCH [--output PATH]`;
 }
 
 async function main(argv: string[]): Promise<void> {
@@ -34,12 +34,15 @@ async function main(argv: string[]): Promise<void> {
             'baseline': { type: 'string' },
             'baseline-id': { type: 'string' },
             'batch': { type: 'string' },
+            'candidate-artifact': { type: 'string' },
             'candidate-receipt': { type: 'string' },
+            'candidate-source-marker': { type: 'string' },
             'catalog': { type: 'string' },
             'normalization': { type: 'string' },
             'output': { type: 'string' },
             'output-root': { type: 'string' },
             'receipt': { type: 'string' },
+            'source-marker': { type: 'string' },
             'startup-executable': { type: 'string' },
         },
         strict: true,
@@ -53,10 +56,8 @@ async function main(argv: string[]): Promise<void> {
             normalizationPath: required(values, 'normalization'),
             outputRoot: required(values, 'output-root'),
             receiptPath: required(values, 'receipt'),
-            startupExecutableRelativePath:
-                typeof values['startup-executable'] === 'string'
-                    ? values['startup-executable']
-                    : undefined,
+            sourceMarkerRelativePath: required(values, 'source-marker'),
+            startupExecutableRelativePath: required(values, 'startup-executable'),
         });
         process.stdout.write(`${JSON.stringify({ baselineDirectory, status: 'recorded' })}\n`);
         return;
@@ -73,6 +74,8 @@ async function main(argv: string[]): Promise<void> {
         const result = await compareCandidate(
             required(values, 'baseline'),
             required(values, 'candidate-receipt'),
+            required(values, 'candidate-artifact'),
+            required(values, 'candidate-source-marker'),
             typeof values.output === 'string' ? values.output : undefined,
             required(values, 'batch'),
         );
