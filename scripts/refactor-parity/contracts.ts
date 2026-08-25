@@ -1,6 +1,7 @@
 /* eslint-disable unicorn/max-nested-calls -- Zod schemas intentionally compose validation inline. */
 import { z } from 'zod';
 
+export const CAXRI_DESKTOP_SOURCE_MARKER_PATH = 'Contents/Resources/app.asar' as const;
 export const scenarioStatusSchema = z.enum(['pass', 'fail', 'blocked', 'invalid']);
 
 export const sourceIdentitySchema = z
@@ -45,9 +46,10 @@ export const performanceMetricSchema = z
 
 const passEvidenceSchema = z.literal('pass');
 const boundedEvidenceNameSchema = z.string().min(1).max(64);
+const boundedInternalEvidenceValueSchema = z.union([z.number(), z.boolean(), z.null()]);
 const boundedInternalEvidenceSchema = z.record(
     boundedEvidenceNameSchema,
-    z.union([z.string().max(256), z.number(), z.boolean(), z.null()]),
+    boundedInternalEvidenceValueSchema,
 );
 const semanticEvidenceSchema = z
     .object({
@@ -180,8 +182,8 @@ export const intentionalDifferenceSchema = z
         entries: z.array(
             z
                 .object({
-                    after: z.unknown(),
-                    before: z.unknown(),
+                    after: boundedInternalEvidenceValueSchema,
+                    before: boundedInternalEvidenceValueSchema,
                     expiresAfterBatch: z.string().min(1),
                     issue: z.number().int().positive(),
                     path: z.string().min(1),
@@ -277,7 +279,7 @@ export const refactorBaselineManifestSchema = z
                 aggregateSha256: z.string().regex(/^[a-f\d]{64}$/u),
                 files: z.array(artifactFileReceiptSchema).min(1),
                 relativePath: z.string().min(1),
-                sourceMarkerRelativePath: z.string().min(1),
+                sourceMarkerRelativePath: z.literal(CAXRI_DESKTOP_SOURCE_MARKER_PATH),
             })
             .strict(),
         baselineId: z.string().regex(/^[a-z\d][a-z\d-]*$/u),

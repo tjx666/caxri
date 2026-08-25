@@ -16,6 +16,7 @@ import type {
     ScenarioCatalog,
 } from './contracts';
 import {
+    CAXRI_DESKTOP_SOURCE_MARKER_PATH,
     intentionalDifferenceSchema,
     normalizationSchema,
     parityReceiptSchema,
@@ -39,7 +40,6 @@ export interface RecordBaselineOptions {
     normalizationPath: string;
     outputRoot: string;
     receiptPath: string;
-    sourceMarkerRelativePath: string;
     startupExecutableRelativePath: string;
 }
 
@@ -81,18 +81,12 @@ async function verifyStartupProbe(
     }
 }
 
-async function verifySourceMarker(
-    artifactPath: string,
-    markerRelativePath: string,
-    commit: string,
-): Promise<string[]> {
-    const markerPath = join(
-        artifactPath,
-        assertRelativePath(markerRelativePath, 'Artifact source marker path'),
-    );
+async function verifySourceMarker(artifactPath: string, commit: string): Promise<string[]> {
+    const markerPath = join(artifactPath, CAXRI_DESKTOP_SOURCE_MARKER_PATH);
     try {
         const marker = await readFile(markerPath);
-        return marker.includes(Buffer.from(commit.slice(0, 8), 'utf8'))
+        const expected = Buffer.from(`var commit = "${commit.slice(0, 8)}";`, 'utf8');
+        return marker.includes(expected)
             ? []
             : ['Artifact source marker does not match the receipt commit'];
     } catch (error: unknown) {
@@ -182,15 +176,10 @@ export async function recordBaseline(options: RecordBaselineOptions): Promise<st
     if (!options.startupExecutableRelativePath) {
         throw new Error('Startup executable path is required');
     }
-    if (!options.sourceMarkerRelativePath) {
-        throw new Error('Artifact source marker path is required');
-    }
     assertRelativePath(options.startupExecutableRelativePath, 'Startup executable path');
-    assertRelativePath(options.sourceMarkerRelativePath, 'Artifact source marker path');
     const inputs = await loadInputs(options);
     const markerFailures = await verifySourceMarker(
         options.artifactPath,
-        options.sourceMarkerRelativePath,
         inputs.receipt.source.commit,
     );
     if (markerFailures.length > 0) throw new Error(markerFailures.join('\n'));
@@ -219,7 +208,7 @@ export async function recordBaseline(options: RecordBaselineOptions): Promise<st
             artifact: {
                 ...artifact,
                 relativePath: artifactRelativePath,
-                sourceMarkerRelativePath: options.sourceMarkerRelativePath,
+                sourceMarkerRelativePath: CAXRI_DESKTOP_SOURCE_MARKER_PATH,
             },
             baselineId: options.baselineId,
             catalogSha256: await sha256File(join(temporaryDirectory, 'catalog.json')),
@@ -283,7 +272,6 @@ export async function verifyBaseline(baselineDirectory: string): Promise<Verifie
         ...(await verifyArtifactFiles(baselineDirectory, manifest)),
         ...(await verifySourceMarker(
             join(baselineDirectory, manifest.artifact.relativePath),
-            manifest.artifact.sourceMarkerRelativePath,
             manifest.source.commit,
         )),
         ...(await verifyStartupProbe(baselineDirectory, manifest)),
@@ -295,7 +283,6 @@ export async function compareCandidate(
     baselineDirectory: string,
     candidateReceiptPath: string,
     candidateArtifactPath: string,
-    candidateSourceMarkerRelativePath: string,
     outputPath?: string,
     currentBatch?: string,
     repoPath = process.cwd(),
@@ -312,11 +299,7 @@ export async function compareCandidate(
             );
         }
         candidateIdentityFailures.push(
-            ...(await verifySourceMarker(
-                candidateArtifactPath,
-                candidateSourceMarkerRelativePath,
-                candidate.source.commit,
-            )),
+            ...(await verifySourceMarker(candidateArtifactPath, candidate.source.commit)),
         );
     } catch (error: unknown) {
         candidateIdentityFailures.push(
@@ -324,21 +307,37 @@ export async function compareCandidate(
         );
     }
     try {
-        const [{ stdout: commitOutput }, { stdout: treeOutput }, { stdout: statusOutput }] =
-            await Promise.all([
-                execFileAsync('git', ['rev-parse', 'HEAD'], {
+        const [
+            { stdout: commitOutput },
+            { stdout: treeOutput },
+            { stdout: statusOutput },
+            { stdout: markerCommitOutput },
+        ] = await Promise.all([
+            execFileAsync('git', ['rev-parse', 'HEAD'], {
+                cwd: repoPath,
+                encoding: 'utf8',
+            }),
+            execFileAsync('git', ['rev-parse', 'HEAD^{tree}'], {
+                cwd: repoPath,
+                encoding: 'utf8',
+            }),
+            execFileAsync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
+                cwd: repoPath,
+                encoding: 'utf8',
+            }),
+            execFileAsync(
+                'git',
+                [
+                    'rev-parse',
+                    '--verify',
+                    [candidate.source.commit.slice(0, 8), '^{commit}'].join(''),
+                ],
+                {
                     cwd: repoPath,
                     encoding: 'utf8',
-                }),
-                execFileAsync('git', ['rev-parse', 'HEAD^{tree}'], {
-                    cwd: repoPath,
-                    encoding: 'utf8',
-                }),
-                execFileAsync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
-                    cwd: repoPath,
-                    encoding: 'utf8',
-                }),
-            ]);
+                },
+            ),
+        ]);
         if (statusOutput.trim().length > 0) {
             candidateIdentityFailures.push('Candidate repository has uncommitted source changes');
         }
@@ -347,6 +346,11 @@ export async function compareCandidate(
         }
         if (candidate.source.tree !== treeOutput.trim()) {
             candidateIdentityFailures.push('Candidate receipt tree does not match Git HEAD');
+        }
+        if (candidate.source.commit !== markerCommitOutput.trim()) {
+            candidateIdentityFailures.push(
+                'Candidate artifact commit marker does not resolve uniquely to the receipt commit',
+            );
         }
     } catch (error: unknown) {
         candidateIdentityFailures.push(

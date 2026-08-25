@@ -11,7 +11,7 @@ import type {
     ParityReceipt,
     ScenarioCatalog,
 } from '../refactor-parity/contracts';
-import { parityReceiptSchema } from '../refactor-parity/contracts';
+import { intentionalDifferenceSchema, parityReceiptSchema } from '../refactor-parity/contracts';
 import { compareCandidate, recordBaseline, verifyBaseline } from '../refactor-parity/core';
 import { hashArtifact } from '../refactor-parity/io';
 
@@ -111,9 +111,13 @@ describe('architecture refactor parity baseline', () => {
     it('archives an immutable artifact and detects later artifact tampering', async () => {
         const directory = await createTemporaryDirectory();
         const artifact = join(directory, 'Caxri.app');
-        await mkdir(join(artifact, 'Contents'), { recursive: true });
+        await mkdir(join(artifact, 'Contents', 'Resources'), { recursive: true });
         await writeFile(join(artifact, 'Contents', 'Info.plist'), 'fixture 11111111', 'utf8');
-        await writeFile(join(artifact, 'Contents', 'candidate-marker'), '22222222', 'utf8');
+        await writeFile(
+            join(artifact, 'Contents', 'Resources', 'app.asar'),
+            'var commit = "11111111";',
+            'utf8',
+        );
         await writeFile(join(artifact, 'Contents', 'fixture-executable'), '#!/bin/sh\nexit 0\n');
         await chmod(join(artifact, 'Contents', 'fixture-executable'), 0o755);
         await symlink('Info.plist', join(artifact, 'Contents', 'Current'));
@@ -136,7 +140,6 @@ describe('architecture refactor parity baseline', () => {
             normalizationPath: normalizations,
             outputRoot: join(directory, 'baselines'),
             receiptPath: receipt,
-            sourceMarkerRelativePath: 'Contents/Info.plist',
             startupExecutableRelativePath: 'Contents/fixture-executable',
         });
 
@@ -149,7 +152,6 @@ describe('architecture refactor parity baseline', () => {
                 normalizationPath: normalizations,
                 outputRoot: join(directory, 'baselines'),
                 receiptPath: receipt,
-                sourceMarkerRelativePath: 'Contents/Info.plist',
                 startupExecutableRelativePath: 'Contents/fixture-executable',
             }),
         ).rejects.toThrow('Baseline already exists and is immutable');
@@ -163,7 +165,6 @@ describe('architecture refactor parity baseline', () => {
             baseline,
             candidateReceiptPath,
             artifact,
-            'Contents/candidate-marker',
             undefined,
             'A0',
         );
@@ -177,16 +178,8 @@ describe('architecture refactor parity baseline', () => {
         candidateReceipt.artifactRole = 'before';
         await writeJson(candidateReceiptPath, candidateReceipt);
         expect(
-            (
-                await compareCandidate(
-                    baseline,
-                    candidateReceiptPath,
-                    artifact,
-                    'Contents/candidate-marker',
-                    undefined,
-                    'A0',
-                )
-            ).failures,
+            (await compareCandidate(baseline, candidateReceiptPath, artifact, undefined, 'A0'))
+                .failures,
         ).toContain('Candidate receipt artifactRole must be candidate');
 
         await writeFile(join(baseline, 'artifact', 'Contents', 'Info.plist'), 'tampered', 'utf8');
@@ -224,7 +217,6 @@ describe('architecture refactor parity baseline', () => {
                 normalizationPath: normalizations,
                 outputRoot: join(directory, 'baselines'),
                 receiptPath: receipt,
-                sourceMarkerRelativePath: 'app',
                 startupExecutableRelativePath: 'app',
             }),
         ).rejects.toThrow();
@@ -257,10 +249,34 @@ describe('architecture refactor parity baseline', () => {
                 normalizationPath: normalizations,
                 outputRoot: join(directory, 'baselines'),
                 receiptPath: receipt,
-                sourceMarkerRelativePath: 'app',
                 startupExecutableRelativePath: 'app',
             }),
         ).rejects.toThrow('Unrecognized key');
+    });
+
+    it('rejects arbitrary strings in internal evidence and intentional differences', () => {
+        const receipt = createReceipt();
+        receipt.scenarios[0].semantic.internalEvidence = {
+            note: 'secret-token',
+        } as never;
+        expect(parityReceiptSchema.safeParse(receipt).success).toBe(false);
+        expect(
+            intentionalDifferenceSchema.safeParse({
+                entries: [
+                    {
+                        after: 'secret-token',
+                        before: 'other-secret',
+                        expiresAfterBatch: 'A1',
+                        issue: 366,
+                        path: 'semantic.internalEvidence.note',
+                        rationale: 'Must never archive arbitrary strings.',
+                        scenarioId: 'protocol-request',
+                        visibility: 'internal',
+                    },
+                ],
+                schemaVersion: 1,
+            }).success,
+        ).toBe(false);
     });
 
     it('requires catalog-declared performance metrics and an in-artifact startup probe', async () => {
@@ -291,7 +307,6 @@ describe('architecture refactor parity baseline', () => {
                 normalizationPath: normalizations,
                 outputRoot: join(directory, 'baselines'),
                 receiptPath: receipt,
-                sourceMarkerRelativePath: 'app',
                 startupExecutableRelativePath: 'app',
             }),
         ).rejects.toThrow('Missing required metric for protocol-request: latency');
@@ -306,7 +321,6 @@ describe('architecture refactor parity baseline', () => {
                 normalizationPath: normalizations,
                 outputRoot: join(directory, 'baselines'),
                 receiptPath: receipt,
-                sourceMarkerRelativePath: 'app',
                 startupExecutableRelativePath: '../sidecar',
             }),
         ).rejects.toThrow('Startup executable path must stay inside');
@@ -480,8 +494,23 @@ describe('architecture refactor parity comparison', () => {
 
         candidate.scenarios = [];
         expect(parityReceiptSchema.safeParse(candidate).success).toBe(true);
-        expect(
-            compareReceipts(baseline, candidate, normalization, emptyAllowlist).failures,
-        ).toContain('protocol-request: candidate receipt is missing');
+        const missing = compareReceipts(
+            baseline,
+            candidate,
+            {
+                rules: [
+                    {
+                        kind: 'pid',
+                        path: '/scenarios/*/semantic/internalEvidence/processId',
+                    },
+                ],
+                schemaVersion: 1,
+            },
+            emptyAllowlist,
+        );
+        expect(missing.failures).toContain('protocol-request: candidate receipt is missing');
+        expect(missing.scenarios).toEqual([
+            expect.objectContaining({ id: 'protocol-request', status: 'blocked' }),
+        ]);
     });
 });

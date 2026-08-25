@@ -35,11 +35,11 @@ function bundleAnalysisPlugins(reportName: string): PluginOption[] {
 const execFileAsync = promisify(execFile);
 
 /**
- * Best-effort short commit hash; packaged builds outside a Git checkout fall back to 'unknown'.
+ * Best-effort fixed-width commit marker; packaged builds outside a Git checkout fall back to 'unknown'.
  */
 async function resolveGitCommit(): Promise<string> {
     try {
-        const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--short=8', 'HEAD'], {
             cwd: resolve('.'),
             encoding: 'utf8',
         });

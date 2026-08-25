@@ -129,7 +129,8 @@ export function normalizeReceipt(receipt: ParityReceipt, rules: NormalizationRul
                 `Normalization may target only internal or artifact evidence: ${rule.path}`,
             );
         }
-        if (normalizePath(normalized, segments, rule.kind) === 0) {
+        const matches = normalizePath(normalized, segments, rule.kind);
+        if (matches === 0 && normalized.scenarios.length > 0) {
             throw new Error(`Normalization path did not match evidence: ${rule.path}`);
         }
     }
