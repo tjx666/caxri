@@ -6,10 +6,6 @@ import { listPaneTerminalIds, paneSplitBlockedReason } from '@shared/pane-layout
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
-    closeFileSearch,
-    requestFileSearchFocus,
-} from '../features/secondary-sidebar/panels/files/file-search-state';
-import {
     beginSessionCreation,
     canNavigateSessionHistory,
     chooseProjectDirectory,
@@ -36,6 +32,11 @@ import {
 } from '../features/terminal/terminal-actions';
 import { openTerminalLinkPicker } from '../features/terminal/terminal-link-actions';
 import { checkForUpdates } from '../features/updates/update-actions';
+import {
+    executeEditableViewCatalogShortcut,
+    executeViewCatalogShortcut,
+    getCachedViewCatalogCommandAllowedInEditable,
+} from '../features/view-containers/view-container-commands';
 import {
     canFocusPaneInDirection,
     focusPaneInDirection,
@@ -84,11 +85,8 @@ function activePaneTarget(): { paneId: string; tabId: string } | undefined {
 function activateSecondarySidebarViewContainer(
     id: Parameters<CommandContext['secondarySidebar']['activateViewContainer']>[0],
 ): void {
-    const session = getSelectedSession();
-    if (!session) return;
     if (!useChromeLayoutStore.getState().secondarySidebarVisible)
         useChromeLayoutStore.getState().setSecondarySidebarVisible(true);
-    if (id !== 'caxri.files') closeFileSearch(session.id);
     useSessionViewStore.getState().setDesiredSecondarySidebarViewContainerId(id);
 }
 
@@ -237,12 +235,6 @@ const commandContext: CommandContext = {
         saveActive: () => void saveActiveEditor(),
     },
     secondarySidebar: {
-        searchFiles: () => {
-            const session = getSelectedSession();
-            if (!session) return;
-            activateSecondarySidebarViewContainer('caxri.files');
-            requestFileSearchFocus(session.id);
-        },
         activateViewContainer: activateSecondarySidebarViewContainer,
         toggle: () => useChromeLayoutStore.getState().toggleSecondarySidebar(),
     },
@@ -299,13 +291,15 @@ export function isCommandAvailable(
  * reached from a stale keybinding or menu entry.
  */
 export function executeCommand(
-    command: CommandId,
+    command: string,
     arguments_?: unknown,
     context: CommandContext = commandContext,
 ): void {
     const definition = getRegisteredCommand(command);
     if (!definition) {
-        pushToast('error', `Unknown command: ${command}`);
+        // Fire-and-forget: the catalog dispatcher owns activation and the shared error path.
+        // eslint-disable-next-line no-void -- one command invocation owns one extension dispatch
+        void executeViewCatalogShortcut(command, arguments_ === undefined ? [] : [arguments_]);
         return;
     }
     if (!isCommandAvailable(command, context)) return;
@@ -336,7 +330,22 @@ export function runCommand(
     if (useDialogStore.getState().isModalOpen()) return;
     if (options?.viaAccelerator) {
         const definition = getRegisteredCommand(command);
-        if (isEditableEventTarget(document.activeElement) && !definition?.allowInEditable) return;
+        if (isEditableEventTarget(document.activeElement)) {
+            if (definition && !definition.allowInEditable) return;
+            if (!definition) {
+                const cachedPermission = getCachedViewCatalogCommandAllowedInEditable(command);
+                if (cachedPermission === false) return;
+                if (cachedPermission === undefined) {
+                    // Fire-and-forget: the manifest lookup is the fail-safe gate for a cold extension catalog.
+                    // eslint-disable-next-line no-void -- one native accelerator owns one asynchronous policy lookup
+                    void executeEditableViewCatalogShortcut(
+                        command,
+                        arguments_ === undefined ? [] : [arguments_],
+                    );
+                    return;
+                }
+            }
+        }
     }
     executeCommand(command, arguments_);
 }

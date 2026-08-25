@@ -16,7 +16,10 @@ import { useToastStore } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import {
     didExecuteViewCatalogCommand,
+    executeEditableViewCatalogShortcut,
     executeViewCatalogShortcut,
+    getCachedViewCatalogCommandAllowedInEditable,
+    isCachedViewCatalogCommandAllowedInEditable,
 } from '../view-container-commands';
 
 function catalog(): ViewCatalogSnapshot {
@@ -33,7 +36,21 @@ function catalog(): ViewCatalogSnapshot {
                 lifecycle: 'active',
             },
         ],
-        views: [],
+        views: [
+            {
+                id: 'publisher.fixture.view',
+                containerId: 'publisher.fixture',
+                source: { kind: 'extension', extensionId: 'publisher.fixture' },
+                title: 'Fixture',
+                viewKind: { kind: 'resource-explorer' },
+                actions: [
+                    {
+                        commandId: 'publisher.fixture.refresh',
+                        role: 'resource.refresh',
+                    },
+                ],
+            },
+        ],
         commands: [
             {
                 id: 'viewContainers.show.publisher.fixture',
@@ -44,6 +61,7 @@ function catalog(): ViewCatalogSnapshot {
             {
                 id: 'publisher.fixture.refresh',
                 title: 'Refresh Fixture',
+                allowInEditable: true,
                 source: { kind: 'extension', extensionId: 'publisher.fixture' },
                 lifecycle: 'active',
             },
@@ -87,7 +105,17 @@ describe('didExecuteViewCatalogCommand', () => {
         ]);
 
         expect(handled).toBe(true);
-        await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() =>
+            expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
+                commandId: 'publisher.fixture.refresh',
+                arguments: ['manual'],
+            }),
+        );
+        expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(true);
+        expect(
+            useWorkbenchStore.getState().bootstrap?.sessionStates[0]
+                ?.desiredSecondarySidebarViewContainerId,
+        ).toBe('publisher.fixture');
         expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
             commandId: 'publisher.fixture.refresh',
             arguments: ['manual'],
@@ -117,8 +145,59 @@ describe('didExecuteViewCatalogCommand', () => {
         expect(mocks.request).not.toHaveBeenCalled();
     });
 
+    it('reads editable-focus policy from the current manifest catalog', () => {
+        queryClient.setQueryData(caxriQueryKey('viewContainers.catalog', {}), catalog());
+
+        expect(isCachedViewCatalogCommandAllowedInEditable('publisher.fixture.refresh')).toBe(true);
+        expect(isCachedViewCatalogCommandAllowedInEditable('publisher.fixture.unknown')).toBe(
+            false,
+        );
+    });
+
+    it('reports a cold catalog as unknown until the manifest lookup completes', () => {
+        expect(getCachedViewCatalogCommandAllowedInEditable('publisher.fixture.refresh')).toBe(
+            undefined,
+        );
+    });
+
+    it('dispatches a cold editable shortcut only after the manifest opts it in', async () => {
+        mocks.request.mockImplementation((method) =>
+            Promise.resolve(method === 'viewContainers.catalog' ? catalog() : {}),
+        );
+
+        await executeEditableViewCatalogShortcut('publisher.fixture.refresh', ['editable']);
+
+        expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
+            commandId: 'publisher.fixture.refresh',
+            arguments: ['editable'],
+        });
+    });
+
+    it('fails closed when a cold editable shortcut is not granted by the manifest', async () => {
+        const denied = catalog();
+        denied.commands = denied.commands.map((command) =>
+            command.id === 'publisher.fixture.refresh'
+                ? { ...command, allowInEditable: false }
+                : command,
+        );
+        mocks.request.mockImplementation((method) =>
+            Promise.resolve(method === 'viewContainers.catalog' ? denied : {}),
+        );
+
+        await executeEditableViewCatalogShortcut('publisher.fixture.refresh', ['editable']);
+
+        expect(mocks.request).not.toHaveBeenCalledWith(
+            'viewContainers.executeCommand',
+            expect.anything(),
+        );
+    });
+
     it('reports command failures through the shared toast path', async () => {
-        mocks.request.mockRejectedValueOnce(new Error('fixture failed'));
+        mocks.request.mockImplementation((method) =>
+            method === 'viewContainers.executeCommand'
+                ? Promise.reject(new Error('fixture failed'))
+                : Promise.resolve({}),
+        );
 
         didExecuteViewCatalogCommand(catalog(), 'publisher.fixture.refresh');
 
@@ -138,6 +217,15 @@ describe('didExecuteViewCatalogCommand', () => {
 
         expect(mocks.request.mock.calls).toEqual([
             ['viewContainers.catalog', {}],
+            [
+                'session.updateState',
+                {
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                    desiredSecondarySidebarViewContainerId: 'publisher.fixture',
+                    paneLayout: {},
+                },
+            ],
             [
                 'viewContainers.executeCommand',
                 {

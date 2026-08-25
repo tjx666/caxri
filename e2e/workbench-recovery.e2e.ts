@@ -92,8 +92,10 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(editorTab).not.toHaveAttribute('aria-describedby');
 
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
-        const gitPanelText = running.page.locator('.git-panel').getByText('main', { exact: false });
-        await expect(gitPanelText).toBeVisible();
+        const sourceControlText = running.page
+            .locator('.git-panel')
+            .getByText('main', { exact: false });
+        await expect(sourceControlText).toBeVisible();
         await expect(
             running.page.locator('.git-files .git-row', { hasText: 'note.txt' }),
         ).toBeVisible();

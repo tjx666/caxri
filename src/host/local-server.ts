@@ -404,19 +404,36 @@ export class LocalHostServer {
                  * `queue`, and this path keeps its own bounded reservation in `dispatchCommand`.
                  */
                 const hotCommand = state ? localClientCommandSchema.safeParse(raw) : undefined;
+                const hotRequest = hotCommand?.success ? hotCommand.data.request : undefined;
                 if (
-                    state?.context.principal.kind === 'desktop' &&
-                    hotCommand?.success &&
-                    (hotCommand.data.request.method === 'terminal.input' ||
-                        hotCommand.data.request.method === 'terminal.resize')
+                    hotRequest &&
+                    (hotRequest.method === 'terminal.input' ||
+                        hotRequest.method === 'terminal.resize') &&
+                    state?.context.principal.kind === 'desktop'
                 ) {
                     // This hot path intentionally bypasses `queue` for interactive Terminal
                     // traffic, and the enclosing 'data' handler is synchronous, so the dispatch
                     // here must be fire-and-forget rather than awaited.
                     // eslint-disable-next-line unicorn/prefer-await -- see comment above
-                    this.dispatchCommand(socket, state, hotCommand.data.request).catch(() =>
-                        socket.destroy(),
+                    this.dispatchCommand(socket, state, hotRequest).catch(() => socket.destroy());
+                    continue;
+                }
+                /**
+                 * Cancellation is authenticated control traffic. It must reach the Host adapter immediately even when
+                 * an earlier view operation is still waiting on Runtime or Extension Host work.
+                 */
+                if (state && hotRequest?.method === 'viewContainers.cancelRequest') {
+                    // This path intentionally bypasses `queue`; the data callback is synchronous, so dispatch is
+                    // fire-and-forget and owns its own reply/error handling.
+                    const cancellation = this.dispatchCommand(
+                        socket,
+                        state,
+                        hotRequest,
+                        undefined,
+                        true,
                     );
+                    // eslint-disable-next-line unicorn/prefer-await -- the synchronous data callback cannot await
+                    cancellation.catch(() => socket.destroy());
                     continue;
                 }
                 // `queue` preserves handshake, control, and mutation order across repeated invocations of this

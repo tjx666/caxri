@@ -181,12 +181,21 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     : supervisor.request('theme.importPath', { path });
             }
             case 'git.discard': {
+                const preflight = await supervisor.request('git.discard.preflight', {
+                    repositoryId: request.params.repositoryId,
+                    scope:
+                        request.params.scope.kind === 'all'
+                            ? { kind: 'all' }
+                            : { kind: 'file', path: request.params.scope.path },
+                    sessionId: request.params.sessionId,
+                });
+                if (preflight.status === 'noop') return null;
                 const result = await dialog.showMessageBox(
                     mainWindow!,
-                    discardGitChangesPrompt(request.params),
+                    discardGitChangesPrompt(preflight),
                 );
                 if (result.response !== 0) return { canceled: true };
-                return supervisor.request('git.discard', request.params);
+                return supervisor.request('git.discard.apply', { token: preflight.token });
             }
             case 'editor.confirmDiscard': {
                 const result = await dialog.showMessageBox(

@@ -14,7 +14,7 @@ function isResolvable(container: ViewContainerDescriptor): boolean {
  * only for the current catalog revision; when its descriptor becomes healthy again the same desired ID rebinds.
  */
 export function resolveViewContainerId(
-    desiredId: ViewContainerId,
+    desiredId: ViewContainerId | undefined,
     location: ViewContainerLocation,
     catalog: ViewCatalogSnapshot,
 ): ViewContainerId | undefined {

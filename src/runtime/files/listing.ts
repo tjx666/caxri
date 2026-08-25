@@ -163,14 +163,19 @@ export class ListingService {
         sessionId: string,
         directory: string | undefined,
         excludes: FileTreeExcludes,
+        signal?: AbortSignal,
     ): Promise<FileEntry[]> {
         const startedAt = performance.now();
+        signal?.throwIfAborted();
         const { root, path } = await this.resolveSessionPath(sessionId, directory);
+        signal?.throwIfAborted();
         this.onDirectoryListed?.(sessionId, path);
         const before = await lstat(path);
+        signal?.throwIfAborted();
         if (!before.isDirectory() || before.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a directory');
         const entries = await readdir(path, { withFileTypes: true });
+        signal?.throwIfAborted();
         const after = await lstat(path);
         /**
          * Revalidate around readdir so a Session-root swap cannot disclose another directory.
@@ -189,7 +194,7 @@ export class ListingService {
         });
         const [settled, gitIgnoreDecoration] = await Promise.all([
             mapWithConcurrency(visible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
-                this.describeEntry(path, entry.name),
+                this.describeEntry(path, entry.name, signal),
             ),
             this.loadGitIgnoredNames(
                 sessionId,
@@ -240,7 +245,12 @@ export class ListingService {
      * tool can rewrite a directory rapidly enough that this is routine, not exceptional, so a single missing entry must
      * never fail the whole listing.
      */
-    private async describeEntry(directory: string, name: string): Promise<FileEntry | undefined> {
+    private async describeEntry(
+        directory: string,
+        name: string,
+        signal?: AbortSignal,
+    ): Promise<FileEntry | undefined> {
+        signal?.throwIfAborted();
         const entryPath = resolve(directory, name);
         let stats: Awaited<ReturnType<typeof lstat>>;
         try {
@@ -260,10 +270,10 @@ export class ListingService {
         return { name, path: entryPath, kind: 'file', size: stats.size };
     }
 
-    list(sessionId: string, directory?: string): Promise<FileEntry[]> {
+    list(sessionId: string, directory?: string, signal?: AbortSignal): Promise<FileEntry[]> {
         const excludes = this.fileTreeExcludes();
         return this.listRequests.run(JSON.stringify([sessionId, directory ?? null, excludes]), () =>
-            this.loadList(sessionId, directory, excludes),
+            this.loadList(sessionId, directory, excludes, signal),
         );
     }
 

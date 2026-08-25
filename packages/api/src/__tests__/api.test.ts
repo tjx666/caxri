@@ -44,5 +44,17 @@ describe('caxri public API runtime', () => {
         expect(() => caxri.views.registerTreeDataProvider('example.view', {} as never)).toThrow(
             expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }),
         );
+        expect(() =>
+            caxri.views.registerResourceExplorerProvider('example.files', {} as never),
+        ).toThrow(expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }));
+        expect(() => caxri.views.registerSourceControlProvider('example.git', {} as never)).toThrow(
+            expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }),
+        );
+        expect(() => caxri.workspace.fs.list()).toThrow(
+            expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }),
+        );
+        expect(() => caxri.workspace.git.summary()).toThrow(
+            expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }),
+        );
     });
 });

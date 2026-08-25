@@ -75,6 +75,7 @@ describe('@caxri/protocol contract', () => {
         expect(CAXRI_PROTOCOL_VERSION).toBe(2);
         expect(negotiateProtocolVersion([0, 2])).toBe(2);
         expect(() => negotiateProtocolVersion([1])).toThrow();
+        expect(errorCodes).toContain('CANCELLED');
         expect(errorCodes).toContain('FORBIDDEN');
         expect(capabilityIds).toContain('desktop.window');
         expect(capabilityIds).toContain('terminals.steer');

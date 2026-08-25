@@ -67,7 +67,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             /**
              * In-flight reads can outlive the window once quit closes the Host; the consumer is already gone.
              */
-            if (!reply.ok && !options.isQuitting())
+            if (!reply.ok && reply.error.code !== 'CANCELLED' && !options.isQuitting())
                 options.logger()?.write('error', logEventCatalog.ipc.requestFailed, {
                     fields: { code: reply.error.code, error: reply.error.message },
                 });
@@ -77,7 +77,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
              * Replying with a classified envelope keeps the code intact across the preload.
              */
             const wire = toWireError(error);
-            if (!isTrustedRenderer || !options.isQuitting())
+            if (wire.code !== 'CANCELLED' && (!isTrustedRenderer || !options.isQuitting()))
                 options.logger()?.write('error', logEventCatalog.ipc.requestFailed, {
                     fields: { code: wire.code, error: wire.message },
                 });

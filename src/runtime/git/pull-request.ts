@@ -10,6 +10,7 @@ import type {
     GitRepositorySummary as GitRepoSummary,
 } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
+import { sharedGitRequest } from './request-signal';
 
 const PULL_REQUEST_CACHE_MS = 30_000;
 const MAX_PULL_REQUEST_FILES = 2_000;
@@ -222,9 +223,54 @@ export class GitPullRequestService {
             repo.head ?? null,
             parameters.refresh,
         ]);
-        return this.requests.run(requestKey, async () => {
-            const output = await this.dependencies.ghPullRequestView(repo.rootPath);
-            if (!output) {
+        return sharedGitRequest(() =>
+            this.requests.run(requestKey, async () => {
+                const output = await this.dependencies.ghPullRequestView(repo.rootPath);
+                if (!output) {
+                    if (cacheGeneration === this.cacheGeneration)
+                        this.storeCache(cacheKey, {
+                            branch: repo.branch,
+                            expiresAt: this.now() + PULL_REQUEST_CACHE_MS,
+                            head: repo.head,
+                            repositoryId: parameters.repositoryId,
+                            sessionId: parameters.sessionId,
+                            value: null,
+                        });
+                    return null;
+                }
+                const view = parsePullRequestView(output);
+                const range = `${view.baseRefOid}...${view.headRefOid}`;
+                const [filesOutput, lineStatsOutput] = await Promise.all([
+                    this.dependencies.git(repo.rootPath, [
+                        'diff',
+                        '--name-status',
+                        '-z',
+                        '-M',
+                        range,
+                        '--',
+                    ]),
+                    this.dependencies.git(repo.rootPath, [
+                        'diff',
+                        '--numstat',
+                        '--no-renames',
+                        range,
+                        '--',
+                    ]),
+                ]);
+                const result: GitPullRequestChanges = {
+                    repositoryId: repo.id,
+                    number: view.number,
+                    title: view.title.slice(0, 4_096),
+                    url: view.url,
+                    baseRefName: view.baseRefName.slice(0, 1_024),
+                    headRefName: view.headRefName.slice(0, 1_024),
+                    baseOid: view.baseRefOid,
+                    headOid: view.headRefOid,
+                    ...parseLineStats(lineStatsOutput),
+                    files: parseNameStatus(filesOutput)
+                        .slice(0, MAX_PULL_REQUEST_FILES)
+                        .map(pullRequestFileStatus),
+                };
                 if (cacheGeneration === this.cacheGeneration)
                     this.storeCache(cacheKey, {
                         branch: repo.branch,
@@ -232,54 +278,11 @@ export class GitPullRequestService {
                         head: repo.head,
                         repositoryId: parameters.repositoryId,
                         sessionId: parameters.sessionId,
-                        value: null,
+                        value: result,
                     });
-                return null;
-            }
-            const view = parsePullRequestView(output);
-            const range = `${view.baseRefOid}...${view.headRefOid}`;
-            const [filesOutput, lineStatsOutput] = await Promise.all([
-                this.dependencies.git(repo.rootPath, [
-                    'diff',
-                    '--name-status',
-                    '-z',
-                    '-M',
-                    range,
-                    '--',
-                ]),
-                this.dependencies.git(repo.rootPath, [
-                    'diff',
-                    '--numstat',
-                    '--no-renames',
-                    range,
-                    '--',
-                ]),
-            ]);
-            const result: GitPullRequestChanges = {
-                repositoryId: repo.id,
-                number: view.number,
-                title: view.title.slice(0, 4_096),
-                url: view.url,
-                baseRefName: view.baseRefName.slice(0, 1_024),
-                headRefName: view.headRefName.slice(0, 1_024),
-                baseOid: view.baseRefOid,
-                headOid: view.headRefOid,
-                ...parseLineStats(lineStatsOutput),
-                files: parseNameStatus(filesOutput)
-                    .slice(0, MAX_PULL_REQUEST_FILES)
-                    .map(pullRequestFileStatus),
-            };
-            if (cacheGeneration === this.cacheGeneration)
-                this.storeCache(cacheKey, {
-                    branch: repo.branch,
-                    expiresAt: this.now() + PULL_REQUEST_CACHE_MS,
-                    head: repo.head,
-                    repositoryId: parameters.repositoryId,
-                    sessionId: parameters.sessionId,
-                    value: result,
-                });
-            return result;
-        });
+                return result;
+            }),
+        );
     }
 
     async diffDocument(

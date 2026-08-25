@@ -10,6 +10,7 @@ import type {
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
 } from '../shared/ipc/methods';
+import type { RuntimeWorkbenchContext } from '../shared/ipc/transport';
 import type { HostRuntimeSupervisor } from './runtime-supervisor';
 
 type AuthorizedEntry = RuntimeMethodResult<'files.authorizeOpen'>;
@@ -24,8 +25,8 @@ interface StoredTarget {
     expiresAt: number;
     generation: number;
     id: string;
-    operation: 'open' | 'openInEditor' | 'reveal';
-    projectId: string;
+    operation: 'open' | 'openInEditor' | 'reveal' | 'trash';
+    projectId?: string;
     sessionId: string;
     location?: { column: number; line: number };
 }
@@ -41,7 +42,10 @@ export interface DesktopRouterOptions {
     bridge: DesktopRouterBridge;
     maximumTargets?: number;
     now?: () => number;
-    runtime: Pick<HostRuntimeSupervisor, 'request'>;
+    runtime: Pick<
+        HostRuntimeSupervisor,
+        'request' | 'requestInWorkbenchContext' | 'requestWithSignal'
+    >;
     targetTtlMs?: number;
 }
 
@@ -68,6 +72,21 @@ function isExpectedIdentity(entry: AuthorizedEntry, expected: ExpectedIdentity):
         entry.root.device === expected.root.device &&
         entry.root.inode === expected.root.inode
     );
+}
+
+function isDesktopConfirmationAccepted(result: unknown): boolean {
+    if (
+        typeof result !== 'object' ||
+        result === null ||
+        !('confirmed' in result) ||
+        typeof result.confirmed !== 'boolean'
+    )
+        throw new CaxriError('INTERNAL', 'Desktop returned an invalid confirmation');
+    return result.confirmed;
+}
+
+function assertNotCancelled(signal?: AbortSignal): void {
+    if (signal?.aborted) throw new CaxriError('CANCELLED', 'Desktop operation was cancelled');
 }
 
 /**
@@ -105,9 +124,9 @@ export class HostDesktopRouter {
     }
 
     private issueTarget(
-        operation: 'open' | 'openInEditor' | 'reveal',
+        operation: 'open' | 'openInEditor' | 'reveal' | 'trash',
         generation: number,
-        resolved: { entry: AuthorizedEntry; projectId: string; sessionId: string },
+        resolved: { entry: AuthorizedEntry; projectId?: string; sessionId: string },
         location?: { column: number; line: number },
     ): StoredTarget {
         this.pruneTargets();
@@ -134,10 +153,14 @@ export class HostDesktopRouter {
     private async resolveTarget(
         path: string,
         requestedSessionId?: string,
+        signal?: AbortSignal,
+        context?: RuntimeWorkbenchContext,
     ): Promise<{ entry: AuthorizedEntry; projectId: string; sessionId: string }> {
+        if (context && requestedSessionId !== context.sessionId)
+            throw new CaxriError('PATH_DENIED', 'Desktop request context is inconsistent');
         const state = await this.options.runtime.request('app.bootstrap');
         if (requestedSessionId)
-            return this.resolveRequestedSession(state, requestedSessionId, path);
+            return this.resolveRequestedSession(state, requestedSessionId, path, signal, context);
 
         const activeSessions = state.sessions.filter((session) => session.archivedAt === undefined);
         const representatives = new Map<string, (typeof activeSessions)[number]>();
@@ -186,15 +209,29 @@ export class HostDesktopRouter {
         state: BootstrapState,
         sessionId: string,
         path: string,
+        signal?: AbortSignal,
+        context?: RuntimeWorkbenchContext,
     ): Promise<{ entry: AuthorizedEntry; projectId: string; sessionId: string }> {
         const session = state.sessions.find((candidate) => candidate.id === sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         if (session.archivedAt !== undefined)
             throw new CaxriError('CONFLICT', 'Archived Sessions cannot receive Desktop targets');
-        const entry = await this.options.runtime.request('files.authorizeOpen', {
-            sessionId,
-            path,
-        });
+        const parameters = { sessionId, path };
+        const entry = context
+            ? await this.options.runtime.requestInWorkbenchContext(
+                  'files.authorizeOpen',
+                  parameters,
+                  context,
+                  undefined,
+                  signal,
+              )
+            : signal
+              ? await this.options.runtime.requestWithSignal(
+                    'files.authorizeOpen',
+                    parameters,
+                    signal,
+                )
+              : await this.options.runtime.request('files.authorizeOpen', parameters);
         return { entry, projectId: session.projectId, sessionId };
     }
 
@@ -218,6 +255,117 @@ export class HostDesktopRouter {
         return { state: 'focused', generation: lease.generation };
     }
 
+    async trash(
+        parameters: RuntimeMethodParameters<'files.trash'>,
+        signal?: AbortSignal,
+        context?: RuntimeWorkbenchContext,
+    ): Promise<RuntimeMethodResult<'files.trash'>> {
+        assertNotCancelled(signal);
+        const lease = await this.requireLease(false);
+        const item = context
+            ? await this.options.runtime.requestInWorkbenchContext(
+                  'files.authorizeTrash',
+                  parameters,
+                  context,
+                  undefined,
+                  signal,
+              )
+            : signal
+              ? await this.options.runtime.requestWithSignal(
+                    'files.authorizeTrash',
+                    parameters,
+                    signal,
+                )
+              : await this.options.runtime.request('files.authorizeTrash', parameters);
+        assertNotCancelled(signal);
+        const isConfirmed = isDesktopConfirmationAccepted(
+            await this.options.bridge.invoke(
+                {
+                    kind: 'confirmFilesTrash',
+                    item: {
+                        name: item.name,
+                        path: item.path,
+                        ...(parameters.hasUnsavedChanges !== undefined && {
+                            hasUnsavedChanges: parameters.hasUnsavedChanges,
+                        }),
+                    },
+                },
+                lease.generation,
+            ),
+        );
+        assertNotCancelled(signal);
+        if (!isConfirmed) return { canceled: true };
+        const target = this.issueTarget('trash', lease.generation, {
+            entry: item,
+            sessionId: parameters.sessionId,
+        });
+        try {
+            await this.options.bridge.invoke(
+                { kind: 'trash', targetId: target.id },
+                lease.generation,
+            );
+        } catch (error) {
+            this.targets.delete(target.id);
+            throw error;
+        }
+        return { kind: item.kind, name: item.name, path: item.path };
+    }
+
+    async discard(
+        parameters: RuntimeMethodParameters<'git.discard'>,
+        signal?: AbortSignal,
+        context?: RuntimeWorkbenchContext,
+    ): Promise<RuntimeMethodResult<'git.discard'>> {
+        assertNotCancelled(signal);
+        const lease = await this.requireLease(false);
+        const preflightParameters: RuntimeMethodParameters<'git.discard.preflight'> = {
+            repositoryId: parameters.repositoryId,
+            scope:
+                parameters.scope.kind === 'all'
+                    ? { kind: 'all' }
+                    : { kind: 'file', path: parameters.scope.path },
+            sessionId: parameters.sessionId,
+        };
+        const preflight = context
+            ? await this.options.runtime.requestInWorkbenchContext(
+                  'git.discard.preflight',
+                  preflightParameters,
+                  context,
+                  undefined,
+                  signal,
+              )
+            : signal
+              ? await this.options.runtime.requestWithSignal(
+                    'git.discard.preflight',
+                    preflightParameters,
+                    signal,
+                )
+              : await this.options.runtime.request('git.discard.preflight', preflightParameters);
+        assertNotCancelled(signal);
+        if (preflight.status === 'noop') return null;
+        const isConfirmed = isDesktopConfirmationAccepted(
+            await this.options.bridge.invoke(
+                {
+                    kind: 'confirmGitDiscard',
+                    target: {
+                        repositoryName: preflight.repositoryName,
+                        scope: preflight.scope,
+                    },
+                },
+                lease.generation,
+            ),
+        );
+        assertNotCancelled(signal);
+        if (!isConfirmed) return { canceled: true };
+        return context
+            ? this.options.runtime.requestInWorkbenchContext(
+                  'git.discard.apply',
+                  { token: preflight.token },
+                  context,
+              )
+            : this.options.runtime.request('git.discard.apply', { token: preflight.token });
+    }
+
     async open(
         operation: 'open' | 'openInEditor' | 'reveal',
         requestedKind: 'directory' | 'file' | undefined,
@@ -228,13 +376,22 @@ export class HostDesktopRouter {
             expectedIdentity?: ExpectedIdentity;
             location?: { column: number; line: number };
         },
+        signal?: AbortSignal,
+        context?: RuntimeWorkbenchContext,
     ): Promise<{
         state: 'opened' | 'requested' | 'revealed';
         generation: number;
         projectId: string;
         sessionId: string;
     }> {
-        const resolved = await this.resolveTarget(parameters.path, parameters.sessionId);
+        assertNotCancelled(signal);
+        const resolved = await this.resolveTarget(
+            parameters.path,
+            parameters.sessionId,
+            signal,
+            context,
+        );
+        assertNotCancelled(signal);
         if (
             parameters.expectedIdentity &&
             !isExpectedIdentity(resolved.entry, parameters.expectedIdentity)
@@ -288,10 +445,10 @@ export class HostDesktopRouter {
             throw new CaxriError('NOT_FOUND', 'Desktop target expired');
         if (target.generation !== generation)
             throw new CaxriError('CONFLICT', 'Desktop target belongs to a stale generation');
-        const current = await this.options.runtime.request('files.authorizeOpen', {
-            sessionId: target.sessionId,
-            path: target.entry.path,
-        });
+        const current = await this.options.runtime.request(
+            target.operation === 'trash' ? 'files.authorizeTrash' : 'files.authorizeOpen',
+            { sessionId: target.sessionId, path: target.entry.path },
+        );
         if (!isSameIdentity(target.entry, current))
             throw new CaxriError('CONFLICT', 'Desktop target changed before use');
         return {

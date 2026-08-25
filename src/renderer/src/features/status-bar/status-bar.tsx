@@ -407,9 +407,10 @@ function ScreencastModeChip() {
  * `projectStatus.overview` may shell out to a delivery CLI (e.g. `gh`) for the pull request, so it stays on the 60s
  * poll and is never invalidated by `files.changed` (see `invalidateFileDependentQueries` in `queries/invalidation.ts`).
  * Branch and changed-file count instead come from the `git.overview` query — a Files-free projection of the same
- * repository snapshot `GitPanel` and `GitDiffEditor` read through `git.summary`, invalidated by the Runtime-driven
- * `git.changed` event — so the status bar reflects a Git-affecting change immediately without pulling the full
- * working-tree `files[]` payload across IPC or calling the delivery CLI any more often than the interval already does.
+ * repository snapshot `SourceControlView` and `GitDiffEditor` read through `git.summary`, invalidated by the
+ * Runtime-driven `git.changed` event — so the status bar reflects a Git-affecting change immediately without pulling
+ * the full working-tree `files[]` payload across IPC or calling the delivery CLI any more often than the interval
+ * already does.
  */
 function useProjectOverview(sessionId: string | undefined) {
     const overviewQuery = usePolledQuery(

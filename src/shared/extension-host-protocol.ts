@@ -1,6 +1,8 @@
 import type {
     ExtensionCapability,
     ExtensionManifest,
+    ExtensionViewChange,
+    ExtensionViewEventContext,
     ProjectStatusSummary,
 } from '../../packages/protocol/src';
 
@@ -9,6 +11,33 @@ export type ExtensionProjectStatusSummary = Omit<ProjectStatusSummary, 'reposito
 };
 
 export const MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH = 200;
+
+export const extensionWorkspaceOperations = [
+    'files.list',
+    'files.search',
+    'files.create',
+    'files.copy',
+    'files.rename',
+    'files.move',
+    'files.operation.get',
+    'files.operation.list',
+    'files.operation.cancel',
+    'files.operation.acknowledge',
+    'files.trash',
+    'files.reveal',
+    'git.summary',
+    'git.sync',
+    'git.discard',
+    'git.pullRequestChanges',
+    'git.commits',
+    'git.commitDetails',
+    'git.remoteHost',
+] as const;
+
+export type ExtensionWorkspaceOperation = (typeof extensionWorkspaceOperations)[number];
+
+export type ExtensionFilesChange =
+    { kind: 'content'; paths?: string[]; overflow?: boolean } | { kind: 'operation' };
 
 export interface ExtensionHostRegistration {
     extensionId: string;
@@ -20,6 +49,8 @@ export interface ExtensionHostRegistration {
     grants: ExtensionCapability[];
     projectIds: string[];
 }
+
+export type ExtensionViewEventScope = ExtensionViewEventContext;
 
 export type ExtensionHostRequest =
     | {
@@ -41,6 +72,7 @@ export type ExtensionHostRequest =
               viewId: string;
               parentHandle?: string;
               requestId: string;
+              context?: ExtensionViewEventScope;
           };
       }
     | {
@@ -51,25 +83,68 @@ export type ExtensionHostRequest =
               generation: number;
               commandId: string;
               arguments: unknown[];
+              context: ExtensionViewEventScope;
           };
       }
-    | { id: string; method: 'activeContextChanged'; params: Record<string, never> }
-    | { id: string; method: 'projectStatusChanged'; params: Record<string, never> }
+    | {
+          id: string;
+          method: 'viewOperation';
+          params: {
+              extensionId: string;
+              generation: number;
+              viewId: string;
+              operation: ExtensionWorkspaceOperation;
+              arguments: unknown;
+              requestId: string;
+              context: ExtensionViewEventScope;
+          };
+      }
+    | {
+          id: string;
+          method: 'activeContextChanged';
+          params: { context: ExtensionViewEventScope };
+      }
+    | {
+          id: string;
+          method: 'filesChanged';
+          params: { change: ExtensionFilesChange; context: ExtensionViewEventScope };
+      }
+    | {
+          id: string;
+          method: 'gitChanged';
+          params: { context: ExtensionViewEventScope };
+      }
+    | {
+          id: string;
+          method: 'projectStatusChanged';
+          params: { context: ExtensionViewEventScope };
+      }
     | { id: string; method: 'cancel'; params: { requestId: string } }
     | { id: string; method: 'shutdown'; params: Record<string, never> };
 
-export interface ExtensionHostApiRequest {
+interface ExtensionHostApiRequestBase {
     type: 'api-request';
     id: string;
     extensionId: string;
     generation: number;
     apiToken: string;
-    method: 'workspace.getProjectStatus';
-    params: { refreshToken?: string };
 }
+
+export type ExtensionHostApiRequest = ExtensionHostApiRequestBase &
+    (
+        | {
+              method: 'workspace.getProjectStatus';
+              params: { refreshToken?: string };
+          }
+        | {
+              method: 'workspace.request';
+              params: { operation: ExtensionWorkspaceOperation; arguments: unknown };
+          }
+    );
 
 export type ExtensionHostMessage =
     | ExtensionHostApiRequest
+    | { type: 'api-cancel'; id: string }
     | { type: 'ready' }
     | { type: 'reply'; id: string; ok: true; result: unknown }
     | {
@@ -84,7 +159,19 @@ export type ExtensionHostMessage =
           extensionId: string;
           generation: number;
           viewId: string;
+          eventId: string;
+          context: ExtensionViewEventScope;
           handles?: string[];
+      }
+    | {
+          type: 'event';
+          event: 'viewChanged';
+          extensionId: string;
+          generation: number;
+          viewId: string;
+          eventId: string;
+          context: ExtensionViewEventScope;
+          change: ExtensionViewChange;
       };
 
 export type ExtensionHostParentMessage =
@@ -93,7 +180,7 @@ export type ExtensionHostParentMessage =
           type: 'api-reply';
           id: string;
           ok: true;
-          result: ExtensionProjectStatusSummary;
+          result: unknown;
       }
     | {
           type: 'api-reply';

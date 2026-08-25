@@ -103,6 +103,28 @@ export type RuntimeResponse = z.infer<typeof runtimeResponseSchema>;
 export type RuntimeMessage = RuntimeResponse | RuntimeEvent;
 
 /**
+ * Host-attested context attached only to Extension workspace requests. It binds a request to the Workbench Root that
+ * was selected when the public API call began; the Runtime rechecks the binding immediately before invoking a domain
+ * handler so a same-Session root switch cannot redirect an in-flight operation.
+ */
+export const runtimeWorkbenchContextSchema = z.object({
+    sessionId: identifierSchema,
+    workbenchProjectId: identifierSchema,
+});
+
+export type RuntimeWorkbenchContext = z.infer<typeof runtimeWorkbenchContextSchema>;
+
+/**
+ * Internal Host-to-Runtime cancellation frame; it never enters the public command registry.
+ */
+export const runtimeCancelRequestSchema = z.object({
+    type: z.literal('cancel'),
+    id: identifierSchema,
+});
+
+export type RuntimeCancelRequest = z.infer<typeof runtimeCancelRequestSchema>;
+
+/**
  * Parses an untrusted utility-process message as either a response or a declared Runtime event.
  */
 export function parseRuntimeMessage(message: unknown): RuntimeMessage {

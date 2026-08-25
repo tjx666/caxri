@@ -18,7 +18,13 @@ import {
     runtimeStatusSchema,
     updateStateSchema,
 } from '../domain/domain.js';
-import { extensionIdSchema, viewIdSchema } from '../domain/views.js';
+import {
+    extensionIdSchema,
+    extensionViewChangeSchema,
+    extensionViewEventContextSchema,
+    extensionViewEventIdSchema,
+    viewIdSchema,
+} from '../domain/views.js';
 
 const configChangedSchema = z.object({
     source: configSourceSchema,
@@ -83,7 +89,17 @@ export const runtimeEventPayloads = {
     }),
     'viewContainers.treeChanged': z.object({
         viewId: viewIdSchema,
+        eventId: extensionViewEventIdSchema,
+        extensionGeneration: z.number().int().nonnegative(),
+        context: extensionViewEventContextSchema,
         handles: z.array(z.string().min(1).max(512)).max(1_000).optional(),
+    }),
+    'viewContainers.viewChanged': z.object({
+        viewId: viewIdSchema,
+        eventId: extensionViewEventIdSchema,
+        extensionGeneration: z.number().int().nonnegative(),
+        context: extensionViewEventContextSchema,
+        change: extensionViewChangeSchema,
     }),
     'runtime.status': z.object({
         status: runtimeStatusSchema.exclude(['starting']),
@@ -115,7 +131,7 @@ export const runtimeEventPayloads = {
          * Stable Project scope lets inactive Sessions sharing this root converge their caches.
          */
         workbenchProjectId: identifierSchema,
-        changes: z.array(fileChangeSchema),
+        changes: z.array(fileChangeSchema).max(512),
         overflow: z.boolean(),
         gitIgnoreRulesChanged: z.literal(true).optional(),
     }),

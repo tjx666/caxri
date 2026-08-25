@@ -2,6 +2,7 @@ import { lstat, realpath } from 'node:fs/promises';
 
 import { SingleFlight } from '../single-flight';
 import { parseWorktreeEntries } from './repo';
+import { sharedGitRequest } from './request-signal';
 
 const MAX_TOPOLOGIES = 256;
 
@@ -131,8 +132,8 @@ export class RepoTopologyRegistry {
                 return entry.topology;
             }
         }
-        return this.loads.run(canonical, () =>
-            this.load(canonical, options.git ?? this.options.git),
+        return sharedGitRequest(() =>
+            this.loads.run(canonical, () => this.load(canonical, options.git ?? this.options.git)),
         );
     }
 

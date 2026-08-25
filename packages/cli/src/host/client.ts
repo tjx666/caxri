@@ -560,10 +560,14 @@ export class HostClient {
         const request = parseRuntimeRequest(method, parameters);
         const id = randomUUID();
         return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.pending.delete(id);
-                reject(new CaxriError('TIMEOUT', `Desktop Runtime request timed out: ${method}`));
-            }, timeoutOverride ?? this.timeoutMs);
+            const timer = isNonExpiringRuntimeMethod(method)
+                ? undefined
+                : setTimeout(() => {
+                      this.pending.delete(id);
+                      reject(
+                          new CaxriError('TIMEOUT', `Desktop Runtime request timed out: ${method}`),
+                      );
+                  }, timeoutOverride ?? this.timeoutMs);
             this.pending.set(id, {
                 parse: (value) => parseRuntimeResult(method, value),
                 resolve: (value) => resolve(value as DesktopRuntimeMethodResult<M>),

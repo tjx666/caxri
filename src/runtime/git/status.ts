@@ -1,4 +1,102 @@
+import type { GitFileStatus } from '../../shared/types';
+
 export type StatusOutcome = 'fresh' | 'joined' | 'coalesced';
+
+export interface RepoStatus {
+    branch: string;
+    head?: string;
+    ahead: number;
+    behind: number;
+    additions: number;
+    deletions: number;
+    changedFileCount: number;
+    truncated: boolean;
+    files: GitFileStatus[];
+}
+
+function statusKind(code: string): GitFileStatus['kind'] {
+    if (code === 'AA' || code === 'DD' || code.includes('U')) return 'conflicted';
+    if (code.includes('R')) return 'renamed';
+    if (code.includes('D')) return 'deleted';
+    if (code.includes('A')) return 'added';
+    return 'modified';
+}
+
+function parseStatusRecord(
+    record: string,
+    originalPath?: string,
+):
+    | {
+          code: string;
+          path: string;
+          originalPath?: string;
+          kind?: GitFileStatus['kind'];
+      }
+    | undefined {
+    if (record.startsWith('? ')) return { code: '??', path: record.slice(2), kind: 'untracked' };
+    const ordinary = /^1 (\S{2})(?: \S+){6} (.+)$/.exec(record);
+    if (ordinary) return { code: ordinary[1], path: ordinary[2] };
+    const renamed = /^2 (\S{2})(?: \S+){7} (.+)$/.exec(record);
+    if (renamed) return { code: renamed[1], path: renamed[2], originalPath, kind: 'renamed' };
+    const conflicted = /^u (\S{2})(?: \S+){8} (.+)$/.exec(record);
+    if (conflicted) return { code: conflicted[1], path: conflicted[2], kind: 'conflicted' };
+    return undefined;
+}
+
+export function parseGitStatus(
+    output: string,
+): Omit<RepoStatus, 'additions' | 'deletions' | 'changedFileCount' | 'truncated'> {
+    const records = output.split('\0').filter(Boolean);
+    const files: GitFileStatus[] = [];
+    let branch = 'detached';
+    let head: string | undefined;
+    let ahead = 0;
+    let behind = 0;
+    for (let index = 0; index < records.length; index += 1) {
+        const record = records[index];
+        if (record.startsWith('# branch.head ')) {
+            branch = record.slice('# branch.head '.length);
+            continue;
+        }
+        if (record.startsWith('# branch.oid ')) {
+            const oid = record.slice('# branch.oid '.length);
+            head = oid === '(initial)' ? undefined : oid;
+            continue;
+        }
+        if (record.startsWith('# branch.ab ')) {
+            const match = /^# branch\.ab \+(\d+) -(\d+)$/.exec(record);
+            ahead = Number(match?.[1] ?? 0);
+            behind = Number(match?.[2] ?? 0);
+            continue;
+        }
+        const parsed = parseStatusRecord(
+            record,
+            record.startsWith('2 ') ? records[index + 1] : undefined,
+        );
+        if (!parsed) continue;
+        const code = parsed.code.replaceAll('.', ' ');
+        files.push({
+            path: parsed.path,
+            originalPath: parsed.originalPath,
+            index: code[0],
+            workingTree: code[1],
+            kind: parsed.kind ?? (code === '??' ? 'untracked' : statusKind(code)),
+        });
+        if (record.startsWith('2 ')) index += 1;
+    }
+    return { branch, head, ahead, behind, files };
+}
+
+export function parseGitLineStats(output: string): Pick<RepoStatus, 'additions' | 'deletions'> {
+    let additions = 0;
+    let deletions = 0;
+    for (const line of output.split('\n')) {
+        const [added, deleted] = line.split('\t', 2);
+        if (/^\d+$/.test(added)) additions += Number(added);
+        if (/^\d+$/.test(deleted)) deletions += Number(deleted);
+    }
+    return { additions, deletions };
+}
 
 interface ProducedSnapshot<Status> {
     generation: number;

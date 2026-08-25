@@ -32,6 +32,7 @@ import { createIntrospectionServices } from './introspection';
 import { assertInsideRoot } from './path-security';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
+import { validateRuntimeRequestContext } from './runtime-request-context';
 import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
@@ -42,9 +43,6 @@ import { createWorkbenchRootHandlers } from './workbench-roots';
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 export type { Runtime, RuntimeDependencies } from './bootstrap-types';
-/**
- * Owns Runtime service construction, event wiring, handler composition, and the single disposal path.
- */
 export async function createRuntime(dependencies: RuntimeDependencies): Promise<Runtime> {
     const { logger, send, userDataPath } = dependencies;
     const startedAt = dependencies.startedAt ?? Date.now();
@@ -452,6 +450,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         'viewContainers.catalog': () => mainOwned('viewContainers.catalog'),
         'viewContainers.executeCommand': () => mainOwned('viewContainers.executeCommand'),
         'viewContainers.treeChildren': () => mainOwned('viewContainers.treeChildren'),
+        'viewContainers.viewOperation': () => mainOwned('viewContainers.viewOperation'),
         'agent.context': () => mainOwned('agent.context'),
         'agent.list': () => mainOwned('agent.list'),
         'agent.worktree.created': () => mainOwned('agent.worktree.created'),
@@ -792,5 +791,9 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         restoreInterruptedTerminalsInBackground(initialSessionId);
         coordinator.probeSessionPrimaryAgent(initialSessionId);
     }
-    return { handlers, close };
+    return {
+        handlers,
+        close,
+        validateRequestContext: (context) => validateRuntimeRequestContext(database, context),
+    };
 }

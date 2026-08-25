@@ -6,7 +6,10 @@ import { parseArgs } from 'node:util';
 import { build } from 'vite';
 
 import { extensionManifestSchema } from '../packages/protocol/src/index.ts';
-import { assertExtensionBundleContract } from './extension-bundle-contract';
+import {
+    assertExtensionBundleContract,
+    assertProductExtensionBundleContract,
+} from './extension-bundle-contract';
 
 const { values } = parseArgs({
     options: { 'extension-root': { type: 'string' } },
@@ -42,5 +45,7 @@ await build({
 });
 
 const outputPath = resolve(extensionRoot, 'dist/extension.js');
-assertExtensionBundleContract(await readFile(outputPath, 'utf8'), manifest.name);
+const bundle = await readFile(outputPath, 'utf8');
+if (manifest.caxri.testOnly) assertExtensionBundleContract(bundle, manifest.name);
+else assertProductExtensionBundleContract(bundle, manifest.name);
 process.stdout.write(`Built ${manifest.name}\n`);

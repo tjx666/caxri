@@ -195,19 +195,6 @@ export const commandDefinitions: CommandDefinition[] = [
         (context) => context.workbench.moveActiveTerminalToNewSession(),
         { when: (context) => context.workbench.canMoveActiveTerminalToNewSession() },
     ),
-    fromCatalog('secondarySidebar.showFiles', (context) =>
-        context.secondarySidebar.activateViewContainer('caxri.files'),
-    ),
-    fromCatalog('secondarySidebar.showGit', (context) =>
-        context.secondarySidebar.activateViewContainer('caxri.git'),
-    ),
-    fromCatalog(
-        'secondarySidebar.searchFiles',
-        (context) => context.secondarySidebar.searchFiles(),
-        {
-            allowInEditable: true,
-        },
-    ),
     fromCatalog('secondarySidebar.toggle', (context) => context.secondarySidebar.toggle(), {
         allowInEditable: true,
     }),

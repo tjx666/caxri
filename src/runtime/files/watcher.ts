@@ -1,5 +1,5 @@
 import { lstat, readdir } from 'node:fs/promises';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { basename, isAbsolute, relative, resolve } from 'node:path';
 
 import type parcelWatcher from '@parcel/watcher';
 
@@ -28,6 +28,15 @@ const WATCH_POLL_INTERVAL_MS = 750;
 const MISSING_PATH_FINGERPRINT = '<missing>';
 const MAX_CONCURRENT_POLL_DIRECTORIES = 4;
 const MAX_CONCURRENT_SIGNATURE_STATS = 16;
+
+/**
+ * Git reports repository metadata rule paths such as `.git/info/exclude`, but it does not enumerate the distributed
+ * `.gitignore` files in the working tree. Recognize those files directly from the authorized Project watcher so a rule
+ * edit invalidates decorations for every affected visible directory instead of looking like an ordinary local write.
+ */
+function isWorkingTreeGitIgnore(path: string): boolean {
+    return basename(path) === '.gitignore';
+}
 
 function fileSignature(stats: Awaited<ReturnType<typeof lstat>>): string {
     return `${stats.mtimeMs}:${stats.ctimeMs}:${stats.size}:${stats.mode}:${stats.ino}`;
@@ -341,8 +350,12 @@ export class WatcherService {
          * as every other change, instead of a dedicated rule-file poll loop; only rule files the Project watcher can
          * never observe (outside the root or inside `.git`) keep a poller (`noteGitIgnoreRulePaths`).
          */
-        if (fingerprint !== undefined && this.gitIgnoreRuleFingerprints.has(path)) {
-            this.gitIgnoreRuleFingerprints.set(path, fingerprint);
+        if (
+            fingerprint !== undefined &&
+            (isWorkingTreeGitIgnore(path) || this.gitIgnoreRuleFingerprints.has(path))
+        ) {
+            if (this.gitIgnoreRuleFingerprints.has(path))
+                this.gitIgnoreRuleFingerprints.set(path, fingerprint);
             this.gitIgnoreRulesChanged = true;
         }
         if (this.pendingEvents.has(path) || this.pendingEvents.size < MAX_PENDING_WATCH_EVENTS) {

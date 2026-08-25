@@ -1,12 +1,16 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ExtensionManifest } from '../../../../packages/protocol/src/domain/views';
-import { MAX_VIEW_CATALOG_CONTAINERS } from '../../../../packages/protocol/src/domain/views';
+import {
+    extensionManifestSchema,
+    MAX_VIEW_CATALOG_CONTAINERS,
+} from '../../../../packages/protocol/src/domain/views';
 import { buildViewCatalog } from '../catalog';
 
 const temporaryDirectories: string[] = [];
@@ -59,7 +63,75 @@ async function extension(id: string, containerId: string, icon?: unknown) {
 }
 
 describe('buildViewCatalog', () => {
-    it('uses one descriptor shape for builtin-react and extension tree views', async () => {
+    it('does not register Files or Git through the builtin catalog', async () => {
+        const catalog = await buildViewCatalog({
+            extensions: [],
+            rejected: [],
+            states: new Map(),
+            revision: 1,
+        });
+
+        expect(catalog.containers.map(({ id }) => id)).not.toContain('caxri.files');
+        expect(catalog.containers.map(({ id }) => id)).not.toContain('caxri.git');
+        expect(
+            catalog.views.flatMap(({ viewKind }) =>
+                viewKind.kind === 'builtin-react' ? [viewKind.component] : [],
+            ),
+        ).not.toEqual(expect.arrayContaining(['files', 'git']));
+    });
+
+    it('catalogs Files and Git only as lifecycle-bearing product extensions', async () => {
+        const products = await Promise.all(
+            ['files', 'git'].map(async (name) => {
+                const rootPath = join(process.cwd(), 'extensions', name);
+                const source = await readFile(join(rootPath, 'package.json'), 'utf8');
+                const manifest = extensionManifestSchema.parse(JSON.parse(source));
+                return {
+                    extensionId: manifest.name,
+                    source: 'bundled' as const,
+                    rootPath,
+                    entryPath: join(rootPath, 'dist/extension.js'),
+                    manifest,
+                };
+            }),
+        );
+        const states = new Map(
+            products.map(({ extensionId }) => [
+                extensionId,
+                { generation: 7, lifecycle: 'active' as const },
+            ]),
+        );
+
+        const catalog = await buildViewCatalog({
+            extensions: products,
+            rejected: [],
+            states,
+            revision: 1,
+        });
+
+        for (const product of products) {
+            expect(catalog.extensions).toContainEqual({
+                id: product.extensionId,
+                version: product.manifest.version,
+                generation: 7,
+                lifecycle: 'active',
+            });
+            expect(catalog.containers.find(({ id }) => id === product.extensionId)).toMatchObject({
+                source: { kind: 'extension', extensionId: product.extensionId },
+                lifecycle: 'active',
+            });
+        }
+        expect(catalog.views.find(({ id }) => id === 'caxri.files.explorer')).toMatchObject({
+            source: { kind: 'extension', extensionId: 'caxri.files' },
+            viewKind: { kind: 'resource-explorer' },
+        });
+        expect(catalog.views.find(({ id }) => id === 'caxri.git.sourceControl')).toMatchObject({
+            source: { kind: 'extension', extensionId: 'caxri.git' },
+            viewKind: { kind: 'source-control' },
+        });
+    });
+
+    it('uses one descriptor shape for remaining builtin-react and extension tree views', async () => {
         const fixture = await extension('publisher.fixture', 'publisher.fixture');
         const catalog = await buildViewCatalog({
             extensions: [fixture],
@@ -73,7 +145,7 @@ describe('buildViewCatalog', () => {
         expect(catalog.views).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
-                    viewKind: { kind: 'builtin-react', component: 'files' },
+                    viewKind: { kind: 'builtin-react', component: 'logs' },
                 }),
                 expect.objectContaining({
                     id: 'publisher.fixture.tree',
@@ -107,7 +179,7 @@ describe('buildViewCatalog', () => {
     });
 
     it('rejects a duplicate contribution instead of overwriting the builtin catalog', async () => {
-        const fixture = await extension('publisher.fixture', 'caxri.files');
+        const fixture = await extension('publisher.fixture', 'caxri.logs');
         const catalog = await buildViewCatalog({
             extensions: [fixture],
             rejected: [],
@@ -118,7 +190,7 @@ describe('buildViewCatalog', () => {
         const extensionState = catalog.extensions.find(({ id }) => id === 'publisher.fixture');
         expect(extensionState?.lifecycle).toBe('error');
         expect(extensionState?.error?.code).toBe('DUPLICATE_ID');
-        expect(catalog.containers.filter(({ id }) => id === 'caxri.files')).toHaveLength(1);
+        expect(catalog.containers.filter(({ id }) => id === 'caxri.logs')).toHaveLength(1);
     });
 
     it('rejects an icon symlink that escapes the canonical extension root', async () => {
@@ -164,12 +236,12 @@ describe('buildViewCatalog', () => {
                     source.kind === 'extension' && source.extensionId === 'publisher.fixture',
             ),
         ).toMatchObject({ lifecycle: 'error', error: { code: 'MANIFEST_INVALID' } });
-        expect(catalog.containers.some(({ id }) => id === 'caxri.files')).toBe(true);
+        expect(catalog.containers.some(({ id }) => id === 'caxri.files')).toBe(false);
     });
 
     it('rejects only the extension that would exceed shared catalog capacity', async () => {
         const fixtures = await Promise.all(
-            Array.from({ length: MAX_VIEW_CATALOG_CONTAINERS - 3 }, (_, index) =>
+            Array.from({ length: MAX_VIEW_CATALOG_CONTAINERS - 1 }, (_, index) =>
                 extension(`publisher.fixture-${index}`, `publisher.fixture-${index}`),
             ),
         );
@@ -207,6 +279,6 @@ describe('buildViewCatalog', () => {
                 error: { code: 'MANIFEST_INVALID', message: 'package.json is invalid' },
             }),
         );
-        expect(catalog.containers.some(({ id }) => id === 'caxri.files')).toBe(true);
+        expect(catalog.containers.some(({ id }) => id === 'caxri.files')).toBe(false);
     });
 });
