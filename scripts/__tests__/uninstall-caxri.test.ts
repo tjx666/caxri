@@ -1,7 +1,4 @@
-import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
-import type { Server } from 'node:net';
-import { createServer } from 'node:net';
+import { lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -16,19 +13,8 @@ import {
 } from '../uninstall-caxri';
 
 const temporaryDirectories: string[] = [];
-const unixServers: Server[] = [];
 
 afterEach(async () => {
-    const serversToClose = [...unixServers];
-    unixServers.length = 0;
-    await Promise.all(
-        serversToClose.map(
-            (server) =>
-                new Promise<void>((resolve, reject) =>
-                    server.close((error) => (error ? reject(error) : resolve())),
-                ),
-        ),
-    );
     const directoriesToRemove = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -170,57 +156,32 @@ describe('Caxri uninstaller', () => {
         await expect(uninstallCaxri(options)).rejects.toThrow('Git worktree');
     });
 
-    it('archives the profile-scoped Host endpoint outside Trash', async () => {
+    it('archives only profile-owned state without deriving a profile-external socket', async () => {
         const { options, profile } = await fixture();
-        const profileId = createHash('sha256')
-            .update(await realpath(profile))
-            .digest('hex')
-            .slice(0, 24);
-        const endpoint = join('/private/tmp', `caxri-host-${profileId}.sock`);
-        const server = createServer();
-        unixServers.push(server);
-        await new Promise<void>((resolve, reject) => {
-            server.once('error', reject);
-            server.listen(endpoint, resolve);
-        });
 
         const result = await uninstallCaxri(
             { ...options, apply: true, removeGlobalCli: false },
             { inspectPathOwner: () => Promise.resolve(undefined) },
         );
 
-        expect(result.targets).toContain(endpoint);
-        expect(result.movedTargets).toEqual([profile, endpoint]);
-        await expect(lstat(endpoint)).rejects.toMatchObject({ code: 'ENOENT' });
-        expect(
-            (
-                await lstat(join(result.archiveDirectory!, `02-caxri-host-${profileId}.sock`))
-            ).isSocket(),
-        ).toBe(true);
+        expect(result.targets).toEqual([profile]);
+        expect(result.movedTargets).toEqual([profile]);
+        expect(result.targets.some((path) => path.endsWith('.sock'))).toBe(false);
         expect(result.archiveDirectory?.startsWith(options.archiveRootPath)).toBe(true);
         expect(result.archiveDirectory).not.toContain(join(options.homeDirectory, '.Trash'));
     });
 
-    it('finds a verified orphaned Host after its explicit profile directory was removed', async () => {
+    it('does not infer an orphaned endpoint after the profile directory was removed', async () => {
         const { options, profile } = await fixture();
-        const canonicalProfile = await realpath(profile);
-        const profileId = createHash('sha256').update(canonicalProfile).digest('hex').slice(0, 24);
-        const endpoint = join('/private/tmp', `caxri-host-${profileId}.sock`);
-        const server = createServer();
-        unixServers.push(server);
-        await new Promise<void>((resolve, reject) => {
-            server.once('error', reject);
-            server.listen(endpoint, resolve);
-        });
         await rm(profile, { force: true, recursive: true });
 
         const result = await uninstallCaxri(options, {
-            inspectPathOwner: (path) => Promise.resolve(path === endpoint ? 4242 : undefined),
+            inspectPathOwner: () => Promise.resolve(undefined),
             inspectProcess: () => Promise.resolve('/app/out/main/host.js'),
         });
 
-        expect(result.hostPids).toEqual([4242]);
-        expect(result.targets).toEqual([endpoint]);
+        expect(result.hostPids).toEqual([]);
+        expect(result.targets).toEqual([]);
     });
 
     it('keeps dry-run execution side-effect free', async () => {
@@ -385,22 +346,6 @@ describe('Caxri uninstaller', () => {
 
         expect(signalProcess).not.toHaveBeenCalled();
         expect(await readFile(join(profile, 'caxri.db'), 'utf8')).toBe('fixture');
-    });
-
-    it('refuses inconsistent lock and endpoint process ownership', async () => {
-        const { options, profile } = await fixture();
-        await writeFile(join(profile, 'host', 'owner.lock'), '{}', { mode: 0o600 });
-        const signalProcess = vi.fn();
-
-        await expect(
-            uninstallCaxri(options, {
-                inspectPathOwner: (path) =>
-                    Promise.resolve(path.endsWith('owner.lock') ? 4242 : 4343),
-                signalProcess,
-            }),
-        ).rejects.toThrow('owned by different processes');
-
-        expect(signalProcess).not.toHaveBeenCalled();
     });
 
     it('does not trust a stale manifest PID without path ownership', async () => {

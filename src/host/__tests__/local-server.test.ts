@@ -1,16 +1,16 @@
-import { mkdtemp, rm, stat } from 'node:fs/promises';
-import type { Socket } from 'node:net';
-import { createConnection } from 'node:net';
+import { Buffer } from 'node:buffer';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import WebSocket from 'ws';
 
 import { HostClient } from '../../../packages/cli/src/host';
 import type { CommandAdapter } from '../../shared/ipc/dispatcher';
 import type { CaxriError } from '../../shared/ipc/errors';
-import { localServerWelcomeSchema } from '../../shared/ipc/local-transport';
+import type { HostControlEndpoint } from '../../shared/ipc/local-transport';
+import { hostEndpointUrl, localServerWelcomeSchema } from '../../shared/ipc/local-transport';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import { AgentEndpointRegistry } from '../agent-endpoints';
 import { AgentInboxRegistry } from '../agent-inbox';
@@ -27,8 +27,7 @@ afterEach(async () => {
 
 async function profile() {
     const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-host-server-'));
-    const socketDirectory = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
-    const lease = await acquireHostProfile({ socketDirectory, userDataPath, version: '1.0.0' });
+    const lease = await acquireHostProfile({ userDataPath, version: '1.0.0' });
     cleanups.push(async () => {
         await lease.release();
         await rm(userDataPath, { recursive: true, force: true });
@@ -36,18 +35,11 @@ async function profile() {
     return lease;
 }
 
-function lineReader(socket: Socket) {
-    let source = '';
+function messageReader(socket: WebSocket) {
     const pending: Array<(value: unknown) => void> = [];
-    socket.setEncoding('utf8');
-    socket.on('data', (chunk: string) => {
-        source += chunk;
-        let newline = source.indexOf('\n');
-        while (newline !== -1) {
-            pending.shift()?.(JSON.parse(source.slice(0, newline)) as unknown);
-            source = source.slice(newline + 1);
-            newline = source.indexOf('\n');
-        }
+    socket.on('message', (data) => {
+        if (!Buffer.isBuffer(data)) throw new TypeError('Expected one buffered text message');
+        pending.shift()?.(JSON.parse(data.toString()) as unknown);
     });
     return () =>
         new Promise<unknown>((resolve) => {
@@ -55,14 +47,14 @@ function lineReader(socket: Socket) {
         });
 }
 
-async function connect(path: string): Promise<Socket> {
-    const socket = createConnection(path);
+async function connect(endpoint: HostControlEndpoint): Promise<WebSocket> {
+    const socket = new WebSocket(hostEndpointUrl(endpoint));
     await new Promise<void>((resolve, reject) => {
-        socket.once('connect', resolve);
+        socket.once('open', resolve);
         socket.once('error', reject);
     });
     cleanups.push(() => {
-        socket.destroy();
+        socket.terminate();
         return Promise.resolve();
     });
     return socket;
@@ -93,9 +85,9 @@ describe('local Host transport', () => {
         const server = new LocalHostServer({
             adapters: { host: { invoke } },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
 
         const first = await HostClient.connect(lease.manifest);
@@ -139,19 +131,16 @@ describe('local Host transport', () => {
         const server = new LocalHostServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
             onClientCountChanged: (count) => {
                 counts.push(count);
             },
         });
-        await server.start();
-        await lease.publish();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        expect((await stat(lease.paths.endpoint)).mode & 0o777).toBe(0o600);
-
-        const socket = await connect(lease.paths.endpoint);
-        const read = lineReader(socket);
-        socket.write(
+        const socket = await connect(lease.manifest.endpoint);
+        const read = messageReader(socket);
+        socket.send(
             `${JSON.stringify({
                 type: 'hello',
                 supportedVersions: [2],
@@ -197,7 +186,7 @@ describe('local Host transport', () => {
         expect(welcome.commands).toContain('terminal.send');
         expect(welcome.commands).not.toContain('agent.message.send');
         expect(welcome.commands).not.toContain('events.recover');
-        socket.write(
+        socket.send(
             `${JSON.stringify({
                 type: 'command',
                 request: {
@@ -221,12 +210,12 @@ describe('local Host transport', () => {
         const server = new LocalHostServer({
             adapters: { host: { invoke } },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const socket = await connect(lease.paths.endpoint);
-        socket.write(
+        const socket = await connect(lease.manifest.endpoint);
+        socket.send(
             `${JSON.stringify({
                 type: 'hello',
                 supportedVersions: [2],
@@ -241,7 +230,7 @@ describe('local Host transport', () => {
     it('authenticates Agent credentials and revalidates grants and generation per command', async () => {
         const lease = await profile();
         const token = 'ab'.repeat(32);
-        const endpoints = new AgentEndpointRegistry(lease.manifest.processIdentity, {
+        const endpoints = new AgentEndpointRegistry(lease.identity.processIdentity, {
             token: () => token,
         });
         const endpoint = endpoints.begin({
@@ -285,10 +274,10 @@ describe('local Host transport', () => {
             },
             authenticateAgent: (credential) => endpoints.authenticate(credential),
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
             refreshContext: (context) => endpoints.refresh(context),
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
         const client = await HostClient.connect(lease.manifest, 2_000, {
             kind: 'agent',
@@ -319,7 +308,7 @@ describe('local Host transport', () => {
     it('confirms pull delivery after reply flush and requeues a disconnected long poll', async () => {
         const lease = await profile();
         const tokens = ['ab'.repeat(32), 'cd'.repeat(32)];
-        const endpoints = new AgentEndpointRegistry(lease.manifest.processIdentity, {
+        const endpoints = new AgentEndpointRegistry(lease.identity.processIdentity, {
             token: () => tokens.shift()!,
         });
         const senderEndpoint = endpoints.begin({
@@ -379,7 +368,7 @@ describe('local Host transport', () => {
             adapters: { host },
             authenticateAgent: (credential) => endpoints.authenticate(credential),
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
             onReplyFlushed: (request, reply, context) => {
                 if (request.method !== 'agent.message.wait') return;
                 if (reply.ok) inbox.confirmWait(request.id, context);
@@ -388,7 +377,7 @@ describe('local Host transport', () => {
             onRequestDisconnected: (requestId) => inbox.cancelWait(requestId),
             refreshContext: (context) => endpoints.refresh(context),
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(async () => {
             inbox.close();
             await server.close();
@@ -445,12 +434,12 @@ describe('local Host transport', () => {
         const server = new LocalHostServer({
             adapters: { host: { invoke: vi.fn() } },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const socket = await connect(lease.paths.endpoint);
-        socket.write(
+        const socket = await connect(lease.manifest.endpoint);
+        socket.send(
             `${JSON.stringify({
                 type: 'hello',
                 supportedVersions: [2],
@@ -471,12 +460,12 @@ describe('local Host transport', () => {
         const server = new LocalHostServer({
             adapters: { host: { invoke: vi.fn() } },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const socket = await connect(lease.paths.endpoint);
-        socket.write(
+        const socket = await connect(lease.manifest.endpoint);
+        socket.send(
             `${JSON.stringify({
                 type: 'hello',
                 supportedVersions: [1],
@@ -503,10 +492,10 @@ describe('local Host transport', () => {
                 },
             },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
             onDesktopUnavailable: unavailable,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
         const credential = lease.desktopCredential;
         const firstHandler = vi.fn(() => Promise.resolve(null));
@@ -597,9 +586,9 @@ describe('local Host transport', () => {
                     path: '/project/draft.txt',
                 }),
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
         const client = await HostClient.connect(lease.manifest, 250, {
             kind: 'desktop',
@@ -640,9 +629,9 @@ describe('local Host transport', () => {
         const server = new LocalHostServer({
             adapters: { host: { invoke } },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
         const client = await HostClient.connect(lease.manifest, 2_000, {
             kind: 'desktop',
@@ -705,9 +694,9 @@ describe('local Host transport', () => {
         const server = new LocalHostServer({
             adapters: { host: { invoke } },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
         const client = await HostClient.connect(lease.manifest, 2_000, {
             kind: 'desktop',
@@ -757,9 +746,9 @@ describe('local Host transport', () => {
                 },
             },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
         const client = await HostClient.connect(lease.manifest, 40, {
             kind: 'desktop',

@@ -1,16 +1,17 @@
+import { Buffer } from 'node:buffer';
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import type { Socket } from 'node:net';
-import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import WebSocket from 'ws';
 
 import { connectToHost, HostClient } from '../../../packages/cli/src/host';
 import type { HostManifest } from '../../../packages/protocol/src';
 import {
     CAXRI_PROTOCOL_VERSION,
+    hostEndpointUrl,
     localServerEventSchema,
     localServerWelcomeSchema,
 } from '../../../packages/protocol/src';
@@ -288,12 +289,12 @@ process.send?.({
 
 const apps: HostApp[] = [];
 const directories: string[] = [];
-const sockets: Socket[] = [];
+const sockets: WebSocket[] = [];
 
 afterEach(async () => {
     const socketsToClose = sockets.slice();
     sockets.length = 0;
-    for (const socket of socketsToClose) socket.destroy();
+    for (const socket of socketsToClose) socket.terminate();
 
     const appsToStop = apps.slice();
     apps.length = 0;
@@ -306,22 +307,15 @@ afterEach(async () => {
     );
 });
 
-function lineReader(socket: Socket): () => Promise<unknown> {
-    let source = '';
+function messageReader(socket: WebSocket): () => Promise<unknown> {
     const values: unknown[] = [];
     const readers: Array<(value: unknown) => void> = [];
-    socket.setEncoding('utf8');
-    socket.on('data', (chunk: string) => {
-        source += chunk;
-        let newline = source.indexOf('\n');
-        while (newline !== -1) {
-            const value = JSON.parse(source.slice(0, newline)) as unknown;
-            const reader = readers.shift();
-            if (reader) reader(value);
-            else values.push(value);
-            source = source.slice(newline + 1);
-            newline = source.indexOf('\n');
-        }
+    socket.on('message', (data) => {
+        if (!Buffer.isBuffer(data)) throw new TypeError('Expected one buffered text message');
+        const value = JSON.parse(data.toString()) as unknown;
+        const reader = readers.shift();
+        if (reader) reader(value);
+        else values.push(value);
     });
     return () => {
         const value = values.shift();
@@ -333,14 +327,14 @@ function lineReader(socket: Socket): () => Promise<unknown> {
 }
 
 async function connectDesktop(manifest: HostManifest, desktopToken: string) {
-    const socket = createConnection(manifest.endpoint);
+    const socket = new WebSocket(hostEndpointUrl(manifest.endpoint));
     sockets.push(socket);
     await new Promise<void>((resolve, reject) => {
-        socket.once('connect', resolve);
+        socket.once('open', resolve);
         socket.once('error', reject);
     });
-    const read = lineReader(socket);
-    socket.write(
+    const read = messageReader(socket);
+    socket.send(
         `${JSON.stringify({
             type: 'hello',
             supportedVersions: [CAXRI_PROTOCOL_VERSION],
@@ -350,7 +344,7 @@ async function connectDesktop(manifest: HostManifest, desktopToken: string) {
     );
     const welcome = localServerWelcomeSchema.parse(await read());
     if (!welcome.desktopLease) throw new Error('Desktop fixture did not receive a lease');
-    socket.write(
+    socket.send(
         `${JSON.stringify({
             type: 'desktop.ready',
             generation: welcome.desktopLease.generation,
@@ -407,7 +401,6 @@ describe('Headless Host application', () => {
                 CAXRI_WORKTREE_REPORT_FIXTURE_PATH: worktreeReportFixturePath,
             },
             runtimePath,
-            socketDirectory: process.platform === 'darwin' ? '/private/tmp' : '/tmp',
             userDataPath,
             version: '1.0.0',
         });
@@ -517,7 +510,7 @@ describe('Headless Host application', () => {
                 enter: true,
             }),
         ).resolves.toMatchObject({ accepted: true, byteLength: 11 });
-        desktop.socket.write(
+        desktop.socket.send(
             `${JSON.stringify({
                 type: 'command',
                 request: {
@@ -564,7 +557,6 @@ describe('Headless Host application', () => {
                 CAXRI_DISPATCH_CANCEL_FIXTURE_PATH: cancelFixturePath,
             },
             runtimePath,
-            socketDirectory: process.platform === 'darwin' ? '/private/tmp' : '/tmp',
             userDataPath,
             version: '1.0.0',
         });
@@ -601,7 +593,6 @@ describe('Headless Host application', () => {
             commit: 'test',
             executable: process.execPath,
             runtimePath,
-            socketDirectory: process.platform === 'darwin' ? '/private/tmp' : '/tmp',
             userDataPath,
             version: '1.0.0',
         });
@@ -658,7 +649,6 @@ describe('Headless Host application', () => {
             commit: 'test',
             executable: process.execPath,
             runtimePath,
-            socketDirectory: process.platform === 'darwin' ? '/private/tmp' : '/tmp',
             userDataPath,
             version: '1.0.0',
         });
@@ -669,7 +659,7 @@ describe('Headless Host application', () => {
         );
         const operator = await connectToHost(userDataPath, 2_000);
 
-        desktop.socket.write(
+        desktop.socket.send(
             `${JSON.stringify({
                 type: 'command',
                 request: {
@@ -700,7 +690,6 @@ describe('Headless Host application', () => {
             commit: 'test',
             executable: process.execPath,
             runtimePath,
-            socketDirectory: process.platform === 'darwin' ? '/private/tmp' : '/tmp',
             userDataPath,
             version: '1.0.0',
         });
@@ -710,7 +699,7 @@ describe('Headless Host application', () => {
             app.lease.desktopCredential.desktopToken,
         );
         await new Promise<void>((resolve, reject) => {
-            desktop.socket.write(
+            desktop.socket.send(
                 `${JSON.stringify({
                     type: 'command',
                     request: {
@@ -723,7 +712,7 @@ describe('Headless Host application', () => {
                 (error) => {
                     if (error) reject(error);
                     else {
-                        desktop.socket.destroy();
+                        desktop.socket.terminate();
                         resolve();
                     }
                 },

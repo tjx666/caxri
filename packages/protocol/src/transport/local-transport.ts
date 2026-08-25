@@ -6,37 +6,55 @@ import { protocolEventEnvelopeSchema, transientRuntimeEventSchema } from './even
 import { commandReplyEnvelopeSchema, requestEnvelopeSchema } from './transport.js';
 import { protocolHelloSchema, protocolVersionSchema, protocolWelcomeSchema } from './version.js';
 
-export const HOST_MANIFEST_VERSION = 1 as const;
+export const HOST_MANIFEST_VERSION = 2 as const;
 export const HOST_DESKTOP_CREDENTIAL_VERSION = 1 as const;
 /**
- * One authenticated JSON-line frame can contain two 16 MiB editor buffers. The extra headroom covers worst-case JSON
- * escaping while keeping a malformed local peer under a fixed memory cap.
+ * One authenticated control message can contain two 16 MiB editor buffers. The extra headroom covers worst-case JSON
+ * escaping while keeping a malformed peer under a fixed memory cap.
  */
-export const LOCAL_TRANSPORT_MAX_FRAME_BYTES = 256 * 1024 * 1024;
+export const CONTROL_TRANSPORT_MAX_FRAME_BYTES = 256 * 1024 * 1024;
 export const hostCredentialTokenSchema = z.string().regex(/^[0-9a-f]{64}$/u);
 export const hostProcessIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
 
-/**
- * Private profile discovery record. The credential must never appear in status or diagnostics.
- */
-export const hostManifestSchema = z.object({
-    manifestVersion: z.literal(HOST_MANIFEST_VERSION),
+export const hostControlEndpointSchema = z.object({
+    protocol: z.literal('ws'),
+    host: z.literal('127.0.0.1'),
+    port: z.number().int().positive().max(65_535),
+    path: z.literal('/control'),
+});
+
+export type HostControlEndpoint = z.infer<typeof hostControlEndpointSchema>;
+
+export function hostEndpointUrl(endpoint: HostControlEndpoint): string {
+    return `ws://${endpoint.host}:${endpoint.port}${endpoint.path}`;
+}
+
+export const hostManifestIdentitySchema = z.object({
     profileId: identifierSchema,
-    endpoint: pathSchema.max(103),
     pid: z.number().int().positive(),
     startedAt: z.number().int().positive(),
     processIdentity: hostProcessIdentitySchema,
     /**
-     * Kept open so an older client can report a clean incompatibility instead of a corrupt file.
+     * Kept open so an incompatible client can report a clean error instead of treating the discovery record as corrupt.
      */
     protocolVersion: z.number().int().positive(),
     version: z.string().min(1).max(100),
     operatorToken: hostCredentialTokenSchema,
 });
 
+export type HostManifestIdentity = z.infer<typeof hostManifestIdentitySchema>;
+
+/**
+ * Private profile discovery record. The credential must never appear in status or diagnostics.
+ */
+export const hostManifestSchema = hostManifestIdentitySchema.extend({
+    manifestVersion: z.literal(HOST_MANIFEST_VERSION),
+    endpoint: hostControlEndpointSchema,
+});
+
 export type HostManifest = z.infer<typeof hostManifestSchema>;
 
-export const hostLockSchema = hostManifestSchema.pick({
+export const hostLockSchema = hostManifestIdentitySchema.pick({
     pid: true,
     startedAt: true,
     processIdentity: true,
@@ -64,41 +82,6 @@ export const desktopLeaseSchema = z.object({
 });
 
 export type DesktopLease = z.infer<typeof desktopLeaseSchema>;
-
-/**
- * Incrementally decodes bounded JSON lines without repeatedly copying an incomplete frame.
- */
-export class LocalJsonLineDecoder {
-    private readonly encoder = new TextEncoder();
-    private readonly parts: string[] = [];
-    private pendingBytes = 0;
-
-    constructor(private readonly maximumFrameBytes = LOCAL_TRANSPORT_MAX_FRAME_BYTES) {}
-
-    private append(part: string): void {
-        this.pendingBytes += this.encoder.encode(part).byteLength;
-        if (this.pendingBytes > this.maximumFrameBytes)
-            throw new RangeError(`Local transport frame exceeds ${this.maximumFrameBytes} bytes`);
-        if (part.length > 0) this.parts.push(part);
-    }
-
-    push(chunk: string): string[] {
-        const lines: string[] = [];
-        let offset = 0;
-        let newline = chunk.indexOf('\n', offset);
-        while (newline !== -1) {
-            const part = chunk.slice(offset, newline);
-            this.append(part);
-            lines.push(this.parts.join(''));
-            this.parts.length = 0;
-            this.pendingBytes = 0;
-            offset = newline + 1;
-            newline = chunk.indexOf('\n', offset);
-        }
-        if (offset < chunk.length) this.append(chunk.slice(offset));
-        return lines;
-    }
-}
 
 const localClientOperatorCredentialSchema = z.object({
     kind: z.literal('operator'),

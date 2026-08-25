@@ -2,8 +2,6 @@ import { Buffer } from 'node:buffer';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { lstat, readFile, realpath } from 'node:fs/promises';
-import type { Socket } from 'node:net';
-import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -27,14 +25,15 @@ import type {
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
+    CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     desktopTargetPayloadSchema,
     fromWireError,
     hostDesktopCredentialSchema,
+    hostEndpointUrl,
     hostManifestSchema,
     isNonExpiringRuntimeMethod,
     localClientDesktopReadySchema,
     localClientDesktopReplySchema,
-    LocalJsonLineDecoder,
     localServerDesktopCommandSchema,
     localServerDesktopLeaseRevokedSchema,
     localServerDesktopRuntimeReplySchema,
@@ -49,6 +48,8 @@ import {
     parseRuntimeResult,
     toWireError,
 } from '@caxri/protocol';
+import type { RawData } from 'ws';
+import WebSocket from 'ws';
 
 import type { HostLaunchOptions } from './launch.js';
 import { launchHost } from './launch.js';
@@ -89,6 +90,12 @@ function fileSystemCode(error: unknown): string | undefined {
 
 function profileIdFor(path: string): string {
     return createHash('sha256').update(path).digest('hex').slice(0, 24);
+}
+
+function controlMessageText(data: RawData): string {
+    if (Buffer.isBuffer(data)) return data.toString('utf8');
+    if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
+    return Buffer.concat(data).toString('utf8');
 }
 
 /**
@@ -162,8 +169,6 @@ export async function discoverHostManifest(userDataPath: string): Promise<HostMa
         throw new CaxriError('VALIDATION', 'Caxri Host discovery metadata is invalid');
     if (parsed.data.profileId !== profileIdFor(canonicalPath))
         throw new CaxriError('CONFLICT', 'Caxri Host discovery profile identity does not match');
-    if (Buffer.byteLength(parsed.data.endpoint, 'utf8') > 103)
-        throw new CaxriError('VALIDATION', 'Caxri Host endpoint exceeds the platform limit');
     return parsed.data;
 }
 
@@ -222,79 +227,70 @@ export class HostClient {
                 hostProtocolVersion: manifest.protocolVersion,
             });
         const resolvedCredential: HostClientCredential = credential ?? { kind: 'operator' };
-        try {
-            const endpoint = await lstat(manifest.endpoint);
-            if (
-                !endpoint.isSocket() ||
-                (endpoint.mode & 0o077) !== 0 ||
-                (typeof process.getuid === 'function' && endpoint.uid !== process.getuid())
-            )
-                throw new CaxriError('PATH_DENIED', 'Caxri Host endpoint is not private');
-        } catch (error) {
-            if (error instanceof CaxriError) throw error;
-            if (fileSystemCode(error) === 'ENOENT')
-                throw new CaxriError('UNAVAILABLE', 'Caxri Host endpoint is unavailable');
-            throw error;
-        }
-        const socket = createConnection(manifest.endpoint);
-        socket.setEncoding('utf8');
-        socket.setNoDelay(true);
+        const socket = new WebSocket(hostEndpointUrl(manifest.endpoint), {
+            maxPayload: CONTROL_TRANSPORT_MAX_FRAME_BYTES,
+        });
+        const deferredMessages: Array<{ data: RawData; isBinary: boolean }> = [];
+        let isHandshakeComplete = false;
+        let handshakeMessageListener: ((data: RawData, isBinary: boolean) => void) | undefined;
         const handshake = await new Promise<{
             desktopLease?: DesktopLease;
-            remainder: string;
             welcome: ProtocolWelcome;
         }>((resolve, reject) => {
             const timer = setTimeout(() => {
-                socket.destroy();
+                socket.terminate();
                 reject(new CaxriError('TIMEOUT', 'Caxri Host handshake timed out'));
             }, timeoutMs);
-            let source = '';
             const fail = (): void => {
                 clearTimeout(timer);
                 reject(new CaxriError('UNAVAILABLE', 'Caxri Host is unavailable'));
             };
             socket.once('error', fail);
             socket.once('close', fail);
-            socket.on('data', (chunk: Buffer | string) => {
-                source += chunk.toString();
-                if (Buffer.byteLength(source, 'utf8') > MAX_MANIFEST_BYTES) {
-                    socket.destroy();
+            handshakeMessageListener = (data, isBinary): void => {
+                if (isHandshakeComplete) {
+                    deferredMessages.push({ data, isBinary });
                     return;
                 }
-                const newline = source.indexOf('\n');
-                if (newline === -1) return;
+                if (isBinary) {
+                    socket.terminate();
+                    return;
+                }
+                const source = controlMessageText(data);
+                if (Buffer.byteLength(source, 'utf8') > MAX_MANIFEST_BYTES) {
+                    socket.terminate();
+                    return;
+                }
                 try {
-                    const message = localServerWelcomeSchema.parse(
-                        JSON.parse(source.slice(0, newline)),
-                    );
+                    const message = localServerWelcomeSchema.parse(JSON.parse(source));
                     if (
                         message.profileId !== manifest.profileId ||
                         message.processIdentity !== manifest.processIdentity
                     )
                         throw new CaxriError('CONFLICT', 'Caxri Host process identity changed');
                     clearTimeout(timer);
+                    isHandshakeComplete = true;
                     socket.pause();
                     socket.removeListener('error', fail);
                     socket.removeListener('close', fail);
-                    socket.removeAllListeners('data');
                     resolve({
-                        remainder: source.slice(newline + 1),
                         welcome: message,
                         ...(message.desktopLease && { desktopLease: message.desktopLease }),
                     });
                 } catch (error) {
                     clearTimeout(timer);
-                    socket.destroy();
+                    socket.terminate();
                     reject(
                         error instanceof CaxriError
                             ? error
                             : new CaxriError('VALIDATION', 'Caxri Host handshake was invalid'),
                     );
                 }
-            });
-            socket.once('connect', () => {
-                socket.write(
-                    `${JSON.stringify({
+            };
+            socket.on('message', handshakeMessageListener);
+            socket.once('open', () => {
+                socket.send(
+                    JSON.stringify({
                         type: 'hello',
                         supportedVersions: [CAXRI_PROTOCOL_VERSION],
                         profileId: manifest.profileId,
@@ -308,7 +304,7 @@ export class HostClient {
                                         token: resolvedCredential.credential.desktopToken,
                                         desktopId: resolvedCredential.desktopId,
                                     },
-                    })}\n`,
+                    }),
                 );
             });
         });
@@ -323,12 +319,15 @@ export class HostClient {
                 : undefined,
             manifest.version,
         );
-        client.receive(handshake.remainder);
+        if (handshakeMessageListener) socket.removeListener('message', handshakeMessageListener);
+        for (const message of deferredMessages) {
+            if (message.isBinary) client.closeTransport();
+            else client.receive(controlMessageText(message.data));
+        }
         socket.resume();
         return client;
     }
 
-    private readonly decoder = new LocalJsonLineDecoder();
     private readonly eventListeners = new Set<(event: LocalServerEvent['event']) => void>();
     private readonly closeListeners = new Set<(reason?: DesktopLeaseRevocationReason) => void>();
     private readonly pending = new Map<string, PendingRequest>();
@@ -338,7 +337,7 @@ export class HostClient {
     desktopLease?: DesktopLease;
 
     private constructor(
-        private readonly socket: Socket,
+        private readonly socket: WebSocket,
         readonly welcome: ProtocolWelcome,
         private readonly timeoutMs: number,
         desktopLease?: DesktopLease,
@@ -349,85 +348,73 @@ export class HostClient {
         readonly hostVersion?: string,
     ) {
         this.desktopLease = desktopLease;
-        socket.on('data', (chunk: Buffer | string) => this.receive(chunk.toString()));
+        socket.on('message', (data, isBinary) => {
+            if (isBinary) this.closeTransport();
+            else this.receive(controlMessageText(data));
+        });
         socket.on('close', () => this.failPending());
         socket.on('error', () => this.failPending());
         if (desktopLease) {
             this.leaseRenewalTimer = setInterval(() => {
                 const generation = this.desktopLease?.generation;
                 if (!generation || this.closed) return;
-                this.socket.write(
-                    `${JSON.stringify({ type: 'desktop-lease.renew', generation })}\n`,
-                );
+                this.send({ type: 'desktop-lease.renew', generation });
             }, 20_000);
             this.leaseRenewalTimer.unref();
         }
     }
 
-    private receive(chunk: string): void {
-        let lines: string[];
+    private receive(message: string): void {
         try {
-            lines = this.decoder.push(chunk);
+            const raw = JSON.parse(message) as unknown;
+            const renewed = localServerLeaseRenewedSchema.safeParse(raw);
+            const revoked = localServerDesktopLeaseRevokedSchema.safeParse(raw);
+            const event = localServerEventSchema.safeParse(raw);
+            if (renewed.success) {
+                if (
+                    !this.desktopLease ||
+                    renewed.data.lease.desktopId !== this.desktopLease.desktopId ||
+                    renewed.data.lease.generation !== this.desktopLease.generation
+                )
+                    throw new Error('Desktop lease renewal does not match this connection');
+                this.desktopLease = renewed.data.lease;
+            } else if (revoked.success) {
+                if (!this.desktopLease || revoked.data.generation !== this.desktopLease.generation)
+                    throw new Error('Desktop lease revocation does not match this connection');
+                this.closeReason = revoked.data.reason;
+                this.failPending();
+                this.socket.close(1000);
+                return;
+            } else if (event.success) {
+                for (const listener of this.eventListeners) listener(event.data.event);
+            } else {
+                const desktopCommand = localServerDesktopCommandSchema.safeParse(raw);
+                if (desktopCommand.success) {
+                    // `receive` is a synchronous socket data handler; the reply is written
+                    // asynchronously from within `handleDesktopCommand` itself, so this call is
+                    // intentionally fire-and-forget here.
+                    // eslint-disable-next-line no-void
+                    void this.handleDesktopCommand(desktopCommand.data);
+                    return;
+                }
+                const runtimeReply = localServerDesktopRuntimeReplySchema.safeParse(raw);
+                const targetReply = localServerDesktopTargetReplySchema.safeParse(raw);
+                const { reply } = runtimeReply.success
+                    ? runtimeReply.data
+                    : targetReply.success
+                      ? targetReply.data
+                      : localServerReplySchema.parse(raw);
+                if (!reply.id) throw new Error('Reply is missing its request ID');
+                const pending = this.pending.get(reply.id);
+                if (pending) {
+                    clearTimeout(pending.timer);
+                    this.pending.delete(reply.id);
+                    if (reply.ok) pending.resolve(pending.parse(reply.result));
+                    else pending.reject(fromWireError(reply.error));
+                }
+            }
         } catch {
             this.closeTransport();
-            return;
-        }
-        for (const line of lines) {
-            try {
-                const raw = JSON.parse(line) as unknown;
-                const renewed = localServerLeaseRenewedSchema.safeParse(raw);
-                const revoked = localServerDesktopLeaseRevokedSchema.safeParse(raw);
-                const event = localServerEventSchema.safeParse(raw);
-                if (renewed.success) {
-                    if (
-                        !this.desktopLease ||
-                        renewed.data.lease.desktopId !== this.desktopLease.desktopId ||
-                        renewed.data.lease.generation !== this.desktopLease.generation
-                    )
-                        throw new Error('Desktop lease renewal does not match this connection');
-                    this.desktopLease = renewed.data.lease;
-                } else if (revoked.success) {
-                    if (
-                        !this.desktopLease ||
-                        revoked.data.generation !== this.desktopLease.generation
-                    )
-                        throw new Error('Desktop lease revocation does not match this connection');
-                    this.closeReason = revoked.data.reason;
-                    this.failPending();
-                    this.socket.destroy();
-                    return;
-                } else if (event.success) {
-                    for (const listener of this.eventListeners) listener(event.data.event);
-                } else {
-                    const desktopCommand = localServerDesktopCommandSchema.safeParse(raw);
-                    if (desktopCommand.success) {
-                        // `receive` is a synchronous socket data handler; the reply is written
-                        // asynchronously from within `handleDesktopCommand` itself, so this call is
-                        // intentionally fire-and-forget here.
-                        // eslint-disable-next-line no-void
-                        void this.handleDesktopCommand(desktopCommand.data);
-                        continue;
-                    }
-                    const runtimeReply = localServerDesktopRuntimeReplySchema.safeParse(raw);
-                    const targetReply = localServerDesktopTargetReplySchema.safeParse(raw);
-                    const { reply } = runtimeReply.success
-                        ? runtimeReply.data
-                        : targetReply.success
-                          ? targetReply.data
-                          : localServerReplySchema.parse(raw);
-                    if (!reply.id) throw new Error('Reply is missing its request ID');
-                    const pending = this.pending.get(reply.id);
-                    if (pending) {
-                        clearTimeout(pending.timer);
-                        this.pending.delete(reply.id);
-                        if (reply.ok) pending.resolve(pending.parse(reply.result));
-                        else pending.reject(fromWireError(reply.error));
-                    }
-                }
-            } catch {
-                this.closeTransport();
-                return;
-            }
         }
     }
 
@@ -473,7 +460,7 @@ export class HostClient {
             generation: command.lease.generation,
             reply,
         });
-        this.socket.write(`${JSON.stringify(message)}\n`);
+        this.send(message);
     }
 
     private consumeDesktopTarget(targetId: string): Promise<DesktopTargetPayload> {
@@ -491,20 +478,18 @@ export class HostClient {
                 reject,
                 timer,
             });
-            this.socket.write(
-                `${JSON.stringify({
-                    type: 'desktop-target.consume',
-                    generation: lease.generation,
-                    id,
-                    targetId,
-                })}\n`,
-            );
+            this.send({
+                type: 'desktop-target.consume',
+                generation: lease.generation,
+                id,
+                targetId,
+            });
         });
     }
 
     private closeTransport(): void {
         this.failPending();
-        this.socket.destroy();
+        this.socket.terminate();
     }
 
     private failPending(
@@ -526,6 +511,24 @@ export class HostClient {
         for (const listener of listeners) listener(this.closeReason);
     }
 
+    private send(message: unknown, settled?: (error?: Error) => void): void {
+        const source = JSON.stringify(message);
+        const sourceBytes = Buffer.byteLength(source, 'utf8');
+        if (
+            this.socket.readyState !== WebSocket.OPEN ||
+            this.socket.bufferedAmount + sourceBytes > CONTROL_TRANSPORT_MAX_FRAME_BYTES
+        ) {
+            const error = new CaxriError('UNAVAILABLE', 'Caxri Host connection is unavailable');
+            settled?.(error);
+            this.closeTransport();
+            return;
+        }
+        this.socket.send(source, (error) => {
+            settled?.(error);
+            if (error) this.closeTransport();
+        });
+    }
+
     private sendRequest(id: string, method: CaxriMethod, parameters: unknown): Promise<unknown> {
         if (this.closed)
             return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
@@ -543,17 +546,15 @@ export class HostClient {
                 reject,
                 timer,
             });
-            this.socket.write(
-                `${JSON.stringify({
-                    type: 'command',
-                    request: {
-                        protocolVersion: CAXRI_PROTOCOL_VERSION,
-                        id,
-                        method: request.method,
-                        params: request.params,
-                    },
-                })}\n`,
-            );
+            this.send({
+                type: 'command',
+                request: {
+                    protocolVersion: CAXRI_PROTOCOL_VERSION,
+                    id,
+                    method: request.method,
+                    params: request.params,
+                },
+            });
         });
     }
 
@@ -583,17 +584,15 @@ export class HostClient {
                 reject,
                 timer,
             });
-            this.socket.write(
-                `${JSON.stringify({
-                    type: 'desktop-runtime-command',
-                    request: {
-                        protocolVersion: CAXRI_PROTOCOL_VERSION,
-                        id,
-                        method: request.method,
-                        params: request.params,
-                    },
-                })}\n`,
-            );
+            this.send({
+                type: 'desktop-runtime-command',
+                request: {
+                    protocolVersion: CAXRI_PROTOCOL_VERSION,
+                    id,
+                    method: request.method,
+                    params: request.params,
+                },
+            });
         });
     }
 
@@ -647,13 +646,11 @@ export class HostClient {
         const lease = this.desktopLease;
         if (!lease) return Promise.reject(new CaxriError('FORBIDDEN', 'Desktop lease is required'));
         return new Promise((resolve, reject) => {
-            this.socket.write(
-                `${JSON.stringify(
-                    localClientDesktopReadySchema.parse({
-                        type: 'desktop.ready',
-                        generation: lease.generation,
-                    }),
-                )}\n`,
+            this.send(
+                localClientDesktopReadySchema.parse({
+                    type: 'desktop.ready',
+                    generation: lease.generation,
+                }),
                 (error) => {
                     if (error)
                         reject(
@@ -671,7 +668,7 @@ export class HostClient {
                 ? new CaxriError('CANCELLED', 'Caxri Host client was disposed')
                 : new CaxriError('UNAVAILABLE', 'Caxri Host connection closed'),
         );
-        this.socket.destroy();
+        this.socket.close(1000);
     }
 }
 

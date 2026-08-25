@@ -250,9 +250,14 @@ describe('@caxri/protocol contract', () => {
 
     it('keeps Host discovery parseable across protocol versions without exposing credentials', () => {
         const manifest = hostManifestSchema.parse({
-            manifestVersion: 1,
+            manifestVersion: 2,
             profileId: 'profile-1',
-            endpoint: '/private/tmp/caxri.sock',
+            endpoint: {
+                protocol: 'ws',
+                host: '127.0.0.1',
+                port: 41_337,
+                path: '/control',
+            },
             pid: 42,
             startedAt: 1,
             processIdentity: '1'.repeat(32),

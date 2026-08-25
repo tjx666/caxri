@@ -169,6 +169,7 @@
         "@types/react": "19.2.18",
         "@types/react-dom": "19.2.4",
         "@types/semver": "catalog:",
+        "@types/ws": "catalog:",
         "@typescript/native": "npm:typescript@7.0.2",
         "@vitejs/plugin-react": "6.0.5",
         "@xterm/addon-clipboard": "0.3.0-beta.301",
@@ -225,6 +226,7 @@
         "typescript": "npm:@typescript/typescript6@6.0.2",
         "vite": "8.2.0",
         "vitest": "4.1.10",
+        "ws": "catalog:",
         "yaml": "2.9.0",
         "zod": "catalog:",
         "zustand": "5.0.14"

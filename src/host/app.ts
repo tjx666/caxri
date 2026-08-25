@@ -59,7 +59,6 @@ export interface HostAppOptions {
     launchDesktop?: () => Promise<void>;
     runtimePath: string;
     runtimeEnvironment?: NodeJS.ProcessEnv;
-    socketDirectory?: string;
     userDataPath: string;
     version: string;
 }
@@ -78,12 +77,11 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     const logger = new StructuredLogger(logDirectory, 'host', 'info');
     const stopEventLoopMonitor = startEventLoopMonitor(logger);
     const lease = await acquireHostProfile({
-        socketDirectory: options.socketDirectory,
         startedAt,
         userDataPath: options.userDataPath,
         version: options.version,
     });
-    const agentEndpoints = new AgentEndpointRegistry(lease.manifest.processIdentity);
+    const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity);
     const providerMessaging = new ProviderMessagingAdapterRegistry(agentEndpoints);
     let server: LocalHostServer | undefined;
     agentEndpoints.onMessagingChanged((endpoint) => {
@@ -542,7 +540,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 case 'host.status': {
                     const health = await supervisor.request('app.health');
                     return {
-                        profileId: lease.manifest.profileId,
+                        profileId: lease.identity.profileId,
                         version: options.version,
                         ...(options.buildId && { buildId: options.buildId }),
                         ...(process.env.CAXRI_GIT_COMMIT && {
@@ -713,7 +711,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             desktopCredential: lease.desktopCredential,
             invokeDesktopRuntime: (request) => forwardRuntime(request),
             logger,
-            manifest: lease.manifest,
+            identity: lease.identity,
             onClientCountChanged: (clientCount) =>
                 logger.write('info', logEventCatalog.host.clientCount, { fields: { clientCount } }),
             onDesktopUnavailable: async () => {
@@ -774,11 +772,11 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             },
             runtime: supervisor,
         });
-        await server.start();
-        await lease.publish();
+        const endpoint = await server.start();
+        await lease.publish(endpoint);
         logger.write('info', logEventCatalog.host.ready, {
             durationMs: Date.now() - startedAt,
-            fields: { pid: process.pid, profileId: lease.manifest.profileId },
+            fields: { pid: process.pid, profileId: lease.identity.profileId },
         });
         return { lease, stop };
     } catch (error) {

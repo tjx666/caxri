@@ -1,6 +1,6 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, realpath, rename, writeFile } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 
@@ -54,7 +54,6 @@ interface UninstallArchiveManifest {
 }
 
 interface OwnedHost {
-    endpointPath: string;
     lockPath: string;
     pid: number;
     profilePath: string;
@@ -329,26 +328,6 @@ async function existingRealTargets(paths: readonly string[]): Promise<string[]> 
     return targets;
 }
 
-function socketDirectory(): string {
-    return process.platform === 'darwin' ? '/private/tmp' : tmpdir();
-}
-
-async function resolveProfileEndpoint(profilePath: string): Promise<string> {
-    let canonicalProfile: string;
-    try {
-        canonicalProfile = await realpath(profilePath);
-    } catch (error) {
-        if (fileSystemCode(error) !== 'ENOENT') throw error;
-        /**
-         * A detached Host can outlive profile cleanup. Canonicalizing the still-existing parent preserves the exact
-         * endpoint hash without trusting stale manifest PID metadata.
-         */
-        canonicalProfile = join(await realpath(dirname(profilePath)), basename(profilePath));
-    }
-    const profileId = createHash('sha256').update(canonicalProfile).digest('hex').slice(0, 24);
-    return join(socketDirectory(), `caxri-host-${profileId}.sock`);
-}
-
 async function discoverProfilePaths(
     options: CaxriUninstallOptions,
     managedDevelopmentProfiles: readonly string[],
@@ -382,19 +361,6 @@ async function discoverProfilePaths(
         if (!profiles.has(canonical)) profiles.set(canonical, candidate);
     }
     return profiles.values().toArray();
-}
-
-async function existingProfileEndpoint(profilePath: string): Promise<string | undefined> {
-    const endpoint = await resolveProfileEndpoint(profilePath);
-    const metadata = await optionalMetadata(endpoint);
-    if (!metadata) return undefined;
-    if (
-        !metadata.isSocket() ||
-        metadata.isSymbolicLink() ||
-        (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
-    )
-        throw new Error(`Refusing unsafe Host endpoint: ${endpoint}`);
-    return endpoint;
 }
 
 async function inspectPathOwner(path: string): Promise<number | undefined> {
@@ -485,7 +451,6 @@ function operationsWith(overrides: Partial<UninstallOperations> | undefined): Un
 
 async function resolveOwnedHost(
     profilePath: string,
-    endpointPath: string,
     operations: UninstallOperations,
 ): Promise<OwnedHost | undefined> {
     const lockPath = join(profilePath, 'host', 'owner.lock');
@@ -497,30 +462,16 @@ async function resolveOwnedHost(
             (typeof process.getuid === 'function' && lock.uid !== process.getuid()))
     )
         throw new Error(`Refusing unsafe Host lock: ${lockPath}`);
-    const owners = new Set<number>();
-    if (lock) {
-        const lockOwner = await operations.inspectPathOwner(lockPath);
-        if (lockOwner) owners.add(lockOwner);
-    }
-    const endpointOwner = await operations.inspectPathOwner(endpointPath);
-    if (endpointOwner) owners.add(endpointOwner);
-    if (owners.size > 1)
-        throw new Error(`Host lock and endpoint are owned by different processes: ${profilePath}`);
-    const pid = [...owners][0];
+    const pid = lock ? await operations.inspectPathOwner(lockPath) : undefined;
     if (!pid) return undefined;
     const command = await operations.inspectProcess(pid);
     if (!command) {
-        const remainingOwners = await Promise.all(
-            [lock ? lockPath : undefined, endpointPath]
-                .filter((path): path is string => path !== undefined)
-                .map((path) => operations.inspectPathOwner(path)),
-        );
-        if (remainingOwners.every((owner) => owner === undefined)) return undefined;
+        if ((await operations.inspectPathOwner(lockPath)) === undefined) return undefined;
         throw new Error(`Cannot inspect process ${pid} that owns Caxri profile ${profilePath}`);
     }
     if (!HOST_ENTRY_PATTERN.test(command))
         throw new Error(`Refusing to signal PID ${pid}: it is not a verified Caxri Host`);
-    return { endpointPath, lockPath, pid, profilePath };
+    return { lockPath, pid, profilePath };
 }
 
 async function createUninstallPlan(
@@ -530,20 +481,11 @@ async function createUninstallPlan(
     await assertSelectedProfile(options);
     const managedDevelopmentProfiles = await discoverManagedDevelopmentProfiles(options);
     const profiles = await discoverProfilePaths(options, managedDevelopmentProfiles);
-    const endpoints = (
-        await Promise.all(profiles.map((profile) => existingProfileEndpoint(profile)))
-    ).filter((path): path is string => path !== undefined);
     const hosts = (
-        await Promise.all(
-            profiles.map(async (profile) => {
-                const endpoint = await resolveProfileEndpoint(profile);
-                return resolveOwnedHost(profile, endpoint, operations);
-            }),
-        )
+        await Promise.all(profiles.map((profile) => resolveOwnedHost(profile, operations)))
     ).filter((host): host is OwnedHost => host !== undefined);
     const targets = await existingRealTargets([
         ...resolveUninstallTargets(options, managedDevelopmentProfiles),
-        ...endpoints,
     ]);
     return { hosts, targets };
 }
@@ -557,11 +499,7 @@ async function stopOwnedHosts(
     // already-stopped PIDs for the caller and tests to reason about.
     for (const expected of hosts) {
         // eslint-disable-next-line no-await-in-loop -- sequential Host shutdown with a known-stopped prefix on failure
-        const current = await resolveOwnedHost(
-            expected.profilePath,
-            expected.endpointPath,
-            operations,
-        );
+        const current = await resolveOwnedHost(expected.profilePath, operations);
         if (!current) continue;
         if (current.pid !== expected.pid)
             throw new Error(`Caxri Host ownership changed for profile ${expected.profilePath}`);
