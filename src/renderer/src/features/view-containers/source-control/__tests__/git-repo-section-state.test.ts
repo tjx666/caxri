@@ -7,6 +7,7 @@ import {
     gitRepoEmptyMessage,
     gitRepoFilesForMode,
     selectedGitRepoPath,
+    shouldToastGitRepoDetailError,
 } from '../git-repo-section-state';
 
 const workingFile: GitFileStatus = {
@@ -128,5 +129,29 @@ describe('Git repository section state', () => {
                 pullRequestError: true,
             }),
         ).toBe('Unable to load pull request changes.');
+    });
+
+    it('toasts only when a detail refresh error is hidden behind retained files', () => {
+        expect(
+            shouldToastGitRepoDetailError({
+                active: true,
+                displayedFileCount: 0,
+                isError: true,
+            }),
+        ).toBe(false);
+        expect(
+            shouldToastGitRepoDetailError({
+                active: true,
+                displayedFileCount: 1,
+                isError: true,
+            }),
+        ).toBe(true);
+        expect(
+            shouldToastGitRepoDetailError({
+                active: false,
+                displayedFileCount: 1,
+                isError: true,
+            }),
+        ).toBe(false);
     });
 });
