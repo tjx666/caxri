@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { CancellationToken, ResourceExplorerProvider } from 'caxri';
+import type { CancellationToken, SourceControlProvider } from 'caxri';
 import { EventEmitter, TreeItem, TreeItemCollapsibleState } from 'caxri';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -15,7 +15,6 @@ import {
     extensionApiBinding,
     getTreeChildren,
     notifyActiveContextChanged,
-    notifyFilesChanged,
     notifyGitChanged,
     notifyProjectStatusChanged,
 } from '../api-factory';
@@ -35,7 +34,7 @@ afterEach(async () => {
 
 function registration(
     generation = 1,
-    viewType: 'resource-explorer' | 'source-control' | 'tree' = 'tree',
+    viewType: 'source-control' | 'tree' = 'tree',
 ): ExtensionHostRegistration {
     return {
         extensionId: 'publisher.fixture',
@@ -210,11 +209,9 @@ describe('Extension Host API factory', () => {
         configureExtensions([registration()]);
         const binding = extensionApiBinding('fixture-token-1');
         let contextChanges = 0;
-        let fileChanges = 0;
         let gitChanges = 0;
         let projectStatusChanges = 0;
         binding.api.workspace.onDidChangeActiveContext(() => contextChanges++);
-        binding.api.workspace.onDidChangeFiles(() => fileChanges++);
         binding.api.workspace.onDidChangeGit(() => gitChanges++);
         binding.api.workspace.onDidChangeProjectStatus(() => projectStatusChanges++);
         let isCancellationObserved = false;
@@ -255,24 +252,17 @@ describe('Extension Host API factory', () => {
         expect(contextChanges).toBe(1);
         expect(projectStatusChanges).toBe(1);
         expect(
-            notifyFilesChanged(
-                { kind: 'operation' },
-                { kind: 'session', sessionId: 'session-1', workbenchProjectId: 'project-1' },
-            ),
-        ).toEqual({ notified: 1 });
-        expect(
             notifyGitChanged({
                 kind: 'session',
                 sessionId: 'session-1',
                 workbenchProjectId: 'project-1',
             }),
         ).toEqual({ notified: 1 });
-        expect(fileChanges).toBe(1);
         expect(gitChanges).toBe(1);
     });
 
     it('requires the manifest view kind and propagates cancellation to controlled providers', async () => {
-        configureExtensions([registration(1, 'resource-explorer')]);
+        configureExtensions([registration(1, 'source-control')]);
         const binding = extensionApiBinding('fixture-token-1');
         expect(() =>
             binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
@@ -283,22 +273,22 @@ describe('Extension Host API factory', () => {
 
         let isCancellationObserved = false;
         const provider = {
-            list: (_directory: string | undefined, token: CancellationToken) =>
-                new Promise<[]>((resolve) => {
+            provideView: (_request: unknown, token: CancellationToken) =>
+                new Promise<Record<string, never>>((resolve) => {
                     token.onCancellationRequested(() => {
                         isCancellationObserved = true;
-                        resolve([]);
+                        resolve({});
                     });
                 }),
-        } as unknown as ResourceExplorerProvider;
-        binding.api.views.registerResourceExplorerProvider('publisher.fixture.tree', provider);
+        } as unknown as SourceControlProvider;
+        binding.api.views.registerSourceControlProvider('publisher.fixture.tree', provider);
         await activateExtension('publisher.fixture', 1);
         const pending = executeViewOperation({
             extensionId: 'publisher.fixture',
             generation: 1,
             viewId: 'publisher.fixture.tree',
-            operation: 'files.list',
-            arguments: {},
+            operation: 'source.snapshot',
+            arguments: { refresh: 0 },
             requestId: 'view-cancel-request',
         });
         await new Promise((resolve) => setImmediate(resolve));
@@ -306,21 +296,21 @@ describe('Extension Host API factory', () => {
         await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
         expect(isCancellationObserved).toBe(true);
 
-        configureExtensions([registration(2, 'resource-explorer')]);
+        configureExtensions([registration(2, 'source-control')]);
         await expect(
             executeViewOperation({
                 extensionId: 'publisher.fixture',
                 generation: 1,
                 viewId: 'publisher.fixture.tree',
-                operation: 'files.list',
-                arguments: {},
+                operation: 'source.snapshot',
+                arguments: { refresh: 0 },
                 requestId: 'expired-view-request',
             }),
         ).rejects.toMatchObject({ code: 'PROVIDER_MISSING' });
     });
 
     it('retains a bounded cancel tombstone when cancellation wins before provider registration', async () => {
-        configureExtensions([registration(1, 'resource-explorer')]);
+        configureExtensions([registration(1, 'source-control')]);
 
         expect(cancelTreeRequest('cancel-before-registration')).toEqual({ cancelled: true });
         await expect(
@@ -328,8 +318,8 @@ describe('Extension Host API factory', () => {
                 extensionId: 'publisher.fixture',
                 generation: 1,
                 viewId: 'publisher.fixture.tree',
-                operation: 'files.list',
-                arguments: {},
+                operation: 'source.snapshot',
+                arguments: { refresh: 0 },
                 requestId: 'cancel-before-registration',
             }),
         ).rejects.toMatchObject({ code: 'CANCELLED' });

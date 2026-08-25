@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-import { errorMessage } from '../shared/ipc/errors';
+import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import { logEventCatalog } from '../shared/node/logger';
 /**
  * Runtime domain boundaries require cross-domain dependencies to enter through the owning domain root.
@@ -22,10 +22,13 @@ import { WorkbenchRootService } from './workbench-roots';
 export async function acknowledgeFileMutation(
     database: CaxriDatabase,
     files: FileService,
+    sessionId: string,
     operationId: string,
 ): Promise<void> {
-    const operation = await files.getMutationOperation(operationId);
-    if (operation?.phase === 'completed' && operation.kind !== 'create' && operation.result) {
+    const operation = await files.getScopedMutationOperation(sessionId, operationId);
+    if (!operation)
+        throw new CaxriError('PATH_DENIED', 'File operation is outside the selected Project');
+    if (operation.phase === 'completed' && operation.kind !== 'create' && operation.result) {
         const workbenchProjectId =
             operation.workbenchProjectId ?? database.getSession(operation.sessionId)?.projectId;
         if (workbenchProjectId)
@@ -36,7 +39,7 @@ export async function acknowledgeFileMutation(
                 operation.result.path,
             );
     }
-    await files.acknowledgeMutationOperation(operationId);
+    await files.acknowledgeScopedMutationOperation(sessionId, operationId);
 }
 
 /**
@@ -112,8 +115,8 @@ export async function createRootServices({
     );
     await files.initialize();
     return {
-        acknowledgeFileMutation: (operationId: string) =>
-            acknowledgeFileMutation(database, files, operationId),
+        acknowledgeFileMutation: (sessionId: string, operationId: string) =>
+            acknowledgeFileMutation(database, files, sessionId, operationId),
         configuration: config,
         database,
         files,

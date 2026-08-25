@@ -21,6 +21,7 @@ import {
     viewCatalogSnapshotSchema,
 } from '@caxri/protocol';
 
+import { workbenchCoreContributions } from '../../shared/workbench-core-contributions';
 import type { DiscoveredExtension, RejectedExtension } from './discovery';
 
 const builtinContainers: ViewContainerDescriptor[] = [
@@ -61,6 +62,10 @@ const builtinCommands: ContributedCommandDescriptor[] = builtinContainers.map((c
     source: { kind: 'builtin' },
     lifecycle: 'builtin',
 }));
+
+const coreContainers = workbenchCoreContributions.map(({ container }) => container);
+const coreViews = workbenchCoreContributions.flatMap(({ views }) => views);
+const coreCommands = workbenchCoreContributions.flatMap(({ commands }) => commands);
 
 function dataMime(path: string): string {
     return extname(path).toLowerCase() === '.svg' ? 'image/svg+xml' : 'image/png';
@@ -145,11 +150,13 @@ export async function buildViewCatalog(options: {
     states: ReadonlyMap<string, CatalogExtensionState>;
     revision: number;
 }): Promise<ViewCatalogSnapshot> {
-    const containers = [...builtinContainers];
-    const views = [...builtinViews];
-    const commands = [...builtinCommands];
+    const containers = [...builtinContainers, ...coreContainers];
+    const views = [...builtinViews, ...coreViews];
+    const commands = [...builtinCommands, ...coreCommands];
     const extensions: ExtensionDescriptor[] = [];
-    const manifestOrders = new Map<string, number>();
+    const manifestOrders = new Map<string, number>(
+        workbenchCoreContributions.map(({ container, order }) => [container.id, order]),
+    );
     const ids = new Set<string>([
         ...containers.map(({ id }) => id),
         ...views.map(({ id }) => id),
@@ -301,6 +308,12 @@ export async function buildViewCatalog(options: {
                     source: { kind: 'extension', extensionId: extension.extensionId },
                     title: contribution.name,
                     viewKind: { kind: contribution.type },
+                    ...(contribution.presentation && {
+                        presentation: contribution.presentation,
+                    }),
+                    ...(contribution.configurationDependencies && {
+                        configurationDependencies: contribution.configurationDependencies,
+                    }),
                     ...(contribution.actions && {
                         actions: contribution.actions.map(({ command, role }) => ({
                             commandId: command,
@@ -317,6 +330,7 @@ export async function buildViewCatalog(options: {
                 title: contribution.title,
                 ...(contribution.description && { description: contribution.description }),
                 ...(contribution.allowInEditable && { allowInEditable: true }),
+                ...(contribution.palette === false && { palette: false }),
                 source: { kind: 'extension', extensionId: extension.extensionId },
                 lifecycle,
             });

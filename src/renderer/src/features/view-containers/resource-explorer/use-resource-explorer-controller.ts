@@ -5,13 +5,14 @@ import type { ProjectRecord, SessionRecord } from '@shared/types';
 
 import { executeCommand } from '../../../commands/execute';
 import { dragPath, hasDraggedPath } from '../../../lib/file-drag';
+import { queryClient } from '../../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../stores/selectors';
 import {
     useControlledView,
     useControlledViewActionCommand,
     useResourceExplorerClient,
 } from '../controlled-view-context';
-import { subscribeViewEvents } from '../view-event-bridge';
+import { subscribeCoreViewCommands } from '../core-view-commands';
 import type { EditRequest, FocusTarget } from './directory-entries';
 import { BUSY_DISABLED_REASON } from './directory-entries';
 import { cancelFileOperation, moveFile, pasteFile } from './file-actions';
@@ -156,7 +157,7 @@ export interface ResourceExplorerController {
  */
 export function useResourceExplorerController(): ResourceExplorerController | undefined {
     const client = useResourceExplorerClient();
-    const { extensionGeneration, viewId } = useControlledView();
+    const { viewId } = useControlledView();
     const createFileCommand = useControlledViewActionCommand('resource.createFile');
     const createFolderCommand = useControlledViewActionCommand('resource.createFolder');
     const searchCommand = useControlledViewActionCommand('resource.search');
@@ -190,44 +191,46 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         () =>
             !session || !scopeId
                 ? () => {}
-                : subscribeViewEvents(
-                      {
-                          viewId,
-                          sessionId: session.id,
-                          workbenchProjectId: session.workbenchProjectId,
-                          extensionGeneration,
-                      },
-                      ({ payload: { change } }) => {
-                          switch (change.kind) {
-                              case 'search':
-                                  requestFileSearchFocus(session.id);
-                                  break;
-                              case 'collapse':
-                                  setExpandedByScope((current) =>
-                                      setScopedValue(current, scopeId, []),
-                                  );
-                                  setCollapseRevision((value) => value + 1);
-                                  break;
-                              case 'create':
-                                  setEditingState({
-                                      scopeId,
-                                      request: {
-                                          kind: 'create',
-                                          directory: session.rootPath,
-                                          itemKind: change.itemKind,
-                                          returnFocus: {
-                                              kind: 'caption',
-                                              itemKind: change.itemKind,
-                                          },
+                : subscribeCoreViewCommands(viewId, scopeId, ({ role }) => {
+                      switch (role) {
+                          case 'resource.search':
+                              requestFileSearchFocus(session.id);
+                              break;
+                          case 'resource.collapse':
+                              setExpandedByScope((current) => setScopedValue(current, scopeId, []));
+                              setCollapseRevision((value) => value + 1);
+                              break;
+                          case 'resource.createFile':
+                          case 'resource.createFolder':
+                              setEditingState({
+                                  scopeId,
+                                  request: {
+                                      kind: 'create',
+                                      directory: session.rootPath,
+                                      itemKind:
+                                          role === 'resource.createFile' ? 'file' : 'directory',
+                                      returnFocus: {
+                                          kind: 'caption',
+                                          itemKind:
+                                              role === 'resource.createFile' ? 'file' : 'directory',
                                       },
-                                  });
-                                  break;
-                              default:
-                                  break;
-                          }
-                      },
-                  ),
-        [extensionGeneration, scopeId, session, viewId],
+                                  },
+                              });
+                              break;
+                          case 'resource.refresh':
+                              // eslint-disable-next-line no-void -- React Query owns refetch errors
+                              void queryClient.invalidateQueries({
+                                  predicate: ({ queryKey }) =>
+                                      queryKey[0] === 'viewContainers.viewOperation' &&
+                                      (queryKey[1] as { viewId?: string } | undefined)?.viewId ===
+                                          viewId,
+                              });
+                              break;
+                          default:
+                              break;
+                      }
+                  }),
+        [scopeId, session, viewId],
     );
     useEffect(
         () => () => {

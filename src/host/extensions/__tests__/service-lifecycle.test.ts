@@ -41,12 +41,12 @@ vi.mock('../catalog', () => ({
                     lifecycle: state.lifecycle,
                 },
                 {
-                    id: 'publisher.fixture.files',
+                    id: 'publisher.fixture.sourceControl',
                     containerId: 'publisher.fixture',
                     source: { kind: 'extension', extensionId: 'publisher.fixture' },
                     extensionId: 'publisher.fixture',
-                    viewKind: { kind: 'resource-explorer' },
-                    title: 'Files',
+                    viewKind: { kind: 'source-control' },
+                    title: 'Source Control',
                     lifecycle: state.lifecycle,
                 },
             ],
@@ -193,9 +193,9 @@ describe('ExtensionService generation lifecycle', () => {
 
         await expect(
             service.viewOperation({
-                viewId: 'publisher.fixture.files',
-                operation: 'files.list',
-                arguments: { directory: '/project-1' },
+                viewId: 'publisher.fixture.sourceControl',
+                operation: 'source.snapshot',
+                arguments: { refresh: 0 },
                 requestId: 'stale-scope',
                 context: {
                     kind: 'session',
@@ -235,9 +235,9 @@ describe('ExtensionService generation lifecycle', () => {
             supervisorHarness.viewOperationResult = pending.promise;
 
             const request = service.viewOperation({
-                viewId: 'publisher.fixture.files',
-                operation: 'files.list',
-                arguments: { directory: '/project-1' },
+                viewId: 'publisher.fixture.sourceControl',
+                operation: 'source.snapshot',
+                arguments: { refresh: 0 },
                 requestId: 'in-flight-stale-scope',
                 context: {
                     kind: 'session',
@@ -315,13 +315,29 @@ describe('ExtensionService generation lifecycle', () => {
         });
         await service.start();
         for (const listener of supervisorHarness.exitListeners) listener(86);
-        supervisorHarness.viewOperationResult = [];
+        const viewModel = {
+            revision: '1',
+            title: 'Source Control',
+            accessibilityLabel: 'Repositories',
+            modeAccessibilityLabel: 'Source control mode',
+            modes: [],
+            selectedModeId: 'default',
+            refreshAction: {
+                id: 'action-1',
+                label: 'Refresh',
+                icon: { kind: 'theme', id: 'refresh' },
+                command: { id: 'publisher.fixture.refresh' },
+            },
+            providers: [],
+            emptyMessage: 'No repositories.',
+        };
+        supervisorHarness.viewOperationResult = viewModel;
 
         const recovery = service.viewOperation({
-            viewId: 'publisher.fixture.files',
-            operation: 'files.list',
-            arguments: {},
-            requestId: 'recovery-files-list',
+            viewId: 'publisher.fixture.sourceControl',
+            operation: 'source.snapshot',
+            arguments: { refresh: 0 },
+            requestId: 'recovery-git-summary',
             context: { kind: 'no-session' },
         });
         await vi.waitFor(() =>
@@ -332,7 +348,7 @@ describe('ExtensionService generation lifecycle', () => {
         for (const listener of supervisorHarness.startListeners) listener();
         supervisorHarness.activation.resolve();
 
-        await expect(recovery).resolves.toEqual([]);
+        await expect(recovery).resolves.toEqual(viewModel);
         expect(service.catalog().extensions).toContainEqual({
             id: 'publisher.fixture',
             version: '1.0.0',
@@ -423,59 +439,16 @@ describe('ExtensionService generation lifecycle', () => {
         });
         await service.start();
         supervisorHarness.activation.resolve();
-        supervisorHarness.viewOperationResult = { isRepository: false, repositories: [] };
+        supervisorHarness.viewOperationResult = [];
 
         await expect(
             service.viewOperation({
-                viewId: 'publisher.fixture.files',
-                operation: 'files.list',
-                arguments: {},
-                requestId: 'request-files-list',
+                viewId: 'publisher.fixture.sourceControl',
+                operation: 'source.snapshot',
+                arguments: { refresh: 0 },
+                requestId: 'request-git-summary',
                 context: { kind: 'no-session' },
             }),
         ).rejects.toMatchObject({ code: 'PROVIDER_FAILED' });
-    });
-
-    it('accepts the public durable-operation projection without native identity fields', async () => {
-        const service = new ExtensionService({
-            appVersion: '0.0.17',
-            commit: 'test',
-            extensionHostPath: '/out/main/extension-host.js',
-            extensionRoots: ['/extensions'],
-            includeTestOnly: true,
-            logger: new StructuredLogger('/tmp/caxri-extension-service-test', 'host', 'error'),
-            activeContext: () => Promise.resolve({}),
-            projectIds: () => Promise.resolve([]),
-            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
-            workspaceRequest: () => Promise.resolve(null),
-        });
-        await service.start();
-        supervisorHarness.activation.resolve();
-        supervisorHarness.viewOperationResult = {
-            id: 'operation-1',
-            sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
-            kind: 'rename',
-            phase: 'staged',
-            startedAt: 1,
-            updatedAt: 2,
-            input: { path: '/project/old.txt', name: 'new.txt' },
-            expectedResult: {
-                name: 'new.txt',
-                path: '/project/new.txt',
-                previousPath: '/project/old.txt',
-                kind: 'file',
-            },
-        };
-
-        await expect(
-            service.viewOperation({
-                viewId: 'publisher.fixture.files',
-                operation: 'files.operation.get',
-                arguments: { operationId: 'operation-1' },
-                requestId: 'request-operation-get',
-                context: { kind: 'no-session' },
-            }),
-        ).resolves.toEqual(supervisorHarness.viewOperationResult);
     });
 });

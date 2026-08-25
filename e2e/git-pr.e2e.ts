@@ -64,12 +64,11 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
     try {
         /**
          * The deterministic gh fixture intentionally reports the root PR for every repository. Runtime rejects the root
-         * OIDs in the unrelated nested repository; that repository-scoped failure must stay in its inline state.
+         * OIDs in the unrelated nested repository; Git owns that raw-domain failure and projects it into inline
+         * provider state, so the successful outer Source Control snapshot must not surface a second Main-process
+         * error.
          */
-        allowE2EErrors([
-            { source: 'main', event: 'ipc.request_failed', code: 'GIT', count: 1 },
-            { source: 'runtime', event: 'ipc.request_failed', code: 'GIT', count: 1 },
-        ]);
+        allowE2EErrors([{ source: 'runtime', event: 'ipc.request_failed', code: 'GIT', count: 1 }]);
         await createProjectSession(running.page);
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const files = running.page.locator('.git-files');

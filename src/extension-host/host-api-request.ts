@@ -16,6 +16,10 @@ export type HostApiRequestInput =
           ExtensionHostApiRequestIdentity
       >
     | Omit<
+          Extract<ExtensionHostApiRequest, { method: 'workspace.getConfiguration' }>,
+          ExtensionHostApiRequestIdentity
+      >
+    | Omit<
           Extract<ExtensionHostApiRequest, { method: 'workspace.request' }>,
           ExtensionHostApiRequestIdentity
       >;
@@ -58,6 +62,13 @@ function requestTimeout(request: HostApiRequestInput): number | undefined {
         : HOST_API_TIMEOUT_MS;
 }
 
+function requiresAuthoritativeReplyAfterCancellation(request: HostApiRequestInput): boolean {
+    return (
+        request.method === 'workspace.request' &&
+        isNonExpiringViewOperation(request.params.operation)
+    );
+}
+
 /**
  * Sends one Extension API request and wires a public CancellationToken to the authenticated Host request id. The id is
  * intentionally reused for the Host and Runtime cancellation frames so a late cancel cannot target another operation.
@@ -81,6 +92,7 @@ export function requestHostApi<Result>(
         apiToken: context.apiToken,
         ...request,
     } as ExtensionHostApiRequest;
+    const requiresAuthoritativeReply = requiresAuthoritativeReplyAfterCancellation(request);
     return new Promise((resolve, reject) => {
         const timeout = requestTimeout(request);
         const timer =
@@ -108,8 +120,14 @@ export function requestHostApi<Result>(
         pending.cancellation = token?.onCancellationRequested(() => {
             const current = pendingApi.get(id);
             if (current !== pending) return;
-            clearPending(id, pending);
             pending.sendCancel();
+            /**
+             * A mutation cancel is a request to stop before its point of no return, not proof that it stopped. Host may
+             * already be applying the operation without a signal, so only its reply can distinguish cancellation from
+             * authoritative completion and prevent a duplicate retry.
+             */
+            if (requiresAuthoritativeReply) return;
+            clearPending(id, pending);
             reject(cancellationError());
         });
         pendingApi.set(id, pending);

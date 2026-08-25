@@ -15,7 +15,7 @@ import type { OpenFile } from './documents';
 import { DocumentService } from './documents';
 import type { GitIgnoreDecorator, OpenDirectory } from './listing';
 import { ListingService } from './listing';
-import type { FileMutationJournalOptions } from './mutation-journal';
+import type { FileMutationJournalOptions, FileMutationOperationScope } from './mutation-journal';
 import { FileMutationJournal } from './mutation-journal';
 import type { FileMutationServiceOptions } from './mutations';
 import { FileMutationService } from './mutations';
@@ -97,6 +97,13 @@ export class FileService {
         this.mutations = new FileMutationService(resolveSessionPath, logger, options.mutations);
     }
 
+    private mutationOperationScope(sessionId: string): FileMutationOperationScope {
+        return {
+            sessionId,
+            workbenchProjectId: this.projectRoots.getSessionWorkbenchProjectId(sessionId),
+        };
+    }
+
     resolveSessionPath(sessionId: string, input?: string): Promise<ResolvedSessionPath> {
         return this.projectRoots.resolveSessionPath(sessionId, input);
     }
@@ -114,6 +121,14 @@ export class FileService {
 
     list(sessionId: string, directory?: string, signal?: AbortSignal): Promise<FileEntry[]> {
         return this.listing.list(sessionId, directory, signal);
+    }
+
+    listDirectory(
+        sessionId: string,
+        directory?: string,
+        signal?: AbortSignal,
+    ): Promise<RuntimeMethodResult<'files.list'>> {
+        return this.listing.listDirectory(sessionId, directory, signal);
     }
 
     browse(
@@ -246,16 +261,30 @@ export class FileService {
         return this.mutationJournal.get(operationId);
     }
 
-    listMutationOperations() {
-        return this.mutationJournal.list();
+    getScopedMutationOperation(sessionId: string, operationId: string) {
+        return this.mutationJournal.getScoped(operationId, this.mutationOperationScope(sessionId));
     }
 
-    cancelMutationOperation(operationId: string) {
-        return this.mutationJournal.cancel(operationId);
+    listScopedMutationOperations(sessionId: string) {
+        return this.mutationJournal.listScoped(this.mutationOperationScope(sessionId));
+    }
+
+    cancelScopedMutationOperation(sessionId: string, operationId: string) {
+        return this.mutationJournal.cancelScoped(
+            operationId,
+            this.mutationOperationScope(sessionId),
+        );
     }
 
     acknowledgeMutationOperation(operationId: string): Promise<void> {
         return this.mutationJournal.acknowledge(operationId);
+    }
+
+    acknowledgeScopedMutationOperation(sessionId: string, operationId: string): Promise<void> {
+        return this.mutationJournal.acknowledgeScoped(
+            operationId,
+            this.mutationOperationScope(sessionId),
+        );
     }
 
     async authorizeTrash(

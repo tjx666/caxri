@@ -6,46 +6,43 @@ import {
     updateSourceControlViewNavigation,
 } from '../source-control-state';
 
-describe('Source Control navigation state', () => {
-    it('defaults a new Session scope to the working tree with expanded sections', () => {
-        expect(sourceControlNavigationForScope({}, 'session-a:project-a')).toEqual({
+describe('Source Control scoped navigation', () => {
+    it('starts with generic empty disclosure and provider-mode state', () => {
+        expect(defaultSourceControlViewNavigation()).toEqual({
             expandedDirectories: {},
-            expandedRepositories: {},
-            mode: 'working',
+            expandedGroups: {},
+            expandedProviders: {},
         });
-        expect(sourceControlNavigationForScope({}, undefined)).toEqual(
-            defaultSourceControlViewNavigation(),
-        );
     });
 
-    it('updates one Session scope without changing another', () => {
-        const initial = {
-            'session-a:project-a': {
-                expandedDirectories: { 'working:repo-a:src': true },
-                expandedRepositories: { 'repo-a': true },
-                mode: 'working' as const,
-            },
-            'session-b:project-b': {
-                expandedDirectories: {},
-                expandedRepositories: { 'repo-b': false },
-                mode: 'commit' as const,
-            },
-        };
-        const navigation = sourceControlNavigationForScope(initial, 'session-a:project-a');
-        const updated = updateSourceControlViewNavigation(
-            initial,
+    it('retains provider-owned mode ids and disclosures independently per scope', () => {
+        const first = updateSourceControlViewNavigation(
+            {},
             'session-a:project-a',
-            navigation,
+            defaultSourceControlViewNavigation(),
             {
-                mode: 'pull-request',
+                expandedDirectories: { 'mode-a:provider-a:src': true },
+                expandedGroups: { 'provider-a:group-a': false },
+                expandedProviders: { 'provider-a': false },
+                modeId: 'mode-a',
             },
         );
+        const second = updateSourceControlViewNavigation(
+            first,
+            'session-b:project-b',
+            defaultSourceControlViewNavigation(),
+            { modeId: 'mode-b' },
+        );
 
-        expect(updated['session-a:project-a']).toEqual({
-            ...initial['session-a:project-a'],
-            mode: 'pull-request',
+        expect(sourceControlNavigationForScope(second, 'session-a:project-a')).toMatchObject({
+            modeId: 'mode-a',
+            expandedGroups: { 'provider-a:group-a': false },
         });
-        expect(updated['session-b:project-b']).toBe(initial['session-b:project-b']);
-        expect(initial['session-a:project-a'].mode).toBe('working');
+        expect(sourceControlNavigationForScope(second, 'session-b:project-b').modeId).toBe(
+            'mode-b',
+        );
+        expect(sourceControlNavigationForScope(second, undefined)).toEqual(
+            defaultSourceControlViewNavigation(),
+        );
     });
 });

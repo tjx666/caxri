@@ -7,12 +7,8 @@ export function isExtensionViewChangeCompatible(
     viewKind: ViewDescriptor['viewKind'],
     change: ExtensionViewChange,
 ): boolean {
-    if (viewKind.kind === 'resource-explorer')
-        return ['collapse', 'content', 'create', 'operation', 'refresh', 'search'].includes(
-            change.kind,
-        );
     if (viewKind.kind === 'source-control')
-        return ['content', 'mode', 'refresh'].includes(change.kind);
+        return ['content', 'refresh', 'selection'].includes(change.kind);
     return false;
 }
 

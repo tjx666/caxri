@@ -18,7 +18,7 @@ import type {
     ExtensionContext,
     ProjectStatusRequestOptions,
     TreeDataProvider,
-    WorkspaceFileChange,
+    WorkspaceChangeContext,
 } from 'caxri';
 import {
     CancellationTokenSource,
@@ -35,7 +35,7 @@ import type {
     ExtensionViewEventScope,
     ExtensionWorkspaceOperation,
 } from '../shared/extension-host-protocol';
-import { createHostApiRequester, requestProjectStatus } from './host-api-binding';
+import { createHostApiRequester, requestConfig, requestProjectStatus } from './host-api-binding';
 import { rejectPendingApiRequests, settleApiReply as settleHostApiReply } from './host-api-request';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
@@ -51,7 +51,6 @@ import { createWorkspaceApiClient } from './workspace-api-client';
 interface ApiBinding {
     api: CaxriApi;
     notifyActiveContext(context: ExtensionViewEventScope): void;
-    notifyFiles(change: WorkspaceFileChange, context: ExtensionViewEventScope): void;
     notifyGit(context: ExtensionViewEventScope): void;
     notifyProjectStatus(context: ExtensionViewEventScope): void;
     runtime: {
@@ -209,15 +208,22 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
     pendingRefreshes.set(viewId, { batch, timer, context });
 }
 
+function workspaceChangeContext(context: ExtensionViewEventScope): WorkspaceChangeContext {
+    return {
+        scopeId:
+            context.kind === 'session'
+                ? `${context.sessionId}:${context.workbenchProjectId}`
+                : 'no-session',
+    };
+}
+
 function createBinding(registration: ExtensionHostRegistration): ApiBinding {
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
-    const activeContext = new EventEmitter<void>();
+    const activeContext = new EventEmitter<WorkspaceChangeContext>();
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
-    const files = new EventEmitter<WorkspaceFileChange>();
+    const git = new EventEmitter<WorkspaceChangeContext>();
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
-    const git = new EventEmitter<void>();
-    // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
-    const projectStatus = new EventEmitter<void>();
+    const projectStatus = new EventEmitter<WorkspaceChangeContext>();
     const allowedViewKinds = new Map(
         Object.values(registration.manifest.contributes.views)
             .flat()
@@ -325,11 +331,10 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
         }),
         workspace: Object.freeze({
             onDidChangeActiveContext: activeContext.event,
-            onDidChangeFiles: files.event,
             onDidChangeGit: git.event,
             onDidChangeProjectStatus: projectStatus.event,
-            fs: workspace.fs,
             git: workspace.git,
+            getConfiguration: <Value>(key: string) => requestConfig<Value>(request, key),
             getProjectStatus: (options?: ProjectStatusRequestOptions) => {
                 assertBindingCurrent(registration);
                 return requestProjectStatus(request, options?.refreshToken);
@@ -338,10 +343,16 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
     });
     return {
         api,
-        notifyActiveContext: (context) => withViewEventContext(context, () => activeContext.fire()),
-        notifyFiles: (change, context) => withViewEventContext(context, () => files.fire(change)),
-        notifyGit: (context) => withViewEventContext(context, () => git.fire()),
-        notifyProjectStatus: (context) => withViewEventContext(context, () => projectStatus.fire()),
+        notifyActiveContext: (context) =>
+            withViewEventContext(context, () =>
+                activeContext.fire(workspaceChangeContext(context)),
+            ),
+        notifyGit: (context) =>
+            withViewEventContext(context, () => git.fire(workspaceChangeContext(context))),
+        notifyProjectStatus: (context) =>
+            withViewEventContext(context, () =>
+                projectStatus.fire(workspaceChangeContext(context)),
+            ),
         runtime: {
             CancellationTokenSource,
             Disposable,
@@ -368,19 +379,6 @@ export function notifyProjectStatusChanged(context: ExtensionViewEventScope): { 
     for (const runtime of extensions.values()) {
         if (!runtime.activation) continue;
         runtime.apiBinding.notifyProjectStatus(context);
-        notified += 1;
-    }
-    return { notified };
-}
-
-export function notifyFilesChanged(
-    change: WorkspaceFileChange,
-    context: ExtensionViewEventScope,
-): { notified: number } {
-    let notified = 0;
-    for (const runtime of extensions.values()) {
-        if (!runtime.activation) continue;
-        runtime.apiBinding.notifyFiles(change, context);
         notified += 1;
     }
     return { notified };

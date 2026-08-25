@@ -10,10 +10,10 @@ import { getSessionOwnerProjectId, useSelectedSession } from '../../../stores/se
 import { pushToast } from '../../../stores/toasts';
 import { remapOpenEditorsDurably } from '../../editor/document-actions';
 import { availableResourceExplorerClient } from '../resource-explorer-catalog-client';
-import type { ResourceExplorerClient } from '../view-operation-client';
 import { isControlledViewOperationQuery } from '../view-operation-client';
 import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-path';
+import type { ResourceExplorerClient } from './resource-explorer-client';
 
 const reconciling = new Map<string, Promise<void>>();
 const reconciled = new Set<string>();
@@ -318,9 +318,9 @@ async function loadFileMutations(): Promise<void> {
 }
 
 /**
- * Restores pending/final mutation state at the application boundary, even when the Files view is not mounted. The
- * provider is resolved from the manifest catalog for every pass so a restarted Extension Host generation cannot leave
- * the recovery path holding a stale client.
+ * Restores pending/final mutation state at the application boundary, even when the Files view is not mounted. The The
+ * Core client is resolved from the current catalog and selected Session for every pass so restart or scope changes
+ * cannot leave recovery holding stale authorization context.
  */
 export function useFileMutationReconciliation(isActive: boolean): void {
     const session = useSelectedSession();
@@ -344,10 +344,8 @@ export function useFileMutationReconciliation(isActive: boolean): void {
         const unsubscribe = caxri.onEvent((event) => {
             const shouldReconcile =
                 event.event === 'host.connectionChanged' ||
-                event.event === 'viewContainers.catalogChanged' ||
                 (event.event === 'runtime.status' && event.payload.status === 'ready') ||
-                (event.event === 'viewContainers.viewChanged' &&
-                    event.payload.change.kind === 'operation');
+                event.event === 'files.operationChanged';
             if (shouldReconcile)
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void queue.request();

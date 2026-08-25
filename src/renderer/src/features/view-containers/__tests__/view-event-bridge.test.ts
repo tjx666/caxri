@@ -24,7 +24,7 @@ import {
 } from '../view-event-bridge';
 
 const scope = {
-    viewId: 'publisher.fixture.files',
+    viewId: 'publisher.fixture.sourceControl',
     sessionId: 'session-1',
     workbenchProjectId: 'project-1',
     extensionGeneration: 3,
@@ -43,11 +43,11 @@ function event(
     return {
         event: 'viewContainers.viewChanged',
         payload: {
-            viewId: 'publisher.fixture.files',
+            viewId: 'publisher.fixture.sourceControl',
             eventId,
             extensionGeneration,
             context,
-            change: { kind: 'search' },
+            change: { kind: 'refresh' },
         },
     };
 }
@@ -97,8 +97,23 @@ describe('view event bridge', () => {
         const received: RuntimeEvent[] = [];
         subscribeViewEvents(scope, (next) => received.push(next));
         const content = event('event-content');
-        content.payload.change = { kind: 'content', paths: ['src/file.ts'] };
+        content.payload.change = { kind: 'content' };
         for (const listener of mocks.listeners) listener(content);
         expect(received).toEqual([]);
+    });
+
+    it('replays a provider selection into only the matching Session scope', () => {
+        startViewEventBridge();
+        const selection = event('event-selection');
+        selection.payload.change = { kind: 'selection', selectedModeId: 'history' };
+        for (const listener of mocks.listeners) listener(selection);
+        const otherScope = vi.fn();
+        const matchingScope = vi.fn();
+
+        subscribeViewEvents({ ...scope, sessionId: 'session-2' }, otherScope);
+        subscribeViewEvents(scope, matchingScope);
+
+        expect(otherScope).not.toHaveBeenCalled();
+        expect(matchingScope).toHaveBeenCalledExactlyOnceWith(selection);
     });
 });

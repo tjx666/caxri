@@ -14,6 +14,11 @@ type FileMutationResult = MutableFileEntry | MovedFileEntry;
 type FileMutationExpectedResult = NonNullable<FileMutationOperation['expectedResult']>;
 type StageMutation = (expectedResult: FileMutationExpectedResult) => Promise<void>;
 
+export interface FileMutationOperationScope {
+    sessionId: string;
+    workbenchProjectId: string;
+}
+
 export interface FileMutationJournalOptions {
     /**
      * Test seam for shortening in-process finalization retries.
@@ -404,6 +409,64 @@ export class FileMutationJournal {
         return operation;
     }
 
+    private belongsToScope(
+        operation: FileMutationOperation,
+        scope: FileMutationOperationScope,
+    ): boolean {
+        return operation.workbenchProjectId
+            ? operation.workbenchProjectId === scope.workbenchProjectId
+            : operation.sessionId === scope.sessionId;
+    }
+
+    private requireOperationInScope(
+        operationId: string,
+        scope?: FileMutationOperationScope,
+    ): FileMutationOperation {
+        const operation = this.requireOperation(operationId);
+        if (scope && !this.belongsToScope(operation, scope))
+            throw new CaxriError('PATH_DENIED', 'File operation is outside the selected Project');
+        return operation;
+    }
+
+    private async cancelInScope(
+        operationId: string,
+        scope?: FileMutationOperationScope,
+    ): Promise<FileMutationOperation> {
+        await this.initialize();
+        const operation = await this.mutate(() => {
+            const current = this.requireOperationInScope(operationId, scope);
+            if (current.phase !== 'pre_stage') return current;
+            current.phase = 'canceled';
+            current.updatedAt = this.now();
+            current.error = {
+                code: 'TIMEOUT',
+                message: 'File operation was canceled before any file-system change began',
+            };
+            return current;
+        });
+        if (operation.phase === 'canceled' && this.runningOperationIds.has(operationId))
+            this.executionCancellations.set(
+                operationId,
+                operation.error?.message ?? 'File operation was canceled before it began',
+            );
+        this.clearTimer(operationId);
+        this.publish(operation);
+        return cloneOperation(operation);
+    }
+
+    private async acknowledgeInScope(
+        operationId: string,
+        scope?: FileMutationOperationScope,
+    ): Promise<void> {
+        await this.initialize();
+        await this.mutate(() => {
+            const operation = this.requireOperationInScope(operationId, scope);
+            if (!finalPhases.has(operation.phase))
+                throw new CaxriError('CONFLICT', 'File operation is still in progress');
+            this.records.delete(operationId);
+        });
+    }
+
     private acquireExecution(sessionId: string, operationId: string): void {
         const running = this.runningBySession.get(sessionId) ?? 0;
         if (running >= this.maximumActivePerSession)
@@ -527,7 +590,16 @@ export class FileMutationJournal {
 
     private publish(operation: FileMutationOperation): void {
         const snapshot = cloneOperation(operation);
-        this.emit({ event: 'files.operationChanged', payload: snapshot });
+        this.emit({
+            event: 'files.operationChanged',
+            payload: {
+                operationId: snapshot.id,
+                sessionId: snapshot.sessionId,
+                ...(snapshot.workbenchProjectId && {
+                    workbenchProjectId: snapshot.workbenchProjectId,
+                }),
+            },
+        });
         this.logger.write(
             snapshot.phase === 'failed' || snapshot.phase === 'canceled' ? 'warn' : 'info',
             logEventCatalog.file.operationPhase,
@@ -655,43 +727,41 @@ export class FileMutationJournal {
         return operation ? cloneOperation(operation) : undefined;
     }
 
+    async getScoped(
+        operationId: string,
+        scope: FileMutationOperationScope,
+    ): Promise<FileMutationOperation | undefined> {
+        const operation = await this.get(operationId);
+        return operation && this.belongsToScope(operation, scope) ? operation : undefined;
+    }
+
     async list(): Promise<FileMutationOperation[]> {
         await this.initialize();
         await this.writeTail;
         return this.records.values().map(cloneOperation).toArray();
     }
 
-    async cancel(operationId: string): Promise<FileMutationOperation> {
-        await this.initialize();
-        const operation = await this.mutate(() => {
-            const current = this.requireOperation(operationId);
-            if (current.phase !== 'pre_stage') return current;
-            current.phase = 'canceled';
-            current.updatedAt = this.now();
-            current.error = {
-                code: 'TIMEOUT',
-                message: 'File operation was canceled before any file-system change began',
-            };
-            return current;
-        });
-        if (operation.phase === 'canceled' && this.runningOperationIds.has(operationId))
-            this.executionCancellations.set(
-                operationId,
-                operation.error?.message ?? 'File operation was canceled before it began',
-            );
-        this.clearTimer(operationId);
-        this.publish(operation);
-        return cloneOperation(operation);
+    async listScoped(scope: FileMutationOperationScope): Promise<FileMutationOperation[]> {
+        return (await this.list()).filter((operation) => this.belongsToScope(operation, scope));
     }
 
-    async acknowledge(operationId: string): Promise<void> {
-        await this.initialize();
-        await this.mutate(() => {
-            const operation = this.requireOperation(operationId);
-            if (!finalPhases.has(operation.phase))
-                throw new CaxriError('CONFLICT', 'File operation is still in progress');
-            this.records.delete(operationId);
-        });
+    cancel(operationId: string): Promise<FileMutationOperation> {
+        return this.cancelInScope(operationId);
+    }
+
+    cancelScoped(
+        operationId: string,
+        scope: FileMutationOperationScope,
+    ): Promise<FileMutationOperation> {
+        return this.cancelInScope(operationId, scope);
+    }
+
+    acknowledge(operationId: string): Promise<void> {
+        return this.acknowledgeInScope(operationId);
+    }
+
+    acknowledgeScoped(operationId: string, scope: FileMutationOperationScope): Promise<void> {
+        return this.acknowledgeInScope(operationId, scope);
     }
 
     async close(): Promise<void> {

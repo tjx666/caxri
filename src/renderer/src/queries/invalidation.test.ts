@@ -268,7 +268,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                     contextKey: 'session-a:project-p',
                 },
             ])?.isInvalidated,
-        ).toBe(false);
+        ).toBe(true);
         expect(
             queryClient.getQueryState([
                 'viewContainers.viewOperation',
@@ -292,44 +292,6 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             ])?.isInvalidated,
         ).toBe(false);
 
-        mocks.state.handler?.({
-            event: 'viewContainers.viewChanged',
-            payload: {
-                viewId: filesView,
-                eventId: 'view-event-1',
-                extensionGeneration: 2,
-                context: {
-                    kind: 'session',
-                    sessionId: 'session-a',
-                    workbenchProjectId: 'project-p',
-                },
-                change: { kind: 'content', paths: ['/project/src/index.ts'], overflow: false },
-            },
-        });
-        expect(invalidateQueries).toHaveBeenCalledTimes(2);
-
-        expect(
-            queryClient.getQueryState([
-                'viewContainers.viewOperation',
-                {
-                    viewId: filesView,
-                    operation: 'files.list',
-                    arguments: { directory: '/project/src' },
-                    contextKey: 'session-a:project-p',
-                },
-            ])?.isInvalidated,
-        ).toBe(true);
-        expect(
-            queryClient.getQueryState([
-                'viewContainers.viewOperation',
-                {
-                    viewId: filesView,
-                    operation: 'files.list',
-                    arguments: { directory: '/project/docs' },
-                    contextKey: 'session-a:project-p',
-                },
-            ])?.isInvalidated,
-        ).toBe(false);
         expect(
             queryClient.getQueryState([
                 'viewContainers.viewOperation',
@@ -349,9 +311,9 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         const queryKey = [
             'viewContainers.viewOperation',
             {
-                viewId: 'publisher.files.explorer',
-                operation: 'files.list',
-                arguments: { directory: '/project' },
+                viewId: 'publisher.git.sourceControl',
+                operation: 'git.summary',
+                arguments: { refresh: 0 },
                 contextKey: 'session-a:project-p',
             },
         ] as const;
@@ -361,15 +323,80 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         mocks.state.handler?.({
             event: 'viewContainers.viewChanged',
             payload: {
-                viewId: 'publisher.files.explorer',
+                viewId: 'publisher.git.sourceControl',
                 eventId: 'view-event-no-session',
                 extensionGeneration: 2,
                 context: { kind: 'no-session' },
-                change: { kind: 'content', overflow: true },
+                change: { kind: 'content' },
             },
         });
 
         expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(false);
+        unsubscribe();
+    });
+
+    it('invalidates only the scoped generic Source Control reads after provider content changes', () => {
+        const queryClient = new QueryClient();
+        const matchingSnapshot = [
+            'viewContainers.viewOperation',
+            {
+                viewId: 'publisher.git.sourceControl',
+                operation: 'source.snapshot',
+                arguments: { refresh: 0 },
+                contextKey: 'session-a:project-p',
+                cacheRevision: '[]:0',
+            },
+        ] as const;
+        const matchingHistory = [
+            'viewContainers.viewOperation',
+            {
+                viewId: 'publisher.git.sourceControl',
+                operation: 'source.historyPage',
+                arguments: { historyId: 'repo-1', offset: 0, pageSize: 50, revision: '1' },
+                contextKey: 'session-a:project-p',
+            },
+        ] as const;
+        const otherView = [
+            'viewContainers.viewOperation',
+            {
+                viewId: 'publisher.other.sourceControl',
+                operation: 'source.snapshot',
+                arguments: { refresh: 0 },
+                contextKey: 'session-a:project-p',
+            },
+        ] as const;
+        const otherScope = [
+            'viewContainers.viewOperation',
+            {
+                viewId: 'publisher.git.sourceControl',
+                operation: 'source.snapshot',
+                arguments: { refresh: 0 },
+                contextKey: 'session-b:project-p',
+            },
+        ] as const;
+        for (const key of [matchingSnapshot, matchingHistory, otherView, otherScope])
+            queryClient.setQueryData(key, {});
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'viewContainers.viewChanged',
+            payload: {
+                viewId: 'publisher.git.sourceControl',
+                eventId: 'view-event-content',
+                extensionGeneration: 2,
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-a',
+                    workbenchProjectId: 'project-p',
+                },
+                change: { kind: 'content' },
+            },
+        });
+
+        expect(queryClient.getQueryState(matchingSnapshot)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(matchingHistory)?.isInvalidated).toBe(false);
+        expect(queryClient.getQueryState(otherView)?.isInvalidated).toBe(false);
+        expect(queryClient.getQueryState(otherScope)?.isInvalidated).toBe(false);
         unsubscribe();
     });
 

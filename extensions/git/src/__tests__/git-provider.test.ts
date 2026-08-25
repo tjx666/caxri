@@ -1,0 +1,487 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { Buffer } from 'node:buffer';
+
+import type { CaxriApi, GitCommitDetails, GitCommitPage, GitSummary, WorkspaceGit } from 'caxri';
+import { CancellationTokenSource } from 'caxri';
+import { describe, expect, it, vi } from 'vitest';
+
+import { GitProvider } from '../git-provider';
+
+const repo = {
+    id: 'repo-1',
+    kind: 'primary' as const,
+    name: 'project',
+    rootPath: '/authorized/project',
+    branch: 'main',
+    head: '0123456789abcdef0123456789abcdef01234567',
+    ahead: 1,
+    behind: 2,
+    additions: 3,
+    deletions: 4,
+    generation: 7,
+    changedFileCount: 1,
+    truncated: false,
+    files: [
+        {
+            path: 'src/extension.ts',
+            index: ' ',
+            workingTree: 'M',
+            kind: 'modified' as const,
+        },
+    ],
+};
+
+const summary: GitSummary = {
+    isRepository: true,
+    repositories: [repo],
+};
+
+const commitDetails: GitCommitDetails = {
+    commit: {
+        sha: repo.head,
+        shortSha: '0123456',
+        subject: 'Own Git product semantics',
+        body: 'Move Source Control projection into the extension.',
+        author: 'Octocat',
+        authorEmail: '12345+octocat@users.noreply.github.com',
+        authoredAt: 1_700_000_000_000,
+        decorations: ['HEAD -> main'],
+        parents: [],
+    },
+    additions: 3,
+    deletions: 4,
+    files: [{ path: 'src/extension.ts', status: 'modified' }],
+    filesTruncated: false,
+};
+
+const commitPage: GitCommitPage = {
+    commits: [commitDetails.commit],
+};
+const scopeId = 'session-a:project-a';
+
+function createHarness(options: { avatars?: boolean } = {}) {
+    const git = {
+        summary: vi.fn<WorkspaceGit['summary']>(() => Promise.resolve(summary)),
+        sync: vi.fn<WorkspaceGit['sync']>(() => Promise.resolve()),
+        discard: vi.fn<WorkspaceGit['discard']>(() => Promise.resolve(null)),
+        pullRequestChanges: vi.fn<WorkspaceGit['pullRequestChanges']>(() => Promise.resolve(null)),
+        commits: vi.fn<WorkspaceGit['commits']>(() => Promise.resolve(commitPage)),
+        commitDetails: vi.fn<WorkspaceGit['commitDetails']>(() => Promise.resolve(commitDetails)),
+        remoteHost: vi.fn<WorkspaceGit['remoteHost']>(() => Promise.resolve('github.com')),
+    } satisfies WorkspaceGit;
+    const getConfigRequest = vi.fn<(key: string) => Promise<boolean | undefined>>();
+    getConfigRequest.mockResolvedValue(options.avatars);
+    const getConfig: CaxriApi['workspace']['getConfiguration'] = async <Value = unknown>(
+        key: string,
+    ): Promise<Value | undefined> => (await getConfigRequest(key)) as Value | undefined;
+    const workspace: Pick<CaxriApi['workspace'], 'getConfiguration' | 'git'> = {
+        getConfiguration: getConfig,
+        git,
+    };
+    return { getConfiguration: getConfigRequest, git, provider: new GitProvider(workspace) };
+}
+
+describe('GitProvider', () => {
+    it('keeps mode and refresh generations isolated and monotonic per Workbench scope', async () => {
+        const { git, provider } = createHarness();
+        const cancellation = new CancellationTokenSource();
+
+        const sessionA = await provider.provideView(
+            {
+                scopeId: 'session-a:project-a',
+                preferredModeId: 'commit',
+                refresh: 3,
+            },
+            cancellation.token,
+        );
+        const sessionB = await provider.provideView(
+            { scopeId: 'session-b:project-b', refresh: 0 },
+            cancellation.token,
+        );
+        const sessionAAfterRemount = await provider.provideView(
+            { scopeId: 'session-a:project-a', refresh: 0 },
+            cancellation.token,
+        );
+
+        expect(sessionA.selectedModeId).toBe('commit');
+        expect(sessionB.selectedModeId).toBe('working');
+        expect(sessionAAfterRemount.selectedModeId).toBe('commit');
+        expect(git.summary.mock.calls.map(([refresh]) => refresh)).toEqual([3, 0, 3]);
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('keeps a multi-repository model below the Extension Host payload ceiling', async () => {
+        const largeSummary: GitSummary = {
+            isRepository: true,
+            repositories: Array.from({ length: 5 }, (_unused, repoIndex) => ({
+                ...repo,
+                id: `repo-${repoIndex}`,
+                name: `repository-${repoIndex}`,
+                files: Array.from({ length: 1_000 }, (_entry, fileIndex) => ({
+                    path: `packages/feature-${repoIndex}/${'nested/'.repeat(18)}file-${fileIndex}.ts`,
+                    index: ' ',
+                    workingTree: 'M',
+                    kind: 'modified' as const,
+                })),
+                changedFileCount: 1_000,
+            })),
+        };
+        const { git, provider } = createHarness();
+        vi.mocked(git.summary).mockResolvedValue(largeSummary);
+        const cancellation = new CancellationTokenSource();
+
+        const view = await provider.provideView(
+            { scopeId: 'session-a:project-a', refresh: 0 },
+            cancellation.token,
+        );
+
+        expect(Buffer.byteLength(JSON.stringify(view), 'utf8')).toBeLessThan(4 * 1024 * 1024);
+        expect(view.providers).toHaveLength(5);
+        expect(
+            view.providers.every((providerModel) => providerModel.groups[0]?.resources.length),
+        ).toBe(true);
+        expect(
+            view.providers.some((providerModel) => providerModel.groups[0]?.truncationMessage),
+        ).toBe(true);
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('bounds concurrent background detail requests across repositories', async () => {
+        const manyRepositories: GitSummary = {
+            isRepository: true,
+            repositories: Array.from({ length: 6 }, (_unused, index) => ({
+                ...repo,
+                id: `repo-${index}`,
+                name: `repository-${index}`,
+                files: [],
+                changedFileCount: 0,
+            })),
+        };
+        const requests: Array<ReturnType<typeof Promise.withResolvers<GitCommitDetails>>> = [];
+        const { git, provider } = createHarness();
+        vi.mocked(git.summary).mockResolvedValue(manyRepositories);
+        vi.mocked(git.commitDetails).mockImplementation(() => {
+            const request = Promise.withResolvers<GitCommitDetails>();
+            requests.push(request);
+            return request.promise;
+        });
+        const cancellation = new CancellationTokenSource();
+
+        await provider.provideView(
+            { scopeId, preferredModeId: 'commit', refresh: 0 },
+            cancellation.token,
+        );
+
+        expect(git.commitDetails).toHaveBeenCalledTimes(4);
+        requests[0].resolve(commitDetails);
+        await vi.waitFor(() => expect(git.commitDetails).toHaveBeenCalledTimes(5));
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('preserves each Workbench scope while a global detail slot is transferred', async () => {
+        const context = new AsyncLocalStorage<string>();
+        const manyRepositories: GitSummary = {
+            isRepository: true,
+            repositories: Array.from({ length: 6 }, (_unused, index) => ({
+                ...repo,
+                id: `repo-a-${index}`,
+                name: `repository-a-${index}`,
+                files: [],
+                changedFileCount: 0,
+            })),
+        };
+        const repoB = { ...repo, id: 'repo-b', name: 'repository-b' };
+        const requests: Array<ReturnType<typeof Promise.withResolvers<GitCommitDetails>>> = [];
+        const requestContexts: Array<string | undefined> = [];
+        const { git, provider } = createHarness();
+        vi.mocked(git.summary)
+            .mockResolvedValueOnce(manyRepositories)
+            .mockResolvedValueOnce({ isRepository: true, repositories: [repoB] });
+        vi.mocked(git.commitDetails).mockImplementation(() => {
+            requestContexts.push(context.getStore());
+            const request = Promise.withResolvers<GitCommitDetails>();
+            requests.push(request);
+            return request.promise;
+        });
+        const cancellation = new CancellationTokenSource();
+
+        await context.run('scope-a', () =>
+            provider.provideView(
+                { scopeId: 'session-a:project-a', preferredModeId: 'commit', refresh: 0 },
+                cancellation.token,
+            ),
+        );
+        await context.run('scope-b', () =>
+            provider.provideView(
+                { scopeId: 'session-b:project-b', preferredModeId: 'commit', refresh: 0 },
+                cancellation.token,
+            ),
+        );
+        expect(requestContexts).toEqual(['scope-a', 'scope-a', 'scope-a', 'scope-a']);
+        requests[0].resolve(commitDetails);
+        await vi.waitFor(() => expect(git.commitDetails).toHaveBeenCalledTimes(5));
+        requests[1].resolve(commitDetails);
+        await vi.waitFor(() => expect(git.commitDetails).toHaveBeenCalledTimes(6));
+        requests[2].resolve(commitDetails);
+        await vi.waitFor(() => expect(git.commitDetails).toHaveBeenCalledTimes(7));
+
+        expect(requestContexts).toEqual([
+            'scope-a',
+            'scope-a',
+            'scope-a',
+            'scope-a',
+            'scope-a',
+            'scope-a',
+            'scope-b',
+        ]);
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('projects authorized Runtime data into opaque, revision-bound actions', async () => {
+        const { git, provider } = createHarness();
+        const cancellation = new CancellationTokenSource();
+
+        const view = await provider.provideView(
+            { scopeId, preferredModeId: 'working', refresh: 3 },
+            cancellation.token,
+        );
+        const resource = view.providers[0]?.groups[0]?.resources[0];
+        const discard = resource.actions?.[0];
+
+        expect(git.summary).toHaveBeenCalledWith(3, cancellation.token);
+        expect(view).toMatchObject({
+            selectedModeId: 'working',
+            providers: [
+                {
+                    label: 'project',
+                    groups: [
+                        {
+                            label: 'Changes',
+                            resources: [{ label: 'extension.ts', description: 'M' }],
+                        },
+                    ],
+                },
+            ],
+        });
+        expect(discard?.id).toMatch(/^action-\d+$/);
+        expect(discard?.id).not.toBe(discard?.command.id);
+
+        await provider.runAction(
+            { actionId: discard!.id, scopeId, revision: view.revision },
+            cancellation.token,
+        );
+        expect(git.discard).toHaveBeenCalledWith(
+            'repo-1',
+            { kind: 'file', path: 'src/extension.ts' },
+            cancellation.token,
+        );
+        await expect(
+            provider.executeCommand('caxri.git.history', [repo.id], cancellation.token),
+        ).resolves.toEqual({ effects: [], refresh: false });
+        await expect(
+            provider.executeCommand('caxri.git.history', ['missing'], cancellation.token),
+        ).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' });
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('returns an authoritative mutation result when Git invalidation advances its revision', async () => {
+        const syncRequest = Promise.withResolvers<void>();
+        const { git, provider } = createHarness();
+        vi.mocked(git.sync).mockReturnValueOnce(syncRequest.promise);
+        const cancellation = new CancellationTokenSource();
+        const view = await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+        const sync = view.providers[0]?.actions[0];
+
+        const result = provider.runAction(
+            { actionId: sync.id, scopeId, revision: view.revision },
+            cancellation.token,
+        );
+        await vi.waitFor(() => expect(git.sync).toHaveBeenCalledOnce());
+        provider.refresh(scopeId);
+        syncRequest.resolve();
+
+        await expect(result).resolves.toMatchObject({
+            revision: view.revision,
+            refresh: true,
+        });
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('rejects cancelled raw requests before constructing a view model', async () => {
+        const pending = Promise.withResolvers<GitSummary>();
+        const { getConfiguration, git, provider } = createHarness();
+        vi.mocked(git.summary).mockReturnValueOnce(pending.promise);
+        const cancellation = new CancellationTokenSource();
+
+        const request = provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+        cancellation.cancel();
+        pending.resolve(summary);
+
+        await expect(request).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(getConfiguration).not.toHaveBeenCalled();
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('fences superseded snapshot state before publishing history avatars', async () => {
+        const firstRemoteHost = Promise.withResolvers<string | null>();
+        const { git, provider } = createHarness({ avatars: true });
+        vi.mocked(git.remoteHost)
+            .mockReturnValueOnce(firstRemoteHost.promise)
+            .mockResolvedValueOnce('github.com');
+        const cancellation = new CancellationTokenSource();
+
+        const first = await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+        const stale = provider.provideHistoryPage(
+            {
+                historyId: repo.id,
+                scopeId,
+                offset: 0,
+                pageSize: 5,
+                revision: first.revision,
+            },
+            cancellation.token,
+        );
+        await vi.waitFor(() => expect(git.remoteHost).toHaveBeenCalledTimes(1));
+        const current = await provider.provideView({ scopeId, refresh: 1 }, cancellation.token);
+        const page = await provider.provideHistoryPage(
+            {
+                historyId: repo.id,
+                scopeId,
+                offset: 0,
+                pageSize: 5,
+                revision: current.revision,
+            },
+            cancellation.token,
+        );
+        firstRemoteHost.resolve(null);
+
+        await expect(stale).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+        expect(page.items[0]?.avatarUrl).toBe(
+            'https://avatars.githubusercontent.com/u/12345?s=60&v=4',
+        );
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('publishes loading state before cancellable Commit details complete', async () => {
+        const pending = Promise.withResolvers<GitCommitDetails>();
+        const { git, provider } = createHarness();
+        vi.mocked(git.commitDetails).mockReturnValueOnce(pending.promise);
+        const cancellation = new CancellationTokenSource();
+        const changes: string[] = [];
+        const subscription = provider.onDidChange((change) => changes.push(change.kind));
+
+        const loading = await provider.provideView(
+            { scopeId, preferredModeId: 'commit', refresh: 0 },
+            cancellation.token,
+        );
+        expect(loading.providers[0]?.groups[0]).toMatchObject({
+            emptyMessage: 'Loading last commit…',
+            resources: [],
+        });
+        expect(loading.providers[0]?.history).toBeUndefined();
+        pending.resolve(commitDetails);
+        await vi.waitFor(() => expect(changes).toContain('content'));
+        const ready = await provider.provideView(
+            { scopeId, preferredModeId: 'commit', refresh: 0 },
+            cancellation.token,
+        );
+        expect(ready.providers[0].groups[0].resources[0]).toMatchObject({
+            label: 'extension.ts',
+            description: 'M',
+        });
+        subscription.dispose();
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('cancels superseded background details without publishing stale content', async () => {
+        const pending = Promise.withResolvers<GitCommitDetails>();
+        const { git, provider } = createHarness();
+        vi.mocked(git.commitDetails).mockReturnValueOnce(pending.promise);
+        const cancellation = new CancellationTokenSource();
+        const changes: string[] = [];
+        const subscription = provider.onDidChange((change) => changes.push(change.kind));
+
+        await provider.provideView(
+            { scopeId, preferredModeId: 'commit', refresh: 0 },
+            cancellation.token,
+        );
+        const detailToken = vi.mocked(git.commitDetails).mock.calls[0]?.[1];
+        provider.refresh(scopeId);
+        pending.resolve(commitDetails);
+        await new Promise((resolve) => setImmediate(resolve));
+
+        expect(detailToken?.isCancellationRequested).toBe(true);
+        expect(changes).toEqual(['refresh']);
+
+        subscription.dispose();
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('expires action capabilities and history targets with the provider revision', async () => {
+        const { provider } = createHarness();
+        const cancellation = new CancellationTokenSource();
+        const view = await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+        const action = view.providers[0]?.groups[0]?.resources[0]?.action;
+
+        provider.refresh(scopeId);
+
+        await expect(
+            provider.runAction(
+                { actionId: action!.id, scopeId, revision: view.revision },
+                cancellation.token,
+            ),
+        ).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+        await expect(
+            provider.provideHistoryPage(
+                {
+                    historyId: repo.id,
+                    scopeId,
+                    offset: 0,
+                    pageSize: 5,
+                    revision: view.revision,
+                },
+                cancellation.token,
+            ),
+        ).rejects.toMatchObject({ code: 'GENERATION_EXPIRED' });
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    it('publishes a generic scoped selection request for command-driven mode changes', () => {
+        const { provider } = createHarness();
+        const changes: unknown[] = [];
+        const subscription = provider.onDidChange((change) => changes.push(change));
+
+        provider.setMode('commit');
+        provider.setMode('commit');
+        provider.refresh();
+
+        expect(changes).toEqual([
+            { kind: 'selection', selectedModeId: 'commit' },
+            { kind: 'selection', selectedModeId: 'commit' },
+            { kind: 'refresh' },
+        ]);
+
+        subscription.dispose();
+        provider.dispose();
+    });
+});

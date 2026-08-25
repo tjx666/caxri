@@ -100,6 +100,35 @@ describe('files.browse bound', () => {
     });
 });
 
+describe('Files Core recovery scope and list bound', () => {
+    it('requires a Session scope for every durable operation lookup and control', () => {
+        for (const method of [
+            'files.operation.get',
+            'files.operation.list',
+            'files.operation.cancel',
+            'files.operation.acknowledge',
+        ] as const) {
+            const parameters =
+                method === 'files.operation.list'
+                    ? { sessionId: 'session-1' }
+                    : { operationId: 'operation-1', sessionId: 'session-1' };
+            expect(methods[method].params.safeParse(parameters).success).toBe(true);
+            expect(
+                methods[method].params.safeParse(
+                    method === 'files.operation.list' ? {} : { operationId: 'operation-1' },
+                ).success,
+            ).toBe(false);
+        }
+    });
+
+    it('returns an explicit bounded directory page instead of an unbounded array', () => {
+        expect(
+            methods['files.list'].result.safeParse({ entries: [], truncated: false }).success,
+        ).toBe(true);
+        expect(methods['files.list'].result.safeParse([]).success).toBe(false);
+    });
+});
+
 describe('git.commitDetails sha shape', () => {
     it('requires a full lowercase 40-character sha', () => {
         const schema = methods['git.commitDetails'].params;
@@ -112,6 +141,25 @@ describe('git.commitDetails sha shape', () => {
 });
 
 describe('Runtime-owned Git discard consent', () => {
+    it('accepts only extension intent and rejects Runtime-derived prompt metadata', () => {
+        const schema = methods['git.discard'].params;
+        const base = { sessionId: 'session-1', repositoryId: 'repository-1' };
+        expect(schema.safeParse({ ...base, scope: { kind: 'all' } }).success).toBe(true);
+        expect(
+            schema.safeParse({
+                ...base,
+                repositoryName: 'spoofed-name',
+                scope: { kind: 'all', fileCount: 999 },
+            }).success,
+        ).toBe(false);
+        expect(
+            schema.safeParse({
+                ...base,
+                scope: { kind: 'file', path: 'tracked.txt', untracked: true },
+            }).success,
+        ).toBe(false);
+    });
+
     it('accepts only a repository/scope lookup for preflight, never prompt metadata', () => {
         const schema = internalMethods['git.discard.preflight'].params;
         expect(
@@ -174,10 +222,10 @@ describe('controlled view operation scope', () => {
     it('requires a typed Session or no-Session context on every provider request', () => {
         const schema = methods['viewContainers.viewOperation'].params;
         const request = {
-            viewId: 'publisher.files.explorer',
+            viewId: 'publisher.git.sourceControl',
             requestId: 'request-1',
-            operation: 'files.list' as const,
-            arguments: {},
+            operation: 'source.snapshot' as const,
+            arguments: { refresh: 0 },
         };
 
         expect(

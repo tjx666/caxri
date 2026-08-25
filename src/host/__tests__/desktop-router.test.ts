@@ -210,8 +210,7 @@ describe('Host Desktop router', () => {
         await router.discard(
             {
                 repositoryId: 'repo-1',
-                repositoryName: 'ignored-extension-name',
-                scope: { kind: 'all', fileCount: 999 },
+                scope: { kind: 'all' },
                 sessionId: session.id,
             },
             undefined,
@@ -322,8 +321,7 @@ describe('Host Desktop router', () => {
     it('confirms Runtime-canonical Git discard details and applies only its one-use token', async () => {
         const parameters = {
             repositoryId: 'repo-1',
-            repositoryName: 'Project',
-            scope: { kind: 'all' as const, fileCount: 2 },
+            scope: { kind: 'all' as const },
             sessionId: session.id,
         };
         const preflight = {
@@ -382,8 +380,7 @@ describe('Host Desktop router', () => {
     it('never prompts or mutates when Runtime says the requested path is already clean', async () => {
         const parameters = {
             repositoryId: 'repo-1',
-            repositoryName: 'spoofed-name',
-            scope: { kind: 'file' as const, path: 'stale.txt', untracked: true },
+            scope: { kind: 'file' as const, path: 'stale.txt' },
             sessionId: session.id,
         };
         const request = vi.fn((method: string) => {
@@ -412,8 +409,7 @@ describe('Host Desktop router', () => {
     it('does not apply a Runtime consent token after the Desktop confirmation is canceled', async () => {
         const parameters = {
             repositoryId: 'repo-1',
-            repositoryName: 'spoofed-name',
-            scope: { kind: 'all' as const, fileCount: 999 },
+            scope: { kind: 'all' as const },
             sessionId: session.id,
         };
         const request = vi.fn((method: string) => {
@@ -472,8 +468,7 @@ describe('Host Desktop router', () => {
         const discarded = router.discard(
             {
                 repositoryId: 'repo-1',
-                repositoryName: 'ignored-extension-name',
-                scope: { kind: 'all', fileCount: 999 },
+                scope: { kind: 'all' },
                 sessionId: session.id,
             },
             controller.signal,

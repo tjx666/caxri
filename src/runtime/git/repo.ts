@@ -604,6 +604,13 @@ export class GitRepoService {
     }
 
     /**
+     * Advances status state synchronously after an authorized Runtime mutation, independent of watcher latency.
+     */
+    observeWorkingTreeMutation(rootPath: string): void {
+        this.observeMetadataStatus('', [rootPath]);
+    }
+
+    /**
      * Worktree membership or repository config changed: rediscover topology on next read.
      */
     observeMetadataTopology(repoKey: string): void {

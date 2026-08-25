@@ -9,6 +9,7 @@ import type {
 import type { GitFileStatus, GitRepositorySummary as GitRepoSummary } from '../../shared/types';
 import { isOutsideRoot } from '../path-security';
 import type { GitDiscardSnapshot } from './repo';
+import { authoritativeGitMutation } from './request-signal';
 
 /**
  * Network-bound Git operations (pull/push) can legitimately take far longer than local metadata commands; this bound
@@ -40,6 +41,7 @@ export interface GitWorkingTreeServiceOptions {
     ) => Promise<string>;
     resolveRepository: (sessionId: string, repoId: string) => Promise<GitRepoSummary>;
     snapshot: (sessionId: string, repoId: string) => Promise<GitDiscardSnapshot>;
+    onDidMutate?: (repoRoot: string) => void;
     now?: () => number;
     maximumConsents?: number;
     consentTtlMs?: number;
@@ -223,6 +225,7 @@ export class GitWorkingTreeService {
                     'Git working-tree count changed after confirmation',
                 );
             await this.discardAll(snapshot.repository);
+            this.options.onDidMutate?.(snapshot.repository.rootPath);
             return null;
         }
         const fileScope = consent.scope;
@@ -233,6 +236,7 @@ export class GitWorkingTreeService {
         if (!file || (file.kind === 'untracked') !== fileScope.untracked)
             throw new CaxriError('CONFLICT', 'Git file status changed after confirmation');
         await this.discardFile(snapshot.repository, file);
+        this.options.onDidMutate?.(snapshot.repository.rootPath);
         return null;
     }
 
@@ -244,8 +248,11 @@ export class GitWorkingTreeService {
             parameters.sessionId,
             parameters.repositoryId,
         );
-        await this.options.git(repo.rootPath, ['pull'], { timeoutMs: SYNC_TIMEOUT_MS });
-        await this.options.git(repo.rootPath, ['push'], { timeoutMs: SYNC_TIMEOUT_MS });
-        return null;
+        return authoritativeGitMutation(async () => {
+            await this.options.git(repo.rootPath, ['pull'], { timeoutMs: SYNC_TIMEOUT_MS });
+            await this.options.git(repo.rootPath, ['push'], { timeoutMs: SYNC_TIMEOUT_MS });
+            this.options.onDidMutate?.(repo.rootPath);
+            return null;
+        });
     }
 }
