@@ -12,14 +12,15 @@ interface SourceControlHeaderProperties {
     mode: SourceControlViewMode;
 }
 
+function runCommand(command: string | undefined): void {
+    if (command) executeCommand(command);
+}
+
 export function SourceControlHeader({ mode }: SourceControlHeaderProperties) {
     const workingTreeCommand = useControlledViewActionCommand('source.workingTree');
     const lastCommitCommand = useControlledViewActionCommand('source.lastCommit');
     const pullRequestCommand = useControlledViewActionCommand('source.pullRequest');
     const refreshCommand = useControlledViewActionCommand('source.refresh');
-    const run = (command: string | undefined): void => {
-        if (command) executeCommand(command);
-    };
     return (
         <PanelHeader
             className="git-heading"
@@ -40,7 +41,7 @@ export function SourceControlHeader({ mode }: SourceControlHeaderProperties) {
                                 )}
                                 aria-label="Working Tree Changes"
                                 aria-pressed={mode === 'working'}
-                                onClick={() => run(workingTreeCommand)}
+                                onClick={() => runCommand(workingTreeCommand)}
                             >
                                 {/* A working-tree change set is a diff, not a branch: the branch mark already labels
                                     the Git tab and every repository row. */}
@@ -56,7 +57,7 @@ export function SourceControlHeader({ mode }: SourceControlHeaderProperties) {
                                 )}
                                 aria-label="Last Commit Changes"
                                 aria-pressed={mode === 'commit'}
-                                onClick={() => run(lastCommitCommand)}
+                                onClick={() => runCommand(lastCommitCommand)}
                             >
                                 <GitCommitHorizontal size={13} />
                             </button>
@@ -70,7 +71,7 @@ export function SourceControlHeader({ mode }: SourceControlHeaderProperties) {
                                 )}
                                 aria-label="Pull Request Changes"
                                 aria-pressed={mode === 'pull-request'}
-                                onClick={() => run(pullRequestCommand)}
+                                onClick={() => runCommand(pullRequestCommand)}
                             >
                                 <GitPullRequest size={13} />
                             </button>
@@ -85,7 +86,7 @@ export function SourceControlHeader({ mode }: SourceControlHeaderProperties) {
                             aria-label={
                                 mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git'
                             }
-                            onClick={() => run(refreshCommand)}
+                            onClick={() => runCommand(refreshCommand)}
                         >
                             <RefreshCw size={13} />
                         </Button>

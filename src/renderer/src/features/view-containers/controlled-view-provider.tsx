@@ -7,8 +7,10 @@ import type { ControlledViewContextValue } from './controlled-view-context';
 import { ControlledViewContext } from './controlled-view-context';
 import { createResourceExplorerClient, createSourceControlClient } from './view-operation-client';
 
+const emptyActions: readonly ViewActionDescriptor[] = [];
+
 export function ControlledViewProvider({
-    actions = [],
+    actions = emptyActions,
     children,
     extensionGeneration,
     kind,
