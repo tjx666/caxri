@@ -10,6 +10,11 @@ const CONFIG_TARGET = 'config';
  * https://learn.chatgpt.com/docs/hooks#precompact and https://learn.chatgpt.com/docs/hooks#postcompact
  */
 const bindings = [
+    /**
+     * `SessionStart` fires for startup, resume, clear, and compact. Unlike `UserPromptSubmit`, it also covers resumes
+     * followed only by a slash command, so Caxri can bind the exact thread before the first ordinary prompt.
+     */
+    { event: 'SessionStart', phase: 'sessionIdentified' },
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'PermissionRequest', phase: 'attentionRequested' },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
@@ -63,7 +68,7 @@ function hooksSource(documents: AgentHookDocuments): string | undefined {
 
 export const codexHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 4,
+    schemaVersion: 5,
     configTargets: (environment) => {
         const home = codexHome(environment.homeDirectory, environment.variables.CODEX_HOME);
         return [
