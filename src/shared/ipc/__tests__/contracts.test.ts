@@ -448,7 +448,10 @@ describe('file mutation contracts', () => {
                 name: 'note.txt',
             }).success,
         ).toBe(false);
-        expect(methods['files.operation.list'].params.safeParse(undefined).success).toBe(true);
+        expect(methods['files.operation.list'].params.safeParse(undefined).success).toBe(false);
+        expect(
+            methods['files.operation.list'].params.safeParse({ sessionId: 'session-1' }).success,
+        ).toBe(true);
     });
 
     it.each(['', '.', '..', '../escape', 'nested/file', String.raw`nested\file`, 'null\0byte'])(
