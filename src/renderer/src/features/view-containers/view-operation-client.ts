@@ -9,6 +9,7 @@ import type {
     MovedFileEntry,
     MutableFileEntry,
 } from '@shared/types';
+import type { ExtensionViewEventContext } from '@shared/views';
 
 type FileSearchResult = MethodResult<'files.search'>;
 
@@ -157,6 +158,7 @@ export function isControlledViewOperationQuery(
 
 async function viewOperation<Result>(
     viewId: string,
+    context: ExtensionViewEventContext,
     operation: ViewOperation,
     arguments_: Record<string, unknown>,
     signal?: AbortSignal,
@@ -173,6 +175,7 @@ async function viewOperation<Result>(
         const result = (await caxri.request('viewContainers.viewOperation', {
             viewId,
             requestId,
+            context,
             operation,
             arguments: arguments_,
         } as never)) as Result;
@@ -188,44 +191,57 @@ async function viewOperation<Result>(
     }
 }
 
-export function createResourceExplorerClient(viewId: string): ResourceExplorerClient {
+export function createResourceExplorerClient(
+    viewId: string,
+    context: ExtensionViewEventContext,
+): ResourceExplorerClient {
     return {
         viewId,
         acknowledgeOperation: (operationId, signal) =>
-            viewOperation(viewId, 'files.operation.acknowledge', { operationId }, signal),
+            viewOperation(viewId, context, 'files.operation.acknowledge', { operationId }, signal),
         cancelOperation: (operationId, signal) =>
-            viewOperation(viewId, 'files.operation.cancel', { operationId }, signal),
+            viewOperation(viewId, context, 'files.operation.cancel', { operationId }, signal),
         copy: (path, directory, signal) =>
-            viewOperation(viewId, 'files.copy', { path, directory }, signal),
-        create: (options, signal) => viewOperation(viewId, 'files.create', options, signal),
+            viewOperation(viewId, context, 'files.copy', { path, directory }, signal),
+        create: (options, signal) =>
+            viewOperation(viewId, context, 'files.create', options, signal),
         getOperation: (operationId, signal) =>
-            viewOperation(viewId, 'files.operation.get', { operationId }, signal),
+            viewOperation(viewId, context, 'files.operation.get', { operationId }, signal),
         list: (directory, signal) =>
             viewOperation(
                 viewId,
+                context,
                 'files.list',
                 { ...(directory !== undefined && { directory }) },
                 signal,
             ),
-        listOperations: (signal) => viewOperation(viewId, 'files.operation.list', {}, signal),
-        move: (options, signal) => viewOperation(viewId, 'files.move', options, signal),
-        rename: (options, signal) => viewOperation(viewId, 'files.rename', options, signal),
-        reveal: (path, signal) => viewOperation(viewId, 'files.reveal', { path }, signal),
-        search: (options, signal) => viewOperation(viewId, 'files.search', options, signal),
+        listOperations: (signal) =>
+            viewOperation(viewId, context, 'files.operation.list', {}, signal),
+        move: (options, signal) => viewOperation(viewId, context, 'files.move', options, signal),
+        rename: (options, signal) =>
+            viewOperation(viewId, context, 'files.rename', options, signal),
+        reveal: (path, signal) => viewOperation(viewId, context, 'files.reveal', { path }, signal),
+        search: (options, signal) =>
+            viewOperation(viewId, context, 'files.search', options, signal),
         trash: (path, options, signal) =>
-            viewOperation(viewId, 'files.trash', { path, ...options }, signal),
+            viewOperation(viewId, context, 'files.trash', { path, ...options }, signal),
     };
 }
 
-export function createSourceControlClient(viewId: string): SourceControlClient {
+export function createSourceControlClient(
+    viewId: string,
+    context: ExtensionViewEventContext,
+): SourceControlClient {
     return {
         viewId,
         commitDetails: (options, signal) =>
-            viewOperation(viewId, 'git.commitDetails', options, signal),
-        commits: (options, signal) => viewOperation(viewId, 'git.commits', options, signal),
+            viewOperation(viewId, context, 'git.commitDetails', options, signal),
+        commits: (options, signal) =>
+            viewOperation(viewId, context, 'git.commits', options, signal),
         discard: (repo, scope, signal) =>
             viewOperation(
                 viewId,
+                context,
                 'git.discard',
                 { repositoryId: repo.id, repositoryName: repo.name, scope },
                 signal,
@@ -233,14 +249,16 @@ export function createSourceControlClient(viewId: string): SourceControlClient {
         pullRequestChanges: (repoId, refresh = 0, signal) =>
             viewOperation(
                 viewId,
+                context,
                 'git.pullRequestChanges',
                 { repositoryId: repoId, refresh },
                 signal,
             ),
         remoteHost: (repoId, signal) =>
-            viewOperation(viewId, 'git.remoteHost', { repositoryId: repoId }, signal),
-        summary: (refresh = 0, signal) => viewOperation(viewId, 'git.summary', { refresh }, signal),
+            viewOperation(viewId, context, 'git.remoteHost', { repositoryId: repoId }, signal),
+        summary: (refresh = 0, signal) =>
+            viewOperation(viewId, context, 'git.summary', { refresh }, signal),
         sync: (repoId, signal) =>
-            viewOperation(viewId, 'git.sync', { repositoryId: repoId }, signal),
+            viewOperation(viewId, context, 'git.sync', { repositoryId: repoId }, signal),
     };
 }

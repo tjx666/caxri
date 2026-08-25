@@ -169,3 +169,33 @@ describe('host.stop default confirmation', () => {
         expect(methods['host.stop'].params.parse(undefined)).toEqual({ confirmLivePtys: false });
     });
 });
+
+describe('controlled view operation scope', () => {
+    it('requires a typed Session or no-Session context on every provider request', () => {
+        const schema = methods['viewContainers.viewOperation'].params;
+        const request = {
+            viewId: 'publisher.files.explorer',
+            requestId: 'request-1',
+            operation: 'files.list' as const,
+            arguments: {},
+        };
+
+        expect(
+            schema.safeParse({
+                ...request,
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
+            }).success,
+        ).toBe(true);
+        expect(schema.safeParse(request).success).toBe(false);
+        expect(
+            schema.safeParse({
+                ...request,
+                context: { kind: 'session', sessionId: 'session-1' },
+            }).success,
+        ).toBe(false);
+    });
+});

@@ -26,6 +26,7 @@
                 {
                     "id": "caxri.fixture",
                     "title": "Extension Fixture",
+                    "order": 300,
                     "icon": {
                         "kind": "resource",
                         "path": "media/fixture.svg"

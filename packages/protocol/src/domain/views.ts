@@ -249,6 +249,7 @@ const manifestContainerIconSchema = z.discriminatedUnion('kind', [
 const manifestContainerSchema = z.object({
     id: contributedViewContainerIdSchema,
     title: z.string().min(1).max(200),
+    order: z.number().int().min(0).max(10_000).optional(),
     icon: manifestContainerIconSchema,
     command: extensionCommandIdSchema.optional(),
 });

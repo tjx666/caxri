@@ -8,7 +8,7 @@ import type {
     TreeChildrenResult,
     ViewCatalogSnapshot,
 } from '@caxri/protocol';
-import { methods } from '@caxri/protocol';
+import { CaxriError, methods } from '@caxri/protocol';
 
 import type {
     ExtensionFilesChange,
@@ -82,6 +82,19 @@ function workspaceCapability(operation: ExtensionWorkspaceOperation): ExtensionC
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
+}
+
+function assertActiveViewContext(
+    expected: ExtensionViewEventContext,
+    active: { sessionId?: string; workbenchProjectId?: string },
+): void {
+    if (expected.kind === 'no-session' && !active.sessionId && !active.workbenchProjectId) return;
+    if (
+        expected.kind !== 'session' ||
+        expected.sessionId !== active.sessionId ||
+        expected.workbenchProjectId !== active.workbenchProjectId
+    )
+        throw new CaxriError('CANCELLED', 'Controlled view scope is no longer active');
 }
 
 function workspaceParameters(
@@ -369,6 +382,7 @@ export class ExtensionService extends EventTarget {
         const { operation } = request.params;
         const capability = workspaceCapability(operation);
         const active = await this.activeContextForApi(request, capability);
+        assertActiveViewContext(request.params.context, active);
         const parameters = workspaceParameters(
             operation,
             request.params.arguments,
@@ -617,7 +631,9 @@ export class ExtensionService extends EventTarget {
         operation: ExtensionWorkspaceOperation;
         arguments: unknown;
         requestId: string;
+        context: ExtensionViewEventContext;
     }): Promise<unknown> {
+        assertActiveViewContext(parameters.context, await this.options.activeContext());
         const extension = this.extensionForView(parameters.viewId);
         const descriptor = this.catalog().views.find(({ id }) => id === parameters.viewId);
         const expectedKind = parameters.operation.startsWith('files.')
@@ -629,18 +645,19 @@ export class ExtensionService extends EventTarget {
                 { code: 'CAPABILITY_DENIED' },
             );
         await this.activate(extension, `onView:${parameters.viewId}`);
+        assertActiveViewContext(parameters.context, await this.options.activeContext());
         const generation = this.states.get(extension.extensionId)!.generation;
-        const context = toExtensionViewEventContext(await this.options.activeContext());
         const result = await this.supervisor?.request('viewOperation', {
             extensionId: extension.extensionId,
             generation,
             ...parameters,
-            context,
         });
         if (this.states.get(extension.extensionId)?.generation !== generation)
             throw Object.assign(new Error('View provider generation expired'), {
                 code: 'GENERATION_EXPIRED',
             });
+        if (readWorkspaceOperations.has(parameters.operation))
+            assertActiveViewContext(parameters.context, await this.options.activeContext());
         return validatedExtensionWorkspaceResult(parameters.operation, result);
     }
 

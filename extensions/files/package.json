@@ -26,6 +26,7 @@
                 {
                     "id": "caxri.files",
                     "title": "Files",
+                    "order": 100,
                     "icon": {
                         "kind": "builtin",
                         "id": "files"

@@ -1,6 +1,7 @@
 import type { ViewCatalogSnapshot } from '@shared/views';
 
 import { caxri } from '../../lib/caxri';
+import { getSelectedSession } from '../../stores/selectors';
 import type { ResourceExplorerClient } from './view-operation-client';
 import { createResourceExplorerClient } from './view-operation-client';
 
@@ -24,7 +25,15 @@ export function availableResourceExplorerViewId(
 async function resourceExplorerClient(): Promise<ResourceExplorerClient | undefined> {
     const catalog = await caxri.request('viewContainers.catalog', {});
     const viewId = availableResourceExplorerViewId(catalog);
-    return viewId ? createResourceExplorerClient(viewId) : undefined;
+    const session = getSelectedSession();
+    const context = session
+        ? {
+              kind: 'session' as const,
+              sessionId: session.id,
+              workbenchProjectId: session.workbenchProjectId,
+          }
+        : { kind: 'no-session' as const };
+    return viewId ? createResourceExplorerClient(viewId, context) : undefined;
 }
 
 /**

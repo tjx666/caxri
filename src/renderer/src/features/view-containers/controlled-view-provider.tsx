@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 
 import type { ViewActionDescriptor } from '@shared/views';
 
+import { useSelectedSession } from '../../stores/selectors';
 import type { ControlledViewContextValue } from './controlled-view-context';
 import { ControlledViewContext } from './controlled-view-context';
 import { createResourceExplorerClient, createSourceControlClient } from './view-operation-client';
@@ -22,16 +23,22 @@ export function ControlledViewProvider({
     kind: 'resource-explorer' | 'source-control';
     viewId: string;
 }) {
-    const value = useMemo<ControlledViewContextValue>(
-        () => ({
+    const session = useSelectedSession();
+    const sessionId = session?.id;
+    const workbenchProjectId = session?.workbenchProjectId;
+    const value = useMemo<ControlledViewContextValue>(() => {
+        const context =
+            sessionId && workbenchProjectId
+                ? { kind: 'session' as const, sessionId, workbenchProjectId }
+                : { kind: 'no-session' as const };
+        return {
             actions,
             extensionGeneration,
             viewId,
             ...(kind === 'resource-explorer'
-                ? { resourceExplorer: createResourceExplorerClient(viewId) }
-                : { sourceControl: createSourceControlClient(viewId) }),
-        }),
-        [actions, extensionGeneration, kind, viewId],
-    );
+                ? { resourceExplorer: createResourceExplorerClient(viewId, context) }
+                : { sourceControl: createSourceControlClient(viewId, context) }),
+        };
+    }, [actions, extensionGeneration, kind, sessionId, viewId, workbenchProjectId]);
     return <ControlledViewContext value={value}>{children}</ControlledViewContext>;
 }

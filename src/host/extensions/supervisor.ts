@@ -148,6 +148,7 @@ export function isExtensionHostMessage(value: unknown): value is ExtensionHostMe
                     extensionWorkspaceOperations.includes(
                         value.params.operation as (typeof extensionWorkspaceOperations)[number],
                     ) &&
+                    extensionViewEventContextSchema.safeParse(value.params.context).success &&
                     hasBoundedApiArguments(value.params.arguments)))
         );
     if (value.type === 'api-cancel') return isBoundedString(value.id, 200);

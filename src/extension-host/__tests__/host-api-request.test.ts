@@ -4,6 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ExtensionHostMessage } from '../../shared/extension-host-protocol';
 import { rejectPendingApiRequests, requestHostApi } from '../host-api-request';
 
+const context = {
+    kind: 'session' as const,
+    sessionId: 'session-1',
+    workbenchProjectId: 'project-1',
+};
+
 describe('Extension Host API requests', () => {
     afterEach(() => {
         rejectPendingApiRequests('Test cleanup');
@@ -22,7 +28,10 @@ describe('Extension Host API requests', () => {
                 isApiTokenCurrent: () => true,
                 send: (message) => sent.push(message),
             },
-            { method: 'workspace.request', params: { operation: 'files.list', arguments: {} } },
+            {
+                method: 'workspace.request',
+                params: { operation: 'files.list', arguments: {}, context },
+            },
             source.token,
         );
 
@@ -50,6 +59,7 @@ describe('Extension Host API requests', () => {
                 params: {
                     operation: 'files.copy',
                     arguments: { directory: '/project', path: '/project/source' },
+                    context,
                 },
             },
             source.token,
@@ -84,7 +94,10 @@ describe('Extension Host API requests', () => {
                 isApiTokenCurrent: () => true,
                 send: (message) => sent.push(message),
             },
-            { method: 'workspace.request', params: { operation: 'files.list', arguments: {} } },
+            {
+                method: 'workspace.request',
+                params: { operation: 'files.list', arguments: {}, context },
+            },
         );
 
         const assertion = expect(request).rejects.toMatchObject({ code: 'PROVIDER_TIMEOUT' });
