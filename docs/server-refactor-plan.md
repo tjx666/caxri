@@ -25,19 +25,26 @@ receipt before the next batch begins.
 ```text
 A0 Freeze behavior and install parity gates
   -> A1 Control WebSocket migration (issue caxri#366, current layout)
-      -> A2 Workspace graph and standalone Server artifact
-          -> A3a Merge generic Host and Runtime into Server Core
-              -> A3b Extract the Terminal Host boundary with parity lifecycle
-                  -> A4 Durable identity, receipts, and changefeed
-                      -> A5 Binary Terminal and file streams
-                          -> A6 Internal observability and fault diagnostics
-                              -> A7 Full differential Acceptance and architecture cutover
+      -> A2a Workspace contract and import guardrails
+          -> A2b Shared package boundaries
+              -> A2c Move CLI to apps/cli
+                  -> A2d Move Desktop to apps/desktop
+                      -> A2e Move Server sources to apps/server
+                          -> A2f Standalone Server artifact and root cutover
+                              -> A3a Merge generic Host and Runtime into Server Core
+                                  -> A3b Extract the Terminal Host boundary with parity lifecycle
+                                      -> A4 Durable identity, receipts, and changefeed
+                                          -> A5 Binary Terminal and file streams
+                                              -> A6 Internal observability and fault diagnostics
+                                                  -> A7 Full differential Acceptance and architecture cutover
 ```
 
 The order deliberately lands [issue caxri#366](https://github.com/tjx666/caxri/issues/366) before
-workspace movement. Its existing baseline and implementation point at the current source layout, and its
-UDS-specific connection code should be deleted before connection logic is extracted into
-`packages/client`.
+the A2 workspace migration. Its existing baseline and implementation point at the current source layout,
+and its UDS-specific connection code should be deleted before connection logic is extracted into
+`packages/client`. A2 is a six-batch migration family, making fourteen independently gated architecture
+batches in total. Every A2 sub-batch lands as its own exact-head review and parity boundary; the source
+tree is never copied into parallel old and new implementations for a later bulk cutover.
 
 ## A0 — Freeze behavior and install parity gates
 
@@ -106,40 +113,187 @@ remain later batches. A1 does not spend reusable infrastructure on the temporary
 - the new exact head contains no production UDS listener, socket endpoint, or decoder;
 - no visible intentional difference is accepted.
 
-## A2 — Workspace graph and standalone Server artifact
+## A2 — Repository topology migration
 
-### A2 outcome
+A2 makes the target `apps/*` and `packages/*` ownership graph real without changing process ownership or
+product behavior. It is split by reviewable ownership boundary rather than delivered as one mechanical
+mega-move. Each sub-batch moves tests with their owner, updates every path-sensitive build and tooling
+consumer in the same change, removes the superseded path, and passes the frozen parity catalog before
+the next move starts.
 
-Make the target repository topology and independently deployable Server artifact real without changing
-runtime behavior.
+| Current ownership                                        | Target ownership                                                    | Batch       |
+| -------------------------------------------------------- | ------------------------------------------------------------------- | ----------- |
+| reusable connection and projection code                  | `packages/client`                                                   | A2b         |
+| `packages/api`                                           | `packages/extension-api`                                            | A2b         |
+| `src/shared`                                             | owning application or browser-safe package, with no shared catchall | A2b/A2d/A2e |
+| `packages/cli`                                           | `apps/cli`                                                          | A2c         |
+| `src/main`, `src/preload`, and `src/renderer`            | `apps/desktop`                                                      | A2d         |
+| `src/host`, `src/runtime`, and `src/extension-host`      | `apps/server`                                                       | A2e         |
+| root product entrypoints and transitional path machinery | none; root becomes a private workspace orchestrator                 | A2f         |
 
-### A2 scope
+### A2a — Workspace contract and import guardrails
 
-- perform one contract cut that updates `AGENTS.md`, workspace globs, package scripts, build and test
-  configuration, source-layout guidance, CLI and Extension docs, quality-toolchain checks, and workspace
-  contract tests to the target paths;
-- move product entrypoints to `apps/desktop`, `apps/server`, and `apps/cli` and remove the root product
-  `src/`;
-- make the root package a private workspace orchestrator;
-- extract WS-native connection, recovery, state projection, and artifact supervision into
+#### A2a outcome
+
+Make the target dependency direction executable before any target path becomes a precedent.
+
+#### A2a scope
+
+- define `apps/*` as independently runnable or deployable products and `packages/*` as importable
+  contracts or reusable implementation without committing empty application workspaces;
+- update workspace globs, TypeScript project references, build and test discovery, path-sensitive
+  repository scripts, source-layout guidance, and workspace contract tests so they understand both the
+  current source locations and the next authorized target location;
+- enable ESLint application/package boundaries, explicit package exports, cycle checks, browser-safety
+  rules, and negative fixtures before the first source move;
+- encode every temporary current-layout allowance explicitly, with the A2 sub-batch that must delete it;
+- keep the root package's current product entrypoints until their owning source moves, while preventing
+  any new cross-boundary dependency that would make those moves harder.
+
+#### A2a exit receipts
+
+- every forbidden target edge has a failing ESLint or workspace-contract fixture;
+- every temporary allowance names its removal batch, and no wildcard application-to-application import
+  is allowed;
+- the unchanged production sources, build, package, CLI, and Desktop pass their existing gates;
+- A0 parity receipts remain equal because this batch changes enforcement only.
+
+### A2b — Shared package boundaries
+
+#### A2b outcome
+
+Establish the reusable package seams that applications consume before application source is relocated.
+
+#### A2b scope
+
+- extract WS-native connection, retry, recovery, projection, and artifact-supervision contracts into
   `packages/client` without carrying deleted UDS code;
+- keep the `@caxri/client` root browser-safe and expose environment-specific supervision only through
+  its reviewed subpath;
 - rename the physical public API workspace to `packages/extension-api` while retaining its reviewed
   public import identity and keeping it independent from protocol registry and transport internals;
-- produce the self-contained Server directory artifact and make Desktop and self-managed distributions
-  supervise that exact artifact;
-- enable final ESLint boundaries, explicit exports, project boundaries, cycle checks, and negative
-  contract fixtures in the same change;
-- retain existing internal Server process ownership temporarily, while forbidding new generic Host or
-  Runtime APIs.
+- move remaining genuinely shared browser-safe contracts into `packages/protocol`, keep pure utilities
+  in `packages/utils`, and leave application-specific shared code with its application owner;
+- migrate every consumer in the same change and delete compatibility re-exports once the last consumer
+  leaves them.
 
-### A2 exit receipts
+#### A2b exit receipts
 
-- the Server artifact starts from a temporary directory outside the monorepo with no sibling Caxri
+- package-consumer tests prove only declared exports are reachable;
+- `packages/client`, `packages/protocol`, `packages/extension-api`, and `packages/utils` satisfy their
+  browser, runtime-dependency, and ownership constraints;
+- no application imports another application's source or a package-private deep path;
+- control connection, recovery, CLI, Agent, and Desktop parity receipts remain equal.
+
+### A2c — Move CLI to `apps/cli`
+
+#### A2c outcome
+
+Make CLI an independently runnable application while preserving its commands, output, exit codes, and
+standalone distribution.
+
+#### A2c scope
+
+- move `packages/cli` production source, tests, package manifest, build entry, embedded product skill,
+  and artifact validation to `apps/cli` with `git mv` semantics;
+- keep the CLI composition root and its `commands`, connection, and skills boundaries intact during the
+  move;
+- consume public package exports only, including `packages/client` for Server connection and
+  supervision;
+- update repository commands, packaging, docs, test discovery, and all path-derived runtime asset
+  resolution, then remove the old CLI workspace and its A2a allowance.
+
+#### A2c exit receipts
+
+- the CLI artifact runs outside the monorepo with its existing human, JSON, and Agent behavior;
+- command output, stable errors, exit codes, endpoint selection, skills, and Desktop wait behavior match
+  the A0 baseline;
+- no `packages/cli` source, build entry, documentation precedent, or transitional import remains.
+
+### A2d — Move Desktop to `apps/desktop`
+
+#### A2d outcome
+
+Make Electron Main, Preload, Renderer, and Process Explorer one Desktop application workspace without
+changing their runtime or security behavior.
+
+#### A2d scope
+
+- move Desktop-owned Main, Preload, Renderer, Process Explorer, assets, and their tests beneath
+  `apps/desktop` while preserving the internal Renderer feature structure;
+- move Desktop-only shared code with the Desktop and replace cross-application shared imports with the
+  public package boundaries established in A2b;
+- update Electron Vite inputs, TypeScript projects, aliases, Vitest, Playwright, packaging, native asset,
+  CDP, build-ID, and development-launch path resolution in the same change;
+- preserve sandboxing, preload allowlists, native-dialog boundaries, BrowserWindow ownership, Desktop
+  lifecycle, and the current Server supervision contract;
+- delete the old Desktop source paths and their A2a allowances after all consumers move.
+
+#### A2d exit receipts
+
+- dev, production, and packaged Desktop launch from the new workspace with the same profile and artifact
+  behavior;
+- the real Electron critical journeys are semantically and visually equal to the A0 evidence;
+- Renderer remains browser-safe, Preload remains narrow, and no application-source import bypasses a
+  package boundary;
+- startup, editor, Terminal, memory, watcher, and file-descriptor budgets do not regress.
+
+### A2e — Move Server sources to `apps/server`
+
+#### A2e outcome
+
+Give all Server-owned source one application boundary while deliberately preserving its current internal
+process and failure topology until A3.
+
+#### A2e scope
+
+- move the current service entrypoint, domain Runtime, Extension Host, persistence, migrations, PTY,
+  watcher, Git, Agent, and diagnostic implementation beneath `apps/server` with their owning tests;
+- keep the current generic Host, Runtime child, and Extension Host process boundaries behaviorally
+  intact during this physical move; their temporary internal names and directories are removed by A3a,
+  not disguised as final architecture;
+- update process entrypoints, `import.meta.url` assets, native-module loading, migrations, extension
+  bundles, worker paths, packaging inputs, development runners, benchmarks, and fault-injection fixtures;
+- make Desktop and CLI consume only `packages/client` rather than importing `apps/server` source;
+- remove the root Server source paths and their A2a allowances after all launchers target the new app.
+
+#### A2e exit receipts
+
+- the same process tree, readiness order, restart behavior, persistence, Terminal lifecycle, Extension
+  behavior, stable failures, and diagnostics are observed from the new paths;
+- production build, native compatibility, migrations, extensions, CLI/Agent connection, benchmarks, and
+  real Desktop attach pass;
+- no production Server source or deep Server import remains under the root `src/` tree;
+- every path-only evidence difference is normalized explicitly, with no product-facing difference.
+
+### A2f — Standalone Server artifact and root cutover
+
+#### A2f outcome
+
+Complete the topology cutover and prove that `apps/server` produces the same independently deployable
+artifact for Desktop, self-managed, and future platform supervision.
+
+#### A2f scope
+
+- produce the self-contained Server directory containing runtime code, bundles, native dependencies,
+  migrations, extensions, and metadata;
+- make Desktop package that exact archive and make CLI or an operator supervise the same layout through
+  `packages/client`, without downloading an executable or importing Server source;
+- copy the artifact to a temporary directory outside the monorepo and start it with no sibling Caxri
   workspace installed;
-- Desktop packages that exact artifact, and a self-managed distribution uses the same archive;
-- application source never imports another application's source, and every forbidden edge has a failing
-  ESLint fixture;
-- the A0 scenario catalog remains semantically and visually equal despite source and artifact movement;
+- make the repository root a private workspace orchestrator, remove the product `src/` tree, transitional
+  aliases, path fallbacks, and every remaining A2a allowance;
+- update `AGENTS.md`, source-layout, architecture, CLI, Extension, operator, build, package, and release
+  documentation to describe only the new topology.
+
+#### A2f exit receipts
+
+- the copied Server artifact starts outside the monorepo, reports readiness, completes an authenticated
+  protocol handshake, and shuts down cleanly without installing another Caxri workspace;
+- packaged Desktop and self-managed distribution consume byte-identical Server inputs;
+- the root owns no product source, application source never imports another application, and all final
+  ESLint boundaries and negative fixtures pass without transitional allowances;
+- the complete A0 scenario catalog remains semantically and visually equal across the topology cutover;
 - production build, package-consumer smoke, startup budget, CLI, Agent, and real Desktop attach pass.
 
 ## A3a — Merge the generic Host and Runtime into Server Core
@@ -368,4 +522,4 @@ Every architecture batch must include:
 
 The future capability batches become separate issues only after A7. Existing
 [issue caxri#366](https://github.com/tjx666/caxri/issues/366) remains the independent A1 transport
-migration and must complete its exact-before/exact-after parity record before workspace movement.
+migration and must complete its exact-before/exact-after parity record before A2a starts.
