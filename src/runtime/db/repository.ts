@@ -212,8 +212,13 @@ export class CaxriDatabase {
         return this.db.transaction(() => {
             const terminal = this.db.terminals.get(terminalId);
             if (!terminal) return false;
+            /**
+             * A snapshot for the Terminal's exact hook-bound identity may legitimately duplicate another Terminal that
+             * resumed the same conversation. Only an unbound or different identity is still a heuristic claim.
+             */
             if (
                 snapshot.sessionId &&
+                snapshot.sessionId !== terminal.agentSessionId &&
                 this.db.terminals
                     .list()
                     .some(
@@ -343,7 +348,8 @@ export class CaxriDatabase {
     }
 
     /**
-     * Agent session IDs are provider-owned identities and may belong to only one Terminal.
+     * Returns identities that heuristic discovery must not assign to another Terminal. Exact authenticated hook signals
+     * may still bind multiple Terminals to the same provider session when the user intentionally resumes it twice.
      */
     claimedAgentSessionIds(terminalId: string): string[] {
         const terminal = this.db.terminals.get(terminalId);
@@ -372,8 +378,8 @@ export class CaxriDatabase {
 
     /**
      * Rebinds a Terminal to the provider session a validated hook signal reports, so a manual in-terminal resume
-     * updates identity (and, through the next metadata probe, the title). Refuses sessions another Terminal of the same
-     * provider already owns.
+     * updates identity (and, through the next metadata probe, the title). The hook is exact generation-scoped evidence,
+     * so two Terminals may intentionally show the same provider session; uniqueness remains only a heuristic guard.
      */
     rebindAgentSession(
         terminalId: string,
@@ -384,13 +390,6 @@ export class CaxriDatabase {
             const terminal = this.db.terminals.get(terminalId);
             if (!terminal || terminal.provider !== provider) return false;
             if (terminal.agentSessionId === agentSessionId) return false;
-            if (
-                this.claimedAgentSessionIdsForProvider(provider, terminalId).includes(
-                    agentSessionId,
-                )
-            ) {
-                return false;
-            }
             this.db.terminals.updateAgentSessionId(terminalId, agentSessionId);
             return true;
         });

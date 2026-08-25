@@ -86,43 +86,43 @@ describe('Agent provider hook configuration adapters', () => {
 
     it('updates only stale Caxri entries and leaves a newer Codex schema untouched', () => {
         const current = install(codexHookAdapter, 'hooks', '{}\n', 'codex');
-        const stale = current.replaceAll('--schema 4', '--schema 3');
+        const stale = current.replaceAll('--schema 5', '--schema 4');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', stale],
                     ['config', undefined],
                 ]),
-                desired('codex', 4),
+                desired('codex', 5),
             ).status,
-        ).toEqual({ kind: 'stale', installedSchema: 3 });
+        ).toEqual({ kind: 'stale', installedSchema: 4 });
 
         const updated = codexHookAdapter.render(
             new Map([
                 ['hooks', stale],
                 ['config', undefined],
             ]),
-            desired('codex', 4),
+            desired('codex', 5),
         )[0].source;
-        expect(updated).not.toContain('--schema 3');
+        expect(updated).not.toContain('--schema 4');
 
-        const newer = updated.replaceAll('--schema 4', '--schema 5');
+        const newer = updated.replaceAll('--schema 5', '--schema 6');
         expect(
             codexHookAdapter.inspect(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 4),
+                desired('codex', 5),
             ).status,
-        ).toEqual({ kind: 'newer', installedSchema: 5 });
+        ).toEqual({ kind: 'newer', installedSchema: 6 });
         expect(
             codexHookAdapter.remove(
                 new Map([
                     ['hooks', newer],
                     ['config', undefined],
                 ]),
-                desired('codex', 4),
+                desired('codex', 5),
             ),
         ).toHaveLength(0);
     });
@@ -137,6 +137,16 @@ describe('Agent provider hook configuration adapters', () => {
         );
         expect(installed.hooks.PostCompact[0].hooks[0].command).toContain(
             '--phase compactionFinished',
+        );
+    });
+
+    it('installs a Codex session-start hook that identifies startup and resumed threads', () => {
+        const installed = JSON.parse(install(codexHookAdapter, 'hooks', '{}\n', 'codex')) as {
+            hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+        };
+
+        expect(installed.hooks.SessionStart[0].hooks[0].command).toContain(
+            '--phase sessionIdentified',
         );
     });
 
