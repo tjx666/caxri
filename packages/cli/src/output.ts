@@ -36,6 +36,7 @@ export function quietLines(value: unknown): string[] {
 const exitCodes: Record<CaxriErrorCode, number> = {
     VALIDATION: 2,
     NOT_FOUND: 3,
+    CANCELLED: 4,
     CONFLICT: 4,
     PATH_DENIED: 5,
     FORBIDDEN: 5,

@@ -89,7 +89,7 @@ export class FileService {
         );
         this.searcher = new SearchService(
             resolveSessionPath,
-            (sessionId, path) => this.read(sessionId, path),
+            (sessionId, path, signal) => this.read(sessionId, path, signal),
             logger,
             maxFileBytes,
             options.search,
@@ -112,8 +112,8 @@ export class FileService {
         return this.projectRoots.listApprovedProjectRoots();
     }
 
-    list(sessionId: string, directory?: string): Promise<FileEntry[]> {
-        return this.listing.list(sessionId, directory);
+    list(sessionId: string, directory?: string, signal?: AbortSignal): Promise<FileEntry[]> {
+        return this.listing.list(sessionId, directory, signal);
     }
 
     browse(
@@ -282,9 +282,10 @@ export class FileService {
         });
     }
 
-    async read(sessionId: string, path: string): Promise<FileDocument> {
+    async read(sessionId: string, path: string, signal?: AbortSignal): Promise<FileDocument> {
+        signal?.throwIfAborted();
         const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path);
-        return this.operations.run(() => this.documents.read(sessionId, path), {
+        return this.operations.run(() => this.documents.read(sessionId, path, signal), {
             maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
             paths: [operationPath.path],
         });
@@ -300,8 +301,9 @@ export class FileService {
 
     search(
         parameters: RuntimeMethodParameters<'files.search'>,
+        signal?: AbortSignal,
     ): Promise<RuntimeMethodResult<'files.search'>> {
-        return this.searcher.search(parameters);
+        return this.searcher.search(parameters, signal);
     }
 
     watchSession(sessionId?: string): Promise<void> {

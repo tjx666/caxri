@@ -18,7 +18,9 @@ import { SingleFlight } from '../single-flight';
 import type { GitChangeTracker } from './change-tracker';
 import { toGitError } from './errors';
 import type { GitMetadataWatcher } from './metadata-watcher';
-import { RepoStatusStore } from './status';
+import { sharedGitRequest } from './request-signal';
+import type { RepoStatus } from './status';
+import { parseGitLineStats, parseGitStatus, RepoStatusStore } from './status';
 import type { RepoTopologyRegistry } from './topology';
 
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
@@ -27,17 +29,56 @@ const MAX_CONCURRENT_GIT_COMMANDS = 8;
  * projection bound so truncation happens at the protocol limit, not here.
  */
 const MAX_GIT_STATUS_BUFFER_BYTES = 32 * 1024 * 1024;
+const MAX_CONCURRENT_DISCARD_IDENTITY_READS = 32;
 
-interface RepoStatus {
-    branch: string;
-    head?: string;
-    ahead: number;
-    behind: number;
-    additions: number;
-    deletions: number;
-    changedFileCount: number;
-    truncated: boolean;
-    files: GitFileStatus[];
+/**
+ * Git diffs contain tracked content but not untracked bytes. Bind destructive consent to each untracked filesystem
+ * identity so replacing or rewriting a same-status path after the native prompt cannot delete a different file.
+ */
+async function untrackedIdentityFingerprint(
+    rootPath: string,
+    files: readonly GitFileStatus[],
+): Promise<string> {
+    const identities = await mapWithConcurrency(
+        files.filter(({ kind }) => kind === 'untracked'),
+        MAX_CONCURRENT_DISCARD_IDENTITY_READS,
+        async (file) => {
+            const path = resolve(rootPath, file.path);
+            if (isOutsideRoot(relative(rootPath, path)))
+                throw new CaxriError(
+                    'PATH_DENIED',
+                    'Git path is outside the authorized repository',
+                );
+            try {
+                const stats = await lstat(path, { bigint: true });
+                return [
+                    file.path,
+                    stats.dev,
+                    stats.ino,
+                    stats.mode,
+                    stats.size,
+                    stats.mtimeNs,
+                    stats.ctimeNs,
+                ].join('\0');
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+                    return `${file.path}\0missing`;
+                throw error;
+            }
+        },
+    );
+    return identities.join('\0');
+}
+
+/**
+ * Full working-tree evidence used by the destructive discard consent boundary. The public Git summary may truncate its
+ * file projection, so discard re-reads the complete porcelain stream and binds the confirmation to its digest.
+ */
+export interface GitDiscardSnapshot {
+    authorizedPaths: readonly string[];
+    files: readonly GitFileStatus[];
+    fingerprint: string;
+    repository: GitRepoSummary;
 }
 
 interface RepoRoot {
@@ -85,92 +126,6 @@ interface ChildCacheEntry {
 }
 
 const MAX_CHILD_CACHE_ENTRIES = 256;
-
-function statusKind(code: string): GitFileStatus['kind'] {
-    if (code === 'AA' || code === 'DD' || code.includes('U')) return 'conflicted';
-    if (code.includes('R')) return 'renamed';
-    if (code.includes('D')) return 'deleted';
-    if (code.includes('A')) return 'added';
-    return 'modified';
-}
-
-function parseStatusRecord(
-    record: string,
-    originalPath?: string,
-):
-    | {
-          code: string;
-          path: string;
-          originalPath?: string;
-          kind?: GitFileStatus['kind'];
-      }
-    | undefined {
-    if (record.startsWith('? ')) return { code: '??', path: record.slice(2), kind: 'untracked' };
-    const ordinary = /^1 (\S{2})(?: \S+){6} (.+)$/.exec(record);
-    if (ordinary) return { code: ordinary[1], path: ordinary[2] };
-    const renamed = /^2 (\S{2})(?: \S+){7} (.+)$/.exec(record);
-    if (renamed) return { code: renamed[1], path: renamed[2], originalPath, kind: 'renamed' };
-    const conflicted = /^u (\S{2})(?: \S+){8} (.+)$/.exec(record);
-    if (conflicted) return { code: conflicted[1], path: conflicted[2], kind: 'conflicted' };
-    return undefined;
-}
-
-function parseStatus(
-    output: string,
-): Omit<RepoStatus, 'additions' | 'deletions' | 'changedFileCount' | 'truncated'> {
-    const records = output.split('\0').filter(Boolean);
-    const files: GitFileStatus[] = [];
-    let branch = 'detached';
-    let head: string | undefined;
-    let ahead = 0;
-    let behind = 0;
-    for (let index = 0; index < records.length; index += 1) {
-        const record = records[index];
-        if (record.startsWith('# branch.head ')) {
-            branch = record.slice('# branch.head '.length);
-            continue;
-        }
-        if (record.startsWith('# branch.oid ')) {
-            const oid = record.slice('# branch.oid '.length);
-            // Keep the full 40-hex oid: `git.commitDetails` params validate against it, so a
-            // shortened head would be rejected when the panel loads the last commit's changes.
-            head = oid === '(initial)' ? undefined : oid;
-            continue;
-        }
-        if (record.startsWith('# branch.ab ')) {
-            const match = /^# branch\.ab \+(\d+) -(\d+)$/.exec(record);
-            ahead = Number(match?.[1] ?? 0);
-            behind = Number(match?.[2] ?? 0);
-            continue;
-        }
-        const parsed = parseStatusRecord(
-            record,
-            record.startsWith('2 ') ? records[index + 1] : undefined,
-        );
-        if (!parsed) continue;
-        const code = parsed.code.replaceAll('.', ' ');
-        files.push({
-            path: parsed.path,
-            originalPath: parsed.originalPath,
-            index: code[0],
-            workingTree: code[1],
-            kind: parsed.kind ?? (code === '??' ? 'untracked' : statusKind(code)),
-        });
-        if (record.startsWith('2 ')) index += 1;
-    }
-    return { branch, head, ahead, behind, files };
-}
-
-function parseLineStats(output: string): Pick<RepoStatus, 'additions' | 'deletions'> {
-    let additions = 0;
-    let deletions = 0;
-    for (const line of output.split('\n')) {
-        const [added, deleted] = line.split('\t', 2);
-        if (/^\d+$/.test(added)) additions += Number(added);
-        if (/^\d+$/.test(deleted)) deletions += Number(deleted);
-    }
-    return { additions, deletions };
-}
 
 export interface GitWorktreeEntry {
     branch: string;
@@ -280,7 +235,7 @@ export class GitRepoService {
                 allowFailure: true,
             }),
         ]);
-        const parsed = parseStatus(statusOutput);
+        const parsed = parseGitStatus(statusOutput);
         const changedFileCount = parsed.files.length;
         const isTruncated = changedFileCount > MAX_GIT_STATUS_FILES;
         return {
@@ -288,7 +243,7 @@ export class GitRepoService {
             changedFileCount,
             truncated: isTruncated,
             files: isTruncated ? parsed.files.slice(0, MAX_GIT_STATUS_FILES) : parsed.files,
-            ...parseLineStats(lineStatsOutput),
+            ...parseGitLineStats(lineStatsOutput),
         };
     }
 
@@ -689,8 +644,10 @@ export class GitRepoService {
             this.options.logger.write('debug', logEventCatalog.git.summary, {
                 fields: { outcome: 'joined', reason: isForce ? 'refresh' : 'request' },
             });
-        return this.summaries.run(key, () =>
-            this.loadSummary(sessionId, isForce ? 'refresh' : 'request', sessionGeneration),
+        return sharedGitRequest(() =>
+            this.summaries.run(key, () =>
+                this.loadSummary(sessionId, isForce ? 'refresh' : 'request', sessionGeneration),
+            ),
         );
     }
 
@@ -704,7 +661,53 @@ export class GitRepoService {
             );
         return repo;
     }
-
+    /**
+     * Reads full status and binds destructive consent to a fresh, authorized repository projection.
+     */
+    async discardSnapshot(sessionId: string, repoIdValue: string): Promise<GitDiscardSnapshot> {
+        // Refresh the projection before hashing the status stream; that stream remains the consent-race authority.
+        const refresh = (this.refreshNonces.get(sessionId) ?? 0) + 1;
+        const summary = await this.summary(sessionId, refresh);
+        const repo = summary.repositories.find((candidate) => candidate.id === repoIdValue);
+        if (!repo)
+            throw new CaxriError(
+                'PATH_DENIED',
+                'Git repository is outside the approved Project roots',
+            );
+        const [statusOutput, trackedContentOutput] = await Promise.all([
+            this.options.git(
+                repo.rootPath,
+                ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'],
+                { maxBufferBytes: MAX_GIT_STATUS_BUFFER_BYTES },
+            ),
+            this.options.git(repo.rootPath, ['diff', '--binary', '--no-ext-diff', 'HEAD', '--'], {
+                allowFailure: true,
+                maxBufferBytes: MAX_GIT_STATUS_BUFFER_BYTES,
+            }),
+        ]);
+        const parsed = parseGitStatus(statusOutput);
+        const untrackedIdentityOutput = await untrackedIdentityFingerprint(
+            repo.rootPath,
+            parsed.files,
+        );
+        const authorizedPaths = new Set<string>();
+        for (const file of repo.files) {
+            authorizedPaths.add(file.path);
+            if (file.originalPath) authorizedPaths.add(file.originalPath);
+        }
+        return {
+            authorizedPaths: [...authorizedPaths],
+            files: parsed.files,
+            fingerprint: createHash('sha256')
+                .update(statusOutput)
+                .update('\0')
+                .update(trackedContentOutput)
+                .update('\0')
+                .update(untrackedIdentityOutput)
+                .digest('hex'),
+            repository: repo,
+        };
+    }
     /**
      * Resolves the repository that owns one listed directory without crossing its Project root.
      */

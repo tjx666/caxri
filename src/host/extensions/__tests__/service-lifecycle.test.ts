@@ -8,6 +8,7 @@ const supervisorHarness = vi.hoisted(() => ({
     requests: [] as Array<{ method: string; parameters?: Record<string, unknown> }>,
     startListeners: [] as Array<() => void>,
     treeChildrenFailure: undefined as Error | undefined,
+    viewOperationResult: undefined as unknown,
 }));
 
 vi.mock('../catalog', () => ({
@@ -37,6 +38,15 @@ vi.mock('../catalog', () => ({
                     extensionId: 'publisher.fixture',
                     viewKind: 'tree',
                     title: 'Fixture',
+                    lifecycle: state.lifecycle,
+                },
+                {
+                    id: 'publisher.fixture.files',
+                    containerId: 'publisher.fixture',
+                    source: { kind: 'extension', extensionId: 'publisher.fixture' },
+                    extensionId: 'publisher.fixture',
+                    viewKind: { kind: 'resource-explorer' },
+                    title: 'Files',
                     lifecycle: state.lifecycle,
                 },
             ],
@@ -130,7 +140,8 @@ vi.mock('../supervisor', () => ({
                 const failure = supervisorHarness.treeChildrenFailure;
                 supervisorHarness.treeChildrenFailure = undefined;
                 if (failure) return Promise.reject(failure);
-            }
+            } else if (method === 'viewOperation')
+                return Promise.resolve(supervisorHarness.viewOperationResult);
             return Promise.resolve({ items: [] });
         }
 
@@ -157,6 +168,7 @@ describe('ExtensionService generation lifecycle', () => {
         supervisorHarness.requests.length = 0;
         supervisorHarness.startListeners.length = 0;
         supervisorHarness.treeChildrenFailure = undefined;
+        supervisorHarness.viewOperationResult = undefined;
     });
 
     it('does not let a rejected retired activation overwrite the crash generation', async () => {
@@ -170,6 +182,7 @@ describe('ExtensionService generation lifecycle', () => {
             activeContext: () => Promise.resolve({}),
             projectIds: () => Promise.resolve([]),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
         });
         await service.start();
 
@@ -193,6 +206,46 @@ describe('ExtensionService generation lifecycle', () => {
         );
     });
 
+    it('clears the crash error when recovery activation started before the child became ready', async () => {
+        const service = new ExtensionService({
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            extensionRoots: ['/extensions'],
+            includeTestOnly: true,
+            logger: new StructuredLogger('/tmp/caxri-extension-service-test', 'host', 'error'),
+            activeContext: () => Promise.resolve({}),
+            projectIds: () => Promise.resolve([]),
+            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
+        });
+        await service.start();
+        for (const listener of supervisorHarness.exitListeners) listener(86);
+        supervisorHarness.viewOperationResult = [];
+
+        const recovery = service.viewOperation({
+            viewId: 'publisher.fixture.files',
+            operation: 'files.list',
+            arguments: {},
+            requestId: 'recovery-files-list',
+        });
+        await vi.waitFor(() =>
+            expect(supervisorHarness.requests).toContainEqual(
+                expect.objectContaining({ method: 'activate' }),
+            ),
+        );
+        for (const listener of supervisorHarness.startListeners) listener();
+        supervisorHarness.activation.resolve();
+
+        await expect(recovery).resolves.toEqual([]);
+        expect(service.catalog().extensions).toContainEqual({
+            id: 'publisher.fixture',
+            version: '1.0.0',
+            generation: 2,
+            lifecycle: 'active',
+        });
+    });
+
     it('recovers an expired branch handle with a current root snapshot', async () => {
         const service = new ExtensionService({
             appVersion: '0.0.17',
@@ -204,6 +257,7 @@ describe('ExtensionService generation lifecycle', () => {
             activeContext: () => Promise.resolve({}),
             projectIds: () => Promise.resolve([]),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
         });
         await service.start();
         supervisorHarness.activation.resolve();
@@ -237,6 +291,7 @@ describe('ExtensionService generation lifecycle', () => {
             activeContext: () => Promise.resolve({}),
             projectIds: () => Promise.resolve([]),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
         });
         await service.start();
         supervisorHarness.activation.resolve();
@@ -256,5 +311,74 @@ describe('ExtensionService generation lifecycle', () => {
         );
         expect(treeRequests).toHaveLength(2);
         expect(treeRequests.every(({ parameters }) => !parameters?.parentHandle)).toBe(true);
+    });
+
+    it('validates a controlled view result against its exact operation schema', async () => {
+        const service = new ExtensionService({
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            extensionRoots: ['/extensions'],
+            includeTestOnly: true,
+            logger: new StructuredLogger('/tmp/caxri-extension-service-test', 'host', 'error'),
+            activeContext: () => Promise.resolve({}),
+            projectIds: () => Promise.resolve([]),
+            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
+        });
+        await service.start();
+        supervisorHarness.activation.resolve();
+        supervisorHarness.viewOperationResult = { isRepository: false, repositories: [] };
+
+        await expect(
+            service.viewOperation({
+                viewId: 'publisher.fixture.files',
+                operation: 'files.list',
+                arguments: {},
+                requestId: 'request-files-list',
+            }),
+        ).rejects.toMatchObject({ code: 'PROVIDER_FAILED' });
+    });
+
+    it('accepts the public durable-operation projection without native identity fields', async () => {
+        const service = new ExtensionService({
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            extensionRoots: ['/extensions'],
+            includeTestOnly: true,
+            logger: new StructuredLogger('/tmp/caxri-extension-service-test', 'host', 'error'),
+            activeContext: () => Promise.resolve({}),
+            projectIds: () => Promise.resolve([]),
+            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
+        });
+        await service.start();
+        supervisorHarness.activation.resolve();
+        supervisorHarness.viewOperationResult = {
+            id: 'operation-1',
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            kind: 'rename',
+            phase: 'staged',
+            startedAt: 1,
+            updatedAt: 2,
+            input: { path: '/project/old.txt', name: 'new.txt' },
+            expectedResult: {
+                name: 'new.txt',
+                path: '/project/new.txt',
+                previousPath: '/project/old.txt',
+                kind: 'file',
+            },
+        };
+
+        await expect(
+            service.viewOperation({
+                viewId: 'publisher.fixture.files',
+                operation: 'files.operation.get',
+                arguments: { operationId: 'operation-1' },
+                requestId: 'request-operation-get',
+            }),
+        ).resolves.toEqual(supervisorHarness.viewOperationResult);
     });
 });

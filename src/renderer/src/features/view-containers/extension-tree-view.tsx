@@ -182,7 +182,15 @@ function unloadedExpandedHandles(
     return handles;
 }
 
-export function ExtensionTreeView({ title, viewId }: { title: string; viewId: string }) {
+export function ExtensionTreeView({
+    extensionGeneration,
+    title,
+    viewId,
+}: {
+    extensionGeneration: number;
+    title: string;
+    viewId: string;
+}) {
     const sessionState = useSessionState();
     const sessionId = sessionState?.sessionId;
     const workbenchProjectId = sessionState?.workbenchProjectId;
@@ -192,10 +200,11 @@ export function ExtensionTreeView({ title, viewId }: { title: string; viewId: st
                 ? {
                       sessionId,
                       workbenchProjectId,
+                      extensionGeneration,
                       viewId,
                   }
                 : undefined,
-        [sessionId, viewId, workbenchProjectId],
+        [extensionGeneration, sessionId, viewId, workbenchProjectId],
     );
     if (!scope)
         return (
@@ -205,11 +214,10 @@ export function ExtensionTreeView({ title, viewId }: { title: string; viewId: st
         );
     return (
         <ExtensionTreeViewContent
-            key={`${scope.sessionId}\0${scope.workbenchProjectId}\0${viewId}`}
+            key={`${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.extensionGeneration}\0${viewId}`}
             persisted={sessionState?.extensionTreeViewStates?.[viewId]}
             scope={scope}
             title={title}
-            viewId={viewId}
         />
     );
 }
@@ -218,17 +226,20 @@ function ExtensionTreeViewContent({
     persisted,
     scope,
     title,
-    viewId,
 }: {
     persisted?: ExtensionTreeViewState;
-    scope: { sessionId: string; workbenchProjectId: string; viewId: string };
+    scope: {
+        sessionId: string;
+        workbenchProjectId: string;
+        extensionGeneration: number;
+        viewId: string;
+    };
     title: string;
-    viewId: string;
 }) {
     const scrollElement = useRef<HTMLDivElement>(null);
     const [treeState, updateTreeState] = useExtensionTreeState(scope, persisted);
     const { children, errors, loading, loadChildren, requests } = useExtensionTreeChildren(
-        viewId,
+        scope,
         updateTreeState,
     );
 

@@ -111,6 +111,32 @@ describe('git.commitDetails sha shape', () => {
     });
 });
 
+describe('Runtime-owned Git discard consent', () => {
+    it('accepts only a repository/scope lookup for preflight, never prompt metadata', () => {
+        const schema = internalMethods['git.discard.preflight'].params;
+        expect(
+            schema.safeParse({
+                sessionId: 'session-1',
+                repositoryId: 'repository-1',
+                scope: { kind: 'file', path: 'tracked.txt' },
+            }).success,
+        ).toBe(true);
+        expect(
+            schema.safeParse({
+                sessionId: 'session-1',
+                repositoryId: 'repository-1',
+                scope: { kind: 'all', fileCount: 999 },
+            }).success,
+        ).toBe(false);
+    });
+
+    it('requires an opaque token for the destructive apply step', () => {
+        const schema = internalMethods['git.discard.apply'].params;
+        expect(schema.safeParse({ token: 'discard-token' }).success).toBe(true);
+        expect(schema.safeParse({ token: '' }).success).toBe(false);
+    });
+});
+
 describe('files.authorizeTrash internal identity fields', () => {
     it('requires numeric-string device and inode identifiers for the entry and its root', () => {
         const schema = internalMethods['files.authorizeTrash'].result;

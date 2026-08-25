@@ -109,4 +109,37 @@ describe('workbench IPC sender boundary', () => {
         await expect(pending).resolves.toMatchObject({ id: 'closing-read', ok: false });
         expect(write).not.toHaveBeenCalled();
     });
+
+    it('does not error-log a request that the Renderer deliberately cancelled', async () => {
+        const write = vi.fn();
+        installWorkbenchIpc({
+            isQuitting: () => false,
+            logger: () => ({ write }) as never,
+            renderer: () => renderer as never,
+            transport: {
+                dispatch: () =>
+                    Promise.resolve({
+                        protocolVersion: 2,
+                        id: 'cancelled-view',
+                        ok: false,
+                        error: { code: 'CANCELLED', message: 'View request was cancelled' },
+                    }),
+                negotiate,
+            },
+        });
+        const request = electronMock.handles.get('caxri:request')!;
+
+        await expect(
+            request(
+                { sender: renderer },
+                {
+                    protocolVersion: 2,
+                    id: 'cancelled-view',
+                    method: 'viewContainers.viewOperation',
+                    params: {},
+                },
+            ),
+        ).resolves.toMatchObject({ ok: false, error: { code: 'CANCELLED' } });
+        expect(write).not.toHaveBeenCalled();
+    });
 });

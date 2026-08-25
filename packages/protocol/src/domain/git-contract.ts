@@ -19,6 +19,7 @@ import {
 
 const hostRead = commandPolicy('host', 'read');
 const hostWrite = commandPolicy('host', 'write');
+const hostControl = commandPolicy('host', 'control');
 const desktopWrite = commandPolicy('desktop', 'write');
 
 const gitDiscardScopeSchema = z.discriminatedUnion('kind', [
@@ -35,6 +36,23 @@ const gitDiscardScopeSchema = z.discriminatedUnion('kind', [
         /**
          * Untracked files are deleted rather than restored, so the prompt must say so.
          */
+        untracked: z.boolean(),
+    }),
+]);
+
+const gitDiscardPreflightScopeSchema = z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('all') }),
+    z.strictObject({ kind: z.literal('file'), path: pathSchema }),
+]);
+
+const gitDiscardConsentScopeSchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('all'),
+        fileCount: z.number().int().positive().max(100_000),
+    }),
+    z.object({
+        kind: z.literal('file'),
+        path: pathSchema,
         untracked: z.boolean(),
     }),
 ]);
@@ -188,5 +206,35 @@ export const gitMethods = {
             path: pathSchema,
         }),
         result: gitCommitSchema.nullable(),
+    },
+} as const satisfies Record<string, MethodSpec>;
+
+/**
+ * Runtime-owned destructive Git confirmation. The preflight response is the only data allowed to reach the native
+ * confirmation prompt; the opaque token binds that copy to the full Runtime status fingerprint and is consumed once by
+ * the apply method. These methods are internal so extension and Renderer callers cannot forge a consent payload.
+ */
+export const gitInternalMethods = {
+    'git.discard.preflight': {
+        ...hostControl,
+        params: z.object({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+            scope: gitDiscardPreflightScopeSchema,
+        }),
+        result: z.union([
+            z.object({ status: z.literal('noop') }),
+            z.object({
+                status: z.literal('ready'),
+                token: identifierSchema,
+                repositoryName: z.string().min(1).max(1_024),
+                scope: gitDiscardConsentScopeSchema,
+            }),
+        ]),
+    },
+    'git.discard.apply': {
+        ...hostControl,
+        params: z.object({ token: identifierSchema }),
+        result: z.null(),
     },
 } as const satisfies Record<string, MethodSpec>;

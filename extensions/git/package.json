@@ -1,0 +1,83 @@
+{
+    "name": "caxri.git",
+    "version": "0.0.17",
+    "private": true,
+    "type": "module",
+    "main": "./dist/extension.js",
+    "scripts": {
+        "build": "bun run --cwd ../.. scripts/build-extension.ts --extension-root extensions/git",
+        "typecheck": "tsc --noEmit -p tsconfig.json"
+    },
+    "devDependencies": {
+        "caxri": "workspace:*"
+    },
+    "engines": {
+        "caxri": "^0.0.17"
+    },
+    "caxri": {
+        "capabilities": [
+            "git.read",
+            "git.write"
+        ]
+    },
+    "contributes": {
+        "viewsContainers": {
+            "secondarySidebar": [
+                {
+                    "id": "caxri.git",
+                    "title": "Git",
+                    "icon": {
+                        "kind": "builtin",
+                        "id": "git-branch"
+                    },
+                    "command": "secondarySidebar.showGit"
+                }
+            ]
+        },
+        "views": {
+            "caxri.git": [
+                {
+                    "id": "caxri.git.sourceControl",
+                    "name": "Source Control",
+                    "type": "source-control",
+                    "actions": [
+                        {
+                            "command": "caxri.git.workingTree",
+                            "role": "source.workingTree"
+                        },
+                        {
+                            "command": "caxri.git.lastCommit",
+                            "role": "source.lastCommit"
+                        },
+                        {
+                            "command": "caxri.git.pullRequest",
+                            "role": "source.pullRequest"
+                        },
+                        {
+                            "command": "caxri.git.refresh",
+                            "role": "source.refresh"
+                        }
+                    ]
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "caxri.git.workingTree",
+                "title": "Working Tree Changes"
+            },
+            {
+                "command": "caxri.git.lastCommit",
+                "title": "Last Commit Changes"
+            },
+            {
+                "command": "caxri.git.pullRequest",
+                "title": "Pull Request Changes"
+            },
+            {
+                "command": "caxri.git.refresh",
+                "title": "Refresh Git"
+            }
+        ]
+    }
+}

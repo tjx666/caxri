@@ -3,7 +3,7 @@ import { useSessionViewStore } from '../../stores/session-view';
 import { ViewContainerSurface } from '../view-containers/view-container-surface';
 
 export function SecondarySidebar() {
-    const desiredId = useSessionState()?.desiredSecondarySidebarViewContainerId ?? 'caxri.files';
+    const desiredId = useSessionState()?.desiredSecondarySidebarViewContainerId;
     return (
         <aside
             aria-label="Secondary Side Bar"

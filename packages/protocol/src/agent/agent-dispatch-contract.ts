@@ -35,6 +35,7 @@ export const agentDispatchFailureSchema = z.strictObject({
         'CAPACITY',
         'UNAVAILABLE',
         'TIMEOUT',
+        'CANCELLED',
         'CONFLICT',
         'FORBIDDEN',
         'IO',

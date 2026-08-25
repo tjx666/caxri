@@ -130,6 +130,16 @@
                     "src/extension.ts"
                 ]
             },
+            "extensions/files": {
+                "entry": [
+                    "src/extension.ts"
+                ]
+            },
+            "extensions/git": {
+                "entry": [
+                    "src/extension.ts"
+                ]
+            },
             "extensions/status": {
                 "entry": [
                     "src/extension.ts"
@@ -247,6 +257,24 @@
             {
                 "from": "build/caxri",
                 "to": "bin/caxri"
+            },
+            {
+                "from": "extensions/files",
+                "to": "extensions/files",
+                "filter": [
+                    "package.json",
+                    "dist/**",
+                    "media/**"
+                ]
+            },
+            {
+                "from": "extensions/git",
+                "to": "extensions/git",
+                "filter": [
+                    "package.json",
+                    "dist/**",
+                    "media/**"
+                ]
             },
             {
                 "from": "extensions/status",

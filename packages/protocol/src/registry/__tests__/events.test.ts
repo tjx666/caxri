@@ -30,6 +30,33 @@ describe('runtimeEventSchema', () => {
         ).toBe(true);
         expect(
             runtimeEventSchema.safeParse({
+                event: 'viewContainers.viewChanged',
+                payload: {
+                    viewId: 'publisher.fixture.files',
+                    eventId: 'view-event-1',
+                    extensionGeneration: 2,
+                    context: {
+                        kind: 'session',
+                        sessionId: 'session-1',
+                        workbenchProjectId: 'project-1',
+                    },
+                    change: { kind: 'refresh' },
+                },
+            }).success,
+        ).toBe(true);
+        expect(
+            runtimeEventSchema.safeParse({
+                event: 'viewContainers.treeChanged',
+                payload: {
+                    viewId: 'publisher.fixture.status',
+                    eventId: 'view-event-2',
+                    extensionGeneration: 2,
+                    context: { kind: 'no-session' },
+                },
+            }).success,
+        ).toBe(true);
+        expect(
+            runtimeEventSchema.safeParse({
                 event: 'window.fullScreen',
                 payload: { isFullScreen: true },
             }).success,

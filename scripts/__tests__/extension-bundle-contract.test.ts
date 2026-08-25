@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertExtensionBundleContract } from '../extension-bundle-contract';
+import {
+    assertExtensionBundleContract,
+    assertProductExtensionBundleContract,
+} from '../extension-bundle-contract';
 
 describe('assertExtensionBundleContract', () => {
     it('accepts a public ESM-only bundle', () => {
@@ -25,4 +28,43 @@ describe('assertExtensionBundleContract', () => {
             ),
         ).toThrow(),
     );
+});
+
+describe('assertProductExtensionBundleContract', () => {
+    it('accepts a production bundle whose only import is the public caxri API', () => {
+        expect(() =>
+            assertProductExtensionBundleContract(
+                'import caxri, { TreeItem } from "caxri"; export { caxri, TreeItem };',
+                'caxri.product',
+            ),
+        ).not.toThrow();
+    });
+
+    it.each([
+        ['Node builtin', 'import process from "node:process";'],
+        ['bare Node builtin', 'import { join } from "path";'],
+        ['Electron', 'import { app } from "electron";'],
+        ['protocol package', 'import { viewCatalogSnapshotSchema } from "@caxri/protocol";'],
+        ['Desktop source', 'import { resolve } from "../../src/host/paths";'],
+        ['Renderer alias', 'import { useMemo } from "@/hooks/use-memo";'],
+        ['third-party package', 'import debounce from "lodash/debounce";'],
+        ['dynamic Node import', 'const fs = import("node:fs");'],
+        ['require Node builtin', 'const fs = require("fs");'],
+    ])('rejects %s from a production bundle', (_name, statement) =>
+        expect(() =>
+            assertProductExtensionBundleContract(
+                `import caxri from "caxri"; ${statement}`,
+                'caxri.product',
+            ),
+        ).toThrow(),
+    );
+
+    it('keeps the test-only fixture contract separate from the production boundary', () => {
+        expect(() =>
+            assertExtensionBundleContract(
+                'import process from "node:process"; import caxri from "caxri";',
+                'caxri.fixture',
+            ),
+        ).not.toThrow();
+    });
 });

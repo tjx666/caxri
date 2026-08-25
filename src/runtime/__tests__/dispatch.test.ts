@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeMethod } from '../../shared/ipc';
 import { CaxriError, internalMethods, methods } from '../../shared/ipc';
@@ -78,6 +78,37 @@ describe('Runtime handler table', () => {
 });
 
 describe('createDispatcher', () => {
+    it('revalidates a typed Workbench Root context before invoking a handler', async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-context-');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const handler = vi.fn(() => []);
+        const validateContext = vi.fn(() => {
+            throw new CaxriError('CONFLICT', 'Workbench Root changed');
+        });
+        const dispatch = createDispatcher(
+            stubHandlers({ 'files.list': handler }),
+            logger,
+            validateContext,
+        );
+
+        await expect(
+            dispatch({
+                context: { sessionId: 'session-1', workbenchProjectId: 'project-1' },
+                id: 'r-context',
+                method: 'files.list',
+                params: { sessionId: 'session-1' },
+            }),
+        ).resolves.toMatchObject({
+            ok: false,
+            error: { code: 'CONFLICT', message: 'Workbench Root changed' },
+        });
+        expect(validateContext).toHaveBeenCalledWith({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+        });
+        expect(handler).not.toHaveBeenCalled();
+    });
+
     it('rejects an unknown method and invalid parameters as VALIDATION failures', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-validation-');
         const logger = new StructuredLogger(join(directory, 'logs'));
@@ -197,5 +228,37 @@ describe('createDispatcher', () => {
             fields: { method: 'app.health' },
         });
         expect(records[0].durationMs).toBeTypeOf('number');
+    });
+
+    it('cancels an admitted handler and rejects cancellation that arrived before registration', async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-cancel-');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const started = Promise.withResolvers<void>();
+        const released = Promise.withResolvers<void>();
+        const handler = vi.fn(async (_parameters: unknown, signal: AbortSignal) => {
+            started.resolve();
+            await new Promise<void>((resolve) => {
+                signal.addEventListener('abort', () => resolve(), { once: true });
+            });
+            released.resolve();
+            signal.throwIfAborted();
+        });
+        const dispatch = createDispatcher(stubHandlers({ 'app.health': handler }), logger);
+
+        expect(dispatch.cancel('before-registration')).toBe(true);
+        await expect(
+            dispatch({ id: 'before-registration', method: 'app.health', params: {} }),
+        ).resolves.toMatchObject({ ok: false, error: { code: 'CONFLICT' } });
+        expect(handler).not.toHaveBeenCalled();
+
+        const pending = dispatch({ id: 'active-request', method: 'app.health', params: {} });
+        await started.promise;
+        expect(dispatch.cancel('active-request')).toBe(true);
+        await released.promise;
+        await expect(pending).resolves.toMatchObject({
+            id: 'active-request',
+            ok: false,
+            error: { code: 'CONFLICT' },
+        });
     });
 });

@@ -105,7 +105,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
                 sessionId: 'session-a',
                 workbenchProjectId: 'project-p',
                 overflow: false,
-                changes: [],
+                changes: [{ path: '/project-p/file.ts', kind: 'update' }],
             },
         });
         useWorkbenchStore.setState((state) => ({
@@ -171,6 +171,205 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         expect(
             queryClient.getQueryState(['git.summary', { sessionId: 'session-b' }])?.isInvalidated,
         ).toBe(false);
+        unsubscribe();
+    });
+
+    it('targets Resource Explorer content invalidation by view, root scope, and changed directory', () => {
+        vi.useFakeTimers();
+        const queryClient = new QueryClient();
+        const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
+        const filesView = 'publisher.files.explorer';
+        queryClient.setQueryData(
+            [
+                'viewContainers.viewOperation',
+                {
+                    viewId: filesView,
+                    operation: 'files.list',
+                    arguments: { directory: '/project/src' },
+                    contextKey: 'session-a:project-p',
+                },
+            ],
+            [],
+        );
+        queryClient.setQueryData(
+            [
+                'viewContainers.viewOperation',
+                {
+                    viewId: filesView,
+                    operation: 'files.list',
+                    arguments: { directory: '/project/docs' },
+                    contextKey: 'session-a:project-p',
+                },
+            ],
+            [],
+        );
+        queryClient.setQueryData(
+            [
+                'viewContainers.viewOperation',
+                {
+                    viewId: filesView,
+                    operation: 'files.search',
+                    arguments: { mode: 'name', query: 'x' },
+                    contextKey: 'session-a:project-p',
+                },
+            ],
+            {},
+        );
+        queryClient.setQueryData(
+            [
+                'viewContainers.viewOperation',
+                {
+                    viewId: 'publisher.git.view',
+                    operation: 'git.summary',
+                    arguments: {},
+                    contextKey: 'session-a:project-p',
+                },
+            ],
+            {},
+        );
+        useWorkbenchStore.setState({
+            bootstrap: {
+                selectedSessionId: 'session-a',
+                sessions: [{ id: 'session-a', workbenchProjectId: 'project-p' }],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-a',
+                workbenchProjectId: 'project-p',
+                overflow: false,
+                changes: [{ path: '/project/src/index.ts', kind: 'update' }],
+            },
+        });
+        mocks.state.handler?.({
+            event: 'files.changed',
+            payload: {
+                sessionId: 'session-a',
+                workbenchProjectId: 'project-p',
+                overflow: false,
+                changes: [{ path: '/project/src/other.ts', kind: 'update' }],
+            },
+        });
+        vi.advanceTimersByTime(150);
+        expect(invalidateQueries).toHaveBeenCalledTimes(1);
+
+        expect(
+            queryClient.getQueryState([
+                'viewContainers.viewOperation',
+                {
+                    viewId: filesView,
+                    operation: 'files.list',
+                    arguments: { directory: '/project/src' },
+                    contextKey: 'session-a:project-p',
+                },
+            ])?.isInvalidated,
+        ).toBe(false);
+        expect(
+            queryClient.getQueryState([
+                'viewContainers.viewOperation',
+                {
+                    viewId: filesView,
+                    operation: 'files.list',
+                    arguments: { directory: '/project/docs' },
+                    contextKey: 'session-a:project-p',
+                },
+            ])?.isInvalidated,
+        ).toBe(false);
+        expect(
+            queryClient.getQueryState([
+                'viewContainers.viewOperation',
+                {
+                    viewId: 'publisher.git.view',
+                    operation: 'git.summary',
+                    arguments: {},
+                    contextKey: 'session-a:project-p',
+                },
+            ])?.isInvalidated,
+        ).toBe(false);
+
+        mocks.state.handler?.({
+            event: 'viewContainers.viewChanged',
+            payload: {
+                viewId: filesView,
+                eventId: 'view-event-1',
+                extensionGeneration: 2,
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-a',
+                    workbenchProjectId: 'project-p',
+                },
+                change: { kind: 'content', paths: ['/project/src/index.ts'], overflow: false },
+            },
+        });
+        expect(invalidateQueries).toHaveBeenCalledTimes(2);
+
+        expect(
+            queryClient.getQueryState([
+                'viewContainers.viewOperation',
+                {
+                    viewId: filesView,
+                    operation: 'files.list',
+                    arguments: { directory: '/project/src' },
+                    contextKey: 'session-a:project-p',
+                },
+            ])?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState([
+                'viewContainers.viewOperation',
+                {
+                    viewId: filesView,
+                    operation: 'files.list',
+                    arguments: { directory: '/project/docs' },
+                    contextKey: 'session-a:project-p',
+                },
+            ])?.isInvalidated,
+        ).toBe(false);
+        expect(
+            queryClient.getQueryState([
+                'viewContainers.viewOperation',
+                {
+                    viewId: filesView,
+                    operation: 'files.search',
+                    arguments: { mode: 'name', query: 'x' },
+                    contextKey: 'session-a:project-p',
+                },
+            ])?.isInvalidated,
+        ).toBe(true);
+        unsubscribe();
+    });
+
+    it('does not invalidate a controlled view for a no-session context', () => {
+        const queryClient = new QueryClient();
+        const queryKey = [
+            'viewContainers.viewOperation',
+            {
+                viewId: 'publisher.files.explorer',
+                operation: 'files.list',
+                arguments: { directory: '/project' },
+                contextKey: 'session-a:project-p',
+            },
+        ] as const;
+        queryClient.setQueryData(queryKey, []);
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'viewContainers.viewChanged',
+            payload: {
+                viewId: 'publisher.files.explorer',
+                eventId: 'view-event-no-session',
+                extensionGeneration: 2,
+                context: { kind: 'no-session' },
+                change: { kind: 'content', overflow: true },
+            },
+        });
+
+        expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(false);
         unsubscribe();
     });
 

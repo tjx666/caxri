@@ -71,6 +71,18 @@ async function firstRepoId(service: GitService, sessionId: string): Promise<stri
     return summary.repositories[0].id;
 }
 
+async function confirmedDiscard(
+    service: GitService,
+    sessionId: string,
+    repoId: string,
+    scope: { kind: 'all' } | { kind: 'file'; path: string },
+): Promise<void> {
+    const preflight = await service.discardPreflight({ sessionId, repositoryId: repoId, scope });
+    expect(preflight.status).toBe('ready');
+    if (preflight.status !== 'ready') throw new Error('Expected a discard consent token');
+    await service.discardApply({ token: preflight.token });
+}
+
 async function isPresent(path: string): Promise<boolean> {
     try {
         await access(path);
@@ -90,11 +102,9 @@ describe('GitWorkingTreeService', () => {
         const { git: service, sessionId } = await createService(directory);
         const repoId = await firstRepoId(service, sessionId);
 
-        await service.discard({
-            sessionId,
-            repositoryId: repoId,
-            repositoryName: 'test',
-            scope: { kind: 'file', path: 'tracked.txt', untracked: false },
+        await confirmedDiscard(service, sessionId, repoId, {
+            kind: 'file',
+            path: 'tracked.txt',
         });
 
         await expect(readFile(join(directory, 'tracked.txt'), 'utf8')).resolves.toBe('before\n');
@@ -112,17 +122,13 @@ describe('GitWorkingTreeService', () => {
         const { git: service, sessionId } = await createService(directory);
         const repoId = await firstRepoId(service, sessionId);
 
-        await service.discard({
-            sessionId,
-            repositoryId: repoId,
-            repositoryName: 'test',
-            scope: { kind: 'file', path: 'staged.txt', untracked: false },
+        await confirmedDiscard(service, sessionId, repoId, {
+            kind: 'file',
+            path: 'staged.txt',
         });
-        await service.discard({
-            sessionId,
-            repositoryId: repoId,
-            repositoryName: 'test',
-            scope: { kind: 'file', path: 'removed.txt', untracked: false },
+        await confirmedDiscard(service, sessionId, repoId, {
+            kind: 'file',
+            path: 'removed.txt',
         });
 
         await expect(readFile(join(directory, 'staged.txt'), 'utf8')).resolves.toBe('before\n');
@@ -141,17 +147,13 @@ describe('GitWorkingTreeService', () => {
         const { git: service, sessionId } = await createService(directory);
         const repoId = await firstRepoId(service, sessionId);
 
-        await service.discard({
-            sessionId,
-            repositoryId: repoId,
-            repositoryName: 'test',
-            scope: { kind: 'file', path: 'untracked.txt', untracked: true },
+        await confirmedDiscard(service, sessionId, repoId, {
+            kind: 'file',
+            path: 'untracked.txt',
         });
-        await service.discard({
-            sessionId,
-            repositoryId: repoId,
-            repositoryName: 'test',
-            scope: { kind: 'file', path: 'added.txt', untracked: false },
+        await confirmedDiscard(service, sessionId, repoId, {
+            kind: 'file',
+            path: 'added.txt',
         });
 
         await expect(isPresent(join(directory, 'untracked.txt'))).resolves.toBe(false);
@@ -171,11 +173,9 @@ describe('GitWorkingTreeService', () => {
         const renamed = summary.repositories[0].files.find((file) => file.kind === 'renamed');
         expect(renamed).toBeDefined();
 
-        await service.discard({
-            sessionId,
-            repositoryId: repoId,
-            repositoryName: 'test',
-            scope: { kind: 'file', path: renamed!.path, untracked: false },
+        await confirmedDiscard(service, sessionId, repoId, {
+            kind: 'file',
+            path: renamed!.path,
         });
 
         await expect(readFile(join(directory, 'original.txt'), 'utf8')).resolves.toBe('content\n');
@@ -192,13 +192,12 @@ describe('GitWorkingTreeService', () => {
         const repoId = await firstRepoId(service, sessionId);
 
         await expect(
-            service.discard({
+            service.discardPreflight({
                 sessionId,
                 repositoryId: repoId,
-                repositoryName: 'test',
-                scope: { kind: 'file', path: 'tracked.txt', untracked: false },
+                scope: { kind: 'file', path: 'tracked.txt' },
             }),
-        ).resolves.toBeNull();
+        ).resolves.toEqual({ status: 'noop' });
     });
 
     it('discards every change at once, including untracked files', async () => {
@@ -213,16 +212,166 @@ describe('GitWorkingTreeService', () => {
         const { git: service, sessionId } = await createService(directory);
         const repoId = await firstRepoId(service, sessionId);
 
-        await service.discard({
-            sessionId,
-            repositoryId: repoId,
-            repositoryName: 'test',
-            scope: { kind: 'all', fileCount: 3 },
-        });
+        await confirmedDiscard(service, sessionId, repoId, { kind: 'all' });
 
         await expect(readFile(join(directory, 'tracked.txt'), 'utf8')).resolves.toBe('before\n');
         await expect(isPresent(join(directory, 'staged.txt'))).resolves.toBe(false);
         await expect(isPresent(join(directory, 'untracked.txt'))).resolves.toBe(false);
+        await expect(git(directory, 'status', '--porcelain')).resolves.toBe('');
+    });
+
+    it('rejects a file consent when its tracked status changes to untracked before apply', async () => {
+        const directory = await createRepo('caxri-git-discard-stale-');
+        await writeFile(join(directory, 'tracked.txt'), 'before\n', 'utf8');
+        await git(directory, 'add', 'tracked.txt');
+        await git(directory, 'commit', '-m', 'initial');
+        await writeFile(join(directory, 'tracked.txt'), 'modified\n', 'utf8');
+        const { git: service, sessionId } = await createService(directory);
+        const repoId = await firstRepoId(service, sessionId);
+        const preflight = await service.discardPreflight({
+            sessionId,
+            repositoryId: repoId,
+            scope: { kind: 'file', path: 'tracked.txt' },
+        });
+        expect(preflight.status).toBe('ready');
+        if (preflight.status !== 'ready') throw new Error('Expected a discard consent token');
+
+        await rm(join(directory, 'tracked.txt'));
+        await writeFile(join(directory, 'tracked.txt'), 'new untracked content\n', 'utf8');
+        await git(directory, 'rm', '--cached', '--quiet', 'tracked.txt');
+
+        await expect(service.discardApply({ token: preflight.token })).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        await expect(readFile(join(directory, 'tracked.txt'), 'utf8')).resolves.toBe(
+            'new untracked content\n',
+        );
+    });
+
+    it('rejects a file consent when tracked content changes while its status kind stays modified', async () => {
+        const directory = await createRepo('caxri-git-discard-content-');
+        await writeFile(join(directory, 'tracked.txt'), 'before\n', 'utf8');
+        await git(directory, 'add', 'tracked.txt');
+        await git(directory, 'commit', '-m', 'initial');
+        await writeFile(join(directory, 'tracked.txt'), 'first\n', 'utf8');
+        const { git: service, sessionId } = await createService(directory);
+        const repoId = await firstRepoId(service, sessionId);
+        const preflight = await service.discardPreflight({
+            sessionId,
+            repositoryId: repoId,
+            scope: { kind: 'file', path: 'tracked.txt' },
+        });
+        expect(preflight.status).toBe('ready');
+        if (preflight.status !== 'ready') throw new Error('Expected a discard consent token');
+
+        await writeFile(join(directory, 'tracked.txt'), 'second\n', 'utf8');
+
+        await expect(service.discardApply({ token: preflight.token })).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        await expect(readFile(join(directory, 'tracked.txt'), 'utf8')).resolves.toBe('second\n');
+    });
+
+    it('rejects a file consent when an untracked path is replaced without changing its status', async () => {
+        const directory = await createRepo('caxri-git-discard-untracked-content-');
+        await writeFile(join(directory, 'anchor.txt'), 'anchor\n', 'utf8');
+        await git(directory, 'add', 'anchor.txt');
+        await git(directory, 'commit', '-m', 'initial');
+        await writeFile(join(directory, 'untracked.txt'), 'first\n', 'utf8');
+        const { git: service, sessionId } = await createService(directory);
+        const repoId = await firstRepoId(service, sessionId);
+        const preflight = await service.discardPreflight({
+            sessionId,
+            repositoryId: repoId,
+            scope: { kind: 'file', path: 'untracked.txt' },
+        });
+        expect(preflight.status).toBe('ready');
+        if (preflight.status !== 'ready') throw new Error('Expected a discard consent token');
+
+        await rm(join(directory, 'untracked.txt'));
+        await writeFile(join(directory, 'untracked.txt'), 'replacement\n', 'utf8');
+
+        await expect(service.discardApply({ token: preflight.token })).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        await expect(readFile(join(directory, 'untracked.txt'), 'utf8')).resolves.toBe(
+            'replacement\n',
+        );
+    });
+
+    it('rejects an all-files consent when the working-tree count changes before apply', async () => {
+        const directory = await createRepo('caxri-git-discard-stale-all-');
+        await writeFile(join(directory, 'tracked.txt'), 'before\n', 'utf8');
+        await git(directory, 'add', 'tracked.txt');
+        await git(directory, 'commit', '-m', 'initial');
+        await writeFile(join(directory, 'tracked.txt'), 'modified\n', 'utf8');
+        const { git: service, sessionId } = await createService(directory);
+        const repoId = await firstRepoId(service, sessionId);
+        const preflight = await service.discardPreflight({
+            sessionId,
+            repositoryId: repoId,
+            scope: { kind: 'all' },
+        });
+        expect(preflight.status).toBe('ready');
+        if (preflight.status !== 'ready') throw new Error('Expected a discard consent token');
+
+        await writeFile(join(directory, 'new.txt'), 'new\n', 'utf8');
+
+        await expect(service.discardApply({ token: preflight.token })).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        await expect(readFile(join(directory, 'tracked.txt'), 'utf8')).resolves.toBe('modified\n');
+        await expect(readFile(join(directory, 'new.txt'), 'utf8')).resolves.toBe('new\n');
+    });
+
+    it('consumes a discard consent token exactly once', async () => {
+        const directory = await createRepo('caxri-git-discard-once-');
+        await writeFile(join(directory, 'tracked.txt'), 'before\n', 'utf8');
+        await git(directory, 'add', 'tracked.txt');
+        await git(directory, 'commit', '-m', 'initial');
+        await writeFile(join(directory, 'tracked.txt'), 'modified\n', 'utf8');
+        const { git: service, sessionId } = await createService(directory);
+        const repoId = await firstRepoId(service, sessionId);
+        const preflight = await service.discardPreflight({
+            sessionId,
+            repositoryId: repoId,
+            scope: { kind: 'file', path: 'tracked.txt' },
+        });
+        expect(preflight.status).toBe('ready');
+        if (preflight.status !== 'ready') throw new Error('Expected a discard consent token');
+
+        await expect(service.discardApply({ token: preflight.token })).resolves.toBeNull();
+        await expect(service.discardApply({ token: preflight.token })).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+    });
+
+    it('uses the complete status count when the public summary projection is truncated', async () => {
+        const directory = await createRepo('caxri-git-discard-truncated-');
+        await writeFile(join(directory, 'anchor.txt'), 'anchor\n', 'utf8');
+        await git(directory, 'add', 'anchor.txt');
+        await git(directory, 'commit', '-m', 'initial');
+        await Promise.all(
+            Array.from({ length: 2_001 }, (_unused, index) =>
+                writeFile(join(directory, `untracked-${index}.txt`), `${index}\n`, 'utf8'),
+            ),
+        );
+        const { git: service, sessionId } = await createService(directory);
+        const repoId = await firstRepoId(service, sessionId);
+        const summary = await service.summary(sessionId);
+        expect(summary.repositories[0]?.truncated).toBe(true);
+
+        const preflight = await service.discardPreflight({
+            sessionId,
+            repositoryId: repoId,
+            scope: { kind: 'all' },
+        });
+        expect(preflight).toMatchObject({
+            status: 'ready',
+            scope: { kind: 'all', fileCount: 2_001 },
+        });
+        if (preflight.status !== 'ready') throw new Error('Expected a discard consent token');
+        await expect(service.discardApply({ token: preflight.token })).resolves.toBeNull();
         await expect(git(directory, 'status', '--porcelain')).resolves.toBe('');
     });
 

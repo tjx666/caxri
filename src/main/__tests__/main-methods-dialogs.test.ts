@@ -316,21 +316,50 @@ describe('git.discard', () => {
 
     it('returns canceled without forwarding when the confirmation is dismissed', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
-        const request = requestMock({});
+        const request = requestMock({
+            'git.discard.preflight': () =>
+                Promise.resolve({
+                    status: 'ready',
+                    token: 'discard-token',
+                    repositoryName: 'canonical-project',
+                    scope: { kind: 'file', path: 'tracked.txt', untracked: false },
+                }),
+        });
         const handle = createMainMethodHandler(options({ request }));
 
         await expect(handle({ method: 'git.discard', params: parameters })).resolves.toEqual({
             canceled: true,
         });
-        expect(request).not.toHaveBeenCalled();
+        expect(request).toHaveBeenCalledOnce();
+        expect(request).toHaveBeenCalledWith('git.discard.preflight', {
+            repositoryId: parameters.repositoryId,
+            scope: { kind: 'file', path: parameters.scope.path },
+            sessionId: parameters.sessionId,
+        });
     });
 
     it('forwards the discard to the Host once the destructive choice is confirmed', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
-        const request = requestMock({ 'git.discard': () => Promise.resolve(null) });
+        const request = requestMock({
+            'git.discard.preflight': () =>
+                Promise.resolve({
+                    status: 'ready',
+                    token: 'discard-token',
+                    repositoryName: 'canonical-project',
+                    scope: { kind: 'file', path: 'tracked.txt', untracked: false },
+                }),
+            'git.discard.apply': () => Promise.resolve(null),
+        });
         const handle = createMainMethodHandler(options({ request }));
 
         await expect(handle({ method: 'git.discard', params: parameters })).resolves.toBeNull();
-        expect(request).toHaveBeenCalledWith('git.discard', parameters);
+        expect(request).toHaveBeenNthCalledWith(1, 'git.discard.preflight', {
+            repositoryId: parameters.repositoryId,
+            scope: { kind: 'file', path: parameters.scope.path },
+            sessionId: parameters.sessionId,
+        });
+        expect(request).toHaveBeenNthCalledWith(2, 'git.discard.apply', {
+            token: 'discard-token',
+        });
     });
 });

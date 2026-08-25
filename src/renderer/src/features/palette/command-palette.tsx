@@ -18,6 +18,7 @@ import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSessions } from '../../stores/selectors';
 import { didSelectSession, selectProject } from '../session/session-actions';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
+import { getPaletteExtensionCommands } from './command-palette-commands';
 
 const NO_RECORDS: never[] = [];
 
@@ -149,17 +150,13 @@ export function CommandPalette() {
                                     <CommandRow key={command.id} command={command} />
                                 ),
                             )}
-                            {catalog?.commands.flatMap((command) =>
-                                command.source.kind === 'extension'
-                                    ? [
-                                          <DynamicCommandRow
-                                              key={command.id}
-                                              catalog={catalog}
-                                              command={command}
-                                          />,
-                                      ]
-                                    : [],
-                            )}
+                            {getPaletteExtensionCommands(catalog).map((command) => (
+                                <DynamicCommandRow
+                                    key={command.id}
+                                    catalog={catalog!}
+                                    command={command}
+                                />
+                            ))}
                         </CommandGroup>
                     </CommandList>
                 </Command>

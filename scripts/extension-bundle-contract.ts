@@ -1,3 +1,5 @@
+import { builtinModules } from 'node:module';
+
 const forbiddenDesktopImports = [
     '/src/host/',
     '/src/main/',
@@ -6,6 +8,45 @@ const forbiddenDesktopImports = [
     '/src/runtime/',
     '@caxri/protocol',
 ] as const;
+
+const nodeBuiltinModules = new Set(
+    builtinModules.map((specifier) =>
+        specifier.startsWith('node:') ? specifier.slice('node:'.length) : specifier,
+    ),
+);
+
+const staticImportPattern = /\b(?:from|import|require)\s*(?:\(\s*)?["']([^"']+)["']/g;
+
+function isNodeBuiltinSpecifier(specifier: string): boolean {
+    return specifier.startsWith('node:') || nodeBuiltinModules.has(specifier);
+}
+
+function assertNoDesktopInternalImports(source: string, extensionId: string): void {
+    const imports = source
+        .matchAll(staticImportPattern)
+        .map((match) => match[1])
+        .toArray();
+    const forbiddenSpecifier = imports.find(
+        (specifier) =>
+            specifier !== 'caxri' &&
+            (isNodeBuiltinSpecifier(specifier) ||
+                specifier.startsWith('electron') ||
+                specifier.startsWith('@caxri/') ||
+                specifier.startsWith('@/') ||
+                specifier.startsWith('@shared/') ||
+                forbiddenDesktopImports.some((fragment) => specifier.includes(fragment))),
+    );
+    if (forbiddenSpecifier)
+        throw new Error(
+            `${extensionId} product bundle imports a forbidden Desktop module: ${forbiddenSpecifier}`,
+        );
+
+    const nonPublicSpecifier = imports.find((specifier) => specifier !== 'caxri');
+    if (nonPublicSpecifier)
+        throw new Error(
+            `${extensionId} product bundle imports a non-public module: ${nonPublicSpecifier}`,
+        );
+}
 
 /**
  * Ensures a bundled extension still crosses the public ESM API boundary after Vite transforms it.
@@ -20,4 +61,16 @@ export function assertExtensionBundleContract(source: string, extensionId: strin
     const forbidden = forbiddenDesktopImports.find((specifier) => source.includes(specifier));
     if (forbidden)
         throw new Error(`${extensionId} bundle imports forbidden Desktop internals: ${forbidden}`);
+}
+
+/**
+ * Applies the stricter boundary required by production product extensions.
+ *
+ * Production extension code executes in the Extension Host and may only consume the public `caxri` API. Keeping this
+ * check on the generated bundle catches accidental Node/Electron or Desktop-internal imports even when the source file
+ * itself is hidden behind a new helper or a transitive extension-local import.
+ */
+export function assertProductExtensionBundleContract(source: string, extensionId: string): void {
+    assertExtensionBundleContract(source, extensionId);
+    assertNoDesktopInternalImports(source, extensionId);
 }

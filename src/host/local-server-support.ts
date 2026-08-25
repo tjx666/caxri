@@ -109,6 +109,14 @@ export function logHostRequestOutcome(
         });
         return;
     }
+    if (reply.error.code === 'CANCELLED') {
+        logger.write('debug', logEventCatalog.ipc.request, {
+            correlationId: request.id,
+            durationMs,
+            fields: { ...fields, code: reply.error.code },
+        });
+        return;
+    }
     /**
      * `warn`, not `error`: forwarded failures are already error-logged where they fault (Runtime/Desktop); this entry
      * adds the Host-side relay view (queue wait, principal) without duplicating the error beacon.

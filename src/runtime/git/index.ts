@@ -14,7 +14,6 @@ import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     GitCommit,
     GitCommitDetails,
-    GitCommitFile,
     GitCommitPage,
     GitDiffDocument,
     GitFileStatus,
@@ -28,6 +27,7 @@ import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
 import { GitChangeTracker } from './change-tracker';
+import { parseCommitFiles, sumCommitNumstat } from './commit-details';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 import { toGitError } from './errors';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
@@ -35,6 +35,7 @@ import { GitMetadataWatcher } from './metadata-watcher';
 import { GitPullRequestService } from './pull-request';
 import { parseGitRemoteHost } from './remote-host';
 import { computeRepoId, GitRepoService } from './repo';
+import { gitSignalOptions, sharedGitRequest } from './request-signal';
 import { RepoTopologyRegistry } from './topology';
 import { GitWorkingTreeService } from './working-tree';
 
@@ -66,6 +67,7 @@ export interface GitWorktreeTopology {
     worktrees: Array<{ branch: string; rootPath: string }>;
 }
 export { describeGitFailure } from './errors';
+export { withGitRequestSignal } from './request-signal';
 
 /**
  * Subcommand-bearing Git operations whose second argv token is required to attribute a command in structured logs
@@ -87,58 +89,6 @@ function classifyGitOperation(arguments_: readonly string[]): string {
  */
 function hashRepoPath(path: string): string {
     return createHash('sha256').update(path).digest('hex').slice(0, 12);
-}
-
-function commitFileStatus(code: string): GitCommitFile['status'] {
-    if (code.startsWith('A')) return 'added';
-    if (code.startsWith('D')) return 'deleted';
-    if (code.startsWith('R')) return 'renamed';
-    if (code.startsWith('C')) return 'copied';
-    if (code.startsWith('T')) return 'type-changed';
-    if (code.startsWith('M')) return 'modified';
-    return 'unknown';
-}
-
-function parseCommitFiles(output: string): GitCommitFile[] {
-    const fields = output.split('\0').filter(Boolean);
-    const files: GitCommitFile[] = [];
-    for (let index = 0; index < fields.length;) {
-        const code = fields[index++];
-        if (!code) break;
-        if (code.startsWith('R') || code.startsWith('C')) {
-            const previousPath = fields[index++];
-            const path = fields[index++];
-            if (!path || !previousPath)
-                throw new CaxriError('GIT', 'Git returned malformed commit files');
-            files.push({ path, previousPath, status: commitFileStatus(code) });
-            continue;
-        }
-        const path = fields[index++];
-        if (!path) throw new CaxriError('GIT', 'Git returned malformed commit files');
-        files.push({ path, status: commitFileStatus(code) });
-    }
-    return files;
-}
-
-/**
- * Sums `git diff-tree --numstat -z` output. A record is `added\tdeleted\tpath` for ordinary files; a rename/copy emits
- * an empty path slot followed by the two path fields, and a binary file reports `-` counts — both are skipped here.
- */
-function sumNumstat(output: string): { additions: number; deletions: number } {
-    const fields = output.split('\0');
-    let additions = 0;
-    let deletions = 0;
-    for (let index = 0; index < fields.length; index += 1) {
-        // `[\s\S]*` (not `.*`): a legal Git filename may contain newlines, and with `-z` the raw
-        // name is embedded unquoted inside this NUL field.
-        const record = /^(\d+|-)\t(\d+|-)\t([\s\S]*)$/.exec(fields[index]);
-        if (!record) continue;
-        if (record[1] !== '-') additions += Number(record[1]);
-        if (record[2] !== '-') deletions += Number(record[2]);
-        // A rename/copy record carries no inline path; its two path fields follow as separate NUL fields.
-        if (record[3] === '') index += 2;
-    }
-    return { additions, deletions };
 }
 
 interface GitServiceOptions {
@@ -213,6 +163,8 @@ export class GitService {
         this.workingTreeService = new GitWorkingTreeService({
             git: (cwd, arguments_, options_) => this.git(cwd, arguments_, options_),
             resolveRepository: (sessionId, repoId) => this.resolveRepository(sessionId, repoId),
+            snapshot: (sessionId, repoId) =>
+                this.repositoryService.discardSnapshot(sessionId, repoId),
         });
     }
 
@@ -234,6 +186,7 @@ export class GitService {
                     cwd,
                     timeout: options.timeoutMs ?? 10_000,
                     maxBuffer: options.maxBufferBytes ?? MAX_GIT_METADATA_BYTES,
+                    ...gitSignalOptions(),
                     // GIT_TERMINAL_PROMPT=0 makes a credential-less fetch/pull/push fail fast
                     // instead of hanging on a hidden terminal prompt until the timeout.
                     env: {
@@ -293,6 +246,7 @@ export class GitService {
                         cwd,
                         timeout: 10_000,
                         maxBuffer: MAX_GIT_METADATA_BYTES,
+                        ...gitSignalOptions(),
                         env: { LC_ALL: 'C' },
                     },
                 );
@@ -541,19 +495,22 @@ export class GitService {
             await this.git(repo.rootPath, ['switch', '--', parameters.branch]);
         return null;
     }
-
     sync(parameters: RuntimeMethodParameters<'git.sync'>): Promise<null> {
         return this.workingTreeService.sync(parameters);
     }
-
-    discard(parameters: RuntimeMethodParameters<'git.discard'>): Promise<null> {
-        return this.workingTreeService.discard(parameters);
+    discardPreflight(
+        parameters: RuntimeMethodParameters<'git.discard.preflight'>,
+    ): ReturnType<GitWorkingTreeService['discardPreflight']> {
+        return this.workingTreeService.discardPreflight(parameters);
     }
-
+    discardApply(
+        parameters: RuntimeMethodParameters<'git.discard.apply'>,
+    ): ReturnType<GitWorkingTreeService['discardApply']> {
+        return this.workingTreeService.discardApply(parameters);
+    }
     pullRequestChanges(parameters: RuntimeMethodParameters<'git.pullRequestChanges'>) {
         return this.pullRequestService.changes(parameters);
     }
-
     /**
      * Best-effort `origin` remote host for the commit-avatar privacy gate. Reads local Git config only (`remote
      * get-url`, never a network call) and caches the result per repository root so repeated Git panel renders cost zero
@@ -565,14 +522,16 @@ export class GitService {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
         const cached = this.remoteHostByRoot.get(repo.rootPath);
         if (cached !== undefined) return cached;
-        return this.remoteHostRequests.run(repo.rootPath, async () => {
-            const output = await this.git(repo.rootPath, ['remote', 'get-url', 'origin'], {
-                allowFailure: true,
-            });
-            const host = parseGitRemoteHost(output);
-            this.remoteHostByRoot.set(repo.rootPath, host);
-            return host;
-        });
+        return sharedGitRequest(() =>
+            this.remoteHostRequests.run(repo.rootPath, async () => {
+                const output = await this.git(repo.rootPath, ['remote', 'get-url', 'origin'], {
+                    allowFailure: true,
+                });
+                const host = parseGitRemoteHost(output);
+                this.remoteHostByRoot.set(repo.rootPath, host);
+                return host;
+            }),
+        );
     }
 
     pullRequestDiffDocument(parameters: RuntimeMethodParameters<'git.pullRequestDiffDocument'>) {
@@ -600,31 +559,33 @@ export class GitService {
     }
 
     commits(parameters: RuntimeMethodParameters<'git.commits'>): Promise<GitCommitPage> {
-        return this.histories.run(JSON.stringify(parameters), async () => {
-            const repo = await this.resolveRepository(
-                parameters.sessionId,
-                parameters.repositoryId,
-            );
-            if (!repo.head) return { commits: [] };
-            const path = await this.resolveHistoryPath(repo, parameters.path);
-            const arguments_ = [
-                'log',
-                '-z',
-                '--date-order',
-                '--full-history',
-                '--decorate=short',
-                `--skip=${parameters.offset}`,
-                `--max-count=${parameters.pageSize + 1}`,
-                `--format=${COMMIT_FORMAT}`,
-            ];
-            if (path) arguments_.push('--', path);
-            const commits = parseCommitLog(await this.git(repo.rootPath, arguments_));
-            const hasMore = commits.length > parameters.pageSize;
-            return {
-                commits: commits.slice(0, parameters.pageSize),
-                nextOffset: hasMore ? parameters.offset + parameters.pageSize : undefined,
-            };
-        });
+        return sharedGitRequest(() =>
+            this.histories.run(JSON.stringify(parameters), async () => {
+                const repo = await this.resolveRepository(
+                    parameters.sessionId,
+                    parameters.repositoryId,
+                );
+                if (!repo.head) return { commits: [] };
+                const path = await this.resolveHistoryPath(repo, parameters.path);
+                const arguments_ = [
+                    'log',
+                    '-z',
+                    '--date-order',
+                    '--full-history',
+                    '--decorate=short',
+                    `--skip=${parameters.offset}`,
+                    `--max-count=${parameters.pageSize + 1}`,
+                    `--format=${COMMIT_FORMAT}`,
+                ];
+                if (path) arguments_.push('--', path);
+                const commits = parseCommitLog(await this.git(repo.rootPath, arguments_));
+                const hasMore = commits.length > parameters.pageSize;
+                return {
+                    commits: commits.slice(0, parameters.pageSize),
+                    nextOffset: hasMore ? parameters.offset + parameters.pageSize : undefined,
+                };
+            }),
+        );
     }
 
     async commitDetails(
@@ -667,7 +628,7 @@ export class GitService {
             this.git(repo.rootPath, numstatArguments),
         ]);
         const files = parseCommitFiles(filesOutput);
-        const lineStats = sumNumstat(numstatOutput);
+        const lineStats = sumCommitNumstat(numstatOutput);
         return {
             commit,
             files: files.slice(0, MAX_COMMIT_FILES),

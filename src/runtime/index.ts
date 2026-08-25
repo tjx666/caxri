@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { RuntimeEvent } from '../shared/ipc/events';
+import { runtimeCancelRequestSchema } from '../shared/ipc/transport';
 import { startEventLoopMonitor } from '../shared/node/event-loop-monitor';
 import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
@@ -72,7 +73,9 @@ const runtime = await createRuntime({
     send: (event: RuntimeEvent) => parentPort.send(event),
     ...(outputFlushDelayMs !== undefined && { terminal: { outputFlushMs: outputFlushDelayMs } }),
 });
-const dispatch = createDispatcher(runtime.handlers, logger);
+const dispatch = createDispatcher(runtime.handlers, logger, (context) =>
+    runtime.validateRequestContext(context),
+);
 
 /**
  * A Host crash closes Node IPC; the Runtime must not survive as an orphan SQLite/PTY owner. This is a dedicated utility
@@ -94,6 +97,11 @@ if (!parentPort.connected()) closeOrphanedRuntime();
 
 parentPort.onMessage((message) => {
     if (agentEndpointControl.handleMessage(message)) return;
+    const cancellation = runtimeCancelRequestSchema.safeParse(message);
+    if (cancellation.success) {
+        dispatch.cancel(cancellation.data.id);
+        return;
+    }
     // `parentPort.onMessage` takes a synchronous callback, so this cannot become `await`; `dispatch`
     // already converts every handler fault into a wire response and never rejects, so `.catch()`
     // only prevents an unhandled-rejection warning for a truly unexpected failure.

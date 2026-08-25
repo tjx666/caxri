@@ -22,7 +22,16 @@ import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
 import { HostDesktopRouter } from './desktop-router';
+import {
+    readActiveExtensionContext,
+    routeExtensionRuntimeEvent,
+} from './extensions/runtime-events';
 import { ExtensionService } from './extensions/service';
+import { publishExtensionViewEvents } from './extensions/view-events';
+import {
+    createExtensionWorkspaceRequest,
+    extensionActiveContext,
+} from './extensions/workspace-bridge';
 import type { HostForwardedMethod } from './host-methods';
 import { LocalHostServer } from './local-server';
 import type { HostProfileLease } from './profile';
@@ -239,28 +248,14 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     },
                 },
             );
-        const extensionRefresh =
-            event.event === 'projectStatus.changed'
-                ? extensionService?.projectStatusChanged()
-                : event.event === 'state.changed' &&
-                    event.payload.kind === 'full' &&
-                    [
-                        'session.select',
-                        'session.create',
-                        'session.delete',
-                        'session.workbenchRoot',
-                    ].includes(event.payload.reason)
-                  ? extensionService?.activeContextChanged()
-                  : undefined;
-        if (extensionRefresh) {
-            // The Runtime event callback cannot await the best-effort extension refresh.
-            // eslint-disable-next-line unicorn/prefer-await
-            extensionRefresh.catch((error: unknown) =>
-                logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
-                    fields: { message: error instanceof Error ? error.message : String(error) },
-                }),
-            );
-        }
+        const extensionRefresh = routeExtensionRuntimeEvent(extensionService, supervisor, event);
+        // The Runtime event callback cannot await the best-effort extension refresh.
+        // eslint-disable-next-line unicorn/prefer-await
+        extensionRefresh.catch((error: unknown) =>
+            logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
+                fields: { message: error instanceof Error ? error.message : String(error) },
+            }),
+        );
         server?.broadcast(isTransientRuntimeEvent(event) ? event : journal.publish(event));
     };
     supervisor.onEvent(deliver);
@@ -304,13 +299,26 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     if (!extensionService)
                         throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
                     return extensionService.treeChildren(request.params);
+                case 'viewContainers.viewOperation':
+                    if (!extensionService)
+                        throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
+                    return extensionService.viewOperation(request.params);
                 case 'viewContainers.executeCommand':
                     if (!extensionService)
                         throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
-                    return extensionService.executeCommand(
-                        request.params.commandId,
-                        request.params.arguments,
-                    );
+                    {
+                        const context = await readActiveExtensionContext(supervisor);
+                        if (context.kind !== 'session')
+                            throw new CaxriError(
+                                'FORBIDDEN',
+                                'Extension commands require an active Session',
+                            );
+                        return extensionService.executeCommand(
+                            request.params.commandId,
+                            request.params.arguments,
+                            context,
+                        );
+                    }
                 case 'viewContainers.cancelRequest':
                     return (
                         extensionService?.cancel(request.params.requestId) ?? {
@@ -667,15 +675,8 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 extensionRoots: options.extensionRoots,
                 includeTestOnly: options.includeTestExtensions ?? false,
                 logger,
-                activeContext: async () => {
-                    const bootstrap = await supervisor.request('app.bootstrap');
-                    const session = bootstrap.sessions.find(
-                        ({ id }) => id === bootstrap.selectedSessionId,
-                    );
-                    return {
-                        ...(session && { projectId: session.projectId, sessionId: session.id }),
-                    };
-                },
+                activeContext: async () =>
+                    extensionActiveContext(await supervisor.request('app.bootstrap')),
                 projectIds: async () => {
                     const bootstrap = await supervisor.request('app.bootstrap');
                     return bootstrap.projects.map(({ id }) => id);
@@ -685,16 +686,15 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                         sessionId,
                         ...(refreshToken && { refreshToken }),
                     }),
+                workspaceRequest: createExtensionWorkspaceRequest({
+                    desktopRouter: () => desktopRouter,
+                    runtime: supervisor,
+                }),
             });
             extensionService.onCatalogChanged((payload) =>
                 server?.broadcast({ event: 'viewContainers.catalogChanged', payload }),
             );
-            extensionService.onTreeChanged(({ viewId, handles }) =>
-                server?.broadcast({
-                    event: 'viewContainers.treeChanged',
-                    payload: { viewId, ...(handles && { handles }) },
-                }),
-            );
+            publishExtensionViewEvents(extensionService, () => server);
             await extensionService.start();
         }
         server = new LocalHostServer({

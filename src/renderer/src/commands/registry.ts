@@ -69,7 +69,6 @@ export interface CommandContext {
     };
     editor: { saveActive(): void };
     secondarySidebar: {
-        searchFiles(): void;
         activateViewContainer(id: ViewContainerId): void;
         toggle(): void;
     };
