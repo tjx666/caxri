@@ -11,7 +11,9 @@ import type {
     ParityReceipt,
     ScenarioCatalog,
 } from '../refactor-parity/contracts';
-import { recordBaseline, verifyBaseline } from '../refactor-parity/core';
+import { parityReceiptSchema } from '../refactor-parity/contracts';
+import { compareCandidate, recordBaseline, verifyBaseline } from '../refactor-parity/core';
+import { hashArtifact } from '../refactor-parity/io';
 
 const temporaryDirectories: string[] = [];
 const normalization: NormalizationRules = { rules: [], schemaVersion: 1 };
@@ -62,7 +64,7 @@ function createReceipt(role: 'before' | 'candidate' = 'before'): ParityReceipt {
                     error: { code: 'PROJECT_NOT_FOUND', retryable: false },
                     events: ['project.changed', 'session.changed'],
                     persistence: { projects: 1, sessions: 1 },
-                    processId: 42,
+                    internalEvidence: { processId: 42 },
                     terminal: { exitStatus: null, generation: 1 },
                     visual: { activePanel: 'terminal', selectedSession: true },
                 },
@@ -89,6 +91,7 @@ function createCatalog(): ScenarioCatalog {
                 evidenceConstraints: ['No source or terminal content'],
                 evidenceMode: 'non-visual',
                 id: 'protocol-request',
+                requiredMetrics: ['latency'],
                 surface: 'Protocol',
             },
         ],
@@ -109,7 +112,8 @@ describe('architecture refactor parity baseline', () => {
         const directory = await createTemporaryDirectory();
         const artifact = join(directory, 'Caxri.app');
         await mkdir(join(artifact, 'Contents'), { recursive: true });
-        await writeFile(join(artifact, 'Contents', 'Info.plist'), 'fixture', 'utf8');
+        await writeFile(join(artifact, 'Contents', 'Info.plist'), 'fixture 11111111', 'utf8');
+        await writeFile(join(artifact, 'Contents', 'candidate-marker'), '22222222', 'utf8');
         await writeFile(join(artifact, 'Contents', 'fixture-executable'), '#!/bin/sh\nexit 0\n');
         await chmod(join(artifact, 'Contents', 'fixture-executable'), 0o755);
         await symlink('Info.plist', join(artifact, 'Contents', 'Current'));
@@ -132,6 +136,7 @@ describe('architecture refactor parity baseline', () => {
             normalizationPath: normalizations,
             outputRoot: join(directory, 'baselines'),
             receiptPath: receipt,
+            sourceMarkerRelativePath: 'Contents/Info.plist',
             startupExecutableRelativePath: 'Contents/fixture-executable',
         });
 
@@ -144,10 +149,45 @@ describe('architecture refactor parity baseline', () => {
                 normalizationPath: normalizations,
                 outputRoot: join(directory, 'baselines'),
                 receiptPath: receipt,
+                sourceMarkerRelativePath: 'Contents/Info.plist',
                 startupExecutableRelativePath: 'Contents/fixture-executable',
             }),
         ).rejects.toThrow('Baseline already exists and is immutable');
         expect((await verifyBaseline(baseline)).failures).toEqual([]);
+
+        const candidateReceipt = createReceipt('candidate');
+        candidateReceipt.artifactSha256 = '0'.repeat(64);
+        const candidateReceiptPath = join(directory, 'candidate.json');
+        await writeJson(candidateReceiptPath, candidateReceipt);
+        const mismatchedCandidate = await compareCandidate(
+            baseline,
+            candidateReceiptPath,
+            artifact,
+            'Contents/candidate-marker',
+            undefined,
+            'A0',
+        );
+        expect(mismatchedCandidate.failures).toContain(
+            'Candidate receipt is not bound to the supplied artifact hash',
+        );
+        expect(mismatchedCandidate.candidateArtifactSha256).toBe(
+            (await hashArtifact(artifact)).aggregateSha256,
+        );
+        candidateReceipt.artifactSha256 = mismatchedCandidate.candidateArtifactSha256;
+        candidateReceipt.artifactRole = 'before';
+        await writeJson(candidateReceiptPath, candidateReceipt);
+        expect(
+            (
+                await compareCandidate(
+                    baseline,
+                    candidateReceiptPath,
+                    artifact,
+                    'Contents/candidate-marker',
+                    undefined,
+                    'A0',
+                )
+            ).failures,
+        ).toContain('Candidate receipt artifactRole must be candidate');
 
         await writeFile(join(baseline, 'artifact', 'Contents', 'Info.plist'), 'tampered', 'utf8');
         expect((await verifyBaseline(baseline)).failures).toContain(
@@ -184,9 +224,92 @@ describe('architecture refactor parity baseline', () => {
                 normalizationPath: normalizations,
                 outputRoot: join(directory, 'baselines'),
                 receiptPath: receipt,
+                sourceMarkerRelativePath: 'app',
+                startupExecutableRelativePath: 'app',
             }),
         ).rejects.toThrow();
         expect(privacyViolations(receiptValue)).toContain('$.scenarios[0].semantic.terminalOutput');
+    });
+
+    it('rejects receipts with undeclared fields instead of archiving their raw JSON', async () => {
+        const directory = await createTemporaryDirectory();
+        const artifact = join(directory, 'artifact');
+        await mkdir(artifact);
+        await writeFile(join(artifact, 'app'), '#!/bin/sh\nexit 0\n');
+        await chmod(join(artifact, 'app'), 0o755);
+        const catalog = join(directory, 'catalog.json');
+        const receipt = join(directory, 'receipt.json');
+        const normalizations = join(directory, 'normalization.json');
+        const allowlist = join(directory, 'allowlist.json');
+        await Promise.all([
+            writeJson(catalog, createCatalog()),
+            writeJson(receipt, { ...createReceipt(), undeclaredEvidence: 'must-not-archive' }),
+            writeJson(normalizations, normalization),
+            writeJson(allowlist, emptyAllowlist),
+        ]);
+
+        await expect(
+            recordBaseline({
+                allowlistPath: allowlist,
+                artifactPath: artifact,
+                baselineId: 'strict-input',
+                catalogPath: catalog,
+                normalizationPath: normalizations,
+                outputRoot: join(directory, 'baselines'),
+                receiptPath: receipt,
+                sourceMarkerRelativePath: 'app',
+                startupExecutableRelativePath: 'app',
+            }),
+        ).rejects.toThrow('Unrecognized key');
+    });
+
+    it('requires catalog-declared performance metrics and an in-artifact startup probe', async () => {
+        const directory = await createTemporaryDirectory();
+        const artifact = join(directory, 'artifact');
+        await mkdir(artifact);
+        await writeFile(join(artifact, 'app'), '#!/bin/sh\nexit 0\n');
+        await chmod(join(artifact, 'app'), 0o755);
+        const catalog = join(directory, 'catalog.json');
+        const receipt = join(directory, 'receipt.json');
+        const normalizations = join(directory, 'normalization.json');
+        const allowlist = join(directory, 'allowlist.json');
+        const receiptWithoutMetrics = createReceipt();
+        delete receiptWithoutMetrics.scenarios[0].metrics;
+        await Promise.all([
+            writeJson(catalog, createCatalog()),
+            writeJson(receipt, receiptWithoutMetrics),
+            writeJson(normalizations, normalization),
+            writeJson(allowlist, emptyAllowlist),
+        ]);
+
+        await expect(
+            recordBaseline({
+                allowlistPath: allowlist,
+                artifactPath: artifact,
+                baselineId: 'missing-metric',
+                catalogPath: catalog,
+                normalizationPath: normalizations,
+                outputRoot: join(directory, 'baselines'),
+                receiptPath: receipt,
+                sourceMarkerRelativePath: 'app',
+                startupExecutableRelativePath: 'app',
+            }),
+        ).rejects.toThrow('Missing required metric for protocol-request: latency');
+
+        await writeJson(receipt, createReceipt());
+        await expect(
+            recordBaseline({
+                allowlistPath: allowlist,
+                artifactPath: artifact,
+                baselineId: 'external-startup-probe',
+                catalogPath: catalog,
+                normalizationPath: normalizations,
+                outputRoot: join(directory, 'baselines'),
+                receiptPath: receipt,
+                sourceMarkerRelativePath: 'app',
+                startupExecutableRelativePath: '../sidecar',
+            }),
+        ).rejects.toThrow('Startup executable path must stay inside');
     });
 });
 
@@ -238,7 +361,7 @@ describe('architecture refactor parity comparison', () => {
     it('normalizes only declared wildcard paths', () => {
         const baseline = createReceipt();
         const candidate = createReceipt('candidate');
-        candidate.scenarios[0].semantic.processId = 99;
+        candidate.scenarios[0].semantic.internalEvidence = { processId: 99 };
 
         expect(compareReceipts(baseline, candidate, normalization, emptyAllowlist).status).toBe(
             'fail',
@@ -248,7 +371,12 @@ describe('architecture refactor parity comparison', () => {
                 baseline,
                 candidate,
                 {
-                    rules: [{ kind: 'pid', path: '/scenarios/*/semantic/processId' }],
+                    rules: [
+                        {
+                            kind: 'pid',
+                            path: '/scenarios/*/semantic/internalEvidence/processId',
+                        },
+                    ],
                     schemaVersion: 1,
                 },
                 emptyAllowlist,
@@ -256,18 +384,18 @@ describe('architecture refactor parity comparison', () => {
         ).toBe('pass');
     });
 
-    it('accepts only an exact reviewed intentional difference', () => {
+    it('accepts only an exact reviewed internal difference', () => {
         const baseline = createReceipt();
         const candidate = createReceipt('candidate');
-        candidate.scenarios[0].semantic.cli = { exitCode: 1, outputKind: 'json' };
+        candidate.scenarios[0].semantic.internalEvidence = { processId: 99 };
         const allowlist: IntentionalDifferences = {
             entries: [
                 {
-                    after: 1,
-                    before: 0,
+                    after: 99,
+                    before: 42,
                     expiresAfterBatch: 'A2a',
                     issue: 374,
-                    path: 'semantic.cli.exitCode',
+                    path: 'semantic.internalEvidence.processId',
                     rationale: 'Seeded comparator contract test only.',
                     scenarioId: 'protocol-request',
                     visibility: 'internal',
@@ -280,14 +408,64 @@ describe('architecture refactor parity comparison', () => {
 
         expect(result.status).toBe('pass');
         expect(result.allowedDifferences).toHaveLength(1);
-        allowlist.entries[0].after = 2;
+        allowlist.entries[0].after = 100;
         expect(compareReceipts(baseline, candidate, normalization, allowlist, 'A2a').status).toBe(
             'fail',
         );
-        allowlist.entries[0].after = 1;
+        allowlist.entries[0].after = 99;
         expect(
             compareReceipts(baseline, candidate, normalization, allowlist, 'A2b').failures,
         ).toContain('Intentional difference expired after A2a');
+    });
+
+    it('never allows a product-visible difference to be mislabeled as internal', () => {
+        const baseline = createReceipt();
+        const candidate = createReceipt('candidate');
+        candidate.scenarios[0].semantic.cli = { exitCode: 1, outputKind: 'json' };
+        const allowlist: IntentionalDifferences = {
+            entries: [
+                {
+                    after: 1,
+                    before: 0,
+                    expiresAfterBatch: 'A2a',
+                    issue: 374,
+                    path: 'semantic.cli.exitCode',
+                    rationale: 'A false product-visible exemption must fail closed.',
+                    scenarioId: 'protocol-request',
+                    visibility: 'internal',
+                },
+            ],
+            schemaVersion: 1,
+        };
+
+        expect(
+            compareReceipts(baseline, candidate, normalization, allowlist, 'A2a').failures,
+        ).toContain(
+            'Intentional internal difference targets product evidence: semantic.cli.exitCode',
+        );
+    });
+
+    it('rejects normalization rules that target performance samples', () => {
+        const baseline = createReceipt();
+        const candidate = createReceipt('candidate');
+        candidate.scenarios[0].metrics!.latency.samples = [100, 100, 100];
+
+        expect(() =>
+            compareReceipts(
+                baseline,
+                candidate,
+                {
+                    rules: [
+                        {
+                            kind: 'duration',
+                            path: '/scenarios/*/metrics/latency/samples/*',
+                        },
+                    ],
+                    schemaVersion: 1,
+                },
+                emptyAllowlist,
+            ),
+        ).toThrow('Normalization may target only internal or artifact evidence');
     });
 
     it('fails when a performance budget regresses or a scenario is missing', () => {
@@ -301,6 +479,7 @@ describe('architecture refactor parity comparison', () => {
         );
 
         candidate.scenarios = [];
+        expect(parityReceiptSchema.safeParse(candidate).success).toBe(true);
         expect(
             compareReceipts(baseline, candidate, normalization, emptyAllowlist).failures,
         ).toContain('protocol-request: candidate receipt is missing');

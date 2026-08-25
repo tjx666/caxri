@@ -116,6 +116,19 @@ export function normalizeReceipt(receipt: ParityReceipt, rules: NormalizationRul
             .slice(1)
             .split('/')
             .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'));
+        const evidenceBoundary = segments[3];
+        if (
+            segments[0] !== 'scenarios' ||
+            !['*', ...receipt.scenarios.map((_scenario, index) => String(index))].includes(
+                segments[1],
+            ) ||
+            segments[2] !== 'semantic' ||
+            (evidenceBoundary !== 'artifactEvidence' && evidenceBoundary !== 'internalEvidence')
+        ) {
+            throw new Error(
+                `Normalization may target only internal or artifact evidence: ${rule.path}`,
+            );
+        }
         if (normalizePath(normalized, segments, rule.kind) === 0) {
             throw new Error(`Normalization path did not match evidence: ${rule.path}`);
         }
@@ -240,6 +253,16 @@ export function compareReceipts(
         failures.push(`Unknown refactor batch: ${currentBatch}`);
     }
     for (const [index, entry] of allowlist.entries.entries()) {
+        const allowedPrefix =
+            entry.visibility === 'artifact'
+                ? 'semantic.artifactEvidence.'
+                : 'semantic.internalEvidence.';
+        if (!entry.path.startsWith(allowedPrefix)) {
+            failures.push(
+                `Intentional ${entry.visibility} difference targets product evidence: ${entry.path}`,
+            );
+            disabledAllowlistIndexes.add(index);
+        }
         const expirationIndex = refactorBatchOrder.indexOf(entry.expiresAfterBatch as never);
         if (expirationIndex === -1) {
             failures.push(
@@ -344,6 +367,9 @@ export function compareReceipts(
             : 'pass';
     return {
         allowedDifferences,
+        ...(candidate.artifactSha256 && {
+            candidateArtifactSha256: candidate.artifactSha256,
+        }),
         candidateCommit: candidate.source.commit,
         failures,
         passedScenarios,
