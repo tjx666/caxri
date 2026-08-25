@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }));
+const scope = {
+    kind: 'session' as const,
+    sessionId: 'session-1',
+    workbenchProjectId: 'project-1',
+};
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
@@ -17,7 +22,7 @@ describe('controlled view operation cancellation', () => {
         controller.abort();
 
         await expect(
-            createResourceExplorerClient('publisher.files.explorer').list(
+            createResourceExplorerClient('publisher.files.explorer', scope).list(
                 '/project',
                 controller.signal,
             ),
@@ -32,7 +37,7 @@ describe('controlled view operation cancellation', () => {
             method === 'viewContainers.viewOperation' ? pending.promise : Promise.resolve({}),
         );
         const controller = new AbortController();
-        const request = createResourceExplorerClient('publisher.files.explorer').list(
+        const request = createResourceExplorerClient('publisher.files.explorer', scope).list(
             '/project',
             controller.signal,
         );
@@ -48,6 +53,13 @@ describe('controlled view operation cancellation', () => {
                 ([method]) => method === 'viewContainers.cancelRequest',
             ),
         ).toHaveLength(1);
+        expect(mocks.request).toHaveBeenCalledWith('viewContainers.viewOperation', {
+            viewId: 'publisher.files.explorer',
+            requestId: 'view-request-1',
+            operation: 'files.list',
+            arguments: { directory: '/project' },
+            context: scope,
+        });
     });
 
     it('forwards commit history cancellation through the source-control client', async () => {
@@ -57,7 +69,7 @@ describe('controlled view operation cancellation', () => {
             method === 'viewContainers.viewOperation' ? pending.promise : Promise.resolve(null),
         );
         const controller = new AbortController();
-        const request = createSourceControlClient('publisher.git.sourceControl').commits(
+        const request = createSourceControlClient('publisher.git.sourceControl', scope).commits(
             { repositoryId: 'repo-1', offset: 0, pageSize: 5 },
             controller.signal,
         );

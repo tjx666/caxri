@@ -171,6 +171,44 @@ describe('ExtensionService generation lifecycle', () => {
         supervisorHarness.viewOperationResult = undefined;
     });
 
+    it('cancels a controlled operation before activation when its Renderer scope is stale', async () => {
+        const service = new ExtensionService({
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            extensionRoots: ['/extensions'],
+            includeTestOnly: true,
+            logger: new StructuredLogger('/tmp/caxri-extension-service-test', 'host', 'error'),
+            activeContext: () =>
+                Promise.resolve({
+                    ownerProjectId: 'project-2',
+                    sessionId: 'session-2',
+                    workbenchProjectId: 'project-2',
+                }),
+            projectIds: () => Promise.resolve(['project-2']),
+            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
+        });
+        await service.start();
+
+        await expect(
+            service.viewOperation({
+                viewId: 'publisher.fixture.files',
+                operation: 'files.list',
+                arguments: { directory: '/project-1' },
+                requestId: 'stale-scope',
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
+            }),
+        ).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(supervisorHarness.requests).not.toContainEqual(
+            expect.objectContaining({ method: 'activate' }),
+        );
+    });
+
     it('does not let a rejected retired activation overwrite the crash generation', async () => {
         const service = new ExtensionService({
             appVersion: '0.0.17',
@@ -228,6 +266,7 @@ describe('ExtensionService generation lifecycle', () => {
             operation: 'files.list',
             arguments: {},
             requestId: 'recovery-files-list',
+            context: { kind: 'no-session' },
         });
         await vi.waitFor(() =>
             expect(supervisorHarness.requests).toContainEqual(
@@ -336,6 +375,7 @@ describe('ExtensionService generation lifecycle', () => {
                 operation: 'files.list',
                 arguments: {},
                 requestId: 'request-files-list',
+                context: { kind: 'no-session' },
             }),
         ).rejects.toMatchObject({ code: 'PROVIDER_FAILED' });
     });
@@ -378,6 +418,7 @@ describe('ExtensionService generation lifecycle', () => {
                 operation: 'files.operation.get',
                 arguments: { operationId: 'operation-1' },
                 requestId: 'request-operation-get',
+                context: { kind: 'no-session' },
             }),
         ).resolves.toEqual(supervisorHarness.viewOperationResult);
     });

@@ -17,11 +17,15 @@ import {
     gitPullRequestChangesSchema,
     gitSummarySchema,
 } from '../domain/git.js';
-import { viewIdSchema } from '../domain/views.js';
+import { extensionViewEventContextSchema, viewIdSchema } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
-const common = { viewId: viewIdSchema, requestId: identifierSchema };
+const common = {
+    viewId: viewIdSchema,
+    requestId: identifierSchema,
+    context: extensionViewEventContextSchema,
+};
 const operationId = { operationId: identifierSchema };
 const repoId = { repositoryId: identifierSchema };
 const fileNameSchema = z

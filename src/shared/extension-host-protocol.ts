@@ -138,7 +138,11 @@ export type ExtensionHostApiRequest = ExtensionHostApiRequestBase &
           }
         | {
               method: 'workspace.request';
-              params: { operation: ExtensionWorkspaceOperation; arguments: unknown };
+              params: {
+                  operation: ExtensionWorkspaceOperation;
+                  arguments: unknown;
+                  context: ExtensionViewEventScope;
+              };
           }
     );
 

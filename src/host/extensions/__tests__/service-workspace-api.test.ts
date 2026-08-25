@@ -94,6 +94,12 @@ vi.mock('../supervisor', () => ({
 
 import { ExtensionService } from '../service';
 
+const defaultApiContext = {
+    kind: 'session' as const,
+    sessionId: 'session-1',
+    workbenchProjectId: 'project-1',
+};
+
 function apiRequest(
     registration: ExtensionHostRegistration,
     operation: Extract<
@@ -101,6 +107,7 @@ function apiRequest(
         { method: 'workspace.request' }
     >['params']['operation'],
     arguments_: unknown,
+    context = defaultApiContext,
 ): ExtensionHostApiRequest {
     return {
         type: 'api-request',
@@ -109,7 +116,7 @@ function apiRequest(
         generation: registration.generation,
         apiToken: registration.apiToken,
         method: 'workspace.request',
-        params: { operation, arguments: arguments_ },
+        params: { operation, arguments: arguments_, context },
     };
 }
 
@@ -172,6 +179,26 @@ describe('ExtensionService workspace API authority', () => {
         await expect(
             harness.requestApi!(apiRequest(registration, 'files.list', { directory: '/outside' })),
         ).rejects.toBe(denied);
+    });
+
+    it('cancels a provider request whose attested view scope is no longer active', async () => {
+        const registration = harness.registrations!()[0];
+
+        await expect(
+            harness.requestApi!(
+                apiRequest(
+                    registration,
+                    'files.list',
+                    { directory: '/previous-project' },
+                    {
+                        kind: 'session',
+                        sessionId: 'previous-session',
+                        workbenchProjectId: 'previous-project',
+                    },
+                ),
+            ),
+        ).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(workspaceRequest).not.toHaveBeenCalled();
     });
 
     it('denies undeclared capabilities and cross-Project operation control', async () => {
@@ -294,7 +321,18 @@ describe('ExtensionService workspace API authority', () => {
         workspaceRequest.mockResolvedValueOnce([operation]);
 
         await expect(
-            harness.requestApi!(apiRequest(registration, 'files.operation.list', {})),
+            harness.requestApi!(
+                apiRequest(
+                    registration,
+                    'files.operation.list',
+                    {},
+                    {
+                        kind: 'session',
+                        sessionId: 'session-1',
+                        workbenchProjectId: 'project-worktree',
+                    },
+                ),
+            ),
         ).resolves.toEqual([operation]);
     });
 
@@ -308,7 +346,18 @@ describe('ExtensionService workspace API authority', () => {
         const registration = harness.registrations!()[0];
 
         await expect(
-            harness.requestApi!(apiRequest(registration, 'files.list', {})),
+            harness.requestApi!(
+                apiRequest(
+                    registration,
+                    'files.list',
+                    {},
+                    {
+                        kind: 'session',
+                        sessionId: 'session-1',
+                        workbenchProjectId: 'project-worktree',
+                    },
+                ),
+            ),
         ).rejects.toMatchObject({ code: 'PROJECT_SCOPE_DENIED' });
         expect(workspaceRequest).not.toHaveBeenCalled();
     });

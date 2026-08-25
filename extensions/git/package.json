@@ -26,6 +26,7 @@
                 {
                     "id": "caxri.git",
                     "title": "Git",
+                    "order": 200,
                     "icon": {
                         "kind": "builtin",
                         "id": "git-branch"

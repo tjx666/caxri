@@ -21,7 +21,7 @@ afterEach(async () => {
     await Promise.all(directories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
-async function extension(id: string, containerId: string, icon?: unknown) {
+async function extension(id: string, containerId: string, icon?: unknown, order?: number) {
     const rootPath = await mkdtemp(join(tmpdir(), 'caxri-extension-catalog-'));
     temporaryDirectories.push(rootPath);
     await mkdir(join(rootPath, 'media'));
@@ -39,6 +39,7 @@ async function extension(id: string, containerId: string, icon?: unknown) {
                     {
                         id: containerId,
                         title: 'Fixture',
+                        ...(order !== undefined && { order }),
                         icon: (icon ?? {
                             kind: 'resource',
                             path: 'media/icon.svg',
@@ -129,6 +130,26 @@ describe('buildViewCatalog', () => {
             source: { kind: 'extension', extensionId: 'caxri.git' },
             viewKind: { kind: 'source-control' },
         });
+    });
+
+    it('orders view containers by their manifest contribution instead of discovery order', async () => {
+        const status = await extension('publisher.status', 'publisher.status', undefined, 400);
+        const files = await extension('publisher.files', 'publisher.files', undefined, 100);
+        const fixture = await extension('publisher.fixture', 'publisher.fixture', undefined, 300);
+        const git = await extension('publisher.git', 'publisher.git', undefined, 200);
+
+        const catalog = await buildViewCatalog({
+            extensions: [status, files, fixture, git],
+            rejected: [],
+            states: new Map(),
+            revision: 1,
+        });
+
+        expect(
+            catalog.containers
+                .filter(({ location }) => location === 'secondarySidebar')
+                .map(({ id }) => id),
+        ).toEqual(['publisher.files', 'publisher.git', 'publisher.fixture', 'publisher.status']);
     });
 
     it('uses one descriptor shape for remaining builtin-react and extension tree views', async () => {

@@ -134,6 +134,11 @@ describe('local Host transport regressions', () => {
                 requestId: 'view-request',
                 operation: 'files.list',
                 arguments: {},
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
             }) +
                 command('view-cancel', 'viewContainers.cancelRequest', {
                     requestId: 'view-request',

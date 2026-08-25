@@ -244,7 +244,14 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
             token?: CancellationToken,
         ) =>
             request<Result>(
-                { method: 'workspace.request', params: { operation, arguments: arguments_ } },
+                {
+                    method: 'workspace.request',
+                    params: {
+                        operation,
+                        arguments: arguments_,
+                        context: currentViewEventContext() ?? { kind: 'no-session' },
+                    },
+                },
                 token,
             ),
     );

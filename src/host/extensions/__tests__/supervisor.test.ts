@@ -71,6 +71,17 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 extensionId: 'publisher.fixture',
                 generation: 1,
                 apiToken: 'fixture-token-1',
+                method: 'workspace.request',
+                params: { operation: 'files.list', arguments: {} },
+            }),
+        ).toBe(false);
+        expect(
+            isExtensionHostMessage({
+                type: 'api-request',
+                id: 'api',
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                apiToken: 'fixture-token-1',
                 method: 'workspace.getProjectStatus',
                 params: { refreshToken: 'refresh-1' },
             }),
@@ -94,7 +105,15 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 generation: 1,
                 apiToken: 'fixture-token-1',
                 method: 'workspace.request',
-                params: { operation: 'files.list', arguments: {} },
+                params: {
+                    operation: 'files.list',
+                    arguments: {},
+                    context: {
+                        kind: 'session',
+                        sessionId: 'session-1',
+                        workbenchProjectId: 'project-1',
+                    },
+                },
             }),
         ).toBe(true);
         expect(
@@ -105,7 +124,11 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 generation: 1,
                 apiToken: 'fixture-token-1',
                 method: 'workspace.request',
-                params: { operation: 'process.shell', arguments: {} },
+                params: {
+                    operation: 'process.shell',
+                    arguments: {},
+                    context: { kind: 'no-session' },
+                },
             }),
         ).toBe(false);
         for (const change of [

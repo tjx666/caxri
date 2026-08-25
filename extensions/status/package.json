@@ -26,6 +26,7 @@
                 {
                     "id": "caxri.project-status",
                     "title": "Status",
+                    "order": 400,
                     "icon": {
                         "kind": "builtin",
                         "id": "status"

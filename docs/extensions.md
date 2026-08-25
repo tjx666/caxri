@@ -57,6 +57,7 @@ An extension package must declare `type: "module"`, a `.js` or `.mjs` entry, a c
         {
           "id": "publisher.extension",
           "title": "Extension",
+          "order": 200,
           "icon": { "kind": "resource", "path": "media/extension.svg" }
         }
       ]
@@ -84,7 +85,9 @@ An extension package must declare `type: "module"`, a `.js` or `.mjs` entry, a c
 Only `secondarySidebar` and `panel` are contribution locations. Container icons explicitly choose
 either an allowlisted semantic icon (`{ "kind": "builtin", "id": "status" }`) or an extension
 resource (`{ "kind": "resource", "path": "media/extension.svg" }`). Resource icons keep their
-authored colors. `onView:<id>` and `onCommand:<id>` activation are derived from contributions, so
+authored colors. The optional bounded integer `order` makes container placement independent of
+extension discovery order; equal or omitted values retain stable discovery order. `onView:<id>` and
+`onCommand:<id>` activation are derived from contributions, so
 manifests must not declare `activationEvents`; conditional `when` clauses are likewise unsupported
 until Caxri implements and validates their semantics. Caxri validates manifest and engine
 compatibility with standard SemVer rules, canonical entry and icon containment, sizes, namespaces,
@@ -135,13 +138,17 @@ explicit user selection updates desired state.
 contracts. Providers expose only typed list/search/mutation or Git summary/sync/discard/history
 operations and typed change events. Calls carry an opaque request ID and cancellation token. A
 Renderer abort sends one cancellation for that request; an already-aborted signal starts no
-provider work. Extension Host provider retirement, Host generation changes, active-context changes,
-and late results all fail closed with a generation error.
+provider work. Every controlled operation also carries the Renderer's expected Session and Workbench
+Root. Host verifies that scope before activation, the Extension Host propagates it through the public
+workspace call, and Host verifies it again before Runtime authority. A stale scope is a typed
+`CANCELLED` non-fault, so an old view can neither read from nor submit a path against the newly active
+Project. Extension Host provider retirement, Host generation changes, and late results still fail
+closed at their owning generation fence.
 
 The public `workspace.fs` and `workspace.git` APIs are the only Caxri authority used by the Files and
 Git product extensions. The extension cannot submit a Session ID, Project path, repository path, or
 shell command. Host injects the active Session and Workbench Root after validating the extension
-identity, generation, declared read/write capability, and owner/root grants. Runtime revalidates
+identity, generation, provider-attested view scope, declared read/write capability, and owner/root grants. Runtime revalidates
 that binding immediately before the domain handler captures its authorized root. Read results are
 rejected if the active context changes while they are running; a durable write that already started
 returns its authoritative result and remains recoverable under the original Workbench Root instead

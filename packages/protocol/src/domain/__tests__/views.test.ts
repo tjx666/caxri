@@ -72,6 +72,40 @@ describe('extension view contracts', () => {
         });
         expect(manifest.contributes.viewsContainers.panel).toEqual([]);
 
+        const orderedManifest = extensionManifestSchema.parse({
+            ...manifest,
+            contributes: {
+                ...manifest.contributes,
+                viewsContainers: {
+                    secondarySidebar: [
+                        {
+                            ...manifest.contributes.viewsContainers.secondarySidebar[0],
+                            order: 200,
+                        },
+                    ],
+                },
+            },
+        });
+        expect(orderedManifest.contributes.viewsContainers.secondarySidebar[0].order).toBe(200);
+        for (const order of [-1, 1.5, 10_001])
+            expect(
+                extensionManifestSchema.safeParse({
+                    ...orderedManifest,
+                    contributes: {
+                        ...orderedManifest.contributes,
+                        viewsContainers: {
+                            secondarySidebar: [
+                                {
+                                    ...orderedManifest.contributes.viewsContainers
+                                        .secondarySidebar[0],
+                                    order,
+                                },
+                            ],
+                        },
+                    },
+                }).success,
+            ).toBe(false);
+
         expect(
             extensionManifestSchema.safeParse({
                 ...manifest,

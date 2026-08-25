@@ -115,6 +115,30 @@ export interface CatalogExtensionState {
     error?: ExtensionError;
 }
 
+function orderedContainers(
+    containers: readonly ViewContainerDescriptor[],
+    manifestOrders: ReadonlyMap<string, number>,
+): ViewContainerDescriptor[] {
+    const queues = new Map(
+        ['secondarySidebar', 'panel'].map((location) => [
+            location,
+            containers
+                .filter((container) => container.location === location)
+                .toSorted(
+                    (left, right) =>
+                        (manifestOrders.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+                        (manifestOrders.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+                ),
+        ]),
+    );
+    const offsets = new Map<string, number>();
+    return containers.map((container) => {
+        const offset = offsets.get(container.location) ?? 0;
+        offsets.set(container.location, offset + 1);
+        return queues.get(container.location)![offset];
+    });
+}
+
 export async function buildViewCatalog(options: {
     extensions: readonly DiscoveredExtension[];
     rejected: readonly RejectedExtension[];
@@ -125,6 +149,7 @@ export async function buildViewCatalog(options: {
     const views = [...builtinViews];
     const commands = [...builtinCommands];
     const extensions: ExtensionDescriptor[] = [];
+    const manifestOrders = new Map<string, number>();
     const ids = new Set<string>([
         ...containers.map(({ id }) => id),
         ...views.map(({ id }) => id),
@@ -240,6 +265,8 @@ export async function buildViewCatalog(options: {
                     contribution.command ??
                     `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${contribution.id}`;
                 ids.add(contribution.id);
+                if (contribution.order !== undefined)
+                    manifestOrders.set(contribution.id, contribution.order);
                 containers.push({
                     id: contribution.id,
                     location,
@@ -336,7 +363,7 @@ export async function buildViewCatalog(options: {
     }
     return viewCatalogSnapshotSchema.parse({
         revision: options.revision,
-        containers,
+        containers: orderedContainers(containers, manifestOrders),
         views,
         commands,
         extensions,
