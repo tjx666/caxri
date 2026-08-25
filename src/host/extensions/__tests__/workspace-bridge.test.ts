@@ -6,16 +6,12 @@ import { createExtensionWorkspaceRequest, extensionActiveContext } from '../work
 
 function fixture() {
     const discard = vi.fn(() => Promise.resolve(null));
-    const open = vi.fn(() => Promise.resolve({}));
     const requestInWorkbenchContext = vi.fn(() => Promise.resolve([]));
-    const trash = vi.fn(() => Promise.resolve(null));
-    const desktopRouter = { discard, open, trash } as unknown as HostDesktopRouter;
+    const desktopRouter = { discard } as unknown as HostDesktopRouter;
     return {
         desktopRouter,
         discard,
-        open,
         requestInWorkbenchContext,
-        trash,
         workspaceRequest: createExtensionWorkspaceRequest({
             desktopRouter: () => desktopRouter,
             runtime: { requestInWorkbenchContext } as unknown as Pick<
@@ -48,65 +44,18 @@ describe('Extension workspace bridge', () => {
 
     it('routes allowlisted workspace reads to Runtime authority', async () => {
         const harness = fixture();
-        const parameters = { directory: '/project', sessionId: 'session-1' };
+        const parameters = { refresh: 0, sessionId: 'session-1' };
 
         const context = { sessionId: 'session-1', workbenchProjectId: 'project-1' };
-        await expect(harness.workspaceRequest('files.list', parameters, context)).resolves.toEqual(
+        await expect(harness.workspaceRequest('git.summary', parameters, context)).resolves.toEqual(
             [],
         );
         expect(harness.requestInWorkbenchContext).toHaveBeenCalledWith(
-            'files.list',
+            'git.summary',
             parameters,
             context,
         );
-        expect(harness.open).not.toHaveBeenCalled();
-        expect(harness.trash).not.toHaveBeenCalled();
         expect(harness.discard).not.toHaveBeenCalled();
-    });
-
-    it('uses a generation-bound Desktop target for Finder reveal', async () => {
-        const harness = fixture();
-
-        await expect(
-            harness.workspaceRequest(
-                'files.reveal',
-                {
-                    path: '/project/file.ts',
-                    sessionId: 'session-1',
-                },
-                { sessionId: 'session-1', workbenchProjectId: 'project-1' },
-            ),
-        ).resolves.toBeNull();
-        expect(harness.open).toHaveBeenCalledWith(
-            'reveal',
-            undefined,
-            {
-                launchIfNeeded: false,
-                path: '/project/file.ts',
-                sessionId: 'session-1',
-            },
-            undefined,
-            { sessionId: 'session-1', workbenchProjectId: 'project-1' },
-        );
-        expect(harness.requestInWorkbenchContext).not.toHaveBeenCalled();
-    });
-
-    it('routes Trash through the Host-owned authorization and native-operation sequence', async () => {
-        const harness = fixture();
-        const parameters = { sessionId: 'session-1', path: '/project/file.ts' };
-
-        await expect(
-            harness.workspaceRequest('files.trash', parameters, {
-                sessionId: 'session-1',
-                workbenchProjectId: 'project-1',
-            }),
-        ).resolves.toBeNull();
-        expect(harness.trash).toHaveBeenCalledWith(parameters, undefined, {
-            sessionId: 'session-1',
-            workbenchProjectId: 'project-1',
-        });
-        expect(harness.requestInWorkbenchContext).not.toHaveBeenCalled();
-        expect(harness.open).not.toHaveBeenCalled();
     });
 
     it('routes Git discard through the Host-owned confirmation and Runtime sequence', async () => {
@@ -124,7 +73,6 @@ describe('Extension workspace bridge', () => {
             workbenchProjectId: 'project-1',
         });
         expect(harness.requestInWorkbenchContext).not.toHaveBeenCalled();
-        expect(harness.open).not.toHaveBeenCalled();
     });
 
     it('fails closed when a native operation has no authenticated Desktop', async () => {
@@ -139,9 +87,10 @@ describe('Extension workspace bridge', () => {
 
         await expect(
             workspaceRequest(
-                'files.trash',
+                'git.discard',
                 {
-                    path: '/project/file.ts',
+                    repositoryId: 'repository-1',
+                    scope: { kind: 'all' },
                     sessionId: 'session-1',
                 },
                 { sessionId: 'session-1', workbenchProjectId: 'project-1' },

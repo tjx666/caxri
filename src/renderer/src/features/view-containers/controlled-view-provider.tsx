@@ -1,26 +1,32 @@
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 
-import type { ViewActionDescriptor } from '@shared/views';
+import type { ControlledViewPresentation, ViewActionDescriptor } from '@shared/views';
 
 import { useSelectedSession } from '../../stores/selectors';
 import type { ControlledViewContextValue } from './controlled-view-context';
 import { ControlledViewContext } from './controlled-view-context';
-import { createResourceExplorerClient, createSourceControlClient } from './view-operation-client';
+import { createResourceExplorerClient } from './resource-explorer/resource-explorer-client';
+import { createSourceControlClient } from './view-operation-client';
 
 const emptyActions: readonly ViewActionDescriptor[] = [];
+const emptyConfigDependencies: readonly string[] = [];
 
 export function ControlledViewProvider({
     actions = emptyActions,
+    configurationDependencies: configDependencies = emptyConfigDependencies,
     children,
-    extensionGeneration,
+    providerGeneration,
     kind,
+    presentation,
     viewId,
 }: {
     actions?: readonly ViewActionDescriptor[];
+    configurationDependencies?: readonly string[];
     children: ReactNode;
-    extensionGeneration: number;
+    providerGeneration: number;
     kind: 'resource-explorer' | 'source-control';
+    presentation?: ControlledViewPresentation;
     viewId: string;
 }) {
     const session = useSelectedSession();
@@ -33,12 +39,23 @@ export function ControlledViewProvider({
                 : { kind: 'no-session' as const };
         return {
             actions,
-            extensionGeneration,
+            configurationDependencies: configDependencies,
+            providerGeneration,
+            presentation,
             viewId,
             ...(kind === 'resource-explorer'
-                ? { resourceExplorer: createResourceExplorerClient(viewId, context) }
+                ? { resourceExplorer: createResourceExplorerClient(viewId, sessionId) }
                 : { sourceControl: createSourceControlClient(viewId, context) }),
         };
-    }, [actions, extensionGeneration, kind, sessionId, viewId, workbenchProjectId]);
+    }, [
+        actions,
+        configDependencies,
+        kind,
+        presentation,
+        providerGeneration,
+        sessionId,
+        viewId,
+        workbenchProjectId,
+    ]);
     return <ControlledViewContext value={value}>{children}</ControlledViewContext>;
 }

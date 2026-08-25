@@ -162,6 +162,11 @@ export class GitService {
         });
         this.workingTreeService = new GitWorkingTreeService({
             git: (cwd, arguments_, options_) => this.git(cwd, arguments_, options_),
+            /**
+             * Mutations advance Runtime's authoritative generation immediately. The metadata watcher may report the
+             * same change later, but Source Control and other Git consumers must not depend on watcher timing.
+             */
+            onDidMutate: (rootPath) => this.repositoryService.observeWorkingTreeMutation(rootPath),
             resolveRepository: (sessionId, repoId) => this.resolveRepository(sessionId, repoId),
             snapshot: (sessionId, repoId) =>
                 this.repositoryService.discardSnapshot(sessionId, repoId),

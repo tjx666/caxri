@@ -2,7 +2,7 @@ import { CancellationTokenSource } from 'caxri';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExtensionHostMessage } from '../../shared/extension-host-protocol';
-import { rejectPendingApiRequests, requestHostApi } from '../host-api-request';
+import { rejectPendingApiRequests, requestHostApi, settleApiReply } from '../host-api-request';
 
 const context = {
     kind: 'session' as const,
@@ -30,7 +30,7 @@ describe('Extension Host API requests', () => {
             },
             {
                 method: 'workspace.request',
-                params: { operation: 'files.list', arguments: {}, context },
+                params: { operation: 'git.summary', arguments: { refresh: 0 }, context },
             },
             source.token,
         );
@@ -41,7 +41,7 @@ describe('Extension Host API requests', () => {
         expect(sent).toContainEqual(expect.objectContaining({ type: 'api-cancel' }));
     });
 
-    it('does not abandon a non-expiring mutation at the nested Host API boundary', async () => {
+    it('waits for the authoritative reply after cancelling a non-expiring mutation', async () => {
         vi.useFakeTimers();
         const sent: ExtensionHostMessage[] = [];
         const source = new CancellationTokenSource();
@@ -57,8 +57,8 @@ describe('Extension Host API requests', () => {
             {
                 method: 'workspace.request',
                 params: {
-                    operation: 'files.copy',
-                    arguments: { directory: '/project', path: '/project/source' },
+                    operation: 'git.sync',
+                    arguments: { repositoryId: 'repository-1' },
                     context,
                 },
             },
@@ -78,8 +78,50 @@ describe('Extension Host API requests', () => {
         expect(isSettled).toBe(false);
         expect(sent).not.toContainEqual(expect.objectContaining({ type: 'api-cancel' }));
         source.cancel();
-        await expect(observed).rejects.toMatchObject({ code: 'CANCELLED' });
         expect(sent).toContainEqual(expect.objectContaining({ type: 'api-cancel' }));
+        expect(isSettled).toBe(false);
+        const apiRequest = sent.find((message) => message.type === 'api-request');
+        if (!apiRequest) throw new Error('Request not sent');
+        settleApiReply({ id: apiRequest.id, ok: true, result: null }, () => true);
+        await expect(observed).resolves.toBeNull();
+    });
+
+    it('still reports cancellation when Host stops a non-expiring mutation before its boundary', async () => {
+        const sent: ExtensionHostMessage[] = [];
+        const source = new CancellationTokenSource();
+        const request = requestHostApi(
+            {
+                apiToken: 'token-1',
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                assertCurrent: () => {},
+                isApiTokenCurrent: () => true,
+                send: (message) => sent.push(message),
+            },
+            {
+                method: 'workspace.request',
+                params: {
+                    operation: 'git.discard',
+                    arguments: { repositoryId: 'repository-1', scope: { kind: 'all' } },
+                    context,
+                },
+            },
+            source.token,
+        );
+
+        source.cancel();
+        const apiRequest = sent.find((message) => message.type === 'api-request');
+        if (!apiRequest) throw new Error('Request not sent');
+        settleApiReply(
+            {
+                id: apiRequest.id,
+                ok: false,
+                error: { code: 'CANCELLED', message: 'Operation cancelled' },
+            },
+            () => true,
+        );
+
+        await expect(request).rejects.toMatchObject({ code: 'CANCELLED' });
     });
 
     it('cancels Host work when an expiring API request times out', async () => {
@@ -96,7 +138,7 @@ describe('Extension Host API requests', () => {
             },
             {
                 method: 'workspace.request',
-                params: { operation: 'files.list', arguments: {}, context },
+                params: { operation: 'git.summary', arguments: { refresh: 0 }, context },
             },
         );
 

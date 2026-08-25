@@ -18,13 +18,7 @@ const RESOURCE_EXPLORER_READ_OPERATIONS = new Set([
     'files.operation.get',
     'files.operation.list',
 ]);
-const SOURCE_CONTROL_READ_OPERATIONS = new Set([
-    'git.summary',
-    'git.pullRequestChanges',
-    'git.commits',
-    'git.commitDetails',
-    'git.remoteHost',
-]);
+const SOURCE_CONTROL_CONTENT_OPERATIONS = new Set(['source.snapshot']);
 
 interface PendingFileChangeBatch {
     changes: Map<string, 'create' | 'update' | 'delete'>;
@@ -109,18 +103,19 @@ function isControlledOperationMatch(
 }
 
 /**
- * Invalidates the Session-scoped built-in reads that a `files.changed` event cheaply reflects: only the Path Browser
- * `files.browse` listing today. Resource Explorer reads are invalidated by provider-scoped `viewChanged` events.
- * `projectStatus.summary` and `projectStatus.overview` are excluded: a Project Status read may shell out to a delivery
- * CLI (e.g. `gh`), so it stays on its own polling interval instead of re-running on every file write. Git
- * status/diff/blame queries (`git.summary`, `git.overview`, `git.diffDocument`, `git.blame`) are no longer invalidated
- * from here: a plain file write does not always mean the working tree changed (e.g. an ignored file), so Git
- * invalidation instead rides the Runtime-emitted `git.changed` event, which is scoped to the repository identities that
- * actually changed — see `invalidateGitChangedQueries` below.
+ * Invalidates the Session-scoped Files reads that a `files.changed` event cheaply reflects: the Path Browser and the
+ * Core Resource Explorer. Both consume the same Runtime authority, so its durable event is the single invalidation
+ * source instead of an Extension Host echo. `projectStatus.summary` and `projectStatus.overview` are excluded: a
+ * Project Status read may shell out to a delivery CLI (e.g. `gh`), so it stays on its own polling interval instead of
+ * re-running on every file write. Git status/diff/blame queries (`git.summary`, `git.overview`, `git.diffDocument`,
+ * `git.blame`) are no longer invalidated from here: a plain file write does not always mean the working tree changed
+ * (e.g. an ignored file), so Git invalidation instead rides the Runtime-emitted `git.changed` event, which is scoped to
+ * the repository identities that actually changed — see `invalidateGitChangedQueries` below.
  */
 function invalidateFileDependentQueries(
     queryClient: QueryClient,
     sessionIds: readonly string[],
+    workbenchProjectId: string,
     batch: PendingFileChangeBatch,
 ): void {
     const sessionIdSet = new Set(sessionIds);
@@ -134,7 +129,7 @@ function invalidateFileDependentQueries(
                 CaxriMethod,
                 { directory?: string; sessionId?: string } | undefined,
             ];
-            return (
+            const isPathBrowserMatch =
                 method === 'files.browse' &&
                 parameters?.sessionId !== undefined &&
                 sessionIdSet.has(parameters.sessionId) &&
@@ -143,7 +138,14 @@ function invalidateFileDependentQueries(
                     changes,
                     batch.overflow,
                     batch.gitIgnoreRulesChanged,
-                )
+                );
+            if (isPathBrowserMatch) return true;
+            return sessionIds.some((sessionId) =>
+                isControlledOperationMatch(query.queryKey, RESOURCE_EXPLORER_READ_OPERATIONS, {
+                    context: { kind: 'session', sessionId, workbenchProjectId },
+                    changes,
+                    overflow: batch.overflow || batch.gitIgnoreRulesChanged,
+                }),
             );
         },
     });
@@ -324,26 +326,17 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (
             event.event === 'viewContainers.viewChanged' &&
-            (event.payload.change.kind === 'content' || event.payload.change.kind === 'operation')
+            event.payload.change.kind === 'content'
         ) {
-            const change = event.payload.change;
             const context =
                 event.payload.context.kind === 'session' ? event.payload.context : undefined;
             if (!context) return;
-            const operations =
-                change.kind === 'operation'
-                    ? RESOURCE_EXPLORER_READ_OPERATIONS
-                    : RESOURCE_EXPLORER_READ_OPERATIONS.union(SOURCE_CONTROL_READ_OPERATIONS);
             // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
             void queryClient.invalidateQueries({
                 predicate: (query) =>
-                    isControlledOperationMatch(query.queryKey, operations, {
+                    isControlledOperationMatch(query.queryKey, SOURCE_CONTROL_CONTENT_OPERATIONS, {
                         viewId: event.payload.viewId,
                         context,
-                        ...(change.kind === 'content' && {
-                            changes: change.paths,
-                            overflow: change.overflow,
-                        }),
                     }),
             });
             return;
@@ -418,6 +411,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
                 invalidateFileDependentQueries(
                     queryClient,
                     getWorkbenchProjectSessionIds(workbenchProjectId, pending.sessionId),
+                    workbenchProjectId,
                     pending,
                 );
             }, FILE_CHANGE_INVALIDATION_DEBOUNCE_MS),

@@ -3,15 +3,17 @@ import type { ContributedCommandDescriptor, ViewCatalogSnapshot } from '@shared/
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
+import { getSelectedSession } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
+import { dispatchCoreViewCommand } from './core-view-commands';
 
 function findViewCatalogCommand(
     catalog: ViewCatalogSnapshot | undefined,
     commandId: string,
 ): ContributedCommandDescriptor | undefined {
     return catalog?.commands.find(
-        (command) => command.id === commandId && command.source.kind === 'extension',
+        (command) => command.id === commandId && command.source.kind !== 'builtin',
     );
 }
 
@@ -43,8 +45,8 @@ function revealViewContainer(catalog: ViewCatalogSnapshot, containerId: string):
 }
 
 /**
- * Routes an extension command from every Renderer entry point. Container show commands stay local so a shortcut and the
- * Command Palette reveal the same surface, while extension-owned commands cross the typed Host boundary once.
+ * Routes a catalog command from every Renderer entry point. Container show commands stay local, Workbench Core actions
+ * enter the generic controlled-surface queue, and extension-owned commands cross the typed Host boundary once.
  */
 export function didExecuteViewCatalogCommand(
     catalog: ViewCatalogSnapshot | undefined,
@@ -62,6 +64,19 @@ export function didExecuteViewCatalogCommand(
         view.actions?.some((action) => action.commandId === commandId),
     );
     if (owningView) revealViewContainer(catalog!, owningView.containerId);
+    const action = owningView?.actions?.find((candidate) => candidate.commandId === commandId);
+    if (owningView && action && command.source.kind === 'core') {
+        const session = getSelectedSession();
+        if (!session) return true;
+        dispatchCoreViewCommand({
+            arguments: arguments_,
+            commandId,
+            contextKey: `${session.id}:${session.workbenchProjectId}`,
+            role: action.role,
+            viewId: owningView.id,
+        });
+        return true;
+    }
     // Fire-and-forget: tryCommand() owns the shared error path for Renderer command entry points.
     // eslint-disable-next-line no-void -- the command is dispatched exactly once and reports failures through a toast
     void tryCommand(`Unable to run ${command.title}`, () =>

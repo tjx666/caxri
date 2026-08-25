@@ -1,4 +1,5 @@
 import type { CommandId, Keybinding } from './types';
+import { filesCoreCommandDefinitions, filesCoreKeybindings } from './workbench-core-contributions';
 
 export type { CommandId };
 
@@ -275,24 +276,12 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Workbench',
         description: "Move the active Terminal into a new Session in the Terminal's Project",
     },
-    {
-        id: 'secondarySidebar.showFiles',
-        title: 'Show Files',
-        category: 'Secondary Side Bar',
-        description: 'Show Files in the Secondary Side Bar',
-    },
+    ...filesCoreCommandDefinitions,
     {
         id: 'secondarySidebar.showGit',
         title: 'Show Git',
         category: 'Secondary Side Bar',
         description: 'Show Source Control in the Secondary Side Bar',
-    },
-    {
-        id: 'secondarySidebar.searchFiles',
-        title: 'Search Files',
-        category: 'Secondary Side Bar',
-        description: 'Search files in the selected Project',
-        nativeMenu: { menu: 'view', group: 0, order: 0 },
     },
     {
         id: 'secondarySidebar.toggle',
@@ -484,11 +473,10 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+alt+arrowdown', command: 'workbench.focusPaneDown' },
     { key: 'cmd+w', command: 'workbench.closeActiveTab' },
     { key: 'cmd+s', command: 'editor.save' },
-    { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
+    ...filesCoreKeybindings,
     { key: 'cmd+2', command: 'secondarySidebar.showGit' },
     { key: 'cmd+shift+1', command: 'panel.showLogs' },
     { key: 'cmd+shift+2', command: 'panel.showInfo' },
-    { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },
     { key: 'cmd+[', command: 'primarySidebar.toggle' },
     { key: 'cmd+]', command: 'secondarySidebar.toggle' },
     /**

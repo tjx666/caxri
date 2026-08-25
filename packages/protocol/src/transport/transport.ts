@@ -184,6 +184,15 @@ export interface CaxriBridge {
         method: M,
         ...arguments_: ParametersArgument<M>
     ): Promise<MethodReply<M>>;
+    /**
+     * Sends a request with caller-owned identity so the Renderer can cancel long-running Core reads without exposing an
+     * AbortSignal across Electron's context bridge.
+     */
+    requestWithId<M extends CaxriMethod>(
+        requestId: string,
+        method: M,
+        ...arguments_: ParametersArgument<M>
+    ): Promise<MethodReply<M>>;
     onEvent(listener: (event: RuntimeEvent) => void): () => void;
     /**
      * Reports only a fault class; private exception values never cross the preload boundary.
@@ -200,23 +209,61 @@ export interface CaxriClient {
         method: M,
         ...arguments_: ParametersArgument<M>
     ): Promise<MethodResult<M>>;
+    requestWithSignal<M extends CaxriMethod>(
+        method: M,
+        signal: AbortSignal,
+        ...arguments_: ParametersArgument<M>
+    ): Promise<MethodResult<M>>;
     onEvent(listener: (event: RuntimeEvent) => void): () => void;
 }
 
 export function createCaxriClient(
-    bridge: Pick<CaxriBridge, 'negotiate' | 'request' | 'onEvent'>,
+    bridge: Pick<CaxriBridge, 'negotiate' | 'request' | 'requestWithId' | 'onEvent'>,
 ): CaxriClient {
+    function unwrap<M extends CaxriMethod>(
+        method: M,
+        reply: CommandReplyEnvelope,
+    ): MethodResult<M> {
+        if (!reply.ok) throw fromWireError(reply.error);
+        return parseCaxriResult(method, reply.result);
+    }
+
     async function request<M extends CaxriMethod>(
         method: M,
         ...arguments_: ParametersArgument<M>
     ): Promise<MethodResult<M>> {
         const reply = commandReplyEnvelopeSchema.parse(await bridge.request(method, ...arguments_));
-        if (!reply.ok) throw fromWireError(reply.error);
-        return parseCaxriResult(method, reply.result);
+        return unwrap(method, reply);
+    }
+
+    async function requestWithSignal<M extends CaxriMethod>(
+        method: M,
+        signal: AbortSignal,
+        ...arguments_: ParametersArgument<M>
+    ): Promise<MethodResult<M>> {
+        if (signal.aborted) throw new CaxriError('CANCELLED', 'Request was canceled');
+        const requestId = crypto.randomUUID();
+        const cancel = (): void => {
+            // Cancellation is best-effort because the authoritative request reply owns the caller-visible result.
+            // eslint-disable-next-line no-void -- the original request owns caller-visible settlement
+            void bridge.request('requests.cancel', { requestId }).catch(() => {});
+        };
+        signal.addEventListener('abort', cancel, { once: true });
+        try {
+            const reply = commandReplyEnvelopeSchema.parse(
+                await bridge.requestWithId(requestId, method, ...arguments_),
+            );
+            // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal may abort while the bridge request is awaited
+            if (signal.aborted) throw new CaxriError('CANCELLED', 'Request was canceled');
+            return unwrap(method, reply);
+        } finally {
+            signal.removeEventListener('abort', cancel);
+        }
     }
     return {
         negotiate: () => bridge.negotiate(),
         request,
+        requestWithSignal,
         onEvent: (listener) => bridge.onEvent(listener),
     };
 }

@@ -1,94 +1,57 @@
-import { FileDiff, GitCommitHorizontal, GitPullRequest, RefreshCw } from 'lucide-react';
-
-import { executeCommand } from '../../../commands/execute';
 import { PanelHeader } from '../../../components/panel-header';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { cn } from '../../../lib/utilities';
-import { useControlledViewActionCommand } from '../controlled-view-context';
-import type { SourceControlViewMode } from './source-control-state';
+import type { SourceControlController } from './hooks/use-source-control-controller';
+import { SourceControlIcon } from './source-control-icon';
 
-interface SourceControlHeaderProperties {
-    mode: SourceControlViewMode;
-}
-
-function runCommand(command: string | undefined): void {
-    if (command) executeCommand(command);
-}
-
-export function SourceControlHeader({ mode }: SourceControlHeaderProperties) {
-    const workingTreeCommand = useControlledViewActionCommand('source.workingTree');
-    const lastCommitCommand = useControlledViewActionCommand('source.lastCommit');
-    const pullRequestCommand = useControlledViewActionCommand('source.pullRequest');
-    const refreshCommand = useControlledViewActionCommand('source.refresh');
+export function SourceControlHeader({
+    controller,
+}: {
+    controller: Extract<SourceControlController, { status: 'ready' }>;
+}) {
+    const { model, runAction, selectMode } = controller;
     return (
         <PanelHeader
             className="git-heading"
-            title="Source Control"
+            title={model.title}
             actions={
                 <>
                     <div
                         className="git-mode-switch flex h-7 items-center rounded-md bg-elevated p-0.5"
                         role="group"
-                        aria-label="Source control mode"
+                        aria-label={model.modeAccessibilityLabel}
                     >
-                        <Tooltip content="Working Tree Changes">
-                            <button
-                                type="button"
-                                className={cn(
-                                    'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
-                                    mode === 'working' && 'bg-surface text-foreground',
-                                )}
-                                aria-label="Working Tree Changes"
-                                aria-pressed={mode === 'working'}
-                                onClick={() => runCommand(workingTreeCommand)}
-                            >
-                                {/* A working-tree change set is a diff, not a branch: the branch mark already labels
-                                    the Git tab and every repository row. */}
-                                <FileDiff size={13} />
-                            </button>
-                        </Tooltip>
-                        <Tooltip content="Last Commit Changes">
-                            <button
-                                type="button"
-                                className={cn(
-                                    'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
-                                    mode === 'commit' && 'bg-surface text-foreground',
-                                )}
-                                aria-label="Last Commit Changes"
-                                aria-pressed={mode === 'commit'}
-                                onClick={() => runCommand(lastCommitCommand)}
-                            >
-                                <GitCommitHorizontal size={13} />
-                            </button>
-                        </Tooltip>
-                        <Tooltip content="Pull Request Changes">
-                            <button
-                                type="button"
-                                className={cn(
-                                    'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
-                                    mode === 'pull-request' && 'bg-surface text-foreground',
-                                )}
-                                aria-label="Pull Request Changes"
-                                aria-pressed={mode === 'pull-request'}
-                                onClick={() => runCommand(pullRequestCommand)}
-                            >
-                                <GitPullRequest size={13} />
-                            </button>
-                        </Tooltip>
+                        {model.modes.map((mode) => (
+                            <Tooltip content={mode.label} key={mode.id}>
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
+                                        model.selectedModeId === mode.id &&
+                                            'bg-surface text-foreground',
+                                    )}
+                                    aria-label={mode.label}
+                                    aria-pressed={model.selectedModeId === mode.id}
+                                    onClick={() => selectMode(mode)}
+                                >
+                                    <SourceControlIcon icon={mode.icon} />
+                                </button>
+                            </Tooltip>
+                        ))}
                     </div>
-                    <Tooltip
-                        content={mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git'}
-                    >
+                    <Tooltip content={model.refreshAction.label}>
                         <Button
                             size="icon"
                             variant="ghost"
-                            aria-label={
-                                mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git'
-                            }
-                            onClick={() => runCommand(refreshCommand)}
+                            aria-label={model.refreshAction.label}
+                            disabled={model.refreshAction.disabled}
+                            onClick={() => {
+                                // eslint-disable-next-line no-void -- the controller owns provider action errors
+                                void runAction(model.refreshAction);
+                            }}
                         >
-                            <RefreshCw size={13} />
+                            <SourceControlIcon icon={model.refreshAction.icon} />
                         </Button>
                     </Tooltip>
                 </>

@@ -10,16 +10,27 @@ interface ReleaseManifest {
     version: string;
 }
 
-const repoRoot = process.cwd();
+const workspaceRoot = process.cwd();
 
 async function readPackageManifest(...segments: string[]): Promise<ReleaseManifest> {
-    const manifest = await readFile(join(repoRoot, ...segments), 'utf8');
+    const manifest = await readFile(join(workspaceRoot, ...segments), 'utf8');
     return JSON.parse(manifest) as ReleaseManifest;
 }
 
 describe('workspace package manifests', () => {
+    it('keeps the public extension API version aligned with the Desktop release', async () => {
+        const [appManifestText, apiManifestText] = await Promise.all([
+            readFile(join(workspaceRoot, 'package.json'), 'utf8'),
+            readFile(join(workspaceRoot, 'packages/api/package.json'), 'utf8'),
+        ]);
+        const appManifest = JSON.parse(appManifestText) as { version: string };
+        const apiManifest = JSON.parse(apiManifestText) as { version: string };
+
+        expect(apiManifest.version).toBe(appManifest.version);
+    });
+
     it('exposes caxri source types before build artifacts exist', async () => {
-        const manifestPath = join(process.cwd(), 'packages/api/package.json');
+        const manifestPath = join(workspaceRoot, 'packages/api/package.json');
         const manifestText = await readFile(manifestPath, 'utf8');
         const manifest = JSON.parse(manifestText) as {
             exports: { '.': { import: string; types: string } };
@@ -31,17 +42,24 @@ describe('workspace package manifests', () => {
         });
     });
 
-    it.each(['files', 'fixture', 'git', 'status'])(
+    it.each(['fixture', 'git', 'status'])(
         'models the %s extension as an isolated workspace package',
         async (name) => {
-            const extensionRoot = join(process.cwd(), 'extensions', name);
+            const extensionRoot = join(workspaceRoot, 'extensions', name);
+            const appManifestPath = join(workspaceRoot, 'package.json');
+            const appManifestText = await readFile(appManifestPath, 'utf8');
+            const appManifest = JSON.parse(appManifestText) as { version: string };
             const manifestText = await readFile(join(extensionRoot, 'package.json'), 'utf8');
             const manifest = JSON.parse(manifestText) as {
                 devDependencies?: Record<string, string>;
+                engines?: { caxri?: string };
                 scripts?: Record<string, string>;
+                version?: string;
             };
 
             expect(manifest.devDependencies).toEqual({ caxri: 'workspace:*' });
+            expect(manifest.version).toBe(appManifest.version);
+            expect(manifest.engines?.caxri).toBe(`^${appManifest.version}`);
             expect(manifest.scripts).toEqual({
                 build: `bun run --cwd ../.. scripts/build-extension.ts --extension-root extensions/${name}`,
                 typecheck: 'tsc --noEmit -p tsconfig.json',
@@ -53,7 +71,7 @@ describe('workspace package manifests', () => {
     it('keeps the public API and bundled extensions compatible with the Desktop release', async () => {
         const desktopManifest = await readPackageManifest('package.json');
         const apiManifest = await readPackageManifest('packages', 'api', 'package.json');
-        const extensionNames = ['files', 'fixture', 'git', 'status'];
+        const extensionNames = ['fixture', 'git', 'status'];
         const extensionManifests = await Promise.all(
             extensionNames.map((name) => readPackageManifest('extensions', name, 'package.json')),
         );
@@ -68,6 +86,34 @@ describe('workspace package manifests', () => {
                 `${name} extension engines.caxri`,
             ).toBe(true);
         }
+    });
+
+    it('keeps Files in Workbench Core instead of an extension workspace', async () => {
+        const filesExtensionRoot = join(workspaceRoot, 'extensions', 'files');
+        await expect(access(filesExtensionRoot)).rejects.toMatchObject({
+            code: 'ENOENT',
+        });
+    });
+
+    it('keeps Git context actions declared but out of the argument-less Command Palette', async () => {
+        const manifestPath = join(workspaceRoot, 'extensions/git/package.json');
+        const manifestText = await readFile(manifestPath, 'utf8');
+        const manifest = JSON.parse(manifestText) as {
+            contributes: { commands: Array<{ command: string; palette?: boolean }> };
+        };
+        const commands = new Map(
+            manifest.contributes.commands.map((command) => [command.command, command]),
+        );
+
+        for (const id of [
+            'caxri.git.sync',
+            'caxri.git.discardAll',
+            'caxri.git.discard',
+            'caxri.git.openChanges',
+            'caxri.git.openSubmodule',
+            'caxri.git.history',
+        ])
+            expect(commands.get(id)?.palette).toBe(false);
     });
 
     it('keeps extension typecheck and build orchestration package-local', async () => {
@@ -106,7 +152,6 @@ describe('workspace package manifests', () => {
         const extraResourceSources = manifest.build.extraResources.map(({ from }) => from);
 
         expect(extraResourceSources.filter((source) => source.startsWith('extensions/'))).toEqual([
-            'extensions/files',
             'extensions/git',
             'extensions/status',
         ]);

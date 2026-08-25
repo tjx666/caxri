@@ -13,7 +13,6 @@ import {
     openFile,
 } from '../../editor/document-actions';
 import { createTerminal } from '../../terminal/terminal-actions';
-import type { ResourceExplorerClient } from '../view-operation-client';
 import { isControlledViewOperationQuery } from '../view-operation-client';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
@@ -26,6 +25,7 @@ import {
 } from './file-operation-reconciliation';
 import { useFileOperationStore } from './file-operation-state';
 import { parentDirectoryPath } from './file-tree-path';
+import type { ResourceExplorerClient } from './resource-explorer-client';
 
 /**
  * Looks up one entry's kind from its directory listing; undefined when not found or unreadable.

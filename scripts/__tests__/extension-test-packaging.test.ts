@@ -26,7 +26,6 @@ describe('extension packaging profiles', () => {
             : [];
 
         expect(productionSources.filter((item) => item?.startsWith('extensions/'))).toEqual([
-            'extensions/files',
             'extensions/git',
             'extensions/status',
         ]);

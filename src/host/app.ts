@@ -37,6 +37,10 @@ import { LocalHostServer } from './local-server';
 import type { HostProfileLease } from './profile';
 import { acquireHostProfile } from './profile';
 import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
+import {
+    principalRequestKey,
+    RuntimeRequestCancellationRegistry,
+} from './runtime-request-cancellation';
 import { HostRuntimeSupervisor } from './runtime-supervisor';
 
 export interface HostAppOptions {
@@ -157,20 +161,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             throw new CaxriError('FORBIDDEN', 'Agent control is outside the granted Project');
     };
 
-    const principalRequestKey = (context: CommandExecutionContext, requestId: string): string => {
-        const principal = context.principal;
-        let generation: number | null;
-        switch (principal.kind) {
-            case 'agent':
-            case 'extension':
-            case 'desktop':
-                generation = principal.generation;
-                break;
-            default:
-                generation = null;
-        }
-        return JSON.stringify([principal.kind, principal.id, generation, requestId]);
-    };
+    const runtimeRequestCancellations = new RuntimeRequestCancellationRegistry();
 
     /**
      * Keeps public dispatch identity independent while preserving principal-scoped request retry.
@@ -178,10 +169,14 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     const dispatchIdFor = (context: CommandExecutionContext, requestId: string): string =>
         `dispatch-${createHash('sha256').update(principalRequestKey(context, requestId)).digest('hex')}`;
 
-    const forwardRuntime = async (request: RuntimeRequest): Promise<unknown> => {
+    const forwardRuntime = async (
+        request: RuntimeRequest,
+        signal?: AbortSignal,
+    ): Promise<unknown> => {
         const spec = getMethodSpec(request.method);
         if (!spec) throw new CaxriError('VALIDATION', 'Unknown Runtime command');
-        if (spec.effect === 'read') return supervisor.forward(request.method, request.params);
+        if (spec.effect === 'read')
+            return supervisor.forward(request.method, request.params, undefined, signal);
         if (isMutationAdmissionClosed) throw new CaxriError('UNAVAILABLE', 'Host is stopping');
         switch (request.method) {
             case 'terminal.close': {
@@ -213,7 +208,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         }
         mutationsInFlight += 1;
         try {
-            return await supervisor.forward(request.method, request.params);
+            return await supervisor.forward(request.method, request.params, undefined, signal);
         } finally {
             finishMutation();
         }
@@ -325,6 +320,12 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                             cancelled: false,
                         }
                     );
+                case 'requests.cancel':
+                    return {
+                        cancelled: runtimeRequestCancellations.cancel(
+                            principalRequestKey(context, request.params.requestId),
+                        ),
+                    };
                 case 'extensions.retry':
                     if (!extensionService)
                         return {
@@ -658,7 +659,10 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 default: {
                     const forwarded: Extract<HostRequest, { method: HostForwardedMethod }> =
                         request;
-                    return forwardRuntime(forwarded);
+                    return runtimeRequestCancellations.run(
+                        principalRequestKey(context, invocation.requestId),
+                        (signal) => forwardRuntime(forwarded, signal),
+                    );
                 }
             }
         },
@@ -686,6 +690,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                         sessionId,
                         ...(refreshToken && { refreshToken }),
                     }),
+                settings: async () => (await supervisor.request('settings.get')).value,
                 workspaceRequest: createExtensionWorkspaceRequest({
                     desktopRouter: () => desktopRouter,
                     runtime: supervisor,

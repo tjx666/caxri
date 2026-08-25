@@ -1,16 +1,15 @@
-export type SourceControlViewMode = 'commit' | 'pull-request' | 'working';
-
 export interface SourceControlViewNavigation {
     expandedDirectories: Record<string, boolean | undefined>;
-    expandedRepositories: Record<string, boolean | undefined>;
-    mode: SourceControlViewMode;
+    expandedGroups: Record<string, boolean | undefined>;
+    expandedProviders: Record<string, boolean | undefined>;
+    modeId?: string;
 }
 
 export function defaultSourceControlViewNavigation(): SourceControlViewNavigation {
     return {
         expandedDirectories: {},
-        expandedRepositories: {},
-        mode: 'working',
+        expandedGroups: {},
+        expandedProviders: {},
     };
 }
 

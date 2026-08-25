@@ -1,0 +1,58 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+    principalRequestKey,
+    RuntimeRequestCancellationRegistry,
+} from '../runtime-request-cancellation';
+
+describe('RuntimeRequestCancellationRegistry', () => {
+    it('includes the authenticated Desktop generation in request identity', () => {
+        expect(
+            principalRequestKey(
+                {
+                    capabilities: ['desktop'],
+                    principal: { kind: 'desktop', id: 'desktop-1', generation: 4 },
+                },
+                'request-1',
+            ),
+        ).not.toBe(
+            principalRequestKey(
+                {
+                    capabilities: ['desktop'],
+                    principal: { kind: 'desktop', id: 'desktop-1', generation: 5 },
+                },
+                'request-1',
+            ),
+        );
+    });
+
+    it('cancels only the principal-and-generation-scoped request identity', async () => {
+        const registry = new RuntimeRequestCancellationRegistry();
+        const aborted = Promise.withResolvers<void>();
+        const pending = registry.run('desktop:one:g1:request-1', async (signal) => {
+            await new Promise<void>((resolve) =>
+                signal.addEventListener('abort', () => resolve(), { once: true }),
+            );
+            aborted.resolve();
+            return 'cancelled';
+        });
+
+        expect(registry.cancel('desktop:one:g2:request-1')).toBe(true);
+        expect(registry.cancel('desktop:one:g1:request-1')).toBe(true);
+        await aborted.promise;
+        await expect(pending).resolves.toBe('cancelled');
+        expect(registry.cancel('desktop:one:g1:request-1')).toBe(true);
+    });
+
+    it('consumes an early cancellation before starting Runtime work', async () => {
+        const registry = new RuntimeRequestCancellationRegistry();
+        const task = vi.fn(() => Promise.resolve('unexpected'));
+
+        expect(registry.cancel('desktop:one:g1:request-1')).toBe(true);
+
+        await expect(registry.run('desktop:one:g1:request-1', task)).rejects.toMatchObject({
+            code: 'CANCELLED',
+        });
+        expect(task).not.toHaveBeenCalled();
+    });
+});

@@ -85,7 +85,7 @@ export function mainOwned(method: RuntimeMethod): never {
  * own closures. Kept out of `bootstrap.ts` to stay under the file's physical-line budget.
  */
 export function createServiceHandlers(services: {
-    acknowledgeFileMutation: (operationId: string) => Promise<void>;
+    acknowledgeFileMutation: (sessionId: string, operationId: string) => Promise<void>;
     agentEnvironment: AgentEnvironment;
     agentHooks: AgentHookManager;
     awaitAgentSettingsReconcile: () => Promise<void>;
@@ -125,18 +125,19 @@ export function createServiceHandlers(services: {
                 terminalId,
             ),
         'files.list': ({ sessionId, directory }, signal) =>
-            files.list(sessionId, directory, signal),
+            files.listDirectory(sessionId, directory, signal),
         'files.browse': (parameters) => files.browse(parameters),
         'files.create': (parameters) => files.create(parameters),
         'files.copy': (parameters) => files.copy(parameters),
         'files.rename': (parameters) => files.rename(parameters),
         'files.move': (parameters) => files.move(parameters),
-        'files.operation.get': async ({ operationId }) =>
-            (await files.getMutationOperation(operationId)) ?? null,
-        'files.operation.list': () => files.listMutationOperations(),
-        'files.operation.cancel': ({ operationId }) => files.cancelMutationOperation(operationId),
-        'files.operation.acknowledge': async ({ operationId }) => {
-            await acknowledgeFileMutation(operationId);
+        'files.operation.get': async ({ operationId, sessionId }) =>
+            (await files.getScopedMutationOperation(sessionId, operationId)) ?? null,
+        'files.operation.list': ({ sessionId }) => files.listScopedMutationOperations(sessionId),
+        'files.operation.cancel': ({ operationId, sessionId }) =>
+            files.cancelScopedMutationOperation(sessionId, operationId),
+        'files.operation.acknowledge': async ({ operationId, sessionId }) => {
+            await acknowledgeFileMutation(sessionId, operationId);
             return null;
         },
         'files.authorizeTrash': (parameters) => files.authorizeTrash(parameters),
