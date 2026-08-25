@@ -212,3 +212,28 @@ reimplemented in the runner.
 The runner exits nonzero on missing scenarios, invalid evidence, unknown differences, stale artifacts,
 privacy violations, or budget regressions. Its summary lists every planned scenario as pass, fail,
 blocked, or invalid; omitted coverage can never appear green.
+
+The canonical catalog, typed normalization rules, and reviewed intentional-difference allowlist live in
+`scripts/refactor-parity/`. The initial local baseline is `before-d370c789-macos-arm64-v3`, built from
+commit `d370c789eb24185ee6d6d256f540a6aceedae97c` and tree
+`f0e0725dc550c4fba1964216db471182dc684be6`. Its source build ID is `e6b6b5de0c018db6`, application
+version is `0.0.18`, and protocol version is `2`.
+
+Reproduce the runner gate from the architecture Goal worktree:
+
+```bash
+bun run refactor:parity verify-baseline \
+  --baseline .records/refactor-parity/before-d370c789-macos-arm64-v3
+
+bun run refactor:parity compare \
+  --baseline .records/refactor-parity/before-d370c789-macos-arm64-v3 \
+  --candidate-receipt <exact-head-receipt.json> \
+  --batch <A0|A1|A2a|A2b|A2c|A2d|A2e|A2f|A3a|A3b|A4|A5|A6|A7> \
+  --output <exact-head-summary.json>
+```
+
+The baseline archived the complete arm64 `Caxri.app`, including Framework symlinks. The manifest hashes
+regular files, modes, symlink targets, catalog, receipt, normalization rules, and allowlist, then runs a
+bounded startup probe against the archived executable. Re-recording the same baseline ID is rejected.
+The exact artifact is local and gitignored; losing it is a blocked parity gate, not permission to rebuild
+or silently select another artifact.

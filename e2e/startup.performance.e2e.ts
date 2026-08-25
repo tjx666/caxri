@@ -85,11 +85,13 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const [terminalReadyMs, filesReadyMs] = await Promise.all([terminalReady, filesReady]);
         const terminalInput = page.locator('.xterm-helper-textarea').last();
         await terminalInput.focus();
+        const terminalEchoStartedAt = performance.now();
         await terminalInput.pressSequentially(String.raw`printf 'CAXRI_BENCHMARK_INPUT\n'`);
         await terminalInput.press('Enter');
         await page.waitForFunction(() =>
             document.querySelector('.xterm-rows')?.textContent.includes('CAXRI_BENCHMARK_INPUT'),
         );
+        const terminalEchoMs = performance.now() - terminalEchoStartedAt;
 
         const gitStartedAt = performance.now();
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
@@ -124,10 +126,22 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
 
         const host = await connectToHost(userData, 2_000);
         const runtimePid = (await host.request('host.status')).runtimePid;
+        const projectListRoundTripMs: number[] = [];
+        for (let index = 0; index < 10; index += 1) {
+            const startedAt = performance.now();
+            // Sequential samples isolate normal request latency from deliberate queue pressure.
+            // eslint-disable-next-line no-await-in-loop
+            await host.request('project.list');
+            projectListRoundTripMs.push(performance.now() - startedAt);
+        }
         host.close();
         if (!runtimePid) throw new Error('Caxri Runtime process was not found');
-        const { stdout: openFiles } = await execFileAsync('lsof', ['-p', String(runtimePid)]);
+        const [{ stdout: openFiles }, { stdout: residentSet }] = await Promise.all([
+            execFileAsync('lsof', ['-p', String(runtimePid)]),
+            execFileAsync('ps', ['-o', 'rss=', '-p', String(runtimePid)]),
+        ]);
         const runtimeOpenDescriptors = openFiles.split('\n').filter(Boolean).length - 1;
+        const runtimeMemoryMb = Number(residentSet.trim()) / 1024;
         // The logger now drains writes asynchronously, so poll the log files instead of reading
         // them once: the final `git.summary`/`window.ready_to_show` records may not be flushed
         // to disk yet. Keep polling until both are present, then read the settled records below.
@@ -201,6 +215,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             sessionRoot,
             runtimeReadyMs: Math.round(runtimeReadyMs),
             terminalReadyMs: Math.round(terminalReadyMs),
+            terminalEchoMs: Math.round(terminalEchoMs * 100) / 100,
             filesReadyMs: Math.round(filesReadyMs),
             gitReadyMs: Math.round(gitReadyMs),
             restoredRuntimeReadyMs: Math.round(restoredRuntimeReadyMs),
@@ -240,6 +255,10 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
                     ? undefined
                     : Math.round(watcherReady.durationMs * 100) / 100,
             runtimeOpenDescriptors,
+            runtimeMemoryMb: Math.round(runtimeMemoryMb * 100) / 100,
+            projectListRoundTripMs: projectListRoundTripMs.map(
+                (duration) => Math.round(duration * 100) / 100,
+            ),
             watcherFallbacks,
             watcherErrors,
             ipcFailures,
@@ -249,6 +268,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
 
         expect(runtimeReadyMs).toBeLessThan(thresholdMs);
         expect(terminalReadyMs).toBeLessThan(thresholdMs);
+        expect(terminalEchoMs).toBeLessThan(500);
         expect(filesReadyMs).toBeLessThan(thresholdMs);
         expect(gitReadyMs).toBeLessThan(thresholdMs);
         expect(restoredRuntimeReadyMs).toBeLessThan(thresholdMs);
@@ -268,6 +288,8 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expect(watcherReady?.fields?.backend).toMatch(/^(fs-events|poll)$/);
         expect(inputThroughput?.fields?.inputBytes).toBeGreaterThan(0);
         expect(runtimeOpenDescriptors).toBeLessThan(256);
+        expect(runtimeMemoryMb).toBeLessThan(512);
+        expect(Math.max(...projectListRoundTripMs)).toBeLessThan(100);
         expect(watcherErrors).toBe(0);
         expect(ipcFailures).toBe(0);
         expect(highFrequencyIpcLogs).toBe(0);

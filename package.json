@@ -32,6 +32,7 @@
         "test:protocol": "bun run --cwd packages/protocol test",
         "test:cli": "bun run --cwd packages/cli test",
         "test:watch": "vitest",
+        "refactor:parity": "bun run scripts/refactor-parity.ts",
         "test:e2e": "bun run build && playwright test",
         "test:e2e:real-agent": "CAXRI_REAL_AGENT_E2E=1 playwright test e2e/real-agent-smoke.e2e.ts --reporter=line",
         "test:smoke": "bun run --silent check e2e/smoke.e2e.ts --e2e",
