@@ -10,16 +10,23 @@ Git tag and GitHub Release. Runner labels, availability, and recovery are owned 
 
 ## Create a release
 
-Update the root application version before committing. The CLI workspace version and
-`packages/cli/src/version.ts` must move in lockstep — `packages/cli/src/__tests__/artifact.test.ts`
-fails the release CI when any of the three diverge:
+Update the root application version before committing. The public API, CLI workspace, bundled
+extension versions, bundled extension `engines.caxri` ranges, and `packages/cli/src/version.ts` must
+move in lockstep. The workspace and CLI artifact contract tests fail release CI when they diverge
+or when a bundled extension rejects the new Desktop version:
 
 ```bash
 pnpm version patch --no-git-tag-version --no-git-checks
 version="$(node -p 'require("./package.json").version')"
 (cd packages/cli && npm version "${version}" --no-git-tag-version)
+(cd packages/api && npm version "${version}" --no-git-tag-version)
+for extension in files fixture git status; do
+  (cd "extensions/${extension}" && npm version "${version}" --no-git-tag-version)
+  (cd "extensions/${extension}" && npm pkg set "engines.caxri=^${version}")
+done
 sed -i '' "s/CLI_VERSION = '.*'/CLI_VERSION = '${version}'/" packages/cli/src/version.ts
-git add package.json packages/cli/package.json packages/cli/src/version.ts
+git add package.json packages/api/package.json packages/cli/package.json packages/cli/src/version.ts \
+  extensions/{files,fixture,git,status}/package.json
 git commit -m "release: v${version}"
 git push origin main
 ```

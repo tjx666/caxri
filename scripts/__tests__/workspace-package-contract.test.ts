@@ -2,7 +2,20 @@ import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { satisfies } from 'semver';
 import { describe, expect, it } from 'vitest';
+
+interface ReleaseManifest {
+    engines?: { caxri: string };
+    version: string;
+}
+
+const repoRoot = process.cwd();
+
+async function readPackageManifest(...segments: string[]): Promise<ReleaseManifest> {
+    const manifest = await readFile(join(repoRoot, ...segments), 'utf8');
+    return JSON.parse(manifest) as ReleaseManifest;
+}
 
 describe('workspace package manifests', () => {
     it('exposes caxri source types before build artifacts exist', async () => {
@@ -36,6 +49,26 @@ describe('workspace package manifests', () => {
             await expect(access(join(extensionRoot, 'tsconfig.json'))).resolves.toBeUndefined();
         },
     );
+
+    it('keeps the public API and bundled extensions compatible with the Desktop release', async () => {
+        const desktopManifest = await readPackageManifest('package.json');
+        const apiManifest = await readPackageManifest('packages', 'api', 'package.json');
+        const extensionNames = ['files', 'fixture', 'git', 'status'];
+        const extensionManifests = await Promise.all(
+            extensionNames.map((name) => readPackageManifest('extensions', name, 'package.json')),
+        );
+
+        expect(apiManifest.version).toBe(desktopManifest.version);
+        for (const [index, name] of extensionNames.entries()) {
+            const manifest = extensionManifests[index];
+
+            expect(manifest.version, `${name} extension version`).toBe(desktopManifest.version);
+            expect(
+                satisfies(desktopManifest.version, manifest.engines?.caxri ?? ''),
+                `${name} extension engines.caxri`,
+            ).toBe(true);
+        }
+    });
 
     it('keeps extension typecheck and build orchestration package-local', async () => {
         const manifestText = await readFile(join(process.cwd(), 'package.json'), 'utf8');
