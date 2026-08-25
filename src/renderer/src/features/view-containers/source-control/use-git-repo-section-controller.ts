@@ -11,7 +11,6 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
-import { useToastOnQueryError } from '../../../queries/client';
 import { useControlledView, useSourceControlClient } from '../controlled-view-context';
 import { controlledViewQueryKey } from '../view-operation-client';
 import {
@@ -135,17 +134,16 @@ export function useGitRepoSectionController(
         repositoryId: repository.id,
         refresh: pullRequestRefresh,
     };
+    /**
+     * Repository detail failures are rendered by this section's empty state. A second global toast would misclassify
+     * one unavailable child repository as a failure of the whole source-control view.
+     */
     const pullRequestQuery = useQuery({
         queryKey: controlledViewQueryKey(viewId, 'git.pullRequestChanges', pullRequestArguments),
         queryFn: ({ signal }) =>
             client.pullRequestChanges(repository.id, pullRequestRefresh, signal),
         enabled: mode === 'pull-request',
     });
-    useToastOnQueryError(
-        pullRequestQuery.isError,
-        pullRequestQuery.error,
-        'Pull request refresh failed',
-    );
     const pullRequest = mode === 'pull-request' ? pullRequestQuery.data : undefined;
     const headSha = repository.head;
     const latestCommitArguments = {
@@ -158,11 +156,6 @@ export function useGitRepoSectionController(
         queryFn: ({ signal }) => client.commitDetails(latestCommitArguments, signal),
         enabled: mode === 'commit' && Boolean(headSha),
     });
-    useToastOnQueryError(
-        latestCommitQuery.isError,
-        latestCommitQuery.error,
-        'Last commit load failed',
-    );
     const latestCommit = mode === 'commit' ? latestCommitQuery.data : undefined;
     const files = gitRepoFilesForMode(mode, repository.files, latestCommit, pullRequest);
     /**
