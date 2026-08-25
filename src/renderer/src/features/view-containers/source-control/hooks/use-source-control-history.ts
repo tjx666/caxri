@@ -52,10 +52,9 @@ export function useSourceControlHistory(descriptor: SourceControlHistoryDescript
                 if (request === activeRequest.current)
                     setError(describeFailure(error_, descriptor.loadErrorMessage));
             } finally {
-                if (request === activeRequest.current) {
-                    activeRequest.current = undefined;
-                    setLoading(false);
-                }
+                const isCurrentRequest = request === activeRequest.current;
+                if (isCurrentRequest) activeRequest.current = undefined;
+                setLoading((current) => (isCurrentRequest ? false : current));
             }
         },
         [client, descriptor, scopePath],
