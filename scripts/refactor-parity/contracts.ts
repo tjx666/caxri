@@ -2,9 +2,9 @@
 import { z } from 'zod';
 
 export const CAXRI_DESKTOP_SOURCE_MARKER_PATH = 'Contents/Resources/app.asar' as const;
-export const scenarioStatusSchema = z.enum(['pass', 'fail', 'blocked', 'invalid']);
+const scenarioStatusSchema = z.enum(['pass', 'fail', 'blocked', 'invalid']);
 
-export const sourceIdentitySchema = z
+const sourceIdentitySchema = z
     .object({
         appVersion: z.string().min(1),
         buildId: z.string().min(1),
@@ -14,7 +14,7 @@ export const sourceIdentitySchema = z
     })
     .strict();
 
-export const environmentSchema = z
+const environmentSchema = z
     .object({
         appVersion: z.string().min(1),
         architecture: z.string().min(1),
@@ -34,7 +34,7 @@ export const environmentSchema = z
     })
     .strict();
 
-export const performanceMetricSchema = z
+const performanceMetricSchema = z
     .object({
         absoluteCeiling: z.number().nonnegative().optional(),
         maxRegressionRatio: z.number().nonnegative(),
@@ -106,7 +106,7 @@ const semanticEvidenceSchema = z
     })
     .strict();
 
-export const scenarioReceiptSchema = z
+const scenarioReceiptSchema = z
     .object({
         id: z.string().regex(/^[a-z\d][a-z\d-]*$/u),
         metrics: z.record(z.string().min(1), performanceMetricSchema).optional(),
@@ -197,7 +197,7 @@ export const intentionalDifferenceSchema = z
     })
     .strict();
 
-export type EnvironmentFingerprint = z.infer<typeof environmentSchema>;
+type EnvironmentFingerprint = z.infer<typeof environmentSchema>;
 export type IntentionalDifferences = z.infer<typeof intentionalDifferenceSchema>;
 export type NormalizationRules = z.infer<typeof normalizationSchema>;
 export type ParityReceipt = z.infer<typeof parityReceiptSchema>;
