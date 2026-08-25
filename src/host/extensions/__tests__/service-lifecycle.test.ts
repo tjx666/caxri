@@ -209,6 +209,62 @@ describe('ExtensionService generation lifecycle', () => {
         );
     });
 
+    it.each(['CONFLICT', 'GENERATION_EXPIRED'] as const)(
+        'classifies an in-flight controlled read scope change as cancellation after %s',
+        async (nestedCode) => {
+            let active = {
+                ownerProjectId: 'project-1',
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+            };
+            const service = new ExtensionService({
+                appVersion: '0.0.17',
+                commit: 'test',
+                extensionHostPath: '/out/main/extension-host.js',
+                extensionRoots: ['/extensions'],
+                includeTestOnly: true,
+                logger: new StructuredLogger('/tmp/caxri-extension-service-test', 'host', 'error'),
+                activeContext: () => Promise.resolve(active),
+                projectIds: () => Promise.resolve(['project-1', 'project-2']),
+                projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+                workspaceRequest: () => Promise.resolve(null),
+            });
+            await service.start();
+            supervisorHarness.activation.resolve();
+            const pending = Promise.withResolvers<unknown>();
+            supervisorHarness.viewOperationResult = pending.promise;
+
+            const request = service.viewOperation({
+                viewId: 'publisher.fixture.files',
+                operation: 'files.list',
+                arguments: { directory: '/project-1' },
+                requestId: 'in-flight-stale-scope',
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
+            });
+            await vi.waitFor(() =>
+                expect(supervisorHarness.requests).toContainEqual(
+                    expect.objectContaining({ method: 'viewOperation' }),
+                ),
+            );
+            active = {
+                ownerProjectId: 'project-2',
+                sessionId: 'session-2',
+                workbenchProjectId: 'project-2',
+            };
+            pending.reject(
+                Object.assign(new Error('Active Project changed while the request was running'), {
+                    code: nestedCode,
+                }),
+            );
+
+            await expect(request).rejects.toMatchObject({ code: 'CANCELLED' });
+        },
+    );
+
     it('does not let a rejected retired activation overwrite the crash generation', async () => {
         const service = new ExtensionService({
             appVersion: '0.0.17',

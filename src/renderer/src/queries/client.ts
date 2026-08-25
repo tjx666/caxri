@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 import type { CaxriMethod, MethodResult, ParamsArg } from '@shared/ipc';
+import { isCaxriError } from '@shared/ipc';
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 import { QueryClient, useQuery } from '@tanstack/react-query';
 
@@ -78,6 +79,15 @@ export function useCaxriQuery<M extends CaxriMethod>(
  */
 export function useToastOnQueryError(isError: boolean, error: Error | null, label: string): void {
     useEffect(() => {
-        if (isError) pushToast('error', describeFailure(error, label));
+        if (shouldToastQueryError(isError, error))
+            pushToast('error', describeFailure(error, label));
     }, [isError, error, label]);
+}
+
+/**
+ * Scope retirement is expected while switching Sessions or Workbench Roots. The stale query is already replaced by the
+ * new controlled-view scope, so surfacing its typed cancellation as a persistent error would be a false failure.
+ */
+export function shouldToastQueryError(isError: boolean, error: Error | null): boolean {
+    return isError && !(isCaxriError(error) && error.code === 'CANCELLED');
 }

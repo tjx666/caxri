@@ -8,7 +8,7 @@ import type {
     TreeChildrenResult,
     ViewCatalogSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, methods } from '@caxri/protocol';
+import { methods } from '@caxri/protocol';
 
 import type {
     ExtensionFilesChange,
@@ -30,6 +30,7 @@ import {
     toExtensionViewEventContext,
 } from './service-events';
 import { ExtensionHostSupervisor } from './supervisor';
+import { assertActiveViewContext } from './view-scope';
 import {
     projectFileOperation,
     validatedExtensionWorkspaceResult,
@@ -82,19 +83,6 @@ function workspaceCapability(operation: ExtensionWorkspaceOperation): ExtensionC
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
-}
-
-function assertActiveViewContext(
-    expected: ExtensionViewEventContext,
-    active: { sessionId?: string; workbenchProjectId?: string },
-): void {
-    if (expected.kind === 'no-session' && !active.sessionId && !active.workbenchProjectId) return;
-    if (
-        expected.kind !== 'session' ||
-        expected.sessionId !== active.sessionId ||
-        expected.workbenchProjectId !== active.workbenchProjectId
-    )
-        throw new CaxriError('CANCELLED', 'Controlled view scope is no longer active');
 }
 
 function workspaceParameters(
@@ -647,11 +635,23 @@ export class ExtensionService extends EventTarget {
         await this.activate(extension, `onView:${parameters.viewId}`);
         assertActiveViewContext(parameters.context, await this.options.activeContext());
         const generation = this.states.get(extension.extensionId)!.generation;
-        const result = await this.supervisor?.request('viewOperation', {
-            extensionId: extension.extensionId,
-            generation,
-            ...parameters,
-        });
+        let result: unknown;
+        try {
+            result = await this.supervisor?.request('viewOperation', {
+                extensionId: extension.extensionId,
+                generation,
+                ...parameters,
+            });
+        } catch (error) {
+            /**
+             * A nested Runtime request can reject before this outer view fence runs. Preserve an Extension Host
+             * generation failure when that lifecycle actually changed; otherwise a retired Renderer scope owns the
+             * outcome and must remain a typed cancellation instead of leaking Runtime conflict/generation details.
+             */
+            if (this.states.get(extension.extensionId)?.generation === generation)
+                assertActiveViewContext(parameters.context, await this.options.activeContext());
+            throw error;
+        }
         if (this.states.get(extension.extensionId)?.generation !== generation)
             throw Object.assign(new Error('View provider generation expired'), {
                 code: 'GENERATION_EXPIRED',
