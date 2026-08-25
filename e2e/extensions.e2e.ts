@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -21,6 +21,9 @@ const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 async function writePersistenceExtension(extensionRoot: string): Promise<void> {
     await mkdir(join(extensionRoot, 'dist'), { recursive: true });
     await mkdir(join(extensionRoot, 'media'), { recursive: true });
+    const desktopManifestUrl = new URL('../package.json', import.meta.url);
+    const desktopManifestSource = await readFile(desktopManifestUrl, 'utf8');
+    const desktopVersion = (JSON.parse(desktopManifestSource) as { version: string }).version;
     await writeFile(
         join(extensionRoot, 'package.json'),
         JSON.stringify({
@@ -28,7 +31,7 @@ async function writePersistenceExtension(extensionRoot: string): Promise<void> {
             version: '1.0.0',
             type: 'module',
             main: './dist/extension.js',
-            engines: { caxri: '^0.0.17' },
+            engines: { caxri: desktopVersion },
             caxri: { capabilities: [] },
             contributes: {
                 viewsContainers: {
