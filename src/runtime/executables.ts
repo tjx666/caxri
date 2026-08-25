@@ -20,6 +20,7 @@ type RunFile = (
         cwd?: string;
         env: NodeJS.ProcessEnv;
         maxBuffer: number;
+        signal?: AbortSignal;
         timeout: number;
     },
 ) => Promise<{ stderr: string; stdout: string }>;
@@ -168,6 +169,7 @@ export interface ExternalCommandOptions {
      */
     env?: NodeJS.ProcessEnv;
     maxBuffer: number;
+    signal?: AbortSignal;
     timeout: number;
 }
 
@@ -202,6 +204,7 @@ export async function runExternalCommand(
         ...(options.cwd !== undefined && { cwd: options.cwd }),
         env: { ...(await readEnvironment()), ...options.env },
         maxBuffer: options.maxBuffer,
+        ...(options.signal && { signal: options.signal }),
         timeout: options.timeout,
     });
 }

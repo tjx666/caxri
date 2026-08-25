@@ -111,6 +111,32 @@ describe('git.commitDetails sha shape', () => {
     });
 });
 
+describe('Runtime-owned Git discard consent', () => {
+    it('accepts only a repository/scope lookup for preflight, never prompt metadata', () => {
+        const schema = internalMethods['git.discard.preflight'].params;
+        expect(
+            schema.safeParse({
+                sessionId: 'session-1',
+                repositoryId: 'repository-1',
+                scope: { kind: 'file', path: 'tracked.txt' },
+            }).success,
+        ).toBe(true);
+        expect(
+            schema.safeParse({
+                sessionId: 'session-1',
+                repositoryId: 'repository-1',
+                scope: { kind: 'all', fileCount: 999 },
+            }).success,
+        ).toBe(false);
+    });
+
+    it('requires an opaque token for the destructive apply step', () => {
+        const schema = internalMethods['git.discard.apply'].params;
+        expect(schema.safeParse({ token: 'discard-token' }).success).toBe(true);
+        expect(schema.safeParse({ token: '' }).success).toBe(false);
+    });
+});
+
 describe('files.authorizeTrash internal identity fields', () => {
     it('requires numeric-string device and inode identifiers for the entry and its root', () => {
         const schema = internalMethods['files.authorizeTrash'].result;
@@ -141,5 +167,35 @@ describe('files.authorizeTrash internal identity fields', () => {
 describe('host.stop default confirmation', () => {
     it('defaults confirmLivePtys to false when params are omitted', () => {
         expect(methods['host.stop'].params.parse(undefined)).toEqual({ confirmLivePtys: false });
+    });
+});
+
+describe('controlled view operation scope', () => {
+    it('requires a typed Session or no-Session context on every provider request', () => {
+        const schema = methods['viewContainers.viewOperation'].params;
+        const request = {
+            viewId: 'publisher.files.explorer',
+            requestId: 'request-1',
+            operation: 'files.list' as const,
+            arguments: {},
+        };
+
+        expect(
+            schema.safeParse({
+                ...request,
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
+            }).success,
+        ).toBe(true);
+        expect(schema.safeParse(request).success).toBe(false);
+        expect(
+            schema.safeParse({
+                ...request,
+                context: { kind: 'session', sessionId: 'session-1' },
+            }).success,
+        ).toBe(false);
     });
 });

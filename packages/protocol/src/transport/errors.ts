@@ -15,6 +15,7 @@ export const errorCodes = [
     'CAPACITY',
     'UNAVAILABLE',
     'TIMEOUT',
+    'CANCELLED',
     'CONFLICT',
     'FORBIDDEN',
     'IO',

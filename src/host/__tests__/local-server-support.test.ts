@@ -8,10 +8,12 @@ import {
     executeReply,
     fileSystemCode,
     isTokenMatch,
+    logHostRequestOutcome,
     operatorContext,
 } from '../local-server-support';
 
 type HostRequestLogEvent = Parameters<NonNullable<LocalHostServerOptions['logger']>['write']>[1];
+type HostRequestLogWrite = Parameters<NonNullable<LocalHostServerOptions['logger']>['write']>;
 
 describe('Host request log sink', () => {
     it('accepts only registered event names', () => {
@@ -21,6 +23,29 @@ describe('Host request log sink', () => {
 
         expect(registeredEvent).toBe('ipc.request');
         expect(unregisteredEvent).toBe('ipc.request_typo');
+    });
+
+    it('records request cancellation as non-fault control flow', () => {
+        const writes: HostRequestLogWrite[] = [];
+
+        logHostRequestOutcome(
+            { logger: { write: (...arguments_: HostRequestLogWrite) => writes.push(arguments_) } },
+            { id: 'cancelled-view', method: 'viewContainers.viewOperation' },
+            {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'cancelled-view',
+                ok: false,
+                error: { code: 'CANCELLED', message: 'View request was cancelled' },
+            },
+            operatorContext('profile-1'),
+            performance.now(),
+            undefined,
+        );
+
+        expect(writes).toHaveLength(1);
+        expect(writes[0]?.[0]).toBe('debug');
+        expect(writes[0]?.[1]).toBe(logEventCatalog.ipc.request);
+        expect(writes[0]?.[2]?.fields).toMatchObject({ code: 'CANCELLED' });
     });
 });
 

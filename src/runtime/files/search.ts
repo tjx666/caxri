@@ -158,7 +158,11 @@ export class SearchService {
 
     constructor(
         private readonly resolveSessionPath: ResolveSessionPath,
-        private readonly readDocument: (sessionId: string, path: string) => Promise<FileDocument>,
+        private readonly readDocument: (
+            sessionId: string,
+            path: string,
+            signal?: AbortSignal,
+        ) => Promise<FileDocument>,
         private readonly logger: StructuredLogger,
         private readonly maxFileBytes: () => number,
         options: SearchServiceOptions = {},
@@ -331,7 +335,14 @@ export class SearchService {
                 if (query.test(relativePath)) this.appendMatch(accumulator, { path, relativePath });
             } else if (stats.size <= this.maxFileBytes()) {
                 // eslint-disable-next-line no-await-in-loop -- see `run`'s loop comment above
-                await this.searchDocument(parameters, path, relativePath, query, accumulator);
+                await this.searchDocument(
+                    parameters,
+                    path,
+                    relativePath,
+                    query,
+                    accumulator,
+                    signal,
+                );
             }
             if (accumulator.full) {
                 accumulator.truncated = true;
@@ -346,10 +357,12 @@ export class SearchService {
         relativePath: string,
         query: RegExp,
         accumulator: SearchAccumulator,
+        signal: AbortSignal,
     ): Promise<void> {
+        if (signal.aborted) return;
         let document: FileDocument;
         try {
-            document = await this.readDocument(parameters.sessionId, path);
+            document = await this.readDocument(parameters.sessionId, path, signal);
         } catch (error) {
             this.logSkipped(path, error);
             return;
@@ -413,14 +426,21 @@ export class SearchService {
         });
     }
 
-    async search(parameters: SearchParameters): Promise<SearchResult> {
+    async search(
+        parameters: SearchParameters,
+        externalSignal?: AbortSignal,
+    ): Promise<SearchResult> {
         this.active.get(parameters.sessionId)?.abort();
         const controller = new AbortController();
         this.active.set(parameters.sessionId, controller);
+        const cancel = (): void => controller.abort();
+        if (externalSignal?.aborted) controller.abort();
+        externalSignal?.addEventListener('abort', cancel, { once: true });
         const startedAt = performance.now();
         try {
             return await this.run(parameters, controller.signal, startedAt);
         } finally {
+            externalSignal?.removeEventListener('abort', cancel);
             if (this.active.get(parameters.sessionId) === controller)
                 this.active.delete(parameters.sessionId);
         }

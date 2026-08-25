@@ -14,11 +14,14 @@ import {
     extensionApiBinding,
     getTreeChildren,
     notifyActiveContextChanged,
+    notifyFilesChanged,
+    notifyGitChanged,
     notifyProjectStatusChanged,
     settleApiReply,
 } from './api-factory';
 import { extensionErrorShape } from './extension-error';
 import { installExtensionModuleHooks, replaceExtensionModuleRegistrations } from './module-loader';
+import { executeViewOperation } from './view-provider-runtime';
 
 function isApiReply(
     message: unknown,
@@ -51,10 +54,17 @@ async function handle(request: ExtensionHostRequest): Promise<unknown> {
             return getTreeChildren(request.params);
         case 'executeCommand':
             return executeExtensionCommand(request.params);
+        case 'viewOperation':
+            await activateExtension(request.params.extensionId, request.params.generation);
+            return executeViewOperation(request.params);
         case 'activeContextChanged':
-            return notifyActiveContextChanged();
+            return notifyActiveContextChanged(request.params.context);
+        case 'filesChanged':
+            return notifyFilesChanged(request.params.change, request.params.context);
+        case 'gitChanged':
+            return notifyGitChanged(request.params.context);
         case 'projectStatusChanged':
-            return notifyProjectStatusChanged();
+            return notifyProjectStatusChanged(request.params.context);
         case 'cancel':
             return cancelTreeRequest(request.params.requestId);
         case 'shutdown':

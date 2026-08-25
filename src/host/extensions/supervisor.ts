@@ -5,16 +5,29 @@ import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import process from 'node:process';
 
-import { MAX_VIEW_TREE_ITEMS, MAX_VIEW_TREE_PAYLOAD_BYTES, treeItemSchema } from '@caxri/protocol';
+import type { CaxriErrorCode } from '@caxri/protocol';
+import {
+    CaxriError,
+    errorCodes,
+    extensionViewChangeSchema,
+    extensionViewEventContextSchema,
+    extensionViewEventIdSchema,
+    MAX_VIEW_TREE_ITEMS,
+    MAX_VIEW_TREE_PAYLOAD_BYTES,
+    treeItemSchema,
+} from '@caxri/protocol';
 
 import type {
     ExtensionHostApiRequest,
     ExtensionHostMessage,
     ExtensionHostRegistration,
     ExtensionHostRequest,
-    ExtensionProjectStatusSummary,
 } from '../../shared/extension-host-protocol';
-import { MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH } from '../../shared/extension-host-protocol';
+import {
+    extensionWorkspaceOperations,
+    MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH,
+} from '../../shared/extension-host-protocol';
+import { isNonExpiringViewOperation } from '../../shared/ipc/request-lifetime';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
@@ -23,7 +36,7 @@ interface PendingRequest {
     method: ExtensionHostRequest['method'];
     resolve(value: unknown): void;
     reject(error: Error): void;
-    timer: NodeJS.Timeout;
+    timer?: NodeJS.Timeout;
 }
 
 export interface ExtensionHostSupervisorOptions {
@@ -33,7 +46,7 @@ export interface ExtensionHostSupervisorOptions {
     extensionHostPath: string;
     logger: StructuredLogger;
     registrations(): ExtensionHostRegistration[];
-    getProjectStatus(request: ExtensionHostApiRequest): Promise<ExtensionProjectStatusSummary>;
+    requestApi(request: ExtensionHostApiRequest, signal?: AbortSignal): Promise<unknown>;
 }
 
 const READY_TIMEOUT_MS = 15_000;
@@ -41,6 +54,32 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_CONCURRENT_REQUESTS = 32;
 const MAX_AUTO_RESTARTS = 5;
 const RESTART_STABILITY_MS = 30_000;
+const MAX_EXTENSION_API_ARGUMENT_BYTES = 64 * 1_024;
+const MAX_EXTENSION_VIEW_RESULT_BYTES = 4 * 1024 * 1024;
+
+function requestTimeout(
+    method: ExtensionHostRequest['method'],
+    parameters: ExtensionHostRequest['params'],
+): number | undefined {
+    if (method !== 'viewOperation') return REQUEST_TIMEOUT_MS;
+    const operation = (
+        parameters as Extract<ExtensionHostRequest, { method: 'viewOperation' }>['params']
+    ).operation;
+    return isNonExpiringViewOperation(operation) ? undefined : REQUEST_TIMEOUT_MS;
+}
+
+function cancellableRequestId(
+    method: ExtensionHostRequest['method'],
+    parameters: ExtensionHostRequest['params'],
+): string | undefined {
+    if (method === 'treeChildren')
+        return (parameters as Extract<ExtensionHostRequest, { method: 'treeChildren' }>['params'])
+            .requestId;
+    if (method === 'viewOperation')
+        return (parameters as Extract<ExtensionHostRequest, { method: 'viewOperation' }>['params'])
+            .requestId;
+    return undefined;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
@@ -57,6 +96,36 @@ function isBoundedString(value: unknown, max: number): value is string {
     return typeof value === 'string' && value.length > 0 && value.length <= max;
 }
 
+function hasBoundedApiArguments(value: unknown): boolean {
+    if (!isRecord(value)) return false;
+    try {
+        return Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_EXTENSION_API_ARGUMENT_BYTES;
+    } catch {
+        return false;
+    }
+}
+
+function isViewChange(value: unknown): boolean {
+    return extensionViewChangeSchema.safeParse(value).success;
+}
+
+function hasBoundedViewResult(value: unknown): boolean {
+    if (value === undefined || ['bigint', 'function', 'symbol'].includes(typeof value))
+        return false;
+    try {
+        const serialized = JSON.stringify(value);
+        return Buffer.byteLength(serialized, 'utf8') <= MAX_EXTENSION_VIEW_RESULT_BYTES;
+    } catch {
+        return false;
+    }
+}
+
+export function extensionHostReplyError(error: { code: string; message: string }): Error {
+    if (errorCodes.includes(error.code as CaxriErrorCode))
+        return new CaxriError(error.code as CaxriErrorCode, error.message);
+    return Object.assign(new Error(error.message), { code: error.code });
+}
+
 export function isExtensionHostMessage(value: unknown): value is ExtensionHostMessage {
     if (!isRecord(value) || typeof value.type !== 'string') return false;
     if (value.type === 'ready') return true;
@@ -67,26 +136,40 @@ export function isExtensionHostMessage(value: unknown): value is ExtensionHostMe
             Number.isSafeInteger(value.generation) &&
             Number(value.generation) >= 0 &&
             isBoundedString(value.apiToken, 200) &&
-            value.method === 'workspace.getProjectStatus' &&
             isRecord(value.params) &&
-            (value.params.refreshToken === undefined ||
-                isBoundedString(
-                    value.params.refreshToken,
-                    MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH,
-                ))
+            ((value.method === 'workspace.getProjectStatus' &&
+                (value.params.refreshToken === undefined ||
+                    isBoundedString(
+                        value.params.refreshToken,
+                        MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH,
+                    ))) ||
+                (value.method === 'workspace.request' &&
+                    typeof value.params.operation === 'string' &&
+                    extensionWorkspaceOperations.includes(
+                        value.params.operation as (typeof extensionWorkspaceOperations)[number],
+                    ) &&
+                    extensionViewEventContextSchema.safeParse(value.params.context).success &&
+                    hasBoundedApiArguments(value.params.arguments)))
         );
-    if (value.type === 'event')
-        return (
-            value.event === 'treeChanged' &&
+    if (value.type === 'api-cancel') return isBoundedString(value.id, 200);
+    if (value.type === 'event') {
+        const isIdentityIsValid =
             isBoundedString(value.extensionId, 200) &&
             Number.isSafeInteger(value.generation) &&
             Number(value.generation) >= 0 &&
             isBoundedString(value.viewId, 200) &&
+            extensionViewEventIdSchema.safeParse(value.eventId).success &&
+            extensionViewEventContextSchema.safeParse(value.context).success;
+        if (!isIdentityIsValid) return false;
+        if (value.event === 'viewChanged') return isViewChange(value.change);
+        return (
+            value.event === 'treeChanged' &&
             (value.handles === undefined ||
                 (Array.isArray(value.handles) &&
                     value.handles.length <= MAX_VIEW_TREE_ITEMS &&
                     value.handles.every((handle) => isBoundedString(handle, 512))))
         );
+    }
     if (value.type !== 'reply' || !isBoundedString(value.id, 200) || typeof value.ok !== 'boolean')
         return false;
     return (
@@ -101,6 +184,7 @@ export function isExtensionHostResult(
     method: ExtensionHostRequest['method'],
     value: unknown,
 ): boolean {
+    if (method === 'viewOperation') return hasBoundedViewResult(value);
     if (!isRecord(value)) return false;
     switch (method) {
         case 'configure':
@@ -118,6 +202,8 @@ export function isExtensionHostResult(
         case 'executeCommand':
             return value.executed === true;
         case 'activeContextChanged':
+        case 'filesChanged':
+        case 'gitChanged':
         case 'projectStatusChanged':
             return Number.isSafeInteger(value.notified) && Number(value.notified) >= 0;
         case 'cancel':
@@ -134,6 +220,7 @@ export class ExtensionHostSupervisor extends EventTarget {
     private child?: ChildProcess;
     private intentionalStop = false;
     private pending = new Map<string, PendingRequest>();
+    private readonly apiRequests = new Map<string, AbortController>();
     private readiness?: Promise<void>;
     private startup?: Promise<void>;
     private resolveReady?: () => void;
@@ -169,8 +256,10 @@ export class ExtensionHostSupervisor extends EventTarget {
     private async handleApiRequest(request: ExtensionHostApiRequest): Promise<void> {
         const child = this.child;
         if (!child?.connected) return;
+        const controller = new AbortController();
+        this.apiRequests.set(request.id, controller);
         try {
-            const result = await this.options.getProjectStatus(request);
+            const result = await this.options.requestApi(request, controller.signal);
             if (child === this.child && isChildConnected(child))
                 child.send({ type: 'api-reply', id: request.id, ok: true, result });
         } catch (error) {
@@ -187,6 +276,9 @@ export class ExtensionHostSupervisor extends EventTarget {
                         message: error instanceof Error ? error.message : String(error),
                     },
                 });
+        } finally {
+            if (this.apiRequests.get(request.id) === controller)
+                this.apiRequests.delete(request.id);
         }
     }
 
@@ -201,6 +293,10 @@ export class ExtensionHostSupervisor extends EventTarget {
             this.resolveReady?.();
             this.resolveReady = undefined;
             this.rejectReady = undefined;
+            return;
+        }
+        if (message.type === 'api-cancel') {
+            this.apiRequests.get(message.id)?.abort();
             return;
         }
         if (message.type === 'api-request') {
@@ -230,13 +326,12 @@ export class ExtensionHostSupervisor extends EventTarget {
             this.options.logger.write('error', logEventCatalog.extensionHost.invalidMessage);
             this.child?.kill();
         } else if (message.ok) pending.resolve(message.result);
-        else
-            pending.reject(
-                Object.assign(new Error(message.error.message), { code: message.error.code }),
-            );
+        else pending.reject(extensionHostReplyError(message.error));
     }
 
     private handleExit(code: number): void {
+        for (const controller of this.apiRequests.values()) controller.abort();
+        this.apiRequests.clear();
         if (this.restartResetTimer) clearTimeout(this.restartResetTimer);
         this.restartResetTimer = undefined;
         this.child = undefined;
@@ -350,32 +445,32 @@ export class ExtensionHostSupervisor extends EventTarget {
             });
         const id = randomUUID();
         return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.pending.delete(id);
-                if (method === 'treeChildren' && child.connected)
-                    child.send({
-                        id: randomUUID(),
-                        method: 'cancel',
-                        params: {
-                            requestId: (
-                                parameters as Extract<
-                                    ExtensionHostRequest,
-                                    { method: 'treeChildren' }
-                                >['params']
-                            ).requestId,
-                        },
-                    } satisfies ExtensionHostRequest);
-                else if (
-                    (method === 'activate' || method === 'executeCommand') &&
-                    child === this.child
-                )
-                    child.kill();
-                reject(
-                    Object.assign(new Error(`Extension Host request timed out: ${method}`), {
-                        code: 'PROVIDER_TIMEOUT',
-                    }),
-                );
-            }, REQUEST_TIMEOUT_MS);
+            const timeout = requestTimeout(method, parameters);
+            const timer =
+                timeout === undefined
+                    ? undefined
+                    : setTimeout(() => {
+                          this.pending.delete(id);
+                          const requestId = cancellableRequestId(method, parameters);
+                          if (requestId && child.connected)
+                              child.send({
+                                  id: randomUUID(),
+                                  method: 'cancel',
+                                  params: { requestId },
+                              } satisfies ExtensionHostRequest);
+                          else if (
+                              (method === 'activate' || method === 'executeCommand') &&
+                              child === this.child
+                          )
+                              child.kill();
+                          reject(
+                              Object.assign(
+                                  new Error(`Extension Host request timed out: ${method}`),
+                                  { code: 'PROVIDER_TIMEOUT' },
+                              ),
+                          );
+                      }, timeout);
+            timer?.unref();
             this.pending.set(id, { method, resolve, reject, timer });
             child.send({ id, method, params: parameters });
         });

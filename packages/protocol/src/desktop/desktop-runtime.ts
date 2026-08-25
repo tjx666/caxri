@@ -16,6 +16,8 @@ export const desktopRuntimeMethodIds = [
     'config.paths',
     'settings.trustDomain',
     'diagnostics.exportPath',
+    'git.discard.preflight',
+    'git.discard.apply',
     'files.authorizeTrash',
     'files.authorizeOpen',
     'terminal.fileLink.resolve',

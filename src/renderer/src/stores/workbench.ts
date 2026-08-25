@@ -635,6 +635,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'agent.dispatch.changed':
             case 'viewContainers.catalogChanged':
             case 'viewContainers.treeChanged':
+            case 'viewContainers.viewChanged':
             case 'agent.message.held':
             case 'agent.message.receipt':
             case 'agent.messaging.changed':

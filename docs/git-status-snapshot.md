@@ -143,7 +143,8 @@ truncates the transported `files` array at `MAX_GIT_STATUS_FILES` (2,000,
 `packages/protocol/src/domain/git.ts`) with `truncated = changedFileCount > MAX_GIT_STATUS_FILES`.
 `changedFileCount` is authoritative on a truncated snapshot; otherwise it is the post
 child-repository-filtering visible file count, so every consumer of one generation reports the same
-number. `GitPanel` (`src/renderer/src/features/secondary-sidebar/panels/git/git-panel.tsx:291-300`) renders
+number. The controlled Source Control surface
+(`src/renderer/src/features/view-containers/source-control/git-repo-section-view.tsx`) renders
 an explicit `Showing the first N of <changedFileCount>` notice when `truncated`; already-listed
 files remain fully diffable.
 
@@ -152,7 +153,7 @@ files remain fully diffable.
 each repository via a rest-omit projection — it never triggers a second `git status`. The Status
 Bar (`src/renderer/src/features/status-bar/status-bar.tsx`) queries `git.overview` exclusively so
 branch/count rendering never pulls the full `files[]` IPC payload into the Renderer, while staying
-on the same snapshot generation GitPanel reads through `git.summary`.
+on the same snapshot generation the Source Control provider reads through `git.summary`.
 
 ## Measurement contract
 

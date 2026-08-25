@@ -25,24 +25,6 @@ import type { DiscoveredExtension, RejectedExtension } from './discovery';
 
 const builtinContainers: ViewContainerDescriptor[] = [
     {
-        id: 'caxri.files',
-        location: 'secondarySidebar',
-        source: { kind: 'builtin' },
-        title: 'Files',
-        icon: { kind: 'builtin', id: 'files' },
-        commandId: 'secondarySidebar.showFiles',
-        lifecycle: 'builtin',
-    },
-    {
-        id: 'caxri.git',
-        location: 'secondarySidebar',
-        source: { kind: 'builtin' },
-        title: 'Git',
-        icon: { kind: 'builtin', id: 'git-branch' },
-        commandId: 'secondarySidebar.showGit',
-        lifecycle: 'builtin',
-    },
-    {
         id: 'caxri.logs',
         location: 'panel',
         source: { kind: 'builtin' },
@@ -69,7 +51,7 @@ const builtinViews: ViewDescriptor[] = builtinContainers.map((container) => ({
     title: container.title,
     viewKind: {
         kind: 'builtin-react',
-        component: container.id.slice('caxri.'.length) as 'files' | 'git' | 'logs' | 'info',
+        component: container.id.slice('caxri.'.length) as 'logs' | 'info',
     },
 }));
 
@@ -133,6 +115,30 @@ export interface CatalogExtensionState {
     error?: ExtensionError;
 }
 
+function orderedContainers(
+    containers: readonly ViewContainerDescriptor[],
+    manifestOrders: ReadonlyMap<string, number>,
+): ViewContainerDescriptor[] {
+    const queues = new Map(
+        ['secondarySidebar', 'panel'].map((location) => [
+            location,
+            containers
+                .filter((container) => container.location === location)
+                .toSorted(
+                    (left, right) =>
+                        (manifestOrders.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+                        (manifestOrders.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+                ),
+        ]),
+    );
+    const offsets = new Map<string, number>();
+    return containers.map((container) => {
+        const offset = offsets.get(container.location) ?? 0;
+        offsets.set(container.location, offset + 1);
+        return queues.get(container.location)![offset];
+    });
+}
+
 export async function buildViewCatalog(options: {
     extensions: readonly DiscoveredExtension[];
     rejected: readonly RejectedExtension[];
@@ -143,6 +149,7 @@ export async function buildViewCatalog(options: {
     const views = [...builtinViews];
     const commands = [...builtinCommands];
     const extensions: ExtensionDescriptor[] = [];
+    const manifestOrders = new Map<string, number>();
     const ids = new Set<string>([
         ...containers.map(({ id }) => id),
         ...views.map(({ id }) => id),
@@ -163,7 +170,9 @@ export async function buildViewCatalog(options: {
         ];
         const contributedIds = [
             ...contributedContainers.map(({ id }) => id),
-            ...contributedContainers.map(({ id }) => `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${id}`),
+            ...contributedContainers.map(
+                ({ command, id }) => command ?? `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${id}`,
+            ),
             ...contributedViews.map(({ id }) => id),
             ...contributions.commands.map(({ command }) => command),
         ];
@@ -252,7 +261,12 @@ export async function buildViewCatalog(options: {
         for (const location of ['secondarySidebar', 'panel'] as const) {
             const containerContributions = viewContainers[location];
             for (const contribution of containerContributions) {
+                const commandId =
+                    contribution.command ??
+                    `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${contribution.id}`;
                 ids.add(contribution.id);
+                if (contribution.order !== undefined)
+                    manifestOrders.set(contribution.id, contribution.order);
                 containers.push({
                     id: contribution.id,
                     location,
@@ -265,17 +279,17 @@ export async function buildViewCatalog(options: {
                                   kind: 'resource',
                                   dataUrl: resourceIcons.get(contribution.id)!,
                               },
-                    commandId: `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${contribution.id}`,
+                    commandId,
                     lifecycle,
                     ...(error && { error }),
                 });
                 commands.push({
-                    id: `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${contribution.id}`,
+                    id: commandId,
                     title: `Show ${contribution.title}`,
                     source: { kind: 'extension', extensionId: extension.extensionId },
                     lifecycle,
                 });
-                ids.add(`${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${contribution.id}`);
+                ids.add(commandId);
             }
         }
         for (const [containerId, viewContributions] of Object.entries(contributions.views)) {
@@ -286,7 +300,13 @@ export async function buildViewCatalog(options: {
                     containerId,
                     source: { kind: 'extension', extensionId: extension.extensionId },
                     title: contribution.name,
-                    viewKind: { kind: 'tree' },
+                    viewKind: { kind: contribution.type },
+                    ...(contribution.actions && {
+                        actions: contribution.actions.map(({ command, role }) => ({
+                            commandId: command,
+                            role,
+                        })),
+                    }),
                 });
             }
         }
@@ -296,6 +316,7 @@ export async function buildViewCatalog(options: {
                 id: contribution.command,
                 title: contribution.title,
                 ...(contribution.description && { description: contribution.description }),
+                ...(contribution.allowInEditable && { allowInEditable: true }),
                 source: { kind: 'extension', extensionId: extension.extensionId },
                 lifecycle,
             });
@@ -342,7 +363,7 @@ export async function buildViewCatalog(options: {
     }
     return viewCatalogSnapshotSchema.parse({
         revision: options.revision,
-        containers,
+        containers: orderedContainers(containers, manifestOrders),
         views,
         commands,
         extensions,

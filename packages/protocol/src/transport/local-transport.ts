@@ -189,12 +189,43 @@ export const localServerDesktopRuntimeReplySchema = z.object({
     reply: commandReplyEnvelopeSchema,
 });
 
+const desktopFileTrashItemSchema = z.object({
+    name: z.string().min(1).max(1_024),
+    path: pathSchema,
+    hasUnsavedChanges: z.boolean().optional(),
+});
+const desktopGitDiscardAllScopeSchema = z.object({
+    kind: z.literal('all'),
+    fileCount: z.number().int().positive().max(100_000),
+});
+const desktopGitDiscardFileScopeSchema = z.object({
+    kind: z.literal('file'),
+    path: pathSchema,
+    untracked: z.boolean(),
+});
+const desktopGitDiscardTargetSchema = z.object({
+    repositoryName: z.string().min(1).max(1_024),
+    scope: z.discriminatedUnion('kind', [
+        desktopGitDiscardAllScopeSchema,
+        desktopGitDiscardFileScopeSchema,
+    ]),
+});
+
 export const desktopOperationSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('status') }),
     z.object({ kind: z.literal('focus') }),
     z.object({ kind: z.literal('open'), targetId: identifierSchema }),
     z.object({ kind: z.literal('reveal'), targetId: identifierSchema }),
     z.object({ kind: z.literal('openInEditor'), targetId: identifierSchema }),
+    z.object({
+        kind: z.literal('confirmFilesTrash'),
+        item: desktopFileTrashItemSchema,
+    }),
+    z.object({ kind: z.literal('trash'), targetId: identifierSchema }),
+    z.object({
+        kind: z.literal('confirmGitDiscard'),
+        target: desktopGitDiscardTargetSchema,
+    }),
 ]);
 
 export type DesktopOperation = z.infer<typeof desktopOperationSchema>;
@@ -224,7 +255,7 @@ export const localClientDesktopTargetConsumeSchema = z.object({
 
 export const desktopTargetPayloadSchema = z.object({
     targetId: identifierSchema,
-    operation: z.enum(['open', 'reveal', 'openInEditor']),
+    operation: z.enum(['open', 'reveal', 'openInEditor', 'trash']),
     kind: z.enum(['file', 'directory']),
     sessionId: identifierSchema,
     path: pathSchema,

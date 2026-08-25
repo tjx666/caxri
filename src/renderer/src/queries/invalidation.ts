@@ -12,22 +12,119 @@ import { getWorkbenchProjectSessionIds } from '../stores/selectors';
  */
 const FILE_CHANGE_INVALIDATION_DEBOUNCE_MS = 150;
 
+const RESOURCE_EXPLORER_READ_OPERATIONS = new Set([
+    'files.list',
+    'files.search',
+    'files.operation.get',
+    'files.operation.list',
+]);
+const SOURCE_CONTROL_READ_OPERATIONS = new Set([
+    'git.summary',
+    'git.pullRequestChanges',
+    'git.commits',
+    'git.commitDetails',
+    'git.remoteHost',
+]);
+
+interface PendingFileChangeBatch {
+    changes: Map<string, 'create' | 'update' | 'delete'>;
+    gitIgnoreRulesChanged: boolean;
+    overflow: boolean;
+    sessionId: string;
+}
+
+function parentDirectory(path: string): string {
+    const separator = path.lastIndexOf('/');
+    return separator <= 0 ? '/' : path.slice(0, separator);
+}
+
+function isDirectoryAffected(
+    directory: string | undefined,
+    changes: readonly string[],
+    isOverflow: boolean,
+    hasGitIgnoreRulesChanged: boolean,
+): boolean {
+    if (isOverflow || hasGitIgnoreRulesChanged) return true;
+    if (!directory) return changes.length > 0;
+    return changes.some((path) => path === directory || parentDirectory(path) === directory);
+}
+
+function isControlledContextMatch(
+    parameters: Record<string, unknown>,
+    sessionIds: ReadonlySet<string> | undefined,
+    workbenchProjectId: string | undefined,
+): boolean {
+    if (!sessionIds || !workbenchProjectId) return true;
+    const contextKey = parameters.contextKey;
+    if (typeof contextKey !== 'string') return true;
+    return [...sessionIds].some((sessionId) => contextKey === `${sessionId}:${workbenchProjectId}`);
+}
+
+function isControlledOperationMatch(
+    queryKey: readonly unknown[],
+    operations: ReadonlySet<string>,
+    options: {
+        changes?: readonly string[];
+        context?: {
+            kind: 'session';
+            sessionId: string;
+            workbenchProjectId: string;
+        };
+        overflow?: boolean;
+        viewId?: string;
+    } = {},
+): boolean {
+    const [method, rawParameters] = queryKey;
+    if (
+        method !== 'viewContainers.viewOperation' ||
+        typeof rawParameters !== 'object' ||
+        rawParameters === null
+    )
+        return false;
+    const parameters = rawParameters as Record<string, unknown>;
+    if (
+        (options.viewId !== undefined && parameters.viewId !== options.viewId) ||
+        typeof parameters.operation !== 'string' ||
+        !operations.has(parameters.operation) ||
+        !isControlledContextMatch(
+            parameters,
+            options.context ? new Set([options.context.sessionId]) : undefined,
+            options.context?.workbenchProjectId,
+        )
+    )
+        return false;
+    const changes = options.changes;
+    if (!changes || changes.length === 0 || options.overflow) return true;
+    if (parameters.operation === 'files.search') return true;
+    if (parameters.operation !== 'files.list') return true;
+    const arguments_ = parameters.arguments;
+    if (typeof arguments_ !== 'object' || arguments_ === null) return true;
+    const directory = (arguments_ as { directory?: unknown }).directory;
+    return isDirectoryAffected(
+        typeof directory === 'string' ? directory : undefined,
+        changes,
+        false,
+        false,
+    );
+}
+
 /**
- * Invalidates the Session-scoped read queries that a `files.changed` event cheaply reflects: only the file-tree
- * `files.browse` listing today. `files.list` is deliberately excluded — the separate Project-scoped file-tree
- * subscription tracks which directories a change actually touched and invalidates only those, which this broad query
- * pass would otherwise blur. `projectStatus.summary` and `projectStatus.overview` are excluded too: a Project Status
- * read may shell out to a delivery CLI (e.g. `gh`), so it stays on its own polling interval instead of re-running on
- * every file write. Git status/diff/blame queries (`git.summary`, `git.overview`, `git.diffDocument`, `git.blame`) are
- * no longer invalidated from here: a plain file write does not always mean the working tree changed (e.g. an ignored
- * file), so Git invalidation instead rides the Runtime-emitted `git.changed` event, which is scoped to the repository
- * identities that actually changed — see `invalidateGitChangedQueries` below.
+ * Invalidates the Session-scoped built-in reads that a `files.changed` event cheaply reflects: only the Path Browser
+ * `files.browse` listing today. Resource Explorer reads are invalidated by provider-scoped `viewChanged` events.
+ * `projectStatus.summary` and `projectStatus.overview` are excluded: a Project Status read may shell out to a delivery
+ * CLI (e.g. `gh`), so it stays on its own polling interval instead of re-running on every file write. Git
+ * status/diff/blame queries (`git.summary`, `git.overview`, `git.diffDocument`, `git.blame`) are no longer invalidated
+ * from here: a plain file write does not always mean the working tree changed (e.g. an ignored file), so Git
+ * invalidation instead rides the Runtime-emitted `git.changed` event, which is scoped to the repository identities that
+ * actually changed — see `invalidateGitChangedQueries` below.
  */
 function invalidateFileDependentQueries(
     queryClient: QueryClient,
     sessionIds: readonly string[],
+    batch: PendingFileChangeBatch,
 ): void {
-    const sessionScoped = new Set<CaxriMethod>(['files.browse']);
+    const sessionIdSet = new Set(sessionIds);
+    const changes = batch.changes.keys().toArray();
     // Fire-and-forget: the invalidated queries surface their own errors through React Query's
     // per-query error state, so the caller never needs to await or handle this rejection.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -35,12 +132,18 @@ function invalidateFileDependentQueries(
         predicate: (query) => {
             const [method, parameters] = query.queryKey as [
                 CaxriMethod,
-                { sessionId?: string } | undefined,
+                { directory?: string; sessionId?: string } | undefined,
             ];
             return (
-                sessionScoped.has(method) &&
+                method === 'files.browse' &&
                 parameters?.sessionId !== undefined &&
-                sessionIds.includes(parameters.sessionId)
+                sessionIdSet.has(parameters.sessionId) &&
+                isDirectoryAffected(
+                    parameters.directory,
+                    changes,
+                    batch.overflow,
+                    batch.gitIgnoreRulesChanged,
+                )
             );
         },
     });
@@ -145,8 +248,29 @@ function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient
     // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
+        predicate: (query) => {
+            const [method, parameters] = query.queryKey as [
+                string,
+                { operation?: string } | undefined,
+            ];
+            return (
+                method === 'files.browse' ||
+                (method === 'viewContainers.viewOperation' &&
+                    (parameters?.operation === 'files.list' ||
+                        parameters?.operation === 'files.search'))
+            );
+        },
+    });
+}
+
+function invalidateControlledViewQueries(queryClient: QueryClient): void {
+    // A reconnect or catalog generation change retires provider registrations. Refetching generic controlled queries
+    // lets active observers resolve the new generation instead of reusing an old provider result.
+    // eslint-disable-next-line no-void -- invalidation is intentionally fire-and-forget
+    void queryClient.invalidateQueries({
         predicate: (query) =>
-            query.queryKey[0] === 'files.list' || query.queryKey[0] === 'files.browse',
+            query.queryKey[0] === 'viewContainers.viewOperation' ||
+            query.queryKey[0] === 'viewContainers.treeChildren',
     });
 }
 
@@ -174,10 +298,12 @@ export function useRuntimeQueryInvalidation(): void {
  */
 export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () => void {
     const pendingTimers = new Map<string, number>();
+    const pendingBatches = new Map<string, PendingFileChangeBatch>();
     const unsubscribe = caxri.onEvent((event) => {
         if (event.event === 'viewContainers.catalogChanged') {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, React Query owns invalidation errors
             void queryClient.invalidateQueries({ queryKey: ['viewContainers.catalog'] });
+            invalidateControlledViewQueries(queryClient);
             return;
         }
         if (event.event === 'viewContainers.treeChanged') {
@@ -196,6 +322,32 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             });
             return;
         }
+        if (
+            event.event === 'viewContainers.viewChanged' &&
+            (event.payload.change.kind === 'content' || event.payload.change.kind === 'operation')
+        ) {
+            const change = event.payload.change;
+            const context =
+                event.payload.context.kind === 'session' ? event.payload.context : undefined;
+            if (!context) return;
+            const operations =
+                change.kind === 'operation'
+                    ? RESOURCE_EXPLORER_READ_OPERATIONS
+                    : RESOURCE_EXPLORER_READ_OPERATIONS.union(SOURCE_CONTROL_READ_OPERATIONS);
+            // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
+            void queryClient.invalidateQueries({
+                predicate: (query) =>
+                    isControlledOperationMatch(query.queryKey, operations, {
+                        viewId: event.payload.viewId,
+                        context,
+                        ...(change.kind === 'content' && {
+                            changes: change.paths,
+                            overflow: change.overflow,
+                        }),
+                    }),
+            });
+            return;
+        }
         if (event.event === 'state.changed') {
             if (event.payload.kind === 'full') invalidateAgentTranscriptQuery(queryClient);
             else {
@@ -211,6 +363,9 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
              * journal.
              */
             invalidateAgentTranscriptQuery(queryClient);
+            // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
+            void queryClient.invalidateQueries({ queryKey: ['viewContainers.catalog'] });
+            invalidateControlledViewQueries(queryClient);
             return;
         }
         if (event.event === 'workbench.changed') {
@@ -238,15 +393,32 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (event.event !== 'files.changed') return;
         const { sessionId, workbenchProjectId } = event.payload;
+        const batch =
+            pendingBatches.get(workbenchProjectId) ??
+            ({
+                changes: new Map(),
+                gitIgnoreRulesChanged: false,
+                overflow: false,
+                sessionId,
+            } satisfies PendingFileChangeBatch);
+        for (const change of event.payload.changes) batch.changes.set(change.path, change.kind);
+        batch.gitIgnoreRulesChanged ||= event.payload.gitIgnoreRulesChanged === true;
+        batch.overflow ||= event.payload.overflow;
+        batch.sessionId = sessionId;
+        pendingBatches.set(workbenchProjectId, batch);
         const existing = pendingTimers.get(workbenchProjectId);
         if (existing !== undefined) clearTimeout(existing);
         pendingTimers.set(
             workbenchProjectId,
             setTimeout(() => {
                 pendingTimers.delete(workbenchProjectId);
+                const pending = pendingBatches.get(workbenchProjectId);
+                pendingBatches.delete(workbenchProjectId);
+                if (!pending) return;
                 invalidateFileDependentQueries(
                     queryClient,
-                    getWorkbenchProjectSessionIds(workbenchProjectId, sessionId),
+                    getWorkbenchProjectSessionIds(workbenchProjectId, pending.sessionId),
+                    pending,
                 );
             }, FILE_CHANGE_INVALIDATION_DEBOUNCE_MS),
         );
@@ -254,5 +426,6 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
     return () => {
         unsubscribe();
         for (const timer of pendingTimers.values()) clearTimeout(timer);
+        pendingBatches.clear();
     };
 }

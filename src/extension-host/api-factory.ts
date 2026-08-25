@@ -12,12 +12,13 @@ import {
     treeItemSchema,
 } from '@caxri/protocol';
 import type {
+    CancellationToken,
     CaxriApi,
     DisposableLike,
     ExtensionContext,
     ProjectStatusRequestOptions,
-    ProjectStatusSummary,
     TreeDataProvider,
+    WorkspaceFileChange,
 } from 'caxri';
 import {
     CancellationTokenSource,
@@ -29,18 +30,30 @@ import {
 } from 'caxri';
 
 import type {
-    ExtensionHostApiRequest,
     ExtensionHostMessage,
     ExtensionHostRegistration,
+    ExtensionViewEventScope,
+    ExtensionWorkspaceOperation,
 } from '../shared/extension-host-protocol';
-import { MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH } from '../shared/extension-host-protocol';
+import { createHostApiRequester, requestProjectStatus } from './host-api-binding';
+import { rejectPendingApiRequests, settleApiReply as settleHostApiReply } from './host-api-request';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
+import {
+    createControlledViewRegistrationApi,
+    currentViewEventContext,
+    didCancelViewRequest,
+    retireViewProviders,
+    withViewEventContext,
+} from './view-provider-runtime';
+import { createWorkspaceApiClient } from './workspace-api-client';
 
 interface ApiBinding {
     api: CaxriApi;
-    notifyActiveContext(): void;
-    notifyProjectStatus(): void;
+    notifyActiveContext(context: ExtensionViewEventScope): void;
+    notifyFiles(change: WorkspaceFileChange, context: ExtensionViewEventScope): void;
+    notifyGit(context: ExtensionViewEventScope): void;
+    notifyProjectStatus(context: ExtensionViewEventScope): void;
     runtime: {
         CancellationTokenSource: typeof CancellationTokenSource;
         Disposable: typeof Disposable;
@@ -75,13 +88,6 @@ interface ExtensionRuntime {
     retired: boolean;
 }
 
-interface PendingApiRequest {
-    apiToken: string;
-    resolve(value: ProjectStatusSummary): void;
-    reject(error: Error): void;
-    timer: NodeJS.Timeout;
-}
-
 const extensions = new Map<string, ExtensionRuntime>();
 const providers = new Map<string, ProviderRegistration>();
 const commands = new Map<
@@ -93,10 +99,27 @@ const commands = new Map<
     }
 >();
 const cancellations = new Map<string, CancellationTokenSource>();
-const pendingApi = new Map<string, PendingApiRequest>();
-const pendingRefreshes = new Map<string, { batch: TreeRefreshBatch; timer: NodeJS.Timeout }>();
-const HOST_API_TIMEOUT_MS = 15_000;
-const ROOT_TREE_PARENT = '';
+const pendingRefreshes = new Map<
+    string,
+    {
+        batch: TreeRefreshBatch;
+        timer: NodeJS.Timeout;
+        context: ExtensionViewEventScope;
+    }
+>();
+
+function isSameViewEventContext(
+    left: ExtensionViewEventScope,
+    right: ExtensionViewEventScope,
+): boolean {
+    return (
+        left.kind === right.kind &&
+        (left.kind === 'no-session' ||
+            (right.kind === 'session' &&
+                left.sessionId === right.sessionId &&
+                left.workbenchProjectId === right.workbenchProjectId))
+    );
+}
 
 function cancelPendingRefresh(viewId: string): void {
     const pending = pendingRefreshes.get(viewId);
@@ -120,6 +143,7 @@ function assertCurrent(extensionId: string, generation: number): ExtensionRuntim
 
 function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed: unknown): void {
     if (providers.get(viewId) !== provider) return;
+    const context = currentViewEventContext();
     if (changed === undefined) {
         provider.refreshEpoch += 1;
         provider.elements.clear();
@@ -131,7 +155,26 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
         provider.handles = new WeakMap();
         provider.nextHandle = 0;
     }
+    // Generic TreeDataProviders may refresh outside a Host-scoped notification (for example, an internal timer). Keep
+    // their local handles generation-safe, but fail closed by suppressing an unscoped cross-process event.
+    if (!context) return;
     const existing = pendingRefreshes.get(viewId);
+    let mergeWith = existing;
+    if (existing && !isSameViewEventContext(existing.context, context)) {
+        clearTimeout(existing.timer);
+        pendingRefreshes.delete(viewId);
+        mergeWith = undefined;
+        send({
+            type: 'event',
+            event: 'treeChanged',
+            extensionId: provider.extensionId,
+            generation: provider.generation,
+            viewId,
+            eventId: randomUUID(),
+            context: existing.context,
+            ...(!existing.batch.root && { handles: [...existing.batch.handles] }),
+        });
+    }
     const changedElements: readonly unknown[] = Array.isArray(changed)
         ? changed
         : changed !== undefined
@@ -144,9 +187,10 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
                 : undefined,
         )
         .filter((handle): handle is string => Boolean(handle));
-    const batch = mergeTreeRefresh(existing?.batch, changed === undefined ? undefined : handles);
-    if (!batch || batch === existing?.batch) return;
-    if (existing) clearTimeout(existing.timer);
+    const batch = mergeTreeRefresh(mergeWith?.batch, changed === undefined ? undefined : handles);
+    if (!batch || batch === mergeWith?.batch) return;
+    const current = pendingRefreshes.get(viewId);
+    if (current) clearTimeout(current.timer);
     const timer = setTimeout(() => {
         pendingRefreshes.delete(viewId);
         if (providers.get(viewId) !== provider) return;
@@ -156,66 +200,70 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
             extensionId: provider.extensionId,
             generation: provider.generation,
             viewId,
+            eventId: randomUUID(),
+            context,
             ...(!batch.root && { handles: [...batch.handles] }),
         });
     }, 25);
     timer.unref();
-    pendingRefreshes.set(viewId, { batch, timer });
-}
-
-function requestProjectStatus(
-    extensionId: string,
-    generation: number,
-    apiToken: string,
-    refreshToken?: string,
-): Promise<ProjectStatusSummary> {
-    assertCurrent(extensionId, generation);
-    if (
-        refreshToken !== undefined &&
-        (refreshToken.length === 0 ||
-            refreshToken.length > MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH)
-    )
-        throw Object.assign(new Error('Project Status refresh token is invalid'), {
-            code: 'PROVIDER_FAILED',
-        });
-    const id = randomUUID();
-    const request: ExtensionHostApiRequest = {
-        type: 'api-request',
-        id,
-        extensionId,
-        generation,
-        apiToken,
-        method: 'workspace.getProjectStatus',
-        params: { ...(refreshToken && { refreshToken }) },
-    };
-    return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-            pendingApi.delete(id);
-            reject(
-                Object.assign(new Error('Host API request timed out'), {
-                    code: 'EXTENSION_HOST_UNAVAILABLE',
-                }),
-            );
-        }, HOST_API_TIMEOUT_MS);
-        timer.unref();
-        pendingApi.set(id, { apiToken, resolve, reject, timer });
-        send(request);
-    });
+    pendingRefreshes.set(viewId, { batch, timer, context });
 }
 
 function createBinding(registration: ExtensionHostRegistration): ApiBinding {
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
     const activeContext = new EventEmitter<void>();
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
+    const files = new EventEmitter<WorkspaceFileChange>();
+    // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
+    const git = new EventEmitter<void>();
+    // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
     const projectStatus = new EventEmitter<void>();
-    const allowedViews = new Set(
+    const allowedViewKinds = new Map(
         Object.values(registration.manifest.contributes.views)
             .flat()
-            .map(({ id }) => id),
+            .map(({ id, type }) => [id, type]),
     );
     const allowedCommands = new Set(
         registration.manifest.contributes.commands.map(({ command }) => command),
     );
+    const request = createHostApiRequester({
+        apiToken: registration.apiToken,
+        extensionId: registration.extensionId,
+        generation: registration.generation,
+        assertCurrent: () => assertCurrent(registration.extensionId, registration.generation),
+        isApiTokenCurrent: (currentToken) =>
+            extensions
+                .values()
+                .some(({ registration: current }) => current.apiToken === currentToken),
+        send,
+    });
+    const workspace = createWorkspaceApiClient(
+        <Result>(
+            operation: ExtensionWorkspaceOperation,
+            arguments_: unknown,
+            token?: CancellationToken,
+        ) =>
+            request<Result>(
+                {
+                    method: 'workspace.request',
+                    params: {
+                        operation,
+                        arguments: arguments_,
+                        context: currentViewEventContext() ?? { kind: 'no-session' },
+                    },
+                },
+                token,
+            ),
+    );
+    const controlledViews = createControlledViewRegistrationApi({
+        extensionId: registration.extensionId,
+        generation: registration.generation,
+        viewKinds: allowedViewKinds,
+        assertCurrent: () => {
+            assertBindingCurrent(registration);
+        },
+        send,
+    });
     const api: CaxriApi = Object.freeze({
         commands: Object.freeze({
             registerCommand(
@@ -236,9 +284,10 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
             },
         }),
         views: Object.freeze({
+            ...controlledViews,
             registerTreeDataProvider<T>(viewId: string, provider: TreeDataProvider<T>) {
                 assertBindingCurrent(registration);
-                if (!allowedViews.has(viewId))
+                if (allowedViewKinds.get(viewId) !== 'tree')
                     throw Object.assign(new Error(`View is not declared: ${viewId}`), {
                         code: 'PROVIDER_MISSING',
                     });
@@ -276,22 +325,23 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
         }),
         workspace: Object.freeze({
             onDidChangeActiveContext: activeContext.event,
+            onDidChangeFiles: files.event,
+            onDidChangeGit: git.event,
             onDidChangeProjectStatus: projectStatus.event,
+            fs: workspace.fs,
+            git: workspace.git,
             getProjectStatus: (options?: ProjectStatusRequestOptions) => {
                 assertBindingCurrent(registration);
-                return requestProjectStatus(
-                    registration.extensionId,
-                    registration.generation,
-                    registration.apiToken,
-                    options?.refreshToken,
-                );
+                return requestProjectStatus(request, options?.refreshToken);
             },
         }),
     });
     return {
         api,
-        notifyActiveContext: () => activeContext.fire(),
-        notifyProjectStatus: () => projectStatus.fire(),
+        notifyActiveContext: (context) => withViewEventContext(context, () => activeContext.fire()),
+        notifyFiles: (change, context) => withViewEventContext(context, () => files.fire(change)),
+        notifyGit: (context) => withViewEventContext(context, () => git.fire()),
+        notifyProjectStatus: (context) => withViewEventContext(context, () => projectStatus.fire()),
         runtime: {
             CancellationTokenSource,
             Disposable,
@@ -303,21 +353,44 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
     };
 }
 
-export function notifyActiveContextChanged(): { notified: number } {
+export function notifyActiveContextChanged(context: ExtensionViewEventScope): { notified: number } {
     let notified = 0;
     for (const runtime of extensions.values()) {
         if (!runtime.activation) continue;
-        runtime.apiBinding.notifyActiveContext();
+        runtime.apiBinding.notifyActiveContext(context);
         notified += 1;
     }
     return { notified };
 }
 
-export function notifyProjectStatusChanged(): { notified: number } {
+export function notifyProjectStatusChanged(context: ExtensionViewEventScope): { notified: number } {
     let notified = 0;
     for (const runtime of extensions.values()) {
         if (!runtime.activation) continue;
-        runtime.apiBinding.notifyProjectStatus();
+        runtime.apiBinding.notifyProjectStatus(context);
+        notified += 1;
+    }
+    return { notified };
+}
+
+export function notifyFilesChanged(
+    change: WorkspaceFileChange,
+    context: ExtensionViewEventScope,
+): { notified: number } {
+    let notified = 0;
+    for (const runtime of extensions.values()) {
+        if (!runtime.activation) continue;
+        runtime.apiBinding.notifyFiles(change, context);
+        notified += 1;
+    }
+    return { notified };
+}
+
+export function notifyGitChanged(context: ExtensionViewEventScope): { notified: number } {
+    let notified = 0;
+    for (const runtime of extensions.values()) {
+        if (!runtime.activation) continue;
+        runtime.apiBinding.notifyGit(context);
         notified += 1;
     }
     return { notified };
@@ -339,6 +412,7 @@ function disposeExtension(runtime: ExtensionRuntime): void {
         }
     for (const [commandId, command] of commands)
         if (command.extensionId === runtime.registration.extensionId) commands.delete(commandId);
+    retireViewProviders(runtime.registration.extensionId);
 }
 
 export function configureExtensions(registrations: readonly ExtensionHostRegistration[]): void {
@@ -346,15 +420,7 @@ export function configureExtensions(registrations: readonly ExtensionHostRegistr
     extensions.clear();
     for (const { timer } of pendingRefreshes.values()) clearTimeout(timer);
     pendingRefreshes.clear();
-    for (const pending of pendingApi.values()) {
-        clearTimeout(pending.timer);
-        pending.reject(
-            Object.assign(new Error('Extension generation was reconfigured'), {
-                code: 'GENERATION_EXPIRED',
-            }),
-        );
-    }
-    pendingApi.clear();
+    rejectPendingApiRequests('Extension generation was reconfigured');
     for (const registration of registrations) {
         const context: ExtensionContext = {
             extensionId: registration.extensionId,
@@ -492,6 +558,7 @@ export async function getTreeChildren(parameters: {
     viewId: string;
     parentHandle?: string;
     requestId: string;
+    context?: ExtensionViewEventScope;
 }): Promise<{ items: TreeItemDto[] }> {
     await activateExtension(parameters.extensionId, parameters.generation);
     const runtime = assertCurrent(parameters.extensionId, parameters.generation);
@@ -521,7 +588,7 @@ export async function getTreeChildren(parameters: {
         throw Object.assign(new Error('Tree provider exceeded the depth limit'), {
             code: 'PROVIDER_CAPACITY',
         });
-    const parentKey = parameters.parentHandle ?? ROOT_TREE_PARENT;
+    const parentKey = parameters.parentHandle ?? '';
     if (cancellations.has(parameters.requestId))
         throw Object.assign(new Error('Tree request id is already active'), {
             code: 'PROVIDER_CAPACITY',
@@ -532,7 +599,12 @@ export async function getTreeChildren(parameters: {
     try {
         let children: readonly unknown[];
         try {
-            children = (await provider.provider.getChildren(parent, cancellation.token)) ?? [];
+            children =
+                (await (parameters.context
+                    ? withViewEventContext(parameters.context, () =>
+                          provider.provider.getChildren(parent, cancellation.token),
+                      )
+                    : provider.provider.getChildren(parent, cancellation.token))) ?? [];
         } catch (error) {
             throw providerFailure(error);
         }
@@ -547,7 +619,11 @@ export async function getTreeChildren(parameters: {
             children.map(async (element) => {
                 let item: TreeItem | null | undefined;
                 try {
-                    item = await provider.provider.getTreeItem(element);
+                    item = await (parameters.context
+                        ? withViewEventContext(parameters.context, () =>
+                              provider.provider.getTreeItem(element),
+                          )
+                        : provider.provider.getTreeItem(element));
                 } catch (error) {
                     throw providerFailure(error);
                 }
@@ -664,6 +740,7 @@ export async function executeExtensionCommand(parameters: {
     generation: number;
     commandId: string;
     arguments: unknown[];
+    context: ExtensionViewEventScope;
 }): Promise<{ executed: true }> {
     await activateExtension(parameters.extensionId, parameters.generation);
     const runtime = assertCurrent(parameters.extensionId, parameters.generation);
@@ -676,7 +753,7 @@ export async function executeExtensionCommand(parameters: {
         throw Object.assign(new Error(`Command is not registered: ${parameters.commandId}`), {
             code: 'ACTIVATION_FAILED',
         });
-    await command.run(...parameters.arguments);
+    await withViewEventContext(parameters.context, () => command.run(...parameters.arguments));
     assertRuntimeCurrent(runtime);
     return { executed: true };
 }
@@ -684,40 +761,23 @@ export async function executeExtensionCommand(parameters: {
 export function cancelTreeRequest(requestId: string): { cancelled: boolean } {
     const cancellation = cancellations.get(requestId);
     cancellation?.cancel();
-    return { cancelled: Boolean(cancellation) };
+    return { cancelled: Boolean(cancellation) || didCancelViewRequest(requestId) };
 }
 
 export function settleApiReply(message: {
     id: string;
     ok: boolean;
-    result?: ProjectStatusSummary;
+    result?: unknown;
     error?: { code: string; message: string };
 }): void {
-    const pending = pendingApi.get(message.id);
-    if (!pending) return;
-    pendingApi.delete(message.id);
-    clearTimeout(pending.timer);
-    if (extensions.values().every(({ registration }) => registration.apiToken !== pending.apiToken))
-        return;
-    if (message.ok && message.result) pending.resolve(message.result);
-    else
-        pending.reject(
-            Object.assign(new Error(message.error?.message ?? 'Host API request failed'), {
-                code: message.error?.code ?? 'EXTENSION_HOST_UNAVAILABLE',
-            }),
-        );
+    settleHostApiReply(message, (apiToken) =>
+        extensions.values().some(({ registration }) => registration.apiToken === apiToken),
+    );
 }
 
 export function disposeAllExtensions(): void {
     for (const runtime of extensions.values()) disposeExtension(runtime);
     extensions.clear();
-    for (const pending of pendingApi.values()) {
-        clearTimeout(pending.timer);
-        pending.reject(
-            Object.assign(new Error('Extension Host is stopping'), {
-                code: 'EXTENSION_HOST_UNAVAILABLE',
-            }),
-        );
-    }
-    pendingApi.clear();
+    retireViewProviders();
+    rejectPendingApiRequests('Extension Host is stopping', 'EXTENSION_HOST_UNAVAILABLE');
 }

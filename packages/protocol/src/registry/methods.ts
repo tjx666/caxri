@@ -54,7 +54,7 @@ import {
     themeTokensSchema,
     updateStateSchema,
 } from '../domain/domain.js';
-import { gitMethods } from '../domain/git-contract.js';
+import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import {
     extensionCommandIdSchema,
@@ -69,6 +69,7 @@ import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-
 import { eventRecoverySchema } from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { extensionViewMethods } from './view-methods.js';
 
 const hostRead = commandPolicy('host', 'read');
 const hostWrite = commandPolicy('host', 'write');
@@ -140,6 +141,7 @@ export const methods = {
     ...agentInboxMethods,
     ...businessMethods,
     ...workbenchMethods,
+    ...extensionViewMethods,
     'viewContainers.catalog': {
         ...hostRead,
         params: noParameters,
@@ -151,7 +153,6 @@ export const methods = {
             viewId: viewIdSchema,
             parentHandle: z.string().min(1).max(512).optional(),
             requestId: identifierSchema,
-            sessionId: identifierSchema.optional(),
         }),
         result: treeChildrenResultSchema,
     },
@@ -676,6 +677,7 @@ export const methods = {
 export const internalMethods = {
     ...agentDispatchInternalMethods,
     ...businessInternalMethods,
+    ...gitInternalMethods,
     ...workbenchInternalMethods,
     'app.windowState.get': {
         ...hostRead,

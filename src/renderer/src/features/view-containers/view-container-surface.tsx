@@ -29,8 +29,11 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { tryCommand } from '../../stores/toasts';
 import { getBuiltinViewComponent } from './builtin-components';
+import { ControlledViewProvider } from './controlled-view-provider';
 import { ExtensionTreeView } from './extension-tree-view';
 import { resolveViewContainerId } from './resolution';
+import { ResourceExplorerView } from './resource-explorer/resource-explorer-view';
+import { SourceControlView } from './source-control/source-control-view';
 
 const builtinIcons = {
     'files': Files,
@@ -40,8 +43,10 @@ const builtinIcons = {
 } as const;
 
 const extensionBuiltinIcons = {
-    beaker: FlaskConical,
-    status: Activity,
+    'beaker': FlaskConical,
+    'files': Files,
+    'git-branch': GitBranch,
+    'status': Activity,
 } satisfies Record<ExtensionBuiltinIconId, LucideIcon>;
 
 /**
@@ -90,7 +95,7 @@ export function ViewContainerSurface({
     trailing,
 }: {
     ariaLabel: string;
-    desiredId: ViewContainerId;
+    desiredId?: ViewContainerId;
     location: ViewContainerLocation;
     onSelect: (id: ViewContainerId) => void;
     trailing?: ReactNode;
@@ -258,9 +263,40 @@ export function ViewContainerSurface({
                                         view.viewKind.component,
                                     );
                                     content = <Component />;
-                                } else
+                                } else if (view.viewKind.kind === 'tree')
                                     content = (
-                                        <ExtensionTreeView title={view.title} viewId={view.id} />
+                                        <ExtensionTreeView
+                                            extensionGeneration={
+                                                catalog.extensions.find(
+                                                    ({ id }) =>
+                                                        view.source.kind === 'extension' &&
+                                                        id === view.source.extensionId,
+                                                )?.generation ?? 0
+                                            }
+                                            title={view.title}
+                                            viewId={view.id}
+                                        />
+                                    );
+                                else
+                                    content = (
+                                        <ControlledViewProvider
+                                            actions={view.actions}
+                                            extensionGeneration={
+                                                catalog.extensions.find(
+                                                    ({ id }) =>
+                                                        view.source.kind === 'extension' &&
+                                                        id === view.source.extensionId,
+                                                )?.generation ?? 0
+                                            }
+                                            kind={view.viewKind.kind}
+                                            viewId={view.id}
+                                        >
+                                            {view.viewKind.kind === 'resource-explorer' ? (
+                                                <ResourceExplorerView />
+                                            ) : (
+                                                <SourceControlView />
+                                            )}
+                                        </ControlledViewProvider>
                                     );
                                 return (
                                     <div

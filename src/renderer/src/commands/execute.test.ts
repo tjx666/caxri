@@ -11,9 +11,7 @@ import {
 import type { BootstrapState, PaneLayout } from '@shared/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useFileSearchStore } from '../features/secondary-sidebar/panels/files/file-search-state';
 import { isEditableEventTarget } from '../lib/keybindings';
-import { useChromeLayoutStore } from '../stores/chrome-layout';
 import { useWorkbenchStore } from '../stores/workbench';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
 import type { CommandContext } from './execute';
@@ -27,10 +25,11 @@ import { registerCommand } from './registry';
  */
 vi.mock('../lib/keybindings', () => ({ isEditableEventTarget: vi.fn() }));
 const mockedIsEditableEventTarget = vi.mocked(isEditableEventTarget);
-const secondarySidebarViewCommands = [
-    { commandId: 'secondarySidebar.showFiles', viewContainerId: 'caxri.files' },
-    { commandId: 'secondarySidebar.showGit', viewContainerId: 'caxri.git' },
-] as const;
+const extensionOwnedSharedIds = new Set<CommandId>([
+    'secondarySidebar.showFiles',
+    'secondarySidebar.showGit',
+    'secondarySidebar.searchFiles',
+]);
 
 /**
  * Puts a layout where the default command context reads it from, for the availability predicates that resolve their
@@ -101,7 +100,6 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             editor: { saveActive: record('editor.save') },
             secondarySidebar: {
-                searchFiles: record('secondarySidebar.searchFiles'),
                 activateViewContainer: record('secondarySidebar.activateViewContainer'),
                 toggle: record('secondarySidebar.toggle'),
             },
@@ -134,6 +132,7 @@ describe('executeCommand', () => {
 
     it('dispatches every command in the shared catalog', () => {
         for (const definition of sharedCommandDefinitions) {
+            if (extensionOwnedSharedIds.has(definition.id)) continue;
             const { calls, context } = recordingContext();
             executeCommand(
                 definition.id,
@@ -151,7 +150,13 @@ describe('executeCommand', () => {
         );
 
         for (const id of sharedIds)
-            expect(registeredIds, `registry is missing ${id}`).toContain(id);
+            if (!extensionOwnedSharedIds.has(id))
+                expect(registeredIds, `registry is missing ${id}`).toContain(id);
+        for (const id of extensionOwnedSharedIds)
+            expect(
+                registeredIds,
+                `extension command leaked into the builtin registry: ${id}`,
+            ).not.toContain(id);
         for (const id of registeredIds)
             expect(sharedIds, `shared catalog is missing ${id}`).toContain(id);
     });
@@ -305,109 +310,6 @@ describe('executeCommand', () => {
         expect(isCommandAvailable('workbench.splitRight')).toBe(false);
     });
 
-    it('maps each SecondarySidebar command to its ViewContainer', () => {
-        const { calls, context } = recordingContext();
-        for (const { commandId } of secondarySidebarViewCommands)
-            executeCommand(commandId, undefined, context);
-
-        expect(calls).toEqual(
-            secondarySidebarViewCommands.map(
-                ({ viewContainerId }) =>
-                    `secondarySidebar.activateViewContainer(${viewContainerId})`,
-            ),
-        );
-    });
-
-    describe('SecondarySidebar activation', () => {
-        beforeEach(() => {
-            vi.stubGlobal('window', {
-                caxri: {
-                    negotiate: vi.fn(),
-                    onEvent: vi.fn(),
-                    request: vi.fn().mockResolvedValue(undefined),
-                },
-            });
-            useWorkbenchStore.setState({
-                bootstrap: {
-                    selectedSessionId: 'session-1',
-                    sessions: [
-                        {
-                            id: 'session-1',
-                            projectId: 'project-1',
-                            workbenchProjectId: 'project-1',
-                        },
-                    ],
-                    sessionStates: [
-                        {
-                            sessionId: 'session-1',
-                            workbenchProjectId: 'project-1',
-                            desiredSecondarySidebarViewContainerId: 'caxri.files',
-                            paneLayout: {
-                                root: { type: 'pane', id: 'pane-1', tabs: [] },
-                                activePaneId: 'pane-1',
-                            },
-                        },
-                    ],
-                } as unknown as BootstrapState,
-                attachEpoch: 0,
-            });
-            useFileSearchStore.setState({ activeSessionId: undefined, focusRevision: 0 });
-        });
-
-        afterEach(() => {
-            useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
-            useFileSearchStore.setState({ activeSessionId: undefined, focusRevision: 0 });
-            vi.unstubAllGlobals();
-        });
-
-        it.each(secondarySidebarViewCommands)(
-            'reveals the Secondary Side Bar and selects $viewContainerId for $commandId',
-            ({ commandId, viewContainerId }) => {
-                useChromeLayoutStore.setState({ secondarySidebarVisible: false });
-
-                executeCommand(commandId);
-
-                expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(true);
-                expect(
-                    useWorkbenchStore.getState().bootstrap?.sessionStates[0]
-                        ?.desiredSecondarySidebarViewContainerId,
-                ).toBe(viewContainerId);
-            },
-        );
-
-        it('does not re-persist the chrome layout while switching an already visible Secondary Side Bar', () => {
-            useChromeLayoutStore.setState({ secondarySidebarVisible: true });
-            const setSecondarySidebarVisible = vi.spyOn(
-                useChromeLayoutStore.getState(),
-                'setSecondarySidebarVisible',
-            );
-
-            for (const { commandId } of secondarySidebarViewCommands) executeCommand(commandId);
-
-            expect(setSecondarySidebarVisible).not.toHaveBeenCalled();
-            expect(
-                useWorkbenchStore.getState().bootstrap?.sessionStates[0]
-                    ?.desiredSecondarySidebarViewContainerId,
-            ).toBe(secondarySidebarViewCommands.at(-1)?.viewContainerId);
-        });
-
-        it('routes Search Files through the same Secondary Side Bar activation before requesting focus', () => {
-            useChromeLayoutStore.setState({ secondarySidebarVisible: false });
-
-            executeCommand('secondarySidebar.searchFiles');
-
-            expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(true);
-            expect(
-                useWorkbenchStore.getState().bootstrap?.sessionStates[0]
-                    ?.desiredSecondarySidebarViewContainerId,
-            ).toBe('caxri.files');
-            expect(useFileSearchStore.getState()).toMatchObject({
-                activeSessionId: 'session-1',
-                focusRevision: 1,
-            });
-        });
-    });
-
     it('deep-links the Settings source and Trusted Domains commands', () => {
         const { calls, context } = recordingContext();
 
@@ -422,12 +324,10 @@ describe('executeCommand', () => {
         ]);
     });
 
-    it('shows exactly one error toast for an unknown command instead of throwing', () => {
+    it('delegates an unknown local command without throwing', () => {
         const { calls, context } = recordingContext();
 
-        expect(() =>
-            executeCommand('does.notExist' as CommandId, undefined, context),
-        ).not.toThrow();
+        expect(() => executeCommand('does.notExist', undefined, context)).not.toThrow();
         expect(calls).toEqual([]);
     });
 });

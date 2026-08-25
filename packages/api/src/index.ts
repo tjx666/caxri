@@ -1,3 +1,34 @@
+import type { ResourceExplorerProvider, SourceControlProvider } from './view-providers.js';
+import type { WorkspaceFileChange, WorkspaceFileSystem, WorkspaceGit } from './workspace.js';
+
+export type {
+    ControlledViewProviderResult,
+    ResourceExplorerChange,
+    ResourceExplorerProvider,
+    SourceControlChange,
+    SourceControlMode,
+    SourceControlProvider,
+} from './view-providers.js';
+export type {
+    FileEntry,
+    FileMutationOperation,
+    FileSearchMatch,
+    FileSearchResult,
+    GitCommit,
+    GitCommitDetails,
+    GitCommitFile,
+    GitCommitPage,
+    GitFileStatus,
+    GitPullRequestChanges,
+    GitRepositorySummary,
+    GitSummary,
+    MovedFileEntry,
+    MutableFileEntry,
+    WorkspaceFileChange,
+    WorkspaceFileSystem,
+    WorkspaceGit,
+} from './workspace.js';
+
 export interface DisposableLike {
     dispose(): void;
 }
@@ -207,10 +238,19 @@ export interface CaxriApi {
     };
     readonly views: {
         registerTreeDataProvider<T>(viewId: string, provider: TreeDataProvider<T>): Disposable;
+        registerResourceExplorerProvider(
+            viewId: string,
+            provider: ResourceExplorerProvider,
+        ): Disposable;
+        registerSourceControlProvider(viewId: string, provider: SourceControlProvider): Disposable;
     };
     readonly workspace: {
         readonly onDidChangeActiveContext: Event<void>;
+        readonly onDidChangeFiles: Event<WorkspaceFileChange>;
+        readonly onDidChangeGit: Event<void>;
         readonly onDidChangeProjectStatus: Event<void>;
+        readonly fs: WorkspaceFileSystem;
+        readonly git: WorkspaceGit;
         getProjectStatus(options?: ProjectStatusRequestOptions): Promise<ProjectStatusSummary>;
     };
 }
@@ -231,18 +271,49 @@ function unavailable(method: string): never {
     throw error;
 }
 
-const outsideHostEvent: Event<void> = () => new Disposable();
+const outsideHostEvent =
+    <T>(): Event<T> =>
+    () =>
+        new Disposable();
 
 const caxri: CaxriApi = Object.freeze({
     commands: Object.freeze({
         registerCommand: () => unavailable('commands.registerCommand'),
     }),
     views: Object.freeze({
+        registerResourceExplorerProvider: () =>
+            unavailable('views.registerResourceExplorerProvider'),
+        registerSourceControlProvider: () => unavailable('views.registerSourceControlProvider'),
         registerTreeDataProvider: () => unavailable('views.registerTreeDataProvider'),
     }),
     workspace: Object.freeze({
-        onDidChangeActiveContext: outsideHostEvent,
-        onDidChangeProjectStatus: outsideHostEvent,
+        onDidChangeActiveContext: outsideHostEvent<void>(),
+        onDidChangeFiles: outsideHostEvent<WorkspaceFileChange>(),
+        onDidChangeGit: outsideHostEvent<void>(),
+        onDidChangeProjectStatus: outsideHostEvent<void>(),
+        fs: Object.freeze({
+            acknowledgeOperation: () => unavailable('workspace.fs.acknowledgeOperation'),
+            cancelOperation: () => unavailable('workspace.fs.cancelOperation'),
+            copy: () => unavailable('workspace.fs.copy'),
+            create: () => unavailable('workspace.fs.create'),
+            getOperation: () => unavailable('workspace.fs.getOperation'),
+            list: () => unavailable('workspace.fs.list'),
+            listOperations: () => unavailable('workspace.fs.listOperations'),
+            move: () => unavailable('workspace.fs.move'),
+            rename: () => unavailable('workspace.fs.rename'),
+            reveal: () => unavailable('workspace.fs.reveal'),
+            search: () => unavailable('workspace.fs.search'),
+            trash: () => unavailable('workspace.fs.trash'),
+        }),
+        git: Object.freeze({
+            commits: () => unavailable('workspace.git.commits'),
+            commitDetails: () => unavailable('workspace.git.commitDetails'),
+            discard: () => unavailable('workspace.git.discard'),
+            pullRequestChanges: () => unavailable('workspace.git.pullRequestChanges'),
+            remoteHost: () => unavailable('workspace.git.remoteHost'),
+            summary: () => unavailable('workspace.git.summary'),
+            sync: () => unavailable('workspace.git.sync'),
+        }),
         getProjectStatus: () => unavailable('workspace.getProjectStatus'),
     }),
 });

@@ -20,7 +20,12 @@ type UpdateExtensionTreeState = (
  * stays focused on rendering and keyboard handling.
  */
 export function useExtensionTreeChildren(
-    viewId: string,
+    scope: {
+        viewId: string;
+        sessionId: string;
+        workbenchProjectId: string;
+        extensionGeneration: number;
+    },
     updateTreeState: UpdateExtensionTreeState,
 ): {
     children: ReadonlyMap<string, readonly TreeItemDto[]>;
@@ -97,7 +102,7 @@ export function useExtensionTreeChildren(
             });
             try {
                 const result = await caxri.request('viewContainers.treeChildren', {
-                    viewId,
+                    viewId: scope.viewId,
                     requestId,
                     ...(parentHandle !== ROOT_HANDLE && { parentHandle }),
                 });
@@ -130,14 +135,21 @@ export function useExtensionTreeChildren(
                 }
             }
         },
-        [replaceLoadedChildren, resetLoadedChildren, updateTreeState, viewId],
+        [replaceLoadedChildren, resetLoadedChildren, scope, updateTreeState],
     );
 
     useEffect(() => {
         // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
         void loadChildren(ROOT_HANDLE);
         const unsubscribe = caxri.onEvent((event) => {
-            if (event.event !== 'viewContainers.treeChanged' || event.payload.viewId !== viewId)
+            if (
+                event.event !== 'viewContainers.treeChanged' ||
+                event.payload.viewId !== scope.viewId ||
+                event.payload.extensionGeneration !== scope.extensionGeneration ||
+                event.payload.context.kind !== 'session' ||
+                event.payload.context.sessionId !== scope.sessionId ||
+                event.payload.context.workbenchProjectId !== scope.workbenchProjectId
+            )
                 return;
             if (!event.payload.handles) {
                 resetLoadedChildren();
@@ -160,7 +172,7 @@ export function useExtensionTreeChildren(
             }
             activeRequests.clear();
         };
-    }, [loadChildren, resetLoadedChildren, viewId]);
+    }, [loadChildren, resetLoadedChildren, scope]);
 
     return { children, errors, loading, loadChildren, requests };
 }

@@ -3,15 +3,19 @@ import { randomUUID } from 'node:crypto';
 import type {
     ExtensionCapability,
     ExtensionError,
+    ExtensionViewEventContext,
     ProjectStatusSummary,
     TreeChildrenResult,
     ViewCatalogSnapshot,
 } from '@caxri/protocol';
+import { methods } from '@caxri/protocol';
 
 import type {
+    ExtensionFilesChange,
     ExtensionHostApiRequest,
     ExtensionHostRegistration,
     ExtensionProjectStatusSummary,
+    ExtensionWorkspaceOperation,
 } from '../../shared/extension-host-protocol';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
@@ -19,7 +23,19 @@ import type { CatalogExtensionState } from './catalog';
 import { buildViewCatalog } from './catalog';
 import type { DiscoveredExtension } from './discovery';
 import { discoverExtensions } from './discovery';
+import type { CatalogChangedEvent, TreeChangedEvent, ViewChangedEvent } from './service-events';
+import {
+    projectExtensionHostViewEvent,
+    subscribeExtensionEvent,
+    toExtensionViewEventContext,
+} from './service-events';
 import { ExtensionHostSupervisor } from './supervisor';
+import { assertActiveViewContext } from './view-scope';
+import {
+    projectFileOperation,
+    validatedExtensionWorkspaceResult,
+    validatedRuntimeWorkspaceResult,
+} from './workspace-results';
 
 type DiscoveryResult = Awaited<ReturnType<typeof discoverExtensions>>;
 
@@ -31,9 +47,62 @@ export interface ExtensionServiceOptions {
     extensionRoots: string[];
     includeTestOnly: boolean;
     logger: StructuredLogger;
-    activeContext(): Promise<{ projectId?: string; sessionId?: string }>;
+    activeContext(): Promise<{
+        ownerProjectId?: string;
+        sessionId?: string;
+        workbenchProjectId?: string;
+    }>;
     projectIds(): Promise<string[]>;
     projectStatus(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary>;
+    workspaceRequest(
+        operation: ExtensionWorkspaceOperation,
+        parameters: unknown,
+        context: { sessionId: string; workbenchProjectId: string },
+        signal?: AbortSignal,
+    ): Promise<unknown>;
+}
+
+const readWorkspaceOperations = new Set<ExtensionWorkspaceOperation>([
+    'files.list',
+    'files.operation.get',
+    'files.operation.list',
+    'files.reveal',
+    'files.search',
+    'git.commits',
+    'git.commitDetails',
+    'git.pullRequestChanges',
+    'git.remoteHost',
+    'git.summary',
+]);
+
+function workspaceCapability(operation: ExtensionWorkspaceOperation): ExtensionCapability {
+    const domain = operation.startsWith('files.') ? 'files' : 'git';
+    const access = readWorkspaceOperations.has(operation) ? 'read' : 'write';
+    return `${domain}.${access}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function workspaceParameters(
+    operation: ExtensionWorkspaceOperation,
+    arguments_: unknown,
+    sessionId: string,
+): unknown {
+    if (!isRecord(arguments_))
+        throw Object.assign(new Error('Extension workspace arguments must be an object'), {
+            code: 'PROVIDER_FAILED',
+        });
+    try {
+        if (operation === 'files.reveal')
+            return methods['files.read'].params.parse({ ...arguments_, sessionId });
+        return methods[operation].params.parse({ ...arguments_, sessionId });
+    } catch {
+        throw Object.assign(new Error(`Invalid Extension API arguments for ${operation}`), {
+            code: 'PROVIDER_FAILED',
+        });
+    }
 }
 
 function extensionFailure(error: unknown): ExtensionError {
@@ -161,8 +230,8 @@ export class ExtensionService extends EventTarget {
 
     private async projectStatusForStableContext(
         active: {
-            projectId?: string;
             sessionId: string;
+            workbenchProjectId: string;
         },
         refreshToken?: string,
     ): Promise<ExtensionProjectStatusSummary> {
@@ -171,11 +240,14 @@ export class ExtensionService extends EventTarget {
     }
 
     private async projectStatusIfContextUnchanged(
-        active: { projectId?: string; sessionId: string },
+        active: { sessionId: string; workbenchProjectId: string },
         result: ProjectStatusSummary,
     ): Promise<ExtensionProjectStatusSummary> {
         const current = await this.options.activeContext();
-        if (current.sessionId !== active.sessionId || current.projectId !== active.projectId)
+        if (
+            current.sessionId !== active.sessionId ||
+            current.workbenchProjectId !== active.workbenchProjectId
+        )
             throw Object.assign(
                 new Error('Active Project changed while the extension request was running'),
                 { code: 'GENERATION_EXPIRED' },
@@ -216,6 +288,147 @@ export class ExtensionService extends EventTarget {
             });
     }
 
+    private async activeContextForApi(
+        request: ExtensionHostApiRequest,
+        capability: ExtensionCapability,
+    ): Promise<{ sessionId: string; workbenchProjectId: string }> {
+        this.assertApiAccess(request, capability);
+        const active = await this.options.activeContext();
+        if (!active.sessionId || !active.workbenchProjectId)
+            throw Object.assign(new Error('No active Session'), { code: 'PROJECT_SCOPE_DENIED' });
+        const currentProjectIds = await this.options.projectIds();
+        const currentProjectIdSet = new Set(currentProjectIds);
+        this.projectIds = currentProjectIds;
+        const grant = this.grants.get(request.extensionId);
+        const extension = this.discovered.find(
+            ({ extensionId }) => extensionId === request.extensionId,
+        );
+        if (grant && extension?.source === 'bundled') grant.projectIds = new Set(currentProjectIds);
+        const activeProjectIds = [active.ownerProjectId, active.workbenchProjectId].filter(
+            (projectId): projectId is string => Boolean(projectId),
+        );
+        if (
+            activeProjectIds.some(
+                (projectId) =>
+                    !currentProjectIdSet.has(projectId) || !grant?.projectIds.has(projectId),
+            )
+        )
+            throw Object.assign(new Error('Active Project is outside the extension grant'), {
+                code: 'PROJECT_SCOPE_DENIED',
+            });
+        return {
+            sessionId: active.sessionId,
+            workbenchProjectId: active.workbenchProjectId,
+        };
+    }
+
+    private async assertApiContextCurrent(
+        request: ExtensionHostApiRequest,
+        capability: ExtensionCapability,
+        active: { sessionId: string; workbenchProjectId: string },
+    ): Promise<void> {
+        this.assertApiAccess(request, capability);
+        const current = await this.options.activeContext();
+        if (
+            current.sessionId !== active.sessionId ||
+            current.workbenchProjectId !== active.workbenchProjectId
+        )
+            throw Object.assign(
+                new Error('Active Project changed while the extension request was running'),
+                { code: 'GENERATION_EXPIRED' },
+            );
+    }
+
+    private async requireOwnedFileOperation(
+        operationId: string,
+        active: { sessionId: string; workbenchProjectId: string },
+    ): Promise<Record<string, unknown>> {
+        const operation = validatedRuntimeWorkspaceResult(
+            'files.operation.get',
+            await this.options.workspaceRequest('files.operation.get', { operationId }, active),
+        );
+        if (!isRecord(operation) || !this.fileOperationBelongsToActiveProject(operation, active))
+            throw Object.assign(new Error('File operation is outside the active Project'), {
+                code: 'PROJECT_SCOPE_DENIED',
+            });
+        return operation;
+    }
+
+    private fileOperationBelongsToActiveProject(
+        operation: Record<string, unknown>,
+        active: { sessionId: string; workbenchProjectId: string },
+    ): boolean {
+        return typeof operation.workbenchProjectId === 'string'
+            ? operation.workbenchProjectId === active.workbenchProjectId
+            : operation.sessionId === active.sessionId;
+    }
+
+    private async workspaceApiRequest(
+        request: Extract<ExtensionHostApiRequest, { method: 'workspace.request' }>,
+        signal?: AbortSignal,
+    ): Promise<unknown> {
+        const { operation } = request.params;
+        const capability = workspaceCapability(operation);
+        const active = await this.activeContextForApi(request, capability);
+        assertActiveViewContext(request.params.context, active);
+        const parameters = workspaceParameters(
+            operation,
+            request.params.arguments,
+            active.sessionId,
+        );
+        if (operation === 'files.operation.cancel' || operation === 'files.operation.acknowledge') {
+            const operationId = (parameters as { operationId: string }).operationId;
+            await this.requireOwnedFileOperation(operationId, active);
+        }
+        const workspaceResult = signal
+            ? await this.options.workspaceRequest(operation, parameters, active, signal)
+            : await this.options.workspaceRequest(operation, parameters, active);
+        const result = validatedRuntimeWorkspaceResult(operation, workspaceResult);
+        if (readWorkspaceOperations.has(operation))
+            await this.assertApiContextCurrent(request, capability, active);
+        if (operation === 'files.operation.list') {
+            const visibleOperations: Array<Record<string, unknown>> = [];
+            for (const fileOperation of result as Array<Record<string, unknown>>)
+                if (this.fileOperationBelongsToActiveProject(fileOperation, active))
+                    visibleOperations.push(projectFileOperation(fileOperation));
+            return visibleOperations;
+        }
+        if (operation === 'files.operation.get' || operation === 'files.operation.cancel') {
+            if (result === null) return null;
+            if (!isRecord(result) || !this.fileOperationBelongsToActiveProject(result, active)) {
+                if (operation === 'files.operation.get') return null;
+                throw Object.assign(new Error('File operation is outside the active Project'), {
+                    code: 'PROJECT_SCOPE_DENIED',
+                });
+            }
+            return projectFileOperation(result);
+        }
+        return result;
+    }
+
+    private async handleApiRequest(
+        request: ExtensionHostApiRequest,
+        signal?: AbortSignal,
+    ): Promise<unknown> {
+        if (request.method === 'workspace.request')
+            return this.workspaceApiRequest(request, signal);
+        this.assertApiAccess(request, 'projects.read');
+        const snapshot = await this.options.activeContext();
+        if (!snapshot.sessionId)
+            return {
+                repositories: [],
+                refreshedAt: Date.now(),
+                error: 'No active Session',
+            } satisfies ExtensionProjectStatusSummary;
+        const active = await this.activeContextForApi(request, 'projects.read');
+        const result = await this.projectStatusForStableContext(
+            active,
+            request.params.refreshToken,
+        );
+        await this.assertApiContextCurrent(request, 'projects.read', active);
+        return result;
+    }
+
     private extensionForView(viewId: string): DiscoveredExtension {
         const descriptor = this.catalog().views.find(({ id }) => id === viewId);
         if (descriptor?.source.kind !== 'extension')
@@ -253,7 +466,10 @@ export class ExtensionService extends EventTarget {
                     new Error('Extension generation changed while activation was running'),
                     { code: 'GENERATION_EXPIRED' },
                 );
-            this.states.set(extension.extensionId, { ...state, lifecycle: 'active' });
+            this.states.set(extension.extensionId, {
+                generation: state.generation,
+                lifecycle: 'active',
+            });
             this.options.logger.write('info', logEventCatalog.extensionHost.activated, {
                 fields: { extensionId: extension.extensionId, reason },
             });
@@ -290,53 +506,18 @@ export class ExtensionService extends EventTarget {
             extensionHostPath: this.options.extensionHostPath,
             logger: this.options.logger,
             registrations: () => this.registrations(),
-            getProjectStatus: async (request) => {
-                this.assertApiAccess(request, 'projects.read');
-                const active = await this.options.activeContext();
-                if (!active.sessionId)
-                    return {
-                        repositories: [],
-                        refreshedAt: Date.now(),
-                        error: 'No active Session',
-                    };
-                const currentProjectIds = await this.options.projectIds();
-                this.projectIds = currentProjectIds;
-                const grant = this.grants.get(request.extensionId);
-                const extension = this.discovered.find(
-                    ({ extensionId }) => extensionId === request.extensionId,
-                );
-                if (grant && extension?.source === 'bundled')
-                    grant.projectIds = new Set(currentProjectIds);
-                if (
-                    active.projectId &&
-                    (!currentProjectIds.includes(active.projectId) ||
-                        !grant?.projectIds.has(active.projectId))
-                )
-                    throw Object.assign(
-                        new Error('Active Project is outside the extension grant'),
-                        {
-                            code: 'PROJECT_SCOPE_DENIED',
-                        },
-                    );
-                return this.projectStatusForStableContext(
-                    {
-                        sessionId: active.sessionId,
-                        ...(active.projectId && { projectId: active.projectId }),
-                    },
-                    request.params.refreshToken,
-                );
-            },
+            requestApi: (request, signal) => this.handleApiRequest(request, signal),
         });
         this.supervisor.onEvent((event) => {
-            const state = this.states.get(event.extensionId);
-            const descriptor = this.catalogSnapshot?.views.find(({ id }) => id === event.viewId);
-            if (
-                state?.generation !== event.generation ||
-                descriptor?.source.kind !== 'extension' ||
-                descriptor.source.extensionId !== event.extensionId
-            )
-                return;
-            this.dispatchEvent(new CustomEvent('treeChanged', { detail: event }));
+            const projected = projectExtensionHostViewEvent(
+                event,
+                this.states.get(event.extensionId)?.generation,
+                this.catalogSnapshot?.views.find(({ id }) => id === event.viewId),
+            );
+            if (projected)
+                this.dispatchEvent(
+                    new CustomEvent(projected.eventName, { detail: projected.detail }),
+                );
         });
         this.supervisor.onExit((code) => {
             this.options.logger.write('error', logEventCatalog.extensionHost.exit, {
@@ -407,10 +588,12 @@ export class ExtensionService extends EventTarget {
         const extension = this.extensionForView(parameters.viewId);
         await this.activate(extension, `onView:${parameters.viewId}`);
         const generation = this.states.get(extension.extensionId)!.generation;
+        const context = toExtensionViewEventContext(await this.options.activeContext());
         try {
             return (await this.supervisor?.request('treeChildren', {
                 extensionId: extension.extensionId,
                 generation,
+                context,
                 ...parameters,
             })) as TreeChildrenResult;
         } catch (error) {
@@ -425,12 +608,64 @@ export class ExtensionService extends EventTarget {
                 generation,
                 viewId: parameters.viewId,
                 requestId: parameters.requestId,
+                context,
             })) as TreeChildrenResult;
             return { ...root, ...(parameters.parentHandle && { reset: true }) };
         }
     }
 
-    async executeCommand(commandId: string, arguments_: unknown[]): Promise<{ executed: true }> {
+    async viewOperation(parameters: {
+        viewId: string;
+        operation: ExtensionWorkspaceOperation;
+        arguments: unknown;
+        requestId: string;
+        context: ExtensionViewEventContext;
+    }): Promise<unknown> {
+        assertActiveViewContext(parameters.context, await this.options.activeContext());
+        const extension = this.extensionForView(parameters.viewId);
+        const descriptor = this.catalog().views.find(({ id }) => id === parameters.viewId);
+        const expectedKind = parameters.operation.startsWith('files.')
+            ? 'resource-explorer'
+            : 'source-control';
+        if (descriptor?.viewKind.kind !== expectedKind)
+            throw Object.assign(
+                new Error(`${expectedKind} operation cannot target ${parameters.viewId}`),
+                { code: 'CAPABILITY_DENIED' },
+            );
+        await this.activate(extension, `onView:${parameters.viewId}`);
+        assertActiveViewContext(parameters.context, await this.options.activeContext());
+        const generation = this.states.get(extension.extensionId)!.generation;
+        let result: unknown;
+        try {
+            result = await this.supervisor?.request('viewOperation', {
+                extensionId: extension.extensionId,
+                generation,
+                ...parameters,
+            });
+        } catch (error) {
+            /**
+             * A nested Runtime request can reject before this outer view fence runs. Preserve an Extension Host
+             * generation failure when that lifecycle actually changed; otherwise a retired Renderer scope owns the
+             * outcome and must remain a typed cancellation instead of leaking Runtime conflict/generation details.
+             */
+            if (this.states.get(extension.extensionId)?.generation === generation)
+                assertActiveViewContext(parameters.context, await this.options.activeContext());
+            throw error;
+        }
+        if (this.states.get(extension.extensionId)?.generation !== generation)
+            throw Object.assign(new Error('View provider generation expired'), {
+                code: 'GENERATION_EXPIRED',
+            });
+        if (readWorkspaceOperations.has(parameters.operation))
+            assertActiveViewContext(parameters.context, await this.options.activeContext());
+        return validatedExtensionWorkspaceResult(parameters.operation, result);
+    }
+
+    async executeCommand(
+        commandId: string,
+        arguments_: unknown[],
+        context: ExtensionViewEventContext,
+    ): Promise<{ executed: true }> {
         const descriptor = this.catalog().commands.find(({ id }) => id === commandId);
         if (descriptor?.source.kind !== 'extension')
             throw Object.assign(new Error(`Extension command not found: ${commandId}`), {
@@ -446,6 +681,7 @@ export class ExtensionService extends EventTarget {
             generation: this.states.get(extension.extensionId)!.generation,
             commandId,
             arguments: arguments_,
+            context,
         })) as { executed: true };
     }
 
@@ -453,12 +689,23 @@ export class ExtensionService extends EventTarget {
         return (await this.supervisor?.request('cancel', { requestId })) as { cancelled: boolean };
     }
 
-    async activeContextChanged(): Promise<void> {
-        await this.supervisor?.request('activeContextChanged', {});
+    async activeContextChanged(context: ExtensionViewEventContext): Promise<void> {
+        await this.supervisor?.request('activeContextChanged', { context });
     }
 
-    async projectStatusChanged(): Promise<void> {
-        await this.supervisor?.request('projectStatusChanged', {});
+    async filesChanged(
+        change: ExtensionFilesChange,
+        context: ExtensionViewEventContext,
+    ): Promise<void> {
+        await this.supervisor?.request('filesChanged', { change, context });
+    }
+
+    async gitChanged(context: ExtensionViewEventContext): Promise<void> {
+        await this.supervisor?.request('gitChanged', { context });
+    }
+
+    async projectStatusChanged(context: ExtensionViewEventContext): Promise<void> {
+        await this.supervisor?.request('projectStatusChanged', { context });
     }
 
     async retry(extensionId: string): Promise<{ accepted: boolean; error?: ExtensionError }> {
@@ -529,20 +776,16 @@ export class ExtensionService extends EventTarget {
         return this.supervisor?.processId();
     }
 
-    onCatalogChanged(
-        listener: (event: { revision: number; extensionId?: string }) => void,
-    ): () => void {
-        const handler = (event: Event): void =>
-            listener((event as CustomEvent<{ revision: number; extensionId?: string }>).detail);
-        this.addEventListener('catalogChanged', handler);
-        return () => this.removeEventListener('catalogChanged', handler);
+    onCatalogChanged(listener: (event: CatalogChangedEvent) => void): () => void {
+        return subscribeExtensionEvent(this, 'catalogChanged', listener);
     }
 
-    onTreeChanged(listener: (event: { viewId: string; handles?: string[] }) => void): () => void {
-        const handler = (event: Event): void =>
-            listener((event as CustomEvent<{ viewId: string; handles?: string[] }>).detail);
-        this.addEventListener('treeChanged', handler);
-        return () => this.removeEventListener('treeChanged', handler);
+    onTreeChanged(listener: (event: TreeChangedEvent) => void): () => void {
+        return subscribeExtensionEvent(this, 'treeChanged', listener);
+    }
+
+    onViewChanged(listener: (event: ViewChangedEvent) => void): () => void {
+        return subscribeExtensionEvent(this, 'viewChanged', listener);
     }
 
     shutdown(): Promise<void> {

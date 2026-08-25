@@ -11,6 +11,7 @@ import { ChevronDown, ChevronRight, FileSymlink } from 'lucide-react';
 
 import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
 
+import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
@@ -19,7 +20,6 @@ import { monaco } from '../../lib/monaco';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
-import { GitFileStatusLetter } from '../secondary-sidebar/panels/git/git-file-status-letter';
 import { openFile } from './document-actions';
 import { resolveRegisteredEditorLanguage } from './editor-language';
 import { describeTruncatedGitChanges, shouldShowGitTruncationBanner } from './git-diff-truncation';

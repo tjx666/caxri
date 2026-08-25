@@ -1,0 +1,93 @@
+{
+    "name": "caxri.files",
+    "version": "0.0.17",
+    "private": true,
+    "type": "module",
+    "main": "./dist/extension.js",
+    "scripts": {
+        "build": "bun run --cwd ../.. scripts/build-extension.ts --extension-root extensions/files",
+        "typecheck": "tsc --noEmit -p tsconfig.json"
+    },
+    "devDependencies": {
+        "caxri": "workspace:*"
+    },
+    "engines": {
+        "caxri": "^0.0.17"
+    },
+    "caxri": {
+        "capabilities": [
+            "files.read",
+            "files.write"
+        ]
+    },
+    "contributes": {
+        "viewsContainers": {
+            "secondarySidebar": [
+                {
+                    "id": "caxri.files",
+                    "title": "Files",
+                    "order": 100,
+                    "icon": {
+                        "kind": "builtin",
+                        "id": "files"
+                    },
+                    "command": "secondarySidebar.showFiles"
+                }
+            ]
+        },
+        "views": {
+            "caxri.files": [
+                {
+                    "id": "caxri.files.explorer",
+                    "name": "Files",
+                    "type": "resource-explorer",
+                    "actions": [
+                        {
+                            "command": "caxri.files.newFile",
+                            "role": "resource.createFile"
+                        },
+                        {
+                            "command": "caxri.files.newFolder",
+                            "role": "resource.createFolder"
+                        },
+                        {
+                            "command": "secondarySidebar.searchFiles",
+                            "role": "resource.search"
+                        },
+                        {
+                            "command": "caxri.files.collapseFolders",
+                            "role": "resource.collapse"
+                        },
+                        {
+                            "command": "caxri.files.refresh",
+                            "role": "resource.refresh"
+                        }
+                    ]
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "secondarySidebar.searchFiles",
+                "title": "Search Files",
+                "allowInEditable": true
+            },
+            {
+                "command": "caxri.files.newFile",
+                "title": "New File"
+            },
+            {
+                "command": "caxri.files.newFolder",
+                "title": "New Folder"
+            },
+            {
+                "command": "caxri.files.collapseFolders",
+                "title": "Collapse Folders"
+            },
+            {
+                "command": "caxri.files.refresh",
+                "title": "Refresh Files"
+            }
+        ]
+    }
+}

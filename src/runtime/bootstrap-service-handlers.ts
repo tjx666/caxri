@@ -10,6 +10,7 @@ import type { DiagnosticsService } from './diagnostics';
 import type { RuntimeHandlers } from './dispatch';
 import type { FileService } from './files';
 import type { GitService } from './git';
+import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
 import { resolveProjectRoot } from './project-root-identity';
 import type { ProjectStatusService } from './project-status';
@@ -42,6 +43,8 @@ type ServiceHandlerMethods =
     | 'git.switchBranch'
     | 'git.sync'
     | 'git.discard'
+    | 'git.discard.preflight'
+    | 'git.discard.apply'
     | 'git.diffDocument'
     | 'git.pullRequestChanges'
     | 'git.pullRequestDiffDocument'
@@ -121,7 +124,8 @@ export function createServiceHandlers(services: {
                 configuration.getSettings().value,
                 terminalId,
             ),
-        'files.list': ({ sessionId, directory }) => files.list(sessionId, directory),
+        'files.list': ({ sessionId, directory }, signal) =>
+            files.list(sessionId, directory, signal),
         'files.browse': (parameters) => files.browse(parameters),
         'files.create': (parameters) => files.create(parameters),
         'files.copy': (parameters) => files.copy(parameters),
@@ -139,7 +143,7 @@ export function createServiceHandlers(services: {
         'files.authorizeOpen': (parameters) => files.authorizeOpen(parameters),
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
-        'files.search': (parameters) => files.search(parameters),
+        'files.search': (parameters, signal) => files.search(parameters, signal),
         'terminal.agentTranscript': async ({ terminalId, withContent }) => {
             if (withContent) await transcripts.watch(terminalId);
             return readAgentTranscript(database, terminalId, withContent, agentEnvironment);
@@ -157,19 +161,27 @@ export function createServiceHandlers(services: {
             emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.setIcon' } });
             return project;
         },
-        'git.summary': ({ sessionId, refresh }) => git.summary(sessionId, refresh),
+        'git.summary': ({ sessionId, refresh }, signal) =>
+            withGitRequestSignal(signal, () => git.summary(sessionId, refresh)),
         'git.overview': ({ sessionId }) => git.overview(sessionId),
         'git.branches': (parameters) => git.branches(parameters),
         'git.switchBranch': (parameters) => git.switchBranch(parameters),
-        'git.sync': (parameters) => git.sync(parameters),
-        'git.discard': (parameters) => git.discard(parameters),
+        'git.sync': (parameters, signal) =>
+            withGitRequestSignal(signal, () => git.sync(parameters)),
+        'git.discard': () => mainOwned('git.discard'),
+        'git.discard.preflight': (parameters) => git.discardPreflight(parameters),
+        'git.discard.apply': (parameters) => git.discardApply(parameters),
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),
-        'git.pullRequestChanges': (parameters) => git.pullRequestChanges(parameters),
+        'git.pullRequestChanges': (parameters, signal) =>
+            withGitRequestSignal(signal, () => git.pullRequestChanges(parameters)),
         'git.pullRequestDiffDocument': (parameters) => git.pullRequestDiffDocument(parameters),
-        'git.remoteHost': (parameters) => git.remoteHost(parameters),
-        'git.commits': (parameters) => git.commits(parameters),
-        'git.commitDetails': (parameters) => git.commitDetails(parameters),
+        'git.remoteHost': (parameters, signal) =>
+            withGitRequestSignal(signal, () => git.remoteHost(parameters)),
+        'git.commits': (parameters, signal) =>
+            withGitRequestSignal(signal, () => git.commits(parameters)),
+        'git.commitDetails': (parameters, signal) =>
+            withGitRequestSignal(signal, () => git.commitDetails(parameters)),
         'git.commitDiffDocument': (parameters) => git.commitDiffDocument(parameters),
         'git.blame': (parameters) => git.blame(parameters),
         'git.fileHead': (parameters) => git.fileHead(parameters),

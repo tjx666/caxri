@@ -16,7 +16,8 @@ import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
 import { useSelectedProject, useSelectedSession } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
 import { openFile } from '../editor/document-actions';
-import { createItem } from '../secondary-sidebar/panels/files/file-actions';
+import { createItem } from '../view-containers/resource-explorer/file-actions';
+import { activeResourceExplorerClient } from '../view-containers/resource-explorer-catalog-client';
 import {
     completePathQuery,
     filterPathEntries,
@@ -131,7 +132,9 @@ function PathBrowserContent({
      */
     const createFromQuery = async (): Promise<void> => {
         if (!candidateToCreate) return;
+        const client = await activeResourceExplorerClient();
         const created = await createItem(
+            client,
             sessionId,
             directory,
             candidateToCreate.name,
