@@ -369,7 +369,7 @@ export class HostClient {
         try {
             lines = this.decoder.push(chunk);
         } catch {
-            this.close();
+            this.closeTransport();
             return;
         }
         for (const line of lines) {
@@ -393,8 +393,8 @@ export class HostClient {
                     )
                         throw new Error('Desktop lease revocation does not match this connection');
                     this.closeReason = revoked.data.reason;
-                    this.socket.destroy();
                     this.failPending();
+                    this.socket.destroy();
                     return;
                 } else if (event.success) {
                     for (const listener of this.eventListeners) listener(event.data.event);
@@ -425,7 +425,7 @@ export class HostClient {
                     }
                 }
             } catch {
-                this.close();
+                this.closeTransport();
                 return;
             }
         }
@@ -502,14 +502,23 @@ export class HostClient {
         });
     }
 
-    private failPending(): void {
+    private closeTransport(): void {
+        this.failPending();
+        this.socket.destroy();
+    }
+
+    private failPending(
+        error = this.closeReason === 'replaced'
+            ? new CaxriError('CANCELLED', 'Caxri Desktop lease was replaced')
+            : new CaxriError('UNAVAILABLE', 'Caxri Host connection closed'),
+    ): void {
         if (this.closed) return;
         this.closed = true;
         if (this.leaseRenewalTimer) clearInterval(this.leaseRenewalTimer);
         this.leaseRenewalTimer = undefined;
         for (const pending of this.pending.values()) {
             clearTimeout(pending.timer);
-            pending.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection closed'));
+            pending.reject(error);
         }
         this.pending.clear();
         const listeners = [...this.closeListeners];
@@ -656,9 +665,13 @@ export class HostClient {
         });
     }
 
-    close(): void {
+    close(options: { cancelPendingRequests?: boolean } = {}): void {
+        this.failPending(
+            options.cancelPendingRequests
+                ? new CaxriError('CANCELLED', 'Caxri Host client was disposed')
+                : new CaxriError('UNAVAILABLE', 'Caxri Host connection closed'),
+        );
         this.socket.destroy();
-        this.failPending();
     }
 }
 

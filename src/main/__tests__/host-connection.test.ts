@@ -512,6 +512,7 @@ describe('Desktop Host connection facade', () => {
         await connection.start();
 
         connection.close();
+        expect(client.close).toHaveBeenCalledWith({ cancelPendingRequests: true });
         client.triggerClose();
         await vi.advanceTimersByTimeAsync(30_000);
 

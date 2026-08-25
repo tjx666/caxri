@@ -31,7 +31,7 @@ describe('HostClient close notification', () => {
      * The constructor is TypeScript-private (real attachments go through `HostClient.connect`), so this narrow
      * lifecycle test instantiates it directly with a socket stand-in.
      */
-    function createAttachedClient() {
+    function createAttachedClient(options: { desktopLease?: unknown } = {}) {
         const listeners = new Map<string, Array<(...arguments_: unknown[]) => void>>();
         const socket = {
             destroy: vi.fn(() => socket.emit('close')),
@@ -49,8 +49,12 @@ describe('HostClient close notification', () => {
             socket: unknown,
             welcome: unknown,
             timeoutMs: number,
+            desktopLease?: unknown,
         ) => HostClient;
-        return { client: new construct(socket, { protocolVersion: 1 }, 1000), socket };
+        return {
+            client: new construct(socket, { protocolVersion: 1 }, 1000, options.desktopLease),
+            socket,
+        };
     }
 
     it('notifies onClose listeners exactly once when the socket closes', () => {
@@ -94,6 +98,33 @@ describe('HostClient close notification', () => {
         client.close();
 
         expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('cancels pending requests when another Desktop replaces the lease', async () => {
+        const { client, socket } = createAttachedClient({
+            desktopLease: { desktopId: 'desktop-1', generation: 1, expiresAt: 1 },
+        });
+        const pending = client.request('app.health');
+
+        socket.emit(
+            'data',
+            `${JSON.stringify({
+                type: 'desktop-lease.revoked',
+                generation: 1,
+                reason: 'replaced',
+            })}\n`,
+        );
+
+        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    });
+
+    it('cancels pending requests on explicit local disposal', async () => {
+        const { client } = createAttachedClient();
+        const pending = client.request('app.health');
+
+        client.close({ cancelPendingRequests: true });
+
+        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
     });
 });
 
