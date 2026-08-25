@@ -341,7 +341,7 @@ describe('Desktop Host connection facade', () => {
             },
         ]);
         await expect(connection.request('app.health')).rejects.toMatchObject({
-            code: 'UNAVAILABLE',
+            code: 'CANCELLED',
         });
     });
 

@@ -1,3 +1,4 @@
+import type { BigIntStats } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
@@ -49,7 +50,21 @@ export class ProjectRootResolver {
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         const binding = this.database.getSessionWorkbenchBinding(sessionId);
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
-        const rootStats = await lstat(session.rootPath, { bigint: true });
+        let rootStats: BigIntStats;
+        try {
+            rootStats = await lstat(session.rootPath, { bigint: true });
+        } catch (error) {
+            /**
+             * A linked Workbench Root can disappear before Git topology invalidation falls the Session back to its
+             * owner. Reads already admitted against that generation are stale control flow, not filesystem faults.
+             */
+            if (
+                (error as NodeJS.ErrnoException).code === 'ENOENT' &&
+                binding.workbenchProjectId !== binding.projectId
+            )
+                throw new CaxriError('CANCELLED', 'Workbench root is no longer available');
+            throw error;
+        }
         if (rootStats.isSymbolicLink() || !rootStats.isDirectory())
             throw new CaxriError('PATH_DENIED', 'Project root changed after it was selected');
         if (

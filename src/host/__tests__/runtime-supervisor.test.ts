@@ -186,7 +186,7 @@ describe('Host Runtime supervisor', () => {
         expect(request.method).toBe('files.list');
 
         controller.abort();
-        await expect(pending).rejects.toMatchObject({ code: 'CONFLICT' });
+        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
         expect(child.send).toHaveBeenLastCalledWith({ type: 'cancel', id: request.id });
     });
 });

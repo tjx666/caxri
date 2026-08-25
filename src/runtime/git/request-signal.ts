@@ -29,10 +29,10 @@ export async function sharedGitRequest<Result>(load: () => Promise<Result>): Pro
     const signal = currentGitRequestSignal();
     const operation = requestSignals.run(undefined, load);
     if (!signal) return operation;
-    if (signal.aborted) throw new CaxriError('CONFLICT', 'Runtime request was canceled');
+    if (signal.aborted) throw new CaxriError('CANCELLED', 'Runtime request was canceled');
     let cancel = (): void => {};
     const cancellation = new Promise<never>((_resolve, reject) => {
-        cancel = () => reject(new CaxriError('CONFLICT', 'Runtime request was canceled'));
+        cancel = () => reject(new CaxriError('CANCELLED', 'Runtime request was canceled'));
         signal.addEventListener('abort', cancel, { once: true });
     });
     try {
