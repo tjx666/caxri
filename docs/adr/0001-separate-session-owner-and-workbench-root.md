@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-14
+- Amended by: ADR 0005 (target, pending)
 
 A Session keeps one immutable owning Project for identity, PrimarySidebar grouping, Terminals, Agent launch,
 and Agent Endpoint authority, while an independently persisted Workbench Root selects the authorized
