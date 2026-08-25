@@ -91,6 +91,11 @@ export const logEventCatalog = {
         metadataWatcherReady: 'git.metadata_watcher_ready',
         summary: 'git.summary',
     },
+    gpu: {
+        processGone: 'gpu.process_gone',
+        snapshot: 'gpu.snapshot',
+        snapshotFailed: 'gpu.snapshot_failed',
+    },
     host: {
         attachFailed: 'host.attach_failed',
         attached: 'host.attached',
@@ -166,6 +171,7 @@ export const logEventCatalog = {
         consoleError: 'renderer.console_error',
         pageException: 'renderer.page_exception',
         preloadError: 'renderer.preload_error',
+        terminalRendererStatus: 'renderer.terminal_renderer_status',
         unhandledRejection: 'renderer.unhandled_rejection',
     },
     runtime: {
