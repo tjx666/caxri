@@ -26,6 +26,7 @@ import type {
     AgentHookEntryStatus,
     AgentLifecycleSignal,
 } from './contract';
+import type { AgentHookSignalDiagnostic } from './server';
 import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
 
 const CONFIG_WATCH_SETTLE_MS = 100;
@@ -211,6 +212,7 @@ export class AgentHookManager {
     private readonly watchHub: WatchHub;
     private readonly ownsWatchHub: boolean;
     private health = defaultHealth();
+    private readonly loggedSignalDiagnostics = new Map<string, Set<string>>();
     private reconcileQueue = Promise.resolve();
     private server?: AgentHookServer;
     private settings?: Record<AgentProvider, AgentProviderSettings>;
@@ -564,24 +566,48 @@ export class AgentHookManager {
                     agentProviders[provider].hooks?.schemaVersion ?? 0,
                 ]),
             ) as Record<AgentProvider, number>;
-            this.server = new AgentHookServer(socketPath, schemaVersions, (signal) => {
-                if (!this.settings?.[signal.provider].hooks.enabled) return false;
-                try {
-                    const isAccepted = this.options.onSignal(signal);
-                    if (isAccepted) this.markActive(signal.provider);
-                    return isAccepted;
-                } catch (error) {
-                    this.options.logger.write('warn', logEventCatalog.agentHooks.signalFailed, {
-                        fields: {
-                            provider: signal.provider,
-                            phase: signal.phase,
-                            terminalId: signal.terminalId,
-                            error: errorMessage(error, 'Lifecycle signal failed'),
-                        },
-                    });
-                    return false;
+            const logSignalDiagnostic = (diagnostic: AgentHookSignalDiagnostic): void => {
+                const { outcome, ...fields } = diagnostic;
+                if (outcome !== 'rejected' && fields.terminalId && fields.phase) {
+                    const key = `${outcome}:${fields.provider}:${fields.phase}:${fields.hasAgentSessionId}`;
+                    const logged = this.loggedSignalDiagnostics.get(fields.terminalId) ?? new Set();
+                    if (logged.has(key)) return;
+                    logged.add(key);
+                    this.loggedSignalDiagnostics.set(fields.terminalId, logged);
                 }
-            });
+                this.options.logger.write(
+                    outcome === 'accepted' || outcome === 'ignored' ? 'info' : 'warn',
+                    outcome === 'accepted'
+                        ? logEventCatalog.agentHooks.signalAccepted
+                        : outcome === 'ignored'
+                          ? logEventCatalog.agentHooks.signalIgnored
+                          : logEventCatalog.agentHooks.signalRejected,
+                    { fields: { stage: 'runtimeServer', ...fields } },
+                );
+            };
+            this.server = new AgentHookServer(
+                socketPath,
+                schemaVersions,
+                (signal) => {
+                    if (!this.settings?.[signal.provider].hooks.enabled) return 'ignored';
+                    try {
+                        const isAccepted = this.options.onSignal(signal);
+                        if (isAccepted) this.markActive(signal.provider);
+                        return isAccepted ? 'accepted' : 'ignored';
+                    } catch (error) {
+                        this.options.logger.write('warn', logEventCatalog.agentHooks.signalFailed, {
+                            fields: {
+                                provider: signal.provider,
+                                phase: signal.phase,
+                                terminalId: signal.terminalId,
+                                error: errorMessage(error, 'Lifecycle signal failed'),
+                            },
+                        });
+                        return 'rejected';
+                    }
+                },
+                logSignalDiagnostic,
+            );
             await this.server.start();
             await this.reconcile(settings);
         } catch (error) {
@@ -631,6 +657,7 @@ export class AgentHookManager {
     endTerminalLaunch(terminalId: string): void {
         const launch = this.terminalLaunches.get(terminalId);
         if (!launch) return;
+        this.loggedSignalDiagnostics.delete(terminalId);
         this.terminalLaunches.delete(terminalId);
         this.server?.unregister(launch.token);
         this.options.onLaunchEnded(terminalId);

@@ -251,6 +251,7 @@ export class AgentCoordinator {
             if ((this.probeGenerations.get(terminalId) ?? 0) !== generation) return;
             if (
                 snapshot.sessionId &&
+                snapshot.sessionId !== terminal.agentSessionId &&
                 this.database.isAgentSessionClaimedByOtherTerminal(terminal.id, snapshot.sessionId)
             ) {
                 if (shouldRetryClaim) await this.probe(terminalId, false);
@@ -573,7 +574,11 @@ export class AgentCoordinator {
             return false;
         }
         if (signal.phase === 'compactionStarted') this.startCompaction(signal.terminalId);
-        else this.clearAgentOperation(signal.terminalId);
+        /**
+         * SessionStart also fires when Codex resumes after compaction. It identifies the thread but does not prove that
+         * the operation ended, so clearing here would briefly hide the compaction state before PostCompact arrives.
+         */
+        else if (signal.phase !== 'sessionIdentified') this.clearAgentOperation(signal.terminalId);
         if (signal.phase === 'turnStarted')
             this.hookAuthoritativeLaunchIds.delete(signal.terminalId);
         else if (signal.phase === 'attentionRequested' || signal.phase === 'turnFinished')
@@ -583,6 +588,8 @@ export class AgentCoordinator {
          * Caxri-managed launch reset ever sees), so identity is rebound here and the scheduled probe republishes the
          * resumed session's title.
          */
+        let shouldRefreshMetadata =
+            signal.phase === 'sessionIdentified' && Boolean(signal.agentSessionId);
         if (
             signal.agentSessionId &&
             signal.agentSessionId !== terminal.agentSessionId &&
@@ -600,8 +607,9 @@ export class AgentCoordinator {
                 signal.terminalId,
                 (this.probeGenerations.get(signal.terminalId) ?? 0) + 1,
             );
-            this.refreshes.schedule(signal.terminalId);
+            shouldRefreshMetadata = true;
         }
+        if (shouldRefreshMetadata) this.refreshes.schedule(signal.terminalId);
         const isUpdated = this.database.updateAgentLifecycle(signal);
         if (isUpdated) this.emitAgentMetadataChange(signal.terminalId);
         return true;

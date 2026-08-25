@@ -18,7 +18,10 @@ export const logEventCatalog = {
         initializeFailed: 'agent_hooks.initialize_failed',
         lockFailed: 'agent_hooks.lock_failed',
         reconcileFailed: 'agent_hooks.reconcile_failed',
+        signalAccepted: 'agent_hooks.signal_accepted',
         signalFailed: 'agent_hooks.signal_failed',
+        signalIgnored: 'agent_hooks.signal_ignored',
+        signalRejected: 'agent_hooks.signal_rejected',
     },
     app: {
         childProcessGone: 'app.child_process_gone',
