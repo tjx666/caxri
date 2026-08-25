@@ -3,6 +3,7 @@
 - Status: accepted
 - Date: 2026-08-21
 - Refs: [#257](https://github.com/tjx666/caxri/issues/257)
+- Amended by: ADR 0005 (target, pending)
 
 The Workbench renders exactly one of two mutually exclusive split trees — Terminals or Editors —
 behind a single global tab strip, so a running Agent and the file it is editing can never be visible
