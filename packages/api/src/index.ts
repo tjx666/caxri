@@ -126,6 +126,8 @@ export const TreeItemCollapsibleState = {
 export type TreeItemCollapsibleState =
     (typeof TreeItemCollapsibleState)[keyof typeof TreeItemCollapsibleState];
 
+export type TreeItemVariant = 'header';
+
 export interface Command {
     command: string;
     title: string;
@@ -134,6 +136,11 @@ export interface Command {
 
 export class TreeItem {
     id?: string;
+    /**
+     * Optional semantic presentation. A header introduces a visually separated group of child rows without coupling the
+     * shared tree Renderer to an extension-specific domain such as repositories.
+     */
+    variant?: TreeItemVariant;
     description?: string;
     tooltip?: string;
     iconPath?: ThemeIcon;

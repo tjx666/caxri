@@ -191,10 +191,12 @@ export const treeItemCommandSchema = z.object({
 });
 
 export const treeItemIdSchema = z.string().min(1).max(480);
+export const treeItemVariantSchema = z.enum(['header']);
 
 export const treeItemSchema = z.object({
     handle: z.string().min(1).max(512),
     id: treeItemIdSchema.optional(),
+    variant: treeItemVariantSchema.optional(),
     label: z.string().min(1).max(1_024),
     description: z.string().max(1_024).optional(),
     tooltip: z.string().max(4_096).optional(),

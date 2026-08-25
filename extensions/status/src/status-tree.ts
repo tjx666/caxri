@@ -3,6 +3,7 @@ import type {
     ProjectStatusRepository,
     ProjectStatusState,
     ProjectStatusSummary,
+    TreeItemVariant,
 } from 'caxri';
 import { ThemeIcon, TreeItem, TreeItemCollapsibleState } from 'caxri';
 
@@ -48,6 +49,7 @@ function item(
         description?: string;
         icon?: string;
         url?: string;
+        variant?: TreeItemVariant;
     } = {},
 ): StatusNode {
     const treeItem = new TreeItem(
@@ -58,6 +60,7 @@ function item(
                 : TreeItemCollapsibleState.None),
     );
     treeItem.id = id;
+    treeItem.variant = options.variant;
     treeItem.description = options.description;
     treeItem.tooltip = [label, options.description, options.url].filter(Boolean).join('\n');
     treeItem.accessibilityInformation = {
@@ -194,6 +197,7 @@ export function buildRepoNode(repo: ProjectStatusRepository): StatusNode {
         icon: presentation.icon,
         children: buildRepoChildren(repo),
         collapsibleState: TreeItemCollapsibleState.Expanded,
+        variant: 'header',
     });
 }
 
