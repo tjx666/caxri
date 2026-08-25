@@ -383,6 +383,8 @@ Structured logs carry timestamp, process, level, event, correlation ID, duration
 
 Structured event names are owned by the browser-safe protocol `logEventCatalog`; production log sinks accept only its derived `LogEventName`, and the `logs.query.event` filter uses the same schema. Query results deliberately keep a bounded string event so older or externally produced JSONL records remain readable without weakening production write-time typing.
 
+GPU failures form one Main-owned correlated incident. Main decodes Electron's raw POSIX child status into the Chromium result code, records selected window state and GPU command-line switches, then captures bounded hardware, ANGLE, Skia/Graphite, and feature status after `gpu-info-update`. The workbench Renderer may report only the strict browser-safe terminal-renderer diagnostic schema: opaque Terminal identity, renderer enums and counters, process/focus/visibility booleans, never Terminal output, prompts, DOM text, error messages, source, or environment data. Renderer reports immediately before or after a GPU exit are linked through the incident correlation window so post-mortem triage can distinguish a native GPU process loss from a stale xterm atlas or an input-focus failure.
+
 The application version and short commit hash are injected at build time and read once by Main, which stamps its own logs and forwards them to the Runtime's environment so both processes' logs and the diagnostics export can be correlated to the exact build.
 
 Main, Host, and Runtime JSONL files live together beneath the active runtime profile's `logs/` directory. Development,

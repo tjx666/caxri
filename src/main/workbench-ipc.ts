@@ -7,12 +7,18 @@ import type { CaxriReply } from '../shared/ipc/transport';
 import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
+import type { RendererDiagnostic } from '../shared/renderer-diagnostic';
+import {
+    RENDERER_DIAGNOSTIC_CHANNEL,
+    rendererDiagnosticSchema,
+} from '../shared/renderer-diagnostic';
 import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '../shared/renderer-error';
 import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 
 export interface WorkbenchIpcOptions {
     isQuitting(): boolean;
     logger(): StructuredLogger | undefined;
+    onRendererDiagnostic?(diagnostic: RendererDiagnostic): void;
     onEventsReady?(): void;
     renderer(): WebContents | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
@@ -43,6 +49,11 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     },
                 },
             );
+    });
+    ipcMain.on(RENDERER_DIAGNOSTIC_CHANNEL, (event, rawDiagnostic: unknown) => {
+        if (event.sender !== options.renderer()) return;
+        const parsed = rendererDiagnosticSchema.safeParse(rawDiagnostic);
+        if (parsed.success) options.onRendererDiagnostic?.(parsed.data);
     });
     ipcMain.on('caxri:renderer-events-ready', (event) => {
         assertSender(event.sender);

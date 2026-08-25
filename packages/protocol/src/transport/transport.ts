@@ -15,6 +15,7 @@ import type {
 import { getMethodSpec, isCaxriMethod, methods } from '../registry/methods.js';
 import type { WireError } from './errors.js';
 import { CaxriError, fromWireError, toErrorCode } from './errors.js';
+import type { RendererDiagnostic } from './renderer-diagnostic.js';
 import type { RendererErrorKind } from './renderer-error.js';
 import type { CAXRI_PROTOCOL_VERSION, ProtocolWelcome } from './version.js';
 import { protocolVersionSchema } from './version.js';
@@ -198,6 +199,10 @@ export interface CaxriBridge {
      * Reports only a fault class; private exception values never cross the preload boundary.
      */
     reportError(kind: RendererErrorKind): void;
+    /**
+     * Reports a strict, content-free Renderer lifecycle snapshot for local diagnostics.
+     */
+    reportDiagnostic(diagnostic: RendererDiagnostic): void;
 }
 
 /**

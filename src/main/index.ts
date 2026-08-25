@@ -23,6 +23,7 @@ import { decideCrashRecovery } from './crash-policy';
 import { createDesktopOperationHandler } from './desktop-operations';
 import { createMainEventRelay } from './event-relay';
 import { launchExternalEditor } from './external-editor';
+import { createGpuDiagnostics } from './gpu-diagnostics';
 import { DesktopHostConnection, resolveDesktopLaunch } from './host-connection';
 import { shouldContinueStartup } from './host-startup';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
@@ -78,6 +79,11 @@ if (ownsProfileInstance) {
     let mainRenderer: WebContents | undefined;
     let supervisor: DesktopHostConnection;
     let mainLogger: StructuredLogger | undefined;
+    const gpuDiagnostics = createGpuDiagnostics({
+        app,
+        logger: () => mainLogger,
+        window: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined),
+    });
     const processErrorMonitor = installProcessErrorMonitor({
         bootstrapWriter: () => (mainLogger ??= createMainLogger()),
         processName: 'main',
@@ -486,6 +492,7 @@ if (ownsProfileInstance) {
         installWorkbenchIpc({
             isQuitting: () => isQuitStarted,
             logger: () => mainLogger,
+            onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             onEventsReady: () => {
                 eventRelay.rendererReady();
                 if (mainRenderer) rendererReadiness.ready(mainRenderer);
@@ -578,6 +585,9 @@ if (ownsProfileInstance) {
                     remoteDebuggingTransport: runtimeProfile.remoteDebugging.transport,
                 },
             });
+            // GPU collection is asynchronous and must never delay window startup.
+            // eslint-disable-next-line no-void -- snapshot failures write their own bounded diagnostic
+            void gpuDiagnostics.captureBaseline();
             if (process.env.CAXRI_E2E === '1') {
                 mainLogger.write('info', logEventCatalog.e2e.launch, {
                     fields: {
@@ -693,10 +703,20 @@ if (ownsProfileInstance) {
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .catch(() => {});
-    // GPU/utility-process exits never reach `render-process-gone`; log them so native child-process
-    // crashes remain diagnosable from the Main log.
+    app.on('gpu-info-update', () => {
+        // Electron emits this from a synchronous listener; snapshot failures are logged by the collector.
+        // eslint-disable-next-line no-void -- intentionally asynchronous post-crash evidence collection
+        void gpuDiagnostics.handleGpuInfoUpdate();
+    });
+
+    // GPU/utility-process exits never reach `render-process-gone`; preserve generic utility evidence and route GPU
+    // failures through the correlated collector so Chromium result codes and Renderer state are captured together.
     app.on('child-process-gone', (_event, details) => {
         if (details.reason === 'clean-exit') return;
+        if (details.type === 'GPU') {
+            gpuDiagnostics.recordGpuProcessGone(details);
+            return;
+        }
         mainLogger?.write('error', logEventCatalog.app.childProcessGone, {
             fields: {
                 code: 'CHILD_PROCESS_GONE',
