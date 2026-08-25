@@ -142,7 +142,7 @@ function errorReply(id: string | null, error: unknown): CommandReplyEnvelope {
 }
 
 /**
- * Executes the canonical command registry for Electron, in-memory tests, UDS, or future adapters. Authentication
+ * Executes the canonical command registry for Electron, in-memory tests, WebSocket, or future adapters. Authentication
  * remains transport-owned; this boundary validates the resulting principal and capabilities before routing to exactly
  * one application handler.
  */

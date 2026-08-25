@@ -115,6 +115,7 @@ describe('pnpm workspace contract', () => {
         expect(workspace.packages).toEqual(['extensions/*', 'packages/*']);
         expect(workspace.catalog).toEqual({
             '@types/semver': '^7.8.0',
+            '@types/ws': '^8.18.1',
             '@yutengjing/eslint-config-typescript': '^4.0.0',
             '@yutengjing/prettier-config': '^2.0.0',
             'markdownlint': '^0.41.1',
@@ -124,6 +125,7 @@ describe('pnpm workspace contract', () => {
             'prettier-plugin-tailwindcss': '^0.8.1',
             'semver': '^7.8.5',
             'sonda': '^0.14.0',
+            'ws': '^8.21.3',
             'zod': '4.4.3',
         });
         expect(workspace.allowBuilds).toEqual({
@@ -216,6 +218,7 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.devDependencies?.['@caxri/cli']).toBe('workspace:*');
         expect(cliManifest.dependencies).toEqual({
             '@caxri/protocol': 'workspace:*',
+            'ws': 'catalog:',
             'zod': 'catalog:',
         });
         for (const dependency of nativeDesktopDependencies) {

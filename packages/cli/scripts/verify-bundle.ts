@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
+import { isBuiltin } from 'node:module';
 
 export function verifyBundleSource(source: string): number {
     if (!source.startsWith('#!/usr/bin/env node\n'))
@@ -9,7 +10,7 @@ export function verifyBundleSource(source: string): number {
         .matchAll(/\brequire\("([^"]+)"\)/gu)
         .map((match) => match[1])
         .toArray();
-    const externalImports = imports.filter((specifier) => !specifier.startsWith('node:'));
+    const externalImports = imports.filter((specifier) => !isBuiltin(specifier));
     if (externalImports.length > 0)
         throw new Error(
             `Standalone CLI bundle has external imports: ${externalImports.join(', ')}`,

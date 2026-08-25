@@ -1,16 +1,20 @@
+import { Buffer } from 'node:buffer';
 import { mkdtemp, rm } from 'node:fs/promises';
-import type { Socket } from 'node:net';
-import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import WebSocket from 'ws';
 
 import { HostClient } from '../../../packages/cli/src/host';
 import type { CommandAdapter } from '../../shared/ipc/dispatcher';
 import { CaxriError } from '../../shared/ipc/errors';
-import { localServerReplySchema, localServerWelcomeSchema } from '../../shared/ipc/local-transport';
+import type { HostControlEndpoint } from '../../shared/ipc/local-transport';
+import {
+    hostEndpointUrl,
+    localServerReplySchema,
+    localServerWelcomeSchema,
+} from '../../shared/ipc/local-transport';
 import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import { LocalHostServer } from '../local-server';
 import { acquireHostProfile } from '../profile';
@@ -26,8 +30,7 @@ afterEach(async () => {
 
 async function profile() {
     const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-host-regression-'));
-    const socketDirectory = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
-    const lease = await acquireHostProfile({ socketDirectory, userDataPath, version: '1.0.0' });
+    const lease = await acquireHostProfile({ userDataPath, version: '1.0.0' });
     cleanups.push(async () => {
         await lease.release();
         await rm(userDataPath, { recursive: true, force: true });
@@ -35,35 +38,28 @@ async function profile() {
     return lease;
 }
 
-async function connect(path: string): Promise<Socket> {
-    const socket = createConnection(path);
+async function connect(endpoint: HostControlEndpoint): Promise<WebSocket> {
+    const socket = new WebSocket(hostEndpointUrl(endpoint));
     await new Promise<void>((resolve, reject) => {
-        socket.once('connect', resolve);
+        socket.once('open', resolve);
         socket.once('error', reject);
     });
     cleanups.push(() => {
-        socket.destroy();
+        socket.terminate();
         return Promise.resolve();
     });
     return socket;
 }
 
-function lineReader(socket: Socket) {
-    let source = '';
+function messageReader(socket: WebSocket) {
     const values: unknown[] = [];
     const pending: Array<{ reject(error: Error): void; resolve(value: unknown): void }> = [];
-    socket.setEncoding('utf8');
-    socket.on('data', (chunk: string) => {
-        source += chunk;
-        let newline = source.indexOf('\n');
-        while (newline !== -1) {
-            const value = JSON.parse(source.slice(0, newline)) as unknown;
-            source = source.slice(newline + 1);
-            const waiter = pending.shift();
-            if (waiter) waiter.resolve(value);
-            else values.push(value);
-            newline = source.indexOf('\n');
-        }
+    socket.on('message', (data) => {
+        if (!Buffer.isBuffer(data)) throw new TypeError('Expected one buffered text message');
+        const value = JSON.parse(data.toString()) as unknown;
+        const waiter = pending.shift();
+        if (waiter) waiter.resolve(value);
+        else values.push(value);
     });
     socket.on('close', () => {
         const pendingToReject = pending.slice();
@@ -79,10 +75,10 @@ function lineReader(socket: Socket) {
 }
 
 function command(id: string, method: string, parameters: unknown) {
-    return `${JSON.stringify({
+    return JSON.stringify({
         type: 'command',
         request: { protocolVersion: CAXRI_PROTOCOL_VERSION, id, method, params: parameters },
-    })}\n`;
+    });
 }
 
 describe('local Host transport regressions', () => {
@@ -125,14 +121,14 @@ describe('local Host transport regressions', () => {
             const server = new LocalHostServer({
                 adapters: { host },
                 desktopCredential: lease.desktopCredential,
-                manifest: lease.manifest,
+                identity: lease.identity,
             });
-            await server.start();
+            await lease.publish(await server.start());
             cleanups.push(() => server.close());
 
-            const socket = await connect(lease.paths.endpoint);
-            const read = lineReader(socket);
-            socket.write(
+            const socket = await connect(lease.manifest.endpoint);
+            const read = messageReader(socket);
+            socket.send(
                 `${JSON.stringify({
                     type: 'hello',
                     supportedVersions: [CAXRI_PROTOCOL_VERSION],
@@ -145,7 +141,7 @@ describe('local Host transport regressions', () => {
                 })}\n`,
             );
             localServerWelcomeSchema.parse(await read());
-            socket.write(
+            socket.send(
                 command('view-slow', 'viewContainers.viewOperation', {
                     viewId: 'publisher.git.sourceControl',
                     requestId: 'view-request',
@@ -156,11 +152,9 @@ describe('local Host transport regressions', () => {
                         sessionId: 'session-1',
                         workbenchProjectId: 'project-1',
                     },
-                }) +
-                    command('view-cancel', cancelMethod, {
-                        requestId: 'view-request',
-                    }),
+                }),
             );
+            socket.send(command('view-cancel', cancelMethod, { requestId: 'view-request' }));
             await operationStarted.promise;
             await cancelStarted.promise;
             await expect(read()).resolves.toMatchObject({ reply: { id: 'view-cancel', ok: true } });
@@ -189,14 +183,14 @@ describe('local Host transport regressions', () => {
         const server = new LocalHostServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
 
-        const socket = await connect(lease.paths.endpoint);
-        const read = lineReader(socket);
-        socket.write(
+        const socket = await connect(lease.manifest.endpoint);
+        const read = messageReader(socket);
+        socket.send(
             `${JSON.stringify({
                 type: 'hello',
                 supportedVersions: [CAXRI_PROTOCOL_VERSION],
@@ -205,10 +199,8 @@ describe('local Host transport regressions', () => {
             })}\n`,
         );
         localServerWelcomeSchema.parse(await read());
-        socket.write(
-            command('health-slow', 'app.health', {}) +
-                command('health-independent', 'app.health', {}),
-        );
+        socket.send(command('health-slow', 'app.health', {}));
+        socket.send(command('health-independent', 'app.health', {}));
         await slowStarted.promise;
         await independentStarted.promise;
 
@@ -252,9 +244,9 @@ describe('local Host transport regressions', () => {
         const server = new LocalHostServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
         const client = await HostClient.connect(lease.manifest, 5_000, {
             kind: 'desktop',
@@ -325,9 +317,9 @@ describe('local Host transport regressions', () => {
         const server = new LocalHostServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
         const client = await HostClient.connect(lease.manifest);
         cleanups.push(() => {
@@ -367,9 +359,9 @@ describe('local Host transport regressions', () => {
         const server = new LocalHostServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
 
         const client = await HostClient.connect(lease.manifest, 5_000, {
@@ -400,14 +392,14 @@ describe('local Host transport regressions', () => {
         const server = new LocalHostServer({
             adapters: { host: { invoke: () => null } },
             desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
 
-        const socket = await connect(lease.paths.endpoint);
-        const read = lineReader(socket);
-        socket.write(
+        const socket = await connect(lease.manifest.endpoint);
+        const read = messageReader(socket);
+        socket.send(
             `${JSON.stringify({
                 type: 'hello',
                 supportedVersions: [CAXRI_PROTOCOL_VERSION],
@@ -421,7 +413,7 @@ describe('local Host transport regressions', () => {
         );
         const welcome = localServerWelcomeSchema.parse(await read());
         const generation = welcome.desktopLease!.generation;
-        socket.write(`${JSON.stringify({ type: 'desktop.ready', generation })}\n`);
+        socket.send(JSON.stringify({ type: 'desktop.ready', generation }));
         await vi.waitFor(() => expect(server.desktopLease()?.generation).toBe(generation));
         const closed = new Promise<void>((resolve) => socket.once('close', resolve));
         // A reverse command the replaced Desktop never answers must settle with a stable error
@@ -471,14 +463,14 @@ describe('local Host transport regressions', () => {
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             desktopLeaseDurationMs: 500,
-            manifest: lease.manifest,
+            identity: lease.identity,
         });
-        await server.start();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
 
-        const socket = await connect(lease.paths.endpoint);
-        const read = lineReader(socket);
-        socket.write(
+        const socket = await connect(lease.manifest.endpoint);
+        const read = messageReader(socket);
+        socket.send(
             `${JSON.stringify({
                 type: 'hello',
                 supportedVersions: [CAXRI_PROTOCOL_VERSION],
@@ -492,11 +484,11 @@ describe('local Host transport regressions', () => {
         );
         const welcome = localServerWelcomeSchema.parse(await read());
         const generation = welcome.desktopLease!.generation;
-        socket.write(command('slow-read', 'files.read', { sessionId: 'session-1', path: 'a.txt' }));
+        socket.send(command('slow-read', 'files.read', { sessionId: 'session-1', path: 'a.txt' }));
         await started;
 
         await new Promise((resolve) => nativeSetTimeout(resolve, 250));
-        socket.write(`${JSON.stringify({ type: 'desktop-lease.renew', generation })}\n`);
+        socket.send(JSON.stringify({ type: 'desktop-lease.renew', generation }));
         await expect(
             Promise.race([
                 read(),
@@ -512,7 +504,7 @@ describe('local Host transport regressions', () => {
             type: 'reply',
             reply: { id: 'slow-read', ok: true },
         });
-        socket.write(command('health-after-renewal', 'app.health', {}));
+        socket.send(command('health-after-renewal', 'app.health', {}));
         await expect(read()).resolves.toMatchObject({
             type: 'reply',
             reply: { id: 'health-after-renewal' },
@@ -549,17 +541,16 @@ describe('local Host transport regressions', () => {
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             logger: { write: (level, event, options) => written.push({ level, event, options }) },
-            manifest: lease.manifest,
+            identity: lease.identity,
             requestQueueWarnMs: 10_000,
             requestTotalWarnMs: 10_000,
         });
-        await server.start();
-        await lease.publish();
+        await lease.publish(await server.start());
         cleanups.push(() => server.close());
 
-        const socket = await connect(lease.paths.endpoint);
-        const read = lineReader(socket);
-        socket.write(
+        const socket = await connect(lease.manifest.endpoint);
+        const read = messageReader(socket);
+        socket.send(
             `${JSON.stringify({
                 type: 'hello',
                 supportedVersions: [2],
@@ -568,13 +559,11 @@ describe('local Host transport regressions', () => {
             })}\n`,
         );
         localServerWelcomeSchema.parse(await read());
-        // One write with three back-to-back commands: the slow first request must not make either
-        // later request inherit its execution time as queue wait.
-        socket.write(
-            command('health-slow', 'app.health', {}) +
-                command('health-queued', 'app.health', {}) +
-                command('health-failed', 'app.health', {}),
-        );
+        // Three back-to-back messages: the slow first request must not make either later request inherit its execution
+        // time as queue wait.
+        socket.send(command('health-slow', 'app.health', {}));
+        socket.send(command('health-queued', 'app.health', {}));
+        socket.send(command('health-failed', 'app.health', {}));
         await slowStarted.promise;
         const independentReplies = [
             localServerReplySchema.parse(await read()),

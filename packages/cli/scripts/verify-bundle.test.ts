@@ -11,6 +11,7 @@ Start with live introspection
 describe('standalone CLI bundle verification', () => {
     it('accepts a self-contained Node bundle with the embedded skill', () => {
         expect(() => verifyBundleSource(validBundle)).not.toThrow();
+        expect(() => verifyBundleSource(`${validBundle}\nrequire("zlib");`)).not.toThrow();
     });
 
     it('rejects a missing shebang and external imports', () => {

@@ -2,12 +2,17 @@ import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import { constants as fileConstants } from 'node:fs';
 import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
 import { CaxriError } from '../shared/ipc/errors';
-import type { HostDesktopCredential, HostLock, HostManifest } from '../shared/ipc/local-transport';
+import type {
+    HostControlEndpoint,
+    HostDesktopCredential,
+    HostLock,
+    HostManifest,
+    HostManifestIdentity,
+} from '../shared/ipc/local-transport';
 import {
     HOST_DESKTOP_CREDENTIAL_VERSION,
     HOST_MANIFEST_VERSION,
@@ -19,7 +24,6 @@ import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import { profileIdForPath } from '../shared/node/profile-identity';
 
 const MAX_PRIVATE_FILE_BYTES = 16 * 1024;
-const MAX_UNIX_SOCKET_PATH_BYTES = 103;
 /**
  * Darwin supports atomic open-time advisory locking, but Node omits this flag from `fs.constants`.
  */
@@ -28,7 +32,6 @@ const DARWIN_OPEN_EXCLUSIVE_LOCK = 0x20;
 export interface HostProfilePaths {
     desktopCredential: string;
     directory: string;
-    endpoint: string;
     lock: string;
     manifest: string;
     profileId: string;
@@ -37,9 +40,13 @@ export interface HostProfilePaths {
 
 export interface HostProfileLease {
     desktopCredential: HostDesktopCredential;
-    manifest: HostManifest;
+    identity: HostManifestIdentity;
+    /**
+     * Available only after `publish()` has atomically committed the listening endpoint.
+     */
+    readonly manifest: HostManifest;
     paths: HostProfilePaths;
-    publish(): Promise<void>;
+    publish(endpoint: HostControlEndpoint): Promise<HostManifest>;
     release(): Promise<void>;
 }
 
@@ -49,10 +56,6 @@ function fileSystemCode(error: unknown): string | undefined {
     return typeof error === 'object' && error !== null && 'code' in error
         ? String(Reflect.get(error, 'code'))
         : undefined;
-}
-
-function defaultSocketDirectory(): string {
-    return process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 }
 
 async function privateDirectory(path: string): Promise<void> {
@@ -65,21 +68,14 @@ async function privateDirectory(path: string): Promise<void> {
     await chmod(path, 0o700);
 }
 
-export async function resolveHostProfilePaths(
-    userDataPath: string,
-    socketDirectory = defaultSocketDirectory(),
-): Promise<HostProfilePaths> {
+export async function resolveHostProfilePaths(userDataPath: string): Promise<HostProfilePaths> {
     await mkdir(userDataPath, { recursive: true });
     const canonicalUserDataPath = await realpath(userDataPath);
     const profileId = profileIdForPath(canonicalUserDataPath);
-    const endpoint = join(socketDirectory, `caxri-host-${profileId}.sock`);
-    if (Buffer.byteLength(endpoint, 'utf8') > MAX_UNIX_SOCKET_PATH_BYTES)
-        throw new CaxriError('VALIDATION', 'Host Unix socket path exceeds the platform limit');
     const directory = join(canonicalUserDataPath, 'host');
     return {
         desktopCredential: join(directory, 'desktop-credential.json'),
         directory,
-        endpoint,
         lock: join(directory, 'owner.lock'),
         manifest: join(directory, 'manifest.json'),
         profileId,
@@ -243,22 +239,6 @@ function assertSameProfile(paths: HostProfilePaths, value: HostLock | HostManife
         );
 }
 
-async function removeStaleEndpoint(paths: HostProfilePaths): Promise<void> {
-    try {
-        const endpoint = await lstat(paths.endpoint);
-        if (!endpoint.isSocket())
-            throw new CaxriError(
-                'PATH_DENIED',
-                'Host endpoint is not a socket; remove it manually after verifying its owner',
-            );
-        if (typeof process.getuid === 'function' && endpoint.uid !== process.getuid())
-            throw new CaxriError('PATH_DENIED', 'Host endpoint belongs to another user');
-        await rm(paths.endpoint);
-    } catch (error) {
-        if (fileSystemCode(error) !== 'ENOENT') throw error;
-    }
-}
-
 async function cleanPreviousOwner(
     paths: HostProfilePaths,
     previousLock: HostLock | undefined,
@@ -269,11 +249,6 @@ async function cleanPreviousOwner(
     if (previousLock) assertSameProfile(paths, previousLock);
     if (previousManifest) {
         assertSameProfile(paths, previousManifest);
-        if (previousManifest.endpoint !== paths.endpoint)
-            throw new CaxriError(
-                'VALIDATION',
-                'Host manifest endpoint is inconsistent; repair the profile metadata manually',
-            );
         if (
             previousLock &&
             (previousManifest.processIdentity !== previousLock.processIdentity ||
@@ -293,7 +268,6 @@ async function cleanPreviousOwner(
                 ? 'A Host already owns this profile'
                 : 'The previous Host identity cannot be verified; repair is required',
         );
-    await removeStaleEndpoint(paths);
     if (previousManifest) await rm(paths.manifest, { force: true });
     await rm(paths.desktopCredential, { force: true });
 }
@@ -313,12 +287,11 @@ async function isManifestOwnedBy(path: string, processIdentity: string) {
  */
 export async function acquireHostProfile(options: {
     processState?: (pid: number) => HostProcessState;
-    socketDirectory?: string;
     startedAt?: number;
     userDataPath: string;
     version: string;
 }): Promise<HostProfileLease> {
-    const paths = await resolveHostProfilePaths(options.userDataPath, options.socketDirectory);
+    const paths = await resolveHostProfilePaths(options.userDataPath);
     await privateDirectory(paths.directory);
     /**
      * The kernel lock makes both ordinary startup and stale takeover one atomic profile CAS.
@@ -350,14 +323,12 @@ export async function acquireHostProfile(options: {
         throw error;
     }
 
-    const manifest = hostManifestSchema.parse({
+    const identity = {
         ...lock,
-        manifestVersion: HOST_MANIFEST_VERSION,
-        endpoint: paths.endpoint,
         protocolVersion: CAXRI_PROTOCOL_VERSION,
         version: options.version,
         operatorToken: randomBytes(32).toString('hex'),
-    });
+    } satisfies HostManifestIdentity;
     const desktopCredential = hostDesktopCredentialSchema.parse({
         credentialVersion: HOST_DESKTOP_CREDENTIAL_VERSION,
         profileId: paths.profileId,
@@ -366,21 +337,28 @@ export async function acquireHostProfile(options: {
     });
     let isPublished = false;
     let isReleased = false;
+    let publishedManifest: HostManifest | undefined;
     return {
         desktopCredential,
-        manifest,
+        identity,
+        get manifest() {
+            if (!publishedManifest)
+                throw new CaxriError('UNAVAILABLE', 'Host endpoint has not been published');
+            return publishedManifest;
+        },
         paths,
-        async publish() {
-            if (isPublished) return;
-            const endpoint = await lstat(paths.endpoint);
-            if (!endpoint.isSocket())
-                throw new CaxriError('PATH_DENIED', 'Host endpoint is not a Unix socket');
-            if (typeof process.getuid === 'function' && endpoint.uid !== process.getuid())
-                throw new CaxriError('PATH_DENIED', 'Host endpoint belongs to another user');
-            await chmod(paths.endpoint, 0o600);
+        async publish(endpoint) {
+            if (isPublished) return publishedManifest!;
+            const manifest = hostManifestSchema.parse({
+                ...identity,
+                manifestVersion: HOST_MANIFEST_VERSION,
+                endpoint,
+            });
             await replacePrivateJson(paths.directory, paths.desktopCredential, desktopCredential);
             await replacePrivateJson(paths.directory, paths.manifest, manifest);
+            publishedManifest = manifest;
             isPublished = true;
+            return manifest;
         },
         async release() {
             if (isReleased) return;
@@ -399,18 +377,9 @@ export async function acquireHostProfile(options: {
                 // Best-effort cleanup; release() must still finish tearing down the lock below.
             }
             try {
-                try {
-                    if ((await lstat(paths.endpoint)).isSocket())
-                        await rm(paths.endpoint, { force: true });
-                } catch (error) {
-                    if (fileSystemCode(error) !== 'ENOENT') throw error;
-                }
+                await writeLockHandle(lockHandle, undefined);
             } finally {
-                try {
-                    await writeLockHandle(lockHandle, undefined);
-                } finally {
-                    await lockHandle.close();
-                }
+                await lockHandle.close();
             }
         },
     };

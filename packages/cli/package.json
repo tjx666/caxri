@@ -24,6 +24,7 @@
     },
     "dependencies": {
         "@caxri/protocol": "workspace:*",
+        "ws": "catalog:",
         "zod": "catalog:"
     },
     "engines": {

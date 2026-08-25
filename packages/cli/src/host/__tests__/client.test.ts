@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import type * as fsPromises from 'node:fs/promises';
 import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
@@ -6,6 +7,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { WebSocketServer } from 'ws';
 
 const readFileMock = vi.hoisted(() => vi.fn());
 
@@ -34,7 +36,8 @@ describe('HostClient close notification', () => {
     function createAttachedClient(options: { desktopLease?: unknown } = {}) {
         const listeners = new Map<string, Array<(...arguments_: unknown[]) => void>>();
         const socket = {
-            destroy: vi.fn(() => socket.emit('close')),
+            bufferedAmount: 0,
+            close: vi.fn(() => socket.emit('close')),
             emit(name: string, ...arguments_: unknown[]): void {
                 const registered = listeners.get(name) ?? [];
                 for (const listener of registered) listener(...arguments_);
@@ -43,7 +46,9 @@ describe('HostClient close notification', () => {
                 listeners.set(name, [...(listeners.get(name) ?? []), listener]);
                 return socket;
             },
-            write: vi.fn(),
+            readyState: 1,
+            send: vi.fn((_source: string, callback?: (error?: Error) => void) => callback?.()),
+            terminate: vi.fn(() => socket.emit('close')),
         };
         const construct = HostClient as unknown as new (
             socket: unknown,
@@ -107,12 +112,15 @@ describe('HostClient close notification', () => {
         const pending = client.request('app.health');
 
         socket.emit(
-            'data',
-            `${JSON.stringify({
-                type: 'desktop-lease.revoked',
-                generation: 1,
-                reason: 'replaced',
-            })}\n`,
+            'message',
+            Buffer.from(
+                JSON.stringify({
+                    type: 'desktop-lease.revoked',
+                    generation: 1,
+                    reason: 'replaced',
+                }),
+            ),
+            false,
         );
 
         await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
@@ -125,6 +133,84 @@ describe('HostClient close notification', () => {
         client.close({ cancelPendingRequests: true });
 
         await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    });
+});
+
+describe('HostClient WebSocket handshake', () => {
+    it('preserves a control message delivered immediately after welcome', async () => {
+        const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+        await new Promise<void>((resolve, reject) => {
+            server.once('listening', resolve);
+            server.once('error', reject);
+        });
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new TypeError('Expected a TCP listener');
+        const manifest = {
+            endpoint: {
+                protocol: 'ws' as const,
+                host: '127.0.0.1' as const,
+                port: address.port,
+                path: '/control' as const,
+            },
+            manifestVersion: 2 as const,
+            operatorToken: 'a'.repeat(64),
+            pid: process.pid,
+            processIdentity: 'b'.repeat(32),
+            profileId: 'profile-1',
+            protocolVersion: 2 as const,
+            startedAt: 1,
+            version: '1.0.0',
+        };
+        server.on('connection', (socket) => {
+            socket.once('message', () => {
+                socket.send(
+                    JSON.stringify({
+                        type: 'welcome',
+                        profileId: manifest.profileId,
+                        processIdentity: manifest.processIdentity,
+                        protocolVersion: 2,
+                        principal: { kind: 'desktop', id: 'desktop-1', generation: 1 },
+                        capabilities: ['desktop'],
+                        commands: [],
+                        desktopLease: {
+                            desktopId: 'desktop-1',
+                            generation: 1,
+                            expiresAt: Date.now() + 60_000,
+                        },
+                    }),
+                );
+                socket.send(
+                    JSON.stringify({
+                        type: 'desktop-lease.revoked',
+                        generation: 1,
+                        reason: 'replaced',
+                    }),
+                );
+            });
+        });
+
+        let client: HostClient | undefined;
+        try {
+            client = await HostClient.connect(manifest, 2_000, {
+                kind: 'desktop',
+                desktopId: 'desktop-1',
+                credential: {
+                    credentialVersion: 1,
+                    profileId: manifest.profileId,
+                    processIdentity: manifest.processIdentity,
+                    desktopToken: 'c'.repeat(64),
+                },
+                handleCommand: () => Promise.resolve(null),
+            });
+            const closed = vi.fn();
+            client.onClose(closed);
+
+            expect(closed).toHaveBeenCalledWith('replaced');
+        } finally {
+            client?.close();
+            for (const socket of server.clients) socket.terminate();
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
     });
 });
 
@@ -158,8 +244,13 @@ describe('Host discovery', () => {
         const canonicalUserDataPath = await realpath(userDataPath);
         readFileMock.mockResolvedValue(
             JSON.stringify({
-                endpoint: join(hostDirectory, 'host.sock'),
-                manifestVersion: 1,
+                endpoint: {
+                    protocol: 'ws',
+                    host: '127.0.0.1',
+                    port: 41_337,
+                    path: '/control',
+                },
+                manifestVersion: 2,
                 operatorToken: 'a'.repeat(64),
                 pid: process.pid,
                 processIdentity: 'b'.repeat(32),

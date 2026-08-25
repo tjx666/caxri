@@ -1,17 +1,13 @@
-import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import type { Server } from 'node:net';
-import { createServer } from 'node:net';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { acquireHostProfile, readHostManifest, resolveHostProfilePaths } from '../profile';
 
 const temporaryDirectories: string[] = [];
-const servers: Server[] = [];
+const endpoint = { protocol: 'ws', host: '127.0.0.1', port: 41_337, path: '/control' } as const;
 
 async function temporaryDirectory(prefix: string): Promise<string> {
     const path = await mkdtemp(join(tmpdir(), prefix));
@@ -19,27 +15,7 @@ async function temporaryDirectory(prefix: string): Promise<string> {
     return path;
 }
 
-async function listen(path: string): Promise<Server> {
-    const server = createServer();
-    servers.push(server);
-    await new Promise<void>((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(path, resolve);
-    });
-    return server;
-}
-
 afterEach(async () => {
-    const serversToClose = servers.slice();
-    servers.length = 0;
-    await Promise.all(
-        serversToClose.map(
-            (server) =>
-                new Promise<void>((resolve) => {
-                    server.close(() => resolve());
-                }),
-        ),
-    );
     const directoriesToRemove = temporaryDirectories.slice();
     temporaryDirectories.length = 0;
     await Promise.all(
@@ -48,24 +24,20 @@ afterEach(async () => {
 });
 
 describe('Host profile lease', () => {
-    it('writes a private atomic manifest only after the UDS is listening', async () => {
+    it('writes a private atomic manifest only after the loopback endpoint is listening', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-profile-');
-        const socketDirectory = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
-        const lease = await acquireHostProfile({
-            socketDirectory,
-            userDataPath,
-            version: '1.2.3',
-        });
+        const lease = await acquireHostProfile({ userDataPath, version: '1.2.3' });
         await expect(readFile(lease.paths.manifest, 'utf8')).rejects.toMatchObject({
             code: 'ENOENT',
         });
-        await listen(lease.paths.endpoint);
-        await lease.publish();
+        const manifest = await lease.publish(endpoint);
 
-        expect(await readHostManifest(lease.paths.manifest)).toEqual(lease.manifest);
+        expect(await readHostManifest(lease.paths.manifest)).toEqual(manifest);
         expect((await stat(lease.paths.manifest)).mode & 0o777).toBe(0o600);
         expect((await stat(lease.paths.lock)).mode & 0o777).toBe(0o600);
-        expect((await stat(lease.paths.endpoint)).mode & 0o777).toBe(0o600);
+        expect((await readdir(lease.paths.directory)).some((name) => name.endsWith('.sock'))).toBe(
+            false,
+        );
         await lease.release();
         await expect(readFile(lease.paths.manifest, 'utf8')).rejects.toMatchObject({
             code: 'ENOENT',
@@ -74,27 +46,24 @@ describe('Host profile lease', () => {
 
     it('admits only one owner before any Runtime can start', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-single-');
-        const socketDirectory = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
-        const first = await acquireHostProfile({ socketDirectory, userDataPath, version: '1.0.0' });
-        await expect(
-            acquireHostProfile({ socketDirectory, userDataPath, version: '1.0.0' }),
-        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        const first = await acquireHostProfile({ userDataPath, version: '1.0.0' });
+        await expect(acquireHostProfile({ userDataPath, version: '1.0.0' })).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
         await first.release();
     });
 
-    it('keeps a deeply nested profile on a short deterministic socket path', async () => {
+    it('keeps discovery metadata inside a deeply nested profile', async () => {
         const root = await temporaryDirectory('caxri-host-deep-');
         const userDataPath = join(root, 'a'.repeat(80), 'b'.repeat(80), 'profile');
-        const socketDirectory = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
-        const paths = await resolveHostProfilePaths(userDataPath, socketDirectory);
-        expect(Buffer.byteLength(paths.endpoint, 'utf8')).toBeLessThanOrEqual(103);
-        expect(paths.endpoint.startsWith(socketDirectory)).toBe(true);
+        const paths = await resolveHostProfilePaths(userDataPath);
+        expect(paths.manifest).toBe(join(paths.directory, 'manifest.json'));
+        expect(paths.directory).toBe(join(paths.userDataPath, 'host'));
     });
 
     it('reclaims metadata only after the previous process is proven dead', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-stale-');
-        const socketDirectory = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
-        const paths = await resolveHostProfilePaths(userDataPath, socketDirectory);
+        const paths = await resolveHostProfilePaths(userDataPath);
         await mkdir(paths.directory, { mode: 0o700 });
         await writeFile(
             paths.lock,
@@ -108,21 +77,19 @@ describe('Host profile lease', () => {
         );
         const recovered = await acquireHostProfile({
             processState: () => 'dead',
-            socketDirectory,
             userDataPath,
             version: '1.0.0',
         });
-        expect(recovered.manifest.processIdentity).not.toBe('1'.repeat(32));
+        expect(recovered.identity.processIdentity).not.toBe('1'.repeat(32));
         expect(await readFile(recovered.paths.lock, 'utf8')).toContain(
-            recovered.manifest.processIdentity,
+            recovered.identity.processIdentity,
         );
         await recovered.release();
     });
 
     it('admits one owner during concurrent stale takeover', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-stale-race-');
-        const socketDirectory = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
-        const paths = await resolveHostProfilePaths(userDataPath, socketDirectory);
+        const paths = await resolveHostProfilePaths(userDataPath);
         await mkdir(paths.directory, { mode: 0o700 });
         await writeFile(
             paths.lock,
@@ -138,7 +105,6 @@ describe('Host profile lease', () => {
             Array.from({ length: 16 }, () =>
                 acquireHostProfile({
                     processState: () => 'dead',
-                    socketDirectory,
                     userDataPath,
                     version: '1.0.0',
                 }),
@@ -156,14 +122,13 @@ describe('Host profile lease', () => {
 
     it('fails closed on a corrupt stale manifest with a stable repair error', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-corrupt-');
-        const socketDirectory = process.platform === 'darwin' ? '/private/tmp' : '/tmp';
-        const stale = await acquireHostProfile({ socketDirectory, userDataPath, version: '1.0.0' });
+        const stale = await acquireHostProfile({ userDataPath, version: '1.0.0' });
+        await stale.publish(endpoint);
         await writeFile(stale.paths.manifest, '{not-json}\n', { mode: 0o600 });
         await stale.release();
         await expect(
             acquireHostProfile({
                 processState: () => 'dead',
-                socketDirectory,
                 userDataPath,
                 version: '1.0.0',
             }),

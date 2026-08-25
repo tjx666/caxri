@@ -123,7 +123,7 @@ export const agentInboxMethods = {
         result: agentMessageReceiptSchema,
     },
     /**
-     * A pull consumes only after the Host confirms that its UDS reply was flushed.
+     * A pull consumes only after the Host confirms that its control reply was flushed.
      */
     'agent.message.wait': {
         ...commandPolicy('host', 'read', ['agents.message']),

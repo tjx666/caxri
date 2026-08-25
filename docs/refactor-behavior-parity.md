@@ -67,7 +67,7 @@ The baseline is not allowed to merely memorialize today's incomplete coverage. B
   status, persistence projection, and visible UI state.
 
 Tests must assert product behavior rather than implementation vocabulary. A parity test cannot require a
-generic Host, Runtime, UDS path, process count, source path, or internal message name unless that value is
+generic Host, Runtime, control endpoint, process count, source path, or internal message name unless that value is
 itself a documented public contract.
 
 ## Scenario catalog

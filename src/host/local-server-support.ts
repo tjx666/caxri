@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type { Socket } from 'node:net';
+
+import WebSocket from 'ws';
 
 import type { CommandDispatcherOptions } from '../shared/ipc/dispatcher';
 import type { CaxriError } from '../shared/ipc/errors';
@@ -8,7 +9,7 @@ import type {
     DesktopLease,
     DesktopTargetPayload,
     HostDesktopCredential,
-    HostManifest,
+    HostManifestIdentity,
     LocalClientCommand,
     LocalServerReply,
 } from '../shared/ipc/local-transport';
@@ -196,7 +197,7 @@ export interface ClientState {
     inFlightRequests: number;
     inFlightTerminalRequests: number;
     leaseTimer?: NodeJS.Timeout;
-    socket: Socket;
+    socket: WebSocket;
 }
 
 /**
@@ -206,17 +207,25 @@ export interface ClientState {
 export function closeReplacedDesktop(state: ClientState): void {
     const generation = state.desktopLease?.generation;
     if (!generation) {
-        state.socket.destroy();
+        state.socket.terminate();
         return;
     }
-    state.socket.end(
-        `${JSON.stringify(
+    if (state.socket.readyState !== WebSocket.OPEN) {
+        state.socket.terminate();
+        return;
+    }
+    state.socket.send(
+        JSON.stringify(
             localServerDesktopLeaseRevokedSchema.parse({
                 type: 'desktop-lease.revoked',
                 generation,
                 reason: 'replaced',
             }),
-        )}\n`,
+        ),
+        (error) => {
+            if (error) state.socket.terminate();
+            else state.socket.close(1000);
+        },
     );
 }
 
@@ -258,7 +267,7 @@ export interface LocalHostServerOptions {
      * stay unlogged, matching the Runtime dispatcher.
      */
     logger?: HostRequestLogSink;
-    manifest: HostManifest;
+    identity: HostManifestIdentity;
     onClientCountChanged?(count: number): void;
     onDesktopUnavailable?(): void;
     onReplyFlushed?(
