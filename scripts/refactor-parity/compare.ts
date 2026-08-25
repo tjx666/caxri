@@ -109,7 +109,7 @@ function normalizePath(
     return normalizePath(record[segment], segments, kind, index + 1);
 }
 
-export function normalizeReceipt(receipt: ParityReceipt, rules: NormalizationRules): ParityReceipt {
+function normalizeReceipt(receipt: ParityReceipt, rules: NormalizationRules): ParityReceipt {
     const normalized = cloneJson(receipt);
     for (const rule of rules.rules) {
         const segments = rule.path
