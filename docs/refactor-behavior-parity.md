@@ -231,14 +231,14 @@ bun run refactor:parity verify-baseline \
 bun run refactor:parity compare \
   --baseline .records/refactor-parity/before-d370c789-macos-arm64-v5 \
   --candidate-artifact release.noindex/mac-arm64/Caxri.app \
-  --candidate-source-marker Contents/Resources/app.asar \
   --candidate-receipt <exact-head-receipt.json> \
   --batch <A0|A1|A2a|A2b|A2c|A2d|A2e|A2f|A3a|A3b|A4|A5|A6|A7> \
   --output <exact-head-summary.json>
 ```
 
 The candidate receipt carries the aggregate hash of the supplied candidate artifact and must match the
-clean worktree's exact Git commit and tree; the artifact's packaged source marker must contain that commit.
+clean worktree's exact Git commit and tree. The runner requires the fixed packaged source marker in
+`Contents/Resources/app.asar` to resolve uniquely to that full commit.
 The baseline archived the complete arm64 `Caxri.app`, including Framework symlinks. The manifest hashes
 regular files, modes, symlink targets, catalog, receipt, normalization rules, and allowlist, then runs a
 mandatory bounded startup probe against an executable inside the archived artifact. Re-recording the same
