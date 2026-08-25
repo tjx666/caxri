@@ -248,7 +248,7 @@ describe('createDispatcher', () => {
         expect(dispatch.cancel('before-registration')).toBe(true);
         await expect(
             dispatch({ id: 'before-registration', method: 'app.health', params: {} }),
-        ).resolves.toMatchObject({ ok: false, error: { code: 'CONFLICT' } });
+        ).resolves.toMatchObject({ ok: false, error: { code: 'CANCELLED' } });
         expect(handler).not.toHaveBeenCalled();
 
         const pending = dispatch({ id: 'active-request', method: 'app.health', params: {} });
@@ -258,7 +258,19 @@ describe('createDispatcher', () => {
         await expect(pending).resolves.toMatchObject({
             id: 'active-request',
             ok: false,
-            error: { code: 'CONFLICT' },
+            error: { code: 'CANCELLED' },
         });
+        expect(await logRecords(logger)).toEqual([
+            expect.objectContaining({
+                event: 'ipc.request',
+                correlationId: 'before-registration',
+                fields: { method: 'app.health', code: 'CANCELLED' },
+            }),
+            expect.objectContaining({
+                event: 'ipc.request',
+                correlationId: 'active-request',
+                fields: { method: 'app.health', code: 'CANCELLED' },
+            }),
+        ]);
     });
 });

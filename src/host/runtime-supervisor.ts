@@ -267,7 +267,7 @@ export class HostRuntimeSupervisor extends EventTarget {
         const id = randomUUID();
         return new Promise<unknown>((resolve, reject) => {
             if (signal?.aborted) {
-                reject(new CaxriError('CONFLICT', 'Runtime request was canceled'));
+                reject(new CaxriError('CANCELLED', 'Runtime request was canceled'));
                 return;
             }
             const timer =
@@ -316,7 +316,7 @@ export class HostRuntimeSupervisor extends EventTarget {
      */
     cancelRequest(
         requestId: string,
-        reason = new CaxriError('CONFLICT', 'Runtime request was canceled'),
+        reason = new CaxriError('CANCELLED', 'Runtime request was canceled'),
     ): boolean {
         const pending = this.pending.get(requestId);
         if (!pending) return false;

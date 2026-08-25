@@ -19,7 +19,7 @@ describe('Git request cancellation', () => {
         const joined = sharedGitRequest(load);
         controller.abort();
 
-        await expect(canceled).rejects.toMatchObject({ code: 'CONFLICT' });
+        await expect(canceled).rejects.toMatchObject({ code: 'CANCELLED' });
         expect(producerSignal).toBeUndefined();
         producer.resolve('current');
         await expect(joined).resolves.toBe('current');

@@ -159,13 +159,7 @@ export class DesktopHostConnection extends EventTarget {
                 // instead of a connection that has since been lost.
                 recover: (afterCursor) => {
                     const attached = this.client;
-                    if (!attached)
-                        return Promise.reject(
-                            new CaxriError(
-                                'UNAVAILABLE',
-                                'Desktop is not connected to the Caxri Host',
-                            ),
-                        );
+                    if (!attached) return Promise.reject(this.disconnectedRequestError());
                     return attached.request('events.recover', { afterCursor });
                 },
             });
@@ -394,6 +388,16 @@ export class DesktopHostConnection extends EventTarget {
         }
     }
 
+    private disconnectedRequestError(): CaxriError {
+        /**
+         * Replacement and disposal are terminal Desktop lifecycles: queued Renderer work is abandoned intentionally. A
+         * recoverable socket outage remains UNAVAILABLE so normal reconnect behavior is unchanged.
+         */
+        return this.lifecycle.status === 'replaced' || this.lifecycle.status === 'disposed'
+            ? new CaxriError('CANCELLED', 'Desktop Host connection is no longer active')
+            : new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host');
+    }
+
     processId(): number | undefined {
         return this.runtimePid;
     }
@@ -439,10 +443,7 @@ export class DesktopHostConnection extends EventTarget {
         ...arguments_: RuntimeParametersArgument<M>
     ): Promise<RuntimeMethodResult<M>> {
         const attached = this.client;
-        if (!attached)
-            return Promise.reject(
-                new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host'),
-            );
+        if (!attached) return Promise.reject(this.disconnectedRequestError());
         const client = attached as unknown as UntypedHostClient;
         const [parameters, timeoutMs] = arguments_;
         if (isDesktopRuntimeMethod(method))
@@ -456,20 +457,14 @@ export class DesktopHostConnection extends EventTarget {
 
     forward(method: CaxriMethod, parameters: unknown, requestId: string): Promise<unknown> {
         const attached = this.client;
-        if (!attached)
-            return Promise.reject(
-                new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host'),
-            );
+        if (!attached) return Promise.reject(this.disconnectedRequestError());
         const client = attached as unknown as UntypedHostClient;
         return client.requestWithId(requestId, method, parameters);
     }
 
     markDesktopReady(): Promise<void> {
         const client = this.client;
-        if (!client)
-            return Promise.reject(
-                new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host'),
-            );
+        if (!client) return Promise.reject(this.disconnectedRequestError());
         this.lifecycle = transitionHostConnection(this.lifecycle, { type: 'desktop-ready' });
         return client.markDesktopReady();
     }

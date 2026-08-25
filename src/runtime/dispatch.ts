@@ -71,7 +71,7 @@ export function createDispatcher(
             }
             pruneCancelTombstones(cancelTombstones);
             if (cancelTombstones.delete(envelope.id))
-                throw new CaxriError('CONFLICT', 'Runtime request was canceled before admission');
+                throw new CaxriError('CANCELLED', 'Runtime request was canceled before admission');
             /**
              * `request` is a discriminated union, but a table lookup by a value cannot be correlated with the method
              * literal, so the handler is narrowed once here instead of per method.
@@ -84,7 +84,7 @@ export function createDispatcher(
             ) => Promise<unknown>;
             const result = await handler(request.params, cancellation.signal);
             if (cancellation.signal.aborted)
-                throw new CaxriError('CONFLICT', 'Runtime request was canceled');
+                throw new CaxriError('CANCELLED', 'Runtime request was canceled');
             if (!UNLOGGED_METHODS.has(envelope.method)) {
                 logger.write('debug', logEventCatalog.ipc.request, {
                     correlationId: envelope.id,
@@ -98,25 +98,33 @@ export function createDispatcher(
              * Zod failures become VALIDATION, CaxriError keeps its code, everything else is INTERNAL.
              */
             const normalizedError = cancellation?.signal.aborted
-                ? new CaxriError('CONFLICT', 'Runtime request was canceled')
+                ? new CaxriError('CANCELLED', 'Runtime request was canceled')
                 : error;
             const wire = toWireError(normalizedError);
-            logger.write('error', logEventCatalog.ipc.requestFailed, {
-                correlationId: envelope.id,
-                durationMs: performance.now() - started,
-                fields: {
-                    method: envelope.method,
-                    code: wire.code,
-                    error: wire.message,
-                    /**
-                     * Only unclassified faults justify a stack trace in the Runtime log.
-                     */
-                    stack:
-                        wire.code === 'INTERNAL' && normalizedError instanceof Error
-                            ? (normalizedError.stack ?? null)
-                            : null,
-                },
-            });
+            if (wire.code === 'CANCELLED') {
+                logger.write('debug', logEventCatalog.ipc.request, {
+                    correlationId: envelope.id,
+                    durationMs: performance.now() - started,
+                    fields: { method: envelope.method, code: wire.code },
+                });
+            } else {
+                logger.write('error', logEventCatalog.ipc.requestFailed, {
+                    correlationId: envelope.id,
+                    durationMs: performance.now() - started,
+                    fields: {
+                        method: envelope.method,
+                        code: wire.code,
+                        error: wire.message,
+                        /**
+                         * Only unclassified faults justify a stack trace in the Runtime log.
+                         */
+                        stack:
+                            wire.code === 'INTERNAL' && normalizedError instanceof Error
+                                ? (normalizedError.stack ?? null)
+                                : null,
+                    },
+                });
+            }
             return { id: envelope.id, ok: false, error: wire };
         } finally {
             if (cancellation && active.get(envelope.id) === cancellation)
