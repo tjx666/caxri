@@ -158,4 +158,35 @@ describe('Host Runtime supervisor', () => {
         await failed;
         expect(child.kill).toHaveBeenCalled();
     });
+
+    it('propagates an Extension API cancellation to Runtime and settles the Host waiter', async () => {
+        const child = new FakeChild();
+        const supervisor = new HostRuntimeSupervisor(
+            options(),
+            vi.fn(() => child as never),
+        );
+        const starting = supervisor.start();
+        child.emit('message', {
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 0 },
+        });
+        await starting;
+        child.send.mockClear();
+
+        const controller = new AbortController();
+        const pending = supervisor.requestInWorkbenchContext(
+            'files.list',
+            { sessionId: 'session-1' },
+            { sessionId: 'session-1', workbenchProjectId: 'project-1' },
+            undefined,
+            controller.signal,
+        );
+        await vi.waitFor(() => expect(child.send).toHaveBeenCalledTimes(1));
+        const request = child.send.mock.calls[0][0] as { id: string; method: string };
+        expect(request.method).toBe('files.list');
+
+        controller.abort();
+        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(child.send).toHaveBeenLastCalledWith({ type: 'cancel', id: request.id });
+    });
 });

@@ -2,11 +2,22 @@ import { assertNever } from '../shared/ipc';
 import type { DesktopOperation, DesktopTargetPayload } from '../shared/ipc/local-transport';
 
 export interface DesktopOperationHandlers {
+    confirmFilesTrash(item: {
+        name: string;
+        path: string;
+        hasUnsavedChanges?: boolean;
+    }): Promise<boolean>;
+    confirmGitDiscard(target: {
+        repositoryName: string;
+        scope:
+            { kind: 'all'; fileCount: number } | { kind: 'file'; path: string; untracked: boolean };
+    }): Promise<boolean>;
     focus(): Promise<void>;
     open(target: DesktopTargetPayload): void;
     openInEditor(path: string): Promise<void>;
     reveal(path: string): void;
     status(): 'background' | 'window';
+    trash(path: string): Promise<void>;
 }
 
 /**
@@ -39,6 +50,15 @@ async function handleDesktopOperation(
             await handlers.openInEditor(target.path);
             return null;
         }
+        case 'confirmFilesTrash':
+            return { confirmed: await handlers.confirmFilesTrash(operation.item) };
+        case 'trash': {
+            const target = await consumeTarget();
+            await handlers.trash(target.path);
+            return null;
+        }
+        case 'confirmGitDiscard':
+            return { confirmed: await handlers.confirmGitDiscard(operation.target) };
         default:
             return assertNever(operation, 'Unhandled Desktop operation');
     }

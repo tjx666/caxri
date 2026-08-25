@@ -4,13 +4,14 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
 test('Git Pull Request mode shows committed PR changes instead of the working tree', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-pr-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
+    const nested = join(root, 'nested');
     const bin = join(testDirectory, 'bin');
     await execFileAsync('mkdir', ['-p', root, bin]);
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
@@ -31,6 +32,13 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
         await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: root })
     ).stdout.trim();
     await writeFile(join(root, 'working-only.txt'), 'working tree\n', 'utf8');
+    await execFileAsync('mkdir', ['-p', nested]);
+    await execFileAsync('git', ['init', '-b', 'nested-main'], { cwd: nested });
+    await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: nested });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: nested });
+    await writeFile(join(nested, 'nested.txt'), 'nested\n', 'utf8');
+    await execFileAsync('git', ['add', 'nested.txt'], { cwd: nested });
+    await execFileAsync('git', ['commit', '-m', 'nested initial'], { cwd: nested });
 
     const gh = join(bin, 'gh');
     await writeFile(
@@ -54,6 +62,14 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
         env: { PATH: `${bin}:${process.env.PATH ?? ''}` },
     });
     try {
+        /**
+         * The deterministic gh fixture intentionally reports the root PR for every repository. Runtime rejects the root
+         * OIDs in the unrelated nested repository; that repository-scoped failure must stay in its inline state.
+         */
+        allowE2EErrors([
+            { source: 'main', event: 'ipc.request_failed', code: 'GIT', count: 1 },
+            { source: 'runtime', event: 'ipc.request_failed', code: 'GIT', count: 1 },
+        ]);
         await createProjectSession(running.page);
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const files = running.page.locator('.git-files');
@@ -64,6 +80,10 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
         await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
         await expect(files.locator('.git-row[title="tracked.txt"]')).toBeVisible();
         await expect(files.locator('.git-row[title="working-only.txt"]')).toHaveCount(0);
+        await expect(
+            running.page.getByText('Unable to load pull request changes.', { exact: true }),
+        ).toBeVisible();
+        await expect(running.page.locator('.toast')).toHaveCount(0);
 
         await files.locator('.git-row[title="tracked.txt"]').click();
         await expect(running.page.locator('.git-file-diff .monaco-diff-editor')).toBeVisible();

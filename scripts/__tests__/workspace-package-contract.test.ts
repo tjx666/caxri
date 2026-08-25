@@ -18,7 +18,7 @@ describe('workspace package manifests', () => {
         });
     });
 
-    it.each(['fixture', 'status'])(
+    it.each(['files', 'fixture', 'git', 'status'])(
         'models the %s extension as an isolated workspace package',
         async (name) => {
             const extensionRoot = join(process.cwd(), 'extensions', name);
@@ -59,6 +59,8 @@ describe('workspace package manifests', () => {
         await expect(baseConfig).resolves.toBeUndefined();
         expect(buildScript).not.toContain("from '@caxri/protocol'");
         expect(buildScript).toContain("from '../packages/protocol/src/index.ts'");
+        expect(buildScript).toContain('assertProductExtensionBundleContract');
+        expect(buildScript).toContain('manifest.caxri.testOnly');
     });
 
     it('keeps the production package free of test-only extension resources', async () => {
@@ -70,8 +72,11 @@ describe('workspace package manifests', () => {
 
         const extraResourceSources = manifest.build.extraResources.map(({ from }) => from);
 
-        expect(extraResourceSources).toContain('extensions/status');
-        expect(extraResourceSources).not.toContain('extensions/fixture');
+        expect(extraResourceSources.filter((source) => source.startsWith('extensions/'))).toEqual([
+            'extensions/files',
+            'extensions/git',
+            'extensions/status',
+        ]);
         expect(manifest.scripts['package:e2e']).toBe(
             'bun run build && bun run scripts/package-extension-test-app.ts',
         );

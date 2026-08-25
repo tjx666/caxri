@@ -9,17 +9,23 @@ import { CaxriError, fromWireError, toWireError } from '../shared/ipc/errors';
 import type { RuntimeEvent } from '../shared/ipc/events';
 import type {
     RuntimeMethod,
+    RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
     RuntimeParamsArg as RuntimeParametersArgument,
 } from '../shared/ipc/methods';
 import { isNonExpiringRuntimeMethod } from '../shared/ipc/request-lifetime';
-import type { RuntimeMessage } from '../shared/ipc/transport';
-import { parseRuntimeMessage, parseRuntimeResult } from '../shared/ipc/transport';
+import type { RuntimeMessage, RuntimeWorkbenchContext } from '../shared/ipc/transport';
+import {
+    parseRuntimeMessage,
+    parseRuntimeResult,
+    runtimeCancelRequestSchema,
+} from '../shared/ipc/transport';
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 
 interface PendingRequest {
+    abortCleanup?: () => void;
     method: RuntimeMethod;
     reject(error: CaxriError): void;
     resolve(value: unknown): void;
@@ -143,6 +149,7 @@ export class HostRuntimeSupervisor extends EventTarget {
         const pending = this.pending.get(message.id);
         if (!pending) return;
         if (pending.timer) clearTimeout(pending.timer);
+        pending.abortCleanup?.();
         this.pending.delete(message.id);
         if (!message.ok) {
             pending.reject(fromWireError(message.error));
@@ -194,6 +201,7 @@ export class HostRuntimeSupervisor extends EventTarget {
         this.dispatchEvent(new Event('runtimeExit'));
         for (const pending of this.pending.values()) {
             if (pending.timer) clearTimeout(pending.timer);
+            pending.abortCleanup?.();
             pending.reject(new CaxriError('UNAVAILABLE', `Runtime exited with code ${code}`));
         }
         this.pending.clear();
@@ -250,32 +258,81 @@ export class HostRuntimeSupervisor extends EventTarget {
         method: RuntimeMethod,
         parameters: unknown = {},
         timeoutMs = requestTimeout(method),
+        context?: RuntimeWorkbenchContext,
+        signal?: AbortSignal,
     ): Promise<unknown> {
         await this.start();
         const child = this.child;
         if (!child?.connected) throw new CaxriError('UNAVAILABLE', 'Runtime is unavailable');
         const id = randomUUID();
         return new Promise<unknown>((resolve, reject) => {
+            if (signal?.aborted) {
+                reject(new CaxriError('CANCELLED', 'Runtime request was canceled'));
+                return;
+            }
             const timer =
                 timeoutMs === undefined
                     ? undefined
                     : setTimeout(() => {
-                          this.pending.delete(id);
-                          reject(new CaxriError('TIMEOUT', `Runtime request timed out: ${method}`));
+                          this.cancelRequest(
+                              id,
+                              new CaxriError('TIMEOUT', `Runtime request timed out: ${method}`),
+                          );
                       }, timeoutMs);
-            this.pending.set(id, { method, resolve, reject, timer });
+            let onAbort = (): void => {};
+            const pending: PendingRequest = {
+                method,
+                resolve,
+                reject,
+                timer,
+                abortCleanup: signal
+                    ? () => signal.removeEventListener('abort', onAbort)
+                    : undefined,
+            };
+            onAbort = () => this.cancelRequest(id);
+            if (signal) signal.addEventListener('abort', onAbort, { once: true });
+            this.pending.set(id, pending);
             try {
-                child.send({ id, method, params: parameters }, (error) => {
-                    if (!error || !this.pending.delete(id)) return;
-                    if (timer) clearTimeout(timer);
-                    reject(new CaxriError('UNAVAILABLE', 'Runtime IPC channel is unavailable'));
-                });
+                child.send(
+                    { id, method, params: parameters, ...(context && { context }) },
+                    (error) => {
+                        if (!error || !this.pending.delete(id)) return;
+                        if (timer) clearTimeout(timer);
+                        pending.abortCleanup?.();
+                        reject(new CaxriError('UNAVAILABLE', 'Runtime IPC channel is unavailable'));
+                    },
+                );
             } catch {
                 this.pending.delete(id);
                 if (timer) clearTimeout(timer);
+                pending.abortCleanup?.();
                 reject(new CaxriError('UNAVAILABLE', 'Runtime IPC channel is unavailable'));
             }
         });
+    }
+
+    /**
+     * Sends an out-of-band cancel frame and settles the Host-side waiter immediately.
+     */
+    cancelRequest(
+        requestId: string,
+        reason = new CaxriError('CANCELLED', 'Runtime request was canceled'),
+    ): boolean {
+        const pending = this.pending.get(requestId);
+        if (!pending) return false;
+        this.pending.delete(requestId);
+        if (pending.timer) clearTimeout(pending.timer);
+        pending.abortCleanup?.();
+        const child = this.child;
+        if (child?.connected) {
+            try {
+                child.send(runtimeCancelRequestSchema.parse({ type: 'cancel', id: requestId }));
+            } catch {
+                // The original cancellation still settles locally if the child exits during the frame send.
+            }
+        }
+        pending.reject(reason);
+        return true;
     }
 
     processId(): number | undefined {
@@ -358,6 +415,37 @@ export class HostRuntimeSupervisor extends EventTarget {
     ): Promise<RuntimeMethodResult<M>> {
         const [parameters, timeoutMs] = arguments_;
         return this.send(method, parameters, timeoutMs) as Promise<RuntimeMethodResult<M>>;
+    }
+
+    requestWithSignal<M extends RuntimeMethod>(
+        method: M,
+        parameters: RuntimeMethodParameters<M>,
+        signal: AbortSignal,
+        timeoutMs = requestTimeout(method),
+    ): Promise<RuntimeMethodResult<M>> {
+        return this.send(method, parameters, timeoutMs, undefined, signal) as Promise<
+            RuntimeMethodResult<M>
+        >;
+    }
+
+    /**
+     * Executes a public Extension workspace operation only if the Runtime still has the Host-attested Workbench Root
+     * selected for that Session. The context lives in the trusted Host-to-Runtime envelope, never in extension input.
+     */
+    requestInWorkbenchContext<M extends RuntimeMethod>(
+        method: M,
+        parameters: RuntimeMethodParameters<M>,
+        context: RuntimeWorkbenchContext,
+        timeoutMs?: number,
+        signal?: AbortSignal,
+    ): Promise<RuntimeMethodResult<M>> {
+        return this.send(
+            method,
+            parameters,
+            timeoutMs ?? requestTimeout(method),
+            context,
+            signal,
+        ) as Promise<RuntimeMethodResult<M>>;
     }
 
     forward(method: RuntimeMethod, parameters: unknown, timeoutMs?: number): Promise<unknown> {

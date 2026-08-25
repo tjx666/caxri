@@ -43,6 +43,61 @@ describe('ProjectRootResolver', () => {
         database.close();
     });
 
+    it('classifies a removed alternate Workbench Root as stale request cancellation', async () => {
+        const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-root-removed-'));
+        temporaryDirectories.push(createdDirectory);
+        const directory = await realpath(createdDirectory);
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const session = database.createSession(owner.id, 'shell').session;
+        const identity = await lstat(worktreeRoot, { bigint: true });
+        database.selectWorkbenchProject(session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        await rm(worktreeRoot, { recursive: true });
+
+        await expect(
+            new ProjectRootResolver(database).resolveSessionPath(session.id),
+        ).rejects.toMatchObject({ code: 'CANCELLED' });
+        database.close();
+    });
+
+    it('classifies alternate Workbench Root removal during canonicalization as cancellation', async () => {
+        const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-root-race-'));
+        temporaryDirectories.push(createdDirectory);
+        const directory = await realpath(createdDirectory);
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const session = database.createSession(owner.id, 'shell').session;
+        const identity = await lstat(worktreeRoot, { bigint: true });
+        database.selectWorkbenchProject(session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        const resolver = new ProjectRootResolver(database, {
+            beforeRootRealpath: async () => {
+                await rm(worktreeRoot, { recursive: true });
+            },
+        });
+
+        try {
+            await expect(resolver.resolveSessionPath(session.id)).rejects.toMatchObject({
+                code: 'CANCELLED',
+            });
+        } finally {
+            database.close();
+        }
+    });
+
     it('rejects a Project root replaced between metadata validation and realpath', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-project-root-race-'));
         temporaryDirectories.push(directory);

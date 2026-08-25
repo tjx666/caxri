@@ -25,8 +25,11 @@ describe('extension packaging profiles', () => {
             ? testConfig.extraResources.map(source)
             : [];
 
-        expect(productionSources).toContain('extensions/status');
-        expect(productionSources).not.toContain(testOnlyExtensionResource.from);
+        expect(productionSources.filter((item) => item?.startsWith('extensions/'))).toEqual([
+            'extensions/files',
+            'extensions/git',
+            'extensions/status',
+        ]);
         expect(testSources).toEqual([...productionSources, testOnlyExtensionResource.from]);
         expect(manifest.build.directories?.output).toBe('release.noindex');
         expect(testConfig.directories?.output).toBe('release.noindex/e2e');

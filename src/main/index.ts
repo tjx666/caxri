@@ -17,6 +17,7 @@ import { installProcessErrorMonitor } from '../shared/node/process-error-monitor
 import type { Keybinding, PersistedWindowState } from '../shared/types';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import { resolveDevelopmentDockIconPath } from './app-icon';
+import { discardGitChangesPrompt, trashPrompt } from './confirmations';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import { createDesktopOperationHandler } from './desktop-operations';
@@ -419,7 +420,27 @@ if (ownsProfileInstance) {
             }),
     );
 
+    const handleMainMethod = createMainMethodHandler({
+        getProcessExplorer: () => processExplorer,
+        getUserDataPath: () => runtimeProfile.userDataPath,
+        getSupervisor: () => supervisor,
+        getUpdateService: () => updateService,
+        getWindow: () => mainWindow,
+        workbenchRootAuthority,
+    });
+
     const handleHostDesktopOperation = createDesktopOperationHandler({
+        confirmFilesTrash: async (item) => {
+            const result = await dialog.showMessageBox(mainWindow!, trashPrompt(item));
+            return result.response === 0;
+        },
+        confirmGitDiscard: async (target) => {
+            const result = await dialog.showMessageBox(
+                mainWindow!,
+                discardGitChangesPrompt(target),
+            );
+            return result.response === 0;
+        },
         focus: async () => {
             await focusMainWindow();
         },
@@ -439,15 +460,7 @@ if (ownsProfileInstance) {
         },
         reveal: (path) => shell.showItemInFolder(path),
         status: () => (mainWindow && !mainWindow.isDestroyed() ? 'window' : 'background'),
-    });
-
-    const handleMainMethod = createMainMethodHandler({
-        getProcessExplorer: () => processExplorer,
-        getUserDataPath: () => runtimeProfile.userDataPath,
-        getSupervisor: () => supervisor,
-        getUpdateService: () => updateService,
-        getWindow: () => mainWindow,
-        workbenchRootAuthority,
+        trash: (path) => shell.trashItem(path),
     });
 
     function installIpc(): void {

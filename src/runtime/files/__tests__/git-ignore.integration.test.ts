@@ -57,7 +57,7 @@ describe('Git ignored file decorations', () => {
         await watcher.close();
     });
 
-    it('detects in-root rule file changes from the event stream without a rule poller', async () => {
+    it('detects a working-tree .gitignore from the event stream without pre-registration or a rule poller', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-git-rule-events-'));
         temporaryDirectories.push(root);
         const rulePath = join(root, '.gitignore');
@@ -79,9 +79,8 @@ describe('Git ignored file decorations', () => {
             { watchHub },
         );
         await watcher.watchSession({ sessionId: 'session', workbenchProjectId: 'project' });
-        await watcher.noteGitIgnoreRulePaths('session', [rulePath]);
 
-        // In-root rule files ride the normal watch event stream; no dedicated rule poller may be registered for them.
+        // Working-tree .gitignore files ride the normal watch event stream; no dedicated rule poller may be registered.
         expect(watchHub.snapshot().entries.some((entry) => entry.label === 'files-git-rules')).toBe(
             false,
         );

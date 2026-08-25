@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { CancellationToken, ResourceExplorerProvider } from 'caxri';
 import { EventEmitter, TreeItem, TreeItemCollapsibleState } from 'caxri';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -14,8 +15,11 @@ import {
     extensionApiBinding,
     getTreeChildren,
     notifyActiveContextChanged,
+    notifyFilesChanged,
+    notifyGitChanged,
     notifyProjectStatusChanged,
 } from '../api-factory';
+import { currentViewEventContext, executeViewOperation } from '../view-provider-runtime';
 
 const fixture = { extensionRoot: '' };
 
@@ -29,7 +33,10 @@ afterEach(async () => {
     await rm(fixture.extensionRoot, { force: true, recursive: true });
 });
 
-function registration(generation = 1): ExtensionHostRegistration {
+function registration(
+    generation = 1,
+    viewType: 'resource-explorer' | 'source-control' | 'tree' = 'tree',
+): ExtensionHostRegistration {
     return {
         extensionId: 'publisher.fixture',
         generation,
@@ -58,7 +65,7 @@ function registration(generation = 1): ExtensionHostRegistration {
                 },
                 views: {
                     'publisher.fixture': [
-                        { id: 'publisher.fixture.tree', name: 'Fixture', type: 'tree' },
+                        { id: 'publisher.fixture.tree', name: 'Fixture', type: viewType },
                     ],
                 },
                 commands: [],
@@ -203,8 +210,12 @@ describe('Extension Host API factory', () => {
         configureExtensions([registration()]);
         const binding = extensionApiBinding('fixture-token-1');
         let contextChanges = 0;
+        let fileChanges = 0;
+        let gitChanges = 0;
         let projectStatusChanges = 0;
         binding.api.workspace.onDidChangeActiveContext(() => contextChanges++);
+        binding.api.workspace.onDidChangeFiles(() => fileChanges++);
+        binding.api.workspace.onDidChangeGit(() => gitChanges++);
         binding.api.workspace.onDidChangeProjectStatus(() => projectStatusChanges++);
         let isCancellationObserved = false;
         binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
@@ -230,13 +241,98 @@ describe('Extension Host API factory', () => {
         await expect(pending).resolves.toEqual({ items: [] });
         expect(isCancellationObserved).toBe(true);
 
-        expect(notifyActiveContextChanged()).toEqual({ notified: 1 });
+        expect(notifyActiveContextChanged({ kind: 'no-session' })).toEqual({ notified: 1 });
         expect(contextChanges).toBe(1);
         expect(projectStatusChanges).toBe(0);
 
-        expect(notifyProjectStatusChanged()).toEqual({ notified: 1 });
+        expect(
+            notifyProjectStatusChanged({
+                kind: 'session',
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+            }),
+        ).toEqual({ notified: 1 });
         expect(contextChanges).toBe(1);
         expect(projectStatusChanges).toBe(1);
+        expect(
+            notifyFilesChanged(
+                { kind: 'operation' },
+                { kind: 'session', sessionId: 'session-1', workbenchProjectId: 'project-1' },
+            ),
+        ).toEqual({ notified: 1 });
+        expect(
+            notifyGitChanged({
+                kind: 'session',
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+            }),
+        ).toEqual({ notified: 1 });
+        expect(fileChanges).toBe(1);
+        expect(gitChanges).toBe(1);
+    });
+
+    it('requires the manifest view kind and propagates cancellation to controlled providers', async () => {
+        configureExtensions([registration(1, 'resource-explorer')]);
+        const binding = extensionApiBinding('fixture-token-1');
+        expect(() =>
+            binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
+                getChildren: () => [],
+                getTreeItem: (element: string) => new TreeItem(element),
+            }),
+        ).toThrow('View is not declared');
+
+        let isCancellationObserved = false;
+        const provider = {
+            list: (_directory: string | undefined, token: CancellationToken) =>
+                new Promise<[]>((resolve) => {
+                    token.onCancellationRequested(() => {
+                        isCancellationObserved = true;
+                        resolve([]);
+                    });
+                }),
+        } as unknown as ResourceExplorerProvider;
+        binding.api.views.registerResourceExplorerProvider('publisher.fixture.tree', provider);
+        await activateExtension('publisher.fixture', 1);
+        const pending = executeViewOperation({
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            viewId: 'publisher.fixture.tree',
+            operation: 'files.list',
+            arguments: {},
+            requestId: 'view-cancel-request',
+        });
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(cancelTreeRequest('view-cancel-request')).toEqual({ cancelled: true });
+        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(isCancellationObserved).toBe(true);
+
+        configureExtensions([registration(2, 'resource-explorer')]);
+        await expect(
+            executeViewOperation({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                operation: 'files.list',
+                arguments: {},
+                requestId: 'expired-view-request',
+            }),
+        ).rejects.toMatchObject({ code: 'PROVIDER_MISSING' });
+    });
+
+    it('retains a bounded cancel tombstone when cancellation wins before provider registration', async () => {
+        configureExtensions([registration(1, 'resource-explorer')]);
+
+        expect(cancelTreeRequest('cancel-before-registration')).toEqual({ cancelled: true });
+        await expect(
+            executeViewOperation({
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                viewId: 'publisher.fixture.tree',
+                operation: 'files.list',
+                arguments: {},
+                requestId: 'cancel-before-registration',
+            }),
+        ).rejects.toMatchObject({ code: 'CANCELLED' });
     });
 
     it('rejects providers that exceed the item limit', async () => {
@@ -379,6 +475,30 @@ describe('Extension Host API factory', () => {
         ).resolves.toEqual({
             items: [expect.objectContaining({ label: 'child-of-fresh' })],
         });
+    });
+
+    it('keeps delayed provider refreshes in the active no-session scope', async () => {
+        configureExtensions([registration()]);
+        // eslint-disable-next-line unicorn/prefer-event-target -- Verify the public VS Code-compatible provider event.
+        const changes = new EventEmitter<undefined>();
+        let observedContext: ReturnType<typeof currentViewEventContext>;
+        const binding = extensionApiBinding('fixture-token-1');
+        binding.api.workspace.onDidChangeActiveContext(() => changes.fire(undefined));
+        binding.api.views.registerTreeDataProvider('publisher.fixture.tree', {
+            onDidChangeTreeData: (listener) =>
+                changes.event((element) => {
+                    observedContext = currentViewEventContext();
+                    listener(element);
+                }),
+            getChildren: () => [],
+            getTreeItem: (element: string) => new TreeItem(element),
+        });
+        await activateExtension('publisher.fixture', 1);
+
+        notifyActiveContextChanged({ kind: 'no-session' });
+        await new Promise((resolve) => setTimeout(resolve, 40));
+
+        expect(observedContext).toEqual({ kind: 'no-session' });
     });
 
     it('bounds serialized payloads and generation-scoped tree depth', async () => {

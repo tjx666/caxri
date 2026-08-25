@@ -15,6 +15,33 @@ function findViewCatalogCommand(
     );
 }
 
+export function isCachedViewCatalogCommandAllowedInEditable(commandId: string): boolean {
+    return getCachedViewCatalogCommandAllowedInEditable(commandId) ?? false;
+}
+
+/**
+ * Returns `undefined` only when the manifest catalog is not cached yet. A cached catalog that does not opt a command
+ * into editable focus is an explicit denial and must not trigger an asynchronous dispatch.
+ */
+export function getCachedViewCatalogCommandAllowedInEditable(
+    commandId: string,
+): boolean | undefined {
+    const catalog = queryClient.getQueryData<ViewCatalogSnapshot>(
+        caxriQueryKey('viewContainers.catalog', {}),
+    );
+    if (!catalog) return undefined;
+    return findViewCatalogCommand(catalog, commandId)?.allowInEditable ?? false;
+}
+
+function revealViewContainer(catalog: ViewCatalogSnapshot, containerId: string): void {
+    const container = catalog.containers.find(({ id }) => id === containerId);
+    if (container?.location === 'secondarySidebar') {
+        useChromeLayoutStore.getState().setSecondarySidebarVisible(true);
+        useSessionViewStore.getState().setDesiredSecondarySidebarViewContainerId(container.id);
+    } else if (container?.location === 'panel')
+        useChromeLayoutStore.getState().activatePanelViewContainer(container.id);
+}
+
 /**
  * Routes an extension command from every Renderer entry point. Container show commands stay local so a shortcut and the
  * Command Palette reveal the same surface, while extension-owned commands cross the typed Host boundary once.
@@ -27,15 +54,14 @@ export function didExecuteViewCatalogCommand(
     const command = findViewCatalogCommand(catalog, commandId);
     if (!command) return false;
     const container = catalog?.containers.find((candidate) => candidate.commandId === commandId);
-    if (container?.location === 'secondarySidebar') {
-        useChromeLayoutStore.getState().setSecondarySidebarVisible(true);
-        useSessionViewStore.getState().setDesiredSecondarySidebarViewContainerId(container.id);
+    if (container) {
+        revealViewContainer(catalog!, container.id);
         return true;
     }
-    if (container?.location === 'panel') {
-        useChromeLayoutStore.getState().activatePanelViewContainer(container.id);
-        return true;
-    }
+    const owningView = catalog?.views.find((view) =>
+        view.actions?.some((action) => action.commandId === commandId),
+    );
+    if (owningView) revealViewContainer(catalog!, owningView.containerId);
     // Fire-and-forget: tryCommand() owns the shared error path for Renderer command entry points.
     // eslint-disable-next-line no-void -- the command is dispatched exactly once and reports failures through a toast
     void tryCommand(`Unable to run ${command.title}`, () =>
@@ -64,4 +90,22 @@ export async function executeViewCatalogShortcut(
     if (!catalog) return;
     if (!didExecuteViewCatalogCommand(catalog, commandId, arguments_))
         pushToast('error', `Unknown command: ${commandId}`);
+}
+
+/**
+ * Editable-focus shortcuts need an asynchronous manifest lookup when the catalog cache is cold. The event is consumed
+ * by the caller before this check, and a command is dispatched only after the manifest explicitly grants the policy.
+ */
+export async function executeEditableViewCatalogShortcut(
+    commandId: string,
+    arguments_: readonly unknown[] = [],
+): Promise<void> {
+    const catalog = await tryCommand('Unable to load extension commands', () =>
+        queryClient.fetchQuery({
+            queryKey: caxriQueryKey('viewContainers.catalog', {}),
+            queryFn: () => caxri.request('viewContainers.catalog', {}),
+        }),
+    );
+    if (!catalog || !findViewCatalogCommand(catalog, commandId)?.allowInEditable) return;
+    didExecuteViewCatalogCommand(catalog, commandId, arguments_);
 }

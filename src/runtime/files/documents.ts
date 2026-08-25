@@ -73,8 +73,10 @@ export class DocumentService {
         this.replaceFile = options.replaceFile ?? rename;
     }
 
-    async read(sessionId: string, path: string): Promise<FileDocument> {
+    async read(sessionId: string, path: string, signal?: AbortSignal): Promise<FileDocument> {
+        signal?.throwIfAborted();
         const resolved = await this.resolveSessionPath(sessionId, path);
+        signal?.throwIfAborted();
         const stats = await lstat(resolved.path);
         if (!stats.isFile() || stats.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a file');
@@ -99,7 +101,7 @@ export class DocumentService {
                     'CAPACITY',
                     `File exceeds the ${this.maxFileBytes()} byte safety limit`,
                 );
-            const buffer = await file.readFile();
+            const buffer = await file.readFile(signal ? { signal } : undefined);
             if (buffer.subarray(0, 8_192).includes(0))
                 throw new CaxriError('IO', 'Binary files cannot be opened in the editor');
             return {

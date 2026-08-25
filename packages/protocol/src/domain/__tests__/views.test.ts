@@ -72,6 +72,40 @@ describe('extension view contracts', () => {
         });
         expect(manifest.contributes.viewsContainers.panel).toEqual([]);
 
+        const orderedManifest = extensionManifestSchema.parse({
+            ...manifest,
+            contributes: {
+                ...manifest.contributes,
+                viewsContainers: {
+                    secondarySidebar: [
+                        {
+                            ...manifest.contributes.viewsContainers.secondarySidebar[0],
+                            order: 200,
+                        },
+                    ],
+                },
+            },
+        });
+        expect(orderedManifest.contributes.viewsContainers.secondarySidebar[0].order).toBe(200);
+        for (const order of [-1, 1.5, 10_001])
+            expect(
+                extensionManifestSchema.safeParse({
+                    ...orderedManifest,
+                    contributes: {
+                        ...orderedManifest.contributes,
+                        viewsContainers: {
+                            secondarySidebar: [
+                                {
+                                    ...orderedManifest.contributes.viewsContainers
+                                        .secondarySidebar[0],
+                                    order,
+                                },
+                            ],
+                        },
+                    },
+                }).success,
+            ).toBe(false);
+
         expect(
             extensionManifestSchema.safeParse({
                 ...manifest,
@@ -201,18 +235,82 @@ describe('extension view contracts', () => {
         expect(extensionManifestSchema.safeParse(manifest).success).toBe(false);
     });
 
+    it('requires declared, view-kind-compatible semantic actions', () => {
+        const manifest = {
+            name: 'caxri.fixture',
+            version: '1.0.0',
+            type: 'module',
+            main: './dist/extension.js',
+            engines: { caxri: '^0.0.17' },
+            caxri: { capabilities: ['files.read'] },
+            contributes: {
+                views: {
+                    'caxri.fixture': [
+                        {
+                            id: 'caxri.fixture.files',
+                            name: 'Files',
+                            type: 'resource-explorer',
+                            actions: [
+                                {
+                                    command: 'caxri.fixture.refresh',
+                                    role: 'resource.refresh',
+                                },
+                            ],
+                        },
+                    ],
+                },
+                commands: [
+                    {
+                        command: 'caxri.fixture.refresh',
+                        title: 'Refresh',
+                        allowInEditable: true,
+                    },
+                ],
+            },
+        };
+
+        expect(extensionManifestSchema.safeParse(manifest).success).toBe(true);
+        expect(
+            extensionManifestSchema.safeParse({
+                ...manifest,
+                contributes: { ...manifest.contributes, commands: [] },
+            }).success,
+        ).toBe(false);
+        expect(
+            extensionManifestSchema.safeParse({
+                ...manifest,
+                contributes: {
+                    ...manifest.contributes,
+                    views: {
+                        'caxri.fixture': [
+                            {
+                                ...manifest.contributes.views['caxri.fixture'][0],
+                                actions: [
+                                    {
+                                        command: 'caxri.fixture.refresh',
+                                        role: 'source.refresh',
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                },
+            }).success,
+        ).toBe(false);
+    });
+
     it('validates one unified builtin and extension catalog shape', () => {
         expect(
             viewCatalogSnapshotSchema.parse({
                 revision: 1,
                 containers: [
                     {
-                        id: 'caxri.files',
-                        location: 'secondarySidebar',
+                        id: 'caxri.logs',
+                        location: 'panel',
                         source: { kind: 'builtin' },
-                        title: 'Files',
-                        icon: { kind: 'builtin', id: 'files' },
-                        commandId: 'secondarySidebar.showFiles',
+                        title: 'Logs',
+                        icon: { kind: 'builtin', id: 'scroll-text' },
+                        commandId: 'panel.showLogs',
                         lifecycle: 'builtin',
                     },
                     {

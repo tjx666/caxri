@@ -12,7 +12,7 @@ import { getSelectedSession, getSessionState, selectSelectedSession } from '../.
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { useFileOperationStore } from '../secondary-sidebar/panels/files/file-operation-state';
+import { useFileOperationStore } from '../view-containers/resource-explorer/file-operation-state';
 import { ExternalSyncDeferral } from './external-sync-deferral';
 
 /**

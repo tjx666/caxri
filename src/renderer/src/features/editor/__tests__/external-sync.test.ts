@@ -26,7 +26,7 @@ vi.mock('../../../lib/caxri', () => ({ caxri: mocks }));
 import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
 import { useToastStore } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { useFileOperationStore } from '../../secondary-sidebar/panels/files/file-operation-state';
+import { useFileOperationStore } from '../../view-containers/resource-explorer/file-operation-state';
 import { subscribeExternalDocumentSync } from '../external-sync';
 
 const oldPath = '/project/old.ts';

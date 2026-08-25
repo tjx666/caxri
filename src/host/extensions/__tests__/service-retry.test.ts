@@ -113,6 +113,7 @@ function service(): ExtensionService {
         activeContext: () => Promise.resolve({}),
         projectIds: () => Promise.resolve([]),
         projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+        workspaceRequest: () => Promise.resolve(null),
     });
 }
 

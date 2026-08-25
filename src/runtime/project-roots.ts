@@ -49,30 +49,45 @@ export class ProjectRootResolver {
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         const binding = this.database.getSessionWorkbenchBinding(sessionId);
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
-        const rootStats = await lstat(session.rootPath, { bigint: true });
-        if (rootStats.isSymbolicLink() || !rootStats.isDirectory())
-            throw new CaxriError('PATH_DENIED', 'Project root changed after it was selected');
-        if (
-            binding.workbenchProjectId !== binding.projectId &&
-            (binding.rootDevice === undefined ||
-                binding.rootInode === undefined ||
-                rootStats.dev.toString() !== binding.rootDevice ||
-                rootStats.ino.toString() !== binding.rootInode)
-        )
-            throw new CaxriError('PATH_DENIED', 'Workbench root changed after authorization');
-        await this.options.beforeRootRealpath?.();
-        const root = await realpath(session.rootPath);
-        await this.options.afterRootRealpath?.();
-        const currentRootStats = await lstat(session.rootPath, { bigint: true });
-        if (
-            currentRootStats.isSymbolicLink() ||
-            !currentRootStats.isDirectory() ||
-            currentRootStats.dev !== rootStats.dev ||
-            currentRootStats.ino !== rootStats.ino
-        )
-            throw new CaxriError('PATH_DENIED', 'Project root changed during authorization');
-        if ((await realpath(session.rootPath)) !== root)
-            throw new CaxriError('PATH_DENIED', 'Project root changed during authorization');
+        let root: string;
+        try {
+            const rootStats = await lstat(session.rootPath, { bigint: true });
+            if (rootStats.isSymbolicLink() || !rootStats.isDirectory())
+                throw new CaxriError('PATH_DENIED', 'Project root changed after it was selected');
+            if (
+                binding.workbenchProjectId !== binding.projectId &&
+                (binding.rootDevice === undefined ||
+                    binding.rootInode === undefined ||
+                    rootStats.dev.toString() !== binding.rootDevice ||
+                    rootStats.ino.toString() !== binding.rootInode)
+            )
+                throw new CaxriError('PATH_DENIED', 'Workbench root changed after authorization');
+            await this.options.beforeRootRealpath?.();
+            root = await realpath(session.rootPath);
+            await this.options.afterRootRealpath?.();
+            const currentRootStats = await lstat(session.rootPath, { bigint: true });
+            if (
+                currentRootStats.isSymbolicLink() ||
+                !currentRootStats.isDirectory() ||
+                currentRootStats.dev !== rootStats.dev ||
+                currentRootStats.ino !== rootStats.ino
+            )
+                throw new CaxriError('PATH_DENIED', 'Project root changed during authorization');
+            if ((await realpath(session.rootPath)) !== root)
+                throw new CaxriError('PATH_DENIED', 'Project root changed during authorization');
+        } catch (error) {
+            /**
+             * A linked Workbench Root can disappear anywhere in the canonicalization sequence before Git topology
+             * invalidation falls the Session back to its owner. Reads admitted against that generation are stale
+             * control flow, not filesystem faults; owner-root failures retain their existing error classification.
+             */
+            if (
+                (error as NodeJS.ErrnoException).code === 'ENOENT' &&
+                binding.workbenchProjectId !== binding.projectId
+            )
+                throw new CaxriError('CANCELLED', 'Workbench root is no longer available');
+            throw error;
+        }
         const candidate = input && isAbsolute(input) ? input : resolve(root, input ?? '.');
         const resolved = await realpath(candidate);
         assertInsideRoot(relative(root, resolved), 'Symlink target is outside the Project root');

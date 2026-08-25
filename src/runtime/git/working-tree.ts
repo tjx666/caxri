@@ -1,6 +1,14 @@
+import { randomUUID } from 'node:crypto';
+import { isAbsolute, relative, resolve } from 'node:path';
+
 import { CaxriError } from '../../shared/ipc/errors';
-import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
+import type {
+    RuntimeMethodParams as RuntimeMethodParameters,
+    RuntimeMethodResult,
+} from '../../shared/ipc/methods';
 import type { GitFileStatus, GitRepositorySummary as GitRepoSummary } from '../../shared/types';
+import { isOutsideRoot } from '../path-security';
+import type { GitDiscardSnapshot } from './repo';
 
 /**
  * Network-bound Git operations (pull/push) can legitimately take far longer than local metadata commands; this bound
@@ -13,6 +21,17 @@ interface WorkingTreeCommandOptions {
     timeoutMs?: number;
 }
 
+type DiscardPreflightParameters = RuntimeMethodParameters<'git.discard.preflight'>;
+type DiscardPreflightResult = RuntimeMethodResult<'git.discard.preflight'>;
+type DiscardReady = Extract<DiscardPreflightResult, { status: 'ready' }>;
+
+interface PendingDiscardConsent extends Omit<DiscardReady, 'token'> {
+    expiresAt: number;
+    fingerprint: string;
+    repositoryId: string;
+    sessionId: string;
+}
+
 export interface GitWorkingTreeServiceOptions {
     git: (
         cwd: string,
@@ -20,7 +39,14 @@ export interface GitWorkingTreeServiceOptions {
         options?: WorkingTreeCommandOptions,
     ) => Promise<string>;
     resolveRepository: (sessionId: string, repoId: string) => Promise<GitRepoSummary>;
+    snapshot: (sessionId: string, repoId: string) => Promise<GitDiscardSnapshot>;
+    now?: () => number;
+    maximumConsents?: number;
+    consentTtlMs?: number;
 }
+
+const DEFAULT_CONSENT_TTL_MS = 60_000;
+const DEFAULT_MAXIMUM_CONSENTS = 128;
 
 /**
  * Working-tree mutations behind the Git panel's Sync and Discard actions. Every discarded path is re-derived from the
@@ -28,7 +54,16 @@ export interface GitWorkingTreeServiceOptions {
  * ever reaches a Git argv.
  */
 export class GitWorkingTreeService {
-    constructor(private readonly options: GitWorkingTreeServiceOptions) {}
+    private readonly consents = new Map<string, PendingDiscardConsent>();
+    private readonly consentTtlMs: number;
+    private readonly maximumConsents: number;
+    private readonly now: () => number;
+
+    constructor(private readonly options: GitWorkingTreeServiceOptions) {
+        this.consentTtlMs = options.consentTtlMs ?? DEFAULT_CONSENT_TTL_MS;
+        this.maximumConsents = options.maximumConsents ?? DEFAULT_MAXIMUM_CONSENTS;
+        this.now = options.now ?? Date.now;
+    }
 
     private async discardAll(repo: GitRepoSummary): Promise<void> {
         if (repo.head) {
@@ -74,6 +109,133 @@ export class GitWorkingTreeService {
         }
     }
 
+    private pruneConsents(): void {
+        const now = this.now();
+        for (const [token, consent] of this.consents)
+            if (consent.expiresAt <= now) this.consents.delete(token);
+    }
+
+    private issueConsent(
+        snapshot: GitDiscardSnapshot,
+        sessionId: string,
+        repoId: string,
+        scope: DiscardReady['scope'],
+    ): DiscardReady {
+        this.pruneConsents();
+        if (this.consents.size >= this.maximumConsents)
+            throw new CaxriError('CAPACITY', 'Too many Git discard confirmations are pending');
+        const token = randomUUID();
+        this.consents.set(token, {
+            expiresAt: this.now() + this.consentTtlMs,
+            fingerprint: snapshot.fingerprint,
+            repositoryId: repoId,
+            repositoryName: snapshot.repository.name,
+            scope,
+            sessionId,
+            status: 'ready',
+        });
+        return {
+            status: 'ready',
+            token,
+            repositoryName: snapshot.repository.name,
+            scope,
+        };
+    }
+
+    private async snapshotForApply(token: string): Promise<{
+        consent: PendingDiscardConsent;
+        snapshot: GitDiscardSnapshot;
+    }> {
+        this.pruneConsents();
+        const consent = this.consents.get(token);
+        if (!consent)
+            throw new CaxriError('CONFLICT', 'Git discard confirmation is missing or expired');
+        // Consume before any await so concurrent or replayed apply calls can never both mutate the repository.
+        this.consents.delete(token);
+        if (consent.expiresAt <= this.now())
+            throw new CaxriError('CONFLICT', 'Git discard confirmation is missing or expired');
+        const snapshot = await this.options.snapshot(consent.sessionId, consent.repositoryId);
+        if (snapshot.fingerprint !== consent.fingerprint)
+            throw new CaxriError(
+                'CONFLICT',
+                'Git working-tree changes changed after confirmation; refresh before discarding',
+            );
+        return { consent, snapshot };
+    }
+
+    /**
+     * Produces the only confirmation projection that may reach Desktop Main. Renderer-provided display fields are
+     * deliberately absent from this request; Runtime derives repository name, count, path, and tracked semantics from
+     * the complete authorized status stream.
+     */
+    async discardPreflight(
+        parameters: DiscardPreflightParameters,
+    ): Promise<DiscardPreflightResult> {
+        const snapshot = await this.options.snapshot(parameters.sessionId, parameters.repositoryId);
+        if (snapshot.files.length > 100_000)
+            throw new CaxriError('CAPACITY', 'Git working-tree changes exceed the discard limit');
+        if (parameters.scope.kind === 'all') {
+            if (snapshot.files.length === 0) return { status: 'noop' };
+            return this.issueConsent(snapshot, parameters.sessionId, parameters.repositoryId, {
+                kind: 'all',
+                fileCount: snapshot.files.length,
+            });
+        }
+        const requestedPath = parameters.scope.path;
+        const candidate = snapshot.files.find(
+            (file) => file.path === requestedPath || file.originalPath === requestedPath,
+        );
+        if (!candidate) {
+            if (
+                !isAbsolute(requestedPath) &&
+                !isOutsideRoot(
+                    relative(
+                        snapshot.repository.rootPath,
+                        resolve(snapshot.repository.rootPath, requestedPath),
+                    ),
+                )
+            )
+                return { status: 'noop' };
+            throw new CaxriError('PATH_DENIED', 'Git path is outside the authorized repository');
+        }
+        if (
+            !snapshot.authorizedPaths.includes(candidate.path) &&
+            (!candidate.originalPath || !snapshot.authorizedPaths.includes(candidate.originalPath))
+        )
+            throw new CaxriError('PATH_DENIED', 'Git path is outside the authorized repository');
+        return this.issueConsent(snapshot, parameters.sessionId, parameters.repositoryId, {
+            kind: 'file',
+            path: candidate.path,
+            untracked: candidate.kind === 'untracked',
+        });
+    }
+
+    /**
+     * Consumes a preflight token and re-reads the full status fingerprint immediately before any destructive Git argv.
+     * A stale, replayed, or status-kind-mismatched token fails closed without running a mutation.
+     */
+    async discardApply(parameters: RuntimeMethodParameters<'git.discard.apply'>): Promise<null> {
+        const { consent, snapshot } = await this.snapshotForApply(parameters.token);
+        if (consent.scope.kind === 'all') {
+            if (snapshot.files.length !== consent.scope.fileCount)
+                throw new CaxriError(
+                    'CONFLICT',
+                    'Git working-tree count changed after confirmation',
+                );
+            await this.discardAll(snapshot.repository);
+            return null;
+        }
+        const fileScope = consent.scope;
+        const file = snapshot.files.find(
+            (candidate) =>
+                candidate.path === fileScope.path || candidate.originalPath === fileScope.path,
+        );
+        if (!file || (file.kind === 'untracked') !== fileScope.untracked)
+            throw new CaxriError('CONFLICT', 'Git file status changed after confirmation');
+        await this.discardFile(snapshot.repository, file);
+        return null;
+    }
+
     /**
      * VS Code-style Sync Changes: integrate the upstream first, then publish local commits.
      */
@@ -84,26 +246,6 @@ export class GitWorkingTreeService {
         );
         await this.options.git(repo.rootPath, ['pull'], { timeoutMs: SYNC_TIMEOUT_MS });
         await this.options.git(repo.rootPath, ['push'], { timeoutMs: SYNC_TIMEOUT_MS });
-        return null;
-    }
-
-    async discard(parameters: RuntimeMethodParameters<'git.discard'>): Promise<null> {
-        const repo = await this.options.resolveRepository(
-            parameters.sessionId,
-            parameters.repositoryId,
-        );
-        if (parameters.scope.kind === 'all') {
-            await this.discardAll(repo);
-            return null;
-        }
-        const path = parameters.scope.path;
-        const file = repo.files.find(
-            (candidate) => candidate.path === path || candidate.originalPath === path,
-        );
-        // The change may have been committed or reverted since the snapshot the user acted on;
-        // treat that as already discarded rather than failing the idempotent retry.
-        if (!file) return null;
-        await this.discardFile(repo, file);
         return null;
     }
 }

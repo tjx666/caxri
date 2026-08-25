@@ -13,11 +13,14 @@ const target: DesktopTargetPayload = {
 
 function handlers() {
     return {
+        confirmFilesTrash: vi.fn(() => Promise.resolve(true)),
+        confirmGitDiscard: vi.fn(() => Promise.resolve(true)),
         focus: vi.fn(() => Promise.resolve()),
         open: vi.fn(),
         openInEditor: vi.fn(() => Promise.resolve()),
         reveal: vi.fn(),
         status: vi.fn(() => 'background' as const),
+        trash: vi.fn(() => Promise.resolve()),
     };
 }
 
@@ -88,6 +91,48 @@ describe('createDesktopOperationHandler', () => {
         expect(injected.open).not.toHaveBeenCalled();
     });
 
+    it('returns the bounded Files confirmation without consuming a target', async () => {
+        const injected = handlers();
+        const consumeTarget = vi.fn(() => Promise.resolve(target));
+        const handle = createDesktopOperationHandler(injected);
+        const item = { name: 'file.ts', path: '/project/file.ts' };
+
+        await expect(handle({ kind: 'confirmFilesTrash', item }, consumeTarget)).resolves.toEqual({
+            confirmed: true,
+        });
+        expect(injected.confirmFilesTrash).toHaveBeenCalledWith(item);
+        expect(consumeTarget).not.toHaveBeenCalled();
+    });
+
+    it('trashes only the consumed one-use target', async () => {
+        const injected = handlers();
+        const trashTarget = { ...target, operation: 'trash' as const };
+        const consumeTarget = vi.fn(() => Promise.resolve(trashTarget));
+        const handle = createDesktopOperationHandler(injected);
+
+        await expect(
+            handle({ kind: 'trash', targetId: trashTarget.targetId }, consumeTarget),
+        ).resolves.toBeNull();
+        expect(consumeTarget).toHaveBeenCalledOnce();
+        expect(injected.trash).toHaveBeenCalledWith(trashTarget.path);
+    });
+
+    it('returns the bounded Git confirmation without consuming a target', async () => {
+        const injected = handlers();
+        const consumeTarget = vi.fn(() => Promise.resolve(target));
+        const handle = createDesktopOperationHandler(injected);
+        const target_ = {
+            repositoryName: 'project',
+            scope: { kind: 'all' as const, fileCount: 2 },
+        };
+
+        await expect(
+            handle({ kind: 'confirmGitDiscard', target: target_ }, consumeTarget),
+        ).resolves.toEqual({ confirmed: true });
+        expect(injected.confirmGitDiscard).toHaveBeenCalledWith(target_);
+        expect(consumeTarget).not.toHaveBeenCalled();
+    });
+
     it('propagates a target-consumption failure without invoking the reveal handler', async () => {
         const injected = handlers();
         const consumeTarget = vi.fn(() => Promise.reject(new Error('target expired')));
@@ -112,5 +157,6 @@ describe('createDesktopOperationHandler', () => {
         expect(injected.focus).not.toHaveBeenCalled();
         expect(injected.reveal).not.toHaveBeenCalled();
         expect(injected.open).not.toHaveBeenCalled();
+        expect(injected.trash).not.toHaveBeenCalled();
     });
 });

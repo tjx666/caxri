@@ -49,7 +49,11 @@ const authorized = {
     root: { path: '/project', device: '1', inode: '1' },
 } as const;
 
-function runtime(request?: (method: string) => Promise<unknown>) {
+type RuntimeRequestStub =
+    | ((method: string) => Promise<unknown>)
+    | ((method: string, parameters: unknown) => Promise<unknown>);
+
+function runtime(request?: RuntimeRequestStub) {
     const implementation =
         request ??
         vi.fn((method: string) => {
@@ -57,7 +61,14 @@ function runtime(request?: (method: string) => Promise<unknown>) {
             if (method === 'files.authorizeOpen') return Promise.resolve(authorized);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-    return { request: implementation } as unknown as Pick<HostRuntimeSupervisor, 'request'>;
+    return {
+        request: implementation,
+        requestInWorkbenchContext: implementation,
+        requestWithSignal: implementation,
+    } as unknown as Pick<
+        HostRuntimeSupervisor,
+        'request' | 'requestInWorkbenchContext' | 'requestWithSignal'
+    >;
 }
 
 describe('Host Desktop router', () => {
@@ -138,6 +149,374 @@ describe('Host Desktop router', () => {
         await expect(router.consumeTarget(operation.targetId, 4)).rejects.toMatchObject({
             code: 'NOT_FOUND',
         });
+    });
+
+    it('binds Extension native-operation preflights to the attested Workbench Root', async () => {
+        const context = {
+            sessionId: session.id,
+            workbenchProjectId: 'workbench-project-1',
+        };
+        const request = vi.fn((method: string) => {
+            if (method === 'app.bootstrap') return Promise.resolve(bootstrap);
+            return Promise.reject(new Error(`Unexpected unscoped method: ${method}`));
+        });
+        const requestInWorkbenchContext = vi.fn((method: string) => {
+            if (method === 'files.authorizeOpen' || method === 'files.authorizeTrash')
+                return Promise.resolve(authorized);
+            if (method === 'git.discard.preflight')
+                return Promise.resolve({
+                    status: 'ready' as const,
+                    token: 'scoped-token',
+                    repositoryName: 'canonical-repository',
+                    scope: { kind: 'all' as const, fileCount: 1 },
+                });
+            if (method === 'git.discard.apply') return Promise.resolve(null);
+            return Promise.reject(new Error(`Unexpected scoped method: ${method}`));
+        });
+        const invoke = vi.fn((operation: DesktopOperation) =>
+            Promise.resolve(
+                operation.kind === 'confirmFilesTrash' || operation.kind === 'confirmGitDiscard'
+                    ? { confirmed: true }
+                    : null,
+            ),
+        );
+        const router = new HostDesktopRouter({
+            bridge: {
+                invoke,
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 5,
+                    expiresAt: Date.now() + 1_000,
+                }),
+            },
+            runtime: {
+                request,
+                requestInWorkbenchContext,
+                requestWithSignal: vi.fn(),
+            } as unknown as Pick<
+                HostRuntimeSupervisor,
+                'request' | 'requestInWorkbenchContext' | 'requestWithSignal'
+            >,
+        });
+
+        await router.open(
+            'reveal',
+            undefined,
+            { launchIfNeeded: false, path: 'file.ts', sessionId: session.id },
+            undefined,
+            context,
+        );
+        await router.trash({ path: 'file.ts', sessionId: session.id }, undefined, context);
+        await router.discard(
+            {
+                repositoryId: 'repo-1',
+                repositoryName: 'ignored-extension-name',
+                scope: { kind: 'all', fileCount: 999 },
+                sessionId: session.id,
+            },
+            undefined,
+            context,
+        );
+
+        expect(requestInWorkbenchContext).toHaveBeenNthCalledWith(
+            1,
+            'files.authorizeOpen',
+            { path: 'file.ts', sessionId: session.id },
+            context,
+            undefined,
+            undefined,
+        );
+        expect(requestInWorkbenchContext).toHaveBeenNthCalledWith(
+            2,
+            'files.authorizeTrash',
+            { path: 'file.ts', sessionId: session.id },
+            context,
+            undefined,
+            undefined,
+        );
+        expect(requestInWorkbenchContext).toHaveBeenNthCalledWith(
+            3,
+            'git.discard.preflight',
+            {
+                repositoryId: 'repo-1',
+                scope: { kind: 'all' },
+                sessionId: session.id,
+            },
+            context,
+            undefined,
+            undefined,
+        );
+        expect(requestInWorkbenchContext).toHaveBeenNthCalledWith(
+            4,
+            'git.discard.apply',
+            { token: 'scoped-token' },
+            context,
+        );
+        expect(request.mock.calls.map(([method]) => method)).toEqual(['app.bootstrap']);
+    });
+
+    it('reauthorizes a Trash target through Runtime immediately before Desktop consumes it', async () => {
+        const request = vi.fn((method: string) => {
+            if (method === 'files.authorizeTrash') return Promise.resolve(authorized);
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const routerReference: { current?: HostDesktopRouter } = {};
+        const invoke = vi.fn(async (operation: DesktopOperation) => {
+            if (operation.kind === 'confirmFilesTrash') return { confirmed: true };
+            if (operation.kind === 'trash') {
+                await expect(
+                    routerReference.current?.consumeTarget(operation.targetId, 5),
+                ).resolves.toMatchObject({ operation: 'trash', path: authorized.path });
+                return null;
+            }
+            throw new Error(`Unexpected Desktop operation: ${operation.kind}`);
+        });
+        const router = new HostDesktopRouter({
+            bridge: {
+                invoke,
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 5,
+                    expiresAt: Date.now() + 1_000,
+                }),
+            },
+            runtime: runtime(request),
+        });
+        routerReference.current = router;
+
+        await expect(
+            router.trash({ sessionId: session.id, path: authorized.path }),
+        ).resolves.toEqual({ kind: 'file', name: 'file.ts', path: authorized.path });
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(invoke.mock.calls.map(([operation]) => operation.kind)).toEqual([
+            'confirmFilesTrash',
+            'trash',
+        ]);
+    });
+
+    it('does not create a Trash target when the user cancels confirmation', async () => {
+        const request = vi.fn((method: string) => {
+            if (method === 'files.authorizeTrash') return Promise.resolve(authorized);
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const invoke = vi.fn(() => Promise.resolve({ confirmed: false }));
+        const router = new HostDesktopRouter({
+            bridge: {
+                invoke,
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 6,
+                    expiresAt: Date.now() + 1_000,
+                }),
+            },
+            runtime: runtime(request),
+        });
+
+        await expect(
+            router.trash({ sessionId: session.id, path: authorized.path }),
+        ).resolves.toEqual({ canceled: true });
+        expect(request).toHaveBeenCalledOnce();
+        expect(invoke).toHaveBeenCalledOnce();
+    });
+
+    it('confirms Runtime-canonical Git discard details and applies only its one-use token', async () => {
+        const parameters = {
+            repositoryId: 'repo-1',
+            repositoryName: 'Project',
+            scope: { kind: 'all' as const, fileCount: 2 },
+            sessionId: session.id,
+        };
+        const preflight = {
+            status: 'ready' as const,
+            token: 'discard-token',
+            repositoryName: 'canonical-repository',
+            scope: { kind: 'file' as const, path: 'current.txt', untracked: true },
+        };
+        const request = vi.fn((method: string, received: unknown) => {
+            if (method === 'git.discard.preflight')
+                return Promise.resolve({
+                    ...preflight,
+                });
+            if (
+                method === 'git.discard.apply' &&
+                received !== undefined &&
+                typeof received === 'object' &&
+                received !== null &&
+                'token' in received &&
+                received.token === preflight.token
+            )
+                return Promise.resolve(null);
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const invoke = vi.fn(() => Promise.resolve({ confirmed: true }));
+        const router = new HostDesktopRouter({
+            bridge: {
+                invoke,
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 7,
+                    expiresAt: Date.now() + 1_000,
+                }),
+            },
+            runtime: runtime(request),
+        });
+
+        await expect(router.discard(parameters)).resolves.toBeNull();
+        expect(invoke).toHaveBeenCalledWith(
+            {
+                kind: 'confirmGitDiscard',
+                target: { repositoryName: preflight.repositoryName, scope: preflight.scope },
+            },
+            7,
+        );
+        expect(request).toHaveBeenNthCalledWith(1, 'git.discard.preflight', {
+            repositoryId: parameters.repositoryId,
+            scope: { kind: 'all' },
+            sessionId: parameters.sessionId,
+        });
+        expect(request).toHaveBeenNthCalledWith(2, 'git.discard.apply', {
+            token: preflight.token,
+        });
+    });
+
+    it('never prompts or mutates when Runtime says the requested path is already clean', async () => {
+        const parameters = {
+            repositoryId: 'repo-1',
+            repositoryName: 'spoofed-name',
+            scope: { kind: 'file' as const, path: 'stale.txt', untracked: true },
+            sessionId: session.id,
+        };
+        const request = vi.fn((method: string) => {
+            if (method === 'git.discard.preflight')
+                return Promise.resolve({ status: 'noop' as const });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const invoke = vi.fn(() => Promise.resolve({ confirmed: true }));
+        const router = new HostDesktopRouter({
+            bridge: {
+                invoke,
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 8,
+                    expiresAt: Date.now() + 1_000,
+                }),
+            },
+            runtime: runtime(request),
+        });
+
+        await expect(router.discard(parameters)).resolves.toBeNull();
+        expect(invoke).not.toHaveBeenCalled();
+        expect(request).toHaveBeenCalledOnce();
+    });
+
+    it('does not apply a Runtime consent token after the Desktop confirmation is canceled', async () => {
+        const parameters = {
+            repositoryId: 'repo-1',
+            repositoryName: 'spoofed-name',
+            scope: { kind: 'all' as const, fileCount: 999 },
+            sessionId: session.id,
+        };
+        const request = vi.fn((method: string) => {
+            if (method === 'git.discard.preflight')
+                return Promise.resolve({
+                    status: 'ready' as const,
+                    token: 'unused-token',
+                    repositoryName: 'canonical-repository',
+                    scope: { kind: 'all' as const, fileCount: 2 },
+                });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const invoke = vi.fn(() => Promise.resolve({ confirmed: false }));
+        const router = new HostDesktopRouter({
+            bridge: {
+                invoke,
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 9,
+                    expiresAt: Date.now() + 1_000,
+                }),
+            },
+            runtime: runtime(request),
+        });
+
+        await expect(router.discard(parameters)).resolves.toEqual({ canceled: true });
+        expect(request).toHaveBeenCalledOnce();
+        expect(invoke).toHaveBeenCalledOnce();
+    });
+
+    it('does not apply a discard consent after the Extension request is cancelled', async () => {
+        const confirmation = Promise.withResolvers<{ confirmed: boolean }>();
+        const request = vi.fn((method: string) => {
+            if (method === 'git.discard.preflight')
+                return Promise.resolve({
+                    status: 'ready' as const,
+                    token: 'cancelled-token',
+                    repositoryName: 'canonical-repository',
+                    scope: { kind: 'all' as const, fileCount: 2 },
+                });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const invoke = vi.fn(() => confirmation.promise);
+        const router = new HostDesktopRouter({
+            bridge: {
+                invoke,
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 10,
+                    expiresAt: Date.now() + 1_000,
+                }),
+            },
+            runtime: runtime(request),
+        });
+        const controller = new AbortController();
+        const discarded = router.discard(
+            {
+                repositoryId: 'repo-1',
+                repositoryName: 'ignored-extension-name',
+                scope: { kind: 'all', fileCount: 999 },
+                sessionId: session.id,
+            },
+            controller.signal,
+        );
+        await vi.waitFor(() => expect(invoke).toHaveBeenCalledOnce());
+
+        controller.abort();
+        confirmation.resolve({ confirmed: true });
+
+        await expect(discarded).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(request).toHaveBeenCalledOnce();
+    });
+
+    it('does not issue a Trash target after the Extension request is cancelled', async () => {
+        const confirmation = Promise.withResolvers<{ confirmed: boolean }>();
+        const request = vi.fn((method: string) => {
+            if (method === 'files.authorizeTrash') return Promise.resolve(authorized);
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const invoke = vi.fn(() => confirmation.promise);
+        const router = new HostDesktopRouter({
+            bridge: {
+                invoke,
+                lease: () => ({
+                    desktopId: 'desktop-1',
+                    generation: 11,
+                    expiresAt: Date.now() + 1_000,
+                }),
+            },
+            runtime: runtime(request),
+        });
+        const controller = new AbortController();
+        const trashed = router.trash(
+            { path: authorized.path, sessionId: session.id },
+            controller.signal,
+        );
+        await vi.waitFor(() => expect(invoke).toHaveBeenCalledOnce());
+
+        controller.abort();
+        confirmation.resolve({ confirmed: true });
+
+        await expect(trashed).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(invoke).toHaveBeenCalledOnce();
     });
 
     it('rejects paths outside every Project without routing a Desktop command', async () => {

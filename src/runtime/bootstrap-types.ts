@@ -1,4 +1,5 @@
 import type { RuntimeEvent } from '../shared/ipc/events';
+import type { RuntimeWorkbenchContext } from '../shared/ipc/transport';
 import type { StructuredLogger } from '../shared/node/logger';
 import type { AgentProvider } from '../shared/types';
 import type { RuntimeAgentEndpointLifecycle } from './agent-endpoints';
@@ -31,4 +32,5 @@ export interface Runtime {
      * Releases every owned resource: schedulers, PTYs, watchers, and the database.
      */
     close(): Promise<void>;
+    validateRequestContext(context: RuntimeWorkbenchContext): void;
 }

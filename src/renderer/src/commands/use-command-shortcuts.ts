@@ -2,7 +2,11 @@ import { useEffect } from 'react';
 
 import type { CommandId, Keybinding } from '@shared/types';
 
-import { executeViewCatalogShortcut } from '../features/view-containers/view-container-commands';
+import {
+    executeEditableViewCatalogShortcut,
+    executeViewCatalogShortcut,
+    getCachedViewCatalogCommandAllowedInEditable,
+} from '../features/view-containers/view-container-commands';
 import {
     buildShortcutMap,
     isEditableEventTarget,
@@ -71,7 +75,24 @@ export function useCommandShortcuts(): void {
             /**
              * The terminal and the editor are editable surfaces too; only opted-in commands reach through.
              */
-            if (isEditableEventTarget(event.target) && !definition?.allowInEditable) return;
+            const isEditable = isEditableEventTarget(event.target);
+            if (isEditable && !definition) {
+                const cachedPermission = getCachedViewCatalogCommandAllowedInEditable(commandId);
+                if (cachedPermission !== true) {
+                    if (cachedPermission === undefined) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        // Fire-and-forget: the manifest lookup is the fail-safe gate for a cold extension catalog.
+                        // eslint-disable-next-line no-void -- one keydown owns one asynchronous policy lookup
+                        void executeEditableViewCatalogShortcut(
+                            commandId,
+                            binding.args ? [binding.args] : [],
+                        );
+                    }
+                    return;
+                }
+            }
+            if (isEditable && definition && !definition.allowInEditable) return;
             event.preventDefault();
             event.stopPropagation();
             if (useDialogStore.getState().isModalOpen()) return;
