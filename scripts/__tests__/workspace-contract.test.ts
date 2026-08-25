@@ -287,17 +287,17 @@ const requiredProtocol = require('../../packages/protocol/src/index');
         expect(violations).toEqual([]);
     });
 
-    it('keeps root production dependencies limited to native Desktop modules', () => {
+    it('keeps root production dependencies limited to packaged Desktop runtime modules', () => {
         /**
-         * Electron-builder copies the entire production dependency tree into the asar, so every pure-JS dependency
-         * (workspace links included) must live in devDependencies and be bundled by electron-vite instead. See
-         * docs/bundle-size.md.
+         * Electron-builder copies the production dependency tree into the asar. Native modules must remain external,
+         * while `ws` is intentionally externalized by electron-vite for both Main and the standalone Host entry.
+         * Workspace links and all other pure-JS dependencies stay bundled. See docs/bundle-size.md.
          */
         expect(
             Object.keys(rootManifest.dependencies ?? {}).toSorted((left, right) =>
                 left.localeCompare(right),
             ),
-        ).toEqual(['@parcel/watcher', 'better-sqlite3', 'node-pty']);
+        ).toEqual(['@parcel/watcher', 'better-sqlite3', 'node-pty', 'ws']);
     });
 
     it('keeps generated workspace distributions outside source linting', async () => {
