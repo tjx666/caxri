@@ -8,25 +8,10 @@ import { isExtensionViewChangeCompatible } from '../view-events';
 describe('extension controlled view events', () => {
     it('keeps actions inside their declared generic view kind', () => {
         expect(
-            isExtensionViewChangeCompatible(
-                { kind: 'resource-explorer' },
-                { kind: 'create', itemKind: 'file' },
-            ),
+            isExtensionViewChangeCompatible({ kind: 'source-control' }, { kind: 'content' }),
         ).toBe(true);
         expect(
-            isExtensionViewChangeCompatible(
-                { kind: 'resource-explorer' },
-                { kind: 'mode', mode: 'commit' },
-            ),
-        ).toBe(false);
-        expect(
-            isExtensionViewChangeCompatible(
-                { kind: 'source-control' },
-                { kind: 'mode', mode: 'pull-request' },
-            ),
-        ).toBe(true);
-        expect(
-            isExtensionViewChangeCompatible({ kind: 'source-control' }, { kind: 'search' }),
+            isExtensionViewChangeCompatible({ kind: 'resource-explorer' }, { kind: 'refresh' }),
         ).toBe(false);
         expect(isExtensionViewChangeCompatible({ kind: 'tree' }, { kind: 'content' })).toBe(false);
     });

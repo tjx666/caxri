@@ -14,7 +14,6 @@ import {
     extensionApiBinding,
     getTreeChildren,
     notifyActiveContextChanged,
-    notifyFilesChanged,
     notifyGitChanged,
     notifyProjectStatusChanged,
     settleApiReply,
@@ -59,8 +58,6 @@ async function handle(request: ExtensionHostRequest): Promise<unknown> {
             return executeViewOperation(request.params);
         case 'activeContextChanged':
             return notifyActiveContextChanged(request.params.context);
-        case 'filesChanged':
-            return notifyFilesChanged(request.params.change, request.params.context);
         case 'gitChanged':
             return notifyGitChanged(request.params.context);
         case 'projectStatusChanged':

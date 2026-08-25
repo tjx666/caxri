@@ -3,30 +3,30 @@ import { describe, expect, it } from 'vitest';
 
 import { availableResourceExplorerViewId } from '../resource-explorer-catalog-client';
 
-function catalog(lifecycle: 'crashed' | 'discovered' | 'error'): ViewCatalogSnapshot {
+function catalog(source: 'core' | 'extension'): ViewCatalogSnapshot {
     return {
         revision: 1,
         containers: [],
         commands: [],
-        extensions: [
-            {
-                id: 'publisher.files',
-                version: '1.0.0',
-                generation: 1,
-                lifecycle,
-                ...(lifecycle === 'crashed' && {
-                    error: {
-                        code: 'EXTENSION_HOST_UNAVAILABLE' as const,
-                        message: 'Extension Host is restarting',
-                    },
-                }),
-            },
-        ],
+        extensions:
+            source === 'extension'
+                ? [
+                      {
+                          id: 'publisher.files',
+                          version: '1.0.0',
+                          generation: 1,
+                          lifecycle: 'active',
+                      },
+                  ]
+                : [],
         views: [
             {
                 id: 'publisher.files.explorer',
                 containerId: 'publisher.files',
-                source: { kind: 'extension', extensionId: 'publisher.files' },
+                source:
+                    source === 'core'
+                        ? { kind: 'core' }
+                        : { kind: 'extension', extensionId: 'publisher.files' },
                 title: 'Files',
                 viewKind: { kind: 'resource-explorer' },
             },
@@ -35,15 +35,12 @@ function catalog(lifecycle: 'crashed' | 'discovered' | 'error'): ViewCatalogSnap
 }
 
 describe('availableResourceExplorerViewId', () => {
-    it('waits while the provider is absent or its Extension Host is unavailable', () => {
-        expect(availableResourceExplorerViewId({ extensions: [], views: [] })).toBeUndefined();
-        expect(availableResourceExplorerViewId(catalog('crashed'))).toBeUndefined();
-        expect(availableResourceExplorerViewId(catalog('error'))).toBeUndefined();
+    it('selects the generic Core Resource Explorer without a product id lookup', () => {
+        expect(availableResourceExplorerViewId(catalog('core'))).toBe('publisher.files.explorer');
     });
 
-    it('selects a manifest-contributed provider as soon as its lifecycle is available', () => {
-        expect(availableResourceExplorerViewId(catalog('discovered'))).toBe(
-            'publisher.files.explorer',
-        );
+    it('never treats an extension-owned Resource Explorer as Files Core', () => {
+        expect(availableResourceExplorerViewId(catalog('extension'))).toBeUndefined();
+        expect(availableResourceExplorerViewId({ extensions: [], views: [] })).toBeUndefined();
     });
 });

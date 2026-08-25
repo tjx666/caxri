@@ -12,7 +12,6 @@ import { queryClient } from '../../../../queries/client';
 import { useSessionViewStore } from '../../../../stores/session-view';
 import { dismissToast, useToastStore } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
-import type { ResourceExplorerClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import { didTrashFile, duplicateFile, moveFile, pasteFile, renameFile } from '../file-actions';
 import { useFileClipboardStore } from '../file-clipboard';
@@ -25,6 +24,7 @@ import {
     reconcileFileMutation,
 } from '../file-operation-reconciliation';
 import { useFileOperationStore } from '../file-operation-state';
+import type { ResourceExplorerClient } from '../resource-explorer-client';
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
     const { promise, resolve } = Promise.withResolvers<T>();

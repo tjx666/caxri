@@ -1,12 +1,19 @@
 import { createContext, useContext } from 'react';
 
-import type { ExtensionViewActionRole, ViewActionDescriptor } from '@shared/views';
+import type {
+    ControlledViewPresentation,
+    ExtensionViewActionRole,
+    ViewActionDescriptor,
+} from '@shared/views';
 
-import type { ResourceExplorerClient, SourceControlClient } from './view-operation-client';
+import type { ResourceExplorerClient } from './resource-explorer/resource-explorer-client';
+import type { SourceControlClient } from './view-operation-client';
 
 export interface ControlledViewContextValue {
     actions: readonly ViewActionDescriptor[];
-    extensionGeneration: number;
+    configurationDependencies: readonly string[];
+    providerGeneration: number;
+    presentation?: ControlledViewPresentation;
     resourceExplorer?: ResourceExplorerClient;
     sourceControl?: SourceControlClient;
     viewId: string;

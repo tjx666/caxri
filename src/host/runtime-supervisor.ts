@@ -448,8 +448,13 @@ export class HostRuntimeSupervisor extends EventTarget {
         ) as Promise<RuntimeMethodResult<M>>;
     }
 
-    forward(method: RuntimeMethod, parameters: unknown, timeoutMs?: number): Promise<unknown> {
-        return this.send(method, parameters, timeoutMs);
+    forward(
+        method: RuntimeMethod,
+        parameters: unknown,
+        timeoutMs?: number,
+        signal?: AbortSignal,
+    ): Promise<unknown> {
+        return this.send(method, parameters, timeoutMs, undefined, signal);
     }
 
     async shutdown(): Promise<void> {

@@ -298,12 +298,6 @@ importers:
         specifier: 5.0.14
         version: 5.0.14(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
 
-  extensions/files:
-    devDependencies:
-      caxri:
-        specifier: workspace:*
-        version: link:../../packages/api
-
   extensions/fixture:
     devDependencies:
       caxri:
@@ -311,6 +305,10 @@ importers:
         version: link:../../packages/api
 
   extensions/git:
+    dependencies:
+      '@caxri/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       caxri:
         specifier: workspace:*

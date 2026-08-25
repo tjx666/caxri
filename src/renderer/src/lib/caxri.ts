@@ -13,5 +13,10 @@ export const caxri = createCaxriClient({
     negotiate: () => globalThis.caxri.negotiate(),
     request: <M extends CaxriMethod>(method: M, ...arguments_: ParamsArg<M>) =>
         globalThis.caxri.request(method, ...arguments_),
+    requestWithId: <M extends CaxriMethod>(
+        requestId: string,
+        method: M,
+        ...arguments_: ParamsArg<M>
+    ) => globalThis.caxri.requestWithId(requestId, method, ...arguments_),
     onEvent: (listener) => globalThis.caxri.onEvent(listener),
 });

@@ -6,7 +6,7 @@ import type {
 } from '@shared/views';
 
 function isResolvable(container: ViewContainerDescriptor): boolean {
-    return ['builtin', 'discovered', 'activating', 'active'].includes(container.lifecycle);
+    return ['builtin', 'core', 'discovered', 'activating', 'active'].includes(container.lifecycle);
 }
 
 /**

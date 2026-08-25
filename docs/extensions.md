@@ -17,9 +17,10 @@ containers as crashed. Host, Runtime, and PTYs remain alive. The supervisor rest
 reconfigures it from Host-owned descriptors. Old API bindings, providers, commands, refresh timers,
 handles, pending API calls, and late tree results cannot cross the generation boundary.
 
-This is a process-ownership and capability boundary, not an untrusted-code sandbox. Trusted Node
-extensions can use ordinary filesystem, network, and child-process APIs. Caxri still rejects
-extension-owned `electron` imports and never grants the `desktop` principal bypass.
+This is a process-ownership and capability boundary, not a complete untrusted-code sandbox. Bundled
+product extensions are nevertheless built as browser-like ESM: their emitted bundles cannot retain
+Node, Electron, shell, Desktop-internal, or native Git imports. Native work is available only through
+the reviewed public API and Host grants; the `desktop` principal bypass is never granted.
 
 ## Public API package
 
@@ -49,8 +50,8 @@ An extension package must declare `type: "module"`, a `.js` or `.mjs` entry, a c
   "version": "1.0.0",
   "type": "module",
   "main": "./dist/extension.js",
-  "engines": { "caxri": "^0.0.17" },
-  "caxri": { "capabilities": ["files.read"] },
+  "engines": { "caxri": "^0.0.18" },
+  "caxri": { "capabilities": ["projects.read"] },
   "contributes": {
     "viewsContainers": {
       "secondarySidebar": [
@@ -67,13 +68,7 @@ An extension package must declare `type: "module"`, a `.js` or `.mjs` entry, a c
         {
           "id": "publisher.extension.overview",
           "name": "Overview",
-          "type": "resource-explorer",
-          "actions": [
-            {
-              "command": "publisher.extension.refresh",
-              "role": "resource.refresh"
-            }
-          ]
+          "type": "tree"
         }
       ]
     },
@@ -95,13 +90,15 @@ and duplicate IDs before running extension code. One malformed package is surfac
 catalog error without hiding healthy siblings. The first discovery root is authoritative, so an
 installed extension cannot replace a bundled identity.
 
-Controlled views declare bounded semantic actions in their view manifest. Resource Explorer roles
-cover create-file, create-folder, search, collapse, and refresh; Source Control roles cover Working
-Tree, Last Commit, Pull Request, and refresh. Every action references a declared command and must
-match its view kind. The Renderer renders only the allowlisted role and dispatches the manifest
-command; it never recognizes a product extension ID or accepts extension-supplied React. An action
-command reveals its owning ViewContainer before activation. `allowInEditable` is an explicit
-per-command manifest policy used by both DOM shortcuts and native-menu accelerators.
+Workbench Core controlled views may declare bounded semantic toolbar roles; Files uses the generic
+Resource Explorer roles for create-file, create-folder, search, collapse, and refresh. Extension
+Source Control modes and actions instead arrive in the provider's validated declarative model, with
+opaque revision-bound action IDs and declared command bindings. The Renderer renders those generic
+descriptors without recognizing the provider ID, product modes, or command vocabulary, and it never
+accepts extension-supplied React. `allowInEditable` is an explicit per-command manifest policy used
+by both DOM shortcuts and native-menu accelerators.
+Commands that require provider-supplied context arguments set `palette: false`; they remain valid
+declarative action bindings without exposing an argument-less command that cannot succeed.
 
 Rejected packages receive a stable catalog-safe synthetic identity and an isolated error container.
 Retry re-runs discovery, so repairing the manifest or entry on disk replaces that error container
@@ -111,14 +108,19 @@ Manifest capabilities are declarations, not grants. The Host records actual capa
 scope per extension. Bundled extensions receive their reviewed grants; installed extensions
 currently receive none. Every API call validates the opaque identity, current generation,
 capability, and Runtime-authoritative active Session/Project scope before returning projected data.
+Configuration reads additionally require `settings.read` and are limited to keys listed by the
+extension view's `configurationDependencies`; declaring the broad capability alone cannot read an
+unlisted setting.
 
 ## Unified catalog and selection
 
-Builtin Logs and Info and extension contributions share one Host catalog. Files, Git, and Status are
-extension-sourced lifecycle entries; Files and Git cannot be registered as `builtin-react`.
-Descriptors use `builtin-react` only for the remaining reviewed native components, `tree` for
-TreeDataProvider data, `resource-explorer` for filesystem views, and `source-control` for Git views.
-The Renderer dispatches only these declared kinds; extension code cannot inject a component.
+Builtin Logs and Info, Workbench Core contributions, and extension contributions share one Host
+catalog. Files is a typed `core` contribution outside discovery and Extension Host lifecycle; Git
+and Status are extension-sourced lifecycle entries. Files and Git cannot be registered as
+`builtin-react`. Descriptors use `builtin-react` only for the remaining reviewed native components,
+`tree` for TreeDataProvider data, `resource-explorer` for the Core filesystem view, and
+`source-control` for extension-owned source control. The Renderer dispatches only these declared
+kinds; extension code cannot inject a component.
 
 The Command Palette and app-level keybindings resolve extension commands through this same Host
 catalog. A shortcut reloads a missing, stale, or invalidated catalog before dispatch, executes the
@@ -134,43 +136,53 @@ explicit user selection updates desired state.
 
 ## Controlled Resource Explorer and Source Control RPC
 
-`registerResourceExplorerProvider` and `registerSourceControlProvider` are public, declarative view
-contracts. Providers expose only typed list/search/mutation or Git summary/sync/discard/history
-operations and typed change events. Calls carry an opaque request ID and cancellation token. A
-Renderer abort sends one cancellation for that request; an already-aborted signal starts no
-provider work. Every controlled operation also carries the Renderer's expected Session and Workbench
-Root. Host verifies that scope before activation, the Extension Host propagates it through the public
-workspace call, and Host verifies it again before Runtime authority. A stale scope is a typed
-`CANCELLED` non-fault, so an old view can neither read from nor submit a path against the newly active
-Project. Extension Host provider retirement, Host generation changes, and late results still fail
-closed at their owning generation fence.
+The Core Resource Explorer calls the public typed `files.*` table directly with the selected Session
+as a scope selector. Caller-owned request identity plus `requests.cancel` propagates an AbortSignal to
+Runtime without exposing arbitrary IPC. Runtime resolves and revalidates the Session's authorized
+Workbench Project root immediately before filesystem execution; Finder reveal and Trash remain
+bounded Desktop operations. Directory enumeration streams at most 4,096 candidates before applying
+the smaller sorted 1,024-entry and serialized-byte page limits, so a large directory cannot inflate
+Runtime memory before IPC bounds apply. Files never enters extension activation, generation,
+capability, or provider lifecycle.
 
-The public `workspace.fs` and `workspace.git` APIs are the only Caxri authority used by the Files and
-Git product extensions. The extension cannot submit a Session ID, Project path, repository path, or
-shell command. Host injects the active Session and Workbench Root after validating the extension
-identity, generation, provider-attested view scope, declared read/write capability, and owner/root grants. Runtime revalidates
-that binding immediately before the domain handler captures its authorized root. Read results are
-rejected if the active context changes while they are running; a durable write that already started
-returns its authoritative result and remains recoverable under the original Workbench Root instead
-of being reported as failed after it changed the filesystem. Runtime remains authoritative for
-canonical Project-root path containment and approved Git repository identity. Finder reveal, Trash
-confirmation, and Git discard cross a small typed desktop-method bridge; there is no arbitrary
-desktop method, filesystem path, argv, or shell escape hatch.
+`registerSourceControlProvider` is the public declarative extension view contract. Snapshot,
+history, details, and action calls carry an opaque request ID, cancellation token, provider revision,
+and Host-owned Session/Workbench Project context. The Extension Host scopes `workspace.git` calls to
+that context, Host rechecks the grant, and Runtime remains the final authorization boundary. Explicit
+cancellation is a typed `CANCELLED` non-fault; superseded provider or Host generations fail with
+`GENERATION_EXPIRED`. Extensions cannot submit a Session ID, repository path, shell command, or
+native API request. Runtime owns Git execution, repository discovery, approved-repository identity,
+and the bounded Desktop bridge used by discard confirmation. A discard request carries only an
+opaque repository ID and either an all-changes intent or a relative file path; Runtime derives the
+repository name, changed-file count, and tracked/untracked semantics from its authorized status
+snapshot before Desktop renders the confirmation.
 
-Files change events distinguish ordinary content invalidation from durable operation progress
-without exposing paths to unrelated extensions. The provider emits a bounded operation change, and
-the generic Resource Explorer surface reloads active-Project operation records through the provider.
+Runtime `files.changed` and `files.operationChanged` events directly invalidate Core Resource
+Explorer reads and operation recovery without an Extension Host echo or path exposure to extensions.
 Completed create/rename/move records are applied to all same-Project Session editor state before
 acknowledgement. Operation IDs coalesce repeated actions, staged cancellation never pretends a
 filesystem mutation rolled back, and unacknowledged records are recovered after Renderer or Runtime
 restart. Different-Project operation records are neither returned nor controllable.
 
-Git provider results carry opaque repository IDs selected by Runtime. Refresh, Sync, Discard All,
-single-file discard/delete, pull-request changes, commit paging/details, and remote-host lookup all
-return through the same typed, cancellable and generation-checked path. Files watcher changes and Git
-invalidation enter the public workspace event namespace, then become provider-scoped Renderer
-events; Session/Project changes invalidate the active provider context rather than retaining a stale
-root or repository grant.
+Git provider results carry opaque repository IDs selected by Runtime. The Git extension turns raw
+summary, pull-request, commit, history, and remote-host results into the complete Source Control view
+model: modes, repository/group/resource descriptors, copy, counts, disclosure, icons, actions, and
+command bindings. Refresh, Sync, Discard All, single-file discard/delete, diff opening, history, and
+submodule navigation execute through revision-bound action capabilities. Renderer understands only
+generic snapshot/history/details/action operations and generic effects such as open-editor, focus,
+toast, and refresh. Resource identity remains stable and bounded independently from full Git paths.
+Git also bounds path-derived labels, tooltips, accessibility text, and tree paths to the controlled
+surface contract. An encoded diff URI that exceeds the generic open-editor limit is omitted instead
+of invalidating the whole snapshot; destructive action arguments retain the full Runtime-authorized
+path.
+The global background-detail limiter starts every waiter in its originating Workbench scope before it
+waits for a slot, preserving Extension Host AsyncLocalStorage authorization while maintaining FIFO
+fairness. Git invalidation and Session/Project changes enter the extension event namespace, where the
+provider advances its revision and retires stale state rather than retaining an old root or repository
+grant. Once an authorized Sync or Discard crosses its mutation boundary, a concurrent invalidation
+cannot turn its authoritative completion into a retryable stale-generation error. Cancellation still
+propagates to Host, but non-expiring mutations keep their API request pending until Host distinguishes
+pre-boundary `CANCELLED` from an authoritative post-boundary completion.
 
 ## Tree RPC
 
@@ -201,7 +213,7 @@ contracts.
 
 ## Bundled extensions and packaging
 
-`extensions/files`, `extensions/git`, and `extensions/status` are product extensions. Their emitted
+`extensions/git` and `extensions/status` are product extensions. Their emitted
 bundles may retain only the external public `caxri` import; a fail-closed build contract rejects
 Node/Electron builtins, Desktop internals, workspace packages, third-party imports, and dynamic
 `import`/`require` escape hatches. `extensions/fixture` is test-only and supplies deterministic lazy,
@@ -210,7 +222,7 @@ extension is an independent pnpm workspace package with a package-local TypeScri
 development-only `caxri: workspace:*` dependency.
 
 `bun run build:extensions` orchestrates package-local ESM builds with `caxri` externalized. The
-production `electron-builder` profile copies exactly Files, Git, and Status manifests, bundles,
+production `electron-builder` profile copies exactly Git and Status manifests, bundles,
 icons, and media assets to `Contents/Resources/extensions`; it does not carry Fixture or extension source maps.
 `package:e2e` writes a separate test artifact that adds Fixture explicitly. Runtime `testOnly`
 filtering remains defense in depth, not the release-artifact boundary. Packaged Host discovery uses

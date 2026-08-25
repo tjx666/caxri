@@ -294,7 +294,8 @@ describe('Runtime composition root', () => {
             expect(created.terminal!.lastProcessState).toBe('running');
 
             const entries = await handlers['files.list']({ sessionId: created.session.id });
-            expect(entries.map((entry) => entry.name)).toContain('README.md');
+            expect(entries.entries.map((entry) => entry.name)).toContain('README.md');
+            expect(entries.truncated).toBe(false);
             const document = await handlers['files.read']({
                 sessionId: created.session.id,
                 path: join(project.rootPath, 'README.md'),

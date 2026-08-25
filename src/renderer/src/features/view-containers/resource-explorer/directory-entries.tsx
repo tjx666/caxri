@@ -148,20 +148,16 @@ export function DirectoryEntries({
     setSelectedPath,
 }: TreeProperties) {
     const client = useResourceExplorerClient();
-    const {
-        data: entries = [],
-        isError,
-        isPending,
-        error,
-    } = useQuery({
+    const { data, isError, isPending, error } = useQuery({
         queryKey: controlledViewQueryKey(
             client.viewId,
             'files.list',
             { directory },
             `${sessionId}:${projectId}`,
         ),
-        queryFn: ({ signal }) => client.list(directory, signal),
+        queryFn: ({ signal }) => client.listDirectory(directory, signal),
     });
+    const entries = data?.entries ?? [];
     useToastOnQueryError(isError, error, 'Unable to read directory');
     const isComposingHere = editing?.kind === 'create' && editing.directory === directory;
     const isShowEmptyState = !isPending && !isError && entries.length === 0 && !isComposingHere;
@@ -226,6 +222,16 @@ export function DirectoryEntries({
                     style={{ paddingLeft: 23 + depth * 12 }}
                 >
                     Empty folder
+                </div>
+            )}
+            {data?.truncated && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    className="px-2 py-1 text-[11px] text-muted italic"
+                    style={{ paddingLeft: 23 + depth * 12 }}
+                >
+                    Showing the first {entries.length.toLocaleString()} items
                 </div>
             )}
         </div>

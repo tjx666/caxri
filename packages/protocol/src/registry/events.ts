@@ -12,7 +12,6 @@ import {
     agentHookHealthMapSchema,
     agentProviderSchema,
     fileChangeSchema,
-    fileMutationOperationSchema,
     identifierSchema,
     pathSchema,
     runtimeStatusSchema,
@@ -135,7 +134,15 @@ export const runtimeEventPayloads = {
         overflow: z.boolean(),
         gitIgnoreRulesChanged: z.literal(true).optional(),
     }),
-    'files.operationChanged': fileMutationOperationSchema,
+    /**
+     * Mutation invalidation deliberately omits paths and mutation input. A Renderer resolves the opaque id through the
+     * Session-scoped operation API, so another selected Project never receives a foreign journal record.
+     */
+    'files.operationChanged': z.object({
+        operationId: identifierSchema,
+        sessionId: identifierSchema,
+        workbenchProjectId: identifierSchema.optional(),
+    }),
     /**
      * Repository-identity invalidation signal: every Session whose Git projection includes one of the listed
      * repositories must refetch. Payload carries opaque repository ids only — never a `.git` path or repository

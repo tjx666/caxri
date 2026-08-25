@@ -281,7 +281,10 @@ export function ViewContainerSurface({
                                     content = (
                                         <ControlledViewProvider
                                             actions={view.actions}
-                                            extensionGeneration={
+                                            configurationDependencies={
+                                                view.configurationDependencies
+                                            }
+                                            providerGeneration={
                                                 catalog.extensions.find(
                                                     ({ id }) =>
                                                         view.source.kind === 'extension' &&
@@ -289,6 +292,7 @@ export function ViewContainerSurface({
                                                 )?.generation ?? 0
                                             }
                                             kind={view.viewKind.kind}
+                                            presentation={view.presentation}
                                             viewId={view.id}
                                         >
                                             {view.viewKind.kind === 'resource-explorer' ? (

@@ -64,7 +64,7 @@ async function extension(id: string, containerId: string, icon?: unknown, order?
 }
 
 describe('buildViewCatalog', () => {
-    it('does not register Files or Git through the builtin catalog', async () => {
+    it('registers Files as a typed Workbench Core contribution without builtin-react dispatch', async () => {
         const catalog = await buildViewCatalog({
             extensions: [],
             rejected: [],
@@ -72,8 +72,17 @@ describe('buildViewCatalog', () => {
             revision: 1,
         });
 
-        expect(catalog.containers.map(({ id }) => id)).not.toContain('caxri.files');
+        expect(catalog.containers.find(({ id }) => id === 'caxri.files')).toMatchObject({
+            lifecycle: 'core',
+            source: { kind: 'core' },
+            title: 'Files',
+        });
         expect(catalog.containers.map(({ id }) => id)).not.toContain('caxri.git');
+        expect(catalog.views.find(({ id }) => id === 'caxri.files.explorer')).toMatchObject({
+            source: { kind: 'core' },
+            viewKind: { kind: 'resource-explorer' },
+        });
+        expect(catalog.extensions.map(({ id }) => id)).not.toContain('caxri.files');
         expect(
             catalog.views.flatMap(({ viewKind }) =>
                 viewKind.kind === 'builtin-react' ? [viewKind.component] : [],
@@ -81,9 +90,9 @@ describe('buildViewCatalog', () => {
         ).not.toEqual(expect.arrayContaining(['files', 'git']));
     });
 
-    it('catalogs Files and Git only as lifecycle-bearing product extensions', async () => {
+    it('catalogs Git and Status as lifecycle-bearing product extensions while Files remains Core', async () => {
         const products = await Promise.all(
-            ['files', 'git'].map(async (name) => {
+            ['git', 'status'].map(async (name) => {
                 const rootPath = join(process.cwd(), 'extensions', name);
                 const source = await readFile(join(rootPath, 'package.json'), 'utf8');
                 const manifest = extensionManifestSchema.parse(JSON.parse(source));
@@ -123,12 +132,19 @@ describe('buildViewCatalog', () => {
             });
         }
         expect(catalog.views.find(({ id }) => id === 'caxri.files.explorer')).toMatchObject({
-            source: { kind: 'extension', extensionId: 'caxri.files' },
+            source: { kind: 'core' },
             viewKind: { kind: 'resource-explorer' },
         });
+        expect(catalog.extensions.map(({ id }) => id)).not.toContain('caxri.files');
         expect(catalog.views.find(({ id }) => id === 'caxri.git.sourceControl')).toMatchObject({
             source: { kind: 'extension', extensionId: 'caxri.git' },
             viewKind: { kind: 'source-control' },
+        });
+        expect(
+            catalog.views.find(({ id }) => id === 'caxri.project-status.overview'),
+        ).toMatchObject({
+            source: { kind: 'extension', extensionId: 'caxri.project-status' },
+            viewKind: { kind: 'tree' },
         });
     });
 
@@ -149,7 +165,13 @@ describe('buildViewCatalog', () => {
             catalog.containers
                 .filter(({ location }) => location === 'secondarySidebar')
                 .map(({ id }) => id),
-        ).toEqual(['publisher.files', 'publisher.git', 'publisher.fixture', 'publisher.status']);
+        ).toEqual([
+            'caxri.files',
+            'publisher.files',
+            'publisher.git',
+            'publisher.fixture',
+            'publisher.status',
+        ]);
     });
 
     it('uses one descriptor shape for remaining builtin-react and extension tree views', async () => {
@@ -257,7 +279,7 @@ describe('buildViewCatalog', () => {
                     source.kind === 'extension' && source.extensionId === 'publisher.fixture',
             ),
         ).toMatchObject({ lifecycle: 'error', error: { code: 'MANIFEST_INVALID' } });
-        expect(catalog.containers.some(({ id }) => id === 'caxri.files')).toBe(false);
+        expect(catalog.containers.some(({ id }) => id === 'caxri.files')).toBe(true);
     });
 
     it('rejects only the extension that would exceed shared catalog capacity', async () => {
@@ -300,6 +322,6 @@ describe('buildViewCatalog', () => {
                 error: { code: 'MANIFEST_INVALID', message: 'package.json is invalid' },
             }),
         );
-        expect(catalog.containers.some(({ id }) => id === 'caxri.files')).toBe(false);
+        expect(catalog.containers.some(({ id }) => id === 'caxri.files')).toBe(true);
     });
 });

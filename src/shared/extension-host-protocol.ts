@@ -13,18 +13,6 @@ export type ExtensionProjectStatusSummary = Omit<ProjectStatusSummary, 'reposito
 export const MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH = 200;
 
 export const extensionWorkspaceOperations = [
-    'files.list',
-    'files.search',
-    'files.create',
-    'files.copy',
-    'files.rename',
-    'files.move',
-    'files.operation.get',
-    'files.operation.list',
-    'files.operation.cancel',
-    'files.operation.acknowledge',
-    'files.trash',
-    'files.reveal',
     'git.summary',
     'git.sync',
     'git.discard',
@@ -36,8 +24,8 @@ export const extensionWorkspaceOperations = [
 
 export type ExtensionWorkspaceOperation = (typeof extensionWorkspaceOperations)[number];
 
-export type ExtensionFilesChange =
-    { kind: 'content'; paths?: string[]; overflow?: boolean } | { kind: 'operation' };
+export type ExtensionViewOperation =
+    'source.snapshot' | 'source.historyPage' | 'source.historyDetails' | 'source.action';
 
 export interface ExtensionHostRegistration {
     extensionId: string;
@@ -93,7 +81,7 @@ export type ExtensionHostRequest =
               extensionId: string;
               generation: number;
               viewId: string;
-              operation: ExtensionWorkspaceOperation;
+              operation: ExtensionViewOperation;
               arguments: unknown;
               requestId: string;
               context: ExtensionViewEventScope;
@@ -103,11 +91,6 @@ export type ExtensionHostRequest =
           id: string;
           method: 'activeContextChanged';
           params: { context: ExtensionViewEventScope };
-      }
-    | {
-          id: string;
-          method: 'filesChanged';
-          params: { change: ExtensionFilesChange; context: ExtensionViewEventScope };
       }
     | {
           id: string;
@@ -135,6 +118,10 @@ export type ExtensionHostApiRequest = ExtensionHostApiRequestBase &
         | {
               method: 'workspace.getProjectStatus';
               params: { refreshToken?: string };
+          }
+        | {
+              method: 'workspace.getConfiguration';
+              params: { key: string };
           }
         | {
               method: 'workspace.request';

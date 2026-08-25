@@ -41,3 +41,14 @@ export function requestProjectStatus(
         params: { ...(refreshToken && { refreshToken }) },
     });
 }
+
+export function requestConfig<Value>(
+    request: HostApiRequester,
+    key: string,
+): Promise<Value | undefined> {
+    if (key.length === 0 || key.length > 200)
+        throw Object.assign(new Error('Configuration key is invalid'), {
+            code: 'PROVIDER_FAILED',
+        });
+    return request({ method: 'workspace.getConfiguration', params: { key } });
+}

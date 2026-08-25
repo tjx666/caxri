@@ -143,6 +143,8 @@ export function isExtensionHostMessage(value: unknown): value is ExtensionHostMe
                         value.params.refreshToken,
                         MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH,
                     ))) ||
+                (value.method === 'workspace.getConfiguration' &&
+                    isBoundedString(value.params.key, 200)) ||
                 (value.method === 'workspace.request' &&
                     typeof value.params.operation === 'string' &&
                     extensionWorkspaceOperations.includes(
@@ -202,7 +204,6 @@ export function isExtensionHostResult(
         case 'executeCommand':
             return value.executed === true;
         case 'activeContextChanged':
-        case 'filesChanged':
         case 'gitChanged':
         case 'projectStatusChanged':
             return Number.isSafeInteger(value.notified) && Number(value.notified) >= 0;

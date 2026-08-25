@@ -12,7 +12,6 @@ import { stubPackagedProjectDialog } from './support/packaged-project-dialog.ts'
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 
 const productionExtensions = [
-    { containerId: 'caxri.files', name: 'Files', viewKind: 'resource-explorer' },
     { containerId: 'caxri.git', name: 'Git', viewKind: 'source-control' },
     { containerId: 'caxri.project-status', name: 'Status', viewKind: 'tree' },
 ] as const;
@@ -71,7 +70,7 @@ async function expectStatusData(page: Page): Promise<void> {
     await expect(page.getByRole('tree', { name: 'Project Status' })).toBeVisible();
 }
 
-test('product Files, Git, and Status selections persist and recover after Extension Host restart', async () => {
+test('Files Core persists while Git and Status recover after Extension Host restart', async () => {
     allowE2EErrors([
         {
             source: 'host',
@@ -112,6 +111,18 @@ test('product Files, Git, and Status selections persist and recover after Extens
         await expect(fixtureTab).toBeVisible();
 
         const catalog = await pageRequest<Catalog>(running.page, 'viewContainers.catalog');
+        expect(catalog.containers.find(({ id }) => id === 'caxri.files')).toMatchObject({
+            id: 'caxri.files',
+            source: { kind: 'core' },
+        });
+        expect(
+            catalog.views.find(({ containerId }) => containerId === 'caxri.files'),
+        ).toMatchObject({
+            containerId: 'caxri.files',
+            source: { kind: 'core' },
+            viewKind: { kind: 'resource-explorer' },
+        });
+        expect(catalog.extensions.map(({ id }) => id)).not.toContain('caxri.files');
         for (const extension of productionExtensions) {
             expect(catalog.containers.find(({ id }) => id === extension.containerId)).toMatchObject(
                 {
@@ -169,7 +180,7 @@ test('product Files, Git, and Status selections persist and recover after Extens
         await relaunchAndAssert('caxri.project-status', 'Status', expectStatusData);
 
         // Activate the test-only extension so its deliberate crash command is registered, then return to Files. The
-        // persisted/current selection must remain a product extension before and after the crash.
+        // persisted Core selection and data must remain available while product extensions restart.
         const restoredFixtureTab = sidebarTab(running.page, 'Extension Fixture');
         await restoredFixtureTab.click();
         await expect(

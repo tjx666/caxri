@@ -96,6 +96,11 @@ const noParameters = z.object({}).default({});
  * Keeps path-browser IPC and rendering bounded while still allowing users to refine by name.
  */
 export const MAX_FILE_BROWSE_ENTRIES = 200;
+/**
+ * Keeps one expanded Files tree directory within the controlled Renderer and transport budget. The result carries an
+ * explicit truncation bit so a large directory never silently appears complete.
+ */
+export const MAX_FILE_LIST_ENTRIES = 1_024;
 
 const settingsResult = z.object({ value: appSettingsSchema, source: configSourceSchema });
 const keybindingsResult = z.object({
@@ -165,6 +170,11 @@ export const methods = {
         result: z.object({ executed: z.literal(true) }),
     },
     'viewContainers.cancelRequest': {
+        ...hostControl,
+        params: z.object({ requestId: identifierSchema }),
+        result: z.object({ cancelled: z.boolean() }),
+    },
+    'requests.cancel': {
         ...hostControl,
         params: z.object({ requestId: identifierSchema }),
         result: z.object({ cancelled: z.boolean() }),
@@ -515,7 +525,10 @@ export const methods = {
     'files.list': {
         ...hostRead,
         params: z.object({ sessionId: identifierSchema, directory: pathSchema.optional() }),
-        result: z.array(fileEntrySchema),
+        result: z.object({
+            entries: z.array(fileEntrySchema).max(MAX_FILE_LIST_ENTRIES),
+            truncated: z.boolean(),
+        }),
     },
     'files.browse': {
         ...hostRead,
@@ -572,22 +585,22 @@ export const methods = {
     },
     'files.operation.get': {
         ...hostRead,
-        params: z.object({ operationId: identifierSchema }),
+        params: z.object({ operationId: identifierSchema, sessionId: identifierSchema }),
         result: fileMutationOperationSchema.nullable(),
     },
     'files.operation.list': {
         ...hostRead,
-        params: noParameters,
+        params: z.object({ sessionId: identifierSchema }),
         result: z.array(fileMutationOperationSchema).max(256),
     },
     'files.operation.cancel': {
         ...hostControl,
-        params: z.object({ operationId: identifierSchema }),
+        params: z.object({ operationId: identifierSchema, sessionId: identifierSchema }),
         result: fileMutationOperationSchema,
     },
     'files.operation.acknowledge': {
         ...hostWrite,
-        params: z.object({ operationId: identifierSchema }),
+        params: z.object({ operationId: identifierSchema, sessionId: identifierSchema }),
         result: z.null(),
     },
     'files.trash': {

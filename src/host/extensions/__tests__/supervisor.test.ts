@@ -106,7 +106,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 apiToken: 'fixture-token-1',
                 method: 'workspace.request',
                 params: {
-                    operation: 'files.list',
+                    operation: 'git.summary',
                     arguments: {},
                     context: {
                         kind: 'session',
@@ -131,15 +131,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 },
             }),
         ).toBe(false);
-        for (const change of [
-            { kind: 'content' },
-            { kind: 'operation' },
-            { kind: 'refresh' },
-            { kind: 'create', itemKind: 'file' },
-            { kind: 'collapse' },
-            { kind: 'search' },
-            { kind: 'mode', mode: 'pull-request' },
-        ])
+        for (const change of [{ kind: 'content' }, { kind: 'refresh' }])
             expect(
                 isExtensionHostMessage({
                     type: 'event',
@@ -183,7 +175,6 @@ describe('ExtensionHostSupervisor message boundary', () => {
         expect(isExtensionHostResult('activate', { activated: true })).toBe(true);
         expect(isExtensionHostResult('activate', { executed: true })).toBe(false);
         expect(isExtensionHostResult('projectStatusChanged', { notified: 1 })).toBe(true);
-        expect(isExtensionHostResult('filesChanged', { notified: 1 })).toBe(true);
         expect(isExtensionHostResult('gitChanged', { notified: 1 })).toBe(true);
         expect(isExtensionHostResult('viewOperation', { entries: [] })).toBe(true);
         expect(isExtensionHostResult('viewOperation', [])).toBe(true);
@@ -381,12 +372,12 @@ describe('ExtensionHostSupervisor message boundary', () => {
         await started;
 
         const mutation = supervisor.request('viewOperation', {
-            extensionId: 'publisher.files',
+            extensionId: 'publisher.git',
             generation: 1,
-            viewId: 'publisher.files.tree',
-            operation: 'files.copy',
-            arguments: { path: '/project/a.txt', directory: '/project' },
-            requestId: 'copy-request',
+            viewId: 'publisher.git.sourceControl',
+            operation: 'source.action',
+            arguments: { actionId: 'action-1', revision: '1' },
+            requestId: 'sync-request',
         });
         await vi.waitFor(() => expect(child.send).toHaveBeenCalledTimes(2));
         await vi.advanceTimersByTimeAsync(15_001);
@@ -396,12 +387,12 @@ describe('ExtensionHostSupervisor message boundary', () => {
         await expect(mutation).resolves.toBeNull();
 
         const read = supervisor.request('viewOperation', {
-            extensionId: 'publisher.files',
+            extensionId: 'publisher.git',
             generation: 1,
-            viewId: 'publisher.files.tree',
-            operation: 'files.list',
-            arguments: {},
-            requestId: 'list-request',
+            viewId: 'publisher.git.sourceControl',
+            operation: 'source.snapshot',
+            arguments: { refresh: 0 },
+            requestId: 'summary-request',
         });
         const readFailure = expect(read).rejects.toMatchObject({ code: 'PROVIDER_TIMEOUT' });
         await vi.waitFor(() => expect(child.send).toHaveBeenCalledTimes(3));
@@ -413,7 +404,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
         expect(cancelRequest?.id).toBeTypeOf('string');
         expect(cancelRequest).toMatchObject({
             method: 'cancel',
-            params: { requestId: 'list-request' },
+            params: { requestId: 'summary-request' },
         });
     });
 });

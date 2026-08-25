@@ -34,8 +34,8 @@ export function extensionActiveContext(bootstrap: ExtensionBootstrapContext): {
 }
 
 /**
- * Routes only the public Extension API workspace allowlist. Runtime remains authoritative for paths and repositories;
- * native confirmation and reveal operations cross the current Desktop generation through its bounded bridge.
+ * Routes only the public Git Extension API allowlist. Runtime remains authoritative for repositories, while native
+ * discard confirmation crosses the current Desktop generation through its bounded bridge.
  */
 export function createExtensionWorkspaceRequest(options: ExtensionWorkspaceBridgeOptions) {
     return async (
@@ -44,34 +44,8 @@ export function createExtensionWorkspaceRequest(options: ExtensionWorkspaceBridg
         context: { sessionId: string; workbenchProjectId: string },
         signal?: AbortSignal,
     ): Promise<unknown> => {
-        const desktopRouter = options.desktopRouter();
-        if (operation === 'files.reveal') {
-            if (!desktopRouter)
-                throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-            const { path, sessionId } = parameters as { path: string; sessionId: string };
-            await desktopRouter.open(
-                'reveal',
-                undefined,
-                {
-                    launchIfNeeded: false,
-                    path,
-                    sessionId,
-                },
-                signal,
-                context,
-            );
-            return null;
-        }
-        if (operation === 'files.trash') {
-            if (!desktopRouter)
-                throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-            return desktopRouter.trash(
-                parameters as RuntimeMethodParameters<'files.trash'>,
-                signal,
-                context,
-            );
-        }
         if (operation === 'git.discard') {
+            const desktopRouter = options.desktopRouter();
             if (!desktopRouter)
                 throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
             return desktopRouter.discard(

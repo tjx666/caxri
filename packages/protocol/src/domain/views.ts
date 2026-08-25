@@ -38,12 +38,11 @@ export const extensionBuiltinIconIdSchema = z.enum(['beaker', 'files', 'git-bran
 
 export const viewContainerLocationSchema = z.enum(['secondarySidebar', 'panel']);
 export const extensionCapabilitySchema = z.enum([
-    'files.read',
-    'files.write',
     'git.read',
     'git.write',
     'projects.read',
     'sessions.read',
+    'settings.read',
 ]);
 
 export const viewIconSchema = z.discriminatedUnion('kind', [
@@ -103,6 +102,7 @@ export const extensionErrorSchema = z.object({
 
 const descriptorSourceSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('builtin') }),
+    z.object({ kind: z.literal('core') }),
     z.object({ kind: z.literal('extension'), extensionId: extensionIdSchema }),
 ]);
 
@@ -116,16 +116,19 @@ export const viewKindSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('source-control') }),
 ]);
 
+export const controlledViewPresentationSchema = z.object({
+    noContextMessage: z.string().min(1).max(2_048),
+    loadingMessage: z.string().min(1).max(2_048),
+    actionErrorMessage: z.string().min(1).max(2_048),
+    refreshErrorMessage: z.string().min(1).max(2_048),
+});
+
 export const extensionViewActionRoleSchema = z.enum([
     'resource.createFile',
     'resource.createFolder',
     'resource.search',
     'resource.collapse',
     'resource.refresh',
-    'source.workingTree',
-    'source.lastCommit',
-    'source.pullRequest',
-    'source.refresh',
 ]);
 
 export const viewActionDescriptorSchema = z.object({
@@ -140,7 +143,7 @@ export const viewContainerDescriptorSchema = z.object({
     title: z.string().min(1).max(200),
     icon: viewIconSchema,
     commandId: extensionCommandIdSchema,
-    lifecycle: z.union([z.literal('builtin'), extensionLifecycleStateSchema]),
+    lifecycle: z.union([z.literal('builtin'), z.literal('core'), extensionLifecycleStateSchema]),
     error: extensionErrorSchema.optional(),
 });
 
@@ -150,6 +153,8 @@ export const viewDescriptorSchema = z.object({
     source: descriptorSourceSchema,
     title: z.string().min(1).max(200),
     viewKind: viewKindSchema,
+    presentation: controlledViewPresentationSchema.optional(),
+    configurationDependencies: z.array(z.string().min(1).max(200)).max(32).optional(),
     actions: z.array(viewActionDescriptorSchema).max(32).optional(),
 });
 
@@ -158,8 +163,9 @@ export const contributedCommandDescriptorSchema = z.object({
     title: z.string().min(1).max(200),
     description: z.string().max(1_024).optional(),
     allowInEditable: z.boolean().optional(),
+    palette: z.boolean().optional(),
     source: descriptorSourceSchema,
-    lifecycle: z.union([z.literal('builtin'), extensionLifecycleStateSchema]),
+    lifecycle: z.union([z.literal('builtin'), z.literal('core'), extensionLifecycleStateSchema]),
 });
 
 export const extensionDescriptorSchema = z.object({
@@ -216,24 +222,182 @@ export const extensionTreeViewStatesSchema = z
         'Too many persisted extension tree views',
     );
 
-const extensionFileChangePathSchema = z.string().min(1).max(16_384);
-
 export const extensionViewChangeSchema = z.discriminatedUnion('kind', [
-    z.object({
-        kind: z.literal('content'),
-        paths: z.array(extensionFileChangePathSchema).max(512).optional(),
-        overflow: z.boolean().optional(),
-    }),
-    z.object({ kind: z.literal('operation') }),
+    z.object({ kind: z.literal('content') }),
     z.object({ kind: z.literal('refresh') }),
-    z.object({ kind: z.literal('create'), itemKind: z.enum(['file', 'directory']) }),
-    z.object({ kind: z.literal('collapse') }),
-    z.object({ kind: z.literal('search') }),
     z.object({
-        kind: z.literal('mode'),
-        mode: z.enum(['working', 'commit', 'pull-request']),
+        kind: z.literal('selection'),
+        selectedModeId: treeItemIdSchema,
     }),
 ]);
+
+export const sourceControlViewIconSchema = z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('theme'), id: z.string().min(1).max(100) }),
+    z.object({ kind: z.literal('file-type'), name: z.string().min(1).max(1_024) }),
+]);
+
+const sourceControlCommandArgumentsSchema = z
+    .array(z.unknown())
+    .max(MAX_EXTENSION_COMMAND_ARGUMENTS);
+const sourceControlCommandBindingSchema = z.object({
+    id: extensionCommandIdSchema,
+    arguments: sourceControlCommandArgumentsSchema.optional(),
+});
+
+export const sourceControlActionSchema = z.object({
+    id: treeItemIdSchema,
+    label: z.string().min(1).max(1_024),
+    icon: sourceControlViewIconSchema,
+    command: sourceControlCommandBindingSchema,
+    accessibilityLabel: z.string().min(1).max(1_024).optional(),
+    tooltip: z.string().min(1).max(1_024).optional(),
+    disabled: z.boolean().optional(),
+    progressLabel: z.string().min(1).max(1_024).optional(),
+    emphasis: z.literal('danger').optional(),
+    errorMessage: z.string().min(1).max(1_024).optional(),
+});
+
+const sourceControlResourceDecorationSchema = z.object({
+    identifier: z
+        .string()
+        .min(1)
+        .max(100)
+        .regex(/^[a-z0-9-]+$/),
+    label: z.string().min(1).max(32),
+    tone: z.enum(['danger', 'success', 'warning']),
+});
+
+export const sourceControlResourceSchema = z.object({
+    id: treeItemIdSchema,
+    label: z.string().min(1).max(1_024),
+    description: z.string().max(1_024).optional(),
+    tooltip: z.string().min(1).max(4_096),
+    accessibilityLabel: z.string().min(1).max(1_024),
+    icon: sourceControlViewIconSchema,
+    path: z.string().max(4_096),
+    decoration: sourceControlResourceDecorationSchema.optional(),
+    editorResource: z.string().min(1).max(8_192).optional(),
+    navigationTargetId: treeItemIdSchema.optional(),
+    action: sourceControlActionSchema.optional(),
+    actions: z.array(sourceControlActionSchema).max(32).optional(),
+});
+
+const sourceControlGroupSchema = z.object({
+    id: treeItemIdSchema,
+    label: z.string().min(1).max(1_024),
+    count: z.number().int().nonnegative().max(100_000),
+    expandedByDefault: z.boolean(),
+    emptyMessage: z.string().min(1).max(2_048),
+    truncationMessage: z.string().min(1).max(2_048).optional(),
+    actions: z.array(sourceControlActionSchema).max(32),
+    resources: z.array(sourceControlResourceSchema).max(2_000),
+});
+
+export const sourceControlHistoryDescriptorSchema = z.object({
+    id: treeItemIdSchema,
+    label: z.string().min(1).max(1_024),
+    command: sourceControlCommandBindingSchema,
+    pathInputLabel: z.string().min(1).max(1_024),
+    pathInputPlaceholder: z.string().min(1).max(1_024),
+    clearPathLabel: z.string().min(1).max(1_024),
+    loadingMessage: z.string().min(1).max(1_024),
+    emptyMessage: z.string().min(1).max(1_024),
+    loadMoreLabel: z.string().min(1).max(1_024),
+    loadingMoreLabel: z.string().min(1).max(1_024),
+    loadErrorMessage: z.string().min(1).max(1_024),
+    detailsLoadingMessage: z.string().min(1).max(1_024),
+    detailsErrorMessage: z.string().min(1).max(1_024),
+    detailsLabel: z.string().min(1).max(1_024),
+    detailsEmptyMessage: z.string().min(1).max(1_024),
+    detailsTruncatedMessage: z.string().min(1).max(1_024),
+    itemAccessibilityLabelPrefix: z.string().min(1).max(1_024),
+    pageSize: z.number().int().min(1).max(50),
+    revision: z.string().max(1_024).optional(),
+});
+
+const sourceControlProviderModelSchema = z.object({
+    id: treeItemIdSchema,
+    label: z.string().min(1).max(1_024),
+    kindLabel: z.string().min(1).max(1_024).optional(),
+    icon: sourceControlViewIconSchema,
+    tooltip: z.string().min(1).max(4_096),
+    description: z.string().max(4_096),
+    descriptionAccessibilityLabel: z.string().min(1).max(4_096),
+    descriptionTooltip: z.string().min(1).max(4_096),
+    countLabel: z.string().min(1).max(1_024),
+    expandedByDefault: z.boolean(),
+    actions: z.array(sourceControlActionSchema).max(32),
+    groups: z.array(sourceControlGroupSchema).max(64),
+    history: sourceControlHistoryDescriptorSchema.optional(),
+});
+
+const sourceControlModeSchema = z.object({
+    id: treeItemIdSchema,
+    label: z.string().min(1).max(1_024),
+    icon: sourceControlViewIconSchema,
+    command: sourceControlCommandBindingSchema,
+});
+
+export const sourceControlViewModelSchema = z.object({
+    revision: z.string().min(1).max(200),
+    title: z.string().min(1).max(1_024),
+    accessibilityLabel: z.string().min(1).max(1_024),
+    modeAccessibilityLabel: z.string().min(1).max(1_024),
+    modes: z.array(sourceControlModeSchema).max(32),
+    selectedModeId: treeItemIdSchema,
+    refreshAction: sourceControlActionSchema,
+    providers: z.array(sourceControlProviderModelSchema).max(1_000),
+    emptyMessage: z.string().min(1).max(2_048).optional(),
+    truncationMessage: z.string().min(1).max(2_048).optional(),
+});
+
+const sourceControlHistoryItemSchema = z.object({
+    id: treeItemIdSchema,
+    label: z.string().max(4_096),
+    description: z.string().max(1_024),
+    timestamp: z.number().int().nonnegative(),
+    tooltipTimestamp: z.string().min(1).max(1_024),
+    author: z.string().max(1_024),
+    authorFallback: z.string().min(1).max(16),
+    avatarUrl: z.url().max(8_192).optional(),
+    decorations: z.array(z.string().max(1_024)).max(50),
+    body: z.string().max(16_384).optional(),
+});
+
+export const sourceControlHistoryPageSchema = z.object({
+    revision: z.string().min(1).max(200),
+    items: z.array(sourceControlHistoryItemSchema).max(50),
+    nextOffset: z.number().int().nonnegative().optional(),
+});
+
+export const sourceControlHistoryDetailsSchema = z.object({
+    revision: z.string().min(1).max(200),
+    itemId: treeItemIdSchema,
+    summary: z.string().min(1).max(1_024),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    resources: z.array(sourceControlResourceSchema).max(2_000),
+    truncated: z.boolean(),
+});
+
+const sourceControlActionEffectSchema = z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('focus'), targetId: treeItemIdSchema }),
+    z.object({
+        kind: z.literal('open-editor'),
+        resource: z.string().min(1).max(8_192),
+    }),
+    z.object({
+        kind: z.literal('toast'),
+        message: z.string().min(1).max(2_048),
+        tone: z.literal('success'),
+    }),
+]);
+
+export const sourceControlActionResultSchema = z.object({
+    revision: z.string().min(1).max(200),
+    effects: z.array(sourceControlActionEffectSchema).max(32),
+    refresh: z.boolean(),
+});
 
 const manifestIconResourcePathSchema = z
     .string()
@@ -257,7 +421,9 @@ const manifestContainerSchema = z.object({
 const manifestViewSchema = z.object({
     id: viewIdSchema,
     name: z.string().min(1).max(200),
-    type: z.enum(['tree', 'resource-explorer', 'source-control']),
+    type: z.enum(['tree', 'source-control']),
+    presentation: controlledViewPresentationSchema.optional(),
+    configurationDependencies: z.array(z.string().min(1).max(200)).max(32).optional(),
     actions: z
         .array(
             z.object({
@@ -275,6 +441,7 @@ const manifestCommandSchema = z.object({
     title: z.string().min(1).max(200),
     description: z.string().max(1_024).optional(),
     allowInEditable: z.boolean().optional(),
+    palette: z.boolean().optional(),
 });
 
 const manifestViewContainersSchema = z.object({
@@ -316,6 +483,21 @@ export const extensionManifestSchema = z
         const commandIds = new Set(manifest.contributes.commands.map(({ command }) => command));
         for (const [containerId, views] of Object.entries(manifest.contributes.views)) {
             for (const [viewIndex, view] of views.entries()) {
+                if (
+                    (view.configurationDependencies?.length ?? 0) > 0 &&
+                    !manifest.caxri.capabilities.includes('settings.read')
+                )
+                    context.addIssue({
+                        code: 'custom',
+                        message: 'Controlled view configuration dependencies require settings.read',
+                        path: [
+                            'contributes',
+                            'views',
+                            containerId,
+                            viewIndex,
+                            'configurationDependencies',
+                        ],
+                    });
                 const roles = new Set<string>();
                 const actions = view.actions ?? [];
                 for (const [actionIndex, action] of actions.entries()) {
@@ -333,12 +515,7 @@ export const extensionManifestSchema = z
                             message: `View action command is not declared: ${action.command}`,
                             path: [...path, 'command'],
                         });
-                    const requiredPrefix =
-                        view.type === 'resource-explorer'
-                            ? 'resource.'
-                            : view.type === 'source-control'
-                              ? 'source.'
-                              : undefined;
+                    const requiredPrefix = view.type === 'source-control' ? 'source.' : undefined;
                     if (!requiredPrefix || !action.role.startsWith(requiredPrefix))
                         context.addIssue({
                             code: 'custom',
@@ -366,11 +543,20 @@ export type ExtensionError = z.infer<typeof extensionErrorSchema>;
 export type ExtensionLifecycleState = z.infer<typeof extensionLifecycleStateSchema>;
 export type ExtensionViewEventContext = z.infer<typeof extensionViewEventContextSchema>;
 export type ExtensionViewChange = z.infer<typeof extensionViewChangeSchema>;
+export type SourceControlAction = z.infer<typeof sourceControlActionSchema>;
+export type SourceControlActionEffect = z.infer<typeof sourceControlActionEffectSchema>;
+export type SourceControlActionResult = z.infer<typeof sourceControlActionResultSchema>;
+export type SourceControlHistoryDescriptor = z.infer<typeof sourceControlHistoryDescriptorSchema>;
+export type SourceControlHistoryDetails = z.infer<typeof sourceControlHistoryDetailsSchema>;
+export type SourceControlHistoryPage = z.infer<typeof sourceControlHistoryPageSchema>;
+export type SourceControlResource = z.infer<typeof sourceControlResourceSchema>;
+export type SourceControlViewModel = z.infer<typeof sourceControlViewModelSchema>;
 export type ExtensionViewActionRole = z.infer<typeof extensionViewActionRoleSchema>;
 export type ViewActionDescriptor = z.infer<typeof viewActionDescriptorSchema>;
 export type ViewIcon = z.infer<typeof viewIconSchema>;
 export type ViewContainerDescriptor = z.infer<typeof viewContainerDescriptorSchema>;
 export type ViewDescriptor = z.infer<typeof viewDescriptorSchema>;
+export type ControlledViewPresentation = z.infer<typeof controlledViewPresentationSchema>;
 export type ContributedCommandDescriptor = z.infer<typeof contributedCommandDescriptorSchema>;
 export type ExtensionDescriptor = z.infer<typeof extensionDescriptorSchema>;
 export type ViewCatalogSnapshot = z.infer<typeof viewCatalogSnapshotSchema>;

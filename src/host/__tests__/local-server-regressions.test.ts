@@ -86,70 +86,88 @@ function command(id: string, method: string, parameters: unknown) {
 }
 
 describe('local Host transport regressions', () => {
-    it('admits view cancellation outside the ordered lane while a view operation is pending', async () => {
-        const lease = await profile();
-        const operationStarted = Promise.withResolvers<void>();
-        const operationRelease = Promise.withResolvers<void>();
-        const cancelStarted = Promise.withResolvers<void>();
-        const host: CommandAdapter = {
-            invoke: async (request) => {
-                if (request.method === 'viewContainers.viewOperation') {
-                    operationStarted.resolve();
-                    await operationRelease.promise;
+    it.each(['viewContainers.cancelRequest', 'requests.cancel'] as const)(
+        'admits %s outside the ordered lane while a request is pending',
+        async (cancelMethod) => {
+            const lease = await profile();
+            const operationStarted = Promise.withResolvers<void>();
+            const operationRelease = Promise.withResolvers<void>();
+            const cancelStarted = Promise.withResolvers<void>();
+            const host: CommandAdapter = {
+                invoke: async (request) => {
+                    if (request.method === 'viewContainers.viewOperation') {
+                        operationStarted.resolve();
+                        await operationRelease.promise;
+                        return {
+                            revision: '1',
+                            title: 'Source Control',
+                            accessibilityLabel: 'Source Control providers',
+                            modeAccessibilityLabel: 'Source Control mode',
+                            modes: [],
+                            selectedModeId: 'default',
+                            refreshAction: {
+                                id: 'refresh',
+                                label: 'Refresh',
+                                icon: { kind: 'theme', id: 'refresh' },
+                                command: { id: 'publisher.refresh' },
+                            },
+                            providers: [],
+                            emptyMessage: 'No providers.',
+                        };
+                    }
+                    if (request.method === cancelMethod) {
+                        cancelStarted.resolve();
+                        return { cancelled: true };
+                    }
                     return null;
-                }
-                if (request.method === 'viewContainers.cancelRequest') {
-                    cancelStarted.resolve();
-                    return { cancelled: true };
-                }
-                return null;
-            },
-        };
-        const server = new LocalHostServer({
-            adapters: { host },
-            desktopCredential: lease.desktopCredential,
-            manifest: lease.manifest,
-        });
-        await server.start();
-        cleanups.push(() => server.close());
+                },
+            };
+            const server = new LocalHostServer({
+                adapters: { host },
+                desktopCredential: lease.desktopCredential,
+                manifest: lease.manifest,
+            });
+            await server.start();
+            cleanups.push(() => server.close());
 
-        const socket = await connect(lease.paths.endpoint);
-        const read = lineReader(socket);
-        socket.write(
-            `${JSON.stringify({
-                type: 'hello',
-                supportedVersions: [CAXRI_PROTOCOL_VERSION],
-                profileId: lease.manifest.profileId,
-                credential: {
-                    kind: 'desktop',
-                    token: lease.desktopCredential.desktopToken,
-                    desktopId: 'desktop-cancel',
-                },
-            })}\n`,
-        );
-        localServerWelcomeSchema.parse(await read());
-        socket.write(
-            command('view-slow', 'viewContainers.viewOperation', {
-                viewId: 'publisher.fixture.resource',
-                requestId: 'view-request',
-                operation: 'files.list',
-                arguments: {},
-                context: {
-                    kind: 'session',
-                    sessionId: 'session-1',
-                    workbenchProjectId: 'project-1',
-                },
-            }) +
-                command('view-cancel', 'viewContainers.cancelRequest', {
+            const socket = await connect(lease.paths.endpoint);
+            const read = lineReader(socket);
+            socket.write(
+                `${JSON.stringify({
+                    type: 'hello',
+                    supportedVersions: [CAXRI_PROTOCOL_VERSION],
+                    profileId: lease.manifest.profileId,
+                    credential: {
+                        kind: 'desktop',
+                        token: lease.desktopCredential.desktopToken,
+                        desktopId: 'desktop-cancel',
+                    },
+                })}\n`,
+            );
+            localServerWelcomeSchema.parse(await read());
+            socket.write(
+                command('view-slow', 'viewContainers.viewOperation', {
+                    viewId: 'publisher.git.sourceControl',
                     requestId: 'view-request',
-                }),
-        );
-        await operationStarted.promise;
-        await cancelStarted.promise;
-        await expect(read()).resolves.toMatchObject({ reply: { id: 'view-cancel', ok: true } });
-        operationRelease.resolve();
-        await expect(read()).resolves.toMatchObject({ reply: { id: 'view-slow', ok: true } });
-    });
+                    operation: 'source.snapshot',
+                    arguments: { refresh: 0 },
+                    context: {
+                        kind: 'session',
+                        sessionId: 'session-1',
+                        workbenchProjectId: 'project-1',
+                    },
+                }) +
+                    command('view-cancel', cancelMethod, {
+                        requestId: 'view-request',
+                    }),
+            );
+            await operationStarted.promise;
+            await cancelStarted.promise;
+            await expect(read()).resolves.toMatchObject({ reply: { id: 'view-cancel', ok: true } });
+            operationRelease.resolve();
+            await expect(read()).resolves.toMatchObject({ reply: { id: 'view-slow', ok: true } });
+        },
+    );
 
     it('dispatches a later business request before an earlier reply settles', async () => {
         const lease = await profile();
