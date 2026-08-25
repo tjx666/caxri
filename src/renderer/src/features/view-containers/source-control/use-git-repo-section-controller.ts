@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
+import { useToastOnQueryError } from '../../../queries/client';
 import { useControlledView, useSourceControlClient } from '../controlled-view-context';
 import { controlledViewQueryKey } from '../view-operation-client';
 import {
@@ -25,6 +26,7 @@ import {
     gitRepoEmptyMessage,
     gitRepoFilesForMode,
     selectedGitRepoPath,
+    shouldToastGitRepoDetailError,
 } from './git-repo-section-state';
 import type { GitFileTreeNode } from './git-tree';
 import { buildGitFileTree } from './git-tree';
@@ -134,10 +136,6 @@ export function useGitRepoSectionController(
         repositoryId: repository.id,
         refresh: pullRequestRefresh,
     };
-    /**
-     * Repository detail failures are rendered by this section's empty state. A second global toast would misclassify
-     * one unavailable child repository as a failure of the whole source-control view.
-     */
     const pullRequestQuery = useQuery({
         queryKey: controlledViewQueryKey(viewId, 'git.pullRequestChanges', pullRequestArguments),
         queryFn: ({ signal }) =>
@@ -158,6 +156,24 @@ export function useGitRepoSectionController(
     });
     const latestCommit = mode === 'commit' ? latestCommitQuery.data : undefined;
     const files = gitRepoFilesForMode(mode, repository.files, latestCommit, pullRequest);
+    useToastOnQueryError(
+        shouldToastGitRepoDetailError({
+            active: mode === 'pull-request',
+            displayedFileCount: files.length,
+            isError: pullRequestQuery.isError,
+        }),
+        pullRequestQuery.error,
+        'Pull request refresh failed',
+    );
+    useToastOnQueryError(
+        shouldToastGitRepoDetailError({
+            active: mode === 'commit',
+            displayedFileCount: files.length,
+            isError: latestCommitQuery.isError,
+        }),
+        latestCommitQuery.error,
+        'Last commit load failed',
+    );
     /**
      * Working-tree count uses `changedFileCount`: Runtime may truncate `files[]` while this authoritative count keeps
      * reporting the complete change set, matching the Status Bar projection.

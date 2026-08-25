@@ -23,6 +23,22 @@ export function gitRepoDisplayedCount(
     return mode === 'working' ? changedFileCount : files.length;
 }
 
+/**
+ * Empty detail results have a visible section-owned error state. A failed refetch can retain non-empty stale data,
+ * which keeps that state hidden behind the tree and therefore still needs the global failure notification.
+ */
+export function shouldToastGitRepoDetailError({
+    active,
+    displayedFileCount,
+    isError,
+}: {
+    active: boolean;
+    displayedFileCount: number;
+    isError: boolean;
+}): boolean {
+    return active && isError && displayedFileCount > 0;
+}
+
 export function selectedGitRepoPath(
     mode: SourceControlViewMode,
     activeDiff: GitDiffTab | undefined,
