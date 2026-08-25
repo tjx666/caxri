@@ -1,130 +1,5 @@
 import type { CancellationToken } from './index.js';
 
-export interface FileEntry {
-    name: string;
-    path: string;
-    kind: 'file' | 'directory' | 'symlink';
-    size?: number;
-    gitIgnored?: true;
-}
-
-export interface MutableFileEntry {
-    name: string;
-    path: string;
-    kind: 'file' | 'directory';
-}
-
-export interface MovedFileEntry extends MutableFileEntry {
-    previousPath: string;
-}
-
-export interface FileSearchMatch {
-    path: string;
-    relativePath: string;
-    line?: number;
-    column?: number;
-    matchLength?: number;
-    preview?: string;
-    previewMatchIndex?: number;
-}
-
-export interface FileSearchResult {
-    mode: 'name' | 'content';
-    matches: FileSearchMatch[];
-    scannedFiles: number;
-    truncated: boolean;
-    canceled: boolean;
-}
-
-interface FileMutationOperationBase {
-    id: string;
-    sessionId: string;
-    workbenchProjectId?: string;
-    phase: 'pre_stage' | 'staged' | 'completed' | 'failed' | 'canceled';
-    startedAt: number;
-    updatedAt: number;
-    error?: { code: string; message: string };
-    result?: MutableFileEntry | MovedFileEntry;
-    expectedResult?: MutableFileEntry | MovedFileEntry;
-}
-
-export type FileMutationOperation = FileMutationOperationBase &
-    (
-        | {
-              kind: 'create';
-              input: { directory: string; name: string; kind: 'file' | 'directory' };
-          }
-        | { kind: 'rename'; input: { path: string; name: string } }
-        | {
-              kind: 'move';
-              input: {
-                  path: string;
-                  directory: string;
-                  conflict: 'reject' | 'rename' | 'replace';
-              };
-          }
-    );
-
-/**
- * Workspace file notifications carry only bounded path hints from the authorized Workbench Root. Durable operation
- * records remain request-scoped so an extension cannot observe another Project's paths; `overflow` forces a
- * conservative root refresh.
- */
-export type WorkspaceFileChange =
-    { kind: 'content'; paths?: readonly string[]; overflow?: boolean } | { kind: 'operation' };
-
-export interface WorkspaceFileSystem {
-    list(directory?: string, token?: CancellationToken): Promise<FileEntry[]>;
-    search(
-        options: {
-            mode: 'name' | 'content';
-            query: string;
-            caseSensitive?: boolean;
-            wholeWord?: boolean;
-            regex?: boolean;
-            include?: string;
-            exclude?: string;
-        },
-        token?: CancellationToken,
-    ): Promise<FileSearchResult>;
-    create(
-        options: {
-            operationId: string;
-            directory: string;
-            name: string;
-            kind: 'file' | 'directory';
-        },
-        token?: CancellationToken,
-    ): Promise<MutableFileEntry>;
-    copy(path: string, directory: string, token?: CancellationToken): Promise<MutableFileEntry>;
-    rename(
-        options: { operationId: string; path: string; name: string },
-        token?: CancellationToken,
-    ): Promise<MovedFileEntry>;
-    move(
-        options: {
-            operationId: string;
-            path: string;
-            directory: string;
-            conflict?: 'reject' | 'rename' | 'replace';
-        },
-        token?: CancellationToken,
-    ): Promise<MovedFileEntry>;
-    getOperation(
-        operationId: string,
-        token?: CancellationToken,
-    ): Promise<FileMutationOperation | null>;
-    listOperations(token?: CancellationToken): Promise<FileMutationOperation[]>;
-    cancelOperation(operationId: string, token?: CancellationToken): Promise<FileMutationOperation>;
-    acknowledgeOperation(operationId: string, token?: CancellationToken): Promise<void>;
-    trash(
-        path: string,
-        options?: { hasUnsavedChanges?: boolean },
-        token?: CancellationToken,
-    ): Promise<MutableFileEntry | { canceled: true }>;
-    reveal(path: string, token?: CancellationToken): Promise<void>;
-}
-
 export interface GitFileStatus {
     path: string;
     originalPath?: string;
@@ -204,11 +79,18 @@ export interface GitCommitDetails {
 
 export interface WorkspaceGit {
     summary(refresh?: number, token?: CancellationToken): Promise<GitSummary>;
+    /**
+     * Requests cancellation before the native mutation boundary. The promise still waits for Host's authoritative
+     * outcome so a completed mutation is never reported as retryable cancellation.
+     */
     sync(repoId: string, token?: CancellationToken): Promise<void>;
+    /**
+     * Requests cancellation before confirmation/apply. Once apply starts, the promise resolves from Host's
+     * authoritative completion rather than locally synthesizing `CANCELLED`.
+     */
     discard(
-        repo: { id: string; name: string },
-        scope:
-            { kind: 'all'; fileCount: number } | { kind: 'file'; path: string; untracked: boolean },
+        repoId: string,
+        scope: { kind: 'all' } | { kind: 'file'; path: string },
         token?: CancellationToken,
     ): Promise<{ canceled: true } | null>;
     pullRequestChanges(

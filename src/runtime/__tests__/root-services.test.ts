@@ -34,14 +34,14 @@ describe('root service file mutation acknowledgement', () => {
         });
         const database = { remapWorkbenchEditorState } as unknown as CaxriDatabase;
         const files = {
-            getMutationOperation: vi.fn(() => Promise.resolve(operation)),
-            acknowledgeMutationOperation: vi.fn(() => {
+            getScopedMutationOperation: vi.fn(() => Promise.resolve(operation)),
+            acknowledgeScopedMutationOperation: vi.fn(() => {
                 order.push('acknowledge');
                 return Promise.resolve();
             }),
         } as unknown as FileService;
 
-        await acknowledgeFileMutation(database, files, operation.id);
+        await acknowledgeFileMutation(database, files, operation.sessionId, operation.id);
 
         expect(remapWorkbenchEditorState).toHaveBeenCalledWith(
             operation.workbenchProjectId,

@@ -25,7 +25,7 @@ import { registerCommand } from './registry';
  */
 vi.mock('../lib/keybindings', () => ({ isEditableEventTarget: vi.fn() }));
 const mockedIsEditableEventTarget = vi.mocked(isEditableEventTarget);
-const extensionOwnedSharedIds = new Set<CommandId>([
+const catalogOwnedSharedIds = new Set<CommandId>([
     'secondarySidebar.showFiles',
     'secondarySidebar.showGit',
     'secondarySidebar.searchFiles',
@@ -132,7 +132,7 @@ describe('executeCommand', () => {
 
     it('dispatches every command in the shared catalog', () => {
         for (const definition of sharedCommandDefinitions) {
-            if (extensionOwnedSharedIds.has(definition.id)) continue;
+            if (catalogOwnedSharedIds.has(definition.id)) continue;
             const { calls, context } = recordingContext();
             executeCommand(
                 definition.id,
@@ -150,12 +150,12 @@ describe('executeCommand', () => {
         );
 
         for (const id of sharedIds)
-            if (!extensionOwnedSharedIds.has(id))
+            if (!catalogOwnedSharedIds.has(id))
                 expect(registeredIds, `registry is missing ${id}`).toContain(id);
-        for (const id of extensionOwnedSharedIds)
+        for (const id of catalogOwnedSharedIds)
             expect(
                 registeredIds,
-                `extension command leaked into the builtin registry: ${id}`,
+                `catalog-owned command leaked into the builtin registry: ${id}`,
             ).not.toContain(id);
         for (const id of registeredIds)
             expect(sharedIds, `shared catalog is missing ${id}`).toContain(id);

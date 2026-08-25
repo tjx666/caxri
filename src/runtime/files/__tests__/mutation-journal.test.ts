@@ -34,6 +34,74 @@ afterEach(async () => {
 });
 
 describe('FileMutationJournal', () => {
+    it('keeps durable operations visible and controllable only inside their Workbench Project', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-journal-scope-'));
+        temporaryDirectories.push(directory);
+        const journal = new FileMutationJournal(
+            join(directory, 'operations.json'),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+        );
+        await journal.initialize();
+        const operation = {
+            ...createOperation('operation-scoped', directory, 'session-a'),
+            workbenchProjectId: 'project-a',
+        };
+        await journal.run(operation, async (stage) => {
+            const result = {
+                kind: 'file' as const,
+                name: 'operation-scoped.txt',
+                path: join(directory, 'operation-scoped.txt'),
+            };
+            await stage(result);
+            return result;
+        });
+        const scoped = journal as FileMutationJournal & {
+            acknowledgeScoped(
+                operationId: string,
+                scope: { sessionId: string; workbenchProjectId: string },
+            ): Promise<void>;
+            cancelScoped(
+                operationId: string,
+                scope: { sessionId: string; workbenchProjectId: string },
+            ): Promise<FileMutationOperation>;
+            getScoped(
+                operationId: string,
+                scope: { sessionId: string; workbenchProjectId: string },
+            ): Promise<FileMutationOperation | undefined>;
+            listScoped(scope: {
+                sessionId: string;
+                workbenchProjectId: string;
+            }): Promise<FileMutationOperation[]>;
+        };
+
+        await expect(
+            scoped.getScoped(operation.id, {
+                sessionId: 'session-b',
+                workbenchProjectId: 'project-b',
+            }),
+        ).resolves.toBeUndefined();
+        await expect(
+            scoped.listScoped({ sessionId: 'session-b', workbenchProjectId: 'project-b' }),
+        ).resolves.toEqual([]);
+        await expect(
+            scoped.cancelScoped(operation.id, {
+                sessionId: 'session-b',
+                workbenchProjectId: 'project-b',
+            }),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        await expect(
+            scoped.acknowledgeScoped(operation.id, {
+                sessionId: 'session-b',
+                workbenchProjectId: 'project-b',
+            }),
+        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
+        await expect(
+            scoped.listScoped({ sessionId: 'session-c', workbenchProjectId: 'project-a' }),
+        ).resolves.toEqual([expect.objectContaining({ id: operation.id })]);
+        await journal.close();
+    });
+
     it('times out a stuck pre-stage operation before it can mutate files', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-file-journal-pre-stage-'));
         temporaryDirectories.push(directory);

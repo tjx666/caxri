@@ -9,11 +9,11 @@ const catalog: ViewCatalogSnapshot = {
         {
             id: 'caxri.files',
             location: 'secondarySidebar',
-            source: { kind: 'builtin' },
+            source: { kind: 'core' },
             title: 'Files',
             icon: { kind: 'builtin', id: 'files' },
             commandId: 'secondarySidebar.showFiles',
-            lifecycle: 'builtin',
+            lifecycle: 'core',
         },
         {
             id: 'publisher.view',

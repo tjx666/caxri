@@ -31,7 +31,8 @@ const e2eRequestState = { sessionStateUpdateCount: 0 };
  * error }` rather than throwing so the Caxri error code survives both the Electron IPC hop and the `contextBridge`
  * copy, which reduces a thrown error to its message and stack.
  */
-async function request<M extends CaxriMethod>(
+async function requestWithId<M extends CaxriMethod>(
+    requestId: string,
     method: M,
     ...arguments_: ParametersArgument<M>
 ): Promise<MethodReply<M>> {
@@ -41,10 +42,17 @@ async function request<M extends CaxriMethod>(
      */
     return (await ipcRenderer.invoke('caxri:request', {
         protocolVersion: CAXRI_PROTOCOL_VERSION,
-        id: crypto.randomUUID(),
+        id: requestId,
         method,
         params: arguments_[0] ?? {},
     })) as MethodReply<M>;
+}
+
+async function request<M extends CaxriMethod>(
+    method: M,
+    ...arguments_: ParametersArgument<M>
+): Promise<MethodReply<M>> {
+    return requestWithId(crypto.randomUUID(), method, ...arguments_);
 }
 
 const eventListeners = new Set<(event: RuntimeEvent) => void>();
@@ -69,6 +77,7 @@ const bridge: CaxriBridge = {
             supportedVersions: [CAXRI_PROTOCOL_VERSION],
         })) as ProtocolWelcome,
     request,
+    requestWithId,
     reportError: (kind) => ipcRenderer.send(rendererErrorChannel, kind),
     onEvent: (listener: (event: RuntimeEvent) => void): (() => void) => {
         eventListeners.add(listener);

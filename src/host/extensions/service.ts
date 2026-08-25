@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+    AppSettings,
     ExtensionCapability,
     ExtensionError,
     ExtensionViewEventContext,
@@ -11,10 +12,10 @@ import type {
 import { methods } from '@caxri/protocol';
 
 import type {
-    ExtensionFilesChange,
     ExtensionHostApiRequest,
     ExtensionHostRegistration,
     ExtensionProjectStatusSummary,
+    ExtensionViewOperation,
     ExtensionWorkspaceOperation,
 } from '../../shared/extension-host-protocol';
 import type { StructuredLogger } from '../../shared/node/logger';
@@ -32,7 +33,6 @@ import {
 import { ExtensionHostSupervisor } from './supervisor';
 import { assertActiveViewContext } from './view-scope';
 import {
-    projectFileOperation,
     validatedExtensionWorkspaceResult,
     validatedRuntimeWorkspaceResult,
 } from './workspace-results';
@@ -54,6 +54,7 @@ export interface ExtensionServiceOptions {
     }>;
     projectIds(): Promise<string[]>;
     projectStatus(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary>;
+    settings?(): Promise<AppSettings>;
     workspaceRequest(
         operation: ExtensionWorkspaceOperation,
         parameters: unknown,
@@ -63,11 +64,6 @@ export interface ExtensionServiceOptions {
 }
 
 const readWorkspaceOperations = new Set<ExtensionWorkspaceOperation>([
-    'files.list',
-    'files.operation.get',
-    'files.operation.list',
-    'files.reveal',
-    'files.search',
     'git.commits',
     'git.commitDetails',
     'git.pullRequestChanges',
@@ -75,10 +71,15 @@ const readWorkspaceOperations = new Set<ExtensionWorkspaceOperation>([
     'git.summary',
 ]);
 
+const readViewOperations = new Set<ExtensionViewOperation>([
+    'source.snapshot',
+    'source.historyPage',
+    'source.historyDetails',
+]);
+
 function workspaceCapability(operation: ExtensionWorkspaceOperation): ExtensionCapability {
-    const domain = operation.startsWith('files.') ? 'files' : 'git';
     const access = readWorkspaceOperations.has(operation) ? 'read' : 'write';
-    return `${domain}.${access}`;
+    return `git.${access}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -95,8 +96,6 @@ function workspaceParameters(
             code: 'PROVIDER_FAILED',
         });
     try {
-        if (operation === 'files.reveal')
-            return methods['files.read'].params.parse({ ...arguments_, sessionId });
         return methods[operation].params.parse({ ...arguments_, sessionId });
     } catch {
         throw Object.assign(new Error(`Invalid Extension API arguments for ${operation}`), {
@@ -288,6 +287,19 @@ export class ExtensionService extends EventTarget {
             });
     }
 
+    private assertConfigurationAccess(extensionId: string, key: string): void {
+        const extension = this.discovered.find(
+            (candidate) => candidate.extensionId === extensionId,
+        );
+        const declared = Object.values(extension?.manifest.contributes.views ?? {})
+            .flat()
+            .some((view) => view.configurationDependencies?.includes(key));
+        if (!declared)
+            throw Object.assign(new Error('Extension configuration key is not declared'), {
+                code: 'CAPABILITY_DENIED',
+            });
+    }
+
     private async activeContextForApi(
         request: ExtensionHostApiRequest,
         capability: ExtensionCapability,
@@ -339,30 +351,6 @@ export class ExtensionService extends EventTarget {
             );
     }
 
-    private async requireOwnedFileOperation(
-        operationId: string,
-        active: { sessionId: string; workbenchProjectId: string },
-    ): Promise<Record<string, unknown>> {
-        const operation = validatedRuntimeWorkspaceResult(
-            'files.operation.get',
-            await this.options.workspaceRequest('files.operation.get', { operationId }, active),
-        );
-        if (!isRecord(operation) || !this.fileOperationBelongsToActiveProject(operation, active))
-            throw Object.assign(new Error('File operation is outside the active Project'), {
-                code: 'PROJECT_SCOPE_DENIED',
-            });
-        return operation;
-    }
-
-    private fileOperationBelongsToActiveProject(
-        operation: Record<string, unknown>,
-        active: { sessionId: string; workbenchProjectId: string },
-    ): boolean {
-        return typeof operation.workbenchProjectId === 'string'
-            ? operation.workbenchProjectId === active.workbenchProjectId
-            : operation.sessionId === active.sessionId;
-    }
-
     private async workspaceApiRequest(
         request: Extract<ExtensionHostApiRequest, { method: 'workspace.request' }>,
         signal?: AbortSignal,
@@ -376,33 +364,12 @@ export class ExtensionService extends EventTarget {
             request.params.arguments,
             active.sessionId,
         );
-        if (operation === 'files.operation.cancel' || operation === 'files.operation.acknowledge') {
-            const operationId = (parameters as { operationId: string }).operationId;
-            await this.requireOwnedFileOperation(operationId, active);
-        }
         const workspaceResult = signal
             ? await this.options.workspaceRequest(operation, parameters, active, signal)
             : await this.options.workspaceRequest(operation, parameters, active);
         const result = validatedRuntimeWorkspaceResult(operation, workspaceResult);
         if (readWorkspaceOperations.has(operation))
             await this.assertApiContextCurrent(request, capability, active);
-        if (operation === 'files.operation.list') {
-            const visibleOperations: Array<Record<string, unknown>> = [];
-            for (const fileOperation of result as Array<Record<string, unknown>>)
-                if (this.fileOperationBelongsToActiveProject(fileOperation, active))
-                    visibleOperations.push(projectFileOperation(fileOperation));
-            return visibleOperations;
-        }
-        if (operation === 'files.operation.get' || operation === 'files.operation.cancel') {
-            if (result === null) return null;
-            if (!isRecord(result) || !this.fileOperationBelongsToActiveProject(result, active)) {
-                if (operation === 'files.operation.get') return null;
-                throw Object.assign(new Error('File operation is outside the active Project'), {
-                    code: 'PROJECT_SCOPE_DENIED',
-                });
-            }
-            return projectFileOperation(result);
-        }
         return result;
     }
 
@@ -412,6 +379,21 @@ export class ExtensionService extends EventTarget {
     ): Promise<unknown> {
         if (request.method === 'workspace.request')
             return this.workspaceApiRequest(request, signal);
+        if (request.method === 'workspace.getConfiguration') {
+            this.assertApiAccess(request, 'settings.read');
+            this.assertConfigurationAccess(request.extensionId, request.params.key);
+            if (!this.options.settings)
+                throw Object.assign(new Error('Extension configuration is unavailable'), {
+                    code: 'EXTENSION_HOST_UNAVAILABLE',
+                });
+            const settings = await this.options.settings();
+            this.assertApiAccess(request, 'settings.read');
+            if (!Object.hasOwn(settings, request.params.key))
+                throw Object.assign(new Error('Extension configuration key is unknown'), {
+                    code: 'CAPABILITY_DENIED',
+                });
+            return settings[request.params.key as keyof AppSettings];
+        }
         this.assertApiAccess(request, 'projects.read');
         const snapshot = await this.options.activeContext();
         if (!snapshot.sessionId)
@@ -616,7 +598,7 @@ export class ExtensionService extends EventTarget {
 
     async viewOperation(parameters: {
         viewId: string;
-        operation: ExtensionWorkspaceOperation;
+        operation: ExtensionViewOperation;
         arguments: unknown;
         requestId: string;
         context: ExtensionViewEventContext;
@@ -624,9 +606,7 @@ export class ExtensionService extends EventTarget {
         assertActiveViewContext(parameters.context, await this.options.activeContext());
         const extension = this.extensionForView(parameters.viewId);
         const descriptor = this.catalog().views.find(({ id }) => id === parameters.viewId);
-        const expectedKind = parameters.operation.startsWith('files.')
-            ? 'resource-explorer'
-            : 'source-control';
+        const expectedKind = 'source-control';
         if (descriptor?.viewKind.kind !== expectedKind)
             throw Object.assign(
                 new Error(`${expectedKind} operation cannot target ${parameters.viewId}`),
@@ -656,7 +636,7 @@ export class ExtensionService extends EventTarget {
             throw Object.assign(new Error('View provider generation expired'), {
                 code: 'GENERATION_EXPIRED',
             });
-        if (readWorkspaceOperations.has(parameters.operation))
+        if (readViewOperations.has(parameters.operation))
             assertActiveViewContext(parameters.context, await this.options.activeContext());
         return validatedExtensionWorkspaceResult(parameters.operation, result);
     }
@@ -691,13 +671,6 @@ export class ExtensionService extends EventTarget {
 
     async activeContextChanged(context: ExtensionViewEventContext): Promise<void> {
         await this.supervisor?.request('activeContextChanged', { context });
-    }
-
-    async filesChanged(
-        change: ExtensionFilesChange,
-        context: ExtensionViewEventContext,
-    ): Promise<void> {
-        await this.supervisor?.request('filesChanged', { change, context });
     }
 
     async gitChanged(context: ExtensionViewEventContext): Promise<void> {

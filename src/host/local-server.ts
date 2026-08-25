@@ -420,9 +420,13 @@ export class LocalHostServer {
                 }
                 /**
                  * Cancellation is authenticated control traffic. It must reach the Host adapter immediately even when
-                 * an earlier view operation is still waiting on Runtime or Extension Host work.
+                 * an earlier request is still waiting on Runtime or Extension Host work.
                  */
-                if (state && hotRequest?.method === 'viewContainers.cancelRequest') {
+                if (
+                    state &&
+                    (hotRequest?.method === 'viewContainers.cancelRequest' ||
+                        hotRequest?.method === 'requests.cancel')
+                ) {
                     // This path intentionally bypasses `queue`; the data callback is synchronous, so dispatch is
                     // fire-and-forget and owns its own reply/error handling.
                     const cancellation = this.dispatchCommand(

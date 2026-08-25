@@ -6,7 +6,16 @@ describe('isNonExpiringRuntimeMethod', () => {
     it('allows the documented non-expiring methods', () => {
         expect(isNonExpiringRuntimeMethod('agent.dispatch.waitInternal')).toBe(true);
         expect(isNonExpiringRuntimeMethod('agent.message.wait')).toBe(true);
-        expect(isNonExpiringRuntimeMethod('files.copy')).toBe(true);
+        for (const method of [
+            'files.create',
+            'files.copy',
+            'files.rename',
+            'files.move',
+            'files.operation.cancel',
+            'files.operation.acknowledge',
+            'files.trash',
+        ])
+            expect(isNonExpiringRuntimeMethod(method)).toBe(true);
         expect(isNonExpiringRuntimeMethod('files.write')).toBe(true);
         expect(isNonExpiringRuntimeMethod('git.discard.apply')).toBe(true);
     });
@@ -21,20 +30,11 @@ describe('isNonExpiringRuntimeMethod', () => {
 });
 
 describe('isNonExpiringViewOperation', () => {
-    it('keeps durable Files and Git mutations on their authoritative completion path', () => {
-        for (const operation of [
-            'files.create',
-            'files.copy',
-            'files.rename',
-            'files.move',
-            'files.operation.cancel',
-            'files.operation.acknowledge',
-            'files.trash',
-            'git.sync',
-            'git.discard',
-        ])
-            expect(isNonExpiringViewOperation(operation)).toBe(true);
+    it('keeps opaque provider actions on their authoritative completion path', () => {
+        expect(isNonExpiringViewOperation('source.action')).toBe(true);
+        expect(isNonExpiringViewOperation('git.sync')).toBe(true);
+        expect(isNonExpiringViewOperation('git.discard')).toBe(true);
         expect(isNonExpiringViewOperation('files.list')).toBe(false);
-        expect(isNonExpiringViewOperation('git.summary')).toBe(false);
+        expect(isNonExpiringViewOperation('source.snapshot')).toBe(false);
     });
 });

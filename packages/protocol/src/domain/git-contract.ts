@@ -23,20 +23,10 @@ const hostControl = commandPolicy('host', 'control');
 const desktopWrite = commandPolicy('desktop', 'write');
 
 const gitDiscardScopeSchema = z.discriminatedUnion('kind', [
-    z.object({
-        kind: z.literal('all'),
-        /**
-         * Changed-file count shown in the confirmation copy.
-         */
-        fileCount: z.number().int().positive().max(100_000),
-    }),
-    z.object({
+    z.strictObject({ kind: z.literal('all') }),
+    z.strictObject({
         kind: z.literal('file'),
         path: pathSchema,
-        /**
-         * Untracked files are deleted rather than restored, so the prompt must say so.
-         */
-        untracked: z.boolean(),
     }),
 ]);
 
@@ -120,14 +110,12 @@ export const gitMethods = {
     },
     'git.discard': {
         ...desktopWrite,
-        params: z.object({
+        params: z.strictObject({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
             /**
-             * Display name for the native confirmation copy only; Runtime re-derives every discarded path from its own
-             * status snapshot, never from these display fields.
+             * Runtime derives confirmation copy, counts, and tracked state from its authorized status snapshot.
              */
-            repositoryName: z.string().min(1).max(1_024),
             scope: gitDiscardScopeSchema,
         }),
         result: z.union([canceledResultSchema, z.null()]),

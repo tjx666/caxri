@@ -99,7 +99,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-state-sibling-session-invalidation — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Project-shared filesystem and Git facts now invalidate every same-Project Session, including a sibling selected during a queued watcher batch.
-- **Evidence:** `packages/api/src/workspace.ts` exposes path-free workspace change events; `extensions/files/src/extension.ts` translates them into a controlled Resource Explorer refresh; `src/host/extensions/service.ts` generation-checks the resulting generic `viewContainers.viewChanged` event before publication. `src/runtime/files/__tests__/watcher.scope.integration.test.ts` covers queued rebind and cross-Project fencing.
+- **Evidence:** Runtime emits scope-bound `files.changed` events; `src/renderer/src/queries/invalidation.ts` invalidates Core Resource Explorer reads for every same-Project Session without an Extension Host echo. `src/runtime/files/__tests__/watcher.scope.integration.test.ts` covers queued rebind and cross-Project fencing.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ 660ef29 via [issue caxri#168](https://github.com/tjx666/caxri/issues/168).
 - **Remediation target / Acceptance:** Two Sessions sharing one Project observe matching `files.list` and `git.summary` after an external write and immediate Session switch; another Project remains untouched.

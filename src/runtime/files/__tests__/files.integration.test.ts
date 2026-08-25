@@ -20,7 +20,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_FILE_BROWSE_ENTRIES } from '../../../shared/ipc/methods';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
-import { MAX_CONCURRENT_FILE_BROWSES, MAX_FILE_BROWSE_SCANNED_ENTRIES } from '../listing';
+import {
+    boundFileListEntries,
+    MAX_CONCURRENT_FILE_BROWSES,
+    MAX_FILE_BROWSE_SCANNED_ENTRIES,
+    MAX_FILE_LIST_RESULT_BYTES,
+} from '../listing';
 import { FileService } from '../service';
 import { didFingerprintChange, rememberPolledDirectory } from '../watcher';
 
@@ -68,6 +73,92 @@ afterEach(async () => {
 });
 
 describe('FileService', () => {
+    it('keeps the serialized directory page below its transport byte budget', () => {
+        const entries = Array.from({ length: 1_024 }, (_unused, index) => ({
+            kind: 'file' as const,
+            name: `entry-${index}.txt`,
+            path: `/${'deep/'.repeat(700)}entry-${index}.txt`,
+        }));
+
+        const bounded = boundFileListEntries(entries);
+
+        expect(bounded.length).toBeLessThan(entries.length);
+        expect(
+            Buffer.byteLength(JSON.stringify({ entries: bounded, truncated: true }), 'utf8'),
+        ).toBeLessThanOrEqual(MAX_FILE_LIST_RESULT_BYTES);
+    });
+
+    it('bounds a directory page before it crosses the Files Core transport', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-bound-'));
+        temporaryDirectories.push(directory);
+        await Promise.all(
+            Array.from({ length: 1_025 }, (_unused, index) =>
+                writeFile(join(directory, `entry-${index.toString().padStart(4, '0')}.txt`), ''),
+            ),
+        );
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const service = new FileService(
+            database,
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+        ) as FileService & {
+            listDirectory(sessionId: string): Promise<{
+                entries: unknown[];
+                truncated: boolean;
+            }>;
+        };
+
+        const page = await service.listDirectory(session.id);
+
+        expect(page.entries).toHaveLength(1_024);
+        expect(page.truncated).toBe(true);
+        await service.close();
+        database.close();
+    });
+
+    it('stops scanning an oversized directory and closes its handle before building the page', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-scan-bound-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const maximumScannedEntries = 4_096;
+        let readCount = 0;
+        const close = vi.fn(() => Promise.resolve());
+        const service = new FileService(
+            database,
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            {
+                openDirectory: () =>
+                    Promise.resolve({
+                        close,
+                        read: () => {
+                            readCount += 1;
+                            return Promise.resolve(fakeDirent(`entry-${readCount}.txt`));
+                        },
+                    } as unknown as Dir),
+            },
+        );
+
+        const page = await service.listDirectory(session.id);
+
+        expect(page.entries).toEqual([]);
+        expect(page.truncated).toBe(true);
+        expect(readCount).toBe(maximumScannedEntries + 1);
+        expect(close).toHaveBeenCalledOnce();
+        await service.close();
+        database.close();
+    });
+
     it('keeps fallback polling bounded without evicting the active root', () => {
         const directories = new Map<string, string>();
         rememberPolledDirectory(directories, '/root', 'root', '/root', 3);

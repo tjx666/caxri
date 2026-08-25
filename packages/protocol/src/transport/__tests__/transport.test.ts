@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { CaxriMethod } from '../../registry/methods';
 import { CaxriError } from '../errors';
@@ -162,6 +162,13 @@ describe('createCaxriClient', () => {
                 ok: true,
                 result: { ready: true, pid: 1, startedAt: 1, activePtyCount: 0 },
             }),
+            requestWithId: (_requestId, method, ...arguments_) =>
+                mockRequest<'app.health'>({
+                    protocolVersion: 2,
+                    id: 'r1',
+                    ok: true,
+                    result: { ready: true, pid: 1, startedAt: 1, activePtyCount: 0 },
+                })(method, ...arguments_),
             onEvent: () => () => {},
         });
         await expect(client.request('app.health')).resolves.toEqual({
@@ -181,6 +188,13 @@ describe('createCaxriClient', () => {
                 ok: false,
                 error: { code: 'FORBIDDEN', message: 'no capability' },
             }),
+            requestWithId: (_requestId, method, ...arguments_) =>
+                mockRequest<'app.health'>({
+                    protocolVersion: 2,
+                    id: 'r1',
+                    ok: false,
+                    error: { code: 'FORBIDDEN', message: 'no capability' },
+                })(method, ...arguments_),
             onEvent: () => () => {},
         });
         await expect(client.request('app.health')).rejects.toBeInstanceOf(CaxriError);
@@ -199,8 +213,54 @@ describe('createCaxriClient', () => {
                 ok: true,
                 result: { ready: 'not-a-boolean' },
             }),
+            requestWithId: (_requestId, method, ...arguments_) =>
+                mockRequest<'app.health'>({
+                    protocolVersion: 2,
+                    id: 'r1',
+                    ok: true,
+                    result: { ready: 'not-a-boolean' },
+                })(method, ...arguments_),
             onEvent: () => () => {},
         });
         await expect(client.request('app.health')).rejects.toBeInstanceOf(CaxriError);
+    });
+
+    it('cancels a caller-owned request identity when its AbortSignal fires', async () => {
+        const reply = Promise.withResolvers<MethodReply<'app.health'>>();
+        let requestId = '';
+        const cancel = vi.fn((parameters: unknown) => {
+            expect(parameters).toEqual({ requestId });
+            reply.resolve({
+                protocolVersion: 2,
+                id: requestId,
+                ok: false,
+                error: { code: 'CANCELLED', message: 'Request was canceled' },
+            });
+            return Promise.resolve({
+                protocolVersion: 2,
+                id: 'cancel-1',
+                ok: true as const,
+                result: { cancelled: true },
+            });
+        });
+        const client = createCaxriClient({
+            negotiate: () => Promise.reject(new Error('not exercised')),
+            request: ((method: CaxriMethod, parameters?: unknown) =>
+                method === 'requests.cancel'
+                    ? cancel(parameters)
+                    : Promise.reject(new Error('unexpected request'))) as CaxriBridge['request'],
+            requestWithId: ((id: string) => {
+                requestId = id;
+                return reply.promise;
+            }) as CaxriBridge['requestWithId'],
+            onEvent: () => () => {},
+        });
+        const controller = new AbortController();
+        const pending = client.requestWithSignal('app.health', controller.signal);
+
+        controller.abort();
+
+        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(cancel).toHaveBeenCalledWith({ requestId });
     });
 });

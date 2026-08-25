@@ -1,4 +1,6 @@
-import { lstat, opendir, readdir, realpath } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import type { Dirent } from 'node:fs';
+import { lstat, opendir, realpath } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
 import { CaxriError, errorMessage } from '../../shared/ipc/errors';
@@ -6,7 +8,7 @@ import type {
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
 } from '../../shared/ipc/methods';
-import { MAX_FILE_BROWSE_ENTRIES } from '../../shared/ipc/methods';
+import { MAX_FILE_BROWSE_ENTRIES, MAX_FILE_LIST_ENTRIES } from '../../shared/ipc/methods';
 import { AsyncSemaphore, mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
@@ -25,6 +27,26 @@ export const MAX_FILE_BROWSE_SCANNED_ENTRIES = 4_096;
  * Prevents path browsing from exhausting Runtime directory handles across concurrent Sessions.
  */
 export const MAX_CONCURRENT_FILE_BROWSES = 4;
+/**
+ * Leaves transport-envelope headroom below the historical controlled-view result ceiling.
+ */
+export const MAX_FILE_LIST_RESULT_BYTES = 3 * 1024 * 1024;
+/**
+ * Bounds Runtime memory and latency before the smaller sorted page and serialized byte limits are applied.
+ */
+const MAX_FILE_LIST_SCANNED_ENTRIES = 4_096;
+
+export function boundFileListEntries(entries: readonly FileEntry[]): FileEntry[] {
+    const bounded: FileEntry[] = [];
+    let bytes = Buffer.byteLength('{"entries":[],"truncated":true}', 'utf8');
+    for (const entry of entries) {
+        const entryBytes = Buffer.byteLength(JSON.stringify(entry), 'utf8') + 1;
+        if (bytes + entryBytes > MAX_FILE_LIST_RESULT_BYTES) break;
+        bounded.push(entry);
+        bytes += entryBytes;
+    }
+    return bounded;
+}
 
 /**
  * Notified with the resolved directory just before it is enumerated, so the watcher can lazily start polling it.
@@ -49,7 +71,7 @@ export type GitIgnoreRulesListedListener = (
  * Lists directories under a Session's Project root, tolerating entries that vanish mid-listing.
  */
 export class ListingService {
-    private readonly listRequests = new SingleFlight<string, FileEntry[]>();
+    private readonly listRequests = new SingleFlight<string, RuntimeMethodResult<'files.list'>>();
     private readonly browseRequests = new SingleFlight<
         string,
         RuntimeMethodResult<'files.browse'>
@@ -164,7 +186,7 @@ export class ListingService {
         directory: string | undefined,
         excludes: FileTreeExcludes,
         signal?: AbortSignal,
-    ): Promise<FileEntry[]> {
+    ): Promise<RuntimeMethodResult<'files.list'>> {
         const startedAt = performance.now();
         signal?.throwIfAborted();
         const { root, path } = await this.resolveSessionPath(sessionId, directory);
@@ -174,11 +196,35 @@ export class ListingService {
         signal?.throwIfAborted();
         if (!before.isDirectory() || before.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a directory');
-        const entries = await readdir(path, { withFileTypes: true });
-        signal?.throwIfAborted();
+        const entries: Dirent[] = [];
+        let isReachedEnd = false;
+        let scannedEntries = 0;
+        const directoryHandle = await this.openDirectory(path);
+        try {
+            while (scannedEntries <= MAX_FILE_LIST_SCANNED_ENTRIES) {
+                signal?.throwIfAborted();
+                // `Dir#read()` streams one entry per call from a single open directory handle.
+                // eslint-disable-next-line no-await-in-loop -- directory reads are inherently sequential
+                const entry = await directoryHandle.read();
+                signal?.throwIfAborted();
+                if (!entry) {
+                    isReachedEnd = true;
+                    break;
+                }
+                scannedEntries += 1;
+                if (entries.length < MAX_FILE_LIST_SCANNED_ENTRIES) entries.push(entry);
+                else break;
+            }
+        } finally {
+            try {
+                await directoryHandle.close();
+            } catch {
+                // Ignore close failures: the directory handle is being discarded regardless.
+            }
+        }
         const after = await lstat(path);
         /**
-         * Revalidate around readdir so a Session-root swap cannot disclose another directory.
+         * Revalidate around streaming enumeration so a Session-root swap cannot disclose another directory.
          */
         if (
             !after.isDirectory() ||
@@ -192,14 +238,23 @@ export class ListingService {
             const relativePath = relative(root, resolve(path, entry.name)).split(sep).join('/');
             return !isFileTreeExcludeMatch(relativePath, excludes);
         });
+        const boundedVisible = visible
+            .toSorted((a, b) =>
+                a.isDirectory() === b.isDirectory()
+                    ? a.name.localeCompare(b.name)
+                    : a.isDirectory()
+                      ? -1
+                      : 1,
+            )
+            .slice(0, MAX_FILE_LIST_ENTRIES);
         const [settled, gitIgnoreDecoration] = await Promise.all([
-            mapWithConcurrency(visible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
+            mapWithConcurrency(boundedVisible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
                 this.describeEntry(path, entry.name, signal),
             ),
             this.loadGitIgnoredNames(
                 sessionId,
                 path,
-                visible.map((entry) => entry.name),
+                boundedVisible.map((entry) => entry.name),
             ),
         ]);
         await this.onGitIgnoreRulesListed?.(sessionId, gitIgnoreDecoration.rulePaths);
@@ -213,11 +268,22 @@ export class ListingService {
         const sorted = result.toSorted((a, b) =>
             a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'directory' ? -1 : 1,
         );
+        const bounded = boundFileListEntries(sorted);
+        const isTruncated =
+            !isReachedEnd ||
+            visible.length > boundedVisible.length ||
+            bounded.length < sorted.length;
         this.logger.write('info', logEventCatalog.file.list, {
             durationMs: performance.now() - startedAt,
-            fields: { sessionId, path: relative(root, path) || '.', entryCount: sorted.length },
+            fields: {
+                sessionId,
+                path: relative(root, path) || '.',
+                entryCount: bounded.length,
+                scannedEntries,
+                truncated: isTruncated,
+            },
         });
-        return sorted;
+        return { entries: bounded, truncated: isTruncated };
     }
 
     /**
@@ -270,11 +336,19 @@ export class ListingService {
         return { name, path: entryPath, kind: 'file', size: stats.size };
     }
 
-    list(sessionId: string, directory?: string, signal?: AbortSignal): Promise<FileEntry[]> {
+    listDirectory(
+        sessionId: string,
+        directory?: string,
+        signal?: AbortSignal,
+    ): Promise<RuntimeMethodResult<'files.list'>> {
         const excludes = this.fileTreeExcludes();
         return this.listRequests.run(JSON.stringify([sessionId, directory ?? null, excludes]), () =>
             this.loadList(sessionId, directory, excludes, signal),
         );
+    }
+
+    async list(sessionId: string, directory?: string, signal?: AbortSignal): Promise<FileEntry[]> {
+        return (await this.listDirectory(sessionId, directory, signal)).entries;
     }
 
     browse(

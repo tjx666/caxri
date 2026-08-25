@@ -1,19 +1,27 @@
-import type { ResourceExplorerProvider, SourceControlProvider } from './view-providers.js';
-import type { WorkspaceFileChange, WorkspaceFileSystem, WorkspaceGit } from './workspace.js';
+import type { SourceControlProvider } from './view-providers.js';
+import type { WorkspaceGit } from './workspace.js';
 
 export type {
     ControlledViewProviderResult,
-    ResourceExplorerChange,
-    ResourceExplorerProvider,
+    SourceControlAction,
+    SourceControlActionEffect,
+    SourceControlActionResult,
     SourceControlChange,
+    SourceControlCommandBinding,
+    SourceControlGroup,
+    SourceControlHistoryDescriptor,
+    SourceControlHistoryDetails,
+    SourceControlHistoryItem,
+    SourceControlHistoryPage,
     SourceControlMode,
     SourceControlProvider,
+    SourceControlProviderModel,
+    SourceControlResource,
+    SourceControlResourceDecoration,
+    SourceControlViewIcon,
+    SourceControlViewModel,
 } from './view-providers.js';
 export type {
-    FileEntry,
-    FileMutationOperation,
-    FileSearchMatch,
-    FileSearchResult,
     GitCommit,
     GitCommitDetails,
     GitCommitFile,
@@ -22,10 +30,6 @@ export type {
     GitPullRequestChanges,
     GitRepositorySummary,
     GitSummary,
-    MovedFileEntry,
-    MutableFileEntry,
-    WorkspaceFileChange,
-    WorkspaceFileSystem,
     WorkspaceGit,
 } from './workspace.js';
 
@@ -229,6 +233,14 @@ export interface ProjectStatusRequestOptions {
     refreshToken?: string;
 }
 
+/**
+ * Opaque Workbench scope attached to Extension Host lifecycle notifications. Product extensions can partition provider
+ * state without learning or submitting native paths.
+ */
+export interface WorkspaceChangeContext {
+    scopeId: string;
+}
+
 export interface CaxriApi {
     readonly commands: {
         registerCommand(
@@ -238,19 +250,14 @@ export interface CaxriApi {
     };
     readonly views: {
         registerTreeDataProvider<T>(viewId: string, provider: TreeDataProvider<T>): Disposable;
-        registerResourceExplorerProvider(
-            viewId: string,
-            provider: ResourceExplorerProvider,
-        ): Disposable;
         registerSourceControlProvider(viewId: string, provider: SourceControlProvider): Disposable;
     };
     readonly workspace: {
-        readonly onDidChangeActiveContext: Event<void>;
-        readonly onDidChangeFiles: Event<WorkspaceFileChange>;
-        readonly onDidChangeGit: Event<void>;
-        readonly onDidChangeProjectStatus: Event<void>;
-        readonly fs: WorkspaceFileSystem;
+        readonly onDidChangeActiveContext: Event<WorkspaceChangeContext>;
+        readonly onDidChangeGit: Event<WorkspaceChangeContext>;
+        readonly onDidChangeProjectStatus: Event<WorkspaceChangeContext>;
         readonly git: WorkspaceGit;
+        getConfiguration<Value = unknown>(key: string): Promise<Value | undefined>;
         getProjectStatus(options?: ProjectStatusRequestOptions): Promise<ProjectStatusSummary>;
     };
 }
@@ -281,30 +288,13 @@ const caxri: CaxriApi = Object.freeze({
         registerCommand: () => unavailable('commands.registerCommand'),
     }),
     views: Object.freeze({
-        registerResourceExplorerProvider: () =>
-            unavailable('views.registerResourceExplorerProvider'),
         registerSourceControlProvider: () => unavailable('views.registerSourceControlProvider'),
         registerTreeDataProvider: () => unavailable('views.registerTreeDataProvider'),
     }),
     workspace: Object.freeze({
-        onDidChangeActiveContext: outsideHostEvent<void>(),
-        onDidChangeFiles: outsideHostEvent<WorkspaceFileChange>(),
-        onDidChangeGit: outsideHostEvent<void>(),
-        onDidChangeProjectStatus: outsideHostEvent<void>(),
-        fs: Object.freeze({
-            acknowledgeOperation: () => unavailable('workspace.fs.acknowledgeOperation'),
-            cancelOperation: () => unavailable('workspace.fs.cancelOperation'),
-            copy: () => unavailable('workspace.fs.copy'),
-            create: () => unavailable('workspace.fs.create'),
-            getOperation: () => unavailable('workspace.fs.getOperation'),
-            list: () => unavailable('workspace.fs.list'),
-            listOperations: () => unavailable('workspace.fs.listOperations'),
-            move: () => unavailable('workspace.fs.move'),
-            rename: () => unavailable('workspace.fs.rename'),
-            reveal: () => unavailable('workspace.fs.reveal'),
-            search: () => unavailable('workspace.fs.search'),
-            trash: () => unavailable('workspace.fs.trash'),
-        }),
+        onDidChangeActiveContext: outsideHostEvent<WorkspaceChangeContext>(),
+        onDidChangeGit: outsideHostEvent<WorkspaceChangeContext>(),
+        onDidChangeProjectStatus: outsideHostEvent<WorkspaceChangeContext>(),
         git: Object.freeze({
             commits: () => unavailable('workspace.git.commits'),
             commitDetails: () => unavailable('workspace.git.commitDetails'),
@@ -314,6 +304,7 @@ const caxri: CaxriApi = Object.freeze({
             summary: () => unavailable('workspace.git.summary'),
             sync: () => unavailable('workspace.git.sync'),
         }),
+        getConfiguration: () => unavailable('workspace.getConfiguration'),
         getProjectStatus: () => unavailable('workspace.getProjectStatus'),
     }),
 });

@@ -446,6 +446,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     };
     const handlers: RuntimeHandlers = {
         'extensions.retry': () => mainOwned('extensions.retry'),
+        'requests.cancel': () => mainOwned('requests.cancel'),
         'viewContainers.cancelRequest': () => mainOwned('viewContainers.cancelRequest'),
         'viewContainers.catalog': () => mainOwned('viewContainers.catalog'),
         'viewContainers.executeCommand': () => mainOwned('viewContainers.executeCommand'),

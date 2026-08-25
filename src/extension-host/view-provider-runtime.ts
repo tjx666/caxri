@@ -1,31 +1,20 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 
-import type {
-    CaxriApi,
-    DisposableLike,
-    ResourceExplorerChange,
-    ResourceExplorerProvider,
-    SourceControlChange,
-    SourceControlProvider,
-} from 'caxri';
+import type { CaxriApi, DisposableLike, SourceControlChange, SourceControlProvider } from 'caxri';
 import { CancellationTokenSource, Disposable } from 'caxri';
 
 import type {
     ExtensionHostMessage,
     ExtensionViewEventScope,
-    ExtensionWorkspaceOperation,
+    ExtensionViewOperation,
 } from '../shared/extension-host-protocol';
-
-type ControlledViewProvider =
-    | { kind: 'resource-explorer'; provider: ResourceExplorerProvider }
-    | { kind: 'source-control'; provider: SourceControlProvider };
 
 interface ViewProviderRegistration {
     extensionId: string;
     generation: number;
     subscription?: DisposableLike;
-    view: ControlledViewProvider;
+    provider: SourceControlProvider;
 }
 
 const providers = new Map<string, ViewProviderRegistration>();
@@ -77,7 +66,7 @@ function providerFailure(error: unknown): Error {
 function registerProvider(
     viewId: string,
     registration: Omit<ViewProviderRegistration, 'subscription'>,
-    onDidChange: ResourceExplorerProvider['onDidChange'] | SourceControlProvider['onDidChange'],
+    onDidChange: SourceControlProvider['onDidChange'],
     send: (message: ExtensionHostMessage) => void,
 ): Disposable {
     if (providers.has(viewId))
@@ -86,47 +75,26 @@ function registerProvider(
         });
     const current: ViewProviderRegistration = registration;
     if (onDidChange)
-        current.subscription = onDidChange(
-            (change: ResourceExplorerChange | SourceControlChange) => {
-                if (providers.get(viewId) !== current) return;
-                const context = currentViewEventContext();
-                if (!context) return;
-                const serializedChange =
-                    change.kind === 'content' && 'paths' in change && change.paths
-                        ? { ...change, paths: [...change.paths] }
-                        : change;
-                send({
-                    type: 'event',
-                    event: 'viewChanged',
-                    extensionId: current.extensionId,
-                    generation: current.generation,
-                    viewId,
-                    eventId: randomUUID(),
-                    context,
-                    change: serializedChange,
-                });
-            },
-        );
+        current.subscription = onDidChange((change: SourceControlChange) => {
+            if (providers.get(viewId) !== current) return;
+            const context = currentViewEventContext();
+            if (!context) return;
+            send({
+                type: 'event',
+                event: 'viewChanged',
+                extensionId: current.extensionId,
+                generation: current.generation,
+                viewId,
+                eventId: randomUUID(),
+                context,
+                change,
+            });
+        });
     providers.set(viewId, current);
     return new Disposable(() => {
         current.subscription?.dispose();
         if (providers.get(viewId) === current) providers.delete(viewId);
     });
-}
-
-function registerResourceExplorerProvider(
-    extensionId: string,
-    generation: number,
-    viewId: string,
-    provider: ResourceExplorerProvider,
-    send: (message: ExtensionHostMessage) => void,
-): Disposable {
-    return registerProvider(
-        viewId,
-        { extensionId, generation, view: { kind: 'resource-explorer', provider } },
-        provider.onDidChange,
-        send,
-    );
 }
 
 function registerSourceControlProvider(
@@ -138,7 +106,7 @@ function registerSourceControlProvider(
 ): Disposable {
     return registerProvider(
         viewId,
-        { extensionId, generation, view: { kind: 'source-control', provider } },
+        { extensionId, generation, provider },
         provider.onDidChange,
         send,
     );
@@ -150,23 +118,8 @@ export function createControlledViewRegistrationApi(options: {
     viewKinds: ReadonlyMap<string, string>;
     assertCurrent(): void;
     send(message: ExtensionHostMessage): void;
-}): Pick<CaxriApi['views'], 'registerResourceExplorerProvider' | 'registerSourceControlProvider'> {
+}): Pick<CaxriApi['views'], 'registerSourceControlProvider'> {
     return {
-        registerResourceExplorerProvider: (viewId, provider) => {
-            options.assertCurrent();
-            if (options.viewKinds.get(viewId) !== 'resource-explorer')
-                throw Object.assign(
-                    new Error(`Resource Explorer view is not declared: ${viewId}`),
-                    { code: 'PROVIDER_MISSING' },
-                );
-            return registerResourceExplorerProvider(
-                options.extensionId,
-                options.generation,
-                viewId,
-                provider,
-                (message) => options.send(message),
-            );
-        },
         registerSourceControlProvider: (viewId, provider) => {
             options.assertCurrent();
             if (options.viewKinds.get(viewId) !== 'source-control')
@@ -192,92 +145,30 @@ function record(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
 }
 
-async function executeResourceOperation(
-    provider: ResourceExplorerProvider,
-    operation: ExtensionWorkspaceOperation,
-    arguments_: Record<string, unknown>,
-    cancellation: CancellationTokenSource,
-): Promise<unknown> {
-    const token = cancellation.token;
-    switch (operation) {
-        case 'files.list':
-            return provider.list(arguments_.directory as string | undefined, token);
-        case 'files.search':
-            return provider.search(arguments_ as never, token);
-        case 'files.create':
-            return provider.create(arguments_ as never, token);
-        case 'files.copy':
-            return provider.copy(arguments_.path as string, arguments_.directory as string, token);
-        case 'files.rename':
-            return provider.rename(arguments_ as never, token);
-        case 'files.move':
-            return provider.move(arguments_ as never, token);
-        case 'files.operation.get':
-            return provider.getOperation(arguments_.operationId as string, token);
-        case 'files.operation.list':
-            return provider.listOperations(token);
-        case 'files.operation.cancel':
-            return provider.cancelOperation(arguments_.operationId as string, token);
-        case 'files.operation.acknowledge':
-            await provider.acknowledgeOperation(arguments_.operationId as string, token);
-            return null;
-        case 'files.trash':
-            return provider.trash(
-                arguments_.path as string,
-                arguments_.hasUnsavedChanges === undefined
-                    ? undefined
-                    : { hasUnsavedChanges: arguments_.hasUnsavedChanges as boolean },
-                token,
-            );
-        case 'files.reveal':
-            await provider.reveal(arguments_.path as string, token);
-            return null;
-        default:
-            throw Object.assign(
-                new Error(`Unsupported Resource Explorer operation: ${operation}`),
-                {
-                    code: 'CAPABILITY_DENIED',
-                },
-            );
-    }
-}
-
 async function executeSourceControlOperation(
     provider: SourceControlProvider,
-    operation: ExtensionWorkspaceOperation,
+    operation: ExtensionViewOperation,
     arguments_: Record<string, unknown>,
     cancellation: CancellationTokenSource,
+    context?: ExtensionViewEventScope,
 ): Promise<unknown> {
     const token = cancellation.token;
+    const scopeId =
+        context?.kind === 'session'
+            ? `${context.sessionId}:${context.workbenchProjectId}`
+            : 'no-session';
+    const scopedArguments = { ...arguments_, scopeId };
     switch (operation) {
-        case 'git.summary':
-            return provider.summary(arguments_.refresh as number, token);
-        case 'git.sync':
-            await provider.sync(arguments_.repositoryId as string, token);
-            return null;
-        case 'git.discard':
-            return provider.discard(
-                {
-                    id: arguments_.repositoryId as string,
-                    name: arguments_.repositoryName as string,
-                },
-                arguments_.scope as never,
-                token,
-            );
-        case 'git.pullRequestChanges':
-            return provider.pullRequestChanges(
-                arguments_.repositoryId as string,
-                arguments_.refresh as number,
-                token,
-            );
-        case 'git.commits':
-            return provider.commits(arguments_ as never, token);
-        case 'git.commitDetails':
-            return provider.commitDetails(arguments_ as never, token);
-        case 'git.remoteHost':
-            return provider.remoteHost(arguments_.repositoryId as string, token);
+        case 'source.snapshot':
+            return provider.provideView(scopedArguments as never, token);
+        case 'source.historyPage':
+            return provider.provideHistoryPage(scopedArguments as never, token);
+        case 'source.historyDetails':
+            return provider.provideHistoryDetails(scopedArguments as never, token);
+        case 'source.action':
+            return provider.runAction(scopedArguments as never, token);
         default:
-            throw Object.assign(new Error(`Unsupported Source Control operation: ${operation}`), {
+            throw Object.assign(new Error('Unsupported Source Control operation'), {
                 code: 'CAPABILITY_DENIED',
             });
     }
@@ -287,7 +178,7 @@ export async function executeViewOperation(parameters: {
     extensionId: string;
     generation: number;
     viewId: string;
-    operation: ExtensionWorkspaceOperation;
+    operation: ExtensionViewOperation;
     arguments: unknown;
     requestId: string;
     context?: ExtensionViewEventScope;
@@ -314,31 +205,28 @@ export async function executeViewOperation(parameters: {
     try {
         const arguments_ = record(parameters.arguments);
         const invoke = (): Promise<unknown> =>
-            registration.view.kind === 'resource-explorer'
-                ? executeResourceOperation(
-                      registration.view.provider,
-                      parameters.operation,
-                      arguments_,
-                      cancellation,
-                  )
-                : executeSourceControlOperation(
-                      registration.view.provider,
-                      parameters.operation,
-                      arguments_,
-                      cancellation,
-                  );
+            executeSourceControlOperation(
+                registration.provider,
+                parameters.operation,
+                arguments_,
+                cancellation,
+                parameters.context,
+            );
         const result = await (parameters.context
             ? withViewEventContext(parameters.context, invoke)
             : invoke());
-        // The token can change while the provider Promise above is awaited.
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- asynchronous cancellation race
-        if (cancellation.token.isCancellationRequested)
-            throw Object.assign(new Error('View request was cancelled'), {
-                code: 'CANCELLED',
-            });
         if (providers.get(parameters.viewId) !== registration)
             throw Object.assign(new Error('View provider generation expired'), {
                 code: 'GENERATION_EXPIRED',
+            });
+        /**
+         * Reads must not commit a late result after cancellation. An action is different: cancellation is advisory once
+         * its provider has crossed a mutation boundary, so a successfully returned result is authoritative.
+         */
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- asynchronous cancellation race
+        if (parameters.operation !== 'source.action' && cancellation.token.isCancellationRequested)
+            throw Object.assign(new Error('View request was cancelled'), {
+                code: 'CANCELLED',
             });
         return result;
     } catch (error) {

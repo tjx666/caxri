@@ -8,6 +8,9 @@
         "build": "bun run --cwd ../.. scripts/build-extension.ts --extension-root extensions/git",
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
+    "dependencies": {
+        "@caxri/utils": "workspace:*"
+    },
     "devDependencies": {
         "caxri": "workspace:*"
     },
@@ -17,7 +20,8 @@
     "caxri": {
         "capabilities": [
             "git.read",
-            "git.write"
+            "git.write",
+            "settings.read"
         ]
     },
     "contributes": {
@@ -41,23 +45,14 @@
                     "id": "caxri.git.sourceControl",
                     "name": "Source Control",
                     "type": "source-control",
-                    "actions": [
-                        {
-                            "command": "caxri.git.workingTree",
-                            "role": "source.workingTree"
-                        },
-                        {
-                            "command": "caxri.git.lastCommit",
-                            "role": "source.lastCommit"
-                        },
-                        {
-                            "command": "caxri.git.pullRequest",
-                            "role": "source.pullRequest"
-                        },
-                        {
-                            "command": "caxri.git.refresh",
-                            "role": "source.refresh"
-                        }
+                    "presentation": {
+                        "noContextMessage": "Create a Session to inspect Git.",
+                        "loadingMessage": "Loading Git status…",
+                        "actionErrorMessage": "Git action failed",
+                        "refreshErrorMessage": "Git refresh failed"
+                    },
+                    "configurationDependencies": [
+                        "git.fetchGitHubAvatars"
                     ]
                 }
             ]
@@ -78,6 +73,36 @@
             {
                 "command": "caxri.git.refresh",
                 "title": "Refresh Git"
+            },
+            {
+                "command": "caxri.git.sync",
+                "title": "Sync Changes",
+                "palette": false
+            },
+            {
+                "command": "caxri.git.discardAll",
+                "title": "Discard All Changes",
+                "palette": false
+            },
+            {
+                "command": "caxri.git.discard",
+                "title": "Discard Changes",
+                "palette": false
+            },
+            {
+                "command": "caxri.git.openChanges",
+                "title": "Open Changes",
+                "palette": false
+            },
+            {
+                "command": "caxri.git.openSubmodule",
+                "title": "Open Submodule Repository",
+                "palette": false
+            },
+            {
+                "command": "caxri.git.history",
+                "title": "Show Repository History",
+                "palette": false
             }
         ]
     }

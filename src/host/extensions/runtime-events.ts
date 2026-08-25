@@ -26,35 +26,6 @@ export async function routeExtensionRuntimeEvent(
     event: RuntimeEvent,
 ): Promise<void> {
     if (!extensionService) return;
-    if (event.event === 'files.changed') {
-        await extensionService.filesChanged(
-            {
-                kind: 'content',
-                paths: event.payload.changes.map(({ path }) => path),
-                ...((event.payload.overflow || event.payload.gitIgnoreRulesChanged) && {
-                    overflow: true,
-                }),
-            },
-            {
-                kind: 'session',
-                sessionId: event.payload.sessionId,
-                workbenchProjectId: event.payload.workbenchProjectId,
-            },
-        );
-        return;
-    }
-    if (event.event === 'files.operationChanged') {
-        if (!event.payload.workbenchProjectId) return;
-        await extensionService.filesChanged(
-            { kind: 'operation' },
-            {
-                kind: 'session',
-                sessionId: event.payload.sessionId,
-                workbenchProjectId: event.payload.workbenchProjectId,
-            },
-        );
-        return;
-    }
     if (
         event.event !== 'projectStatus.changed' &&
         event.event !== 'git.changed' &&

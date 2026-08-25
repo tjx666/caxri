@@ -12,13 +12,26 @@ const catalog: ViewCatalogSnapshot = {
         {
             id: 'secondarySidebar.searchFiles',
             title: 'Search Files',
-            source: { kind: 'extension', extensionId: 'caxri.files' },
+            source: { kind: 'core' },
+            lifecycle: 'core',
+        },
+        {
+            id: 'secondarySidebar.newFile',
+            title: 'New File',
+            source: { kind: 'core' },
+            lifecycle: 'core',
+        },
+        {
+            id: 'publisher.fixture.action',
+            title: 'Fixture Action',
+            source: { kind: 'extension', extensionId: 'publisher.fixture' },
             lifecycle: 'active',
         },
         {
-            id: 'caxri.files.newFile',
-            title: 'New File',
-            source: { kind: 'extension', extensionId: 'caxri.files' },
+            id: 'publisher.fixture.contextAction',
+            title: 'Fixture Context Action',
+            palette: false,
+            source: { kind: 'extension', extensionId: 'publisher.fixture' },
             lifecycle: 'active',
         },
         {
@@ -31,9 +44,10 @@ const catalog: ViewCatalogSnapshot = {
 };
 
 describe('getPaletteExtensionCommands', () => {
-    it('deduplicates extension contributions that already have a static command row', () => {
+    it('returns palette-visible Core and extension contributions without static duplicates', () => {
         expect(getPaletteExtensionCommands(catalog).map(({ id }) => id)).toEqual([
-            'caxri.files.newFile',
+            'secondarySidebar.newFile',
+            'publisher.fixture.action',
         ]);
     });
 

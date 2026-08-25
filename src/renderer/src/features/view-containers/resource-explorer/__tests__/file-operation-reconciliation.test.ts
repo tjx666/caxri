@@ -11,10 +11,10 @@ import { queryClient } from '../../../../queries/client';
 import { getSessionDocuments, useSessionViewStore } from '../../../../stores/session-view';
 import { dismissToast, useToastStore } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
-import type { ResourceExplorerClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import { createReconciliationQueue, reconcileFileMutation } from '../file-operation-reconciliation';
 import { useFileOperationStore } from '../file-operation-state';
+import type { ResourceExplorerClient } from '../resource-explorer-client';
 
 function session(id: string, workbenchProjectId = 'project-1', projectId = 'project-1') {
     return { id, projectId, workbenchProjectId };
