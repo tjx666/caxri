@@ -75,9 +75,8 @@ export default defineConfig(async ({ command }) => {
             build: {
                 sourcemap: isBundleAnalysisEnabled,
                 /**
-                 * Only the native modules left in `dependencies` (@parcel/watcher, better-sqlite3, node-pty) stay
-                 * external; every pure-JS dependency lives in `devDependencies` so electron-vite bundles it and
-                 * electron-builder never copies it into the asar.
+                 * Native modules and the shared `ws` transport stay external and are packaged from `dependencies`;
+                 * every other pure-JS dependency lives in `devDependencies` so electron-vite bundles it.
                  */
                 externalizeDeps: true,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
