@@ -234,7 +234,7 @@ export const settingsSpec = [
         key: 'terminal.wordSeparators',
         title: 'Word separators',
         description:
-            'Characters that separate words for double-click selection and file-link detection; adding : or / breaks line:column and path links',
+            'Characters that separate words for double-click selection and fallback file-link detection; explicit line:column links are parsed independently',
         category: 'terminal',
         keywords: ['link', 'path', 'word', 'separator', 'double click', 'selection'],
         nullable: false,

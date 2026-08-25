@@ -12,6 +12,7 @@ import {
 export type { TerminalLinkScanner, TerminalLinkScanStatus } from './terminal-link-scanner';
 
 const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
+const FILE_LOCATION_SUFFIX_PATTERN = /:\d+(?::\d+)?(?=$|[\s.,;:!?"'`)\]}、，。；：！？])/g;
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
 
@@ -207,6 +208,65 @@ function isLikelyFilePath(path: string): boolean {
     return /^[^/:]+\.[a-z\d][\w-]{0,15}$/i.test(path);
 }
 
+function locationPathStart(text: string, pathEnd: number, wordSeparators: string): number {
+    let start = pathEnd;
+    while (start > 0) {
+        const character = text[start - 1];
+        if (/[\s|<>"'`]/.test(character)) break;
+        start -= 1;
+    }
+    const unmatchedOpeners: Array<{ closer: ClosingBracket; index: number }> = [];
+    for (let index = start; index < pathEnd; index += 1) {
+        const adjustment = BRACKET_EXCESS_ADJUSTMENTS[text[index]];
+        if (!adjustment) continue;
+        const [closer, delta] = adjustment;
+        if (delta < 0) unmatchedOpeners.push({ closer, index });
+        else if (unmatchedOpeners.at(-1)?.closer === closer) unmatchedOpeners.pop();
+    }
+    const opener = unmatchedOpeners.at(-1);
+    const wrapperStart = opener ? opener.index + 1 : start;
+    return detachPathCandidateFromCjkProse(
+        { index: wrapperStart, text: text.slice(wrapperStart, pathEnd) },
+        wordSeparators,
+    ).index;
+}
+
+/**
+ * Parses location-suffixed paths before fallback word tokenization, following VS Code's local-link detector. This keeps
+ * balanced framework segments such as `(group)` and `[parameter]` inside the candidate while sentence punctuation stays
+ * outside it. Runtime still validates the resolved path when the link activates.
+ *
+ * @see https://github.com/microsoft/vscode/blob/342c6c56db0bdb21397e4d553bfd52e35b8c9daf/src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing.ts#L208-L222
+ */
+function findLocationFileLinks(
+    text: string,
+    urlLinks: TerminalLinkMatch[],
+    wordSeparators: string,
+): TerminalLinkMatch[] {
+    const links: TerminalLinkMatch[] = [];
+    let urlIndex = 0;
+    for (const suffix of text.matchAll(FILE_LOCATION_SUFFIX_PATTERN)) {
+        const endIndex = suffix.index + suffix[0].length;
+        const startIndex = locationPathStart(text, suffix.index, wordSeparators);
+        const trimmed = trimToken(text.slice(startIndex, endIndex));
+        const location = parseFileLocation(trimmed.text);
+        if (!location.line || !isLikelyFilePath(location.target)) continue;
+        const matchStart = startIndex + trimmed.startOffset;
+        const matchEnd = startIndex + trimmed.endOffset;
+        while (urlLinks[urlIndex]?.endIndex <= matchStart) urlIndex += 1;
+        const url = urlLinks.at(urlIndex);
+        if (url && matchStart < url.endIndex && matchEnd > url.startIndex) continue;
+        links.push({
+            ...location,
+            endIndex: matchEnd,
+            kind: 'file',
+            startIndex: matchStart,
+            text: trimmed.text,
+        });
+    }
+    return links;
+}
+
 interface RawToken {
     index: number;
     text: string;
@@ -293,7 +353,7 @@ export function findTerminalLinks(
     wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
     metrics?: TerminalLinkScanMetrics,
 ): TerminalLinkMatch[] {
-    const fileLinks: TerminalLinkMatch[] = [];
+    const wordFileLinks: TerminalLinkMatch[] = [];
     const urlLinks: TerminalLinkMatch[] = [];
     const unsupportedHomes = unsupportedHomeRanges(text);
     let urlLinkIndex = 0;
@@ -311,6 +371,8 @@ export function findTerminalLinks(
             text: trimmed.text,
         });
     }
+    const locationFileLinks = findLocationFileLinks(text, urlLinks, wordSeparators);
+    let locationLinkIndex = 0;
     for (const rawToken of tokenizeByWordSeparators(text, wordSeparators)) {
         const token = detachPathCandidateFromCjkProse(rawToken, wordSeparators);
         const raw = token.text;
@@ -344,7 +406,15 @@ export function findTerminalLinks(
         }
         const location = parseFileLocation(trimmed.text);
         if (!isLikelyFilePath(location.target)) continue;
-        fileLinks.push({
+        while (locationFileLinks[locationLinkIndex]?.endIndex <= startIndex) locationLinkIndex += 1;
+        const locationLink = locationFileLinks.at(locationLinkIndex);
+        if (
+            locationLink &&
+            startIndex < locationLink.endIndex &&
+            endIndex > locationLink.startIndex
+        )
+            continue;
+        wordFileLinks.push({
             ...location,
             endIndex,
             kind: 'file',
@@ -352,7 +422,7 @@ export function findTerminalLinks(
             text: trimmed.text,
         });
     }
-    return mergeTerminalLinks(urlLinks, fileLinks);
+    return mergeTerminalLinks(urlLinks, mergeTerminalLinks(locationFileLinks, wordFileLinks));
 }
 
 function normalizeAbsolutePath(path: string): string {

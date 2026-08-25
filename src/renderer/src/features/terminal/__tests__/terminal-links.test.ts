@@ -37,6 +37,24 @@ describe('findTerminalLinks', () => {
         ]);
     });
 
+    it('preserves framework path segments before a location suffix and excludes sentence punctuation', () => {
+        const target = 'src/app/(backend)/webapi/chat/[provider]/route.ts';
+        const linkText = `${target}:43`;
+        const prefix = 'See ';
+
+        expect(findTerminalLinks(`${prefix}${linkText}。`)).toEqual([
+            {
+                column: 1,
+                endIndex: prefix.length + linkText.length,
+                kind: 'file',
+                line: 43,
+                startIndex: prefix.length,
+                target,
+                text: linkText,
+            },
+        ]);
+    });
+
     it('splits a path from glued CJK prose at a word-separator parenthesis', () => {
         // Regression: `realpath '/…/串联 (src/api/workflows/es-reindex.ts)'` ENOENT — the CJK
         // prefix and wrapping parentheses were folded into the clicked path.
@@ -92,9 +110,8 @@ describe('findTerminalLinks', () => {
     });
 
     it('honors custom word separators from the terminal.wordSeparators setting', () => {
-        // With `(` removed from the separators the glued token stays one word (the pre-setting
-        // behavior), and with `:` added the line suffix stops being parsed — mirroring VS Code's
-        // documented caveat about putting `:` in `terminal.integrated.wordSeparators`.
+        // Word separators still control fallback tokenization, while the higher-priority local-file
+        // parser recognizes an explicit location independently, matching VS Code's detector order.
         expect(findTerminalLinks('串联(src/api/x.ts)', ' ')).toMatchObject([
             { kind: 'file', target: '串联(src/api/x.ts)' },
         ]);
@@ -109,8 +126,9 @@ describe('findTerminalLinks', () => {
             },
         ]);
         const withColonSeparator = findTerminalLinks('src/a.ts:12', ' :');
-        expect(withColonSeparator).toMatchObject([{ kind: 'file', target: 'src/a.ts' }]);
-        expect(withColonSeparator[0]).not.toHaveProperty('line');
+        expect(withColonSeparator).toMatchObject([
+            { kind: 'file', target: 'src/a.ts', line: 12, column: 1 },
+        ]);
     });
 
     it('does not turn custom protocols, flags, or ordinary dotted prose into file links', () => {
