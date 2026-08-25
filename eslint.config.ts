@@ -1,8 +1,10 @@
 import { markdownProcessorConfig, typescriptConfig } from '@yutengjing/eslint-config-typescript';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import importX from 'eslint-plugin-import-x';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
+import { transitionalCycleAllowances } from './scripts/architecture-boundaries';
 import caxri from './scripts/eslint-rules/index';
 
 const typescriptFiles = ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'];
@@ -141,6 +143,37 @@ export default defineConfig(
                     ignore: [/^__tests__$/],
                 },
             ],
+        },
+    },
+    {
+        files: javaScriptAndTypeScriptFiles,
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/architecture-boundaries': 'error',
+        },
+    },
+    {
+        files: [
+            'apps/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
+            'packages/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
+            'scripts/fixtures/eslint/architecture/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
+        ],
+        plugins: {
+            'import-x': importX,
+        },
+        rules: {
+            /**
+             * Target workspaces must stay acyclic from the first source movement onward.
+             */
+            'import-x/no-cycle': ['error', { ignoreExternal: true }],
+        },
+    },
+    {
+        files: transitionalCycleAllowances.flatMap(({ files }) => files),
+        rules: {
+            'import-x/no-cycle': 'off',
         },
     },
     {

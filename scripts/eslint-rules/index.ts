@@ -1,5 +1,6 @@
 import type { ESLint } from 'eslint';
 
+import architectureBoundaries from './architecture-boundaries';
 import featureDirectoryStructure from './feature-directory-structure';
 import filenameExportMapping from './filename-export-mapping';
 
@@ -9,6 +10,7 @@ import filenameExportMapping from './filename-export-mapping';
  */
 const caxriEslintPlugin: ESLint.Plugin = {
     rules: {
+        'architecture-boundaries': architectureBoundaries,
         'feature-directory-structure': featureDirectoryStructure,
         'filename-export-mapping': filenameExportMapping,
     },

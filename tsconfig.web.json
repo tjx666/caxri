@@ -9,10 +9,18 @@
         "packages/**/*.test.ts"
     ],
     "include": [
+        "apps/desktop/src/renderer/**/*.ts",
+        "apps/desktop/src/renderer/**/*.tsx",
         "src/renderer/src/**/*.ts",
         "src/renderer/src/**/*.tsx",
         "src/shared/**/*.ts",
         "packages/protocol/src/**/*.ts",
+        "packages/client/src/index.ts",
+        "packages/client/src/connection.ts",
+        "packages/client/src/connection/**/*.ts",
+        "packages/client/src/state.ts",
+        "packages/client/src/state/**/*.ts",
+        "packages/extension-api/src/**/*.ts",
         "packages/utils/src/**/*.ts"
     ],
     "compilerOptions": {

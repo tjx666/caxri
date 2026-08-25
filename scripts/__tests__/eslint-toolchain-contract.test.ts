@@ -14,6 +14,17 @@ async function lint(path: string) {
     return result;
 }
 
+async function lintAll(paths: string[]) {
+    const eslint = new ESLint({ cwd: root, ignore: false });
+    return eslint.lintFiles(paths);
+}
+
+async function lintSource(path: string, source: string) {
+    const eslint = new ESLint({ cwd: root, ignore: false });
+    const [result] = await eslint.lintText(source, { filePath: resolve(root, path) });
+    return result;
+}
+
 /**
  * `ESLint#calculateConfigForFile` is typed as `Promise<any>` (there is no narrower public type), so this local shape is
  * asserted explicitly rather than relying on the untyped return value.
@@ -123,6 +134,78 @@ describe('shared ESLint preset toolchain contract', () => {
         const ruleIds = result.messages.map((message) => message.ruleId);
 
         expect(ruleIds).toContain('no-restricted-syntax');
+    });
+
+    it('rejects application-to-application source imports', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/bad-app-import.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('rejects package-private source imports from consumers', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/bad-package-private-import.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('enforces the reviewed package dependency direction', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/bad-package-dependency.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('rejects CommonJS require calls that cross an application boundary', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/bad-require-import.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('rejects platform imports from browser-safe packages', async () => {
+        const result = await lint(
+            'scripts/fixtures/eslint/architecture/packages/protocol/src/bad-browser-import.ts',
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('keeps the platform-only Client supervisor out of browser code', async () => {
+        const result = await lintSource(
+            'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/platform-client-import.ts',
+            "import '@caxri/client/supervise';",
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
+    it('rejects cycles in target applications and packages', async () => {
+        const results = await lintAll([
+            'scripts/fixtures/eslint/architecture/packages/client/src/cycle-a.ts',
+            'scripts/fixtures/eslint/architecture/packages/client/src/cycle-b.ts',
+        ]);
+
+        expect(results.flatMap(({ messages }) => messages.map(({ ruleId }) => ruleId))).toContain(
+            'import-x/no-cycle',
+        );
     });
 
     it('leaves the async-Node-API ban to oxlint (n/no-sync requires typed linting)', async () => {
