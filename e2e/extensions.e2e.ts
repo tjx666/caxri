@@ -154,6 +154,28 @@ esac
         const repo = tree.getByRole('treeitem', { name: 'project', exact: true });
         await expect(repo).toBeVisible();
         await expect(repo).toHaveAttribute('aria-expanded', 'true');
+        await expect(repo).toHaveAttribute('data-tree-item-variant', 'header');
+        await expect
+            .poll(() =>
+                repo.evaluate((element) => {
+                    const icon = element.querySelector<SVGElement>('[data-theme-icon="monitor"]');
+                    const style = getComputedStyle(element);
+                    return {
+                        columnGap: style.columnGap,
+                        fontSize: style.fontSize,
+                        fontWeight: style.fontWeight,
+                        height: style.height,
+                        iconFlexShrink: icon ? getComputedStyle(icon).flexShrink : undefined,
+                    };
+                }),
+            )
+            .toEqual({
+                columnGap: '8px',
+                fontSize: '13px',
+                fontWeight: '600',
+                height: '32px',
+                iconFlexShrink: '0',
+            });
         await expect(
             tree.getByRole('treeitem', { name: 'feature/status, default', exact: true }),
         ).toBeVisible();

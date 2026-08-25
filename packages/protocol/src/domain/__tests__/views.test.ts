@@ -19,8 +19,18 @@ describe('extension view contracts', () => {
                 label: 'Repository',
                 accessibilityLabel: 'Repository',
                 collapsibleState: 'expanded',
+                variant: 'header',
             }),
-        ).toMatchObject({ id: 'repository' });
+        ).toMatchObject({ id: 'repository', variant: 'header' });
+        expect(
+            treeItemSchema.safeParse({
+                handle: 'id:unsupported-variant',
+                label: 'Unsupported variant',
+                accessibilityLabel: 'Unsupported variant',
+                collapsibleState: 'none',
+                variant: 'card',
+            }).success,
+        ).toBe(false);
         expect(
             treeItemSchema.safeParse({
                 handle: 'id:oversized',

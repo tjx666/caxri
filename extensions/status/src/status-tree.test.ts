@@ -108,6 +108,7 @@ describe('Status extension tree', () => {
         expect(root.item).toMatchObject({
             id: 'status:repo:repo-1',
             collapsibleState: TreeItemCollapsibleState.Expanded,
+            variant: 'header',
         });
         expect(iconId(root)).toBe('monitor');
         expect(children.map(({ item }) => item.label)).toEqual([

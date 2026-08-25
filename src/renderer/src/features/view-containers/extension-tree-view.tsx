@@ -27,6 +27,7 @@ import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { caxri } from '../../lib/caxri';
+import { cn } from '../../lib/utilities';
 import { useSessionState } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import type { TreeRowAction } from './extension-tree-state';
@@ -266,7 +267,10 @@ function ExtensionTreeViewContent({
     // eslint-disable-next-line react-hooks/incompatible-library -- see above
     const virtualizer = useVirtualizer({
         count: rows.length,
-        estimateSize: () => 28,
+        estimateSize: (index) => {
+            const row = rows[index];
+            return row.kind === 'item' && row.item.variant === 'header' ? 32 : 28;
+        },
         getScrollElement: () => scrollElement.current,
         overscan: 10,
     });
@@ -336,7 +340,7 @@ function ExtensionTreeViewContent({
                                 <div
                                     aria-label="Loading…"
                                     aria-level={row.depth + 1}
-                                    className="flex h-7 items-center gap-2 text-xs text-muted"
+                                    className="flex h-7 items-center gap-2 text-muted"
                                     role="treeitem"
                                     style={{ paddingLeft: `${8 + row.depth * 14}px` }}
                                 >
@@ -347,7 +351,7 @@ function ExtensionTreeViewContent({
                                 <div
                                     aria-label={`Unable to load view: ${row.message}`}
                                     aria-level={row.depth + 1}
-                                    className="flex h-7 items-center gap-2 text-xs text-danger"
+                                    className="flex h-7 items-center gap-2 text-danger"
                                     role="treeitem"
                                     style={{ paddingLeft: `${8 + row.depth * 14}px` }}
                                 >
@@ -370,7 +374,7 @@ function ExtensionTreeViewContent({
                                 <div
                                     aria-label="No items in this view."
                                     aria-level={row.depth + 1}
-                                    className="flex h-7 items-center text-xs text-muted"
+                                    className="flex h-7 items-center text-muted"
                                     role="treeitem"
                                     style={{ paddingLeft: `${8 + row.depth * 14}px` }}
                                 >
@@ -424,6 +428,7 @@ function TreeItemRow({
     rows: readonly VisibleRow[];
 }) {
     const isCollapsible = row.item.collapsibleState !== 'none';
+    const isHeader = row.item.variant === 'header';
     const nextRow = rows.at(index + 1);
     const isExpanded = nextRow !== undefined && nextRow.depth > row.depth;
     const siblings = rows.filter(
@@ -447,8 +452,12 @@ function TreeItemRow({
             aria-posinset={positionInSet}
             aria-selected={active}
             aria-setsize={siblings.length}
-            className="flex h-7 w-full min-w-0 items-center gap-1 border-0 bg-transparent pr-2 text-left text-xs text-foreground hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none"
+            className={cn(
+                'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent pr-2 text-left text-foreground hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none',
+                isHeader ? 'h-8 border-b border-border font-semibold' : 'h-7',
+            )}
             data-tree-index={index}
+            data-tree-item-variant={row.item.variant}
             role="treeitem"
             style={{ paddingLeft: `${8 + row.depth * 14}px` }}
             tabIndex={active ? 0 : -1}
@@ -499,25 +508,26 @@ function TreeItemRow({
         >
             {isCollapsible ? (
                 isExpanded ? (
-                    <ChevronDown size={13} />
+                    <ChevronDown className="shrink-0" size={13} />
                 ) : (
-                    <ChevronRight size={13} />
+                    <ChevronRight className="shrink-0" size={13} />
                 )
             ) : (
-                <span className="w-[13px]" />
+                <span className="w-[13px] shrink-0" />
             )}
             <Icon
-                className={
+                className={cn(
+                    'shrink-0',
                     themeIconId && themeIconId in themeIcons
                         ? themeIconClassNames[themeIconId as keyof typeof themeIcons]
-                        : undefined
-                }
+                        : undefined,
+                )}
                 data-theme-icon={themeIconId}
                 size={14}
             />
             <span className="min-w-0 flex-1 truncate">{row.item.label}</span>
             {row.item.description && (
-                <span className="max-w-[45%] min-w-0 shrink truncate text-[11px] text-muted">
+                <span className="max-w-[45%] min-w-0 shrink truncate text-[11px] font-normal text-muted">
                     {row.item.description}
                 </span>
             )}

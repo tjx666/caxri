@@ -193,6 +193,11 @@ restarts. Duplicate IDs fail the affected provider branch. Items without an ID r
 generation-local object handle and have no cross-refresh persistence guarantee. Replacing a parent
 retires its removed descendants before the bounded handle capacity is evaluated.
 
+`TreeItem.variant = 'header'` is the optional, domain-neutral presentation contract for an item that
+introduces a visually separated group of children. The shared Renderer gives it header emphasis and
+a section divider; providers must opt in explicitly rather than relying on root depth or label
+conventions. Ordinary tree rows remain the default.
+
 The shared Renderer owns virtualization, ThemeIcon rendering, roving focus, arrow/Home/End
 navigation, expansion, loading/empty/provider-error rows, local Retry, tooltip presentation, and
 ARIA tree semantics. Provider `Expanded` is applied only the first time a logical item appears;

@@ -13,10 +13,12 @@ describe('caxri public API runtime', () => {
     it('provides stable runtime classes without a Host', () => {
         const item = new TreeItem('Project', TreeItemCollapsibleState.Collapsed);
         item.iconPath = new ThemeIcon('folder');
+        item.variant = 'header';
         expect(item).toMatchObject({
             collapsibleState: TreeItemCollapsibleState.Collapsed,
             iconPath: { id: 'folder' },
             label: 'Project',
+            variant: 'header',
         });
     });
 

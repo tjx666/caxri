@@ -686,6 +686,7 @@ export async function getTreeChildren(parameters: {
                 dto = treeItemSchema.parse({
                     handle,
                     ...(item.id && { id: item.id }),
+                    ...(item.variant && { variant: item.variant }),
                     label: item.label,
                     ...(item.description && { description: item.description }),
                     ...(item.tooltip && { tooltip: item.tooltip }),

@@ -80,8 +80,11 @@ describe('Extension Host API factory', () => {
             'publisher.fixture.tree',
             {
                 getChildren: (element: string | undefined) => (element ? ['child'] : ['root']),
-                getTreeItem: (element: string) =>
-                    new TreeItem(element, TreeItemCollapsibleState.Collapsed),
+                getTreeItem: (element: string) => {
+                    const item = new TreeItem(element, TreeItemCollapsibleState.Collapsed);
+                    item.variant = 'header';
+                    return item;
+                },
             },
         );
 
@@ -97,6 +100,7 @@ describe('Extension Host API factory', () => {
                 collapsibleState: 'collapsed',
                 handle: '1:1',
                 label: 'root',
+                variant: 'header',
             }),
         ]);
 
