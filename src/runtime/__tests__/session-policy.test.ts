@@ -432,6 +432,56 @@ describe('decideAgentMetadataUpdate', () => {
         );
         expect(decision).toBeUndefined();
     });
+
+    it('keeps an exact Agent binding when a metadata probe has no session identity', () => {
+        const primary = terminal({
+            id: 'codex-1',
+            provider: 'codex',
+            title: 'Resumed thread',
+            agentSessionId: 'resumed-session',
+        });
+
+        const decision = decideAgentMetadataUpdate(
+            primary,
+            session({
+                primaryAgentTerminalId: primary.id,
+                displayTitle: 'Resumed thread',
+                lastActivityState: 'running',
+            }),
+            {
+                provider: 'codex',
+                available: false,
+                observedAt: 0,
+                status: 'running',
+            },
+        );
+
+        expect(decision).toBeUndefined();
+    });
+
+    it('carries an exact Agent binding through an empty probe that still updates activity', () => {
+        const primary = terminal({
+            id: 'codex-1',
+            provider: 'codex',
+            agentSessionId: 'resumed-session',
+        });
+
+        const decision = decideAgentMetadataUpdate(
+            primary,
+            session({ primaryAgentTerminalId: primary.id, lastActivityState: 'idle' }),
+            {
+                provider: 'codex',
+                available: false,
+                observedAt: 0,
+                status: 'running',
+            },
+        );
+
+        expect(decision).toMatchObject({
+            agentSessionId: 'resumed-session',
+            sessionPatch: { lastActivityState: 'running' },
+        });
+    });
 });
 
 describe('selectFallbackAfterDeletion', () => {

@@ -11,6 +11,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentProvider } from '../../../../shared/agents';
 import { agentProviderIds } from '../../../../shared/agents';
+import type { AgentLifecycleSignal } from '../contract';
+import type { AgentHookSignalDisposition } from '../server';
 import { AgentHookServer, pruneStaleAgentHookSockets } from '../server';
 
 const temporaryDirectories: string[] = [];
@@ -56,19 +58,24 @@ async function send(socketPath: string, payload: string): Promise<string> {
     });
 }
 
-async function createTestServer(onSignal = vi.fn(() => true)) {
+async function createTestServer(
+    onSignal: (signal: AgentLifecycleSignal) => AgentHookSignalDisposition = vi.fn<
+        (signal: AgentLifecycleSignal) => AgentHookSignalDisposition
+    >(() => 'accepted'),
+) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-server-'));
     temporaryDirectories.push(directory);
     const socketPath = join(directory, 'hooks.sock');
-    const server = new AgentHookServer(socketPath, SCHEMA_VERSIONS, onSignal);
+    const onDiagnostic = vi.fn();
+    const server = new AgentHookServer(socketPath, SCHEMA_VERSIONS, onSignal, onDiagnostic);
     await server.start();
-    return { server, socketPath, onSignal };
+    return { server, socketPath, onDiagnostic, onSignal };
 }
 
 describe('AgentHookServer', () => {
     describe('authorize()', () => {
         it('accepts a signal whose token, launchId, terminalId, provider, and schema all match the registration', async () => {
-            const { server, socketPath, onSignal } = await createTestServer();
+            const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 const token = server.register('terminal-1', 'launch-1', 'codex');
 
@@ -83,6 +90,13 @@ describe('AgentHookServer', () => {
                         phase: 'turnFinished',
                     }),
                 );
+                expect(onDiagnostic).toHaveBeenCalledWith({
+                    hasAgentSessionId: false,
+                    outcome: 'accepted',
+                    phase: 'turnFinished',
+                    provider: 'codex',
+                    terminalId: 'terminal-1',
+                });
             } finally {
                 await server.close();
             }
@@ -105,8 +119,30 @@ describe('AgentHookServer', () => {
             }
         });
 
+        it('acknowledges an authenticated signal that the owning Terminal ignores', async () => {
+            const { server, socketPath, onDiagnostic } = await createTestServer(
+                vi.fn(() => 'ignored' as const),
+            );
+            try {
+                const token = server.register('terminal-1', 'launch-1');
+
+                const response = await send(socketPath, validPayload({ token }));
+
+                expect(response).toBe('{"ok":true,"ignored":true}\n');
+                expect(onDiagnostic).toHaveBeenCalledWith({
+                    hasAgentSessionId: false,
+                    outcome: 'ignored',
+                    phase: 'turnFinished',
+                    provider: 'codex',
+                    terminalId: 'terminal-1',
+                });
+            } finally {
+                await server.close();
+            }
+        });
+
         it('rejects an unknown token', async () => {
-            const { server, socketPath, onSignal } = await createTestServer();
+            const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 server.register('terminal-1', 'launch-1', 'codex');
 
@@ -117,13 +153,21 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('{"ok":false}\n');
                 expect(onSignal).not.toHaveBeenCalled();
+                expect(onDiagnostic).toHaveBeenCalledWith({
+                    hasAgentSessionId: false,
+                    outcome: 'rejected',
+                    phase: 'turnFinished',
+                    provider: 'codex',
+                    reason: 'unknownToken',
+                    terminalId: 'terminal-1',
+                });
             } finally {
                 await server.close();
             }
         });
 
         it('rejects a mismatched launchId', async () => {
-            const { server, socketPath, onSignal } = await createTestServer();
+            const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 const token = server.register('terminal-1', 'launch-1', 'codex');
 
@@ -134,13 +178,16 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('{"ok":false}\n');
                 expect(onSignal).not.toHaveBeenCalled();
+                expect(onDiagnostic).toHaveBeenCalledWith(
+                    expect.objectContaining({ outcome: 'rejected', reason: 'launchMismatch' }),
+                );
             } finally {
                 await server.close();
             }
         });
 
         it('rejects a mismatched terminalId', async () => {
-            const { server, socketPath, onSignal } = await createTestServer();
+            const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 const token = server.register('terminal-1', 'launch-1', 'codex');
 
@@ -151,13 +198,16 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('{"ok":false}\n');
                 expect(onSignal).not.toHaveBeenCalled();
+                expect(onDiagnostic).toHaveBeenCalledWith(
+                    expect.objectContaining({ outcome: 'rejected', reason: 'terminalMismatch' }),
+                );
             } finally {
                 await server.close();
             }
         });
 
         it('rejects a mismatched provider when the registration is provider-restricted', async () => {
-            const { server, socketPath, onSignal } = await createTestServer();
+            const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 const token = server.register('terminal-1', 'launch-1', 'codex');
 
@@ -168,13 +218,16 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('{"ok":false}\n');
                 expect(onSignal).not.toHaveBeenCalled();
+                expect(onDiagnostic).toHaveBeenCalledWith(
+                    expect.objectContaining({ outcome: 'rejected', reason: 'providerMismatch' }),
+                );
             } finally {
                 await server.close();
             }
         });
 
         it('rejects a schema version that no longer matches the configured provider schema', async () => {
-            const { server, socketPath, onSignal } = await createTestServer();
+            const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 const token = server.register('terminal-1', 'launch-1', 'codex');
 
@@ -182,6 +235,9 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('{"ok":false}\n');
                 expect(onSignal).not.toHaveBeenCalled();
+                expect(onDiagnostic).toHaveBeenCalledWith(
+                    expect.objectContaining({ outcome: 'rejected', reason: 'schemaMismatch' }),
+                );
             } finally {
                 await server.close();
             }
@@ -197,6 +253,24 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('{"ok":false}\n');
                 expect(onSignal).not.toHaveBeenCalled();
+            } finally {
+                await server.close();
+            }
+        });
+
+        it('rejects a signal when the authenticated downstream handler fails', async () => {
+            const { server, socketPath, onDiagnostic } = await createTestServer(
+                vi.fn(() => 'rejected' as const),
+            );
+            try {
+                const token = server.register('terminal-1', 'launch-1', 'codex');
+
+                const response = await send(socketPath, validPayload({ token }));
+
+                expect(response).toBe('{"ok":false}\n');
+                expect(onDiagnostic).toHaveBeenCalledWith(
+                    expect.objectContaining({ outcome: 'rejected', reason: 'downstreamRejected' }),
+                );
             } finally {
                 await server.close();
             }
@@ -330,8 +404,8 @@ describe('AgentHookServer', () => {
                     agentSessionId: '../outside',
                 }),
             ],
-        ])('rejects a signal that is %s', async (_description, payload) => {
-            const { server, socketPath, onSignal } = await createTestServer();
+        ])('rejects a signal that is %s', async (description, payload) => {
+            const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 server.register('t', 'l', 'codex');
 
@@ -339,6 +413,15 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('{"ok":false}\n');
                 expect(onSignal).not.toHaveBeenCalled();
+                expect(onDiagnostic).toHaveBeenCalledWith({
+                    outcome: 'rejected',
+                    reason:
+                        description === 'invalid JSON'
+                            ? 'invalidJson'
+                            : description.includes('agentSessionId')
+                              ? 'invalidAgentSessionId'
+                              : 'invalidSignal',
+                });
             } finally {
                 await server.close();
             }
@@ -377,7 +460,7 @@ describe('AgentHookServer', () => {
         });
 
         it('destroys the connection instead of parsing an oversized payload', async () => {
-            const { server, socketPath, onSignal } = await createTestServer();
+            const { server, socketPath, onDiagnostic, onSignal } = await createTestServer();
             try {
                 const token = server.register('terminal-1', 'launch-1', 'codex');
                 const oversized = validPayload({ token, terminalId: 'x'.repeat(5_000) });
@@ -386,6 +469,29 @@ describe('AgentHookServer', () => {
 
                 expect(response).toBe('');
                 expect(onSignal).not.toHaveBeenCalled();
+                expect(onDiagnostic).toHaveBeenCalledTimes(1);
+                expect(onDiagnostic).toHaveBeenCalledWith({
+                    outcome: 'rejected',
+                    reason: 'payloadTooLarge',
+                });
+            } finally {
+                await server.close();
+            }
+        });
+
+        it('diagnoses a client that never finishes its signal', async () => {
+            const { server, socketPath, onDiagnostic } = await createTestServer();
+            try {
+                const socket = createConnection(socketPath);
+                await once(socket, 'connect');
+
+                await once(socket, 'close');
+
+                expect(onDiagnostic).toHaveBeenCalledWith({
+                    outcome: 'rejected',
+                    reason: 'transportTimeout',
+                });
+                expect(onDiagnostic).toHaveBeenCalledTimes(1);
             } finally {
                 await server.close();
             }

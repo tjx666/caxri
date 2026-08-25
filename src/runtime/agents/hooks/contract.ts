@@ -2,6 +2,7 @@ import type { AgentProvider } from '../../../shared/agents';
 import type { AgentEnvironment } from '../contract';
 
 export const agentLifecyclePhases = [
+    'sessionIdentified',
     'turnStarted',
     'attentionRequested',
     'turnFinished',

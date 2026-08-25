@@ -189,6 +189,7 @@ export interface AgentLifecycleDecision {
 }
 
 const NON_SESSION_ACTIVITY_PHASES = new Set<AgentLifecyclePhase>([
+    'sessionIdentified',
     'shellToolFinished',
     'compactionStarted',
     'compactionFinished',
@@ -255,10 +256,14 @@ export function decideAgentMetadataUpdate(
         session.titleMode === 'manual'
             ? session.displayTitle
             : agentDisplayTitle(snapshot.title, session.displayTitle);
-    // `||` (not `??`) is deliberate: a trimmed `''` sessionId is also not a real identifier and
-    // must collapse to `undefined`.
-    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string must also collapse to undefined
-    const agentSessionId = snapshot.sessionId?.trim() || undefined;
+    /**
+     * A targeted probe may temporarily miss a hook-bound thread when the provider store has not flushed it yet or its
+     * recorded cwd differs from the Terminal cwd. Only launch reset explicitly clears an identity; an empty snapshot
+     * must preserve the exact binding instead of undoing the preceding authenticated hook signal.
+     */
+    // `||` (not `??`) is deliberate: a trimmed `''` sessionId is not a real identifier either.
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string must also preserve the current id
+    const agentSessionId = snapshot.sessionId?.trim() || terminal.agentSessionId;
     /**
      * An Agent CLI names its own conversation but — unlike a Shell — does not report that name through OSC 0/2, so
      * without this the Terminal row keeps the `defaultTerminalTitle` provider name it was created with and every Agent
