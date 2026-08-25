@@ -471,7 +471,10 @@ export class DesktopHostConnection extends EventTarget {
 
     close(): void {
         this.lifecycle = transitionHostConnection(this.lifecycle, { type: 'dispose' });
-        this.client?.close();
+        /**
+         * Main disposal is terminal for Renderer work, unlike a recoverable transport loss.
+         */
+        this.client?.close({ cancelPendingRequests: true });
         this.client = undefined;
     }
 
