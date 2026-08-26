@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 
+import { normalizeTerminalTitle } from '@caxri/protocol';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import type { Terminal as HeadlessTerminal } from '@xterm/headless';
@@ -122,7 +123,15 @@ export class TerminalScreenState {
          * replay happens to carry. The serializer does not currently emit the window title, so in practice recovery
          * relies on the persisted `terminals.pty_title` until the shell reprints its own at the next prompt.
          */
-        if (this.onTitleChange) this.terminal.onTitleChange(this.onTitleChange);
+        if (this.onTitleChange)
+            this.terminal.onTitleChange((rawTitle) => {
+                /**
+                 * Normalize at the producer boundary so an empty or hostile OSC title cannot violate the private
+                 * Terminal Host protocol before the Core-owned persistence listener gets a chance to reject it.
+                 */
+                const title = normalizeTerminalTitle(rawTitle);
+                if (title) this.onTitleChange?.(title);
+            });
         this.write(initialSnapshot);
     }
 
