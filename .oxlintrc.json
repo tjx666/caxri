@@ -86,7 +86,7 @@
                 "src/main/**/*.ts",
                 "src/runtime/**/*.ts",
                 "src/shared/node/**/*.ts",
-                "packages/cli/src/**/*.ts",
+                "apps/cli/src/**/*.ts",
                 "scripts/**/*.ts",
                 ".agents/**/scripts/**/*.ts"
             ],

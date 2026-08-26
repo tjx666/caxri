@@ -52,7 +52,7 @@ Caxri does not upload telemetry, terminal output, file content, or agent transcr
 
 ```bash
 bun run build:cli
-node packages/cli/dist/caxri.cjs --help
+node apps/cli/dist/caxri.cjs --help
 ```
 
 The `caxri` CLI is a standalone Node.js 24+ bundle that talks only to the authenticated Headless

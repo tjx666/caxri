@@ -17,7 +17,7 @@ and Process Explorer windows always resolve their renderer entry files from the 
 so an inherited development URL cannot redirect either privileged window.
 
 The root remains the private pnpm workspace owner and the only lockfile owner. `packages/protocol`
-owns browser-safe schemas, types, and wire errors, while `packages/cli` is a Node-only client that
+owns browser-safe schemas, types, and wire errors, while `apps/cli` is the platform-side command client that
 may depend on the protocol but never on Electron, the Runtime, or native modules. Existing Desktop
 source stays under `src/`; introducing workspaces is not an application-directory migration.
 Day-to-day commands continue through `ni` and `bun run`. `mise.toml` pins Node and pnpm for local

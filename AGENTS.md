@@ -134,16 +134,16 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
 - Do not edit `pnpm-lock.yaml` by hand. Do not add `packageManager` or
   `devEngines.packageManager`; `mise.toml` and the explicit GitHub Actions setup own tool versions.
 - Keep `packages/protocol` browser-safe and keep Electron, SQLite, PTY, watcher, and other Desktop
-  native dependencies out of `packages/cli`'s production dependency graph.
+  native dependencies out of `apps/cli`'s production dependency graph.
 - Keep `packages/utils` browser-safe and free of runtime dependencies; it holds pure functions
   only. Domain types, protocol schemas, and React code never move there.
 - Keep `packages/protocol/src` grouped by its `agent`, `configuration`, `desktop`, `domain`,
   `registry`, and `transport` boundaries. External consumers use the package root; compatibility
   re-exports under `src/shared` may target the owning domain module directly.
-- Keep `packages/cli/src` grouped by its `commands`, `host`, and `skills` boundaries. The package
-  root remains the composition root (`application`, `environment`, `output`, `selectors`) and the
-  only public package entrypoint. Domain barrels stay thin; tests live in domain-local `__tests__/`
-  directories.
+- Keep `apps/cli/src` grouped by its `commands` domain and the composition-root modules
+  (`application`, `environment`, `output`, `selectors`). The CLI consumes Client supervision
+  directly and must not expose application source as an importable package boundary. Domain barrels stay thin;
+  tests live in domain-local `__tests__/` directories.
 
 ## Compatibility policy
 

@@ -106,7 +106,7 @@ reject an ID reused with different command content. The Electron adapter additio
 requesting WebContents before invoking that dispatcher. Internal Runtime methods remain outside the
 public command registry.
 
-`packages/cli` is the Node-only adapter for the same registry and authenticated Host transport.
+`apps/cli` is the command-line adapter for the same registry and authenticated Host transport.
 Source is grouped behind `commands`, `host`, and `skills` domain barrels; the package root remains
 the composition root and the only public package entrypoint. Domain barrels stay thin, and tests
 live in domain-local `__tests__/` directories. The offline `capabilities` response serializes the

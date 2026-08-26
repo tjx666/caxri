@@ -391,9 +391,9 @@ describe('direct import test selection', () => {
 
     it('discovers direct-import tests inside workspace packages', async () => {
         const selected = await directImportTestCandidates(process.cwd(), [
-            'packages/cli/src/application.ts',
+            'apps/cli/src/application.ts',
         ]);
-        expect(selected).toContain('packages/cli/src/commands/__tests__/agent-commands.test.ts');
+        expect(selected).toContain('apps/cli/src/commands/__tests__/agent-commands.test.ts');
         expect(selected.every((test) => !test.includes('node_modules'))).toBe(true);
     });
 

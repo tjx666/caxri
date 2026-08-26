@@ -625,7 +625,7 @@ if (ownsProfileInstance) {
                 currentDirectory,
                 cliPath: app.isPackaged
                     ? join(process.resourcesPath, 'cli', 'caxri.cjs')
-                    : resolve(currentDirectory, '../../packages/cli/dist/caxri.cjs'),
+                    : resolve(currentDirectory, '../../apps/cli/dist/caxri.cjs'),
                 desktopId: randomUUID(),
                 desktopLaunch: resolveDesktopLaunch({
                     currentDirectory,

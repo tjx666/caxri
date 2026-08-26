@@ -43,7 +43,7 @@ export interface RemoteCommandDefinition {
 
 export type CliCommandDefinition = LocalCommandDefinition | RemoteCommandDefinition;
 
-export interface CliCommandDescription {
+interface CliCommandDescription {
     capabilities?: readonly string[];
     effect?: string;
     idempotency?: string;

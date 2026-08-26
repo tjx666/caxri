@@ -319,6 +319,21 @@ importers:
         specifier: 5.0.14
         version: 5.0.14(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
 
+  apps/cli:
+    dependencies:
+      '@caxri/agent-skills':
+        specifier: workspace:*
+        version: link:../../packages/agent-skills
+      '@caxri/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+
   extensions/fixture:
     devDependencies:
       '@caxri/protocol':
@@ -351,21 +366,6 @@ importers:
       '@caxri/protocol':
         specifier: workspace:*
         version: link:../protocol
-
-  packages/cli:
-    dependencies:
-      '@caxri/agent-skills':
-        specifier: workspace:*
-        version: link:../agent-skills
-      '@caxri/client':
-        specifier: workspace:*
-        version: link:../client
-      '@caxri/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
 
   packages/client:
     dependencies:
