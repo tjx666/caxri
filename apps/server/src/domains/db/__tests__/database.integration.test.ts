@@ -36,13 +36,19 @@ describe('CaxriDatabaseConnection', () => {
         const database = new CaxriDatabase(':memory:', { onTransaction });
 
         expect(database.transaction(() => 42)).toBe(42);
-        const contention = Object.assign(new Error('busy'), { code: 'SQLITE_BUSY' });
-        expect(() =>
-            database.transaction(() => {
-                throw contention;
-            }),
-        ).toThrow(contention);
-        expect(observations.map(({ outcome }) => outcome)).toEqual(['success', 'contention']);
+        for (const code of ['SQLITE_BUSY_SNAPSHOT', 'SQLITE_LOCKED_SHAREDCACHE']) {
+            const contention = Object.assign(new Error('busy'), { code });
+            expect(() =>
+                database.transaction(() => {
+                    throw contention;
+                }),
+            ).toThrow(contention);
+        }
+        expect(observations.map(({ outcome }) => outcome)).toEqual([
+            'success',
+            'contention',
+            'contention',
+        ]);
         expect(observations.every(({ durationMs }) => durationMs >= 0)).toBe(true);
         database.close();
     });

@@ -27,10 +27,11 @@ export interface DatabaseTransactionObservation {
 }
 
 function transactionOutcome(error: unknown): DatabaseTransactionObservation['outcome'] {
-    return typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 'SQLITE_BUSY'
+    const code =
+        typeof error === 'object' && error !== null && 'code' in error
+            ? String(error.code)
+            : undefined;
+    return code?.startsWith('SQLITE_BUSY') || code?.startsWith('SQLITE_LOCKED')
         ? 'contention'
         : 'failure';
 }
