@@ -44,12 +44,14 @@ describe('E2E build freshness inputs', () => {
                 join(root, 'packages', 'client', 'src'),
                 join(root, 'packages', 'extension-api', 'src'),
                 join(root, 'apps', 'cli', 'src'),
+                join(root, 'apps', 'server', 'src'),
                 join(root, 'packages', 'utils', 'package.json'),
                 join(root, 'packages', 'utils', 'src'),
                 join(root, 'packages', 'utils', 'tsconfig.json'),
                 join(root, 'skills', 'caxri-cli'),
             ]),
         );
+        expect(createE2EBuildFreshnessOptions(root).inputPaths).not.toContain(join(root, 'src'));
     });
 
     it('accepts a fresh build and rejects it after a utils source change', async () => {
