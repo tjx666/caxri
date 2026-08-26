@@ -6,8 +6,8 @@ import type {
     TerminalExecutionEvent as DomainExecutionEvent,
     TerminalExecutionExit as DomainExecutionExit,
     TerminalExecutionPort,
-} from '../domains/terminal';
-import { TerminalExecutionEngine } from './engine';
+} from '../../domains/terminal';
+import { TerminalExecutionEngine } from '../../terminal-host/engine';
 
 export interface LocalTerminalExecutionOptions {
     agentOutputRecoverySettings?: (provider: AgentProvider) => AgentOutputRecoverySettings;

@@ -52,7 +52,7 @@ export interface TerminalHostControl {
 
 /**
  * Process-backed execution port. It preserves synchronous hot-path acceptance from cached identities while every
- * private request remains ordered and authenticated by {@link TerminalHostSupervisor}.
+ * private request remains ordered and authenticated by {@link TerminalHostControl}.
  */
 export class RemoteTerminalExecution extends EventTarget implements TerminalExecutionPort {
     private readonly generations = new Map<string, number>();

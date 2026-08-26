@@ -5,8 +5,8 @@ import { omit } from 'es-toolkit';
 import type { TerminalExecutionPort, TerminalManagerOptions } from '../../domains/terminal';
 import { TerminalManager } from '../../domains/terminal';
 import type { TerminalStateStore } from '../../domains/terminal/state-store';
-import type { LocalTerminalExecutionOptions } from '../../terminal-host/local-execution';
-import { LocalTerminalExecution } from '../../terminal-host/local-execution';
+import type { LocalTerminalExecutionOptions } from './local-terminal-execution';
+import { LocalTerminalExecution } from './local-terminal-execution';
 
 export type TestTerminalManagerOptions = Omit<TerminalManagerOptions, 'execution'> &
     Omit<LocalTerminalExecutionOptions, 'logger' | 'currentProvider'> & {
