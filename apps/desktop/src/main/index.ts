@@ -20,6 +20,7 @@ import {
 import type { WebContents } from 'electron';
 import { app, BrowserWindow, dialog, Menu, shell } from 'electron';
 
+import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import { discardGitChangesPrompt, trashPrompt } from './confirmations';
@@ -246,7 +247,7 @@ if (ownsProfileInstance) {
          * Renderer console errors are otherwise invisible in logs; mirror them so triage can see UI faults.
          */
         window.webContents.on('console-message', (details) => {
-            if (details.level !== 'error') return;
+            if (details.level !== 'error' || isBenignRendererErrorMessage(details.message)) return;
             mainLogger?.write('error', logEventCatalog.renderer.consoleError, {
                 fields: consoleErrorLogFields(details),
             });
