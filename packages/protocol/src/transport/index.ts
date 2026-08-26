@@ -1,4 +1,5 @@
 export * from './assert-never.js';
+export * from './binary-stream.js';
 export * from './command-receipts.js';
 export * from './dispatcher.js';
 export * from './errors.js';
