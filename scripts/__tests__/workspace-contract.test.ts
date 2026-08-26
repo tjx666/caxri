@@ -214,6 +214,25 @@ describe('pnpm workspace contract', () => {
         expect(transitionalCycleAllowances).toEqual([]);
     });
 
+    it('keeps the completed topology free of legacy ownership roots and control sockets', () => {
+        const legacyRoots = ['src', 'apps/server/src/host', 'apps/server/src/runtime'];
+        expect(legacyRoots.filter((path) => existsSync(join(root, path)))).toEqual([]);
+
+        const localControlSources = [
+            ...productionTypeScriptFiles(join(root, 'apps/server/src/core')),
+            ...productionTypeScriptFiles(join(root, 'packages/client/src/supervise')),
+        ];
+        const legacyControlTransport = localControlSources
+            .map((path) => ({ path: relative(root, path), source: readFileSync(path, 'utf8') }))
+            .filter(({ source }) =>
+                /from\s+['"]node:net['"]|\b(?:host|runtime)\.sock\b|unix domain socket|\bUDS\b/iu.test(
+                    source,
+                ),
+            )
+            .map(({ path }) => path);
+        expect(legacyControlTransport).toEqual([]);
+    });
+
     it('registers current source discovery in TypeScript', () => {
         const nodeConfig = readFileSync(join(root, 'tsconfig.node.json'), 'utf8');
         const webConfig = readFileSync(join(root, 'tsconfig.web.json'), 'utf8');

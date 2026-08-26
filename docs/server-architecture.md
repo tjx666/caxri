@@ -21,6 +21,15 @@ The irreversible choices are recorded in:
 - [ADR 0007: Remote access and Project authorization](./adr/0007-remote-access-and-project-authorization.md)
 - [ADR 0008: Agent-native observability](./adr/0008-agent-native-observability.md)
 
+### Frozen compatibility identifiers
+
+Architecture ownership uses Server, Server Core, Terminal Host, Extension Host, Desktop, and Client.
+The pre-refactor public protocol and CLI already exposed identifiers such as `host.status`, `host.stop`,
+`host.read`, `hostId`, and `CAXRI_AGENT_ENDPOINT_HOST_ID`, together with established error text. A7
+keeps those observable contracts byte-for-byte stable to preserve A0 behavior. They are compatibility
+identifiers, not current owner terminology; renaming them requires a separate product and protocol
+change with its own Acceptance evidence.
+
 ## Repository topology
 
 Only independently runnable or deployable product entrypoints belong in `apps/`. Importable contracts
