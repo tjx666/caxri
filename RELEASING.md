@@ -20,13 +20,13 @@ pnpm version patch --no-git-tag-version --no-git-checks
 version="$(node -p 'require("./package.json").version')"
 (cd packages/cli && npm version "${version}" --no-git-tag-version)
 (cd packages/api && npm version "${version}" --no-git-tag-version)
-for extension in files fixture git status; do
+for extension in fixture git status; do
   (cd "extensions/${extension}" && npm version "${version}" --no-git-tag-version)
   (cd "extensions/${extension}" && npm pkg set "engines.caxri=^${version}")
 done
 sed -i '' "s/CLI_VERSION = '.*'/CLI_VERSION = '${version}'/" packages/cli/src/version.ts
 git add package.json packages/api/package.json packages/cli/package.json packages/cli/src/version.ts \
-  extensions/{files,fixture,git,status}/package.json
+  extensions/{fixture,git,status}/package.json
 git commit -m "release: v${version}"
 git push origin main
 ```

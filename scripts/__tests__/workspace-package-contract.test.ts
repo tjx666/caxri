@@ -88,9 +88,21 @@ describe('workspace package manifests', () => {
         }
     });
 
+    it('keeps release version preparation aligned with current extension workspaces', async () => {
+        const instructions = await readFile(join(workspaceRoot, 'RELEASING.md'), 'utf8');
+
+        expect(instructions).toContain('for extension in fixture git status; do');
+        expect(instructions).toContain('extensions/{fixture,git,status}/package.json');
+        expect(instructions).not.toContain('extensions/{files,');
+    });
+
     it('keeps Files in Workbench Core instead of an extension workspace', async () => {
-        const filesExtensionRoot = join(workspaceRoot, 'extensions', 'files');
-        await expect(access(filesExtensionRoot)).rejects.toMatchObject({
+        /**
+         * Workspace identity comes from the manifest. Ignored build output may outlive the removed Files extension on a
+         * developer machine and must not make the current source tree look like it still declares that workspace.
+         */
+        const filesExtensionManifest = join(workspaceRoot, 'extensions', 'files', 'package.json');
+        await expect(access(filesExtensionManifest)).rejects.toMatchObject({
             code: 'ENOENT',
         });
     });
