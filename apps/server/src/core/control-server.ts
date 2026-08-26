@@ -199,6 +199,12 @@ export class ControlServer {
         context: CommandExecutionContext,
         release: () => void,
     ): void {
+        if (this.options.shouldDropCommandReply?.(request, reply, context)) {
+            release();
+            this.untrackRequest(state, request.id);
+            socket.terminate();
+            return;
+        }
         this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }), () => {
             release();
             this.untrackRequest(state, request.id);

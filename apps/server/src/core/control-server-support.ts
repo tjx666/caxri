@@ -272,6 +272,15 @@ export interface ControlServerOptions {
     protocolIdentity?: { serverId: string; stateEpoch: string };
     onClientCountChanged?(count: number): void;
     onDesktopUnavailable?(): void;
+    /**
+     * Test-only fault injector called after command execution and durable receipt storage, but before the transport can
+     * write the authoritative reply. Returning `true` simulates a connection loss at that exact boundary.
+     */
+    shouldDropCommandReply?(
+        request: LocalClientCommand['request'],
+        reply: LocalServerReply['reply'],
+        context: CommandExecutionContext,
+    ): boolean;
     onReplyFlushed?(
         request: LocalClientCommand['request'],
         reply: LocalServerReply['reply'],
