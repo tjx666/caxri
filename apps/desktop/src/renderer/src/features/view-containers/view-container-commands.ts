@@ -46,7 +46,7 @@ function revealViewContainer(catalog: ViewCatalogSnapshot, containerId: string):
 
 /**
  * Routes a catalog command from every Renderer entry point. Container show commands stay local, Workbench Core actions
- * enter the generic controlled-surface queue, and extension-owned commands cross the typed Host boundary once.
+ * enter the generic controlled-surface queue, and extension-owned commands cross the typed Server boundary once.
  */
 export function didExecuteViewCatalogCommand(
     catalog: ViewCatalogSnapshot | undefined,
@@ -89,7 +89,7 @@ export function didExecuteViewCatalogCommand(
 }
 
 /**
- * Resolves the Host catalog at shortcut time. `fetchQuery` reuses a fresh cache, reloads a missing/stale/invalidated
+ * Resolves the Server catalog at shortcut time. `fetchQuery` reuses a fresh cache, reloads a missing/stale/invalidated
  * catalog, and therefore never turns an accepted extension keybinding into a cache-dependent silent no-op.
  */
 export async function executeViewCatalogShortcut(

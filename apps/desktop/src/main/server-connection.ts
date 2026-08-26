@@ -21,7 +21,7 @@ import type {
     ServerDesktopLaunch,
     ServerEvent,
     ServerOperation,
-    ServerOperationArguments as ServerOperationArguments,
+    ServerOperationArguments,
     ServerOperationResult,
 } from '@caxri/protocol';
 import {
@@ -34,17 +34,17 @@ import {
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import { computeBuildFingerprint, e2eAgentPolicyEnvironment, logEventCatalog } from '@caxri/system';
 
-import type { HostBuildIdentity } from './host-staleness';
-import { isHostBuildStale } from './host-staleness';
+import type { ServerBuildIdentity } from './server-staleness';
+import { isServerBuildStale } from './server-staleness';
 
 type DesktopCommandHandler = (
     operation: DesktopOperation,
     consumeTarget: () => Promise<DesktopTargetPayload>,
 ) => Promise<unknown>;
 
-interface UntypedHostClient {
+interface UntypedServerClient {
     request(method: CaxriMethod, parameters?: unknown): Promise<unknown>;
-    requestRuntime(
+    requestServerOperation(
         method: ServerOperation,
         parameters?: unknown,
         timeoutMs?: number,
@@ -52,15 +52,15 @@ interface UntypedHostClient {
     requestWithId(id: string, method: CaxriMethod, parameters?: unknown): Promise<unknown>;
 }
 
-export interface DesktopHostConnectionOptions {
+export interface DesktopServerConnectionOptions {
     agentHooksPath?: string;
     /**
-     * This Desktop build's commit/version identity, compared against `host.status` to replace a detached Host still
+     * This Desktop build's commit/version identity, compared against `host.status` to replace a detached Server still
      * running an older build. The `buildId` half is never passed in: it is a content fingerprint of the on-disk Server
      * artifact bundles computed per connection attempt (see `computeBuildFingerprint`), because a build-time identifier
      * baked into the window bundle diverges from the Server artifact during development.
      */
-    buildIdentity: HostBuildIdentity;
+    buildIdentity: ServerBuildIdentity;
     /**
      * Test seam for the on-disk bundle fingerprint; production uses `computeBuildFingerprint`.
      */
@@ -76,12 +76,12 @@ export interface DesktopHostConnectionOptions {
     userDataPath: string;
 }
 
-const HOST_REPLACEMENT_EXIT_TIMEOUT_MS = 10_000;
+const SERVER_REPLACEMENT_EXIT_TIMEOUT_MS = 10_000;
 
 /**
- * Waits for a stopped Host process to disappear so `ensureServer` re-discovery cannot race the old manifest. Signal 0
+ * Waits for a stopped Server process to disappear so `ensureServer` re-discovery cannot race the old manifest. Signal 0
  * only probes liveness; an `ESRCH` throw means the process is gone. On timeout the caller simply proceeds — the final
- * attempt downgrades a still-stale Host to a warning.
+ * attempt downgrades a still-stale Server to a warning.
  */
 async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs;
@@ -108,31 +108,32 @@ export function resolveDesktopLaunch(options: {
 }
 
 /**
- * Desktop-side client facade preserving Main's typed Runtime request call sites during migration.
+ * Desktop-side client facade for typed Server operations and recovery.
  */
-export class DesktopHostConnection extends EventTarget {
+export class DesktopServerConnection extends EventTarget {
     private client?: ServerClient;
     private events?: RecoveringEventClient;
-    private eventsHostIdentity?: string;
+    private eventsServerIdentity?: string;
     private serverPid?: number;
     private starting?: Promise<void>;
     private reconnectTask?: Promise<void>;
     private lifecycle: ServerConnectionState = initialServerConnectionState;
     /**
-     * Once this connection has replaced one stale Host, further mismatches only warn. Without this instance-level
+     * Once this connection has replaced one stale Server, further mismatches only warn. Without this instance-level
      * guard, every background reconnect (`reconnectUntilAttached` → `connect`) restarts the replacement from scratch,
-     * and a persistent mismatch — e.g. two Desktops of different builds sharing one Host — becomes a kill/spawn storm.
+     * and a persistent mismatch — e.g. two Desktops of different builds sharing one Server — becomes a kill/spawn
+     * storm.
      */
-    private hasReplacedStaleHost = false;
+    private hasReplacedStaleServer = false;
 
-    constructor(private readonly options: DesktopHostConnectionOptions) {
+    constructor(private readonly options: DesktopServerConnectionOptions) {
         super();
     }
 
     private async connect(): Promise<'same' | 'replaced'> {
-        let hostIdentity = await this.attachToCurrentHost();
-        hostIdentity ??= await this.attachToCurrentHost(true);
-        if (hostIdentity === undefined)
+        let serverIdentity = await this.attachToCurrentServer();
+        serverIdentity ??= await this.attachToCurrentServer(true);
+        if (serverIdentity === undefined)
             throw new CaxriError('UNAVAILABLE', 'Replacement Caxri Host still reports stale code');
         const client = await connectDesktopToServer(
             this.options.userDataPath,
@@ -141,13 +142,13 @@ export class DesktopHostConnection extends EventTarget {
         );
         this.client = client;
         client.onClose((reason) => this.handleConnectionLoss(client, reason));
-        const isHostContinuity =
-            this.eventsHostIdentity !== undefined && this.eventsHostIdentity !== hostIdentity;
-        // Reconnecting to the SAME Host process must keep the consumed event cursor: restarting at
+        const isServerContinuity =
+            this.eventsServerIdentity !== undefined && this.eventsServerIdentity !== serverIdentity;
+        // Reconnecting to the SAME Server process must keep the consumed event cursor: restarting at
         // zero would replay the whole journal and stale events (for example old `settings.changed`
-        // payloads) would clobber newer Renderer state. A replaced Host starts a fresh journal, so
+        // payloads) would clobber newer Renderer state. A replaced Server starts a fresh journal, so
         // only then does the recovery cursor reset.
-        if (!this.events || this.eventsHostIdentity !== hostIdentity) {
+        if (!this.events || this.eventsServerIdentity !== serverIdentity) {
             this.events = createRecoveringEventClient({
                 emit: (event) => {
                     this.dispatchEvent(new CustomEvent<ServerEvent>('event', { detail: event }));
@@ -167,12 +168,12 @@ export class DesktopHostConnection extends EventTarget {
                     return attached.request('events.recover', { afterCursor });
                 },
             });
-            this.eventsHostIdentity = hostIdentity;
+            this.eventsServerIdentity = serverIdentity;
         }
         const events = this.events;
         client.onEvent((event) => events.receive(event));
         await events.start();
-        return isHostContinuity ? 'replaced' : 'same';
+        return isServerContinuity ? 'replaced' : 'same';
     }
 
     private async attach(): Promise<void> {
@@ -191,20 +192,20 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     /**
-     * Ensures a Host is running and vets its build before serving it. A stale Host (older build than this Desktop) is
-     * stopped and `undefined` is returned so the caller can ensure a fresh one. Replacement happens at most once per
-     * connection instance (`hasReplacedStaleHost`) and never on the final attempt of a connect, so a persistent
+     * Ensures a Server is running and vets its build before serving it. A stale Server (older build than this Desktop)
+     * is stopped and `undefined` is returned so the caller can ensure a fresh one. Replacement happens at most once per
+     * connection instance (`hasReplacedStaleServer`) and never on the final attempt of a connect, so a persistent
      * mismatch — including two ping-ponging Desktops of different builds — degrades to a logged warning instead of an
      * endless kill/spawn loop.
      */
-    private async attachToCurrentHost(isFinalAttempt = false): Promise<string | undefined> {
+    private async attachToCurrentServer(isFinalAttempt = false): Promise<string | undefined> {
         // Recomputed per attempt: a watch rebuild may have replaced the bundles since the last connect, and the
-        // freshly spawned replacement Host reads the same bytes, so both sides agree by construction.
+        // freshly spawned replacement Server reads the same bytes, so both sides agree by construction.
         const artifact = await resolveServerArtifact(this.options.serverArtifactRoot);
         const desktopBuildId = await (this.options.computeBuildId ?? computeBuildFingerprint)(
             artifact.bundleDirectory,
         );
-        const buildIdentity: HostBuildIdentity = {
+        const buildIdentity: ServerBuildIdentity = {
             ...this.options.buildIdentity,
             buildId: desktopBuildId,
         };
@@ -246,22 +247,22 @@ export class DesktopHostConnection extends EventTarget {
                 serverPid: status.pid,
                 hostVersion: status.version,
             };
-            if (isHostBuildStale(buildIdentity, status)) {
-                if (isFinalAttempt || this.hasReplacedStaleHost) {
+            if (isServerBuildStale(buildIdentity, status)) {
+                if (isFinalAttempt || this.hasReplacedStaleServer) {
                     this.options.logger.write('warn', logEventCatalog.host.versionMismatch, {
                         fields: skewFields,
                     });
                 } else {
                     /**
-                     * Live PTYs die with the stale Host, which is the intended trade: silently serving Terminals from
+                     * Live PTYs die with the stale Server, which is the intended trade: silently serving Terminals from
                      * an older build is the failure mode this replaces.
                      */
                     this.options.logger.write('warn', logEventCatalog.host.staleBuildReplaced, {
                         fields: skewFields,
                     });
-                    this.hasReplacedStaleHost = true;
+                    this.hasReplacedStaleServer = true;
                     await operator.request('host.stop', { confirmLivePtys: true });
-                    await waitForProcessExit(status.pid, HOST_REPLACEMENT_EXIT_TIMEOUT_MS);
+                    await waitForProcessExit(status.pid, SERVER_REPLACEMENT_EXIT_TIMEOUT_MS);
                     return undefined;
                 }
             }
@@ -342,19 +343,19 @@ export class DesktopHostConnection extends EventTarget {
             }
             const recovering = this.lifecycle;
             const downtimeMs = Date.now() - outageStartedAtMs;
-            const isHostReplaced = recovering.serverContinuity === 'replaced';
+            const isServerReplaced = recovering.serverContinuity === 'replaced';
             this.options.logger.write('info', logEventCatalog.host.reconnected, {
-                fields: { attempt, downtimeMs, isHostReplaced },
+                fields: { attempt, downtimeMs, isHostReplaced: isServerReplaced },
             });
-            // Re-announce Renderer readiness so the replacement Host resumes delivering
+            // Re-announce Renderer readiness so the replacement Server resumes delivering
             // one-shot window commands without waiting for another boot.
             if (recovering.readiness === 'announced')
                 try {
                     // eslint-disable-next-line no-await-in-loop -- final readiness barrier for this attempt.
                     await this.markDesktopReady();
                     /**
-                     * `desktop.ready` and this recovery command share Host's ordered control queue. The recovery reply
-                     * is therefore a readiness barrier: it includes every durable event journaled after the first
+                     * `desktop.ready` and this recovery command share Server's ordered control queue. The recovery
+                     * reply is therefore a readiness barrier: it includes every durable event journaled after the first
                      * reconnect recovery and before ready became active, without adding an initial-startup round trip.
                      */
                     // eslint-disable-next-line no-await-in-loop -- ordered readiness barrier for this attempt.
@@ -382,7 +383,7 @@ export class DesktopHostConnection extends EventTarget {
                             status: 'reconnected',
                             downtimeMs,
                             attempt,
-                            isHostReplaced,
+                            isHostReplaced: isServerReplaced,
                         },
                     },
                 }),
@@ -428,7 +429,7 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     /**
-     * Subscribes to Runtime protocol events; returns an unsubscribe function.
+     * Subscribes to Server protocol events; returns an unsubscribe function.
      */
     onEvent(listener: (event: ServerEvent) => void): () => void {
         const handler = (event: Event): void =>
@@ -443,10 +444,10 @@ export class DesktopHostConnection extends EventTarget {
     ): Promise<ServerOperationResult<M>> {
         const attached = this.client;
         if (!attached) return Promise.reject(this.disconnectedRequestError());
-        const client = attached as unknown as UntypedHostClient;
+        const client = attached as unknown as UntypedServerClient;
         const [parameters, timeoutMs] = arguments_;
         if (isDesktopServerOperation(method))
-            return client.requestRuntime(method, parameters, timeoutMs) as Promise<
+            return client.requestServerOperation(method, parameters, timeoutMs) as Promise<
                 ServerOperationResult<M>
             >;
         if (!isCaxriMethod(method))
@@ -457,7 +458,7 @@ export class DesktopHostConnection extends EventTarget {
     forward(method: CaxriMethod, parameters: unknown, requestId: string): Promise<unknown> {
         const attached = this.client;
         if (!attached) return Promise.reject(this.disconnectedRequestError());
-        const client = attached as unknown as UntypedHostClient;
+        const client = attached as unknown as UntypedServerClient;
         return client.requestWithId(requestId, method, parameters);
     }
 
@@ -478,7 +479,7 @@ export class DesktopHostConnection extends EventTarget {
     }
 
     /**
-     * Compatibility name for old Main teardown call sites; it never stops the Host-owned Runtime.
+     * Compatibility name for old Main teardown call sites; it only closes this Desktop attachment.
      */
     shutdown(): Promise<void> {
         this.close();

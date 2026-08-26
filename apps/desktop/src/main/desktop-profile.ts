@@ -6,7 +6,7 @@ import type { App } from 'electron';
 
 import { readArgvConfigAtBoot } from './argv-config';
 
-type RuntimeProfileKind = 'development-default' | 'explicit' | 'packaged-default';
+type DesktopProfileKind = 'development-default' | 'explicit' | 'packaged-default';
 
 type RemoteDebuggingIdentity =
     | { source: 'argv-config'; transport: 'disabled' }
@@ -17,9 +17,9 @@ type RemoteDebuggingIdentity =
           transport: 'port';
       };
 
-export interface RuntimeProfile {
+export interface DesktopProfile {
     id: string;
-    kind: RuntimeProfileKind;
+    kind: DesktopProfileKind;
     logDirectory: string;
     remoteDebugging: RemoteDebuggingIdentity;
     userDataPath: string;
@@ -27,7 +27,7 @@ export interface RuntimeProfile {
 
 function canonicalProfilePath(path: string): string {
     /**
-     * This is the process bootstrap boundary: Electron, Chromium, the single-instance lock, and the Host must all see
+     * This is the process bootstrap boundary: Electron, Chromium, the single-instance lock, and the Server must all see
      * the same canonical userData path before `app.whenReady()`. Async filesystem calls would let those consumers
      * capture different identities, so this deliberately performs the one synchronous directory/realpath resolution.
      */
@@ -63,9 +63,9 @@ function remoteDebuggingIdentity(
 /**
  * Selects and installs the one runtime profile consumed by every Main-owned launch resource.
  */
-export function configureRuntimeProfile(app: App, environment: NodeJS.ProcessEnv): RuntimeProfile {
+export function configureDesktopProfile(app: App, environment: NodeJS.ProcessEnv): DesktopProfile {
     const explicitPath = environment.CAXRI_USER_DATA_DIR;
-    const kind: RuntimeProfileKind = explicitPath
+    const kind: DesktopProfileKind = explicitPath
         ? 'explicit'
         : app.isPackaged
           ? 'packaged-default'
@@ -88,15 +88,15 @@ export function configureRuntimeProfile(app: App, environment: NodeJS.ProcessEnv
 }
 
 /**
- * Electron scopes this lock by the canonical userData path installed by `configureRuntimeProfile`; the explicit ID also
+ * Electron scopes this lock by the canonical userData path installed by `configureDesktopProfile`; the explicit ID also
  * lets the primary process reject accidental cross-profile forwarding in tests and future launch payloads.
  */
-export function hasProfileSingleInstanceLock(app: App, profile: RuntimeProfile): boolean {
+export function hasProfileSingleInstanceLock(app: App, profile: DesktopProfile): boolean {
     return app.requestSingleInstanceLock({ profileId: profile.id });
 }
 
 /**
- * Coalesces second-instance requests received while the primary Desktop is still attaching to its Host. Once ready,
+ * Coalesces second-instance requests received while the primary Desktop is still attaching to its Server. Once ready,
  * every request restores and focuses the existing window rather than creating a competing Desktop lease.
  */
 export function installSecondInstanceFocus(

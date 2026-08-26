@@ -69,7 +69,7 @@ export function buildBugReport(draft: BugReportDraft, context: BugReportContext)
 }
 
 /**
- * Live candidates only; the Runtime repeats these checks atomically when the user sends.
+ * Live candidates only; the Server repeats these checks atomically when the user sends.
  */
 export function runningAgentTargets(
     terminals: readonly TerminalRecord[],

@@ -26,10 +26,13 @@ import { discardGitChangesPrompt, trashPrompt } from './confirmations';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import { createDesktopOperationHandler } from './desktop-operations';
+import {
+    configureDesktopProfile,
+    hasProfileSingleInstanceLock,
+    installSecondInstanceFocus,
+} from './desktop-profile';
 import { createMainEventRelay } from './event-relay';
 import { launchExternalEditor } from './external-editor';
-import { DesktopHostConnection, resolveDesktopLaunch } from './host-connection';
-import { shouldContinueStartup } from './host-startup';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { resolveLogLevel } from './log-level';
 import { createMainMethodHandler } from './main-methods';
@@ -40,11 +43,8 @@ import { ProcessExplorerWindowController } from './process-explorer-window';
 import { loadRendererEntry } from './renderer-entry';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
-import {
-    configureRuntimeProfile,
-    hasProfileSingleInstanceLock,
-    installSecondInstanceFocus,
-} from './runtime-profile';
+import { DesktopServerConnection, resolveDesktopLaunch } from './server-connection';
+import { shouldContinueStartup } from './server-startup';
 import { createTestRootPathResolver } from './test-root';
 import { shouldStartAutomaticUpdateCheck, UpdateService, updateStateLogFields } from './updates';
 import { createWindowCloseHandler } from './window-close';
@@ -55,7 +55,7 @@ import { createWorkbenchRootAuthority } from './workbench-root-authority';
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 /**
- * Stamps these before logging so Host and Desktop records correlate to this build; see `global.d.ts` and
+ * Stamps these before logging so Server and Desktop records correlate to this build; see `global.d.ts` and
  * `electron.vite.config.ts` for the injected constants.
  */
 const caxriVersion = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
@@ -69,9 +69,9 @@ process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_CO
  * @see https://www.electronjs.org/docs/latest/api/app#appsetnamename
  */
 if (process.platform === 'darwin' && !app.isPackaged) process.title = 'Caxri Dev';
-// Must settle before Chromium, logging, Host attachment, or the single-instance lock captures launch identity.
-const runtimeProfile = configureRuntimeProfile(app, process.env);
-const ownsProfileInstance = hasProfileSingleInstanceLock(app, runtimeProfile);
+// Must settle before Chromium, logging, Server attachment, or the single-instance lock captures launch identity.
+const desktopProfile = configureDesktopProfile(app, process.env);
+const ownsProfileInstance = hasProfileSingleInstanceLock(app, desktopProfile);
 if (!ownsProfileInstance) app.quit();
 
 // Scoped in a bare block (rather than left at module top level) so the mutable Desktop bootstrap
@@ -81,7 +81,7 @@ if (!ownsProfileInstance) app.quit();
 if (ownsProfileInstance) {
     let mainWindow: BrowserWindow | undefined;
     let mainRenderer: WebContents | undefined;
-    let supervisor: DesktopHostConnection;
+    let supervisor: DesktopServerConnection;
     let mainLogger: StructuredLogger | undefined;
     const processErrorMonitor = installProcessErrorMonitor({
         bootstrapWriter: () => (mainLogger ??= createMainLogger()),
@@ -96,7 +96,7 @@ if (ownsProfileInstance) {
     const rendererReadiness = new RendererReadiness();
     const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isPackaged });
     const workbenchRootAuthority = createWorkbenchRootAuthority({
-        getHost: () => supervisor,
+        getServer: () => supervisor,
         getWindow: () => mainWindow,
         grants: grantedRoots,
         nextTestRoot: resolveNextTestRootPath,
@@ -123,7 +123,7 @@ if (ownsProfileInstance) {
     });
     function createMainLogger(): StructuredLogger {
         return new StructuredLogger(
-            runtimeProfile.logDirectory,
+            desktopProfile.logDirectory,
             'main',
             resolveLogLevel({ isPackaged: app.isPackaged }),
         );
@@ -169,7 +169,7 @@ if (ownsProfileInstance) {
         let rendererCrashTimestampsMs: number[] = [];
         const persistWindowState = (): void => {
             /**
-             * `before-quit` performs the final ordered write before Runtime shutdown.
+             * `before-quit` performs the final ordered write before Server shutdown.
              */
             if (isQuitStarted || window.isDestroyed()) return;
             const state = readWindowState(window);
@@ -416,7 +416,7 @@ if (ownsProfileInstance) {
         async () => {
             await focusMainWindow();
             mainLogger?.write('info', logEventCatalog.app.secondInstanceFocused, {
-                fields: { profileId: runtimeProfile.id },
+                fields: { profileId: desktopProfile.id },
             });
         },
         (error) =>
@@ -427,14 +427,14 @@ if (ownsProfileInstance) {
 
     const handleMainMethod = createMainMethodHandler({
         getProcessExplorer: () => processExplorer,
-        getUserDataPath: () => runtimeProfile.userDataPath,
+        getUserDataPath: () => desktopProfile.userDataPath,
         getSupervisor: () => supervisor,
         getUpdateService: () => updateService,
         getWindow: () => mainWindow,
         workbenchRootAuthority,
     });
 
-    const handleHostDesktopOperation = createDesktopOperationHandler({
+    const handleServerDesktopOperation = createDesktopOperationHandler({
         confirmFilesTrash: async (item) => {
             const result = await dialog.showMessageBox(mainWindow!, trashPrompt(item));
             return result.response === 0;
@@ -524,7 +524,7 @@ if (ownsProfileInstance) {
         ) {
             /**
              * Acceptance needs a deterministic one-shot read failure after the new value is durable. Matching the
-             * configured fixture key avoids startup-attempt counting, which varies when Runtime is already ready.
+             * configured fixture key avoids startup-attempt counting, which varies when Server is already ready.
              */
             isMenuKeybindingFailureInjected = true;
             process.env.CAXRI_E2E_MENU_KEYBINDINGS_GET_FAILURE_INJECTED = '1';
@@ -567,20 +567,20 @@ if (ownsProfileInstance) {
                 isPackaged: app.isPackaged,
             });
             if (developmentDockIconPath && app.dock) app.dock.setIcon(developmentDockIconPath);
-            const { userDataPath, logDirectory } = runtimeProfile;
+            const { userDataPath, logDirectory } = desktopProfile;
             const logLevel = resolveLogLevel({ isPackaged: app.isPackaged });
             mainLogger ??= new StructuredLogger(logDirectory, 'main', logLevel);
             processErrorMonitor.attach(mainLogger);
             mainLogger.write('info', logEventCatalog.app.ready, {
                 durationMs: performance.now() - bootStartedAt,
                 fields: {
-                    profileId: runtimeProfile.id,
-                    profileKind: runtimeProfile.kind,
+                    profileId: desktopProfile.id,
+                    profileKind: desktopProfile.kind,
                     remoteDebuggingPort:
-                        runtimeProfile.remoteDebugging.transport === 'port'
-                            ? runtimeProfile.remoteDebugging.port
+                        desktopProfile.remoteDebugging.transport === 'port'
+                            ? desktopProfile.remoteDebugging.port
                             : null,
-                    remoteDebuggingTransport: runtimeProfile.remoteDebugging.transport,
+                    remoteDebuggingTransport: desktopProfile.remoteDebugging.transport,
                 },
             });
             if (process.env.CAXRI_E2E === '1') {
@@ -614,7 +614,7 @@ if (ownsProfileInstance) {
                     sendEvent({ event: 'updates.state', payload: state });
                 },
             });
-            supervisor = new DesktopHostConnection({
+            supervisor = new DesktopServerConnection({
                 buildIdentity: {
                     commit: process.env.CAXRI_GIT_COMMIT,
                     version: caxriVersion,
@@ -636,7 +636,7 @@ if (ownsProfileInstance) {
                     isPackaged: app.isPackaged,
                 }),
                 e2eAgentPolicy,
-                handleCommand: handleHostDesktopOperation,
+                handleCommand: handleServerDesktopOperation,
                 logger: mainLogger,
                 serverArtifactRoot: app.isPackaged
                     ? join(process.resourcesPath, 'server')
@@ -733,7 +733,7 @@ if (ownsProfileInstance) {
     });
 
     app.on('window-all-closed', () => {
-        // macOS keeps the Desktop client alive; the Host-owned Runtime survives either way.
+        // macOS keeps the Desktop client alive; the independently supervised Server survives either way.
     });
 
     app.on('before-quit', (event) => {

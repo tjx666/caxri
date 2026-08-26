@@ -15,15 +15,15 @@ import {
     unsavedChangesPrompt,
 } from './confirmations';
 import { openExternalUrl } from './external-links';
-import type { DesktopHostConnection } from './host-connection';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
+import type { DesktopServerConnection } from './server-connection';
 import type { UpdateService } from './updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
 interface MainMethodHandlerOptions {
     getProcessExplorer(): ProcessExplorerWindowController;
     getUserDataPath(): string;
-    getSupervisor(): DesktopHostConnection;
+    getSupervisor(): DesktopServerConnection;
     getUpdateService(): UpdateService;
     getWindow(): BrowserWindow | undefined;
     workbenchRootAuthority: ReturnType<typeof createWorkbenchRootAuthority>;
@@ -34,8 +34,8 @@ function assertNever(value: never): never {
 }
 
 /**
- * Creates the Main-side handler for Desktop requests the Host forwards to Electron: native dialogs, Trash, screenshots,
- * and update control all need direct Electron API access the Host process lacks.
+ * Creates the Main-side handler for Desktop requests the Server forwards to Electron: native dialogs, Trash,
+ * screenshots, and update control all need direct Electron API access the Server process lacks.
  */
 export function createMainMethodHandler(options: MainMethodHandlerOptions) {
     async function handleExternalUrl(

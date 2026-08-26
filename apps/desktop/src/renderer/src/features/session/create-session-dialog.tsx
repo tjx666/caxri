@@ -20,7 +20,7 @@ export function CreateSessionDialog() {
     const pendingProjectId = useDialogStore((state) => state.pendingProjectId);
     const projects = useProjects();
     const isOpen = Boolean(pendingRoot ?? pendingProjectId);
-    // Mirrors the Runtime's Project-title derivation (`basename(rootPath)` in apps/server/src/domains/db/models/projects.ts) so
+    // Mirrors the Server's Project-title derivation (`basename(rootPath)` in apps/server/src/domains/db/models/projects.ts) so
     // the dialog previews the same title the created Project will get.
     const contextLabel = pendingRoot
         ? pathBasename(pendingRoot)

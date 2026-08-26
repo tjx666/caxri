@@ -28,7 +28,7 @@ const terminalStateColor: Record<TerminalRecord['lastProcessState'], string> = {
 };
 
 /**
- * The transcript row queries the Runtime for the provider transcript's derived path (no content), and clicking it opens
+ * The transcript row queries the Server for the provider transcript's derived path (no content), and clicking it opens
  * the read-only transcript viewer tab.
  */
 function TerminalTranscriptRow({ terminal }: { terminal: TerminalRecord }) {

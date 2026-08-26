@@ -10,9 +10,9 @@ const electronMock = vi.hoisted(() => ({
 }));
 vi.mock('electron', () => ({ dialog: electronMock.dialog, shell: electronMock.shell }));
 
-import type { DesktopHostConnection } from '../host-connection';
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
+import type { DesktopServerConnection } from '../server-connection';
 import type { UpdateService } from '../updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
@@ -41,7 +41,9 @@ function options(overrides: {
             overrides.processExplorer ?? ({} as ProcessExplorerWindowController),
         getUserDataPath: () => '/user-data',
         getSupervisor: () =>
-            ({ request: overrides.request ?? requestMock({}) }) as unknown as DesktopHostConnection,
+            ({
+                request: overrides.request ?? requestMock({}),
+            }) as unknown as DesktopServerConnection,
         getUpdateService: () => overrides.updateService ?? ({} as UpdateService),
         getWindow: () => window as never,
         workbenchRootAuthority: (overrides.workbenchRootAuthority ?? {}) as ReturnType<
@@ -338,7 +340,7 @@ describe('git.discard', () => {
         });
     });
 
-    it('forwards the discard to the Host once the destructive choice is confirmed', async () => {
+    it('forwards the discard to the Server once the destructive choice is confirmed', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
         const request = requestMock({
             'git.discard.preflight': () =>

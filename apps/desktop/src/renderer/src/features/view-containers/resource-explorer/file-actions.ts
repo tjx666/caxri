@@ -280,7 +280,7 @@ function attemptMove(
  *
  * A `CONFLICT` opens a Finder-style Replace/Keep Both/Cancel prompt (`file-conflict-dialog.ts`) instead of a toast.
  * Availability of Replace is gated on both sides of the collision actually being plain files, fetched fresh via
- * `files.list` (Runtime can only atomically overwrite a file target, never a folder; see `assertReplaceableMove` in
+ * `files.list` (Server can only atomically overwrite a file target, never a folder; see `assertReplaceableMove` in
  * `mutations.ts`). Replace retries with `conflict: 'replace'`; Keep Both retries with `conflict: 'rename'` (the
  * existing auto-suffix "name copy" behavior); Cancel resolves with no retry and no toast, leaving a cut clipboard entry
  * armed for another attempt elsewhere. Every retry is a fresh, unregistered operation id on the normal
@@ -337,8 +337,8 @@ export async function moveFile(
 
 /**
  * User-triggered Cancel for a long-running durable mutation (create/rename/move). Mirrors the internal timeout-driven
- * cancel path in `runDurableFileMutation` above: Runtime's `staged` phase cannot be rolled back safely (the file-system
- * change already started), so a cancel that lands after staging still reconciles to whatever Runtime finished with
+ * cancel path in `runDurableFileMutation` above: Server's `staged` phase cannot be rolled back safely (the file-system
+ * change already started), so a cancel that lands after staging still reconciles to whatever Server finished with
  * instead of pretending it stopped.
  */
 export async function cancelFileOperation(

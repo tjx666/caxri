@@ -51,7 +51,7 @@ export function useSettingsDialogController() {
     const handledRequestId = useRef(0);
 
     const [state, dispatch] = useReducer(configReducer, initialConfigState);
-    // Stable callbacks and Runtime events need the latest reducer state without resubscribing the
+    // Stable callbacks and Server events need the latest reducer state without resubscribing the
     // event listener on every edit. Every config action advances this ref in dispatch order, while
     // the effect confirms it from React's committed state.
     const stateReference = useRef(state);
@@ -60,8 +60,8 @@ export function useSettingsDialogController() {
     }, [state]);
     const dispatchConfig = useCallback((action: ConfigAction): void => {
         /**
-         * Runtime events can arrive back-to-back before React commits. Advance the event handler's reference through
-         * the same reducer synchronously so a second event observes the first event's baseline without mutating render
+         * Server events can arrive back-to-back before React commits. Advance the event handler's reference through the
+         * same reducer synchronously so a second event observes the first event's baseline without mutating render
          * state outside React.
          */
         stateReference.current = configReducer(stateReference.current, action);
@@ -237,7 +237,7 @@ export function useSettingsDialogController() {
     /**
      * Parses the raw source text for `kind` and, when valid, refreshes the structured value and persists immediately —
      * no debounce, since losing focus (or switching away) is already the deliberate commit boundary. An invalid parse
-     * reports inline next to the editor and is never sent to the Runtime.
+     * reports inline next to the editor and is never sent to the Server.
      */
     const commitSource = useCallback(
         (kind: ConfigKind): void => {

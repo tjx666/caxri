@@ -87,7 +87,7 @@ interface ScreencastState {
 }
 
 /**
- * Window-local by design: this store has no persistence or Runtime synchronization.
+ * Window-local by design: this store has no persistence or Server synchronization.
  */
 export const useScreencastStore = create<ScreencastState>((set) => ({
     enabled: false,

@@ -58,7 +58,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             assertSender(event.sender);
             isTrustedRenderer = true;
             /**
-             * Refuse queued Renderer work; explicit quit owns final Runtime I/O and shutdown.
+             * Refuse queued Renderer work; explicit quit owns final Server I/O and shutdown.
              */
             if (options.isQuitting())
                 return {
@@ -69,7 +69,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 };
             const reply = await options.transport.dispatch(raw);
             /**
-             * In-flight reads can outlive the window once quit closes the Host; the consumer is already gone.
+             * In-flight reads can outlive the window once quit closes the Server attachment; the consumer is gone.
              */
             if (!reply.ok && reply.error.code !== 'CANCELLED' && !options.isQuitting())
                 options.logger()?.write('error', logEventCatalog.ipc.requestFailed, {

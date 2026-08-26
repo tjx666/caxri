@@ -1,9 +1,9 @@
 import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { shouldContinueStartup } from '../host-startup';
+import { shouldContinueStartup } from '../server-startup';
 
-describe('Host startup boundary', () => {
+describe('Server startup boundary', () => {
     it('attaches once without a legacy compatibility retry', async () => {
         const start = vi.fn(() => Promise.resolve());
         const dialog = { showErrorBox: vi.fn() };

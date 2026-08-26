@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createDesktopOpenQueue } from '../desktop-open';
 
-describe('Host Desktop open queue', () => {
+describe('Server Desktop open queue', () => {
     it('serializes concurrent targets without losing their Session identity', async () => {
         const { promise: firstSelection, resolve: releaseFirstSelection } =
             Promise.withResolvers<void>();

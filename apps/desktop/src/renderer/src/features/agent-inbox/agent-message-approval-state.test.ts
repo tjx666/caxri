@@ -17,7 +17,7 @@ describe('held message approval state', () => {
         );
     });
 
-    it('removes a held message when Host says it no longer exists', () => {
+    it('removes a held message when Server says it no longer exists', () => {
         const result = heldMessageActionResultForError(
             new CaxriError('NOT_FOUND', 'Held Agent message was not found'),
         );
@@ -29,11 +29,11 @@ describe('held message approval state', () => {
 
     it('keeps transient transport failures retryable', () => {
         expect(
-            heldMessageActionResultForError(new CaxriError('UNAVAILABLE', 'Host is restarting')),
+            heldMessageActionResultForError(new CaxriError('UNAVAILABLE', 'Server is restarting')),
         ).toBe('rejected');
     });
 
-    it('removes a held message only after Host confirms its transition', () => {
+    it('removes a held message only after Server confirms its transition', () => {
         expect(updateHeldMessagesAfterAction(heldMessages, 'held-1', 'confirmed')).toEqual([
             { messageId: 'held-2' },
         ]);

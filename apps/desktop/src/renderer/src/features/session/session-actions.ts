@@ -46,8 +46,8 @@ export async function didSelectSession(sessionId: string): Promise<boolean> {
 }
 
 /**
- * Records the logical selection synchronously so another quick-toggle can reverse direction before Runtime's full
- * snapshot refresh completes. Runtime remains authoritative: the pending link disappears when its refreshed selected
+ * Records the logical selection synchronously so another quick-toggle can reverse direction before Server's full
+ * snapshot refresh completes. Server remains authoritative: the pending link disappears when its refreshed selected
  * Session arrives, and a failed request or any ordinary Session selection clears it.
  */
 function selectMruSession(sessionId: string): void {
@@ -243,10 +243,10 @@ export function deleteSelectedSession(): void {
 
 /**
  * Moves a live Terminal (its PTY untouched) into a brand-new Session under the same Project, then switches to it —
- * analogous to a browser "move tab to new window". The Runtime already selects the new Session as part of the same
+ * analogous to a browser "move tab to new window". The Server already selects the new Session as part of the same
  * operation, so the post-command bootstrap refresh is all that is needed to reflect the switch, matching
  * `session.create`'s flow. The only-tab constraint is repeated at this request boundary so an accessibility or
- * synthetic activation of a disabled menu item cannot reach the Runtime.
+ * synthetic activation of a disabled menu item cannot reach the Server.
  */
 export function moveTerminalToNewSession(terminalId: string, isOnlyWorkTab = false): void {
     if (isOnlyWorkTab) return;

@@ -15,7 +15,7 @@ import type { TerminalRendererReason } from './terminal-renderer';
 import type { TerminalSearchResults } from './terminal-search';
 
 /**
- * Shared, non-hook support used by `useTerminalPaneRuntime`: user-facing copy, small pure helpers, and the one Runtime
+ * Shared, non-hook support used by `useTerminalPaneRuntime`: user-facing copy, small pure helpers, and the one Server
  * call whose failure is intentionally unobserved. Kept in its own module so the hook file stays under the repository's
  * per-file line budget.
  */
@@ -57,7 +57,7 @@ export function opaqueSearchColor(color: string): string {
 }
 
 /**
- * A Runtime restart can race a pane teardown, leaving no live view to notify; the failure is intentionally unobserved
+ * A Server restart can race a pane teardown, leaving no live view to notify; the failure is intentionally unobserved
  * instead of surfaced through `onError`.
  */
 export async function detachTerminalQuietly(terminalId: string): Promise<void> {
@@ -70,7 +70,7 @@ export async function detachTerminalQuietly(terminalId: string): Promise<void> {
 
 /**
  * Keeps keyboard input and Files-drop paste on the same live xterm path. `xterm.paste` preserves bracketed-paste
- * semantics, while `onData` remains the single ordered bridge into the Runtime-owned PTY.
+ * semantics, while `onData` remains the single ordered bridge into the Server-owned PTY.
  */
 export function registerTerminalInputHandlers(
     terminal: Terminal,

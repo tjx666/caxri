@@ -14,9 +14,9 @@ import { describeFailure, pushToast } from '../stores/toasts';
  * inside a component.
  *
  * Server-state defaults tuned for a local-IPC app rather than a network API: there is no other client to race with over
- * `window.caxri`, so a background window-focus refetch only doubles Runtime work, and an IPC rejection is a real
- * failure (a bad path, a closed Session) rather than a transient network blip worth retrying. Individual queries
- * override `staleTime` where a shorter or longer window makes sense (see the `useCaxriQuery` call sites below).
+ * `window.caxri`, so a background window-focus refetch only doubles Server work, and an IPC rejection is a real failure
+ * (a bad path, a closed Session) rather than a transient network blip worth retrying. Individual queries override
+ * `staleTime` where a shorter or longer window makes sense (see the `useCaxriQuery` call sites below).
  */
 export const queryClient = new QueryClient({
     defaultOptions: {

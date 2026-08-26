@@ -17,7 +17,7 @@ export interface MainEventRelayOptions {
 }
 
 /**
- * Owns only Renderer-reload recovery; the profile-wide durable cursor lives in Headless Host.
+ * Owns only Renderer-reload recovery; the profile-wide durable cursor lives in Server Core.
  */
 export function createMainEventRelay(options: MainEventRelayOptions) {
     let isRendererReady = false;

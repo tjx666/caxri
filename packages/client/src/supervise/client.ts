@@ -558,7 +558,7 @@ export class ServerClient {
         });
     }
 
-    requestRuntime<M extends DesktopServerOperation>(
+    requestServerOperation<M extends DesktopServerOperation>(
         method: M,
         ...arguments_: DesktopServerOperationArguments<M>
     ): Promise<DesktopServerOperationResult<M>> {

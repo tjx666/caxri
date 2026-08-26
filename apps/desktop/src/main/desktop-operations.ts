@@ -21,7 +21,7 @@ export interface DesktopOperationHandlers {
 }
 
 /**
- * Executes only the bounded native operation carried by an authenticated Host command.
+ * Executes only the bounded native operation carried by an authenticated Server command.
  */
 async function handleDesktopOperation(
     operation: DesktopOperation,

@@ -23,7 +23,7 @@ const RECONCILIATION_RETRY_BASE_MS = 250;
 const MAXIMUM_RECONCILIATION_RETRY_MS = 30_000;
 
 /**
- * Coalesces recovery triggers without allowing a second operation-list request to overtake the first one. Runtime
+ * Coalesces recovery triggers without allowing a second operation-list request to overtake the first one. Server
  * startup, a catalog generation change, and a provider event can all describe the same durable state transition; one
  * queued pass is enough to observe the latest journal and keeps recovery bounded during watcher bursts.
  */
@@ -274,7 +274,7 @@ export function reconcileFileMutation(
                 );
         } catch {
             /**
-             * Runtime keeps the durable result until every same-Project Session remap and ack succeeds, so a transient
+             * Server keeps the durable result until every same-Project Session remap and ack succeeds, so a transient
              * persistence failure must retry across Renderer reloads.
              */
             scheduleReconciliationRetry(client, operation);

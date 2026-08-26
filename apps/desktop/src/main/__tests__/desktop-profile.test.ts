@@ -6,10 +6,10 @@ import type { App } from 'electron';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-    configureRuntimeProfile,
+    configureDesktopProfile,
     hasProfileSingleInstanceLock,
     installSecondInstanceFocus,
-} from '../runtime-profile';
+} from '../desktop-profile';
 
 const temporaryDirectories: string[] = [];
 
@@ -68,14 +68,14 @@ async function temporaryDirectory(prefix: string): Promise<string> {
 
 describe('runtime profile authority', () => {
     it('derives development userData, logs, CDP, and identity from one canonical profile', async () => {
-        const root = await temporaryDirectory('caxri-runtime-profile-');
+        const root = await temporaryDirectory('caxri-desktop-profile-');
         const appDataPath = join(root, 'application-data');
         const { app, appended } = createFakeApp({
             appDataPath,
             userDataPath: join(root, 'electron-default'),
         });
 
-        const profile = configureRuntimeProfile(app, {});
+        const profile = configureDesktopProfile(app, {});
         const expectedUserDataPath = await realpath(join(appDataPath, 'caxri-dev'));
 
         expect(profile).toMatchObject({
@@ -94,7 +94,7 @@ describe('runtime profile authority', () => {
     });
 
     it('canonicalizes explicit aliases into the same profile identity', async () => {
-        const root = await temporaryDirectory('caxri-runtime-profile-alias-');
+        const root = await temporaryDirectory('caxri-desktop-profile-alias-');
         const profileDirectory = join(root, 'profile');
         const alias = join(root, 'profile-alias');
         await mkdir(profileDirectory);
@@ -108,10 +108,10 @@ describe('runtime profile authority', () => {
             userDataPath: join(root, 'electron-default'),
         });
 
-        const direct = configureRuntimeProfile(first.app, {
+        const direct = configureDesktopProfile(first.app, {
             CAXRI_USER_DATA_DIR: profileDirectory,
         });
-        const aliased = configureRuntimeProfile(second.app, { CAXRI_USER_DATA_DIR: alias });
+        const aliased = configureDesktopProfile(second.app, { CAXRI_USER_DATA_DIR: alias });
 
         expect(aliased.userDataPath).toBe(await realpath(profileDirectory));
         expect(aliased.id).toBe(direct.id);
@@ -119,7 +119,7 @@ describe('runtime profile authority', () => {
     });
 
     it('keeps different explicit canonical profiles as independent identities', async () => {
-        const root = await temporaryDirectory('caxri-runtime-profile-independent-');
+        const root = await temporaryDirectory('caxri-desktop-profile-independent-');
         const first = createFakeApp({
             appDataPath: root,
             userDataPath: join(root, 'electron-default'),
@@ -129,10 +129,10 @@ describe('runtime profile authority', () => {
             userDataPath: join(root, 'electron-default'),
         });
 
-        const firstProfile = configureRuntimeProfile(first.app, {
+        const firstProfile = configureDesktopProfile(first.app, {
             CAXRI_USER_DATA_DIR: join(root, 'first-profile'),
         });
-        const secondProfile = configureRuntimeProfile(second.app, {
+        const secondProfile = configureDesktopProfile(second.app, {
             CAXRI_USER_DATA_DIR: join(root, 'second-profile'),
         });
 
@@ -142,14 +142,14 @@ describe('runtime profile authority', () => {
     });
 
     it('retains an explicit CDP switch as part of the profile identity without replacing it', async () => {
-        const root = await temporaryDirectory('caxri-runtime-profile-switch-');
+        const root = await temporaryDirectory('caxri-desktop-profile-switch-');
         const { app, appended } = createFakeApp({
             appDataPath: root,
             remoteDebuggingPort: '9333',
             userDataPath: join(root, 'profile'),
         });
 
-        const profile = configureRuntimeProfile(app, {});
+        const profile = configureDesktopProfile(app, {});
 
         expect(profile.remoteDebugging).toEqual({
             port: '9333',
@@ -160,7 +160,7 @@ describe('runtime profile authority', () => {
     });
 
     it('honors the packaged profile argv gate after selecting the canonical userData path', async () => {
-        const root = await temporaryDirectory('caxri-runtime-profile-packaged-');
+        const root = await temporaryDirectory('caxri-desktop-profile-packaged-');
         const profileDirectory = join(root, 'profile');
         await mkdir(join(profileDirectory, 'config'), { recursive: true });
         await writeFile(
@@ -174,7 +174,7 @@ describe('runtime profile authority', () => {
             userDataPath: profileDirectory,
         });
 
-        const profile = configureRuntimeProfile(app, {});
+        const profile = configureDesktopProfile(app, {});
 
         expect(profile).toMatchObject({
             kind: 'packaged-default',
@@ -187,19 +187,19 @@ describe('runtime profile authority', () => {
 
 describe('profile single instance', () => {
     it('keys the Electron lock with the resolved profile identity', async () => {
-        const root = await temporaryDirectory('caxri-runtime-profile-lock-');
+        const root = await temporaryDirectory('caxri-desktop-profile-lock-');
         const fixture = createFakeApp({
             appDataPath: root,
             userDataPath: join(root, 'profile'),
         });
-        const profile = configureRuntimeProfile(fixture.app, {});
+        const profile = configureDesktopProfile(fixture.app, {});
 
         expect(hasProfileSingleInstanceLock(fixture.app, profile)).toBe(true);
         expect(fixture.requestSingleInstanceLock).toHaveBeenCalledWith({ profileId: profile.id });
     });
 
     it('queues an early second-instance focus until the Desktop is ready', async () => {
-        const root = await temporaryDirectory('caxri-runtime-profile-focus-');
+        const root = await temporaryDirectory('caxri-desktop-profile-focus-');
         const fixture = createFakeApp({
             appDataPath: root,
             userDataPath: join(root, 'profile'),

@@ -14,8 +14,8 @@ export interface DesktopOpenQueueActions {
 }
 
 /**
- * Host commands arrive over a one-shot event channel, so serialize them before they mutate the selected Session. This
- * preserves each target's identity without making the Host wait for editor rendering or turning Renderer work into a
+ * Server commands arrive over a one-shot event channel, so serialize them before they mutate the selected Session. This
+ * preserves each target's identity without making the Server wait for editor rendering or turning Renderer work into a
  * second IPC protocol.
  */
 export function createDesktopOpenQueue(actions: DesktopOpenQueueActions) {
@@ -29,7 +29,7 @@ export function createDesktopOpenQueue(actions: DesktopOpenQueueActions) {
                 await actions.openFile(request.sessionId, request.path, request.location);
             })();
             /**
-             * A rejected one-shot request must not prevent later Host targets from being handled.
+             * A rejected one-shot request must not prevent later Server targets from being handled.
              */
             tail = (async () => {
                 try {

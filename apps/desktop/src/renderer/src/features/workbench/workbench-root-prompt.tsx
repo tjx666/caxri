@@ -47,7 +47,7 @@ export function WorkbenchRootPrompt() {
             pushToast('error', describeFailure(error, 'Unable to dismiss worktree suggestion'));
         } finally {
             /**
-             * An expired candidate is already inert in Runtime and must not strand the prompt.
+             * An expired candidate is already inert in Server and must not strand the prompt.
              */
             dismissWorkbenchRootCandidate(sessionId);
             setPending(false);

@@ -29,7 +29,7 @@ export function hasProjectDragType(types: readonly string[]): boolean {
 }
 
 /**
- * Keeps the optimistic order authoritative until Runtime state confirms or rejects that intent.
+ * Keeps the optimistic order authoritative until Server state confirms or rejects that intent.
  */
 export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
     let current: ProjectOrderIntent | undefined;
@@ -57,7 +57,7 @@ export function createProjectOrderIntentTracker(): ProjectOrderIntentTracker {
         },
         /**
          * A newer queued intent still depends on the failed optimistic order, so it must be discarded along with the
-         * rejected request instead of being persisted against stale Runtime state.
+         * rejected request instead of being persisted against stale Server state.
          */
         settle(didSucceed) {
             if (!didSucceed) current = undefined;

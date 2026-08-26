@@ -9,8 +9,8 @@ const electronMock = vi.hoisted(() => ({
 }));
 vi.mock('electron', () => ({ dialog: electronMock.dialog }));
 
-import type { DesktopHostConnection } from '../host-connection';
 import { ProjectRootGrants } from '../root-grants';
+import type { DesktopServerConnection } from '../server-connection';
 import { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
 const temporaryDirectories: string[] = [];
@@ -36,14 +36,16 @@ afterEach(async () => {
     );
 });
 
-function host(request: (method: string, parameters?: unknown) => Promise<unknown>) {
-    return { request } as unknown as DesktopHostConnection;
+function server(request: (method: string, parameters?: unknown) => Promise<unknown>) {
+    return { request } as unknown as DesktopServerConnection;
 }
 
-const unusedHost = host(() => Promise.reject(new Error('Host was not expected to be called')));
+const unusedServer = server(() =>
+    Promise.reject(new Error('Server was not expected to be called')),
+);
 
 function authority(options: {
-    getHost?: DesktopHostConnection;
+    getServer?: DesktopServerConnection;
     grants?: ProjectRootGrants;
     nextTestRoot?: () => string | undefined;
     window?: object;
@@ -52,7 +54,7 @@ function authority(options: {
     return {
         grants,
         instance: createWorkbenchRootAuthority({
-            getHost: () => options.getHost ?? unusedHost,
+            getServer: () => options.getServer ?? unusedServer,
             getWindow: () => options.window as never,
             grants,
             nextTestRoot: options.nextTestRoot ?? (() => {}),
@@ -120,11 +122,11 @@ describe('selectProjectDirectory', () => {
 });
 
 describe('createProject / cancelProjectCreate orchestration', () => {
-    it('consumes the matching grant and forwards to the Host', async () => {
+    it('consumes the matching grant and forwards to the Server', async () => {
         const grants = new ProjectRootGrants();
         grants.grant('/project');
         const request = vi.fn(() => Promise.resolve({ id: 'project-1' }));
-        const { instance } = authority({ getHost: host(request), grants });
+        const { instance } = authority({ getServer: server(request), grants });
 
         await expect(instance.createProject({ rootPath: '/project' })).resolves.toEqual({
             id: 'project-1',
@@ -141,7 +143,7 @@ describe('createProject / cancelProjectCreate orchestration', () => {
 
     it('rejects Project creation for a root the Renderer never had authorized', async () => {
         const request = vi.fn(() => Promise.resolve({ id: 'project-1' }));
-        const { instance } = authority({ getHost: host(request) });
+        const { instance } = authority({ getServer: server(request) });
 
         await expect(instance.createProject({ rootPath: '/untrusted' })).rejects.toMatchObject({
             code: 'PATH_DENIED',
@@ -192,7 +194,7 @@ describe('openTerminalFileLink', () => {
             if (method === 'desktop.openFile') return Promise.resolve({ state: 'requested' });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const { instance } = authority({ getHost: host(request) });
+        const { instance } = authority({ getServer: server(request) });
 
         await expect(
             instance.openTerminalFileLink({
@@ -241,7 +243,7 @@ describe('openTerminalFileLink', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const { instance } = authority({
-            getHost: host(request),
+            getServer: server(request),
             nextTestRoot: () => selectedRoot,
         });
 
@@ -293,7 +295,7 @@ describe('openTerminalFileLink', () => {
                 });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const { instance } = authority({ getHost: host(request) });
+        const { instance } = authority({ getServer: server(request) });
 
         await expect(
             instance.openTerminalFileLink({
@@ -333,7 +335,7 @@ describe('openTerminalFileLink', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const { instance } = authority({
-            getHost: host(request),
+            getServer: server(request),
             grants,
             nextTestRoot: () => selectedRoot,
         });
@@ -371,7 +373,7 @@ describe('openTerminalFileLink', () => {
             if (method === 'desktop.openFile') return Promise.resolve({ state: 'requested' });
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const { instance } = authority({ getHost: host(request) });
+        const { instance } = authority({ getServer: server(request) });
 
         await expect(
             instance.openTerminalFileLink({
@@ -390,11 +392,11 @@ describe('openTerminalFileLink', () => {
 });
 
 describe('authorizeSelection', () => {
-    it('canonicalizes the selected path, grants it, and forwards the realpath to the Host', async () => {
+    it('canonicalizes the selected path, grants it, and forwards the realpath to the Server', async () => {
         const projectRoot = await temporaryDirectory();
         const request = vi.fn(() => Promise.resolve({ id: 'session-1' }));
         const { instance } = authority({
-            getHost: host(request),
+            getServer: server(request),
             nextTestRoot: () => projectRoot,
         });
 
@@ -412,7 +414,7 @@ describe('authorizeSelection', () => {
             filePaths: [],
         });
         const request = vi.fn(() => Promise.resolve({ id: 'session-1' }));
-        const { instance } = authority({ getHost: host(request) });
+        const { instance } = authority({ getServer: server(request) });
 
         await expect(instance.authorizeSelection({ sessionId: 'session-1' })).resolves.toEqual({
             canceled: true,
@@ -420,12 +422,12 @@ describe('authorizeSelection', () => {
         expect(request).not.toHaveBeenCalled();
     });
 
-    it('revokes the grant when the Host rejects authorization, closing the retry window', async () => {
+    it('revokes the grant when the Server rejects authorization, closing the retry window', async () => {
         const projectRoot = await temporaryDirectory();
         const grants = new ProjectRootGrants();
         const request = vi.fn(() => Promise.reject(new Error('Runtime unavailable')));
         const { instance } = authority({
-            getHost: host(request),
+            getServer: server(request),
             grants,
             nextTestRoot: () => projectRoot,
         });
@@ -459,7 +461,7 @@ describe('continueInWorktree', () => {
             if (method === 'session.workbenchCandidate.cancel') return Promise.resolve(null);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const { instance } = authority({ getHost: host(request) });
+        const { instance } = authority({ getServer: server(request) });
 
         await expect(
             instance.continueInWorktree({ candidateId: 'candidate-1', sessionId: 'session-1' }),
@@ -488,7 +490,7 @@ describe('continueInWorktree', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const { instance } = authority({
-            getHost: host(request),
+            getServer: server(request),
             grants,
             nextTestRoot: () => link,
         });
@@ -517,7 +519,7 @@ describe('continueInWorktree', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const { instance } = authority({
-            getHost: host(request),
+            getServer: server(request),
             nextTestRoot: () => otherRoot,
         });
 
@@ -542,7 +544,7 @@ describe('continueInWorktree', () => {
             if (method === 'session.workbenchCandidate.cancel') return Promise.resolve(null);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const { instance } = authority({ getHost: host(request) });
+        const { instance } = authority({ getServer: server(request) });
 
         await expect(
             instance.continueInWorktree({ candidateId: 'candidate-1', sessionId: 'session-1' }),
@@ -565,7 +567,7 @@ describe('continueInWorktree', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const { instance } = authority({
-            getHost: host(request),
+            getServer: server(request),
             grants,
             nextTestRoot: () => worktreeRoot,
         });
@@ -597,7 +599,7 @@ describe('continueInWorktree', () => {
                 return Promise.reject(new Error('cancel transport failure'));
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const { instance } = authority({ getHost: host(request) });
+        const { instance } = authority({ getServer: server(request) });
 
         await expect(
             instance.continueInWorktree({ candidateId: 'candidate-1', sessionId: 'session-1' }),

@@ -138,13 +138,13 @@ export function describeFailure(error: unknown, label: string): string {
 
 export interface TryCommandOptions {
     /**
-     * Re-reads the Runtime snapshot after the operation succeeds.
+     * Re-reads the Server snapshot after the operation succeeds.
      */
     refresh?: () => Promise<void>;
 }
 
 /**
- * The single failure funnel for Renderer-initiated Runtime work: awaits `run`, optionally refreshes the workbench
+ * The single failure funnel for Renderer-initiated Server work: awaits `run`, optionally refreshes the workbench
  * snapshot, and turns any rejection into exactly one error toast. Replaces the `.catch(error => showMessage(error
  * instanceof Error ? error.message : '…'))` chain that used to be copy-pasted at every call site.
  */

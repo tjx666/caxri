@@ -104,12 +104,12 @@ function isControlledOperationMatch(
 
 /**
  * Invalidates the Session-scoped Files reads that a `files.changed` event cheaply reflects: the Path Browser and the
- * Core Resource Explorer. Both consume the same Runtime authority, so its durable event is the single invalidation
+ * Core Resource Explorer. Both consume the same Server authority, so its durable event is the single invalidation
  * source instead of an Extension Host echo. `projectStatus.summary` and `projectStatus.overview` are excluded: a
  * Project Status read may shell out to a delivery CLI (e.g. `gh`), so it stays on its own polling interval instead of
  * re-running on every file write. Git status/diff/blame queries (`git.summary`, `git.overview`, `git.diffDocument`,
  * `git.blame`) are no longer invalidated from here: a plain file write does not always mean the working tree changed
- * (e.g. an ignored file), so Git invalidation instead rides the Runtime-emitted `git.changed` event, which is scoped to
+ * (e.g. an ignored file), so Git invalidation instead rides the Server-emitted `git.changed` event, which is scoped to
  * the repository identities that actually changed — see `invalidateGitChangedQueries` below.
  */
 function invalidateFileDependentQueries(
@@ -154,7 +154,7 @@ function invalidateFileDependentQueries(
 /**
  * Invalidates the Session-scoped Git read queries a `git.changed` event covers: status/topology (`git.summary`,
  * `git.overview`), file diffs (`git.diffDocument`), and blame annotations (`git.blame`, `git.fileHead`). Unlike
- * {@link invalidateFileDependentQueries}, this runs unconditionally on every `git.changed` push — the Runtime already
+ * {@link invalidateFileDependentQueries}, this runs unconditionally on every `git.changed` push — the Server already
  * coalesces bursts of repository activity into one event before emitting it, so no additional client-side debounce is
  * needed here.
  */
@@ -295,7 +295,7 @@ export function useRuntimeQueryInvalidation(): void {
 }
 
 /**
- * Subscribes the query cache to Runtime events. The debounce is keyed by Workbench Project rather than source Session
+ * Subscribes the query cache to Server events. The debounce is keyed by Workbench Project rather than source Session
  * because every Session currently routed to that root observes the same disk.
  */
 export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () => void {

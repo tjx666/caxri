@@ -51,7 +51,7 @@ export function useSessionAttentionAcknowledgement(): void {
                 });
             } catch {
                 /**
-                 * Runtime recovery or the next focus event can safely retry the same generation.
+                 * Server recovery or the next focus event can safely retry the same generation.
                  */
                 isPendingReference.current = false;
             }

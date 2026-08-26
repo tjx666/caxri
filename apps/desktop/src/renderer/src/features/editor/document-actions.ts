@@ -197,7 +197,7 @@ export async function openFile(
 }
 
 /**
- * Opens a Host-routed target against its exact Session rather than the transient selected Session.
+ * Opens a Server-routed target against its exact Session rather than the transient selected Session.
  */
 export async function openFileForSession(
     sessionId: string,
@@ -363,7 +363,7 @@ async function didConfirmDirtyEditorCloses(
  * holds — the family is resolved against the pane, never against one kind. A dirty document is confirmed (Save/Don't
  * Save/Cancel) before anything is evicted, and the layout is re-read after that round trip in case a concurrent
  * operation (rename, Trash) changed it meanwhile. A Terminal among the closed tabs must give up its PTY through the
- * Runtime lifecycle in the same pass — merely dropping its tab from the layout would leave the process running with
+ * Server lifecycle in the same pass — merely dropping its tab from the layout would leave the process running with
  * nothing left to show or close it.
  */
 export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void> {
@@ -461,7 +461,7 @@ export function remapOpenEditors(sessionId: string, previousPath: string, nextPa
 }
 
 /**
- * Remaps transient state for the originating root; Runtime acknowledgement owns inactive storage.
+ * Remaps transient state for the originating root; Server acknowledgement owns inactive storage.
  */
 export async function remapOpenEditorsDurably(
     sessionId: string,

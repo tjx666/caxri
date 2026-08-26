@@ -26,7 +26,7 @@ function upsert(messages: AgentHeldMessage[], incoming: AgentHeldMessage): Agent
 }
 
 /**
- * Presents Host-held peer text as inert plain text. Approve moves only this message into the receiver Inbox; neither
+ * Presents Server-held peer text as inert plain text. Approve moves only this message into the receiver Inbox; neither
  * action grants authority, writes terminal input, or changes policy.
  */
 export function AgentMessageApprovalDialog() {

@@ -168,7 +168,7 @@ function parseFileLocation(text: string): {
 }
 
 /**
- * Only the current user's exact `~/...` shorthand is actionable. Runtime owns OS user lookup and deliberately rejects
+ * Only the current user's exact `~/...` shorthand is actionable. Server owns OS user lookup and deliberately rejects
  * other shell expansion forms so the Renderer never guesses at environment or account semantics.
  */
 function isCurrentUserHomePath(path: string): boolean {
@@ -231,7 +231,7 @@ function locationPathStart(text: string, pathEnd: number, wordSeparators: string
 /**
  * Parses location-suffixed paths before fallback word tokenization, following VS Code's local-link detector. This keeps
  * balanced framework segments such as `(group)` and `[parameter]` inside the candidate while sentence punctuation stays
- * outside it. Runtime still validates the resolved path when the link activates.
+ * outside it. Server still validates the resolved path when the link activates.
  *
  * @see https://github.com/microsoft/vscode/blob/342c6c56db0bdb21397e4d553bfd52e35b8c9daf/src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing.ts#L208-L222
  */
@@ -443,7 +443,7 @@ function fileUrlPath(target: string): string | undefined {
 }
 
 /**
- * Resolves lexical POSIX paths; Runtime still owns canonical root and symlink validation.
+ * Resolves lexical POSIX paths; Server still owns canonical root and symlink validation.
  */
 export function resolveTerminalFilePath(
     target: string,
@@ -755,7 +755,7 @@ export function registerTerminalLinks(
             if (match) activateLinkFromPointer(event, match, context);
         },
         /**
-         * File URLs are allowed into the handler, then constrained by the Runtime-rooted read.
+         * File URLs are allowed into the handler, then constrained by the Server-rooted read.
          */
         allowNonHttpProtocols: true,
     };

@@ -463,7 +463,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         unsubscribe();
     });
 
-    it('invalidates every transcript after a Host reconnect closes a journal-gap race', () => {
+    it('invalidates every transcript after a Server reconnect closes a journal-gap race', () => {
         const queryClient = new QueryClient();
         queryClient.setQueryData(
             ['terminal.agentTranscript', { terminalId: 'terminal-a', withContent: true }],
