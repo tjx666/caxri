@@ -32,7 +32,7 @@ afterEach(() => {
 
 describe('extensionApiModuleUrl', () => {
     it('keeps one generation identity stable and fences extension and reload identities', async () => {
-        class RuntimeTreeItem {}
+        class LoadedTreeItem {}
         const bindings = new Map([
             [
                 'first-token-1',
@@ -43,7 +43,7 @@ describe('extensionApiModuleUrl', () => {
                         EventEmitter: class {},
                         CancellationTokenSource: class {},
                         ThemeIcon: class {},
-                        TreeItem: RuntimeTreeItem,
+                        TreeItem: LoadedTreeItem,
                         TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
                     },
                 },
@@ -106,7 +106,7 @@ describe('extensionApiModuleUrl', () => {
         const reloaded = await loadExtensionApiModule(reloadedUrl);
 
         expect(first.default).toBe(firstAgain.default);
-        expect(first.TreeItem).toBe(RuntimeTreeItem);
+        expect(first.TreeItem).toBe(LoadedTreeItem);
         expect(first.default).not.toBe(second.default);
         expect(first.default).not.toBe(reloaded.default);
         expect(new Set([firstUrl, secondUrl, reloadedUrl]).size).toBe(3);

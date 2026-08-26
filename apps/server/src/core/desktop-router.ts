@@ -4,7 +4,7 @@ import type {
     DesktopLease,
     DesktopOperation,
     DesktopTargetPayload,
-    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationParameters,
     ServerOperationResult,
     WorkbenchRequestContext,
 } from '@caxri/protocol';

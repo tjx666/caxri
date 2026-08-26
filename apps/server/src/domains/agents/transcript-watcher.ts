@@ -43,7 +43,7 @@ async function transcriptSignature(path: string): Promise<string> {
 }
 
 /**
- * Retains one Runtime/WatchHub subscription per transcript that a Renderer has actually opened. Native events carry no
+ * Retains one Server/WatchHub subscription per transcript that a Renderer has actually opened. Native events carry no
  * content; fallback polling compares only filesystem metadata. A post-subscribe signature check closes the race between
  * the initial signature read and WatchHub becoming live.
  */

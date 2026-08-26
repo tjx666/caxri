@@ -11,7 +11,7 @@ function invalidResult(operation: ExtensionViewOperation | ExtensionWorkspaceOpe
     });
 }
 
-export function validatedRuntimeWorkspaceResult(
+export function validatedServerWorkspaceResult(
     operation: ExtensionWorkspaceOperation,
     result: unknown,
 ): unknown {

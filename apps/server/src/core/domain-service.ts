@@ -4,8 +4,8 @@ import process from 'node:process';
 import type {
     ServerEvent,
     ServerOperation,
-    ServerOperationArguments as ServerOperationArguments,
-    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationArguments,
+    ServerOperationParameters,
     ServerOperationResult,
     WorkbenchRequestContext,
 } from '@caxri/protocol';

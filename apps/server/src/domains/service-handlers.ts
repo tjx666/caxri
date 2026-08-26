@@ -81,7 +81,7 @@ export function mainOwned(method: ServerOperation): never {
 }
 
 /**
- * Handlers that only delegate to an already-constructed Runtime service, with no dependency on the composition root's
+ * Handlers that only delegate to an already-constructed Server service, with no dependency on the composition root's
  * own closures. Kept out of `create-domain-services.ts` to stay under the file's physical-line budget.
  */
 export function createServiceHandlers(services: {

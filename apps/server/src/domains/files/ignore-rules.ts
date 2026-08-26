@@ -1,7 +1,7 @@
 import { sep } from 'node:path';
 
 /**
- * Directory names excluded from Project search and watcher traversal for bounded Runtime work.
+ * Directory names excluded from Project search and watcher traversal for bounded Server work.
  *
  * VCS metadata (`.git`, `.hg`, `.svn`) and dependency/build output directories are large, frequently-churning trees.
  * File-tree visibility is configured independently by `files.exclude`.

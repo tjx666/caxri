@@ -2,13 +2,13 @@ import type {
     AgentProvider,
     ServerEvent,
     ServerOperation,
-    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationParameters,
     ServerOperationResult,
     WorkbenchRequestContext,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-import type { RuntimeAgentEndpointLifecycle } from './agent-endpoints';
+import type { AgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentAdapter, AgentEnvironment } from './agents';
 import type { TerminalManagerOptions } from './terminal';
 
@@ -34,8 +34,8 @@ export interface DomainDependencies {
     agentAdapters?: Record<AgentProvider, AgentAdapter>;
     agentEnvironment?: AgentEnvironment;
     agentHooksPath?: string;
-    runtimeExecutable?: string;
-    agentEndpoints?: RuntimeAgentEndpointLifecycle;
+    hookExecutable?: string;
+    agentEndpoints?: AgentEndpointLifecycle;
 }
 
 export interface DomainServices {

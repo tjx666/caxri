@@ -169,7 +169,7 @@ describe('Runtime Terminal cwd authorization', () => {
         const projectFolder = join(projectRoot, 'folder');
         const outside = join(directory, 'outside');
         await Promise.all([mkdir(projectFolder, { recursive: true }), mkdir(outside)]);
-        const runtimeA = await createDomainServices({
+        const domainsA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -178,21 +178,21 @@ describe('Runtime Terminal cwd authorization', () => {
                 spawn: () => createFakePty(),
             },
         });
-        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
-        const created = await runtimeA.handlers['session.create']({
+        const project = await domainsA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await domainsA.handlers['session.create']({
             projectId: project.id,
             defaultAgent: 'shell',
         });
-        const terminal = await runtimeA.handlers['terminal.create']({
+        const terminal = await domainsA.handlers['terminal.create']({
             sessionId: created.session.id,
             kind: 'shell',
             cwd: projectFolder,
         });
-        await runtimeA.close();
+        await domainsA.close();
         await rename(projectFolder, `${projectFolder}-original`);
         await symlink(outside, projectFolder);
 
-        const runtimeB = await createDomainServices({
+        const domainsB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
@@ -204,14 +204,14 @@ describe('Runtime Terminal cwd authorization', () => {
         });
         try {
             await vi.waitFor(async () => {
-                const state = await runtimeB.handlers['app.bootstrap']({});
+                const state = await domainsB.handlers['app.bootstrap']({});
                 expect(
                     state.terminals.find((candidate) => candidate.id === terminal.id)
                         ?.lastProcessState,
                 ).toBe('failed');
             });
         } finally {
-            await runtimeB.close();
+            await domainsB.close();
         }
     });
 
@@ -223,7 +223,7 @@ describe('Runtime Terminal cwd authorization', () => {
         const projectFolder = join(projectRoot, 'folder');
         const outside = join(directory, 'outside');
         await Promise.all([mkdir(projectFolder, { recursive: true }), mkdir(outside)]);
-        const runtimeA = await createDomainServices({
+        const domainsA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -232,21 +232,21 @@ describe('Runtime Terminal cwd authorization', () => {
                 spawn: () => createFakePty(),
             },
         });
-        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
-        const created = await runtimeA.handlers['session.create']({
+        const project = await domainsA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await domainsA.handlers['session.create']({
             projectId: project.id,
             defaultAgent: 'shell',
         });
-        const terminal = await runtimeA.handlers['terminal.create']({
+        const terminal = await domainsA.handlers['terminal.create']({
             sessionId: created.session.id,
             kind: 'shell',
             cwd: projectFolder,
         });
-        await runtimeA.handlers['terminal.close']({ terminalId: created.terminal!.id });
-        await runtimeA.close();
+        await domainsA.handlers['terminal.close']({ terminalId: created.terminal!.id });
+        await domainsA.close();
 
         const events: ServerEvent[] = [];
-        const runtimeB = await createDomainServices({
+        const domainsB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
@@ -264,7 +264,7 @@ describe('Runtime Terminal cwd authorization', () => {
         });
         try {
             await vi.waitFor(async () => {
-                const state = await runtimeB.handlers['app.bootstrap']({});
+                const state = await domainsB.handlers['app.bootstrap']({});
                 expect(
                     state.terminals.find((candidate) => candidate.id === terminal.id)
                         ?.lastProcessState,
@@ -275,7 +275,7 @@ describe('Runtime Terminal cwd authorization', () => {
                 payload: { kind: 'records', sessionIds: [], terminalIds: [terminal.id] },
             });
         } finally {
-            await runtimeB.close();
+            await domainsB.close();
         }
     });
 });

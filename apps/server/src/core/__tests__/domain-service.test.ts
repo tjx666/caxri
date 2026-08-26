@@ -6,14 +6,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DomainHandlers, DomainServices } from '../../domains/domain-services';
 import { ServerDomainService } from '../domain-service';
 
-const runtimeMethodNames = [
+const serverOperationNames = [
     ...Object.keys(methods),
     ...Object.keys(internalMethods),
 ] as ServerOperation[];
 
 function handlers(overrides: Partial<Record<ServerOperation, unknown>> = {}): DomainHandlers {
     return {
-        ...Object.fromEntries(runtimeMethodNames.map((method) => [method, () => null])),
+        ...Object.fromEntries(serverOperationNames.map((method) => [method, () => null])),
         ...overrides,
     } as unknown as DomainHandlers;
 }

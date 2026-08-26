@@ -2,10 +2,7 @@ import { Buffer } from 'node:buffer';
 import { lstat, mkdir, open, rename } from 'node:fs/promises';
 import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
 
-import type {
-    ServerOperationParameters as ServerOperationParameters,
-    ServerOperationResult,
-} from '@caxri/protocol';
+import type { ServerOperationParameters, ServerOperationResult } from '@caxri/protocol';
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { isExistingPath, logEventCatalog, mapWithConcurrency } from '@caxri/system';
@@ -239,7 +236,7 @@ export class FileMutationService {
                      * requests, and the final check normally avoids knowingly replacing a target that already exists —
                      * except in `replace` mode, where the caller already showed the user an interactive Finder-style
                      * prompt and captured an explicit Replace confirmation, and `assertReplaceableMove` just verified
-                     * neither side of the move is a folder. Runtime has no Trash API for a safer overwrite (that lives
+                     * neither side of the move is a folder. Server has no Trash API for a safer overwrite (that lives
                      * in Main), so the sanctioned replace path is POSIX `rename(2)` atomically overwriting a plain file
                      * target.
                      */

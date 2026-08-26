@@ -3,11 +3,7 @@ import type { Dirent } from 'node:fs';
 import { lstat, opendir, realpath } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
-import type {
-    FileEntry,
-    ServerOperationParameters as ServerOperationParameters,
-    ServerOperationResult,
-} from '@caxri/protocol';
+import type { FileEntry, ServerOperationParameters, ServerOperationResult } from '@caxri/protocol';
 import {
     CaxriError,
     errorMessage,
@@ -28,7 +24,7 @@ const MAX_CONCURRENT_ENTRY_STATS = 32;
  */
 export const MAX_FILE_BROWSE_SCANNED_ENTRIES = 4_096;
 /**
- * Prevents path browsing from exhausting Runtime directory handles across concurrent Sessions.
+ * Prevents path browsing from exhausting Server directory handles across concurrent Sessions.
  */
 export const MAX_CONCURRENT_FILE_BROWSES = 4;
 /**
@@ -36,7 +32,7 @@ export const MAX_CONCURRENT_FILE_BROWSES = 4;
  */
 export const MAX_FILE_LIST_RESULT_BYTES = 3 * 1024 * 1024;
 /**
- * Bounds Runtime memory and latency before the smaller sorted page and serialized byte limits are applied.
+ * Bounds Server memory and latency before the smaller sorted page and serialized byte limits are applied.
  */
 const MAX_FILE_LIST_SCANNED_ENTRIES = 4_096;
 

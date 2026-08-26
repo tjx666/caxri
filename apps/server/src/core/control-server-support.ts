@@ -45,14 +45,14 @@ export function isConcurrentRead(method: string): boolean {
     return getMethodSpec(method)?.effect === 'read';
 }
 
-const RUNTIME_SCHEDULED_FILE_MUTATIONS = new Set(['files.copy', 'files.write']);
+const SELF_SERIALIZED_FILE_MUTATIONS = new Set(['files.copy', 'files.write']);
 
 /**
  * Reads do not carry mutation ordering, while non-expiring file mutations already serialize overlapping paths inside
  * domain services. Both may settle outside the connection-wide ordered lane once adapter admission completes.
  */
 export function shouldSettleOutsideOrderedLane(method: string): boolean {
-    return isConcurrentRead(method) || RUNTIME_SCHEDULED_FILE_MUTATIONS.has(method);
+    return isConcurrentRead(method) || SELF_SERIALIZED_FILE_MUTATIONS.has(method);
 }
 
 /**

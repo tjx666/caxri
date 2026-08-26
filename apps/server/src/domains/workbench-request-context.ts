@@ -4,7 +4,7 @@ import { CaxriError } from '@caxri/protocol';
 import type { CaxriDatabase } from './db';
 
 /**
- * Revalidates a Host-attested extension request at the Runtime execution boundary. This check is synchronous so the
+ * Revalidates a Server-attested extension request at the Server execution boundary. This check is synchronous so the
  * selected Workbench Root cannot change between validation and the domain handler capturing its authorized root.
  */
 export function validateWorkbenchRequestContext(

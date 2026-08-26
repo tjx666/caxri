@@ -67,13 +67,13 @@ interface AgentHookManagerOptions {
     onLaunchEnded: (terminalId: string) => void;
     onLaunchStarted: (terminalId: string, launchId: string) => void;
     onSignal: (signal: AgentLifecycleSignal) => boolean;
-    runtimeExecutable: string;
+    hookExecutable: string;
     send: (event: ServerEvent) => void;
     sharedPath?: string;
     userDataPath: string;
     /**
-     * Shared Runtime watch registry. Production passes the Runtime-wide hub; tests may omit it, in which case the
-     * manager owns a private hub with equivalent behavior.
+     * Shared Server watch registry. Production passes the Server-wide hub; tests may omit it, in which case the manager
+     * owns a private hub with equivalent behavior.
      */
     watchHub?: WatchHub;
 }
@@ -624,7 +624,7 @@ export class AgentHookManager {
         this.options.onLaunchStarted(terminalId, launchId);
         return {
             CAXRI_HOOK_LAUNCH_ID: launchId,
-            CAXRI_HOOK_RUNTIME: this.options.runtimeExecutable,
+            CAXRI_HOOK_RUNTIME: this.options.hookExecutable,
             CAXRI_HOOK_SOCKET: this.server.socketPath,
             CAXRI_HOOK_TERMINAL_ID: terminalId,
             CAXRI_HOOK_TOKEN: token,

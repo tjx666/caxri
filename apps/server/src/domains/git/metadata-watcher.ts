@@ -10,7 +10,7 @@ import type { WatchHandle } from '../watch-hub';
 import { WatchHub } from '../watch-hub';
 
 /**
- * Watched repository groups are bounded to keep the Runtime file-descriptor gate intact; the least recently used group
+ * Watched repository groups are bounded to keep the Server file-descriptor gate intact; the least recently used group
  * is released when a newer repository enters active use.
  */
 const MAX_WATCHED_REPOSITORIES = 16;
@@ -89,8 +89,8 @@ export interface GitMetadataWatcherOptions {
      */
     subscribe?: typeof parcelWatcher.subscribe;
     /**
-     * Shared Runtime watch registry. Production passes the Runtime-wide hub; tests may omit it, in which case the
-     * watcher owns a private hub with equivalent behavior.
+     * Shared Server watch registry. Production passes the Server-wide hub; tests may omit it, in which case the watcher
+     * owns a private hub with equivalent behavior.
      */
     watchHub?: WatchHub;
 }

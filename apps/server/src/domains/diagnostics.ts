@@ -171,7 +171,7 @@ export class DiagnosticsService {
         private readonly activePtyCount: () => number,
         private readonly startedAt: number,
         /**
-         * Content-free watcher/poller census from the Runtime watch hub (labels and counters only, never paths).
+         * Content-free watcher/poller census from the Server watch hub (labels and counters only, never paths).
          */
         private readonly watchSnapshot?: () => WatchHubSnapshot,
     ) {}

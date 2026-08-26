@@ -39,7 +39,7 @@ function didConsumeCancelTombstone(requestId: string): boolean {
 }
 
 /**
- * Keeps provider events emitted while a Host notification or extension command is running tied to that request's
+ * Keeps provider events emitted while a Server notification or extension command is running tied to that request's
  * Workbench Root. Events without an active scope are deliberately dropped instead of becoming global UI broadcasts.
  */
 export function withViewEventContext<Result>(

@@ -19,7 +19,7 @@ import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 import type { AgentMessagingProbeInput } from '../agent-messaging';
 import { AgentMessagingCapabilityProbe, pendingMessagingCapability } from '../agent-messaging';
 
-export interface RuntimeAgentEndpointControl {
+export interface AgentEndpointControl {
     activate(parameters: AgentEndpointActivateParameters): Promise<boolean>;
     begin(parameters: AgentEndpointBeginParameters): Promise<AgentEndpointBeginResult>;
     messaging(parameters: AgentEndpointMessagingParameters): Promise<boolean>;
@@ -38,7 +38,7 @@ interface ActiveEndpoint {
     terminalId: string;
 }
 
-export interface RuntimeAgentControlTarget {
+export interface AgentControlTarget {
     launchId: string;
     ref: AgentEndpointReference;
     terminalId: string;
@@ -78,11 +78,11 @@ export function classifyAgentPermission(
 /**
  * Owns the endpoint lease alongside its live direct-Agent PTY generation.
  */
-export class RuntimeAgentEndpointLifecycle {
+export class AgentEndpointLifecycle {
     private readonly active = new Map<string, ActiveEndpoint>();
 
     constructor(
-        private readonly control: RuntimeAgentEndpointControl,
+        private readonly control: AgentEndpointControl,
         private readonly userDataPath: string,
         private readonly messagingProbe = new AgentMessagingCapabilityProbe({
             cliPath: process.env.CAXRI_CLI_PATH,
@@ -117,7 +117,7 @@ export class RuntimeAgentEndpointLifecycle {
     private async updateMessaging(
         endpoint: ActiveEndpoint,
         revision: number,
-        messaging: Parameters<RuntimeAgentEndpointControl['messaging']>[0]['messaging'],
+        messaging: Parameters<AgentEndpointControl['messaging']>[0]['messaging'],
     ): Promise<void> {
         if (
             this.active.get(endpoint.terminalId) !== endpoint ||
@@ -150,7 +150,7 @@ export class RuntimeAgentEndpointLifecycle {
             name: agentEndpointName(terminal, terminal.kind),
             permissionClass: classifyAgentPermission(terminal.kind, settings.launch),
             /**
-             * A credential exists for the child env before spawn, but the Host keeps it inert.
+             * A credential exists for the child env before spawn, but the Server keeps it inert.
              */
             messaging: pendingMessagingCapability(),
         });
@@ -241,24 +241,24 @@ export class RuntimeAgentEndpointLifecycle {
         if (!endpoint) return;
         endpoint.retiring = true;
         /**
-         * Keep the local generation fenced if Host retirement fails, so a later caller may retry safely.
+         * Keep the local generation fenced if Server retirement fails, so a later caller may retry safely.
          */
         await this.control.retire({ ref: endpoint.ref, launchId: endpoint.launchId });
         if (this.active.get(terminalId) === endpoint) this.active.delete(terminalId);
     }
 
     /**
-     * Exposes the Host-issued identity after preparation but before PTY spawn so Runtime can bind pre-launch evidence
+     * Exposes the Server-issued identity after preparation but before PTY spawn so Server can bind pre-launch evidence
      * to the exact generation without exposing its credential token.
      */
-    preparedEndpointForTerminal(terminalId: string): RuntimeAgentControlTarget | undefined {
+    preparedEndpointForTerminal(terminalId: string): AgentControlTarget | undefined {
         const endpoint = this.active.get(terminalId);
         return endpoint && !endpoint.retiring
             ? { launchId: endpoint.launchId, ref: endpoint.ref, terminalId: endpoint.terminalId }
             : undefined;
     }
 
-    endpointForTerminal(terminalId: string): RuntimeAgentControlTarget | undefined {
+    endpointForTerminal(terminalId: string): AgentControlTarget | undefined {
         const endpoint = this.active.get(terminalId);
         return endpoint?.activated && !endpoint.retiring
             ? { launchId: endpoint.launchId, ref: endpoint.ref, terminalId: endpoint.terminalId }
@@ -266,9 +266,9 @@ export class RuntimeAgentEndpointLifecycle {
     }
 
     /**
-     * Resolves an exact live Endpoint generation before a Runtime-owned PTY side effect.
+     * Resolves an exact live Endpoint generation before a Server-owned PTY side effect.
      */
-    controlTarget(reference: AgentEndpointReference): RuntimeAgentControlTarget {
+    controlTarget(reference: AgentEndpointReference): AgentControlTarget {
         const endpoint = this.active
             .values()
             .find(
@@ -283,7 +283,7 @@ export class RuntimeAgentEndpointLifecycle {
         return { launchId: endpoint.launchId, ref: endpoint.ref, terminalId: endpoint.terminalId };
     }
 
-    isCurrent(target: RuntimeAgentControlTarget): boolean {
+    isCurrent(target: AgentControlTarget): boolean {
         const current = this.active.get(target.terminalId);
         return Boolean(
             current?.activated &&

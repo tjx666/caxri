@@ -24,7 +24,7 @@ import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri
 
 import { createServerDomainService } from '../core/create-domain-service';
 import type { CreateDomainServices } from '../core/domain-service';
-import type { RuntimeAgentEndpointControl } from '../domains/agent-endpoints';
+import type { AgentEndpointControl } from '../domains/agent-endpoints';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
 import { ControlServer } from './control-server';
@@ -97,7 +97,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             server?.broadcastDesktop({ event: 'agent.message.receipt', payload });
         },
     });
-    const endpointControl: RuntimeAgentEndpointControl = {
+    const endpointControl: AgentEndpointControl = {
         activate: (parameters) => Promise.resolve(agentEndpoints.activate(parameters)),
         begin: (parameters) => Promise.resolve(agentEndpoints.begin(parameters)),
         messaging: (parameters) => Promise.resolve(agentEndpoints.updateMessaging(parameters)),
@@ -257,7 +257,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         return stopPromise;
     };
 
-    const host: CommandAdapter = {
+    const serverAdapter: CommandAdapter = {
         async invoke(request, context, invocation) {
             if (!isServerRequest(request))
                 throw new CaxriError(
@@ -690,7 +690,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             await extensionService.start();
         }
         server = new ControlServer({
-            adapters: { host },
+            adapters: { host: serverAdapter },
             authenticateAgent: (credential) => agentEndpoints.authenticate(credential),
             consumeDesktopTarget: (targetId, generation) => {
                 if (!desktopRouter)

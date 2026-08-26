@@ -7,7 +7,7 @@ import type { ExtensionHostApiRequest, ExtensionHostMessage } from './protocol';
 
 type ExtensionHostApiRequestIdentity = 'apiToken' | 'extensionId' | 'generation' | 'id' | 'type';
 
-export type HostApiRequestInput =
+export type ServerApiRequestInput =
     | Omit<
           Extract<ExtensionHostApiRequest, { method: 'workspace.getProjectStatus' }>,
           ExtensionHostApiRequestIdentity
@@ -30,7 +30,7 @@ interface PendingApiRequest {
     sendCancel(): void;
 }
 
-export interface HostApiRequestContext {
+export interface ServerApiRequestContext {
     apiToken: string;
     assertCurrent(): void;
     isApiTokenCurrent(apiToken: string): boolean;
@@ -38,7 +38,7 @@ export interface HostApiRequestContext {
 }
 
 const pendingApi = new Map<string, PendingApiRequest>();
-const HOST_API_TIMEOUT_MS = 15_000;
+const SERVER_API_TIMEOUT_MS = 15_000;
 
 function cancellationError(): Error {
     return Object.assign(new Error('Extension Host API request was cancelled'), {
@@ -52,14 +52,14 @@ function clearPending(id: string, pending: PendingApiRequest): void {
     pending.cancellation?.dispose();
 }
 
-function requestTimeout(request: HostApiRequestInput): number | undefined {
+function requestTimeout(request: ServerApiRequestInput): number | undefined {
     return request.method === 'workspace.request' &&
         isNonExpiringViewOperation(request.params.operation)
         ? undefined
-        : HOST_API_TIMEOUT_MS;
+        : SERVER_API_TIMEOUT_MS;
 }
 
-function requiresAuthoritativeReplyAfterCancellation(request: HostApiRequestInput): boolean {
+function requiresAuthoritativeReplyAfterCancellation(request: ServerApiRequestInput): boolean {
     return (
         request.method === 'workspace.request' &&
         isNonExpiringViewOperation(request.params.operation)
@@ -67,15 +67,15 @@ function requiresAuthoritativeReplyAfterCancellation(request: HostApiRequestInpu
 }
 
 /**
- * Sends one Extension API request and wires a public CancellationToken to the authenticated Host request id. The id is
- * intentionally reused for the Host and Runtime cancellation frames so a late cancel cannot target another operation.
+ * Sends one Extension API request and wires a public CancellationToken to the authenticated Server request id. The id
+ * is reused by transport admission and domain cancellation so a late cancel cannot target another operation.
  */
-export function requestHostApi<Result>(
-    context: HostApiRequestContext & {
+export function requestServerApi<Result>(
+    context: ServerApiRequestContext & {
         extensionId: string;
         generation: number;
     },
-    request: HostApiRequestInput,
+    request: ServerApiRequestInput,
     token?: CancellationToken,
 ): Promise<Result> {
     context.assertCurrent();
@@ -119,9 +119,9 @@ export function requestHostApi<Result>(
             if (current !== pending) return;
             pending.sendCancel();
             /**
-             * A mutation cancel is a request to stop before its point of no return, not proof that it stopped. Host may
-             * already be applying the operation without a signal, so only its reply can distinguish cancellation from
-             * authoritative completion and prevent a duplicate retry.
+             * A mutation cancel is a request to stop before its point of no return, not proof that it stopped. Server
+             * may already be applying the operation without a signal, so only its reply can distinguish cancellation
+             * from authoritative completion and prevent a duplicate retry.
              */
             if (requiresAuthoritativeReply) return;
             clearPending(id, pending);

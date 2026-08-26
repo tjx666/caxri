@@ -101,7 +101,7 @@ async function resolveRegularFile(rootPath: string, candidate: string) {
 }
 
 /**
- * Expands a current-user Home link only inside Runtime and proves the target against an already added Project or a
+ * Expands a current-user Home link only inside Server and proves the target against an already added Project or a
  * directory the user explicitly selected in Main. The first pass deliberately does not stat paths outside every
  * Project: Terminal output alone cannot acquire filesystem read authority.
  */

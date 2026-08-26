@@ -31,7 +31,7 @@ export class TerminalSnapshotPersistence {
             if (this.database.getTerminal(terminalId)) this.database.saveSnapshot(snapshot);
         } catch (error) {
             /**
-             * Snapshot persistence is recoverable and must never terminate the shared Runtime.
+             * Snapshot persistence is recoverable and must never terminate the shared Server.
              */
             this.logger.write('warn', logEventCatalog.pty.snapshotFailed, {
                 fields: { terminalId, error: errorMessage(error, 'unknown') },

@@ -2,15 +2,15 @@ import process from 'node:process';
 
 import { StructuredLogger } from '@caxri/system';
 
-import type { RuntimeAgentEndpointControl } from '../domains/agent-endpoints';
-import { RuntimeAgentEndpointLifecycle } from '../domains/agent-endpoints';
+import type { AgentEndpointControl } from '../domains/agent-endpoints';
+import { AgentEndpointLifecycle } from '../domains/agent-endpoints';
 import { defaultAgentEnvironment } from '../domains/agents';
 import { resolveE2ETerminalOutputFlushDelay } from '../domains/terminal';
 import type { CreateDomainServices } from './domain-service';
 import { ServerDomainService } from './domain-service';
 
 export interface ServerDomainServiceOptions {
-    agentEndpointControl: RuntimeAgentEndpointControl;
+    agentEndpointControl: AgentEndpointControl;
     agentHooksPath?: string;
     executable?: string;
     createServices?: CreateDomainServices;
@@ -27,14 +27,14 @@ export function createServerDomainService(
     const outputFlushMs = resolveE2ETerminalOutputFlushDelay(process.env);
     return new ServerDomainService(
         {
-            agentEndpoints: new RuntimeAgentEndpointLifecycle(
+            agentEndpoints: new AgentEndpointLifecycle(
                 options.agentEndpointControl,
                 options.userDataPath,
             ),
             agentEnvironment: defaultAgentEnvironment(process.env),
             agentHooksPath: options.agentHooksPath,
             logger: new StructuredLogger(options.logDirectory, 'runtime', 'info'),
-            runtimeExecutable: options.executable ?? process.execPath,
+            hookExecutable: options.executable ?? process.execPath,
             terminal: { ...(outputFlushMs !== undefined && { outputFlushMs }) },
             userDataPath: options.userDataPath,
         },

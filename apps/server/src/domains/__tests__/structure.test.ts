@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-const runtimeRoot = fileURLToPath(new URL('..', import.meta.url));
+const domainsRoot = fileURLToPath(new URL('..', import.meta.url));
 
 function isProductionTypeScript(path: string): boolean {
     return (
@@ -59,17 +59,17 @@ function findCrossDomainImports(
     source: string,
     directDomains: Set<string>,
 ): string[] {
-    const importerRelative = relative(runtimeRoot, importer);
+    const importerRelative = relative(domainsRoot, importer);
     const importerDomain = importerRelative.split(sep)[0];
     const violations: string[] = [];
     for (const specifier of importSpecifiers(importer, source)) {
         if (!specifier.startsWith('.')) continue;
         const target = resolve(dirname(importer), specifier.split('?', 1)[0]);
-        const targetRelative = relative(runtimeRoot, target);
+        const targetRelative = relative(domainsRoot, target);
         if (targetRelative === '' || targetRelative.startsWith('..')) continue;
         const targetDomain = targetRelative.split(sep)[0];
         if (targetDomain === importerDomain || !directDomains.has(targetDomain)) continue;
-        if (target !== join(runtimeRoot, targetDomain))
+        if (target !== join(domainsRoot, targetDomain))
             violations.push(`${importerRelative} -> ${specifier}`);
     }
     return violations;
@@ -77,14 +77,14 @@ function findCrossDomainImports(
 
 describe('Runtime domain structure', () => {
     it('requires a public barrel for every direct domain with at least three modules', async () => {
-        const rootEntries = await readdir(runtimeRoot, { withFileTypes: true });
+        const rootEntries = await readdir(domainsRoot, { withFileTypes: true });
         const directDomains = rootEntries.filter(
             (entry) => entry.isDirectory() && entry.name !== '__tests__',
         );
         const missing = (
             await Promise.all(
                 directDomains.map(async (domain) => {
-                    const root = join(runtimeRoot, domain.name);
+                    const root = join(domainsRoot, domain.name);
                     const modules = await listProductionModules(root);
                     return modules.length >= 3 && !modules.includes(join(root, 'index.ts'))
                         ? domain.name
@@ -97,13 +97,13 @@ describe('Runtime domain structure', () => {
     });
 
     it('rejects production imports that reach into another Runtime domain', async () => {
-        const rootEntries = await readdir(runtimeRoot, { withFileTypes: true });
+        const rootEntries = await readdir(domainsRoot, { withFileTypes: true });
         const directDomains = new Set(
             rootEntries
                 .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
                 .map((entry) => entry.name),
         );
-        const importers = await listProductionModules(runtimeRoot);
+        const importers = await listProductionModules(domainsRoot);
         const violations = (
             await Promise.all(
                 importers.map(async (importer) =>

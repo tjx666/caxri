@@ -22,7 +22,7 @@ export function gitSignalOptions(): { signal?: AbortSignal } {
 
 /**
  * Establishes the point of no return for a native Git mutation. Cancellation is honored before entry; after entry the
- * child operations finish without the request signal so Host can return one authoritative completion to the caller.
+ * child operations finish without the request signal so Server can return one authoritative completion to the caller.
  */
 export async function authoritativeGitMutation<Result>(
     callback: () => Promise<Result>,

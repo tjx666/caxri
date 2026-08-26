@@ -23,7 +23,7 @@ const QUERY_FORMS: Array<{ sequence: string; slot: TerminalColorQuerySlot; termi
  *
  * Agent CLIs probe these colors immediately after spawn — Codex, for example, gives the terminal only ~100ms before it
  * permanently assumes colors are unavailable and drops its shaded composer background (`terminal_probe.rs` in
- * codex-rs). Caxri PTYs start in the Runtime while the Renderer pane attaches later and replays the snapshot, so an
+ * codex-rs). Caxri PTYs start in the Server while the Renderer pane attaches later and replays the snapshot, so an
  * xterm.js-produced reply always arrives long after that deadline. This filter recognizes the query in the raw output
  * stream, strips it (so the replayed snapshot cannot make xterm.js emit a duplicate, late reply), and lets the owner
  * respond immediately with the active theme's colors.

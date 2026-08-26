@@ -8,7 +8,7 @@ import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';
+import { AgentEndpointLifecycle } from '../../agent-endpoints';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { CaxriDatabase } from '../../db/repository';
 import { TerminalManager } from '..';
@@ -59,7 +59,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const probeResult = Promise.withResolvers<{ executable: string; version: string }>();
         const providerProbe = vi.fn(() => probeResult.promise);
         const messaging = vi.fn(() => Promise.resolve(true));
-        const endpoints = new RuntimeAgentEndpointLifecycle(
+        const endpoints = new AgentEndpointLifecycle(
             {
                 activate: () => Promise.resolve(true),
                 begin: () =>
@@ -184,7 +184,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const created = database.createSession(database.createProject(directory).id, 'codex');
         const retirement = Promise.withResolvers<boolean>();
         const retire = vi.fn(() => retirement.promise);
-        const endpoints = new RuntimeAgentEndpointLifecycle(
+        const endpoints = new AgentEndpointLifecycle(
             {
                 activate: () => Promise.resolve(true),
                 begin: () =>

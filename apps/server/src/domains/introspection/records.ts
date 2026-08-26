@@ -72,7 +72,7 @@ function principalView(principal: Principal): Principal['kind'] {
 }
 
 /**
- * Builds path-safe, principal-scoped business records before they cross the Host boundary.
+ * Builds path-safe, principal-scoped business records before they cross the Server boundary.
  */
 export class RecordQueryService {
     constructor(

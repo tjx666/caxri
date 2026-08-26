@@ -1,6 +1,6 @@
 import type {
     ServerOperation,
-    ServerOperationArguments as ServerOperationArguments,
+    ServerOperationArguments,
     ServerOperationResult,
 } from '../registry/methods.js';
 

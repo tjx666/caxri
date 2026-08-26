@@ -37,14 +37,14 @@ export function processActivityState(state: ProcessState): AgentActivityState {
 }
 
 /**
- * Why a Runtime is bulk-marking every still-alive Terminal at connection-open/close time. `unclean` covers a previous
- * process crash/kill discovered on the next `openDatabase` call; `orderly` covers a graceful Runtime shutdown (app
- * quit, Session reload). Both leave still-alive Terminals `interrupted` so the next Runtime start can auto-resume them
- * (with their Agent conversation intact, per GitHub issue #18) — only their primary Agent Session outcome differs:
- * `failed` for an unclean shutdown versus `completed` for an orderly one, since nothing actually failed there.
- * `terminate` covers the explicit user-initiated "Terminate and Close" action (`terminal.terminateAll`): Terminals are
- * marked `stopped`, the same terminal state as a normal exit, so the next Runtime start treats them as finished and
- * does not auto-restore them.
+ * Why a Server is bulk-marking every still-alive Terminal at connection-open/close time. `unclean` covers a previous
+ * process crash/kill discovered on the next `openDatabase` call; `orderly` covers a graceful Server shutdown (app quit,
+ * Session reload). Both leave still-alive Terminals `interrupted` so the next Server start can auto-resume them (with
+ * their Agent conversation intact, per GitHub issue #18) — only their primary Agent Session outcome differs: `failed`
+ * for an unclean shutdown versus `completed` for an orderly one, since nothing actually failed there. `terminate`
+ * covers the explicit user-initiated "Terminate and Close" action (`terminal.terminateAll`): Terminals are marked
+ * `stopped`, the same terminal state as a normal exit, so the next Server start treats them as finished and does not
+ * auto-restore them.
  */
 export type ShutdownReason = 'unclean' | 'orderly' | 'terminate';
 
@@ -266,7 +266,7 @@ export function decideAgentMetadataUpdate(
      * it.
      *
      * Agent metadata is as untrusted as PTY output — it is whatever text a model wrote into a conversation store — and
-     * `Terminal.title` is re-sent as `agentEndpoint.begin.name` on the next launch, where the Host schema rejects
+     * `Terminal.title` is re-sent as `agentEndpoint.begin.name` on the next launch, where the Server schema rejects
      * anything past 200 characters and would fail the start. `normalizeTerminalTitle` is the same flatten/sanitize/cap
      * pass OSC 0/2 titles already go through, so both title sources land in the tab under one bound.
      */

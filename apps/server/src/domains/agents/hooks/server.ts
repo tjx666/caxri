@@ -18,7 +18,7 @@ const MAX_AGENT_SESSION_ID_LENGTH = 256;
 /**
  * Bounds the sweep by profile-owned candidates rather than by position in the directory. The previous bound counted
  * every entry in the temp directory and stopped at 4096, which made reclamation depend on where the socket happened to
- * land among unrelated files — a routine macOS `$TMPDIR` already holds several thousand entries, so a crashed Runtime's
+ * land among unrelated files — a routine macOS `$TMPDIR` already holds several thousand entries, so a crashed Server's
  * socket could survive indefinitely while the sweep reported success. Matching the profile prefix is a cheap string
  * compare, and only the profile itself can grow the matching set, so capping that set keeps the expensive `lstat`/`rm`
  * work bounded without letting foreign churn starve the sweep.
@@ -62,8 +62,8 @@ function isProcessAlive(processId: number): boolean {
 }
 
 /**
- * Removes only bounded, profile-owned socket entries whose encoded Runtime PID no longer exists. A crash bypasses
- * `close()`, while a live sibling Runtime for the same profile must stay intact.
+ * Removes only bounded, profile-owned socket entries whose encoded Server PID no longer exists. A crash bypasses
+ * `close()`, while a live sibling Server for the same profile must stay intact.
  */
 export async function pruneStaleAgentHookSockets(
     directoryPath: string,

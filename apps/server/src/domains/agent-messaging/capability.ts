@@ -5,7 +5,7 @@ import { agentProviderIds } from '@caxri/protocol';
 import { isAccessible, readE2EAgentPolicy } from '@caxri/system';
 
 /**
- * Runtime domains expose public root barrels by architecture contract; deep imports are rejected by
+ * Server domains expose public root barrels by architecture contract; deep imports are rejected by
  * `apps/server/src/domains/__tests__/structure.test.ts`.
  */
 // oxlint-disable-next-line react-doctor/no-barrel-import

@@ -17,10 +17,10 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, toWireError } from '@caxri/protocol';
 
-import type { RuntimeAgentEndpointLifecycle } from '../agent-endpoints';
+import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
 /**
- * Runtime domains expose public root barrels by architecture contract; structure tests reject deep provider imports.
+ * Server domains expose public root barrels by architecture contract; structure tests reject deep provider imports.
  */
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders } from '../agents';
@@ -40,7 +40,7 @@ const MAX_WAITERS_PER_DISPATCH = 32;
 
 export interface AgentDispatchServiceOptions {
     database: CaxriDatabase;
-    endpoints?: RuntimeAgentEndpointLifecycle;
+    endpoints?: AgentEndpointLifecycle;
     coordinator: AgentCoordinator;
     terminals: TerminalManager;
     launchSettings(provider: AgentProvider): AgentLaunchSettings;
@@ -104,7 +104,7 @@ function terminalStatePatch(
 }
 
 /**
- * Runtime-owned dispatch lifecycle with durable idempotency before the first PTY side effect.
+ * Server-owned dispatch lifecycle with durable idempotency before the first PTY side effect.
  */
 export class AgentDispatchService {
     private readonly inFlight = new SingleFlight<string, AgentDispatchReceipt>();
@@ -342,7 +342,7 @@ export class AgentDispatchService {
 
     initialize(): void {
         /**
-         * A Runtime restart cannot retain its PTY/Endpoint proof; never retry an ambiguous spawn.
+         * A Server restart cannot retain its PTY/Endpoint proof; never retry an ambiguous spawn.
          */
         for (const { receipt } of this.options.database.activeAgentDispatches())
             this.update(receipt.dispatchId, {

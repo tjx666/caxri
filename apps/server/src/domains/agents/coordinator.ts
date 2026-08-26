@@ -271,7 +271,7 @@ export class AgentCoordinator {
                 this.emitAgentMetadataChange(terminal.id);
         } catch (error) {
             /**
-             * A failed probe degrades Agent metadata to unknown; it never interrupts the Runtime.
+             * A failed probe degrades Agent metadata to unknown; it never interrupts the Server.
              */
             this.logger.write('warn', logEventCatalog.agent.probeFailed, {
                 fields: {
@@ -442,7 +442,7 @@ export class AgentCoordinator {
     }
 
     /**
-     * Returns the current Runtime-only Agent subphase projected onto a Terminal read model.
+     * Returns the current Server-only Agent subphase projected onto a Terminal read model.
      */
     agentOperation(terminalId: string): AgentOperation | undefined {
         return this.agentOperations.get(terminalId);
@@ -654,7 +654,7 @@ export class AgentCoordinator {
     probeTerminal(terminalId: string): void {
         /**
          * `probe` always catches and logs its own errors internally, so this promise never rejects. This is a
-         * fire-and-forget entry point called from synchronous Runtime dispatch paths that cannot become async without
+         * fire-and-forget entry point called from synchronous Server dispatch paths that cannot become async without
          * changing their own public, sync contracts.
          */
         // eslint-disable-next-line no-void -- see comment above; awaiting is not possible here

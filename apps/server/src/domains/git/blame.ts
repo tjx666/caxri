@@ -1,11 +1,6 @@
 import { relative } from 'node:path';
 
-import type {
-    GitBlame,
-    GitCommit,
-    GitSummary,
-    ServerOperationParameters as ServerOperationParameters,
-} from '@caxri/protocol';
+import type { GitBlame, GitCommit, GitSummary, ServerOperationParameters } from '@caxri/protocol';
 
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';

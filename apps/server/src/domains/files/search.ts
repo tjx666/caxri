@@ -6,7 +6,7 @@ import { basename, join, relative, sep } from 'node:path';
 import type {
     FileDocument,
     FileSearchMatch,
-    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationParameters,
     ServerOperationResult,
 } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';

@@ -12,7 +12,7 @@ import type {
     GitRepositorySummary as GitRepoSummary,
     GitSummary,
     ServerEvent,
-    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationParameters,
 } from '@caxri/protocol';
 import {
     CaxriError,
@@ -100,7 +100,7 @@ function hashRepoPath(path: string): string {
 
 interface GitServiceOptions {
     /**
-     * Runtime event sink for `git.changed`; absent in focused tests.
+     * Server event sink for `git.changed`; absent in focused tests.
      */
     emit?: (event: ServerEvent) => void;
     /**
@@ -108,7 +108,7 @@ interface GitServiceOptions {
      */
     subscribe?: GitMetadataWatcherOptions['subscribe'];
     /**
-     * Shared Runtime watch registry forwarded to the Git metadata watcher.
+     * Shared Server watch registry forwarded to the Git metadata watcher.
      */
     watchHub?: GitMetadataWatcherOptions['watchHub'];
 }
@@ -124,9 +124,9 @@ export class GitService {
     private readonly changeTracker: GitChangeTracker;
     private readonly metadataWatcher: GitMetadataWatcher;
     /**
-     * `origin` remote host per repository root, resolved once and kept for the Runtime's lifetime: the commit-avatar
+     * `origin` remote host per repository root, resolved once and kept for the Server's lifetime: the commit-avatar
      * privacy gate (`git.remoteHost`) must never re-spawn Git on every commit row render, and a remote host changing
-     * mid-session is rare enough that a Runtime restart picking it up is an acceptable trade-off.
+     * mid-session is rare enough that a Server restart picking it up is an acceptable trade-off.
      */
     private readonly remoteHostByRoot = new Map<string, string | null>();
     private readonly remoteHostRequests = new SingleFlight<string, string | null>();
@@ -170,8 +170,8 @@ export class GitService {
         this.workingTreeService = new GitWorkingTreeService({
             git: (cwd, arguments_, options_) => this.git(cwd, arguments_, options_),
             /**
-             * Mutations advance Runtime's authoritative generation immediately. The metadata watcher may report the
-             * same change later, but Source Control and other Git consumers must not depend on watcher timing.
+             * Mutations advance Server's authoritative generation immediately. The metadata watcher may report the same
+             * change later, but Source Control and other Git consumers must not depend on watcher timing.
              */
             onDidMutate: (rootPath) => this.repositoryService.observeWorkingTreeMutation(rootPath),
             resolveRepository: (sessionId, repoId) => this.resolveRepository(sessionId, repoId),
@@ -460,7 +460,7 @@ export class GitService {
      * Returns the canonical linked-worktree topology for one known Project repository via the shared registry.
      * Workbench flows force a fresh discovery because they must observe an Agent's `git worktree add` before any
      * watcher signal lands; the reload also refreshes the registry cache that `git.summary` consumes. This is an
-     * internal Runtime boundary: discovery does not imply authorization and never reaches Renderer.
+     * internal Server boundary: discovery does not imply authorization and never reaches Renderer.
      */
     async worktreeTopology(projectRoot: string): Promise<GitWorktreeTopology> {
         const topology = await this.topologyRegistry.topology(projectRoot, { force: true });
@@ -560,7 +560,7 @@ export class GitService {
     }
 
     /**
-     * Releases retained Pull Request metadata, invalidation state, and Git metadata watchers at the Runtime lifecycle
+     * Releases retained Pull Request metadata, invalidation state, and Git metadata watchers at the Server lifecycle
      * boundary.
      */
     async close(): Promise<void> {

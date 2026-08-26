@@ -6,7 +6,7 @@ import type {
     FileDocument,
     FileEntry,
     ServerEvent,
-    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationParameters,
     ServerOperationResult,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -44,7 +44,7 @@ export interface FileServiceOptions extends WatcherServiceOptions {
 }
 
 /**
- * Composes Session-root resolution, document read/write, directory listing, and watching into the Runtime's file
+ * Composes Session-root resolution, document read/write, directory listing, and watching into the Server's file
  * surface. Each concern lives in its own module under `files/`; this class only wires them together and preserves the
  * public API composition root and tests depend on.
  */

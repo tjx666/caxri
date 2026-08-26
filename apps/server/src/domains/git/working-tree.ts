@@ -4,7 +4,7 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import type {
     GitFileStatus,
     GitRepositorySummary as GitRepoSummary,
-    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationParameters,
     ServerOperationResult,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
@@ -54,7 +54,7 @@ const DEFAULT_MAXIMUM_CONSENTS = 128;
 
 /**
  * Working-tree mutations behind the Git panel's Sync and Discard actions. Every discarded path is re-derived from the
- * Runtime's own status snapshot — the Renderer's `path` parameter is only a lookup key, so no Renderer-supplied string
+ * Server's own status snapshot — the Renderer's `path` parameter is only a lookup key, so no Renderer-supplied string
  * ever reaches a Git argv.
  */
 export class GitWorkingTreeService {
@@ -169,7 +169,7 @@ export class GitWorkingTreeService {
 
     /**
      * Produces the only confirmation projection that may reach Desktop Main. Renderer-provided display fields are
-     * deliberately absent from this request; Runtime derives repository name, count, path, and tracked semantics from
+     * deliberately absent from this request; Server derives repository name, count, path, and tracked semantics from
      * the complete authorized status stream.
      */
     async discardPreflight(

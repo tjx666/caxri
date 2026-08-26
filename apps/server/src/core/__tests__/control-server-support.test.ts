@@ -16,7 +16,7 @@ type ControlRequestLogWrite = Parameters<NonNullable<ControlServerOptions['logge
 describe('Host request log sink', () => {
     it('accepts only registered event names', () => {
         const registeredEvent: ControlRequestLogEvent = logEventCatalog.ipc.request;
-        // @ts-expect-error -- Host log sinks must reject events outside the canonical registry.
+        // @ts-expect-error -- Server log sinks must reject events outside the canonical registry.
         const unregisteredEvent: ControlRequestLogEvent = 'ipc.request_typo';
 
         expect(registeredEvent).toBe('ipc.request');

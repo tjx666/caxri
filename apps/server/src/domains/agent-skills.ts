@@ -5,7 +5,7 @@ import type { AgentEnvironment } from './agents';
 import type { CaxriDatabase } from './db';
 
 /**
- * Reads the CLI's exact compatibility projection inside the Runtime, which owns Provider config filesystem access. A
+ * Reads the CLI's exact compatibility projection inside the Server, which owns Provider config filesystem access. A
  * missing selected Project suppresses local inspection instead of guessing a working directory; absolute Provider paths
  * and marker contents never enter the returned object.
  */

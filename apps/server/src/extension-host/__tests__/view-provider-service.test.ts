@@ -8,7 +8,7 @@ import {
     didCancelViewRequest,
     executeViewOperation,
     retireViewProviders,
-} from '../view-provider-runtime';
+} from '../view-provider-service';
 
 const model: SourceControlViewModel = {
     revision: '1',

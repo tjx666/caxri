@@ -582,15 +582,16 @@ export class ControlServer {
                         this.desktopLeaseWaiters.clear();
                         return;
                     }
-                    const runtimeCommand = localClientDesktopOperationCommandSchema.safeParse(raw);
-                    if (runtimeCommand.success) {
+                    const operationCommand =
+                        localClientDesktopOperationCommandSchema.safeParse(raw);
+                    if (operationCommand.success) {
                         const dispatch = this.dispatchDesktopOperation(
                             socket,
                             clientState,
-                            runtimeCommand.data.request,
+                            operationCommand.data.request,
                             timing,
                         );
-                        if (isConcurrentRead(runtimeCommand.data.request.method)) {
+                        if (isConcurrentRead(operationCommand.data.request.method)) {
                             // eslint-disable-next-line promise/no-nesting, unicorn/prefer-await -- reads settle outside the ordered lane
                             dispatch.catch(() => socket.terminate());
                         } else await dispatch;

@@ -134,7 +134,7 @@ export const appState = sqliteTable('app_state', {
 });
 
 /**
- * Durable Agent dispatch receipts fence request retries across Host/Runtime restarts. Project and Session IDs
+ * Durable Agent dispatch receipts fence request retries across Server/Server restarts. Project and Session IDs
  * intentionally are not foreign keys: a receipt remains valid evidence after metadata deletion, while its bounded
  * retention prevents unbounded history growth.
  */

@@ -5,7 +5,7 @@ import type { AgentLaunchSettings, TerminalKind } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 
 /**
- * Runtime domain boundaries require cross-domain dependencies to enter through the owning domain root.
+ * Server domain boundaries require cross-domain dependencies to enter through the owning domain root.
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { discoverExecutable } from '../agents';

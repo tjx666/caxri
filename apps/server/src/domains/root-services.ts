@@ -4,7 +4,7 @@ import { CaxriError, errorMessage } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 /**
- * Runtime domain boundaries require cross-domain dependencies to enter through the owning domain root.
+ * Server domain boundaries require cross-domain dependencies to enter through the owning domain root.
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { AgentTranscriptWatcher, resolveAgentTranscriptLocation } from './agents';
@@ -59,8 +59,8 @@ export async function createRootServices({
             }),
     });
     /**
-     * One Runtime-wide watch registry: every filesystem watcher and intentional poller registers here so listener
-     * count, polling degradations, and event rates stay centrally gated and observable (`DiagnosticsService`).
+     * One Server-wide watch registry: every filesystem watcher and intentional poller registers here so listener count,
+     * polling degradations, and event rates stay centrally gated and observable (`DiagnosticsService`).
      */
     const watchHub = new WatchHub({ logger });
     const transcripts = new AgentTranscriptWatcher({
