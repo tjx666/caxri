@@ -130,16 +130,25 @@
             "extensions/fixture": {
                 "entry": [
                     "src/extension.ts"
+                ],
+                "ignoreDependencies": [
+                    "@caxri/protocol"
                 ]
             },
             "extensions/git": {
                 "entry": [
                     "src/extension.ts"
+                ],
+                "ignoreDependencies": [
+                    "@caxri/protocol"
                 ]
             },
             "extensions/status": {
                 "entry": [
                     "src/extension.ts"
+                ],
+                "ignoreDependencies": [
+                    "@caxri/protocol"
                 ]
             }
         }
