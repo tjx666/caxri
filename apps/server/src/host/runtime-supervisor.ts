@@ -356,7 +356,6 @@ export class HostRuntimeSupervisor extends EventTarget {
                 env: {
                     ...safeProcessEnvironment(),
                     ...this.options.extraEnvironment,
-                    ELECTRON_RUN_AS_NODE: '1',
                     CAXRI_LOG_DIRECTORY: this.options.logDirectory,
                     CAXRI_LOG_LEVEL: 'info',
                     CAXRI_USER_DATA_PATH: this.options.userDataPath,

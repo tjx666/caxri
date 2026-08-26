@@ -48,7 +48,7 @@ describe('Host Runtime supervisor', () => {
         ];
         expect(call[0]).toBe('/runtime.js');
         expect(call[1]).toEqual([]);
-        expect(call[2].env.ELECTRON_RUN_AS_NODE).toBe('1');
+        expect(call[2].env).not.toHaveProperty('ELECTRON_RUN_AS_NODE');
         expect(call[2].serialization).toBe('advanced');
         expect(call[2].stdio).toEqual(['ignore', 'ignore', 'ignore', 'ipc']);
 

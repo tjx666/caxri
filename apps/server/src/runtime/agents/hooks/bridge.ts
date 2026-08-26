@@ -63,7 +63,7 @@ const BRIDGE_VERSION = 2;
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if [ -n "\${CAXRI_HOOK_RUNTIME:-}" ]; then
-  ELECTRON_RUN_AS_NODE=1 "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" >/dev/null 2>&1
+  "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" >/dev/null 2>&1
 fi
 case " $* " in
   *" --reply empty-json "*) printf '{}\n' ;;
