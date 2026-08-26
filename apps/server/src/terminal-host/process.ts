@@ -86,6 +86,11 @@ async function stop(exitCode: number): Promise<void> {
         logger.write('info', logEventCatalog.terminalHost.stopped, { fields: { exitCode } });
         await logger.flush();
         processManifest.publish('stopped');
+        /**
+         * `process.exit()` does not wait for pending filesystem work. Persist the terminal lifecycle state before
+         * exiting so offline diagnostics can distinguish an intentional shutdown from a crashed ready process.
+         */
+        await processManifest.flush();
     } finally {
         // eslint-disable-next-line unicorn/no-process-exit -- This is the owned Terminal Host process entrypoint.
         process.exit(exitCode);

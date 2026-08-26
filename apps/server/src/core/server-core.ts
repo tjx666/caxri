@@ -103,11 +103,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     let desktopRouter: ServerDesktopRouter | undefined;
     let stopPromise: Promise<void> | undefined;
     let commandStopFallback: NodeJS.Immediate | undefined;
-    let isMutationAdmissionClosed = false;
-    let mutationsInFlight = 0;
+    let isMutationAdmissionClosed = false,
+        mutationsInFlight = 0;
+    const { promise: stopped, resolve: resolveStopped } = Promise.withResolvers<void>();
+    const { promise: stopping, resolve: resolveStopping } = Promise.withResolvers<void>();
     const dispatchWaitIds = new Map<string, Set<string>>();
     const mutationDrainWaiters = new Set<() => void>();
-
     const finishMutation = (): void => {
         mutationsInFlight -= 1;
         if (mutationsInFlight !== 0) return;
@@ -236,6 +237,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
 
     const stop = (reason = 'requested'): Promise<void> => {
         isMutationAdmissionClosed = true;
+        resolveStopping();
         stopPromise ??= (async () => {
             logger.write('info', logEventCatalog.serverCore.stopping, { fields: { reason } });
             stopEventLoopMonitor();
@@ -246,6 +248,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             await domainService.shutdown();
             await lease.release();
             logger.write('info', logEventCatalog.serverCore.stopped, { fields: { reason } });
+            resolveStopped();
         })();
         return stopPromise;
     };
@@ -785,7 +788,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             durationMs: Date.now() - startedAt,
             fields: { pid: process.pid, profileId: lease.identity.profileId },
         });
-        return { lease, protocolIdentity, stop };
+        return { lease, protocolIdentity, stopped, stopping, stop };
     } catch (error) {
         try {
             await stop('startup-failed');

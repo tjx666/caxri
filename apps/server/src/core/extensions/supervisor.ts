@@ -68,6 +68,10 @@ const RESTART_STABILITY_MS = 30_000;
 const MAX_EXTENSION_API_ARGUMENT_BYTES = 64 * 1_024;
 const MAX_EXTENSION_VIEW_RESULT_BYTES = 4 * 1024 * 1024;
 
+function isChildRunning(child: ChildProcess): boolean {
+    return child.exitCode === null && child.signalCode === null;
+}
+
 function requestTimeout(
     method: ExtensionHostRequest['method'],
     parameters: ExtensionHostRequest['params'],
@@ -267,6 +271,20 @@ export class ExtensionHostSupervisor extends EventTarget {
         forceTimer.unref();
         await once(child, 'exit');
         clearTimeout(forceTimer);
+    }
+
+    private async waitForGracefulChildExit(child: ChildProcess): Promise<void> {
+        if (!isChildRunning(child)) return;
+        let graceTimer: NodeJS.Timeout | undefined;
+        await Promise.race([
+            once(child, 'exit'),
+            new Promise<void>((resolve) => {
+                graceTimer = setTimeout(resolve, 5_000);
+                graceTimer.unref();
+            }),
+        ]);
+        if (graceTimer) clearTimeout(graceTimer);
+        if (isChildRunning(child)) await this.terminateChild(child);
     }
 
     private async handleApiRequest(request: ExtensionHostApiRequest): Promise<void> {
@@ -636,6 +654,10 @@ export class ExtensionHostSupervisor extends EventTarget {
         this.child = undefined;
         this.startup = undefined;
         this.rejectPendingRequests('Extension Host is stopping');
-        await this.terminateChild(child);
+        /**
+         * The shutdown reply only confirms that the child scheduled its final lifecycle flush. Give it a bounded grace
+         * period to publish `stopped` and exit before using the existing forced-termination fallback.
+         */
+        await this.waitForGracefulChildExit(child);
     }
 }

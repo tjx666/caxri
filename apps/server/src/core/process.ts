@@ -94,21 +94,31 @@ const processSampler = startProcessObservationSampler({
 });
 
 {
+    let finalizationPromise: Promise<void> | undefined;
     let isSignalReceived = false;
+    const finalizeProcess = (): Promise<void> => {
+        finalizationPromise ??= (async () => {
+            processSampler.stop();
+            processManifest.publish('stopped');
+            /**
+             * `process.exit()` does not wait for pending filesystem work. Persist the terminal lifecycle state before
+             * exiting so offline diagnostics can distinguish an intentional shutdown from a crashed ready process.
+             */
+            await processManifest.flush();
+            // This file is the Server Core process entrypoint supervised by a client or platform;
+            // an explicit exit after graceful async shutdown is the correct terminal action here.
+            // eslint-disable-next-line unicorn/no-process-exit -- Server Core process entrypoint, not a library
+            process.exit(0);
+        })();
+        return finalizationPromise;
+    };
     const stopForSignal = async (signal: NodeJS.Signals): Promise<void> => {
         if (isSignalReceived) return;
         isSignalReceived = true;
-        processSampler.stop();
-        processManifest.publish('stopping');
         try {
             await app.stop(signal);
-            processManifest.publish('stopped');
         } finally {
-            // This file is the Server Core process entrypoint supervised by a client or platform;
-            // an explicit exit after graceful async shutdown is the correct terminal action here,
-            // not a throw, which would just surface as an unhandled rejection instead of a clean exit.
-            // eslint-disable-next-line unicorn/no-process-exit -- Server Core process entrypoint, not a library
-            process.exit(0);
+            await finalizeProcess();
         }
     };
     process.once('SIGINT', async (signal) => {
@@ -127,4 +137,12 @@ const processSampler = startProcessObservationSampler({
             // shutdown itself failed, which is not actionable from a signal handler.
         }
     });
+    /**
+     * Both signal-driven and protocol-driven stops must expose the same offline lifecycle.
+     */
+    await app.stopping;
+    processSampler.stop();
+    processManifest.publish('stopping');
+    await app.stopped;
+    await finalizeProcess();
 }

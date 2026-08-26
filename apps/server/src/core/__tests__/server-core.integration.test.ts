@@ -694,6 +694,8 @@ describe('Server Core application', () => {
         await expect(access(app.lease.paths.manifest)).resolves.toBeUndefined();
 
         await operator.request('host.stop', { confirmLivePtys: true });
+        await expect(app.stopping).resolves.toBeUndefined();
+        await expect(app.stopped).resolves.toBeUndefined();
         await waitForRemoval(app.lease.paths.manifest);
         operator.close();
     });
