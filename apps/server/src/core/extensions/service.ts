@@ -41,12 +41,16 @@ type DiscoveryResult = Awaited<ReturnType<typeof discoverExtensions>>;
 
 export interface ExtensionServiceOptions {
     appVersion: string;
+    bootId: string;
+    buildId: string;
     commit: string;
     executable?: string;
     extensionHostPath: string;
     extensionRoots: string[];
     includeTestOnly: boolean;
     logger: StructuredLogger;
+    serverId: string;
+    userDataPath: string;
     activeContext(): Promise<{
         ownerProjectId?: string;
         sessionId?: string;
@@ -483,10 +487,14 @@ export class ExtensionService extends EventTarget {
         await this.rebuildCatalog();
         this.supervisor = new ExtensionHostSupervisor({
             appVersion: this.options.appVersion,
+            bootId: this.options.bootId,
+            buildId: this.options.buildId,
             commit: this.options.commit,
             executable: this.options.executable,
             extensionHostPath: this.options.extensionHostPath,
             logger: this.options.logger,
+            serverId: this.options.serverId,
+            userDataPath: this.options.userDataPath,
             registrations: () => this.registrations(),
             requestApi: (request, signal) => this.handleApiRequest(request, signal),
         });

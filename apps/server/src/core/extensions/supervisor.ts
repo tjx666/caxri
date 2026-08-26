@@ -48,12 +48,16 @@ interface PendingRequest {
 
 export interface ExtensionHostSupervisorOptions {
     appVersion: string;
+    bootId: string;
+    buildId: string;
     commit: string;
     executable?: string;
     extensionHostPath: string;
     logger: StructuredLogger;
     registrations(): ExtensionHostRegistration[];
     requestApi(request: ExtensionHostApiRequest, signal?: AbortSignal): Promise<unknown>;
+    serverId: string;
+    userDataPath: string;
 }
 
 const READY_TIMEOUT_MS = 15_000;
@@ -423,8 +427,12 @@ export class ExtensionHostSupervisor extends EventTarget {
             env: {
                 ...safeProcessEnvironment(),
                 CAXRI_APP_VERSION: this.options.appVersion,
+                CAXRI_BUILD_ID: this.options.buildId,
                 CAXRI_GIT_COMMIT: this.options.commit,
                 CAXRI_LOG_DIRECTORY: dirname(this.options.logger.path),
+                CAXRI_SERVER_BOOT_ID: this.options.bootId,
+                CAXRI_SERVER_ID: this.options.serverId,
+                CAXRI_USER_DATA_PATH: this.options.userDataPath,
             },
             serialization: 'advanced',
             stdio: ['ignore', 'ignore', 'ignore', 'ipc'],

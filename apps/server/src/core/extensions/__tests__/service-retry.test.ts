@@ -101,8 +101,16 @@ vi.mock('../supervisor', () => ({
 
 import { ExtensionService } from '../service';
 
+const observationIdentity = {
+    bootId: 'b'.repeat(32),
+    buildId: 'build-1',
+    serverId: 'c'.repeat(32),
+    userDataPath: '/tmp/caxri-extension-retry-test',
+};
+
 function service(): ExtensionService {
     return new ExtensionService({
+        ...observationIdentity,
         appVersion: '0.0.17',
         commit: 'test',
         extensionHostPath: '/out/main/extension-host.js',

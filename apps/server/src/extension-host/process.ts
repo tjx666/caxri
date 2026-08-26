@@ -1,9 +1,12 @@
 import process from 'node:process';
 
+import { durableServerIdentitySchema, serverBootIdentitySchema } from '@caxri/protocol';
 import {
     installProcessErrorMonitor,
     logEventCatalog,
     mergeObservationContext,
+    observationProcessManifestDirectory,
+    ObservationProcessManifestPublisher,
     runWithObservationContext,
     StructuredLogger,
 } from '@caxri/system';
@@ -42,11 +45,32 @@ function isApiReply(
 }
 
 if (!process.connected || !process.send)
-    throw new Error('CAXRI_EXTENSION_HOST_IPC_REQUIRED: Extension Host must be forked by Host');
+    throw new Error(
+        'CAXRI_EXTENSION_HOST_IPC_REQUIRED: Extension Host must be forked by Server Core',
+    );
 
-const logDirectory = process.env.CAXRI_LOG_DIRECTORY;
-if (!logDirectory) throw new Error('CAXRI_LOG_DIRECTORY is required');
-const logger = new StructuredLogger(logDirectory, 'extension-host', 'info');
+function requiredEnvironment(name: string): string {
+    const value = process.env[name];
+    if (!value) throw new Error(`${name} is required`);
+    return value;
+}
+
+const bootId = serverBootIdentitySchema.parse(requiredEnvironment('CAXRI_SERVER_BOOT_ID'));
+const buildId = requiredEnvironment('CAXRI_BUILD_ID');
+const serverId = durableServerIdentitySchema.parse(requiredEnvironment('CAXRI_SERVER_ID'));
+const userDataPath = requiredEnvironment('CAXRI_USER_DATA_PATH');
+const logger = new StructuredLogger(
+    requiredEnvironment('CAXRI_LOG_DIRECTORY'),
+    'extension-host',
+    'info',
+    { bootId, buildId, serverId },
+);
+const processManifest = new ObservationProcessManifestPublisher({
+    context: { bootId, buildId, serverId },
+    directory: observationProcessManifestDirectory(userDataPath),
+    owner: 'extension-host',
+});
+processManifest.publish('starting');
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'extension-host' });
 processErrorMonitor.attach(logger);
 
@@ -79,8 +103,10 @@ async function handle(request: ExtensionHostRequest): Promise<unknown> {
         case 'cancel':
             return cancelTreeRequest(request.params.requestId);
         case 'shutdown':
+            processManifest.publish('stopping');
             disposeAllExtensions();
             setImmediate(() => {
+                processManifest.publish('stopped');
                 // eslint-disable-next-line unicorn/no-process-exit -- The Extension Host must exit after completing the shutdown request.
                 process.exit(0);
             });
@@ -138,4 +164,5 @@ async function processRequest(request: ExtensionHostRequest): Promise<void> {
 }
 
 logger.write('info', logEventCatalog.extensionHost.ready, { fields: { pid: process.pid } });
+processManifest.publish('ready');
 send({ type: 'ready' });
