@@ -299,28 +299,28 @@ describe('CaxriDatabaseConnection', () => {
         previous
             .prepare(
                 `INSERT INTO terminals
-                 (id, session_id, kind, provider, cwd, title, icon, order_index,
+                 (id, session_id, kind, provider, cwd, title, pty_title, icon, order_index,
                   agent_session_id, last_process_state, failure_reason, created_at, updated_at)
                  VALUES ('terminal-preserved', 'session-preserved', 'shell', NULL, ?,
-                         'zsh old-project', 'shell', 0, NULL, 'stopped', NULL, 1, 1)`,
+                         'Shell', 'zsh old-project', 'shell', 0, NULL, 'stopped', NULL, 1, 1)`,
             )
             .run(directory);
         previous
             .prepare(
                 `INSERT INTO terminals
-                 (id, session_id, kind, provider, cwd, title, icon, order_index,
+                 (id, session_id, kind, provider, cwd, title, pty_title, icon, order_index,
                   agent_session_id, last_process_state, failure_reason, created_at, updated_at)
                  VALUES ('terminal-claude', 'session-preserved', 'claude', 'claude', ?,
-                         'claude working', 'claude', 1, NULL, 'stopped', NULL, 1, 1)`,
+                         'Claude Code', 'claude working', 'claude', 1, NULL, 'stopped', NULL, 1, 1)`,
             )
             .run(directory);
         previous
             .prepare(
                 `INSERT INTO terminals
-                 (id, session_id, kind, provider, cwd, title, icon, order_index,
+                 (id, session_id, kind, provider, cwd, title, pty_title, icon, order_index,
                   agent_session_id, last_process_state, failure_reason, created_at, updated_at)
                  VALUES ('terminal-codex', 'session-preserved', 'codex', 'codex', ?,
-                         'codex reviewing', 'codex', 2, NULL, 'stopped', NULL, 1, 1)`,
+                         'Codex', 'codex reviewing', 'codex', 2, NULL, 'stopped', NULL, 1, 1)`,
             )
             .run(directory);
         previous
