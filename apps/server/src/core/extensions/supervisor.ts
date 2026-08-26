@@ -3,6 +3,7 @@ import type { ChildProcess } from 'node:child_process';
 import { fork } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
+import { dirname } from 'node:path';
 import process from 'node:process';
 
 import type { CaxriErrorCode } from '@caxri/protocol';
@@ -18,7 +19,13 @@ import {
     treeItemSchema,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, safeProcessEnvironment } from '@caxri/system';
+import {
+    currentObservationContext,
+    logEventCatalog,
+    mergeObservationContext,
+    runWithObservationContext,
+    safeProcessEnvironment,
+} from '@caxri/system';
 
 import type {
     ExtensionHostApiRequest,
@@ -30,6 +37,7 @@ import {
     extensionWorkspaceOperations,
     MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH,
 } from '../../extension-host/protocol';
+import { observationContextSchema } from '../../observability/context-schema';
 
 interface PendingRequest {
     method: ExtensionHostRequest['method'];
@@ -135,6 +143,8 @@ export function isExtensionHostMessage(value: unknown): value is ExtensionHostMe
             Number.isSafeInteger(value.generation) &&
             Number(value.generation) >= 0 &&
             isBoundedString(value.apiToken, 200) &&
+            (value.observation === undefined ||
+                observationContextSchema.safeParse(value.observation).success) &&
             isRecord(value.params) &&
             ((value.method === 'workspace.getProjectStatus' &&
                 (value.params.refreshToken === undefined ||
@@ -260,7 +270,14 @@ export class ExtensionHostSupervisor extends EventTarget {
         const controller = new AbortController();
         this.apiRequests.set(request.id, controller);
         try {
-            const result = await this.options.requestApi(request, controller.signal);
+            const result = await runWithObservationContext(
+                mergeObservationContext(request.observation, {
+                    operationId: request.id,
+                    requestId: request.observation?.requestId ?? request.id,
+                    traceId: request.observation?.traceId ?? request.id,
+                }),
+                () => this.options.requestApi(request, controller.signal),
+            );
             if (child === this.child && isChildConnected(child))
                 child.send({ type: 'api-reply', id: request.id, ok: true, result });
         } catch (error) {
@@ -343,6 +360,17 @@ export class ExtensionHostSupervisor extends EventTarget {
         this.resolveReady = undefined;
         this.rejectPendingRequests(`Extension Host exited with code ${code}`);
         if (this.intentionalStop) return;
+        this.options.logger.write('error', logEventCatalog.extensionHost.exit, {
+            fields: { code },
+            failure: {
+                code: 'EXTENSION_HOST_UNAVAILABLE',
+                owner: 'extension-host',
+                phase: 'runtime',
+                reason: 'extension-host-exited',
+                remediation: 'restart-extension-host',
+                retryable: true,
+            },
+        });
         this.dispatchEvent(new CustomEvent('exit', { detail: { code } }));
         this.restartCount += 1;
         if (this.restartCount > MAX_AUTO_RESTARTS) {
@@ -396,6 +424,7 @@ export class ExtensionHostSupervisor extends EventTarget {
                 ...safeProcessEnvironment(),
                 CAXRI_APP_VERSION: this.options.appVersion,
                 CAXRI_GIT_COMMIT: this.options.commit,
+                CAXRI_LOG_DIRECTORY: dirname(this.options.logger.path),
             },
             serialization: 'advanced',
             stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
@@ -444,6 +473,12 @@ export class ExtensionHostSupervisor extends EventTarget {
                 code: 'EXTENSION_HOST_UNAVAILABLE',
             });
         const id = randomUUID();
+        const parentObservation = currentObservationContext();
+        const observation = mergeObservationContext(parentObservation, {
+            operationId: id,
+            requestId: parentObservation.requestId ?? id,
+            traceId: parentObservation.traceId ?? id,
+        });
         return new Promise((resolve, reject) => {
             const timeout = requestTimeout(method, parameters);
             const timer =
@@ -457,12 +492,26 @@ export class ExtensionHostSupervisor extends EventTarget {
                                   id: randomUUID(),
                                   method: 'cancel',
                                   params: { requestId },
+                                  observation,
                               } satisfies ExtensionHostRequest);
                           else if (
                               (method === 'activate' || method === 'executeCommand') &&
                               child === this.child
                           )
                               child.kill();
+                          this.options.logger.write('warn', logEventCatalog.extensionHost.error, {
+                              correlationId: id,
+                              context: observation,
+                              fields: { method, code: 'PROVIDER_TIMEOUT' },
+                              failure: {
+                                  code: 'PROVIDER_TIMEOUT',
+                                  owner: 'extension-host',
+                                  phase: 'execute',
+                                  reason: 'timeout',
+                                  remediation: 'restart-extension-host',
+                                  retryable: true,
+                              },
+                          });
                           reject(
                               Object.assign(
                                   new Error(`Extension Host request timed out: ${method}`),
@@ -472,7 +521,7 @@ export class ExtensionHostSupervisor extends EventTarget {
                       }, timeout);
             timer?.unref();
             this.pending.set(id, { method, resolve, reject, timer });
-            child.send({ id, method, params: parameters });
+            child.send({ id, method, params: parameters, observation });
         });
     }
 

@@ -1,6 +1,14 @@
 import process from 'node:process';
 
 import {
+    installProcessErrorMonitor,
+    logEventCatalog,
+    mergeObservationContext,
+    runWithObservationContext,
+    StructuredLogger,
+} from '@caxri/system';
+
+import {
     activateExtension,
     cancelTreeRequest,
     configureExtensions,
@@ -35,6 +43,12 @@ function isApiReply(
 
 if (!process.connected || !process.send)
     throw new Error('CAXRI_EXTENSION_HOST_IPC_REQUIRED: Extension Host must be forked by Host');
+
+const logDirectory = process.env.CAXRI_LOG_DIRECTORY;
+if (!logDirectory) throw new Error('CAXRI_LOG_DIRECTORY is required');
+const logger = new StructuredLogger(logDirectory, 'extension-host', 'info');
+const processErrorMonitor = installProcessErrorMonitor({ processName: 'extension-host' });
+processErrorMonitor.attach(logger);
 
 function send(message: ExtensionHostMessage): void {
     if (process.connected) process.send?.(message);
@@ -93,12 +107,35 @@ process.on('message', (message: ExtensionHostParentMessage) => {
 });
 
 async function processRequest(request: ExtensionHostRequest): Promise<void> {
-    try {
-        const result = await handle(request);
-        send({ type: 'reply', id: request.id, ok: true, result });
-    } catch (error) {
-        send({ type: 'reply', id: request.id, ok: false, error: extensionErrorShape(error) });
-    }
+    await runWithObservationContext(
+        mergeObservationContext(request.observation, {
+            operationId: request.id,
+            requestId: request.observation?.requestId ?? request.id,
+            traceId: request.observation?.traceId ?? request.id,
+        }),
+        async () => {
+            try {
+                const result = await handle(request);
+                send({ type: 'reply', id: request.id, ok: true, result });
+            } catch (error) {
+                const failure = extensionErrorShape(error);
+                logger.write('warn', logEventCatalog.extensionHost.error, {
+                    correlationId: request.id,
+                    fields: { method: request.method, code: failure.code },
+                    failure: {
+                        code: failure.code,
+                        owner: 'extension-host',
+                        phase: 'execute',
+                        reason: 'unknown',
+                        remediation: 'restart-extension-host',
+                        retryable: false,
+                    },
+                });
+                send({ type: 'reply', id: request.id, ok: false, error: failure });
+            }
+        },
+    );
 }
 
+logger.write('info', logEventCatalog.extensionHost.ready, { fields: { pid: process.pid } });
 send({ type: 'ready' });

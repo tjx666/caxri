@@ -1,3 +1,4 @@
+import { runWithObservationContext } from '@caxri/system';
 import { CancellationTokenSource } from 'caxri';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -147,5 +148,49 @@ describe('Extension Host API requests', () => {
 
         await assertion;
         expect(sent).toContainEqual(expect.objectContaining({ type: 'api-cancel' }));
+    });
+
+    it('forwards normalized root correlation with a private operation id', async () => {
+        const sent: ExtensionHostMessage[] = [];
+        const request = runWithObservationContext(
+            {
+                operationId: 'extension-operation',
+                requestId: 'control-request',
+                sessionId: 'session-1',
+                traceId: 'control-trace',
+            },
+            () =>
+                requestServerApi(
+                    {
+                        apiToken: 'token-1',
+                        extensionId: 'publisher.fixture',
+                        generation: 1,
+                        assertCurrent: () => {},
+                        isApiTokenCurrent: () => true,
+                        send: (message) => sent.push(message),
+                    },
+                    {
+                        method: 'workspace.request',
+                        params: {
+                            operation: 'git.summary',
+                            arguments: { repositoryId: '/private/project', secret: 'do-not-log' },
+                            context,
+                        },
+                    },
+                ),
+        );
+        const apiRequest = sent.find((message) => message.type === 'api-request');
+        if (!apiRequest) throw new Error('Request not sent');
+
+        expect(apiRequest.observation).toEqual({
+            operationId: apiRequest.id,
+            requestId: 'control-request',
+            sessionId: 'session-1',
+            traceId: 'control-trace',
+        });
+        expect(JSON.stringify(apiRequest.observation)).not.toContain('/private/project');
+        expect(JSON.stringify(apiRequest.observation)).not.toContain('do-not-log');
+        settleApiReply({ id: apiRequest.id, ok: true, result: null }, () => true);
+        await expect(request).resolves.toBeNull();
     });
 });

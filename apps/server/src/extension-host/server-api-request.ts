@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
 import { isNonExpiringViewOperation } from '@caxri/protocol';
+import { currentObservationContext, mergeObservationContext } from '@caxri/system';
 import type { CancellationToken, DisposableLike } from 'caxri';
 
 import type { ExtensionHostApiRequest, ExtensionHostMessage } from './protocol';
 
-type ExtensionHostApiRequestIdentity = 'apiToken' | 'extensionId' | 'generation' | 'id' | 'type';
+type ExtensionHostApiRequestIdentity =
+    'apiToken' | 'extensionId' | 'generation' | 'id' | 'observation' | 'type';
 
 export type ServerApiRequestInput =
     | Omit<
@@ -81,12 +83,18 @@ export function requestServerApi<Result>(
     context.assertCurrent();
     if (token?.isCancellationRequested) return Promise.reject(cancellationError());
     const id = randomUUID();
+    const parentObservation = currentObservationContext();
     const message = {
         type: 'api-request',
         id,
         extensionId: context.extensionId,
         generation: context.generation,
         apiToken: context.apiToken,
+        observation: mergeObservationContext(parentObservation, {
+            operationId: id,
+            requestId: parentObservation.requestId ?? id,
+            traceId: parentObservation.traceId ?? id,
+        }),
         ...request,
     } as ExtensionHostApiRequest;
     const requiresAuthoritativeReply = requiresAuthoritativeReplyAfterCancellation(request);
