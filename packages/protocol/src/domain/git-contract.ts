@@ -48,9 +48,9 @@ const gitDiscardConsentScopeSchema = z.discriminatedUnion('kind', [
 ]);
 
 /**
- * Every public `git.*` command. Read projections stay Host-owned; the two working-tree mutations differ by confirmation
- * ownership: `git.sync` runs without a prompt, while `git.discard` is Desktop-owned because the irreversible
- * working-tree wipe must pass through Main's native confirmation dialog before it reaches Runtime.
+ * Every public `git.*` command. Read projections stay Server-owned; the two working-tree mutations differ by
+ * confirmation ownership: `git.sync` runs without a prompt, while `git.discard` is Desktop-owned because the
+ * irreversible working-tree wipe must pass through Main's native confirmation dialog before it reaches Runtime.
  */
 export const gitMethods = {
     'git.summary': {
@@ -114,7 +114,7 @@ export const gitMethods = {
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
             /**
-             * Runtime derives confirmation copy, counts, and tracked state from its authorized status snapshot.
+             * The Git domain derives confirmation copy, counts, and tracked state from its authorized status snapshot.
              */
             scope: gitDiscardScopeSchema,
         }),

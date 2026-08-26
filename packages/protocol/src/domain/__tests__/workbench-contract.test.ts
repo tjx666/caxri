@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { workbenchInternalMethods, workbenchMethods } from '../workbench-contract.js';
 
 describe('workbenchMethods', () => {
-    it('restricts Workbench Root authorization to the Desktop owner while selection stays Host-owned', () => {
+    it('restricts Workbench Root authorization to the Desktop owner while selection stays Server-owned', () => {
         expect(workbenchMethods['session.authorizeWorkbenchRoot'].owner).toBe('desktop');
         expect(workbenchMethods['session.continueInWorktree'].owner).toBe('desktop');
         expect(workbenchMethods['session.selectWorkbenchRoot'].owner).toBe('server');
@@ -38,7 +38,7 @@ describe('workbenchMethods', () => {
 });
 
 describe('workbenchInternalMethods', () => {
-    it('keeps every internal handoff Host-owned and write-effect', () => {
+    it('keeps every internal handoff Server-owned and write-effect', () => {
         for (const spec of Object.values(workbenchInternalMethods)) {
             expect(spec.owner).toBe('server');
             expect(spec.effect).toBe('write');

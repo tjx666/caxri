@@ -5,7 +5,7 @@ import type { CoreForwardedMethod, CoreHandledMethod } from '../core-methods';
 import { coreForwardedMethods } from '../core-methods';
 
 describe('Host dispatch exhaustiveness', () => {
-    it('splits every host-owned method into handled or explicitly forwarded', () => {
+    it('splits every server-owned method into handled or explicitly forwarded', () => {
         type Unclassified = Exclude<ServerMethod, CoreHandledMethod | CoreForwardedMethod>;
         expectTypeOf<Unclassified>().toEqualTypeOf<never>();
         expect(coreForwardedMethods).toContain('app.bootstrap');

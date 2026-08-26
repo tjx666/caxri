@@ -58,7 +58,7 @@ describe('Extension workspace bridge', () => {
         expect(harness.discard).not.toHaveBeenCalled();
     });
 
-    it('routes Git discard through the Host-owned confirmation and Runtime sequence', async () => {
+    it('routes Git discard through the Server-owned confirmation and Git domain sequence', async () => {
         const harness = fixture();
         const parameters = { sessionId: 'session-1', repositoryId: 'repo-1' };
 

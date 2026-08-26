@@ -417,7 +417,7 @@ test('stops reconnecting when another Desktop takes over the same profile', asyn
     }
 });
 
-test('recovers requests, events, and Desktop commands after the Host process is killed', async () => {
+test('recovers requests, events, and Desktop commands after the Server Core is killed', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-host-relaunch-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
