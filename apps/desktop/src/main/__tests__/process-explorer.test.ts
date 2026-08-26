@@ -44,7 +44,7 @@ describe('Process Explorer sampling', () => {
     it('coalesces samples and labels Desktop plus Server Core processes', async () => {
         const processList = vi.fn(() =>
             Promise.resolve(
-                '100 1 1 1024 raw-main\n101 100 1 1024 raw-window\n200 1 1 1024 raw-server\n203 200 1 1024 /bin/zsh -il\n900 1 1 1024 unrelated\n',
+                '100 1 1 1024 raw-main\n101 100 1 1024 raw-window\n200 1 1 1024 raw-server\n201 200 1 1024 /artifact/runtime/bin/node /artifact/bundles/extension-host.js\n202 200 1 1024 /artifact/runtime/bin/node /artifact/bundles/terminal-host.js\n203 202 1 1024 /bin/zsh -il\n900 1 1 1024 unrelated\n',
             ),
         );
         const sampler = new ProcessExplorerSampler({
@@ -65,8 +65,11 @@ describe('Process Explorer sampling', () => {
             expect.objectContaining({ pid: 100, name: 'caxri', cpuPercent: 3, memoryMb: 40 }),
             expect.objectContaining({ pid: 101, name: 'window (Caxri)' }),
             expect.objectContaining({ pid: 200, name: 'server-core' }),
+            expect.objectContaining({ pid: 201, name: 'extension-host' }),
+            expect.objectContaining({ pid: 202, name: 'terminal-host' }),
             expect.objectContaining({ pid: 203, name: '/bin/zsh -il' }),
         ]);
+        expect(JSON.stringify(snapshot)).not.toContain('/artifact/runtime/bin/node');
     });
 
     /**
