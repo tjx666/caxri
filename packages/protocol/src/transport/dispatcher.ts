@@ -4,6 +4,7 @@ import type { CaxriRequest } from '../registry/methods.js';
 import { methods } from '../registry/methods.js';
 import { CaxriError, toWireError } from './errors.js';
 import type { ProtocolFeature } from './identity.js';
+import { protocolConnectionIdentitySchema } from './identity.js';
 import type { CommandOwner, MethodSpec } from './method-spec.js';
 import type { CommandExecutionContext } from './principal.js';
 import { capabilitySchema, hasRequiredCapabilities, principalSchema } from './principal.js';
@@ -60,6 +61,7 @@ interface Receipt {
 const contextSchema = z.object({
     principal: principalSchema,
     capabilities: z.array(capabilitySchema).max(64),
+    connection: protocolConnectionIdentitySchema.optional(),
 });
 
 function principalReceiptKey(context: CommandExecutionContext, requestId: string): string {
@@ -110,6 +112,7 @@ export function createProtocolWelcome(
         capabilities: context.capabilities,
         commands,
         features: hello.features.filter((feature) => supportedFeatures.has(feature)),
+        ...(context.connection && { connection: context.connection }),
     });
 }
 

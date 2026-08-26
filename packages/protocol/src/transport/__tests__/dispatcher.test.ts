@@ -136,15 +136,26 @@ describe('createCommandDispatcher adapter availability', () => {
 
     it('negotiates only durable recovery features supported by both peers', () => {
         const server: CommandAdapter = { invoke: () => null };
+        const context = {
+            ...desktop,
+            connection: {
+                serverId: 'a'.repeat(32),
+                bootId: 'b'.repeat(32),
+                stateEpoch: 'c'.repeat(32),
+                clientId: 'desktop:workbench-1',
+                connectionId: 'd'.repeat(32),
+            },
+        };
         const welcome = createProtocolWelcome(
             { server, features: ['durable-command-receipts-v1'] },
             {
                 supportedVersions: [2],
                 features: ['durable-command-receipts-v1', 'durable-changefeed-v1'],
             },
-            desktop,
+            context,
         );
 
         expect(welcome.features).toEqual(['durable-command-receipts-v1']);
+        expect(welcome.connection).toEqual(context.connection);
     });
 });

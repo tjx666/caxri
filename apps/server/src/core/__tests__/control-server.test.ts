@@ -8,6 +8,7 @@ import type { CaxriError, CommandAdapter, ServerControlEndpoint } from '@caxri/p
 import {
     CAXRI_PROTOCOL_VERSION,
     localServerWelcomeSchema,
+    protocolFeatures,
     serverEndpointUrl,
 } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -84,20 +85,33 @@ describe('local Host transport', () => {
             };
         });
         const server = new ControlServer({
-            adapters: { server: { invoke } },
+            adapters: { features: protocolFeatures, server: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
+            protocolIdentity: {
+                serverId: 'c'.repeat(32),
+                stateEpoch: 'd'.repeat(32),
+            },
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
 
         const first = await ServerClient.connect(lease.manifest);
+        expect(first.welcome.connection).toMatchObject({
+            serverId: 'c'.repeat(32),
+            bootId: lease.identity.processIdentity,
+            stateEpoch: 'd'.repeat(32),
+            clientId: `operator:${lease.identity.profileId}`,
+        });
         await first.requestWithId('settings-retry', 'settings.patch', {
             changes: [{ key: 'terminal.fontSize', value: 18 }],
             dryRun: false,
         });
         first.close();
         const second = await ServerClient.connect(lease.manifest);
+        expect(second.welcome.connection?.connectionId).not.toBe(
+            first.welcome.connection?.connectionId,
+        );
         await second.requestWithId('settings-retry', 'settings.patch', {
             changes: [{ key: 'terminal.fontSize', value: 18 }],
             dryRun: false,

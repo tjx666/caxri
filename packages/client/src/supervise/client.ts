@@ -272,6 +272,19 @@ export class ServerClient {
                         message.processIdentity !== manifest.processIdentity
                     )
                         throw new CaxriError('CONFLICT', 'Caxri Host process identity changed');
+                    const isNegotiatedDurableRecovery =
+                        message.features?.includes('durable-command-receipts-v1') === true ||
+                        message.features?.includes('durable-changefeed-v1') === true;
+                    if (
+                        isNegotiatedDurableRecovery &&
+                        (!message.connection ||
+                            message.connection.clientId !== clientId ||
+                            message.connection.bootId !== manifest.processIdentity)
+                    )
+                        throw new CaxriError(
+                            'CONFLICT',
+                            'Caxri Server durable recovery identity does not match this connection',
+                        );
                     clearTimeout(timer);
                     isHandshakeComplete = true;
                     socket.pause();

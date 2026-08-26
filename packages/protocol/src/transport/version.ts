@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { CaxriError } from './errors.js';
-import { protocolFeatureSchema } from './identity.js';
+import { protocolConnectionIdentitySchema, protocolFeatureSchema } from './identity.js';
 import { capabilitySchema, principalSchema } from './principal.js';
 
 /**
@@ -28,6 +28,11 @@ export const protocolWelcomeSchema = z.object({
      * development build. Current Servers always send the negotiated list.
      */
     features: z.array(protocolFeatureSchema).max(protocolFeatureSchema.options.length).optional(),
+    /**
+     * Present when durable recovery was negotiated. Optional keeps an older same-version development build diagnosable
+     * while clients fail closed if it advertises a durable feature without the matching identity.
+     */
+    connection: protocolConnectionIdentitySchema.optional(),
 });
 
 export type ProtocolHello = z.infer<typeof protocolHelloSchema>;

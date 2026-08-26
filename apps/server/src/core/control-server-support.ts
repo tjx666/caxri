@@ -1,5 +1,4 @@
 import type {
-    CaxriError,
     CommandDispatcherOptions,
     CommandExecutionContext,
     CommandReplyEnvelope,
@@ -14,6 +13,7 @@ import type {
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
+    CaxriError,
     getMethodSpec,
     localServerDesktopLeaseRevokedSchema,
     toWireError,
@@ -265,6 +265,11 @@ export interface ControlServerOptions {
      */
     logger?: ControlRequestLogSink;
     identity: ServerManifestIdentity;
+    /**
+     * Durable identity loaded from the domain persistence port. Legacy transport tests that negotiate no A4 feature may
+     * omit it; production must provide it before advertising durable recovery.
+     */
+    protocolIdentity?: { serverId: string; stateEpoch: string };
     onClientCountChanged?(count: number): void;
     onDesktopUnavailable?(): void;
     onReplyFlushed?(
@@ -274,4 +279,13 @@ export interface ControlServerOptions {
     ): void;
     onRequestDisconnected?(requestId: string, context: CommandExecutionContext): void;
     refreshContext?(context: CommandExecutionContext): CommandExecutionContext;
+}
+
+export function assertDurableRecoveryIdentity(options: ControlServerOptions): void {
+    const isAdvertisesDurableRecovery = (options.adapters.features?.length ?? 0) > 0;
+    if (isAdvertisesDurableRecovery && !options.protocolIdentity)
+        throw new CaxriError(
+            'INTERNAL',
+            'Durable recovery features require a persisted Server identity',
+        );
 }
