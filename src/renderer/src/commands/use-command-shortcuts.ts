@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import type { CommandId, Keybinding } from '@shared/types';
+import type { CommandId, Keybinding } from '@caxri/protocol';
 
 import {
     executeEditableViewCatalogShortcut,

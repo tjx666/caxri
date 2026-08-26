@@ -2,12 +2,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AgentLaunchSettings, TerminalKind } from '@caxri/protocol';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentLaunchSettings } from '../../../shared/agents';
 import { StructuredLogger } from '../../../shared/node/logger';
-import type { TerminalKind } from '../../../shared/types';
 import { CaxriDatabase } from '../../db/repository';
 import { TerminalManager } from '..';
 import { TERMINAL_IMAGE_RECOVERY_PLACEHOLDER } from '../image-recovery';

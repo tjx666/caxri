@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import type { CaxriMethod } from '@shared/ipc';
+import type { CaxriMethod } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
 

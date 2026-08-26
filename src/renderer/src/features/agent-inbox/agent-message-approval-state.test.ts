@@ -1,5 +1,5 @@
-import type { AgentHeldMessageDetail } from '@shared/ipc';
-import { CaxriError } from '@shared/ipc';
+import type { AgentHeldMessageDetail } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

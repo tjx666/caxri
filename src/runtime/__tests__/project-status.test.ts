@@ -2,10 +2,10 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { GitSummary } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StructuredLogger } from '../../shared/node/logger';
-import type { GitSummary } from '../../shared/types';
 import {
     extractLinearReferences,
     parseGitHubPullRequest,

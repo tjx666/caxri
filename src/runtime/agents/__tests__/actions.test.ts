@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AppSettings, TerminalRecord } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { defaultAppSettings } from '../../../shared/config';
-import type { AppSettings, TerminalRecord } from '../../../shared/types';
 import type { CaxriDatabase } from '../../db';
 import { listAgentActions } from '../actions';
 

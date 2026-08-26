@@ -1,4 +1,4 @@
-import type { AppSettings } from '@shared/types';
+import type { AppSettings } from '@caxri/protocol';
 import { WebglAddon } from '@xterm/addon-webgl';
 import type { IDisposable, ITerminalAddon } from '@xterm/xterm';
 

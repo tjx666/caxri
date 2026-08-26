@@ -2,7 +2,9 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToHost, discoverHostManifest } from '@caxri/cli';
+import { connectToHost, discoverHostManifest } from '@caxri/client/supervise';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import type { ElectronApplication, Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
@@ -14,8 +16,6 @@ import {
     releaseDesktopLease,
     transferDesktopLease,
 } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
-import type { AgentProvider } from '../../src/shared/agents.ts';
-import { agentProviderCatalog } from '../../src/shared/agents.ts';
 import {
     e2eAgentPolicyEnvironment,
     e2eAgentShellShims,

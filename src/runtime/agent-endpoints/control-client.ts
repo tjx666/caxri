@@ -6,15 +6,17 @@ import type {
     AgentEndpointBeginResult,
     AgentEndpointMessagingParams as AgentEndpointMessagingParameters,
     AgentEndpointRetireParams as AgentEndpointRetireParameters,
-} from '../../../packages/protocol/src/agent/agent-endpoint-control';
+} from '@caxri/protocol';
 import {
     agentEndpointActivateResultSchema,
     agentEndpointBeginResultSchema,
     agentEndpointMessagingResultSchema,
     agentEndpointRetireResultSchema,
+    CaxriError,
+    fromWireError,
     runtimeHostControlReplySchema,
-} from '../../../packages/protocol/src/agent/agent-endpoint-control';
-import { CaxriError, fromWireError } from '../../shared/ipc/errors';
+} from '@caxri/protocol';
+
 import type { RuntimeParentPort } from '../port';
 
 interface PendingControl {

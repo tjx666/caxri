@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AgentEndpointBeginParams as AgentEndpointBeginParameters } from '@caxri/protocol';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentEndpointBeginParams as AgentEndpointBeginParameters } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { createPendingAgentAdapters } from '../../__tests__/create-test-runtime';
 import { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';

@@ -1,4 +1,4 @@
-import type { AppSettings, ProjectRecord, SessionRecord } from '@shared/types';
+import type { AppSettings, ProjectRecord, SessionRecord } from '@caxri/protocol';
 
 type ProjectCollapseReason = 'automatic' | 'manual';
 export type ProjectCollapseState = Partial<Record<string, ProjectCollapseReason>>;

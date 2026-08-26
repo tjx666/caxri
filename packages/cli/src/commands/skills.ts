@@ -1,11 +1,11 @@
-import { CaxriError } from '@caxri/protocol';
-
 /**
  * CLI domains expose thin barrels by repository contract; commands consume the skills domain API rather than its
  * private module layout.
  */
 // oxlint-disable-next-line react-doctor/no-barrel-import
-import { agentSkillProviderUsage, parseAgentSkillProvider } from '../skills';
+import { agentSkillProviderUsage, parseAgentSkillProvider } from '@caxri/agent-skills';
+import { CaxriError } from '@caxri/protocol';
+
 import type { LocalCommandDefinition } from './catalog';
 
 const SKILL_NAME = 'caxri-cli';

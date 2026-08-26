@@ -2,8 +2,9 @@ import { Buffer } from 'node:buffer';
 import { open, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
+import type { AgentActivityState } from '@caxri/protocol';
+
 import { mapWithConcurrency } from '../../../../shared/node/concurrency';
-import type { AgentActivityState } from '../../../../shared/types';
 import type {
     AgentEnvironment,
     AgentProviderDescriptor,

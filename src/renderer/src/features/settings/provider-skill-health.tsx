@@ -1,5 +1,4 @@
-import type { AgentProvider } from '@shared/agents';
-import type { AgentSkillHealth } from '@shared/types';
+import type { AgentProvider, AgentSkillHealth } from '@caxri/protocol';
 
 import { skillScopeHealth, skillScopeSummary } from './provider-health';
 

@@ -91,9 +91,9 @@ function dirtyLayerForFile(file: string): DirtyLayer {
     if (normalized.startsWith('packages/utils/') || normalized.startsWith('src/shared/'))
         return 'Shared';
     if (
+        normalized.startsWith('packages/agent-skills/') ||
         normalized.startsWith('packages/client/') ||
-        normalized.startsWith('packages/extension-api/') ||
-        normalized.startsWith('packages/api/')
+        normalized.startsWith('packages/extension-api/')
     )
         return 'Shared';
     if (normalized.startsWith('packages/cli/')) return 'CLI';
@@ -328,13 +328,11 @@ export function testCandidatesForFile(file: string): string[] {
         posix.join(directory, '__tests__', `${stem}.integration.test${testExtension}`),
     ]);
 
-    // Domain-level integration suites are named after their owning subdirectory rather than an
-    // individual source stem (e.g. `src/runtime/db/*.ts` -> `db.integration.test.ts`,
-    // `src/runtime/files/*.ts` -> `files.integration.test.ts`), because they exercise a whole
-    // module composed of several sibling files. Only generate this candidate for directories
-    // nested at least one level below a top-level domain directory (3+ path segments before the
-    // filename); applying it at the top level would match broad, expensive suites like
-    // `runtime.integration.test.ts` for nearly every file directly under `src/runtime/`.
+    /**
+     * Domain-level integration suites are named after their owning subdirectory rather than an individual source stem
+     * (e.g. `src/runtime/db/*.ts` -> `db.integration.test.ts`). Applying this at the top level would match broad,
+     * expensive suites for nearly every source file.
+     */
     const directorySegments = directory.split('/').filter(Boolean);
     if (directorySegments.length >= 3) {
         const domain = directorySegments.at(-1);

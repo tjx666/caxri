@@ -1,4 +1,3 @@
-import { gitHubAvatarUrl, shouldFetchGitHubAvatar } from '@caxri/utils';
 import type {
     GitCommitDetails,
     GitCommitPage,
@@ -6,6 +5,7 @@ import type {
     SourceControlHistoryPage,
 } from 'caxri';
 
+import { gitHubAvatarUrl, shouldFetchGitHubAvatar } from './github-avatar';
 import type { RegisterSourceControlAction } from './source-control-model';
 import {
     boundedActionLabel,

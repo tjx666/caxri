@@ -1,6 +1,6 @@
-import { CaxriError } from '../../shared/ipc/errors';
-import type { AppSettings } from '../../shared/types';
-import { MAX_AGENT_ACTIONS, mergeAgentActions } from '../../shared/types';
+import type { AppSettings } from '@caxri/protocol';
+import { CaxriError, MAX_AGENT_ACTIONS, mergeAgentActions } from '@caxri/protocol';
+
 import type { CaxriDatabase } from '../db';
 import { discoverAgentActions } from './action-discovery';
 import type { AgentEnvironment } from './contract';

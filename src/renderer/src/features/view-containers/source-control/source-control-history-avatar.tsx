@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { SourceControlHistoryPage } from '@shared/views';
+import type { SourceControlHistoryPage } from '@caxri/protocol';
 
 import { cn } from '../../../lib/utilities';
 

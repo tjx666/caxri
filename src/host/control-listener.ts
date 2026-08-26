@@ -1,12 +1,11 @@
 import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 
+import type { HostControlEndpoint, HostManifestIdentity } from '@caxri/protocol';
+import { CaxriError, CONTROL_TRANSPORT_MAX_FRAME_BYTES } from '@caxri/protocol';
 import type WebSocket from 'ws';
 import { WebSocketServer } from 'ws';
 
-import { CaxriError } from '../shared/ipc/errors';
-import type { HostControlEndpoint, HostManifestIdentity } from '../shared/ipc/local-transport';
-import { CONTROL_TRANSPORT_MAX_FRAME_BYTES } from '../shared/ipc/local-transport';
 import { fileSystemCode } from './local-server-support';
 
 export interface ControlListener {

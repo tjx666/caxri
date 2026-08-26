@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 
+import type { ThemeTokens } from '@caxri/protocol';
 import type { OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
-import type { ThemeTokens } from '@shared/types';
 
 import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
 

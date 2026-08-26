@@ -3,15 +3,14 @@ import { createHash } from 'node:crypto';
 import type {
     AgentEndpointRef as AgentEndpointReference,
     AgentEndpointSummary,
-    AgentPermissionClass,
-} from '../../shared/ipc/agent-endpoint-contract';
-import type {
     AgentHeldMessage,
     AgentHeldMessageDetail,
     AgentInboundPolicy,
-} from '../../shared/ipc/agent-inbox-contract';
-import { CaxriError } from '../../shared/ipc/errors';
-import type { CommandExecutionContext } from '../../shared/ipc/principal';
+    AgentPermissionClass,
+    CommandExecutionContext,
+} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+
 import type { AgentEndpointRegistry } from '../agent-endpoints';
 import type { PendingState, StoredMessage } from './types';
 

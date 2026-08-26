@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 
-import { CaxriError } from '../../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
+
 import type { RuntimeAgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
 import type { RuntimeHandlers } from '../dispatch';

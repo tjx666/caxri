@@ -15,9 +15,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MAX_FILE_BROWSE_ENTRIES } from '../../../shared/ipc/methods';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
 import {

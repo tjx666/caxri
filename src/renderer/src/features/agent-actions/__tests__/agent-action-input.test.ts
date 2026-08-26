@@ -1,4 +1,4 @@
-import type { AgentAction } from '@shared/types';
+import type { AgentAction } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { agentActionTerminalInput, canExecuteAgentAction } from '../agent-action-input';

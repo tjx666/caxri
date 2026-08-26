@@ -1,9 +1,8 @@
-import type { AgentProviderSettings } from '../shared/agents';
-import type { AgentEndpointSummary } from '../shared/ipc/agent-endpoint-contract';
-import { CaxriError } from '../shared/ipc/errors';
+import type { AgentEndpointSummary, AgentProviderSettings, TerminalRecord } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
-import type { TerminalRecord } from '../shared/types';
 import type { RuntimeAgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentCoordinator, AgentLifecycleSignal } from './agents';
 import type { WorkbenchRootService } from './workbench-roots';

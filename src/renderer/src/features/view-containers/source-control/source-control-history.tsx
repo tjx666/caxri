@@ -1,5 +1,5 @@
+import type { SourceControlAction, SourceControlHistoryDescriptor } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
-import type { SourceControlAction, SourceControlHistoryDescriptor } from '@shared/views';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
 
 import { useNow } from '@/hooks/use-now';

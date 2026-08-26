@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { SourceControlAction, SourceControlViewModel } from '@shared/views';
+import type { SourceControlAction, SourceControlViewModel } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';

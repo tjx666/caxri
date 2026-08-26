@@ -1,6 +1,6 @@
+import type { FileMutationOperation } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { FileMutationOperation } from '../../shared/types';
 import type { CaxriDatabase } from '../db';
 import type { FileService } from '../files';
 import { acknowledgeFileMutation } from '../root-services';

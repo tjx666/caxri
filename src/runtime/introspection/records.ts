@@ -1,14 +1,16 @@
 import type {
+    Principal,
     ProjectQuery,
     ProjectQueryResult,
+    ProjectRecord,
     SessionQuery,
     SessionQueryResult,
+    SessionRecord,
     TerminalQuery,
     TerminalQueryResult,
-} from '../../shared/ipc/business-contract';
-import { CaxriError } from '../../shared/ipc/errors';
-import type { Principal } from '../../shared/ipc/principal';
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '../../shared/types';
+    TerminalRecord,
+} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
 export interface RecordQuerySource {
     currentProjectId(): string | undefined;

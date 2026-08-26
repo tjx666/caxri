@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 
+import type { RendererErrorKind, ThemeTokens } from '@caxri/protocol';
+import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '@caxri/protocol';
 import { BrowserWindow, ipcMain } from 'electron';
 
 import type { StructuredLogger } from '../shared/node/logger';
@@ -7,9 +9,6 @@ import { logEventCatalog } from '../shared/node/logger';
 import type { ProcessExplorerSnapshot } from '../shared/process-explorer';
 import { processExplorerSnapshotSchema } from '../shared/process-explorer';
 import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
-import type { RendererErrorKind } from '../shared/renderer-error';
-import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '../shared/renderer-error';
-import type { ThemeTokens } from '../shared/types';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import type { ProcessExplorerSampler } from './process-explorer';

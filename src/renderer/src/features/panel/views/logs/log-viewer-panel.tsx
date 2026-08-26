@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { LogLevel, LogProcess, LogQueryRecord } from '@shared/types';
+import type { LogLevel, LogProcess, LogQueryRecord } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Trash2, X } from 'lucide-react';
 

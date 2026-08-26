@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 
-import { agentProviderCatalog } from '@shared/agents';
-import { settingsSpecByKey } from '@shared/config';
 import type {
     AgentHookHealthMap,
     AgentSkillHealth,
     AppSettings,
     ArgvConfigChanges,
-} from '@shared/types';
+} from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
+import { settingsSpecByKey } from '@shared/config';
 import { Archive, RotateCcw } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';

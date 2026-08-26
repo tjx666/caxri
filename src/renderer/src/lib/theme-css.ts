@@ -1,4 +1,4 @@
-import type { ThemeTokens } from '@shared/types';
+import type { ThemeTokens } from '@caxri/protocol';
 
 export function applyCssTheme(theme: ThemeTokens): void {
     const root = document.documentElement;

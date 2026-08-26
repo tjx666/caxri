@@ -2,11 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AgentDispatchReceipt, Principal, TerminalRecord } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentDispatchReceipt } from '../../../shared/ipc/agent-dispatch-contract';
-import type { Principal } from '../../../shared/ipc/principal';
-import type { TerminalRecord } from '../../../shared/types';
 import type { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';
 import type { AgentCoordinator } from '../../agents';
 import { CaxriDatabase } from '../../db';

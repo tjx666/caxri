@@ -1,6 +1,7 @@
+import type { RuntimeMethodParams as RuntimeMethodParameters } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+
 import type { ExtensionWorkspaceOperation } from '../../shared/extension-host-protocol';
-import { CaxriError } from '../../shared/ipc/errors';
-import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
 import type { HostDesktopRouter } from '../desktop-router';
 import type { HostRuntimeSupervisor } from '../runtime-supervisor';
 

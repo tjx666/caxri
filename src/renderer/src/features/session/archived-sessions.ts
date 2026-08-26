@@ -1,5 +1,5 @@
-import { agentProviderIds } from '@shared/agents';
-import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from '@shared/types';
+import type { ProjectRecord, SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 import { groupBy, sortBy, sumBy } from 'es-toolkit';
 
 export interface ArchivedSessionFilters {

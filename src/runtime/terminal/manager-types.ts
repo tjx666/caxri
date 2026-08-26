@@ -1,16 +1,14 @@
-import type * as pty from 'node-pty';
-
 import type {
     AgentLaunchSettings,
     AgentOutputRecoverySettings,
     AgentProvider,
-} from '../../shared/agents';
-import type {
     ProcessState,
     TerminalKind,
     TerminalRecord,
     TerminalResourceUsage,
-} from '../../shared/types';
+} from '@caxri/protocol';
+import type * as pty from 'node-pty';
+
 import type { TerminalOutputQueue } from './buffer';
 import type { TerminalColorQueryResponder } from './color-query';
 import type { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';

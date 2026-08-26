@@ -1,4 +1,4 @@
-import { errorMessage, isCaxriError } from '@shared/ipc';
+import { errorMessage, isCaxriError } from '@caxri/protocol';
 import { create } from 'zustand';
 
 import { refreshWorkbench } from './workbench';

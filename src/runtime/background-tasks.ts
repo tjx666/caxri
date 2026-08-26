@@ -1,4 +1,5 @@
-import { errorMessage } from '../shared/ipc/errors';
+import { errorMessage } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 import type { FileService } from './files';

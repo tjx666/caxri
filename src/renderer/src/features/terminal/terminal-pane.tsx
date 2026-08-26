@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 
-import { agentProviderCatalog } from '@shared/agents';
-import type { ProcessState, TerminalFailureReason } from '@shared/types';
+import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import { CircleCheck, CircleX, MessageSquarePlus, RotateCcw, TriangleAlert } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';

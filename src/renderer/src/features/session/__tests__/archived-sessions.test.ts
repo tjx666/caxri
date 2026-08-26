@@ -1,5 +1,5 @@
-import { agentProviderIds } from '@shared/agents';
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { deriveArchivedSessionView } from '../archived-sessions';

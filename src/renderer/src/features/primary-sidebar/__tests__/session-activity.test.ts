@@ -1,4 +1,4 @@
-import type { AgentActivityState } from '@shared/types';
+import type { AgentActivityState } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {

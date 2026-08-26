@@ -4,18 +4,17 @@ import { lstat, realpath } from 'node:fs/promises';
 import type {
     AgentEndpointRef as AgentEndpointReference,
     AgentEndpointSummary,
-    AgentWorktreeCreatedResult,
-} from '../shared/ipc/agent-endpoint-contract';
-import { CaxriError, errorMessage } from '../shared/ipc/errors';
-import type { RuntimeEvent } from '../shared/ipc/events';
-import type { StructuredLogger } from '../shared/node/logger';
-import { logEventCatalog } from '../shared/node/logger';
-import type {
     AgentProvider,
+    AgentWorktreeCreatedResult,
     NewWorktreeBehavior,
+    RuntimeEvent,
     SessionRecord,
     WorkbenchRootOption,
-} from '../shared/types';
+} from '@caxri/protocol';
+import { CaxriError, errorMessage } from '@caxri/protocol';
+
+import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type { AgentLifecycleSignal } from './agents';
 import type { CaxriDatabase } from './db';
 import type { RuntimeHandlers } from './dispatch';

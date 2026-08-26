@@ -1,7 +1,7 @@
+import type { PaneLayout, PaneResource } from '@caxri/protocol';
+import { MAX_PANE_LAYOUT_PANES, MAX_TABS_PER_PANE, paneLayoutSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { PaneLayout, PaneResource } from '../ipc/pane-layout';
-import { MAX_PANE_LAYOUT_PANES, MAX_TABS_PER_PANE, paneLayoutSchema } from '../ipc/pane-layout';
 import {
     activePane,
     activeTab,

@@ -3,12 +3,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { RuntimeEvent, TerminalSnapshot } from '@caxri/protocol';
 import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { StructuredLogger } from '../../../shared/node/logger';
-import type { TerminalSnapshot } from '../../../shared/types';
 import { CaxriDatabase } from '../../db/repository';
 import { TerminalManager } from '..';
 

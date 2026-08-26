@@ -1,7 +1,7 @@
 import type { z } from 'zod';
 
 import type { MethodSpec } from '../transport/method-spec.js';
-import { internalMethods, methods } from './methods.js';
+import { internalMethods, methods } from './method-registry.js';
 
 export type CaxriMethod = keyof typeof methods;
 type InternalMethod = keyof typeof internalMethods;

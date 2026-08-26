@@ -1,7 +1,8 @@
 import process from 'node:process';
 
-import type { LogEventName } from '../ipc/logging';
-import { logEventCatalog } from '../ipc/logging';
+import type { LogEventName } from '@caxri/protocol';
+import { logEventCatalog } from '@caxri/protocol';
+
 import type { StructuredLogger } from './logger';
 
 export type ProcessErrorWriter = Pick<StructuredLogger, 'write'>;

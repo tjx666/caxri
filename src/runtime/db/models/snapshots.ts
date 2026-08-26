@@ -1,6 +1,6 @@
+import type { TerminalSnapshot } from '@caxri/protocol';
 import { eq } from 'drizzle-orm';
 
-import type { TerminalSnapshot } from '../../../shared/types';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { terminalSnapshots } from '../schema';
 

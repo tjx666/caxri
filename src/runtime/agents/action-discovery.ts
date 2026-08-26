@@ -3,9 +3,10 @@ import type { Dirent } from 'node:fs';
 import { open, readdir, realpath } from 'node:fs/promises';
 import { basename, extname, join, relative, sep } from 'node:path';
 
+import type { AgentAction } from '@caxri/protocol';
+import { agentActionSchema, requiresAgentActionArguments } from '@caxri/protocol';
+
 import { mapWithConcurrency } from '../../shared/node/concurrency';
-import type { AgentAction } from '../../shared/types';
-import { agentActionSchema, requiresAgentActionArguments } from '../../shared/types';
 import type { AgentActionDiscoveryAdapter, AgentActionDiscoveryRoot } from './contract';
 
 const MAX_ACTION_FILE_BYTES = 64 * 1024;

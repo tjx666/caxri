@@ -1,5 +1,4 @@
-import type { RuntimeEvent } from '@shared/ipc';
-import type { BootstrapState } from '@shared/types';
+import type { BootstrapState, RuntimeEvent } from '@caxri/protocol';
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

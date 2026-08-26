@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 
-import type { AgentLaunchSettings } from '../../shared/agents';
 import type {
     AgentDispatchFailure,
     AgentDispatchLaunch,
@@ -8,12 +7,16 @@ import type {
     AgentDispatchResumeParams as AgentDispatchResumeParameters,
     AgentDispatchStartParams as AgentDispatchStartParameters,
     AgentDispatchWaitResult,
-} from '../../shared/ipc/agent-dispatch-contract';
-import type { AgentEndpointRef as AgentEndpointReference } from '../../shared/ipc/agent-endpoint-contract';
-import { CaxriError, toWireError } from '../../shared/ipc/errors';
-import type { RuntimeEvent } from '../../shared/ipc/events';
-import type { Principal } from '../../shared/ipc/principal';
-import type { AgentProvider, ProcessState, TerminalRecord } from '../../shared/types';
+    AgentEndpointRef as AgentEndpointReference,
+    AgentLaunchSettings,
+    AgentProvider,
+    Principal,
+    ProcessState,
+    RuntimeEvent,
+    TerminalRecord,
+} from '@caxri/protocol';
+import { CaxriError, toWireError } from '@caxri/protocol';
+
 import type { RuntimeAgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
 /**

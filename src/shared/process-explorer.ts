@@ -1,7 +1,5 @@
+import type { RendererErrorKind, ThemeTokens } from '@caxri/protocol';
 import { z } from 'zod';
-
-import type { RendererErrorKind } from './renderer-error';
-import type { ThemeTokens } from './types';
 
 const processExplorerEntrySchema = z.object({
     pid: z.number().int().positive(),

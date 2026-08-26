@@ -90,6 +90,19 @@ function isPackageSubpathPublic(packageId: string, specifier: string): boolean {
     return boundary.publicSubpaths.includes(subpath);
 }
 
+function packageSubpath(packageId: string, specifier: string): string | undefined {
+    const boundary = packageBoundaries.find(({ id }) => id === packageId);
+    const packageName = boundary?.packageNames.find(
+        (candidate) => specifier === candidate || specifier.startsWith(`${candidate}/`),
+    );
+    if (!packageName) return undefined;
+    return specifier === packageName ? '.' : `./${specifier.slice(packageName.length + 1)}`;
+}
+
+function isTestSource(path: string): boolean {
+    return path.includes('/__tests__/') || /\.(?:spec|test)\.[cm]?[jt]sx?$/u.test(path);
+}
+
 function isBrowserSafePackageSource(path: string): boolean {
     const boundary = packageBoundaries.find(
         ({ browserSafe, root }) => browserSafe && isPathInside(root, path),
@@ -128,15 +141,25 @@ function isPlatformClientTarget(specifier: string, resolvedTarget: string | unde
     );
 }
 
-function isAllowedPackageDependency(importer: ImportOwner, targetPackageId: string): boolean {
+function isAllowedPackageDependency(
+    importer: ImportOwner,
+    importerPath: string,
+    targetPackageId: string,
+): boolean {
     if (importer.kind === 'extension') return targetPackageId === 'extension-api';
     if (importer.kind === 'shared') return true;
-    const boundary =
-        importer.kind === 'application'
-            ? appBoundaries.find(({ id }) => id === importer.id)
-            : packageBoundaries.find(({ id }) => id === importer.id);
     const packageId = packageBoundaries.find(({ id }) => id === targetPackageId)?.id;
-    return packageId ? (boundary?.allowedPackages.includes(packageId) ?? false) : false;
+    if (!packageId) return false;
+    if (importer.kind === 'application') {
+        const boundary = appBoundaries.find(({ id }) => id === importer.id);
+        return (
+            (boundary?.allowedPackages.includes(packageId) ?? false) ||
+            (isTestSource(importerPath) &&
+                (boundary?.testAllowedPackages?.includes(packageId) ?? false))
+        );
+    }
+    const boundary = packageBoundaries.find(({ id }) => id === importer.id);
+    return boundary?.allowedPackages.includes(packageId) ?? false;
 }
 
 /**
@@ -160,6 +183,8 @@ const rule: Rule.RuleModule = {
                 "'{{importer}}' must not depend on package '{{target}}' in the target ownership graph.",
             platformClientImport:
                 "Browser code must not import '{{specifier}}'; @caxri/client/supervise is platform-only.",
+            testOnlyPackageImport:
+                "Production source must not import test-only package entry '{{specifier}}'.",
         },
     },
     create(context) {
@@ -208,7 +233,24 @@ const rule: Rule.RuleModule = {
             }
 
             if (targetOwner.kind !== 'package' || importerOwner?.id === targetOwner.id) return;
-            if (importerOwner && !isAllowedPackageDependency(importerOwner, targetOwner.id)) {
+            const subpath = packageSubpath(targetOwner.id, specifier);
+            const targetBoundary = packageBoundaries.find(({ id }) => id === targetOwner.id);
+            if (
+                subpath &&
+                targetBoundary?.testOnlySubpaths?.includes(subpath) &&
+                !isTestSource(importer)
+            ) {
+                context.report({
+                    node,
+                    messageId: 'testOnlyPackageImport',
+                    data: { specifier },
+                });
+                return;
+            }
+            if (
+                importerOwner &&
+                !isAllowedPackageDependency(importerOwner, importer, targetOwner.id)
+            ) {
                 context.report({
                     node,
                     messageId: 'forbiddenPackageDependency',

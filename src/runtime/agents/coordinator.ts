@@ -1,10 +1,8 @@
-import type { AgentProvider } from '../../shared/agents';
-import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
-import { errorMessage } from '../../shared/ipc/errors';
-import type { RuntimeEvent } from '../../shared/ipc/events';
+import type { AgentOperation, AgentProvider, RuntimeEvent, TerminalRecord } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, errorMessage } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
-import type { AgentOperation, TerminalRecord } from '../../shared/types';
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
 import type { AgentLifecycleSignal } from './hooks/contract';

@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import type { RuntimeEvent } from '@caxri/protocol';
+import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { defaultAgentProviderSettings } from '../../../../shared/agents';
-import type { RuntimeEvent } from '../../../../shared/ipc';
 import { execFileAsync } from '../../../../shared/node/exec';
 import { StructuredLogger } from '../../../../shared/node/logger';
 import { codexHookAdapter } from '../../providers/codex/hooks';

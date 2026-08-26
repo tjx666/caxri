@@ -4,7 +4,7 @@ import type {
     ControlledViewPresentation,
     ExtensionViewActionRole,
     ViewActionDescriptor,
-} from '@shared/views';
+} from '@caxri/protocol';
 
 import type { ResourceExplorerClient } from './resource-explorer/resource-explorer-client';
 import type { SourceControlClient } from './view-operation-client';

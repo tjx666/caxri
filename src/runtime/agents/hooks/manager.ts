@@ -4,14 +4,18 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import process from 'node:process';
 
-import type { AgentProvider, AgentProviderSettings } from '../../../shared/agents';
-import { agentProviderIds } from '../../../shared/agents';
-import { errorMessage } from '../../../shared/ipc/errors';
-import type { RuntimeEvent } from '../../../shared/ipc/events';
+import type {
+    AgentHookHealth,
+    AgentHookHealthMap,
+    AgentProvider,
+    AgentProviderSettings,
+    RuntimeEvent,
+} from '@caxri/protocol';
+import { agentProviderIds, errorMessage } from '@caxri/protocol';
+
 import { mapWithConcurrency } from '../../../shared/node/concurrency';
 import type { StructuredLogger } from '../../../shared/node/logger';
 import { logEventCatalog } from '../../../shared/node/logger';
-import type { AgentHookHealth, AgentHookHealthMap } from '../../../shared/types';
 import { atomicWrite } from '../../atomic-file';
 import { readBoundedRegularFileText } from '../../bounded-file-reader';
 import type { WatchHandle } from '../../watch-hub';

@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import type { ArgvConfig, ArgvConfigChanges } from '@caxri/protocol';
 import { applyEdits, modify } from 'jsonc-parser';
 
 import { parseJsonc } from '../shared/node/jsonc';
-import type { ArgvConfig, ArgvConfigChanges } from '../shared/types';
 
 const defaultArgvConfig: ArgvConfig = {
     remoteDebugging: true,

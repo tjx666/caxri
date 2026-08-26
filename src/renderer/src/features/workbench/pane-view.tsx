@@ -1,9 +1,9 @@
 import type { CSSProperties, DragEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from '@shared/ipc/pane-layout';
+import type { PaneLayout, PaneLayoutNode, PaneNode, PaneSplitNode } from '@caxri/protocol';
+import { MAX_SPLIT_RATIO, MIN_SPLIT_RATIO } from '@caxri/protocol';
 import { listPanes, listPaneTabs, listPaneTerminalIds } from '@shared/pane-layout';
-import type { PaneLayout, PaneLayoutNode, PaneNode, PaneSplitNode } from '@shared/types';
 import { TerminalSquare } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';

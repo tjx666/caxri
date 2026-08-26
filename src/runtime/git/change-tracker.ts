@@ -1,6 +1,6 @@
 import { resolve, sep } from 'node:path';
 
-import type { RuntimeEvent } from '../../shared/ipc/events';
+import type { RuntimeEvent } from '@caxri/protocol';
 
 /**
  * Debounce window that folds a burst of generation bumps (rapid Agent writes, a rebase touching many refs) into one

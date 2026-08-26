@@ -95,12 +95,6 @@ function looseTestFiles(directory: string): string[] {
     return found;
 }
 
-function isProtocolCompatibilityReExport(source: string): boolean {
-    return /^export \* from ['"]\.\.\/\.\.\/\.\.\/packages\/protocol\/src\/(?:index|(?:agent|configuration|desktop|domain|registry|transport)\/[a-z0-9-]+)(?:\.js)?['"];\n?$/u.test(
-        source,
-    );
-}
-
 function protocolDeepImports(source: string): string[] {
     const pattern =
         /(?:from\s+|import\s*(?:\(\s*)?|require\s*\(\s*)['"]([^'"]*packages\/protocol\/src(?:\/[^'"]*)?|@caxri\/protocol\/[^'"]+)['"]/gu;
@@ -112,6 +106,8 @@ function protocolDeepImports(source: string): string[] {
 
 describe('pnpm workspace contract', () => {
     const rootManifest = manifest(join(root, 'package.json'));
+    const agentSkillsManifest = manifest(join(root, 'packages/agent-skills/package.json'));
+    const clientManifest = manifest(join(root, 'packages/client/package.json'));
     const protocolManifest = manifest(join(root, 'packages/protocol/package.json'));
     const cliManifest = manifest(join(root, 'packages/cli/package.json'));
     const workspace = parse(
@@ -164,6 +160,7 @@ describe('pnpm workspace contract', () => {
             'apps/cli',
         ]);
         expect(packageBoundaries.map(({ root }) => root)).toEqual([
+            'packages/agent-skills',
             'packages/client',
             'packages/protocol',
             'packages/extension-api',
@@ -208,6 +205,8 @@ describe('pnpm workspace contract', () => {
         ];
 
         expect(allowances.length).toBeGreaterThan(0);
+        expect(transitionalImportAllowances).toEqual([]);
+        expect(transitionalCycleAllowances).toEqual([]);
         for (const allowance of allowances) {
             const label = 'id' in allowance ? allowance.id : allowance.root;
             expect(allowedBatches, label).toContain(allowance.removeInBatch);
@@ -234,6 +233,7 @@ describe('pnpm workspace contract', () => {
         expect(webConfig).toContain('"packages/client/src/state/**/*.ts"');
         expect(webConfig).not.toContain('"packages/client/src/**/*.ts"');
         expect(webConfig).toContain('"packages/extension-api/src/**/*.ts"');
+        expect(webConfig).not.toContain('"packages/agent-skills/src/**/*.ts"');
     });
 
     it('keeps tests, Electron support, protocol, and CLI domains in predictable directories', () => {
@@ -277,7 +277,7 @@ describe('pnpm workspace contract', () => {
             .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
             .map((entry) => entry.name)
             .toSorted((left, right) => left.localeCompare(right));
-        expect(cliDomains).toEqual(['commands', 'host', 'skills']);
+        expect(cliDomains).toEqual(['commands', 'host']);
         for (const domain of cliDomains) {
             expect(readdirSync(join(cliRoot, domain)), `${domain} CLI barrel`).toContain(
                 'index.ts',
@@ -288,6 +288,8 @@ describe('pnpm workspace contract', () => {
 
     it('routes workspace tests through named Vitest projects', () => {
         expect(protocolManifest.scripts?.test).toContain('--project protocol');
+        expect(agentSkillsManifest.scripts?.test).toContain('--project agent-skills');
+        expect(clientManifest.scripts?.test).toContain('--project client');
         expect(cliManifest.scripts?.test).toContain('--project cli');
         expect(rootManifest.scripts?.['typecheck:api']).toBe('pnpm --filter caxri run typecheck');
         expect(rootManifest.scripts?.['test:protocol']).toBe(
@@ -320,14 +322,17 @@ describe('pnpm workspace contract', () => {
         expect(protocolManifest.name).toBe('@caxri/protocol');
         expect(cliManifest.name).toBe('@caxri/cli');
         expect(protocolManifest.dependencies).toEqual({ zod: 'catalog:' });
-        expect(rootManifest.devDependencies?.['@caxri/cli']).toBe('workspace:*');
+        expect(rootManifest.devDependencies?.['@caxri/cli']).toBeUndefined();
         expect(cliManifest.dependencies).toEqual({
+            '@caxri/agent-skills': 'workspace:*',
+            '@caxri/client': 'workspace:*',
             '@caxri/protocol': 'workspace:*',
-            'ws': 'catalog:',
             'zod': 'catalog:',
         });
         for (const dependency of nativeDesktopDependencies) {
             expect(cliManifest.dependencies).not.toHaveProperty(dependency);
+            expect(agentSkillsManifest.dependencies ?? {}).not.toHaveProperty(dependency);
+            expect(clientManifest.dependencies ?? {}).not.toHaveProperty(dependency);
             expect(protocolManifest.dependencies ?? {}).not.toHaveProperty(dependency);
         }
     });
@@ -347,46 +352,27 @@ describe('pnpm workspace contract', () => {
         }
     });
 
-    it('keeps shared IPC production files as protocol compatibility re-exports', () => {
+    it('removes the shared IPC compatibility layer once consumers use the protocol package', () => {
         const sharedIpcRoot = join(root, 'src/shared/ipc');
-        const sourceFiles = productionTypeScriptFiles(sharedIpcRoot);
-
-        for (const file of sourceFiles) {
-            expect(isProtocolCompatibilityReExport(readFileSync(file, 'utf8')), file).toBe(true);
-        }
+        expect(existsSync(sharedIpcRoot)).toBe(false);
     });
 
     it('keeps Host and Extension Host production imports on the protocol package root', () => {
-        const allowedControlImports = new Map([
-            [
-                'src/host/agent-endpoints/registry.ts',
-                '../../../packages/protocol/src/agent/agent-endpoint-control',
-            ],
-            [
-                'src/host/runtime-supervisor.ts',
-                '../../packages/protocol/src/agent/agent-endpoint-control',
-            ],
-        ]);
         expect(
             protocolDeepImports(`
-import '../../packages/protocol/src/domain/views';
+import '@caxri/protocol';
 export type { TreeItemDto } from '@caxri/protocol/domain/views';
 const dynamicProtocol = import('@caxri/protocol/src/index');
-const requiredProtocol = require('../../packages/protocol/src/index');
+const requiredProtocol = require('@caxri/protocol');
 `),
-        ).toEqual([
-            '../../packages/protocol/src/domain/views',
-            '@caxri/protocol/domain/views',
-            '@caxri/protocol/src/index',
-            '../../packages/protocol/src/index',
-        ]);
+        ).toEqual(['@caxri/protocol/domain/views', '@caxri/protocol/src/index']);
         const violations = ['src/host', 'src/extension-host']
             .flatMap((directory) => productionTypeScriptFiles(join(root, directory)))
             .flatMap((file) => {
                 const filePath = relative(root, file);
-                return protocolDeepImports(readFileSync(file, 'utf8'))
-                    .filter((specifier) => allowedControlImports.get(filePath) !== specifier)
-                    .map((specifier) => `${filePath} -> ${specifier}`);
+                return protocolDeepImports(readFileSync(file, 'utf8')).map(
+                    (specifier) => `${filePath} -> ${specifier}`,
+                );
             });
 
         expect(violations).toEqual([]);

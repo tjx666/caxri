@@ -1,4 +1,4 @@
-import type { ContributedCommandDescriptor, ViewCatalogSnapshot } from '@shared/views';
+import type { ContributedCommandDescriptor, ViewCatalogSnapshot } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../queries/client';

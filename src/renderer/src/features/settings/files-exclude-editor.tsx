@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { AppSettings } from '@shared/types';
+import type { AppSettings } from '@caxri/protocol';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';

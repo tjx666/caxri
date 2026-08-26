@@ -1,7 +1,7 @@
 import type { DragEvent, KeyboardEvent, ReactElement, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { ProcessState } from '@shared/types';
+import type { ProcessState } from '@caxri/protocol';
 import { X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';

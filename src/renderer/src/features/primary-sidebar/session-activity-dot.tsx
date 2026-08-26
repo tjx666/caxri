@@ -1,4 +1,4 @@
-import type { AgentActivityState, AgentOperation } from '@shared/types';
+import type { AgentActivityState, AgentOperation } from '@caxri/protocol';
 import { Circle } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';

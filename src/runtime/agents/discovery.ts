@@ -1,5 +1,6 @@
-import type { AgentProvider } from '../../shared/agents';
-import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
+
 import { readE2EAgentPolicy, selectE2EAgentExecutable } from '../../shared/node/e2e-agent-policy';
 import {
     clearRuntimeExecutableCache,

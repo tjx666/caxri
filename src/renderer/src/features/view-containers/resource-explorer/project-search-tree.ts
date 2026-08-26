@@ -1,5 +1,5 @@
+import type { FileSearchMatch } from '@caxri/protocol';
 import { compareTreeNodesDirectoriesFirst } from '@caxri/utils';
-import type { FileSearchMatch } from '@shared/types';
 
 interface NameSearchFileNode {
     kind: 'file';

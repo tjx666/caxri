@@ -25,8 +25,8 @@
                 // chunked copies). Every site carries an eslint no-await-in-loop disable
                 // with an inline rationale; the ESLint gate is the adjudicating owner.
                 "files": [
-                    "packages/cli/src/skills/execute.ts",
-                    "packages/cli/src/skills/filesystem.ts",
+                    "packages/agent-skills/src/execute.ts",
+                    "packages/agent-skills/src/filesystem.ts",
                     "src/main/menu-refresh.ts",
                     "src/renderer/src/lib/monaco.ts",
                     "src/runtime/agents/hooks/manager.ts",

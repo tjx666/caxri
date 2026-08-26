@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
+import type { CommandId, Keybinding } from '@caxri/protocol';
 import { normalizeShortcut } from '@shared/shortcuts';
-import type { CommandId, Keybinding } from '@shared/types';
 
 import { useWorkbenchStore } from '../stores/workbench';
 

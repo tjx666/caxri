@@ -1,4 +1,4 @@
-import type { CommandId } from '@shared/types';
+import type { CommandId } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { CommandDefinition } from './registry';

@@ -4,13 +4,13 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
+import type { AppSettings } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 import { ZipArchive } from 'archiver';
 
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 import { redactLogValue, redactSecrets } from '../shared/node/redaction';
-import type { AppSettings } from '../shared/types';
 import type { CaxriDatabase } from './db';
 import type { WatchHubSnapshot } from './watch-hub';
 

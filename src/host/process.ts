@@ -2,10 +2,8 @@ import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import {
-    HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
-    hostDesktopLaunchSchema,
-} from '../shared/ipc/desktop-launch';
+import { HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY, hostDesktopLaunchSchema } from '@caxri/protocol';
+
 import { computeBuildFingerprint } from '../shared/node/build-fingerprint';
 import { e2eAgentPolicyEnvironment, readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { StructuredLogger } from '../shared/node/logger';

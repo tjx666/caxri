@@ -1,4 +1,4 @@
-import type { FileEntry } from '@shared/types';
+import type { FileEntry } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {

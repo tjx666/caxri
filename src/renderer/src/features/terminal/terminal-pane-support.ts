@@ -1,4 +1,4 @@
-import { errorMessage } from '@shared/ipc';
+import { errorMessage } from '@caxri/protocol';
 import type { Terminal } from '@xterm/xterm';
 
 import { caxri } from '../../lib/caxri';

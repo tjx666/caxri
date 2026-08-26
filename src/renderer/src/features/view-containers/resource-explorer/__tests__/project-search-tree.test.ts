@@ -1,4 +1,4 @@
-import type { FileSearchMatch } from '@shared/types';
+import type { FileSearchMatch } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { buildNameSearchTree, groupSearchMatches } from '../project-search-tree';

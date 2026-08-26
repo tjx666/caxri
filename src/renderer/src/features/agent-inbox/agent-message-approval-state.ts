@@ -1,5 +1,5 @@
-import type { AgentHeldMessageDetail } from '@shared/ipc';
-import { isCaxriError } from '@shared/ipc';
+import type { AgentHeldMessageDetail } from '@caxri/protocol';
+import { isCaxriError } from '@caxri/protocol';
 
 export type HeldMessageActionResult = 'confirmed' | 'rejected' | 'final-rejection';
 

@@ -1,5 +1,6 @@
-import { CaxriError } from '../shared/ipc/errors';
-import type { RuntimeMethod } from '../shared/ipc/methods';
+import type { RuntimeMethod } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+
 import { agentSkillHealthReader } from './agent-skills';
 import type { AgentEnvironment, AgentHookManager, AgentTranscriptWatcher } from './agents';
 import { listAgentActions, readAgentTranscript } from './agents';

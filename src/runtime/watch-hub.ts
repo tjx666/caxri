@@ -1,6 +1,6 @@
+import { CaxriError, errorMessage } from '@caxri/protocol';
 import parcelWatcher from '@parcel/watcher';
 
-import { CaxriError, errorMessage } from '../shared/ipc/errors';
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 import { NATIVE_WATCHER_BACKEND } from './native-watcher';

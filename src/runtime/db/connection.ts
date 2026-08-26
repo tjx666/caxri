@@ -1,12 +1,12 @@
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { agentProviderIds } from '@caxri/protocol';
 import Database from 'better-sqlite3';
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-import { agentProviderIds } from '../../shared/agents';
 import type { ShutdownReason } from '../session-policy';
 import { defaultTerminalTitle, shutdownOutcome } from '../session-policy';
 import {

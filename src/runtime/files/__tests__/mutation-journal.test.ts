@@ -2,10 +2,10 @@ import { access, lstat, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { FileMutationOperation } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { StructuredLogger } from '../../../shared/node/logger';
-import type { FileMutationOperation } from '../../../shared/types';
 import { FileMutationJournal } from '../mutation-journal';
 
 const temporaryDirectories: string[] = [];

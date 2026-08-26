@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 
+import type { FileDocument } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { replaceWithExternalDocument } from '@shared/editor-state';
 import { listPaneTabs } from '@shared/pane-layout';
-import type { FileDocument } from '@shared/types';
 import { isVirtualEditorTabPath } from '@shared/virtual-tabs';
 import { uniq } from 'es-toolkit';
 

@@ -1,4 +1,4 @@
-import type { RendererErrorKind } from '@shared/renderer-error';
+import type { RendererErrorKind } from '@caxri/protocol';
 
 /**
  * Reports only the exception class across the preload boundary. Error values and rejection reasons stay in the Renderer

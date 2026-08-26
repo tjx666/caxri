@@ -29,11 +29,14 @@ describe('CLI delivery artifact', () => {
 
     it('ships the standalone bundle byte-for-byte inside the Desktop package', () => {
         const cliPackage = readManifest(new URL('../../package.json', import.meta.url));
+        const agentSkillsPackage = readManifest(
+            new URL('../../../agent-skills/package.json', import.meta.url),
+        );
         const rootPackage = readManifest(new URL('../../../../package.json', import.meta.url));
 
         expect(cliPackage.bin).toEqual({ caxri: './dist/caxri.cjs' });
         expect(cliPackage.scripts?.build).toContain('--outfile dist/caxri.cjs');
-        expect(cliPackage.scripts?.build).toContain('scripts/generate-skill-bundle.ts');
+        expect(agentSkillsPackage.scripts?.build).toContain('scripts/generate-skill-bundle.ts');
         expect(cliPackage.scripts?.build).toContain('scripts/validate-skill.ts');
         expect(cliPackage.scripts?.build).toContain('scripts/verify-bundle.ts');
         expect(rootPackage.build?.extraResources).toContainEqual({

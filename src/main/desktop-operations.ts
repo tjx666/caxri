@@ -1,5 +1,5 @@
-import { assertNever } from '../shared/ipc';
-import type { DesktopOperation, DesktopTargetPayload } from '../shared/ipc/local-transport';
+import type { DesktopOperation, DesktopTargetPayload } from '@caxri/protocol';
+import { assertNever } from '@caxri/protocol';
 
 export interface DesktopOperationHandlers {
     confirmFilesTrash(item: {

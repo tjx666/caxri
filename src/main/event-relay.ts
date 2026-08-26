@@ -1,9 +1,5 @@
-import type { EventRecovery } from '../shared/ipc/event-journal';
-import { createEventJournal, isTransientRuntimeEvent } from '../shared/ipc/event-journal';
-import type { RuntimeEvent } from '../shared/ipc/events';
-import type { LogEventName } from '../shared/ipc/logging';
-import { logEventCatalog } from '../shared/ipc/logging';
-import type { BootstrapState } from '../shared/types';
+import type { BootstrapState, EventRecovery, LogEventName, RuntimeEvent } from '@caxri/protocol';
+import { createEventJournal, isTransientRuntimeEvent, logEventCatalog } from '@caxri/protocol';
 
 interface EventLogger {
     write(

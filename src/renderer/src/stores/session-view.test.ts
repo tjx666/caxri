@@ -1,5 +1,5 @@
+import type { BootstrapState } from '@caxri/protocol';
 import type { EditorDocument } from '@shared/editor-state';
-import type { BootstrapState } from '@shared/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {

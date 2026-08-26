@@ -2,6 +2,9 @@
 import { homedir } from 'node:os';
 import process from 'node:process';
 
+import { executeSkillCommand } from '@caxri/agent-skills';
+import type { HostLaunchOptions } from '@caxri/client/supervise';
+import { connectToHost, ensureHost } from '@caxri/client/supervise';
 import type {
     AgentContextResult,
     AgentEndpointSummary,
@@ -27,11 +30,8 @@ import {
     resolveCliProfile,
     resolvePackagedHostLaunch,
 } from './environment';
-import { connectToHost, ensureHost } from './host/client';
-import type { HostLaunchOptions } from './host/launch';
 import type { CliOutputMode } from './output';
 import { exitCodeFor, normalizeCliError, quietLines, renderHumanValue, stableJson } from './output';
-import { executeSkillCommand } from './skills/execute';
 import { CLI_PROTOCOL_VERSION, CLI_VERSION } from './version';
 
 export interface CliIo {

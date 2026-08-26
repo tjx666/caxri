@@ -1,6 +1,6 @@
+import type { ViewContainerId } from '@caxri/protocol';
 import type { EditorDocument, SessionDocuments } from '@shared/editor-state';
 import { setSessionDocument } from '@shared/editor-state';
-import type { ViewContainerId } from '@shared/views';
 import { omit, omitBy } from 'es-toolkit';
 import { create } from 'zustand';
 

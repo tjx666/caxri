@@ -1,3 +1,4 @@
+import type { TerminalKind } from '@caxri/protocol';
 import type { PaneSplitSide } from '@shared/pane-layout';
 import {
     findResourceTabs,
@@ -6,7 +7,6 @@ import {
     selectTab,
     splitTabIntoPane,
 } from '@shared/pane-layout';
-import type { TerminalKind } from '@shared/types';
 
 import { caxri } from '../../lib/caxri';
 import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';

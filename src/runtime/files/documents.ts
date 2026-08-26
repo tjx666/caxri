@@ -5,10 +5,11 @@ import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
-import { CaxriError } from '../../shared/ipc/errors';
+import type { FileDocument } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
-import type { FileDocument } from '../../shared/types';
 import { isOutsideRoot } from '../path-security';
 import type { ResolvedSessionPath } from '../project-roots';
 

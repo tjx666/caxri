@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 
-import type { HostDesktopLaunch } from '../shared/ipc/desktop-launch';
+import type { HostDesktopLaunch } from '@caxri/protocol';
+
 import { e2eFakeExecutableEnvironmentKeys } from '../shared/node/e2e-agent-policy';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
 

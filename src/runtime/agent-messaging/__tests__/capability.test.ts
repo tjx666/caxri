@@ -1,6 +1,6 @@
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { agentProviderCatalog, agentProviderIds } from '../../../shared/agents';
 import { AgentMessagingCapabilityProbe } from '..';
 
 const launch = { executable: 'codex', args: [] };

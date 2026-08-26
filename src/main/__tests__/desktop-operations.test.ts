@@ -1,6 +1,6 @@
+import type { DesktopOperation, DesktopTargetPayload } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DesktopOperation, DesktopTargetPayload } from '../../shared/ipc/local-transport';
 import { createDesktopOperationHandler } from '../desktop-operations';
 
 const target: DesktopTargetPayload = {

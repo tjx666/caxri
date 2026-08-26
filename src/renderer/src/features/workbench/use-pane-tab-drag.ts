@@ -1,7 +1,7 @@
 import type { DragEvent, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { PaneNode } from '@shared/types';
+import type { PaneNode } from '@caxri/protocol';
 
 import { workTabId } from '../tabs/work-tab-accessibility';
 import { movePaneTab, selectPaneTab } from './pane-actions';

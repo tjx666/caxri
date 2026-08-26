@@ -1,8 +1,8 @@
 import { sep } from 'node:path';
 
+import type { RuntimeEvent } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { GitChangeTracker } from '../change-tracker';
 
 const REPO_KEY = '/repo/.git';

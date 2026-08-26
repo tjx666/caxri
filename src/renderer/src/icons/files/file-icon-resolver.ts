@@ -1,4 +1,4 @@
-import type { FileEntry } from '@shared/types';
+import type { FileEntry } from '@caxri/protocol';
 import {
     DEFAULT_FILE,
     getIconForFile,

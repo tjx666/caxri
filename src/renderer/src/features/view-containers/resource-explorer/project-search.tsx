@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 
+import type { FileSearchMatch, FileSearchMode } from '@caxri/protocol';
 import { editorModelPath } from '@shared/editor-state';
-import type { FileSearchMatch, FileSearchMode } from '@shared/types';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, ListFilter, Search, X } from 'lucide-react';
 

@@ -1,7 +1,6 @@
+import type { HostMethod, RuntimeHostControlRequest } from '@caxri/protocol';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import type { RuntimeHostControlRequest } from '../../../packages/protocol/src/agent/agent-endpoint-control';
-import type { HostMethod } from '../../shared/ipc/methods';
 import type { HostForwardedMethod, HostHandledMethod } from '../host-methods';
 import { hostForwardedMethods } from '../host-methods';
 

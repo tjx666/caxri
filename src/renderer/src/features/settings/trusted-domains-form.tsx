@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '@shared/trusted-domains';
+import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '@caxri/protocol';
 import { Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';

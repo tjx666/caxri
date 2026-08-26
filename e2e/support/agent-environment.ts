@@ -1,8 +1,8 @@
 import { mkdir } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
-import type { AgentProvider } from '../../src/shared/agents.ts';
-import { agentProviderIds } from '../../src/shared/agents.ts';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 
 interface E2EAgentStatePolicy {
     directoryName: string;

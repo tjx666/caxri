@@ -1,5 +1,5 @@
-import { CaxriError } from '../../shared/ipc/errors';
-import type { GitCommit } from '../../shared/types';
+import type { GitCommit } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
 /**
  * NUL-delimited field layout shared by every commit-metadata read (`git log -z`, `git show -s -z`): sha, author name,

@@ -1,4 +1,4 @@
-import type { Keybinding } from '../shared/types';
+import type { Keybinding } from '@caxri/protocol';
 
 export interface MenuRefreshControllerOptions {
     applyKeybindings(keybindings: Keybinding[]): void;

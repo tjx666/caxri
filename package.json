@@ -152,7 +152,8 @@
     },
     "devDependencies": {
         "@base-ui/react": "1.6.0",
-        "@caxri/cli": "workspace:*",
+        "@caxri/agent-skills": "workspace:*",
+        "@caxri/client": "workspace:*",
         "@caxri/protocol": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",

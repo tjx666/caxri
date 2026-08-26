@@ -1,6 +1,6 @@
-import { inspectBundledSkillHealth } from '@caxri/cli';
+import { inspectBundledSkillHealth } from '@caxri/agent-skills';
+import type { AgentSkillHealth } from '@caxri/protocol';
 
-import type { AgentSkillHealth } from '../shared/types';
 import type { AgentEnvironment } from './agents';
 import type { CaxriDatabase } from './db';
 

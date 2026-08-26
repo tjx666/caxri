@@ -3,10 +3,10 @@ import { appendFile, mkdtemp, open, readFile, rm, symlink, writeFile } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { CaxriError } from '@caxri/protocol';
 import { contrastRatio } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { CaxriError } from '../../shared/ipc/errors';
 import { execFileAsync } from '../../shared/node/exec';
 import { draculaTheme, importTheme, MAX_THEME_IMPORT_FILE_BYTES } from '../theme';
 

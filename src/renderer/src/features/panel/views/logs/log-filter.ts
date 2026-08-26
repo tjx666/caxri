@@ -1,4 +1,4 @@
-import type { LogLevel, LogQueryRecord } from '@shared/types';
+import type { LogLevel, LogQueryRecord } from '@caxri/protocol';
 
 /**
  * Parsed VS Code Output-panel style text filter: comma-separated patterns combined with OR, a `!` prefix excludes, and

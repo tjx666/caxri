@@ -1,4 +1,4 @@
-import type { SessionRecord } from '@shared/types';
+import type { SessionRecord } from '@caxri/protocol';
 import { create } from 'zustand';
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';

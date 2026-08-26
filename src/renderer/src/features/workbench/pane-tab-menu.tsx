@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 
+import type { PaneLayout } from '@caxri/protocol';
 import { MAX_PANE_LAYOUT_PANES } from '@caxri/protocol';
 import type { PaneSplitSide } from '@shared/pane-layout';
 import { paneSplitBlockedReason, paneTabIdsToClose } from '@shared/pane-layout';
-import type { PaneLayout } from '@shared/types';
 
 import {
     ContextMenuContent,

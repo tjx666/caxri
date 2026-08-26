@@ -3,7 +3,7 @@ import {
     MAX_AGENT_OUTPUT_RECOVERY_PATTERN_LENGTH,
     MAX_AGENT_OUTPUT_RECOVERY_PATTERNS,
     MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS,
-} from '@shared/agents';
+} from '@caxri/protocol';
 
 export type RecoveryPatternParseResult =
     { ok: true; patterns: string[] } | { ok: false; error: string };

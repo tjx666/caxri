@@ -1,13 +1,17 @@
+import type { CaxriReply } from '@caxri/protocol';
+import {
+    CAXRI_PROTOCOL_VERSION,
+    CaxriError,
+    isRendererErrorKind,
+    RENDERER_ERROR_CHANNELS,
+    requestIdFromEnvelope,
+    toWireError,
+} from '@caxri/protocol';
 import type { WebContents } from 'electron';
 import { ipcMain } from 'electron';
 
-import { requestIdFromEnvelope } from '../shared/ipc/dispatcher';
-import { CaxriError, toWireError } from '../shared/ipc/errors';
-import type { CaxriReply } from '../shared/ipc/transport';
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
-import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '../shared/renderer-error';
 import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 
 export interface WorkbenchIpcOptions {

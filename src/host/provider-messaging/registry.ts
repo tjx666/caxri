@@ -1,17 +1,18 @@
 import { randomUUID } from 'node:crypto';
 
-import type { AgentEndpointRef as AgentEndpointReference } from '../../shared/ipc/agent-endpoint-contract';
-import type { AgentInboundMessage } from '../../shared/ipc/agent-inbox-contract';
-import { CaxriError } from '../../shared/ipc/errors';
 import type {
+    AgentEndpointRef as AgentEndpointReference,
+    AgentInboundMessage,
     ProviderMessagingAdapter,
     ProviderMessagingRegistration,
-} from '../../shared/ipc/provider-messaging-contract';
+} from '@caxri/protocol';
 import {
+    CaxriError,
     providerMessageAckSchema,
     providerMessageDeliverySchema,
     providerMessagingRegistrationSchema,
-} from '../../shared/ipc/provider-messaging-contract';
+} from '@caxri/protocol';
+
 import type { AgentEndpointRegistry } from '../agent-endpoints';
 
 interface RegisteredAdapter {

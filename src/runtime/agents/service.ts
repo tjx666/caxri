@@ -1,10 +1,16 @@
 import process from 'node:process';
 
-import type { AgentLaunchSettings, AgentProvider } from '../../shared/agents';
-import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
+import type {
+    AgentActivityState,
+    AgentLaunchSettings,
+    AgentProvider,
+    AgentSnapshot,
+    SessionAttentionKind,
+} from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
-import type { AgentActivityState, AgentSnapshot, SessionAttentionKind } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import type { AgentEnvironment, AgentSnapshotContext } from './contract';
 import { defaultAgentEnvironment, processStateToAgentActivity } from './contract';

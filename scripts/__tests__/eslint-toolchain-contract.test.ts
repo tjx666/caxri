@@ -197,6 +197,17 @@ describe('shared ESLint preset toolchain contract', () => {
         );
     });
 
+    it('keeps test-only package seams out of production source', async () => {
+        const result = await lintSource(
+            'scripts/fixtures/eslint/architecture/apps/server/src/test-only-import.ts',
+            "import '@caxri/agent-skills/testing';",
+        );
+
+        expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+            'caxri/architecture-boundaries',
+        );
+    });
+
     it('rejects cycles in target applications and packages', async () => {
         const results = await lintAll([
             'scripts/fixtures/eslint/architecture/packages/client/src/cycle-a.ts',

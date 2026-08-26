@@ -3,14 +3,16 @@ import type { Dirent } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { basename, join, relative, sep } from 'node:path';
 
-import { CaxriError, errorMessage } from '../../shared/ipc/errors';
 import type {
+    FileDocument,
+    FileSearchMatch,
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
-} from '../../shared/ipc/methods';
+} from '@caxri/protocol';
+import { CaxriError, errorMessage } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
-import type { FileDocument, FileSearchMatch } from '../../shared/types';
 import type { ResolveSessionPath } from './documents';
 import { isTraversalExcludedName } from './ignore-rules';
 

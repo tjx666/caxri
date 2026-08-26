@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { SourceControlHistoryDescriptor, SourceControlHistoryPage } from '@shared/views';
+import type { SourceControlHistoryDescriptor, SourceControlHistoryPage } from '@caxri/protocol';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 

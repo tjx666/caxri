@@ -1,6 +1,6 @@
 import { isAbsolute, relative, sep } from 'node:path';
 
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
 
 /**
  * Distinguishes real parent traversal from valid names such as `..odd.txt`.

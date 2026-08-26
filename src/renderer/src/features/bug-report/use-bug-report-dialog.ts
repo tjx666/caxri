@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useReducer } from 'react';
 
+import type { MethodResult } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import type { MethodResult } from '@shared/ipc';
-import { errorMessage } from '@shared/ipc';
 
 import { caxri } from '../../lib/caxri';
 import { setBugReportOpen } from '../../stores/dialogs';

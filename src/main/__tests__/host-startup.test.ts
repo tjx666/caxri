@@ -1,6 +1,6 @@
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { CaxriError } from '../../shared/ipc/errors';
 import { shouldContinueStartup } from '../host-startup';
 
 describe('Host startup boundary', () => {

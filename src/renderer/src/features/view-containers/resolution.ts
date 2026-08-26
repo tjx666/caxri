@@ -3,7 +3,7 @@ import type {
     ViewContainerDescriptor,
     ViewContainerId,
     ViewContainerLocation,
-} from '@shared/views';
+} from '@caxri/protocol';
 
 function isResolvable(container: ViewContainerDescriptor): boolean {
     return ['builtin', 'core', 'discovered', 'activating', 'active'].includes(container.lifecycle);

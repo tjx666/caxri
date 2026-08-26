@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { TerminalSnapshot } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { TerminalSnapshot } from '../../../../shared/types';
 import { CaxriDatabaseConnection as CaxriDatabase } from '../../index';
 
 const temporaryDirectories: string[] = [];

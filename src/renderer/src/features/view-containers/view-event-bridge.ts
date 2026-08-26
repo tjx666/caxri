@@ -1,4 +1,4 @@
-import type { RuntimeEvent } from '@shared/ipc';
+import type { RuntimeEvent } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 

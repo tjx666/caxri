@@ -1,25 +1,27 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-import WebSocket from 'ws';
-
-import type { CommandDispatcherOptions } from '../shared/ipc/dispatcher';
-import type { CaxriError } from '../shared/ipc/errors';
-import { toWireError } from '../shared/ipc/errors';
 import type {
+    CaxriError,
+    CommandDispatcherOptions,
+    CommandExecutionContext,
+    CommandReplyEnvelope,
     DesktopLease,
     DesktopTargetPayload,
     HostDesktopCredential,
     HostManifestIdentity,
     LocalClientCommand,
     LocalServerReply,
-} from '../shared/ipc/local-transport';
-import { localServerDesktopLeaseRevokedSchema } from '../shared/ipc/local-transport';
-import type { LogEventName } from '../shared/ipc/logging';
-import type { RuntimeRequest } from '../shared/ipc/methods';
-import { getMethodSpec } from '../shared/ipc/methods';
-import type { CommandExecutionContext } from '../shared/ipc/principal';
-import type { CommandReplyEnvelope } from '../shared/ipc/transport';
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+    LogEventName,
+    RuntimeRequest,
+} from '@caxri/protocol';
+import {
+    CAXRI_PROTOCOL_VERSION,
+    getMethodSpec,
+    localServerDesktopLeaseRevokedSchema,
+    toWireError,
+} from '@caxri/protocol';
+import WebSocket from 'ws';
+
 import type { LogRecord } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 

@@ -1,5 +1,5 @@
-import type { AgentProvider } from '@shared/agents';
-import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import type { SettingCategoryId, SettingKey, SettingSpec } from '@shared/config';
 import { settingCategories, settingsSpecByKey } from '@shared/config';
 

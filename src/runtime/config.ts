@@ -3,6 +3,24 @@ import { createHash } from 'node:crypto';
 import { mkdir, open, realpath } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
+import type {
+    AppSettings,
+    Keybinding,
+    KeybindingConflict,
+    RuntimeEvent,
+    SettingsPatchChange,
+    SettingsPatchResult,
+    ThemeTokens,
+} from '@caxri/protocol';
+import {
+    CaxriError,
+    configurationSourceSchema as configSourceSchema,
+    errorMessage,
+    inspectableSettingsSchema,
+    MAX_CONFIGURATION_SOURCE_BYTES,
+    MAX_TRUSTED_DOMAINS,
+    normalizeTrustedDomainRule,
+} from '@caxri/protocol';
 import { applyEdits, modify } from 'jsonc-parser';
 
 import { defaultKeybindings } from '../shared/commands';
@@ -12,20 +30,10 @@ import {
     findKeybindingConflicts,
     keybindingsFileSchema,
 } from '../shared/config';
-import {
-    configurationSourceSchema as configSourceSchema,
-    MAX_CONFIGURATION_SOURCE_BYTES,
-} from '../shared/config-contract';
-import type { SettingsPatchChange, SettingsPatchResult } from '../shared/ipc/business-contract';
-import { inspectableSettingsSchema } from '../shared/ipc/business-contract';
-import { CaxriError, errorMessage } from '../shared/ipc/errors';
-import type { RuntimeEvent } from '../shared/ipc/events';
 import { parseJsonc } from '../shared/node/jsonc';
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 import { redactLogValue } from '../shared/node/redaction';
-import { MAX_TRUSTED_DOMAINS, normalizeTrustedDomainRule } from '../shared/trusted-domains';
-import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '../shared/types';
 import { atomicWrite } from './atomic-file';
 import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './theme';
 import type { WatchHandle } from './watch-hub';

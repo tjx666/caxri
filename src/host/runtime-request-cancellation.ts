@@ -1,5 +1,5 @@
-import { CaxriError } from '../shared/ipc/errors';
-import type { CommandExecutionContext } from '../shared/ipc/principal';
+import type { CommandExecutionContext } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
 export function principalRequestKey(context: CommandExecutionContext, requestId: string): string {
     const principal = context.principal;

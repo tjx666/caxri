@@ -1,7 +1,8 @@
 import { basename } from 'node:path';
 
-import type { AgentProvider } from '../../shared/agents';
-import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
+
 import { execFileAsync } from '../../shared/node/exec';
 
 const PROCESS_QUERY_TIMEOUT_MS = 2_000;

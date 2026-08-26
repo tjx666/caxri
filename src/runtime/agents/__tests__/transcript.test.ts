@@ -2,9 +2,9 @@ import { link, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { TerminalRecord } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { TerminalRecord } from '../../../shared/types';
 import type { CaxriDatabase } from '../../db';
 import { agentProviders } from '../providers';
 import { MAX_AGENT_TRANSCRIPT_BYTES, readAgentTranscript } from '../transcript';

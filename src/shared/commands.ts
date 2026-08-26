@@ -1,4 +1,5 @@
-import type { CommandId, Keybinding } from './types';
+import type { CommandId, Keybinding } from '@caxri/protocol';
+
 import { filesCoreCommandDefinitions, filesCoreKeybindings } from './workbench-core-contributions';
 
 export type { CommandId };

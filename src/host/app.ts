@@ -3,20 +3,25 @@ import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { assertNever } from '../shared/ipc';
-import type { CommandAdapter } from '../shared/ipc/dispatcher';
-import { CaxriError } from '../shared/ipc/errors';
+import type {
+    CommandAdapter,
+    CommandExecutionContext,
+    HostRequest,
+    RuntimeEvent,
+    RuntimeRequest,
+} from '@caxri/protocol';
 import {
+    assertNever,
+    CAXRI_PROTOCOL_VERSION,
+    CaxriError,
     createEventJournal,
+    getMethodSpec,
+    hasRequiredCapabilities,
+    isHostRequest,
     isTransientRuntimeEvent,
     projectObservableEventRecovery,
-} from '../shared/ipc/event-journal';
-import type { RuntimeEvent } from '../shared/ipc/events';
-import type { HostRequest, RuntimeRequest } from '../shared/ipc/methods';
-import { getMethodSpec, isHostRequest } from '../shared/ipc/methods';
-import type { CommandExecutionContext } from '../shared/ipc/principal';
-import { hasRequiredCapabilities } from '../shared/ipc/principal';
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+} from '@caxri/protocol';
+
 import { startEventLoopMonitor } from '../shared/node/event-loop-monitor';
 import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';

@@ -1,4 +1,4 @@
-import type { ProcessState } from '@shared/types';
+import type { ProcessState } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { getTerminalExitPresentation } from '../terminal-exit-presentation';

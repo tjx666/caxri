@@ -7,10 +7,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentProvider } from '../../../../shared/agents';
-import { agentProviderIds } from '../../../../shared/agents';
 import { AgentHookServer, pruneStaleAgentHookSockets } from '../server';
 
 const temporaryDirectories: string[] = [];

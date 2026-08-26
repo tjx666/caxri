@@ -1,11 +1,5 @@
 import { homedir } from 'node:os';
 
-import { z } from 'zod';
-
-import { CaxriError } from '../shared/ipc/errors';
-import type { RuntimeEvent } from '../shared/ipc/events';
-import type { StructuredLogger } from '../shared/node/logger';
-import { logEventCatalog } from '../shared/node/logger';
 import type {
     GitRepositorySummary as GitRepoSummary,
     ProjectStatusCheck,
@@ -16,7 +10,13 @@ import type {
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusState,
     ProjectStatusSummary,
-} from '../shared/types';
+    RuntimeEvent,
+} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+import { z } from 'zod';
+
+import type { StructuredLogger } from '../shared/node/logger';
+import { logEventCatalog } from '../shared/node/logger';
 import type { GitService } from './git';
 import type {
     ProjectStatusCommand,

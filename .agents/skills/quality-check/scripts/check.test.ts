@@ -290,11 +290,11 @@ describe('testCandidatesForFile', () => {
                 'src/runtime/files/__tests__/files.integration.test.ts',
             ]),
         );
-        expect(testCandidatesForFile('packages/cli/src/skills/execute.ts')).toContain(
-            'packages/cli/src/skills/__tests__/skills.integration.test.ts',
+        expect(testCandidatesForFile('packages/agent-skills/src/execute.ts')).toContain(
+            'packages/agent-skills/src/__tests__/execute.integration.test.ts',
         );
-        expect(testCandidatesForFile('packages/cli/src/skills/filesystem.ts')).toContain(
-            'packages/cli/src/skills/__tests__/skills.integration.test.ts',
+        expect(testCandidatesForFile('packages/agent-skills/src/filesystem.ts')).toContain(
+            'packages/agent-skills/src/__tests__/filesystem.integration.test.ts',
         );
     });
 
@@ -384,9 +384,9 @@ describe('direct import test selection', () => {
 
     it('selects a test whose only link to the source is an alias import', async () => {
         const selected = await directImportTestCandidates(process.cwd(), [
-            'src/shared/ipc/events.ts',
+            'src/shared/commands.ts',
         ]);
-        expect(selected).toContain('src/renderer/src/stores/workbench.test.ts');
+        expect(selected).toContain('src/renderer/src/commands/execute.test.ts');
     });
 
     it('discovers direct-import tests inside workspace packages', async () => {

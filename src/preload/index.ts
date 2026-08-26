@@ -1,17 +1,16 @@
-import { contextBridge, ipcRenderer } from 'electron';
-
+import { createRecoveringEventClient } from '@caxri/client/state';
 import type {
     CaxriBridge,
     CaxriMethod,
     MethodReply,
     ParamsArg as ParametersArgument,
+    ProtocolEventEnvelope,
+    ProtocolWelcome,
     RuntimeEvent,
-} from '../shared/ipc';
-import { fromWireError } from '../shared/ipc/errors';
-import { createRecoveringEventClient } from '../shared/ipc/event-client';
-import type { ProtocolEventEnvelope, TransientRuntimeEvent } from '../shared/ipc/event-journal';
-import type { ProtocolWelcome } from '../shared/ipc/version';
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+    TransientRuntimeEvent,
+} from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, fromWireError } from '@caxri/protocol';
+import { contextBridge, ipcRenderer } from 'electron';
 
 /**
  * Kept entry-local because sharing this constant across both preload entries makes Vite extract a CommonJS chunk, which

@@ -1,6 +1,6 @@
+import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@caxri/protocol';
+import { themeTokensSchema } from '@caxri/protocol';
 import { appSettingsFileSchema, keybindingsFileSchema } from '@shared/config';
-import { themeTokensSchema } from '@shared/ipc/domain';
-import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@shared/types';
 import type { ParseError } from 'jsonc-parser';
 import { parse, printParseErrorCode } from 'jsonc-parser';
 

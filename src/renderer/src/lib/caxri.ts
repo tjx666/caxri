@@ -1,5 +1,5 @@
-import type { CaxriMethod, ParamsArg } from '@shared/ipc';
-import { createCaxriClient } from '@shared/ipc';
+import type { CaxriMethod, ParamsArg } from '@caxri/protocol';
+import { createCaxriClient } from '@caxri/protocol';
 
 /**
  * Single Renderer entry point for IPC. The preload bridge resolves with reply envelopes because `contextBridge` strips

@@ -2,10 +2,10 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { RuntimeMethod } from '@caxri/protocol';
+import { CaxriError, internalMethods, methods } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeMethod } from '../../shared/ipc';
-import { CaxriError, internalMethods, methods } from '../../shared/ipc';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
 import type { RuntimeHandlers } from '../dispatch';

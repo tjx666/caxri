@@ -2,16 +2,16 @@ import { createHash } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 import { basename, relative, resolve, sep } from 'node:path';
 
-import { MAX_GIT_STATUS_FILES } from '../../shared/ipc/domain';
-import { CaxriError } from '../../shared/ipc/errors';
-import { mapWithConcurrency } from '../../shared/node/concurrency';
-import type { StructuredLogger } from '../../shared/node/logger';
-import { logEventCatalog } from '../../shared/node/logger';
 import type {
     GitFileStatus,
     GitRepositorySummary as GitRepoSummary,
     GitSummary,
-} from '../../shared/types';
+} from '@caxri/protocol';
+import { CaxriError, MAX_GIT_STATUS_FILES } from '@caxri/protocol';
+
+import { mapWithConcurrency } from '../../shared/node/concurrency';
+import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';

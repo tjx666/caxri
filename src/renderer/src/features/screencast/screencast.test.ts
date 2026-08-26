@@ -1,4 +1,4 @@
-import type { Keybinding } from '@shared/types';
+import type { Keybinding } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { ScreencastKeyboardInput } from './screencast';

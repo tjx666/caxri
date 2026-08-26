@@ -1,21 +1,21 @@
-import { asc, eq, inArray, sql } from 'drizzle-orm';
-
 import type {
     AgentDispatchFailure,
     AgentDispatchLaunch,
     AgentDispatchOperation,
     AgentDispatchReceipt,
     AgentDispatchStatus,
-} from '../../../shared/ipc/agent-dispatch-contract';
+    AgentEndpointRef as AgentEndpointReference,
+    AgentProvider,
+} from '@caxri/protocol';
 import {
     agentDispatchFailureSchema,
     agentDispatchLaunchSchema,
     agentDispatchReceiptSchema,
-} from '../../../shared/ipc/agent-dispatch-contract';
-import type { AgentEndpointRef as AgentEndpointReference } from '../../../shared/ipc/agent-endpoint-contract';
-import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../../../shared/ipc/agent-endpoint-contract';
-import { CaxriError } from '../../../shared/ipc/errors';
-import type { AgentProvider } from '../../../shared/types';
+    agentEndpointRefSchema as agentEndpointReferenceSchema,
+    CaxriError,
+} from '@caxri/protocol';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
+
 import type { CaxriDrizzleDatabase } from '../connection';
 import { agentDispatchReceipts } from '../schema';
 

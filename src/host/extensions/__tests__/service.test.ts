@@ -1,6 +1,6 @@
+import type { ProjectStatusSummary } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { ProjectStatusSummary } from '../../../../packages/protocol/src/domain/domain';
 import type { DiscoveredExtension } from '../discovery';
 import { grantsForExtension, projectStatusForExtension } from '../service';
 

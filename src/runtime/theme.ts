@@ -1,17 +1,16 @@
 import { extname } from 'node:path';
 
+import type { ThemeTokens } from '@caxri/protocol';
+/**
+ * The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
+ */
+import { CaxriError, themeTokensSchema as themeSchema } from '@caxri/protocol';
 import { contrastRatio } from '@caxri/utils';
 import { parse as parsePlist } from 'plist';
 import YAML from 'yaml';
 
-/**
- * The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
- */
-import { themeTokensSchema as themeSchema } from '../shared/ipc/domain';
-import { CaxriError } from '../shared/ipc/errors';
 import { parseJsonc } from '../shared/node/jsonc';
 import { themeImportFormats } from '../shared/theme-import';
-import type { ThemeTokens } from '../shared/types';
 import type { BoundedRegularFileReadOptions } from './bounded-file-reader';
 import { readBoundedRegularFileText } from './bounded-file-reader';
 

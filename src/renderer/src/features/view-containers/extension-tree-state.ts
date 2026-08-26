@@ -1,5 +1,5 @@
-import type { ExtensionTreeViewState, TreeItemDto } from '@shared/views';
-import { MAX_VIEW_TREE_HANDLES, MAX_VIEW_TREE_PERSISTED_IDS } from '@shared/views';
+import type { ExtensionTreeViewState, TreeItemDto } from '@caxri/protocol';
+import { MAX_VIEW_TREE_HANDLES, MAX_VIEW_TREE_PERSISTED_IDS } from '@caxri/protocol';
 
 const STABLE_KEY_PREFIX = 'id\0';
 const TRANSIENT_KEY_PREFIX = 'handle\0';

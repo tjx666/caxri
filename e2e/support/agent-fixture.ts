@@ -2,8 +2,9 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { AgentProvider } from '../../src/shared/agents';
-import { agentProviderIds } from '../../src/shared/agents';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
+
 import { createE2EAgentIsolationEnvironment } from './agent-environment';
 
 interface FakeAgentInputCapture {

@@ -1,6 +1,7 @@
+import type { TerminalResourceUsage } from '@caxri/protocol';
+
 import { execFileAsync } from '../../shared/node/exec';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';
-import type { TerminalResourceUsage } from '../../shared/types';
 
 const MAX_PROCESS_SNAPSHOT_BYTES = 4 * 1024 * 1024;
 

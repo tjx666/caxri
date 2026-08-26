@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
+import { isNonExpiringViewOperation } from '@caxri/protocol';
 import type { CancellationToken, DisposableLike } from 'caxri';
 
 import type {
     ExtensionHostApiRequest,
     ExtensionHostMessage,
 } from '../shared/extension-host-protocol';
-import { isNonExpiringViewOperation } from '../shared/ipc/request-lifetime';
 
 type ExtensionHostApiRequestIdentity = 'apiToken' | 'extensionId' | 'generation' | 'id' | 'type';
 

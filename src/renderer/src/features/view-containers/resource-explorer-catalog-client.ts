@@ -1,4 +1,4 @@
-import type { ViewCatalogSnapshot } from '@shared/views';
+import type { ViewCatalogSnapshot } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { getSelectedSession } from '../../stores/selectors';

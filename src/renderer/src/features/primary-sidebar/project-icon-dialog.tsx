@@ -1,8 +1,7 @@
 import { useReducer, useState } from 'react';
 
-import type { ProjectIconColor, ProjectIconName } from '@shared/project-customization';
-import { projectIconColors, projectIconNames } from '@shared/project-customization';
-import type { ProjectRecord } from '@shared/types';
+import type { ProjectIconColor, ProjectIconName, ProjectRecord } from '@caxri/protocol';
+import { projectIconColors, projectIconNames } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
 import {

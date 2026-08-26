@@ -1,6 +1,6 @@
 import type { DragEvent } from 'react';
 
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { Archive, Paintbrush, SquarePen } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';

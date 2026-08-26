@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
-import { isCaxriError } from '@shared/ipc';
-import type { FileMutationOperation } from '@shared/types';
+import type { FileMutationOperation } from '@caxri/protocol';
+import { isCaxriError } from '@caxri/protocol';
 import { clamp, uniq } from 'es-toolkit';
 
 import { caxri } from '../../../lib/caxri';

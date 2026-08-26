@@ -14,13 +14,14 @@ import {
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
+
 import {
     assertDesktopLeasesReleased,
     reclaimDesktopLeasesByOwner,
     reclaimStaleCiDesktopLeases,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
-import type { AgentProvider } from '../src/shared/agents';
-import { agentProviderIds } from '../src/shared/agents';
 import { execFileAsync } from './exec';
 
 const ownerPattern = /^caxri-\d+-\d+-[a-z0-9-]+$/u;

@@ -31,6 +31,7 @@ apps/
   cli/
 
 packages/
+  agent-skills/
   client/
   protocol/
   extension-api/
@@ -281,17 +282,20 @@ The following graph means “may import” and is enforced by ESLint from the fi
 the target workspaces:
 
 ```text
+agent-skills  -> protocol
 client        -> protocol, utils
-server        -> protocol, extension-api, utils
+server        -> agent-skills, protocol, extension-api, utils
 desktop       -> client, protocol, utils
-cli           -> client, protocol, utils
+cli           -> agent-skills, client, protocol, utils
 extensions    -> extension-api
 ```
 
 Packages never import applications. Applications never import another application's source. Server
 processes communicate through their composition root and internal protocol rather than deep-importing
 another process implementation. `@caxri/client/supervise` is additionally forbidden from browser
-Clients. Package exports, TypeScript project boundaries, cycle checks, and negative contract fixtures
+Clients. `@caxri/agent-skills` owns provider-neutral installation, filesystem transactions, and health
+inspection shared by Server and CLI; its `testing` entry is rejected from production source. Package
+exports, TypeScript project boundaries, cycle checks, and negative contract fixtures
 backstop ESLint, but ESLint is the contributor-facing source of truth. The public Extension API does not
 import protocol registry or transport internals. Repository tooling and E2E fixtures have explicit,
 separately linted test-only edges and cannot become production precedents.

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
+import type { PaneLayout } from '@caxri/protocol';
 import { activePane } from '@shared/pane-layout';
-import type { PaneLayout } from '@shared/types';
 
 import { workTabId } from '../tabs/work-tab-accessibility';
 

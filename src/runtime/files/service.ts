@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, resolve } from 'node:path';
 
-import type { RuntimeEvent } from '../../shared/ipc/events';
 import type {
+    AppSettings,
+    FileDocument,
+    FileEntry,
+    RuntimeEvent,
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
-} from '../../shared/ipc/methods';
+} from '@caxri/protocol';
+
 import type { StructuredLogger } from '../../shared/node/logger';
-import type { AppSettings, FileDocument, FileEntry } from '../../shared/types';
 import type { CaxriDatabase } from '../db';
 import type { ResolvedSessionPath } from '../project-roots';
 import { ProjectRootResolver } from '../project-roots';

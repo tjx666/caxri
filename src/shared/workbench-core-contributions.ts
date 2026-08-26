@@ -1,10 +1,10 @@
-import type { Keybinding } from './types';
 import type {
     ContributedCommandDescriptor,
     ExtensionViewActionRole,
+    Keybinding,
     ViewContainerDescriptor,
     ViewDescriptor,
-} from './views';
+} from '@caxri/protocol';
 
 export interface WorkbenchCoreCommandDefinition {
     id: string;

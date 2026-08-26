@@ -1,4 +1,4 @@
-import type { TerminalKind } from '@shared/types';
+import type { TerminalKind } from '@caxri/protocol';
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { caxri } from '../../lib/caxri';

@@ -1,35 +1,38 @@
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 
-import type { HostClient } from '@caxri/cli';
-import { connectDesktopToHost, ensureHost } from '@caxri/cli';
-
-import type { HostDesktopLaunch } from '../shared/ipc/desktop-launch';
-import { HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY } from '../shared/ipc/desktop-launch';
-import { isDesktopRuntimeMethod } from '../shared/ipc/desktop-runtime';
-import { CaxriError, errorMessage } from '../shared/ipc/errors';
-import type { RecoveringEventClient } from '../shared/ipc/event-client';
-import { createRecoveringEventClient } from '../shared/ipc/event-client';
-import type { RuntimeEvent } from '../shared/ipc/events';
+import type { HostConnectionState, RecoveringEventClient } from '@caxri/client';
+import {
+    createRecoveringEventClient,
+    initialHostConnectionState,
+    transitionHostConnection,
+} from '@caxri/client';
+import type { HostClient } from '@caxri/client/supervise';
+import { connectDesktopToHost, ensureHost } from '@caxri/client/supervise';
 import type {
+    CaxriMethod,
     DesktopLeaseRevocationReason,
     DesktopOperation,
     DesktopTargetPayload,
-} from '../shared/ipc/local-transport';
-import type {
-    CaxriMethod,
+    HostDesktopLaunch,
+    RuntimeEvent,
     RuntimeMethod,
     RuntimeMethodResult,
     RuntimeParamsArg as RuntimeParametersArgument,
-} from '../shared/ipc/methods';
-import { isCaxriMethod } from '../shared/ipc/methods';
+} from '@caxri/protocol';
+import {
+    CaxriError,
+    errorMessage,
+    HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
+    isCaxriMethod,
+    isDesktopRuntimeMethod,
+} from '@caxri/protocol';
+
 import { computeBuildFingerprint } from '../shared/node/build-fingerprint';
 import type { E2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { e2eAgentPolicyEnvironment } from '../shared/node/e2e-agent-policy';
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
-import type { HostConnectionState } from './host-connection-state';
-import { initialHostConnectionState, transitionHostConnection } from './host-connection-state';
 import type { HostBuildIdentity } from './host-staleness';
 import { isHostBuildStale } from './host-staleness';
 

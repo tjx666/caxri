@@ -2,10 +2,10 @@ import type { ChildProcess } from 'node:child_process';
 import { fork } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
+import { toWireError } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExtensionHostRequest } from '../../../shared/extension-host-protocol';
-import { toWireError } from '../../../shared/ipc/errors';
 import { StructuredLogger } from '../../../shared/node/logger';
 import {
     extensionHostReplyError,

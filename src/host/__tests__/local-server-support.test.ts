@@ -1,8 +1,6 @@
+import { CAXRI_PROTOCOL_VERSION, CaxriError, logEventCatalog } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { CaxriError } from '../../shared/ipc/errors';
-import { logEventCatalog } from '../../shared/ipc/logging';
-import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import type { LocalHostServerOptions } from '../local-server-support';
 import {
     executeReply,

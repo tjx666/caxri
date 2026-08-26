@@ -1,10 +1,15 @@
 import { Buffer } from 'node:buffer';
 
+import type {
+    RuntimeEvent,
+    TerminalFailureReason,
+    TerminalRecord,
+    TerminalResourceUsage,
+    TerminalSnapshot,
+} from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError, errorMessage, toWireError } from '@caxri/protocol';
 import * as pty from 'node-pty';
 
-import { agentProviderCatalog } from '../../shared/agents';
-import { CaxriError, errorMessage, toWireError } from '../../shared/ipc/errors';
-import type { RuntimeEvent } from '../../shared/ipc/events';
 import {
     assertE2EAgentInput,
     assertE2EAgentLaunch,
@@ -14,12 +19,6 @@ import {
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
 import { clearScheduledTimer } from '../../shared/node/timer';
-import type {
-    TerminalFailureReason,
-    TerminalRecord,
-    TerminalResourceUsage,
-    TerminalSnapshot,
-} from '../../shared/types';
 // Runtime providers use the public domain barrel by architecture contract.
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders } from '../agents';

@@ -2,11 +2,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { RuntimeEvent } from '@caxri/protocol';
+import { defaultAgentOutputRecoverySettings } from '@caxri/protocol';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { defaultAgentOutputRecoverySettings } from '../../../shared/agents';
-import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';

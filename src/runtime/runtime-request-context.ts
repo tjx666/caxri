@@ -1,5 +1,6 @@
-import { CaxriError } from '../shared/ipc/errors';
-import type { RuntimeWorkbenchContext } from '../shared/ipc/transport';
+import type { RuntimeWorkbenchContext } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+
 import type { CaxriDatabase } from './db';
 
 /**

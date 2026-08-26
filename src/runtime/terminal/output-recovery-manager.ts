@@ -1,6 +1,6 @@
-import type { AgentOutputRecoverySettings, AgentProvider } from '../../shared/agents';
-import { agentProviderIds } from '../../shared/agents';
-import type { RuntimeEvent } from '../../shared/ipc/events';
+import type { AgentOutputRecoverySettings, AgentProvider, RuntimeEvent } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../../shared/node/logger';
 import type { LiveTerminal } from './manager-types';
 import { AgentOutputRecovery } from './output-recovery';

@@ -5,22 +5,23 @@ import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm } from 'node:
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { CaxriError } from '../shared/ipc/errors';
 import type {
     HostControlEndpoint,
     HostDesktopCredential,
     HostLock,
     HostManifest,
     HostManifestIdentity,
-} from '../shared/ipc/local-transport';
+} from '@caxri/protocol';
 import {
+    CAXRI_PROTOCOL_VERSION,
+    CaxriError,
     HOST_DESKTOP_CREDENTIAL_VERSION,
     HOST_MANIFEST_VERSION,
     hostDesktopCredentialSchema,
     hostLockSchema,
     hostManifestSchema,
-} from '../shared/ipc/local-transport';
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+} from '@caxri/protocol';
+
 import { profileIdForPath } from '../shared/node/profile-identity';
 
 const MAX_PRIVATE_FILE_BYTES = 16 * 1024;

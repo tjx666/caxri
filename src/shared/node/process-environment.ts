@@ -1,7 +1,7 @@
 import process from 'node:process';
 
-import type { AgentProvider } from '../agents';
-import { agentProviderIds } from '../agents';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 
 const AGENT_ENVIRONMENT_KEYS: Record<AgentProvider, readonly string[]> = {
     claude: ['CLAUDE_CONFIG_DIR'],

@@ -4,10 +4,10 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import type { LogEventName } from '@caxri/protocol';
+import { logEventCatalog } from '@caxri/protocol';
 import { once } from 'es-toolkit';
 
-import type { LogEventName } from '../ipc/logging';
-import { logEventCatalog } from '../ipc/logging';
 import { isSecretKey, redactLogValue } from './redaction';
 
 export { logEventCatalog };

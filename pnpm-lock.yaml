@@ -75,9 +75,12 @@ importers:
       '@base-ui/react':
         specifier: 1.6.0
         version: 1.6.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@caxri/cli':
+      '@caxri/agent-skills':
         specifier: workspace:*
-        version: link:packages/cli
+        version: link:packages/agent-skills
+      '@caxri/client':
+        specifier: workspace:*
+        version: link:packages/client
       '@caxri/protocol':
         specifier: workspace:*
         version: link:packages/protocol
@@ -188,7 +191,7 @@ importers:
         version: 1.0.0
       caxri:
         specifier: workspace:*
-        version: link:packages/api
+        version: link:packages/extension-api
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -320,27 +323,42 @@ importers:
     devDependencies:
       caxri:
         specifier: workspace:*
-        version: link:../../packages/api
+        version: link:../../packages/extension-api
 
   extensions/git:
-    dependencies:
-      '@caxri/utils':
-        specifier: workspace:*
-        version: link:../../packages/utils
     devDependencies:
       caxri:
         specifier: workspace:*
-        version: link:../../packages/api
+        version: link:../../packages/extension-api
 
   extensions/status:
     devDependencies:
       caxri:
         specifier: workspace:*
-        version: link:../../packages/api
+        version: link:../../packages/extension-api
 
-  packages/api: {}
+  packages/agent-skills:
+    dependencies:
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/cli:
+    dependencies:
+      '@caxri/agent-skills':
+        specifier: workspace:*
+        version: link:../agent-skills
+      '@caxri/client':
+        specifier: workspace:*
+        version: link:../client
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+
+  packages/client:
     dependencies:
       '@caxri/protocol':
         specifier: workspace:*
@@ -348,9 +366,12 @@ importers:
       ws:
         specifier: 'catalog:'
         version: 8.21.3
-      zod:
+    devDependencies:
+      '@types/ws':
         specifier: 'catalog:'
-        version: 4.4.3
+        version: 8.18.1
+
+  packages/extension-api: {}
 
   packages/protocol:
     dependencies:

@@ -3,19 +3,18 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import WebSocket from 'ws';
-
-import { HostClient } from '../../../packages/cli/src/host';
-import type { CommandAdapter } from '../../shared/ipc/dispatcher';
-import { CaxriError } from '../../shared/ipc/errors';
-import type { HostControlEndpoint } from '../../shared/ipc/local-transport';
+import { HostClient } from '@caxri/client/supervise';
+import type { CommandAdapter, HostControlEndpoint } from '@caxri/protocol';
 import {
+    CAXRI_PROTOCOL_VERSION,
+    CaxriError,
     hostEndpointUrl,
     localServerReplySchema,
     localServerWelcomeSchema,
-} from '../../shared/ipc/local-transport';
-import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
+} from '@caxri/protocol';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import WebSocket from 'ws';
+
 import { LocalHostServer } from '../local-server';
 import { acquireHostProfile } from '../profile';
 

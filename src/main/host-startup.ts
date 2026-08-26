@@ -1,5 +1,5 @@
-import { errorMessage, isCaxriError } from '../shared/ipc/errors';
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+import { CAXRI_PROTOCOL_VERSION, errorMessage, isCaxriError } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 import type { DesktopHostConnection } from './host-connection';

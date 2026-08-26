@@ -1,5 +1,5 @@
+import type { AgentActivityState, AgentOperation } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
-import type { AgentActivityState, AgentOperation } from '@shared/types';
 
 export interface SessionActivityPresentation {
     ariaLabel: string;

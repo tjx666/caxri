@@ -4,9 +4,9 @@ import { appendFile, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/prom
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { CaxriError } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { CaxriError } from '../../shared/ipc/errors';
 import { readBoundedRegularFileText } from '../bounded-file-reader';
 
 const temporaryDirectories: string[] = [];

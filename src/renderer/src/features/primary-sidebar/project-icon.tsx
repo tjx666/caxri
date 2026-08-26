@@ -1,4 +1,4 @@
-import type { ProjectIcon as ProjectIconValue } from '@shared/project-customization';
+import type { ProjectIcon as ProjectIconValue } from '@caxri/protocol';
 import { FolderClosed, FolderOpen } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';

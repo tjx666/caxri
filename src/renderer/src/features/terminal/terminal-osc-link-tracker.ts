@@ -1,9 +1,10 @@
+import type { TerminalOscLinkSnapshot } from '@caxri/protocol';
 import {
     MAX_TERMINAL_LINK_LENGTH,
     MAX_TERMINAL_OSC_LINK_CELLS,
     MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS,
     MAX_TERMINAL_OSC_LINKS,
-} from '@shared/ipc';
+} from '@caxri/protocol';
 import {
     areTerminalOscLinkRangesOverlapping,
     resolveTerminalOscLinkCellOffset,
@@ -12,12 +13,11 @@ import {
     terminalOscLinkFingerprint,
     terminalOscLinkFingerprintCellCount,
 } from '@shared/terminal-osc-link-fingerprint';
-import type { TerminalOscLinkSnapshot } from '@shared/types';
 import type { IBuffer, IMarker, Terminal } from '@xterm/xterm';
 
 import type { TerminalLinkMatch } from './terminal-links';
 
-export { MAX_TERMINAL_LINK_LENGTH, MAX_TERMINAL_LINK_ROWS } from '@shared/ipc';
+export { MAX_TERMINAL_LINK_LENGTH, MAX_TERMINAL_LINK_ROWS } from '@caxri/protocol';
 
 interface OscLinkPosition {
     cellOffset: number;

@@ -5,7 +5,7 @@ import type {
     PaneResource,
     PaneSplitNode,
     PaneTab,
-} from './ipc/pane-layout';
+} from '@caxri/protocol';
 import {
     isRepeatablePaneResource,
     MAX_PANE_LAYOUT_PANES,
@@ -13,7 +13,7 @@ import {
     MAX_TABS_PER_PANE,
     MIN_SPLIT_RATIO,
     paneResourceKey,
-} from './ipc/pane-layout';
+} from '@caxri/protocol';
 
 export type PaneIdFactory = () => string;
 

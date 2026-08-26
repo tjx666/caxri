@@ -1,4 +1,4 @@
-import type { SourceControlHistoryDescriptor } from '@shared/views';
+import type { SourceControlHistoryDescriptor } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 
 import { useSelectedSession } from '../../../../stores/selectors';

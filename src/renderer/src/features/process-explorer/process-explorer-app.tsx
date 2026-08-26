@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { errorMessage } from '@shared/ipc';
+import { errorMessage } from '@caxri/protocol';
 import type { ProcessExplorerSnapshot } from '@shared/process-explorer';
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 

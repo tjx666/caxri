@@ -1,14 +1,13 @@
-import { z } from 'zod';
-
-import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc';
-import { CaxriError } from '../../shared/ipc/errors';
-import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
 import type {
     GitDiffDocument,
     GitFileStatus,
     GitPullRequestChanges,
     GitRepositorySummary as GitRepoSummary,
-} from '../../shared/types';
+    RuntimeMethodParams as RuntimeMethodParameters,
+} from '@caxri/protocol';
+import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
+import { z } from 'zod';
+
 import { SingleFlight } from '../single-flight';
 import { sharedGitRequest } from './request-signal';
 

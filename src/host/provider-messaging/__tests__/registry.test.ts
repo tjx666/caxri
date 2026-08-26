@@ -1,7 +1,9 @@
+import type {
+    AgentEndpointBeginParams as AgentEndpointBeginParameters,
+    ProviderMessageAck,
+} from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AgentEndpointBeginParams as AgentEndpointBeginParameters } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
-import type { ProviderMessageAck } from '../../../shared/ipc/provider-messaging-contract';
 import { AgentEndpointRegistry } from '../../agent-endpoints';
 import { ProviderMessagingAdapterRegistry } from '..';
 
