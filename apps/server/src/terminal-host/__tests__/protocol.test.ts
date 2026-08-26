@@ -66,7 +66,7 @@ const liveAuthority = {
             : undefined,
 };
 
-describe('Terminal Host private protocol', () => {
+describe('architecture-a3b-terminal-host: private protocol', () => {
     it('accepts a bounded launch plan bound to the exact Server and Terminal generation', () => {
         expect(authorizeTerminalHostRequest(startEnvelope(), liveAuthority)).toEqual({ ok: true });
     });

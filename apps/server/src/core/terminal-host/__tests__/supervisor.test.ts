@@ -90,7 +90,7 @@ afterEach(() => {
     temporaryDirectories.length = 0;
 });
 
-describe('TerminalHostSupervisor', () => {
+describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
     it('launches with an inherited private credential and initializes the exact build', async () => {
         const { child, forkProcess, supervisor } = createSupervisor();
         expect(supervisor.diagnostics()).toEqual({
