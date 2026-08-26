@@ -9,6 +9,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import type { ProcessExplorerSnapshot } from '../shared/process-explorer';
 import { processExplorerSnapshotSchema } from '../shared/process-explorer';
 import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
+import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import type { ProcessExplorerSampler } from './process-explorer';
@@ -127,7 +128,7 @@ export class ProcessExplorerWindowController {
             event.preventDefault();
         });
         window.webContents.on('console-message', (details) => {
-            if (details.level !== 'error') return;
+            if (details.level !== 'error' || isBenignRendererErrorMessage(details.message)) return;
             this.options.logger.write('error', logEventCatalog.processExplorer.consoleError, {
                 fields: consoleErrorLogFields(details),
             });

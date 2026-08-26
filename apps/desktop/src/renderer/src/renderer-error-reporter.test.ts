@@ -46,6 +46,17 @@ describe('installRendererErrorReporter', () => {
         expect(report).toHaveBeenCalledExactlyOnceWith('page-exception');
     });
 
+    it('does not report Chromium ResizeObserver delivery warnings as page exceptions', () => {
+        const report = vi.fn();
+        installRendererErrorReporter(report);
+
+        listenerFor('error')({
+            message: 'ResizeObserver loop completed with undelivered notifications.',
+        });
+
+        expect(report).not.toHaveBeenCalled();
+    });
+
     it('maps an unhandledrejection event to the unhandled-rejection kind', () => {
         const report = vi.fn();
         installRendererErrorReporter(report);
