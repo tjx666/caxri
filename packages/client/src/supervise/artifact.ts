@@ -70,9 +70,13 @@ export async function resolveServerArtifact(root: string): Promise<ServerArtifac
         }
         const executablePath = resolveInside(rootPath, manifest.runtime.executable);
         const entryPath = resolveInside(rootPath, manifest.entrypoints.server);
+        const extensionHostPath = resolveInside(rootPath, manifest.entrypoints.extensionHost);
+        const terminalHostPath = resolveInside(rootPath, manifest.entrypoints.terminalHost);
         await Promise.all([
             assertLaunchFile(executablePath, true),
             assertLaunchFile(entryPath, false),
+            assertLaunchFile(extensionHostPath, false),
+            assertLaunchFile(terminalHostPath, false),
         ]);
         return {
             bundleDirectory: resolveInside(rootPath, 'bundles'),

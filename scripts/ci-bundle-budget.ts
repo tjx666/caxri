@@ -253,7 +253,11 @@ async function writeBaseline(baseline: BundleBaseline): Promise<void> {
  * to fail fast on missing process wiring, not on module resolution.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
-export const PACKAGED_SERVER_ENTRIES = ['bundles/server-core.js', 'bundles/extension-host.js'];
+export const PACKAGED_SERVER_ENTRIES = [
+    'bundles/server-core.js',
+    'bundles/extension-host.js',
+    'bundles/terminal-host.js',
+];
 
 const SOURCE_SERVER = 'apps/server/dist/server';
 const PACKAGED_SERVER = 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/server';

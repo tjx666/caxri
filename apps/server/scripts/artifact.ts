@@ -21,7 +21,7 @@ export interface ServerArtifactInput {
 }
 
 const manifestRelativePath = join('metadata', 'manifest.json');
-const requiredBundleNames = ['extension-host.js', 'server-core.js'] as const;
+const requiredBundleNames = ['extension-host.js', 'server-core.js', 'terminal-host.js'] as const;
 
 function compareCodeUnits(left: string, right: string): number {
     if (left === right) return 0;
@@ -199,6 +199,7 @@ export async function assembleServerArtifact(
         entrypoints: {
             extensionHost: 'bundles/extension-host.js',
             server: 'bundles/server-core.js',
+            terminalHost: 'bundles/terminal-host.js',
         },
         extensions: extensions.toSorted((left, right) => compareCodeUnits(left.id, right.id)),
         integrity: {
@@ -212,7 +213,7 @@ export async function assembleServerArtifact(
         platform: input.platform,
         protocolVersion: input.protocolVersion,
         runtime: { executable: 'runtime/bin/node', version: input.runtime.version },
-        schemaVersion: 1,
+        schemaVersion: 2,
         version: input.version,
     });
     await writeFile(

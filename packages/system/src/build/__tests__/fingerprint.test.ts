@@ -17,17 +17,24 @@ describe('computeBuildFingerprint', () => {
     async function createOutputDirectory(
         serverCore: string,
         extensionHost?: string,
+        terminalHost?: string,
     ): Promise<string> {
         const created = await mkdtemp(join(tmpdir(), 'caxri-fingerprint-'));
         directory = created;
         await writeFile(join(created, 'server-core.js'), serverCore);
         if (extensionHost !== undefined)
             await writeFile(join(created, 'extension-host.js'), extensionHost);
+        if (terminalHost !== undefined)
+            await writeFile(join(created, 'terminal-host.js'), terminalHost);
         return created;
     }
 
-    it('is stable for identical bundle bytes and changes when either bundle changes', async () => {
-        const outputDirectory = await createOutputDirectory('server-core-a', 'extension-host-a');
+    it('is stable for identical bundle bytes and changes when any owned process changes', async () => {
+        const outputDirectory = await createOutputDirectory(
+            'server-core-a',
+            'extension-host-a',
+            'terminal-host-a',
+        );
         const first = await computeBuildFingerprint(outputDirectory);
         expect(first).toMatch(/^[0-9a-f]{16}$/);
         expect(await computeBuildFingerprint(outputDirectory)).toBe(first);
@@ -36,8 +43,12 @@ describe('computeBuildFingerprint', () => {
         const afterExtensionHostChange = await computeBuildFingerprint(outputDirectory);
         expect(afterExtensionHostChange).not.toBe(first);
 
+        await writeFile(join(outputDirectory, 'terminal-host.js'), 'terminal-host-b');
+        const afterTerminalHostChange = await computeBuildFingerprint(outputDirectory);
+        expect(afterTerminalHostChange).not.toBe(afterExtensionHostChange);
+
         await writeFile(join(outputDirectory, 'server-core.js'), 'server-core-b');
-        expect(await computeBuildFingerprint(outputDirectory)).not.toBe(afterExtensionHostChange);
+        expect(await computeBuildFingerprint(outputDirectory)).not.toBe(afterTerminalHostChange);
     });
 
     it('returns undefined when a bundle is missing so callers skip the staleness comparison', async () => {
