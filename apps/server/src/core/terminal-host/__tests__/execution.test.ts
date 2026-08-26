@@ -112,6 +112,11 @@ describe('RemoteTerminalExecution', () => {
     it('replays a pre-launch view reservation and preserves synchronous input acceptance', async () => {
         const { control, execution } = createExecution();
         const output = vi.fn();
+        const themeTerminalColors = {
+            background: '#111111',
+            foreground: '#eeeeee',
+            cursor: '#ffffff',
+        };
         execution.onEvent(output);
         await expect(execution.attach(terminal.id, { cols: 120, rows: 40 })).resolves.toEqual({
             snapshot: null,
@@ -120,6 +125,7 @@ describe('RemoteTerminalExecution', () => {
         await execution.reserve(terminal);
         await execution.start({
             args: ['-l'],
+            colors: themeTerminalColors,
             environment: { TERM: 'xterm-256color' },
             executable: '/bin/zsh',
             initialSnapshot: null,
@@ -132,6 +138,12 @@ describe('RemoteTerminalExecution', () => {
             'terminal.start',
         ]);
         const attach = control.requests[1];
+        expect(control.requests[2]?.request).toMatchObject({
+            method: 'terminal.start',
+            params: {
+                colors: { background: '#111111', foreground: '#eeeeee' },
+            },
+        });
         expect(attach.scope).toMatchObject({ ptyGeneration: 1 });
         expect(execution.write(terminal.id, 'echo safe\r')).toBe(true);
         expect(control.requests.at(-1)!.request.method).toBe('terminal.input');
