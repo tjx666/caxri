@@ -593,6 +593,13 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
     await page.getByRole('button', { name: /^New Session in / }).click();
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
     await chooseDefaultTerminal(page, 'Shell');
+    /**
+     * Opening the action requires hovering the Project heading. Park the pointer in the Workbench after activation so
+     * the trigger's delayed tooltip cannot cover a caller's next click or leave the Project in a synthetic hover
+     * state.
+     */
+    await page.mouse.move(500, 300);
+    await expect(page.locator('.tooltip-popup')).toHaveCount(0);
     const terminalId = await waitForNewTerminalId(
         page,
         before.terminals.map((terminal) => terminal.id),
