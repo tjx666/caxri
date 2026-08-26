@@ -1,11 +1,12 @@
 #!/usr/bin/env bun
 
-import { cp, lstat, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { ensureServer } from '@caxri/client/supervise';
+import { connectDesktopToServer, ensureServer } from '@caxri/client/supervise';
+import type { TerminalSnapshot } from '@caxri/protocol';
 
 import { verifyServerArtifact } from '../apps/server/scripts/artifact';
 
@@ -39,11 +40,27 @@ async function waitForCleanShutdown(pid: number, manifestPath: string): Promise<
     throw new Error('Copied Server artifact did not shut down cleanly');
 }
 
+async function printFailureLogTail(profile: string, source: string): Promise<void> {
+    const path = join(profile, 'logs', `${source}.jsonl`);
+    if (!(await hasPath(path))) return;
+    const lines = (await readFile(path, 'utf8')).trimEnd().split('\n').slice(-40);
+    process.stderr.write(`\n[${source} log tail]\n${lines.join('\n')}\n`);
+}
+
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'caxri-standalone-server-'));
+const copiedArtifact = join(temporaryRoot, 'server');
+const profile = join(temporaryRoot, 'profile');
+const projectRoot = join(temporaryRoot, 'project');
+const manifestPath = join(profile, 'host', 'manifest.json');
+let desktop: Awaited<ReturnType<typeof connectDesktopToServer>> | undefined;
+let operator: Awaited<ReturnType<typeof ensureServer>> | undefined;
+let serverPid: number | undefined;
 try {
-    const copiedArtifact = join(temporaryRoot, 'server');
-    const profile = join(temporaryRoot, 'profile');
     await cp(sourceArtifact, copiedArtifact, { recursive: true, verbatimSymlinks: true });
+    await Promise.all([
+        mkdir(profile, { recursive: true }),
+        mkdir(projectRoot, { recursive: true }),
+    ]);
     const sourceManifest = await verifyServerArtifact(sourceArtifact);
     const copiedManifest = await verifyServerArtifact(copiedArtifact);
     if (JSON.stringify(sourceManifest) !== JSON.stringify(copiedManifest)) {
@@ -51,13 +68,54 @@ try {
     }
 
     const readyStartedAt = performance.now();
-    const client = await ensureServer(profile, { artifactRoot: copiedArtifact }, 15_000);
+    operator = await ensureServer(profile, { artifactRoot: copiedArtifact }, 15_000);
     const readyMs = performance.now() - readyStartedAt;
-    const status = await client.request('host.status');
-    await client.request('host.stop', { confirmLivePtys: true });
-    client.close();
+    const status = await operator.request('host.status');
+    serverPid = status.pid;
+    desktop = await connectDesktopToServer(profile, 'server-artifact-smoke', () =>
+        Promise.reject(new Error('Standalone Server smoke received an unexpected command')),
+    );
+    await desktop.markDesktopReady();
+    const project = await desktop.requestServerOperation('project.create', {
+        rootPath: projectRoot,
+    });
+    const created = await desktop.request('session.create', {
+        projectId: project.id,
+        defaultAgent: 'shell',
+    });
+    if (!created.terminal) throw new Error('Terminal Host smoke fixture did not create a Terminal');
+    const terminalId = created.terminal.id;
+    await desktop.request('terminal.attach', { terminalId, cols: 80, rows: 24 });
+    const restarted = await desktop.request('terminal.restart', { terminalId, mode: 'fresh' });
+    if (restarted.lastProcessState !== 'running')
+        throw new Error('Standalone Terminal Host did not start the seeded shell');
+    const marker = `caxri-terminal-host-smoke-${process.pid}`;
+    await desktop.request('terminal.input', { terminalId, data: `printf '${marker}\\n'\r` });
+    let terminalSnapshot: TerminalSnapshot | null = null;
+    const outputDeadline = Date.now() + 5_000;
+    while (Date.now() < outputDeadline) {
+        // eslint-disable-next-line no-await-in-loop -- snapshot polling observes the real cross-process PTY output.
+        terminalSnapshot = await desktop.request('terminal.snapshot', { terminalId });
+        if (terminalSnapshot?.payload.includes(marker)) break;
+        // eslint-disable-next-line no-await-in-loop -- bounded PTY observation polling.
+        await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    if (!terminalSnapshot?.payload.includes(marker))
+        throw new Error('Standalone Terminal Host did not capture shell output');
+    const resources = await desktop.request('terminal.resources', { terminalId });
+    if (!resources) throw new Error('Standalone Terminal Host did not expose PTY resources');
+    if ((await desktop.request('terminal.runningCount', {})) !== 1)
+        throw new Error('Standalone Terminal Host running count is inconsistent');
+    await desktop.request('terminal.close', { terminalId });
+    if ((await desktop.request('terminal.runningCount', {})) !== 0)
+        throw new Error('Standalone Terminal Host did not retire the closed PTY');
+    desktop.close();
+    desktop = undefined;
+    await operator.request('host.stop', { confirmLivePtys: true });
+    operator.close();
+    operator = undefined;
     const shutdownStartedAt = performance.now();
-    await waitForCleanShutdown(status.pid, join(profile, 'host', 'manifest.json'));
+    await waitForCleanShutdown(status.pid, manifestPath);
     const shutdownMs = performance.now() - shutdownStartedAt;
 
     const receipt = {
@@ -72,14 +130,48 @@ try {
         },
         readyMs: Number(readyMs.toFixed(2)),
         runtimeVersion: sourceManifest.runtime.version,
-        schemaVersion: 1,
+        schemaVersion: 2,
         shutdown: { clean: true, shutdownMs: Number(shutdownMs.toFixed(2)) },
+        terminalHost: {
+            checkId: 'architecture-a3b-terminal-host',
+            childProcessCount: resources.childProcessCount,
+            memoryMb: Number(resources.memoryMb.toFixed(2)),
+            outputObserved: true,
+            snapshotBytes: terminalSnapshot.byteCount,
+        },
     };
     const receiptDirectory = resolve(root, '.records/server-artifact');
     await mkdir(receiptDirectory, { recursive: true });
     const receiptPath = join(receiptDirectory, `a2f-${sourceManifest.commit}.json`);
     await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
     process.stdout.write(`${JSON.stringify(receipt)}\n`);
+} catch (error) {
+    await Promise.all([
+        printFailureLogTail(profile, 'server-core'),
+        printFailureLogTail(profile, 'terminal-host'),
+    ]);
+    throw error;
 } finally {
+    desktop?.close({ cancelPendingRequests: true });
+    if (operator) {
+        try {
+            await operator.request('host.stop', { confirmLivePtys: true });
+        } catch {
+            // The failed request may already have closed the Server; the bounded PID wait below is authoritative.
+        }
+        operator.close({ cancelPendingRequests: true });
+    }
+    if (serverPid !== undefined) {
+        try {
+            await waitForCleanShutdown(serverPid, manifestPath);
+        } catch {
+            try {
+                process.kill(serverPid, 'SIGTERM');
+                await waitForCleanShutdown(serverPid, manifestPath);
+            } catch {
+                // Preserve the original smoke failure after both graceful and signal cleanup attempts.
+            }
+        }
+    }
     await rm(temporaryRoot, { force: true, recursive: true });
 }

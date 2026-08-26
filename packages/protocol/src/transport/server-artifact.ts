@@ -27,6 +27,7 @@ const serverArtifactEntrypointsSchema = z
     .object({
         extensionHost: artifactRelativePathSchema,
         server: artifactRelativePathSchema,
+        terminalHost: artifactRelativePathSchema,
     })
     .strict();
 
@@ -71,7 +72,7 @@ export const serverArtifactManifestSchema = z
         platform: z.string().min(1).max(64),
         protocolVersion: z.number().int().positive(),
         runtime: serverArtifactRuntimeSchema,
-        schemaVersion: z.literal(1),
+        schemaVersion: z.literal(2),
         version: z.string().min(1).max(100),
     })
     .strict();

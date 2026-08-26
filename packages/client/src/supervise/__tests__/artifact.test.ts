@@ -32,6 +32,7 @@ describe('Server artifact discovery', () => {
             entrypoints: {
                 extensionHost: 'bundles/extension-host.js',
                 server: 'bundles/server-core.js',
+                terminalHost: 'bundles/terminal-host.js',
             },
             extensions: [],
             integrity: { aggregateSha256: 'a'.repeat(64), algorithm: 'sha256', files: [] },
@@ -39,12 +40,14 @@ describe('Server artifact discovery', () => {
             platform: process.platform,
             protocolVersion: 2,
             runtime: { executable: 'runtime/bin/node', version: '24.0.0-fixture' },
-            schemaVersion: 1,
+            schemaVersion: 2,
             version: '0.0.18',
         };
         await Promise.all([
             fixtureFile(executable),
+            fixtureFile(join(root, 'bundles', 'extension-host.js')),
             fixtureFile(join(root, 'bundles', 'server-core.js')),
+            fixtureFile(join(root, 'bundles', 'terminal-host.js')),
             fixtureFile(join(root, 'metadata', 'manifest.json'), `${JSON.stringify(manifest)}\n`),
         ]);
         await chmod(executable, 0o755);
@@ -70,6 +73,7 @@ describe('Server artifact discovery', () => {
                 entrypoints: {
                     extensionHost: 'bundles/extension-host.js',
                     server: '../server-core.js',
+                    terminalHost: 'bundles/terminal-host.js',
                 },
                 extensions: [],
                 integrity: { aggregateSha256: 'a'.repeat(64), algorithm: 'sha256', files: [] },
@@ -77,7 +81,7 @@ describe('Server artifact discovery', () => {
                 platform: process.platform,
                 protocolVersion: 2,
                 runtime: { executable: 'runtime/bin/node', version: '24.0.0-fixture' },
-                schemaVersion: 1,
+                schemaVersion: 2,
                 version: '0.0.18',
             }),
         );

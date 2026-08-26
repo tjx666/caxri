@@ -3,10 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
- * Bundles whose bytes define one Server generation. Domain services are part of `server-core.js`; Extension Host
- * behavior is the remaining independently loaded input, so both participate in the fingerprint.
+ * Bundles whose bytes define one Server generation. Core, Extension Host and Terminal Host must move as one exact-head
+ * deployment even though each independently loaded process owns a different failure and capability boundary.
  */
-const FINGERPRINT_BUNDLES = ['server-core.js', 'extension-host.js'] as const;
+const FINGERPRINT_BUNDLES = ['server-core.js', 'extension-host.js', 'terminal-host.js'] as const;
 
 /**
  * Content fingerprint of the built Server bundles in an output directory. Build-time identifiers (a `define`-injected

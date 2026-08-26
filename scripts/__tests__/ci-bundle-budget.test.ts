@@ -75,6 +75,7 @@ describe('ci-bundle-budget', () => {
         expect(PACKAGED_SERVER_ENTRIES).toEqual([
             'bundles/server-core.js',
             'bundles/extension-host.js',
+            'bundles/terminal-host.js',
         ]);
     });
 
