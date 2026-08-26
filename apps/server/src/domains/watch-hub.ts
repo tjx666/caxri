@@ -179,6 +179,14 @@ export class WatchHub {
         return count;
     }
 
+    private recordWatcherCount(): void {
+        this.logger?.recordMetric('watcher.count', this.registrations.size, {
+            owner: 'server-core',
+            phase: 'runtime',
+            outcome: 'success',
+        });
+    }
+
     private warnOnNativePressure(): void {
         const count = this.nativeCount();
         if (count < this.maxNativeSubscriptions * NATIVE_PRESSURE_WARN_RATIO) {
@@ -252,6 +260,7 @@ export class WatchHub {
             return entry;
         }
         this.registrations.add(entry);
+        this.recordWatcherCount();
         if (this.nativeCount() >= this.maxNativeSubscriptions) {
             this.gateTrips += 1;
             this.logger?.write('warn', logEventCatalog.watchHub.nativeGate, {
@@ -259,6 +268,7 @@ export class WatchHub {
             });
             if (!options.fallback) {
                 this.registrations.delete(entry);
+                this.recordWatcherCount();
                 entry.mode = 'disposed';
                 throw new CaxriError('CAPACITY', 'Native watcher capacity exhausted');
             }
@@ -305,6 +315,7 @@ export class WatchHub {
             });
             if (!options.fallback) {
                 this.registrations.delete(entry);
+                this.recordWatcherCount();
                 entry.mode = 'disposed';
                 throw error;
             }
@@ -333,6 +344,7 @@ export class WatchHub {
             return entry;
         }
         this.registrations.add(entry);
+        this.recordWatcherCount();
         // Intentional pollers expose a synchronous registration contract; activation owns its own failure handling.
         // eslint-disable-next-line no-void -- registerPoller cannot await by contract
         void this.activateFallback(entry, undefined);
@@ -378,6 +390,7 @@ export class WatchHub {
         if (entry.mode === 'disposed') return;
         entry.mode = 'disposed';
         this.registrations.delete(entry);
+        this.recordWatcherCount();
         if (entry.pollTimer) clearInterval(entry.pollTimer);
         entry.pollTimer = undefined;
         const groupKey = entry.fallback?.groupKey;

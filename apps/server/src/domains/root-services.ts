@@ -57,6 +57,20 @@ export async function createRootServices({
             logger.write('warn', logEventCatalog.database.sessionStateRepaired, {
                 fields: { reason, sessionId, stateVersion },
             }),
+        onTransaction: ({ durationMs, outcome }) => {
+            const metricOutcome = outcome === 'success' ? 'success' : 'failure';
+            logger.recordMetric('persistence.latency', durationMs, {
+                owner: 'persistence',
+                phase: 'commit',
+                outcome: metricOutcome,
+            });
+            if (outcome === 'contention')
+                logger.recordMetric('persistence.contention', 1, {
+                    owner: 'persistence',
+                    phase: 'commit',
+                    outcome: metricOutcome,
+                });
+        },
     });
     /**
      * One Server-wide watch registry: every filesystem watcher and intentional poller registers here so listener count,

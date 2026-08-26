@@ -32,6 +32,17 @@ export function logDurableRecovery(
     logger: StructuredLogger,
     observation: DurableRecoveryObservation,
 ): void {
+    logger.recordMetric('changefeed.lag', observation.eventCount, {
+        owner: 'server-core',
+        phase: 'recovery',
+        outcome: 'success',
+    });
+    if (observation.outcome === 'snapshot')
+        logger.recordMetric('changefeed.snapshot', 1, {
+            owner: 'server-core',
+            phase: 'recovery',
+            outcome: 'success',
+        });
     logger.write(
         observation.outcome === 'snapshot' ? 'info' : 'debug',
         logEventCatalog.serverCore.eventRecovery,

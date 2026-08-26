@@ -5,7 +5,8 @@ import { logDurableReceipt, logDurableRecovery } from '../recovery-observability
 
 function createLogger() {
     const write = vi.fn<StructuredLogger['write']>();
-    return { logger: { write } as unknown as StructuredLogger, write };
+    const recordMetric = vi.fn<StructuredLogger['recordMetric']>();
+    return { logger: { recordMetric, write } as unknown as StructuredLogger, recordMetric, write };
 }
 
 describe('recovery observability', () => {
@@ -30,7 +31,7 @@ describe('recovery observability', () => {
     });
 
     it('records recovery decisions without event or snapshot payloads', () => {
-        const { logger, write } = createLogger();
+        const { logger, recordMetric, write } = createLogger();
 
         logDurableRecovery(logger, {
             cursor: 42,
@@ -48,6 +49,16 @@ describe('recovery observability', () => {
                 outcome: 'snapshot',
                 reason: 'cursor-expired',
             },
+        });
+        expect(recordMetric).toHaveBeenNthCalledWith(1, 'changefeed.lag', 3, {
+            owner: 'server-core',
+            phase: 'recovery',
+            outcome: 'success',
+        });
+        expect(recordMetric).toHaveBeenNthCalledWith(2, 'changefeed.snapshot', 1, {
+            owner: 'server-core',
+            phase: 'recovery',
+            outcome: 'success',
         });
     });
 });

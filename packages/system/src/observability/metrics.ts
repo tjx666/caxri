@@ -2,6 +2,7 @@ export const observationMetricNames = [
     'changefeed.lag',
     'changefeed.snapshot',
     'connection.buffered_bytes',
+    'connection.count',
     'connection.closed',
     'persistence.contention',
     'persistence.latency',

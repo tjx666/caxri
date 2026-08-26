@@ -7,6 +7,7 @@ import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CURRENT_SCHEMA_VERSION } from '../connection';
+import type { DatabaseTransactionObservation } from '../database-connection';
 import { CaxriDatabaseConnection as CaxriDatabase } from '../index';
 import { migrationManifest, PRESERVED_SCHEMA_VERSION } from '../migrations/manifest';
 
@@ -27,6 +28,25 @@ async function temporaryDirectory(prefix: string): Promise<string> {
 }
 
 describe('CaxriDatabaseConnection', () => {
+    it('observes transaction latency and contention without changing database behavior', () => {
+        const observations: DatabaseTransactionObservation[] = [];
+        const onTransaction = vi.fn((observation: DatabaseTransactionObservation) => {
+            observations.push(observation);
+        });
+        const database = new CaxriDatabase(':memory:', { onTransaction });
+
+        expect(database.transaction(() => 42)).toBe(42);
+        const contention = Object.assign(new Error('busy'), { code: 'SQLITE_BUSY' });
+        expect(() =>
+            database.transaction(() => {
+                throw contention;
+            }),
+        ).toThrow(contention);
+        expect(observations.map(({ outcome }) => outcome)).toEqual(['success', 'contention']);
+        expect(observations.every(({ durationMs }) => durationMs >= 0)).toBe(true);
+        database.close();
+    });
+
     it('creates the current schema with Session archive and attention metadata', async () => {
         const directory = await temporaryDirectory('caxri-db-schema-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
