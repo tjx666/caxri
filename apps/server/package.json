@@ -7,6 +7,7 @@
     "main": "dist/server/bundles/host.js",
     "scripts": {
         "build": "vite build --config vite.config.ts && bun run scripts/build-artifact.ts",
+        "dev": "bun run scripts/watch.ts",
         "test": "vitest run --root ../.. --project server-parallel --project server-serial-native",
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
@@ -37,7 +38,8 @@
         "@types/better-sqlite3": "9.6.0",
         "@types/node": "26.1.2",
         "@types/semver": "catalog:",
-        "@types/ws": "catalog:"
+        "@types/ws": "catalog:",
+        "vite": "8.2.0"
     },
     "engines": {
         "node": ">=24.0.0"

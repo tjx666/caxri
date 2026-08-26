@@ -321,8 +321,10 @@ describe('pnpm workspace contract', () => {
     it('builds workspace distributions before Desktop development and production builds', () => {
         expect(rootManifest.name).toBe('@caxri/workspace');
         expect(rootManifest.main).toBeUndefined();
-        expect(rootManifest.scripts?.dev).toBe('bun run build:workspaces && bun run dev:desktop');
-        expect(rootManifest.scripts?.['dev:desktop']).toBe('electron-vite dev');
+        expect(rootManifest.scripts?.dev).toBe(
+            'bun run build:workspaces && bun run scripts/development.ts',
+        );
+        expect(rootManifest.scripts?.['dev:desktop']).toBe('bun run scripts/development.ts');
         expect(rootManifest.scripts?.build).toBe(
             'bun run build:workspaces && bun run build:desktop',
         );
@@ -427,7 +429,6 @@ const requiredProtocol = require('@caxri/protocol');
             to: 'server',
         });
         expect(rootManifest.devDependencies).toMatchObject({
-            '@parcel/watcher': '2.5.6',
             'better-sqlite3': '13.0.2',
             'node-pty': '1.1.0',
             'ws': 'catalog:',
