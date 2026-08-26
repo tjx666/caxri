@@ -31,7 +31,7 @@ describe('Server artifact discovery', () => {
             commit: '01234567',
             entrypoints: {
                 extensionHost: 'bundles/extension-host.js',
-                server: 'bundles/host.js',
+                server: 'bundles/server-core.js',
             },
             extensions: [],
             integrity: { aggregateSha256: 'a'.repeat(64), algorithm: 'sha256', files: [] },
@@ -44,7 +44,7 @@ describe('Server artifact discovery', () => {
         };
         await Promise.all([
             fixtureFile(executable),
-            fixtureFile(join(root, 'bundles', 'host.js')),
+            fixtureFile(join(root, 'bundles', 'server-core.js')),
             fixtureFile(join(root, 'metadata', 'manifest.json'), `${JSON.stringify(manifest)}\n`),
         ]);
         await chmod(executable, 0o755);
@@ -52,7 +52,7 @@ describe('Server artifact discovery', () => {
 
         await expect(resolveServerArtifact(root)).resolves.toMatchObject({
             bundleDirectory: join(canonicalRoot, 'bundles'),
-            entryPath: join(canonicalRoot, 'bundles', 'host.js'),
+            entryPath: join(canonicalRoot, 'bundles', 'server-core.js'),
             executablePath: join(canonicalRoot, 'runtime', 'bin', 'node'),
             rootPath: canonicalRoot,
         });
@@ -69,7 +69,7 @@ describe('Server artifact discovery', () => {
                 commit: '01234567',
                 entrypoints: {
                     extensionHost: 'bundles/extension-host.js',
-                    server: '../host.js',
+                    server: '../server-core.js',
                 },
                 extensions: [],
                 integrity: { aggregateSha256: 'a'.repeat(64), algorithm: 'sha256', files: [] },

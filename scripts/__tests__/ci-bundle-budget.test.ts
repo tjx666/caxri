@@ -72,7 +72,10 @@ describe('ci-bundle-budget', () => {
     });
 
     it('verifies every executable packaged Server entry point', () => {
-        expect(PACKAGED_SERVER_ENTRIES).toEqual(['bundles/host.js', 'bundles/extension-host.js']);
+        expect(PACKAGED_SERVER_ENTRIES).toEqual([
+            'bundles/server-core.js',
+            'bundles/extension-host.js',
+        ]);
     });
 
     it('stays inside the protected CI retry paths', () => {

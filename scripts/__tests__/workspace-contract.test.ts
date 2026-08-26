@@ -335,7 +335,7 @@ describe('pnpm workspace contract', () => {
             version: rootManifest.version,
         });
         expect(serverManifest).toMatchObject({
-            main: 'dist/server/bundles/host.js',
+            main: 'dist/server/bundles/server-core.js',
             name: '@caxri/server',
             private: true,
             version: rootManifest.version,

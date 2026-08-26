@@ -27,7 +27,7 @@ describe('standalone Server artifact', () => {
         const artifactRoot = join(root, 'output', 'server');
         const runtimeExecutable = join(sources, 'node');
         await Promise.all([
-            fixtureFile(join(sources, 'bundles', 'host.js'), 'host'),
+            fixtureFile(join(sources, 'bundles', 'server-core.js'), 'server-core'),
             fixtureFile(join(sources, 'bundles', 'extension-host.js'), 'extension-host'),
             fixtureFile(runtimeExecutable, '#!/bin/sh\nexit 0\n'),
             fixtureFile(join(sources, 'native', 'better-sqlite3', 'package.json'), '{}'),
@@ -64,7 +64,7 @@ describe('standalone Server artifact', () => {
             commit: '01234567',
             entrypoints: {
                 extensionHost: 'bundles/extension-host.js',
-                server: 'bundles/host.js',
+                server: 'bundles/server-core.js',
             },
             platform: 'darwin',
             protocolVersion: 2,
@@ -74,7 +74,7 @@ describe('standalone Server artifact', () => {
         });
         expect(manifest.integrity.files.map(({ path }) => path)).toEqual(
             expect.arrayContaining([
-                'bundles/host.js',
+                'bundles/server-core.js',
                 'extensions/git/dist/extension.js',
                 'migrations/0000.sql',
                 'native/node_modules/better-sqlite3/package.json',
@@ -95,7 +95,7 @@ describe('standalone Server artifact', () => {
         const bundleSource = join(root, 'bundles');
         const runtimeExecutable = join(root, 'node');
         await Promise.all([
-            fixtureFile(join(bundleSource, 'host.js'), 'host'),
+            fixtureFile(join(bundleSource, 'server-core.js'), 'server-core'),
             fixtureFile(join(bundleSource, 'extension-host.js'), 'extension-host'),
             fixtureFile(runtimeExecutable, 'runtime'),
             fixtureFile(join(root, 'migrations', '0000.sql'), 'SELECT 1;'),
@@ -115,7 +115,7 @@ describe('standalone Server artifact', () => {
             version: '0.0.18',
         });
 
-        await writeFile(join(artifactRoot, 'bundles', 'host.js'), 'tampered');
+        await writeFile(join(artifactRoot, 'bundles', 'server-core.js'), 'tampered');
         await expect(verifyServerArtifact(artifactRoot)).rejects.toThrow(
             'Server artifact integrity verification failed',
         );

@@ -10,7 +10,7 @@ vi.mock('@caxri/client/supervise', () => ({
     resolveServerArtifact: vi.fn(() =>
         Promise.resolve({
             bundleDirectory: '/app/server/bundles',
-            entryPath: '/app/server/bundles/host.js',
+            entryPath: '/app/server/bundles/server-core.js',
             executablePath: '/app/server/runtime/bin/node',
             manifest: {},
             rootPath: '/app/server',

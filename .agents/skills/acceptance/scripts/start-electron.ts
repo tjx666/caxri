@@ -74,8 +74,8 @@ const BUILD_INPUT_PATHS = [
 const BUILD_OUTPUT_PATHS = [
     BUILT_MAIN_PATH,
     join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'metadata', 'manifest.json'),
-    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'bundles', 'host.js'),
-    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'bundles', 'runtime.js'),
+    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'bundles', 'server-core.js'),
+    join(PROJECT_ROOT, 'apps', 'server', 'dist', 'server', 'bundles', 'extension-host.js'),
     join(PROJECT_ROOT, 'out', 'preload', 'index.cjs'),
     join(PROJECT_ROOT, 'out', 'preload', 'process-explorer.cjs'),
     join(PROJECT_ROOT, 'out', 'renderer', 'index.html'),
@@ -315,7 +315,7 @@ export async function removeStaleRuntime(
         throw new Error('Acceptance instance already running with a live owned process');
     }
     /**
-     * An empty receipt means startup never crossed the Host/Runtime ownership boundary, so absence is not proof.
+     * An empty receipt means startup never crossed the Server process ownership boundary, so absence is not proof.
      */
     if (current.ownedProcesses.length === 0) {
         throw new Error(
@@ -339,17 +339,19 @@ export async function removeStaleRuntime(
         : false;
     if (isMatchingRestart && (persistedLiveness.some(Boolean) || discoveredProcesses.length > 0)) {
         /**
-         * A restart may inherit the same verified Host generation, but never adopt a replacement profile owner.
+         * A restart may inherit the same verified Server Core generation, but never adopt a replacement profile owner.
          */
-        const persistedHostKeys = new Set(
+        const persistedServerCoreKeys = new Set(
             current.ownedProcesses
-                .filter(({ role }) => role === 'host')
+                .filter(({ role }) => role === 'server-core')
                 .map(({ identity, pid }) => `${pid}:${identity}`),
         );
-        const discoveredHost = discoveredProcesses.find(({ role }) => role === 'host');
+        const discoveredServerCore = discoveredProcesses.find(({ role }) => role === 'server-core');
         if (
-            !discoveredHost ||
-            !persistedHostKeys.has(`${discoveredHost.pid}:${discoveredHost.identity}`)
+            !discoveredServerCore ||
+            !persistedServerCoreKeys.has(
+                `${discoveredServerCore.pid}:${discoveredServerCore.identity}`,
+            )
         ) {
             throw new Error('Acceptance restart profile owner changed process identity');
         }
@@ -388,12 +390,12 @@ export async function waitForOwnedProcesses(
 ): Promise<RuntimeState['ownedProcesses']> {
     const deadline = dependencies.now() + OWNED_PROCESS_DISCOVERY_TIMEOUT_MS;
     while (true) {
-        // eslint-disable-next-line no-await-in-loop -- readiness must observe one ordered Host/Runtime ownership snapshot
+        // eslint-disable-next-line no-await-in-loop -- readiness must observe one ordered Server ownership snapshot
         const processes = await dependencies.discoverOwnedProcesses(runtime, expectedProjectRoot);
         const roles = new Set(processes.map(({ role }) => role));
-        if (roles.has('host') && roles.has('runtime')) return processes;
+        if (roles.has('server-core') && roles.has('extension-host')) return processes;
         if (dependencies.now() >= deadline) {
-            throw new Error('Timed out waiting for owned Acceptance Host and Runtime processes');
+            throw new Error('Timed out waiting for owned Acceptance Server processes');
         }
         // eslint-disable-next-line no-await-in-loop -- poll cadence is intentionally sequential
         await dependencies.sleep(100);
@@ -683,7 +685,7 @@ async function main(): Promise<void> {
                     await writeRuntimeState(RUNTIME_PATH, runtime);
                 }
                 /**
-                 * The Host owns the profile lock, but Runtime can survive after Host exits and is then reparented. Keep
+                 * Server Core owns the profile lock, but a child may survive after Core exits and be reparented. Keep
                  * runtime.json while any identity captured at CDP readiness is still alive so stop-electron can recover
                  * that orphan without scanning unrelated worktrees or profiles.
                  */
