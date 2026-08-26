@@ -576,10 +576,15 @@ describe('recoverable event cursor', () => {
             projectObservableEventRecovery({
                 kind: 'events',
                 cursor: 1,
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'b'.repeat(32),
+                barrier: { kind: 'live', cursor: 1 },
                 events: [
                     {
                         protocolVersion: 2,
                         cursor: 1,
+                        serverId: 'a'.repeat(32),
+                        stateEpoch: 'b'.repeat(32),
                         event: {
                             event: 'settings.changed',
                             payload: { source: 'secret-sentinel' },
@@ -596,6 +601,9 @@ describe('recoverable event cursor', () => {
             projectObservableEventRecovery({
                 kind: 'snapshot',
                 cursor: 2,
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'b'.repeat(32),
+                barrier: { kind: 'live', cursor: 2 },
                 snapshot: {
                     cursor: 2,
                     projectIds: ['private-project'],

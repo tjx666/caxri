@@ -178,8 +178,6 @@ export const observableEventNameSchema = z.enum(
 const observableEventEnvelopeSchema = z.object({
     cursor: cursorSchema,
     event: observableEventNameSchema,
-    serverId: durableServerIdentitySchema.optional(),
-    stateEpoch: serverStateEpochSchema.optional(),
 });
 
 export const observableEventRecoverySchema = z.discriminatedUnion('kind', [
@@ -187,13 +185,11 @@ export const observableEventRecoverySchema = z.discriminatedUnion('kind', [
         kind: z.literal('events'),
         cursor: cursorSchema,
         events: z.array(observableEventEnvelopeSchema).max(MAX_EVENT_JOURNAL_EVENTS),
-        ...durableRecoveryIdentityShape,
     }),
     z.object({
         kind: z.literal('snapshot'),
         cursor: cursorSchema,
         gap: z.literal(true),
-        ...durableRecoveryIdentityShape,
     }),
 ]);
 export type ObservableEventRecovery = z.infer<typeof observableEventRecoverySchema>;
@@ -202,11 +198,6 @@ export type ObservableEventRecovery = z.infer<typeof observableEventRecoverySche
  * Removes every event payload and snapshot identity before recovery reaches a non-Desktop client.
  */
 export function projectObservableEventRecovery(recovery: EventRecovery): ObservableEventRecovery {
-    const recoveryIdentity = {
-        ...(recovery.serverId && { serverId: recovery.serverId }),
-        ...(recovery.stateEpoch && { stateEpoch: recovery.stateEpoch }),
-        ...(recovery.barrier && { barrier: recovery.barrier }),
-    };
     return observableEventRecoverySchema.parse(
         recovery.kind === 'events'
             ? {
@@ -215,12 +206,9 @@ export function projectObservableEventRecovery(recovery: EventRecovery): Observa
                   events: recovery.events.map(({ cursor, event }) => ({
                       cursor,
                       event: event.event,
-                      ...(recovery.serverId && { serverId: recovery.serverId }),
-                      ...(recovery.stateEpoch && { stateEpoch: recovery.stateEpoch }),
                   })),
-                  ...recoveryIdentity,
               }
-            : { kind: 'snapshot', cursor: recovery.cursor, gap: true, ...recoveryIdentity },
+            : { kind: 'snapshot', cursor: recovery.cursor, gap: true },
     );
 }
 
