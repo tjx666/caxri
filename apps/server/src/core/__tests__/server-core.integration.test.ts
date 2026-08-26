@@ -388,25 +388,25 @@ describe('Server Core application', () => {
         expect(secondIdentity.serverId).toBe(firstIdentity.serverId);
         expect(secondIdentity.stateEpoch).toBe(firstIdentity.stateEpoch);
         expect(secondIdentity.bootId).not.toBe(firstIdentity.bootId);
-        await expect(
-            secondClient.request('events.query', {
-                afterCursor: firstRecovery.cursor,
-                serverId: firstIdentity.serverId,
-                stateEpoch: firstIdentity.stateEpoch,
-            }),
-        ).resolves.toMatchObject({
-            kind: 'events',
+        const recovered = await secondClient.request('events.query', {
+            afterCursor: firstRecovery.cursor,
             serverId: firstIdentity.serverId,
             stateEpoch: firstIdentity.stateEpoch,
+        });
+        expect(recovered).toMatchObject({
+            kind: 'events',
             events: [expect.objectContaining({ event: 'runtime.status' })],
         });
-        await expect(
-            secondClient.request('events.query', {
-                afterCursor: firstRecovery.cursor,
-                serverId: firstIdentity.serverId,
-                stateEpoch: 'f'.repeat(32),
-            }),
-        ).resolves.toMatchObject({ kind: 'snapshot', gap: true });
+        expect(JSON.stringify(recovered)).not.toContain(firstIdentity.serverId);
+        expect(JSON.stringify(recovered)).not.toContain(firstIdentity.stateEpoch);
+        const mismatched = await secondClient.request('events.query', {
+            afterCursor: firstRecovery.cursor,
+            serverId: firstIdentity.serverId,
+            stateEpoch: 'f'.repeat(32),
+        });
+        expect(mismatched).toMatchObject({ kind: 'snapshot', gap: true });
+        expect(JSON.stringify(mismatched)).not.toContain(firstIdentity.serverId);
+        expect(JSON.stringify(mismatched)).not.toContain('f'.repeat(32));
 
         secondClient.close();
     });
