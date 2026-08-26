@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DurableCommandReceiptStore, StoredProtocolCommandReceipt } from '../command-receipts';
-import type { CommandAdapter } from '../dispatcher';
+import type { CommandAdapter, DurableReceiptObservation } from '../dispatcher';
 import {
     createCommandDispatcher,
     createProtocolWelcome,
@@ -116,6 +116,7 @@ describe('createCommandDispatcher durable receipts', () => {
     }
 
     it('replays a successful effect after dispatcher replacement without invoking it twice', async () => {
+        const observeDurableReceipt = vi.fn<(observation: DurableReceiptObservation) => void>();
         const stored = new Map<string, StoredProtocolCommandReceipt>();
         const durableReceipts: DurableCommandReceiptStore = {
             getReceipt: (_stateEpoch, _clientId, requestId) => stored.get(requestId),
@@ -135,6 +136,7 @@ describe('createCommandDispatcher durable receipts', () => {
         });
         const first = createCommandDispatcher({
             durableReceipts,
+            observeDurableReceipt,
             server: { invoke: firstInvoke },
         });
 
@@ -144,6 +146,7 @@ describe('createCommandDispatcher durable receipts', () => {
         const replacementInvoke = vi.fn(() => session('Unexpected duplicate'));
         const replacement = createCommandDispatcher({
             durableReceipts,
+            observeDurableReceipt,
             server: { invoke: replacementInvoke },
         });
         await expect(replacement(command, durableDesktop)).resolves.toMatchObject({
@@ -151,6 +154,9 @@ describe('createCommandDispatcher durable receipts', () => {
             result: { displayTitle: 'Persisted' },
         });
         expect(replacementInvoke).not.toHaveBeenCalled();
+        expect(
+            observeDurableReceipt.mock.calls.map(([observation]) => observation.outcome),
+        ).toEqual(['miss', 'stored', 'hit']);
         await expect(
             replacement(
                 request('durable-1', 'session.rename', {
