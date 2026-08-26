@@ -42,6 +42,12 @@ export default defineConfig(async () => {
                     'runtime': resolve(import.meta.dirname, 'src/runtime/index.ts'),
                 },
                 output: {
+                    /**
+                     * Native package rewrites are relative to every emitted bundle. Keeping shared chunks beside the
+                     * entrypoints makes the standalone artifact resolve the same `../native` boundary after Core and
+                     * domain services share one bundle graph.
+                     */
+                    chunkFileNames: '[name]-[hash].js',
                     entryFileNames: '[name].js',
                     paths: nativeModulePaths,
                 },

@@ -11,7 +11,6 @@ import type {
     RuntimeRequest,
 } from '@caxri/protocol';
 import {
-    assertNever,
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     createEventJournal,
@@ -23,6 +22,8 @@ import {
 } from '@caxri/protocol';
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
 
+import { createServerDomainService } from '../core/create-domain-service';
+import type { RuntimeAgentEndpointControl } from '../runtime/agent-endpoints';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
 import { HostDesktopRouter } from './desktop-router';
@@ -37,6 +38,7 @@ import {
     extensionActiveContext,
 } from './extensions/workspace-bridge';
 import type { HostForwardedMethod } from './host-methods';
+import { createLegacyRuntimeFixture } from './legacy-runtime-fixture';
 import { LocalHostServer } from './local-server';
 import type { HostProfileLease } from './profile';
 import { acquireHostProfile } from './profile';
@@ -61,7 +63,10 @@ export interface HostAppOptions {
     extensionRoots?: string[];
     includeTestExtensions?: boolean;
     launchDesktop?: () => Promise<void>;
-    runtimePath: string;
+    /**
+     * Transitional test-only path for the former utility-process fixtures. Production Server Core never sets it.
+     */
+    runtimePath?: string;
     runtimeEnvironment?: NodeJS.ProcessEnv;
     userDataPath: string;
     version: string;
@@ -100,32 +105,28 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             server?.broadcastDesktop({ event: 'agent.message.receipt', payload });
         },
     });
-    const supervisor = new HostRuntimeSupervisor({
-        agentEndpointControl: (request) => {
-            switch (request.operation) {
-                case 'agent-endpoint.begin':
-                    return agentEndpoints.begin(request.params);
-                case 'agent-endpoint.activate':
-                    return { activated: agentEndpoints.activate(request.params) };
-                case 'agent-endpoint.messaging':
-                    return { updated: agentEndpoints.updateMessaging(request.params) };
-                case 'agent-endpoint.retire':
-                    return { retired: agentEndpoints.retire(request.params) };
-                default:
-                    return assertNever(request, 'Unhandled Agent Endpoint control operation');
-            }
-        },
-        agentHooksPath: options.agentHooksPath,
-        appVersion: options.version,
-        commit: options.commit,
-        executable: options.executable,
-        extraEnvironment: options.runtimeEnvironment,
-        cliPath: options.cliPath,
-        logDirectory,
-        logger,
-        runtimePath: options.runtimePath,
-        userDataPath: lease.paths.userDataPath,
-    });
+    const endpointControl: RuntimeAgentEndpointControl = {
+        activate: (parameters) => Promise.resolve(agentEndpoints.activate(parameters)),
+        begin: (parameters) => Promise.resolve(agentEndpoints.begin(parameters)),
+        messaging: (parameters) => Promise.resolve(agentEndpoints.updateMessaging(parameters)),
+        retire: (parameters) => Promise.resolve(agentEndpoints.retire(parameters)),
+    };
+    const runtimePath = options.runtimePath;
+    const supervisor = runtimePath
+        ? createLegacyRuntimeFixture(
+              { ...options, runtimePath },
+              agentEndpoints,
+              logDirectory,
+              logger,
+              lease.paths.userDataPath,
+          )
+        : createServerDomainService({
+              agentEndpointControl: endpointControl,
+              agentHooksPath: options.agentHooksPath,
+              executable: options.executable,
+              logDirectory,
+              userDataPath: lease.paths.userDataPath,
+          });
     let extensionService: ExtensionService | undefined;
     let desktopRouter: HostDesktopRouter | undefined;
     let stopPromise: Promise<void> | undefined;
@@ -256,7 +257,8 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         server?.broadcast(isTransientRuntimeEvent(event) ? event : journal.publish(event));
     };
     supervisor.onEvent(deliver);
-    supervisor.onRuntimeExit(() => agentEndpoints.clear());
+    if (supervisor instanceof HostRuntimeSupervisor)
+        supervisor.onRuntimeExit(() => agentEndpoints.clear());
 
     const stop = (reason = 'requested'): Promise<void> => {
         isMutationAdmissionClosed = true;
