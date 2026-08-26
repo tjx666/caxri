@@ -85,12 +85,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     };
     const terminalExecution = createTerminalExecution({
         appVersion: options.version,
+        bootId: lease.identity.processIdentity,
         buildId: options.buildId ?? 'unknown',
         commit: options.commit,
         executable: options.executable,
         logger,
         override: options.terminalExecution,
-        serverId: lease.identity.processIdentity,
         terminalHostPath: options.terminalHostPath,
         userDataPath: lease.paths.userDataPath,
     });

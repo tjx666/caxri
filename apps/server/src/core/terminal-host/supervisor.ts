@@ -43,13 +43,13 @@ interface OwnedChild {
 
 export interface TerminalHostSupervisorOptions {
     appVersion: string;
+    bootId: string;
     buildId: string;
     commit: string;
     executable?: string;
     forkProcess?: typeof fork;
     logger: StructuredLogger;
     outputFlushMs?: number;
-    serverId: string;
     terminalHostPath: string;
     userDataPath: string;
 }
@@ -130,7 +130,7 @@ export class TerminalHostSupervisor extends EventTarget {
         message: Extract<TerminalHostMessage, { event: 'host.ready' }>,
     ): boolean {
         return (
-            message.serverId === this.options.serverId &&
+            message.bootId === this.options.bootId &&
             message.appVersion === this.options.appVersion &&
             message.buildId === this.options.buildId &&
             message.commit === this.options.commit
@@ -229,7 +229,7 @@ export class TerminalHostSupervisor extends EventTarget {
                 CAXRI_APP_VERSION: this.options.appVersion,
                 CAXRI_BUILD_ID: this.options.buildId,
                 CAXRI_GIT_COMMIT: this.options.commit,
-                CAXRI_SERVER_ID: this.options.serverId,
+                CAXRI_SERVER_BOOT_ID: this.options.bootId,
                 CAXRI_TERMINAL_HOST_CREDENTIAL: credential,
                 CAXRI_USER_DATA_PATH: this.options.userDataPath,
                 ...(this.options.outputFlushMs !== undefined && {
@@ -273,7 +273,7 @@ export class TerminalHostSupervisor extends EventTarget {
             throw error;
         }
         this.options.logger.write('info', logEventCatalog.terminalHost.started, {
-            fields: { pid: child.pid ?? -1, serverId: this.options.serverId },
+            fields: { bootId: this.options.bootId, pid: child.pid ?? -1 },
         });
         this.startedAt = Date.now();
         this.state = 'ready';
@@ -309,7 +309,7 @@ export class TerminalHostSupervisor extends EventTarget {
             id,
             observation,
             credential: owned.credential,
-            serverId: this.options.serverId,
+            bootId: this.options.bootId,
             scope,
             request,
         };
