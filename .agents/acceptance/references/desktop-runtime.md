@@ -11,14 +11,14 @@ running and usable. Resolve ownership through `.records/acceptance/runtime.json`
 never attach by app name, guess the frontmost window, or stop processes globally.
 
 `stop-electron.ts` is the matching cleanup boundary. It revalidates the recorded
-process identities and stops only the owned launcher, window, Host, and Runtime.
+process identities and stops only the owned launcher, window, Server Core, and artifact children.
 An identity mismatch is evidence to preserve, not permission to broaden the kill
 target.
 
 ## DR2. A stale build invalidates desktop evidence
 
 The Acceptance launcher requires built output whose embedded commit matches the
-frozen report commit. Rebuild after relevant Main, Preload, Renderer, or Runtime
+frozen report commit. Rebuild after relevant Main, Preload, Renderer, or Server
 changes. A Renderer reload does not update the other Electron processes, and a
 plausible screenshot from an older bundle is not evidence for the current head.
 

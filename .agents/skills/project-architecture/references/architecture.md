@@ -71,11 +71,11 @@ initial attachment converges to `attached`/`ready`, recoverable loss advances th
 timer, readiness, and event-recovery I/O remain in the Main facade and cannot introduce parallel
 lifecycle flags.
 
-The pre-release reset tool treats Host ownership as an operating-system fact, not a discovery-file
+The pre-release reset tool treats Server Core ownership as an operating-system fact, not a discovery-file
 claim: dry-run and apply both use `lsof` to bind a live PID to the selected profile's open lock,
 verify the fixed artifact Server entrypoint, and recheck ownership immediately before signaling.
 It never signals a PID found only in stale or malformed JSON metadata. An explicitly selected
-profile may locate its verified orphaned Host endpoint after the profile directory itself has been
+profile may locate its verified orphaned Server endpoint after the profile directory itself has been
 removed, while an existing custom profile is still rejected inside a Git worktree or without Caxri
 markers. The same plan includes a user-owned stale profile endpoint, deduplicates case variants only
 after filesystem identity is known, and discovers only UUID-named managed development profiles
@@ -86,13 +86,13 @@ its archived path or final failure status. Deriving both locations from Git's ca
 directory keeps the archive stable when invoked from a linked worktree. Project roots and user
 files are never targets.
 
-The Process Explorer is a singleton Main-owned window with its own renderer entry and narrow preload. While open, it samples a fixed `/bin/ps` argv every two seconds, selects both the Desktop and detached Host process trees, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. It cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Runtime or PTY lifecycle.
+The Process Explorer is a singleton Desktop Main-owned window with its own Renderer entry and narrow Preload. While open, it samples a fixed `/bin/ps` argv every two seconds, selects both the Desktop and detached Server process trees, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. It cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Server or PTY lifecycle.
 
 ## IPC contract
 
 `packages/protocol` is the browser-safe, transport-neutral source of truth for command and event
 contracts. A command request uses `{ protocolVersion, id, method, params }`; every method declares
-one owner (`host` or `desktop`), effect (`read`, `write`, or `control`), required capabilities,
+one owner (`server` or `desktop`), effect (`read`, `write`, or `control`), required capabilities,
 idempotency policy, Zod parameter/result schemas, and an optional principal projection. The
 negotiation welcome identifies the authenticated principal and enumerates granted capabilities and
 supported commands, so callers can query support without inferring it from errors. Desktop bridge
@@ -105,7 +105,7 @@ The shared dispatcher validates protocol version, command, parameters, principal
 owner availability, and results before it returns `{ protocolVersion, ok, result | error }`. Read
 commands may execute again; write and control commands coalesce the same principal/request ID and
 reject an ID reused with different command content. The Electron adapter additionally validates the
-requesting WebContents before invoking that dispatcher. Internal Runtime methods remain outside the
+requesting WebContents before invoking that dispatcher. Internal Server methods remain outside the
 public command registry.
 
 `apps/cli` is the command-line adapter for the same registry and authenticated Server transport.
