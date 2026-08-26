@@ -132,7 +132,8 @@ export function resolveDesktopLaunch(options: {
 export class DesktopServerConnection extends EventTarget {
     private client?: ServerClient;
     private events?: RecoveringEventClient;
-    private eventsServerIdentity?: string;
+    private eventsRecoveryIdentity?: string;
+    private eventsServerBootIdentity?: string;
     private serverPid?: number;
     private starting?: Promise<void>;
     private reconnectTask?: Promise<void>;
@@ -216,13 +217,16 @@ export class DesktopServerConnection extends EventTarget {
         );
         this.client = client;
         client.onClose((reason) => this.handleConnectionLoss(client, reason));
-        const isServerContinuity =
-            this.eventsServerIdentity !== undefined && this.eventsServerIdentity !== serverIdentity;
-        // Reconnecting to the SAME Server process must keep the consumed event cursor: restarting at
-        // zero would replay the whole journal and stale events (for example old `settings.changed`
-        // payloads) would clobber newer Renderer state. A replaced Server starts a fresh journal, so
-        // only then does the recovery cursor reset.
-        if (!this.events || this.eventsServerIdentity !== serverIdentity) {
+        const connectionIdentity = client.welcome.connection;
+        const recoveryIdentity = connectionIdentity
+            ? `${connectionIdentity.serverId}:${connectionIdentity.stateEpoch}`
+            : serverIdentity;
+        const isServerReplaced =
+            this.eventsServerBootIdentity !== undefined &&
+            this.eventsServerBootIdentity !== serverIdentity;
+        // A normal Server restart keeps its durable history, so retain the consumed cursor across Boot IDs. A different
+        // Server ID or State Epoch replaces the recovery client and starts from a bounded snapshot/cursor zero.
+        if (!this.events || this.eventsRecoveryIdentity !== recoveryIdentity) {
             this.events = createRecoveringEventClient({
                 emit: (event) => {
                     this.dispatchEvent(new CustomEvent<ServerEvent>('event', { detail: event }));
@@ -245,16 +249,24 @@ export class DesktopServerConnection extends EventTarget {
                 recover: (afterCursor) => {
                     const attached = this.client;
                     if (!attached) return Promise.reject(this.disconnectedRequestError());
-                    return attached.request('events.recover', { afterCursor });
+                    const identity = attached.welcome.connection;
+                    return attached.request('events.recover', {
+                        afterCursor,
+                        ...(identity && {
+                            serverId: identity.serverId,
+                            stateEpoch: identity.stateEpoch,
+                        }),
+                    });
                 },
             });
-            this.eventsServerIdentity = serverIdentity;
+            this.eventsRecoveryIdentity = recoveryIdentity;
         }
+        this.eventsServerBootIdentity = serverIdentity;
         const events = this.events;
         client.onEvent((event) => events.receive(event));
         await events.start();
         if (this.client === client) this.isCoreRecoveryPending = false;
-        return isServerContinuity ? 'replaced' : 'same';
+        return isServerReplaced ? 'replaced' : 'same';
     }
 
     private async attach(): Promise<void> {
