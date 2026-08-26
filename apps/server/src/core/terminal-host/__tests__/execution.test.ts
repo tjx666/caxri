@@ -52,6 +52,16 @@ class FakeTerminalHostControl implements TerminalHostControl {
     holdInputRequests = false;
     holdResizeRequests = false;
 
+    diagnostics(): ReturnType<TerminalHostControl['diagnostics']> {
+        return {
+            state: 'ready',
+            pid: 4242,
+            startedAt: 1,
+            restartCount: 0,
+            pendingRequestCount: this.inputResolvers.length + this.resizeResolvers.length,
+        };
+    }
+
     emit(event: HostEvent): void {
         for (const listener of this.eventListeners) listener(event);
     }
@@ -375,5 +385,40 @@ describe('RemoteTerminalExecution', () => {
         execution.detachAllViews();
 
         expect(control.requests).toEqual([]);
+    });
+
+    it('reports content-free lifecycle, ownership, and pressure counters', async () => {
+        const { control, execution } = createExecution();
+        control.holdInputRequests = true;
+        control.holdResizeRequests = true;
+        await execution.attach(terminal.id, { cols: 120, rows: 40 });
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        execution.write(terminal.id, 'private-input');
+        execution.resize(terminal.id, 121, 41);
+
+        await vi.waitFor(() =>
+            expect(execution.diagnostics()).toEqual({
+                state: 'ready',
+                pid: 4242,
+                startedAt: 1,
+                restartCount: 0,
+                pendingRequestCount: 2,
+                activeTerminalCount: 1,
+                attachedTerminalCount: 1,
+                inputQueueCount: 1,
+                queuedInputCharacters: 13,
+                resizeQueueCount: 1,
+            }),
+        );
+        expect(JSON.stringify(execution.diagnostics())).not.toContain('private-input');
+        control.releaseInput();
+        control.releaseResize();
     });
 });

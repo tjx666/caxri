@@ -93,6 +93,11 @@ afterEach(() => {
 describe('TerminalHostSupervisor', () => {
     it('launches with an inherited private credential and initializes the exact build', async () => {
         const { child, forkProcess, supervisor } = createSupervisor();
+        expect(supervisor.diagnostics()).toEqual({
+            state: 'idle',
+            restartCount: 0,
+            pendingRequestCount: 0,
+        });
         await becomeReady(child, supervisor);
 
         expect(forkProcess).toHaveBeenCalledOnce();
@@ -106,7 +111,16 @@ describe('TerminalHostSupervisor', () => {
             serverId,
             request: { method: 'host.initialize' },
         });
+        const readyDiagnostics = supervisor.diagnostics();
+        expect(readyDiagnostics).toMatchObject({
+            state: 'ready',
+            pid: 4242,
+            restartCount: 0,
+            pendingRequestCount: 0,
+        });
+        expect(typeof readyDiagnostics.startedAt).toBe('number');
         await supervisor.shutdown();
+        expect(supervisor.diagnostics().state).toBe('stopped');
     });
 
     it('rejects a structurally valid reply with the wrong method result', async () => {
@@ -144,5 +158,13 @@ describe('TerminalHostSupervisor', () => {
         await expect(request).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         expect(onExit).toHaveBeenCalledWith({ code: 9, signal: null });
         expect(supervisor.processId()).toBeUndefined();
+        const failedDiagnostics = supervisor.diagnostics();
+        expect(failedDiagnostics).toMatchObject({
+            state: 'failed',
+            restartCount: 0,
+            pendingRequestCount: 0,
+            lastExit: { code: 9, signal: null },
+        });
+        expect(typeof failedDiagnostics.lastExit?.at).toBe('number');
     });
 });

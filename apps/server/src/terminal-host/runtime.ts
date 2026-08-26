@@ -9,6 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, defaultAgentOutputRecoverySettings, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import type {
     TerminalExecutionEvent,
@@ -96,6 +97,24 @@ export class TerminalHostRuntime {
                 outputFlushMs: options.outputFlushMs,
                 terminalColors: (terminalId) => this.colors.get(terminalId),
             });
+    }
+
+    /**
+     * Emits only the request identity and classification. Private request parameters can contain Terminal input, launch
+     * arguments, environment values, or snapshots and must never enter diagnostics.
+     */
+    private logRequestFailure(envelope: TerminalHostRequestEnvelope, code: string): void {
+        this.options.logger.write('warn', logEventCatalog.terminalHost.requestFailed, {
+            correlationId: envelope.id,
+            fields: {
+                method: envelope.request.method,
+                capability: envelope.scope.capability,
+                code,
+                ...(envelope.scope.scope === 'terminal' && {
+                    terminalId: envelope.scope.terminalId,
+                }),
+            },
+        });
     }
 
     private authority(): TerminalHostAuthority {
@@ -378,6 +397,7 @@ export class TerminalHostRuntime {
         const envelope = parsed.data;
         const authorization = authorizeTerminalHostRequest(envelope, this.authority());
         if (!authorization.ok) {
+            this.logRequestFailure(envelope, 'CAPABILITY_DENIED');
             this.options.send({
                 type: 'reply',
                 id: envelope.id,
@@ -394,6 +414,7 @@ export class TerminalHostRuntime {
             this.options.send({ type: 'reply', id: envelope.id, ok: true, result });
         } catch (error) {
             const wire = toWireError(error);
+            this.logRequestFailure(envelope, wire.code);
             this.options.send({
                 type: 'reply',
                 id: envelope.id,
