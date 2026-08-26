@@ -1,8 +1,8 @@
 import { CancellationTokenSource } from 'caxri';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { rejectPendingApiRequests, requestHostApi, settleApiReply } from '../host-api-request';
 import type { ExtensionHostMessage } from '../protocol';
+import { rejectPendingApiRequests, requestServerApi, settleApiReply } from '../server-api-request';
 
 const context = {
     kind: 'session' as const,
@@ -19,7 +19,7 @@ describe('Extension Host API requests', () => {
     it('reports public-token cancellation as a typed non-fault outcome', async () => {
         const sent: ExtensionHostMessage[] = [];
         const source = new CancellationTokenSource();
-        const request = requestHostApi(
+        const request = requestServerApi(
             {
                 apiToken: 'token-1',
                 extensionId: 'publisher.fixture',
@@ -45,7 +45,7 @@ describe('Extension Host API requests', () => {
         vi.useFakeTimers();
         const sent: ExtensionHostMessage[] = [];
         const source = new CancellationTokenSource();
-        const request = requestHostApi(
+        const request = requestServerApi(
             {
                 apiToken: 'token-1',
                 extensionId: 'publisher.fixture',
@@ -89,7 +89,7 @@ describe('Extension Host API requests', () => {
     it('still reports cancellation when Host stops a non-expiring mutation before its boundary', async () => {
         const sent: ExtensionHostMessage[] = [];
         const source = new CancellationTokenSource();
-        const request = requestHostApi(
+        const request = requestServerApi(
             {
                 apiToken: 'token-1',
                 extensionId: 'publisher.fixture',
@@ -127,7 +127,7 @@ describe('Extension Host API requests', () => {
     it('cancels Host work when an expiring API request times out', async () => {
         vi.useFakeTimers();
         const sent: ExtensionHostMessage[] = [];
-        const request = requestHostApi(
+        const request = requestServerApi(
             {
                 apiToken: 'token-1',
                 extensionId: 'publisher.fixture',

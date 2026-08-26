@@ -146,18 +146,18 @@ export class ExecutableResolver {
     }
 }
 
-const runtimeExecutableResolver = new ExecutableResolver();
+const serverExecutableResolver = new ExecutableResolver();
 
-export function clearRuntimeExecutableCache(): void {
-    runtimeExecutableResolver.clear();
+export function clearServerExecutableCache(): void {
+    serverExecutableResolver.clear();
 }
 
-export function resolveRuntimeExecutable(name: string): Promise<string | undefined> {
-    return runtimeExecutableResolver.resolve(name);
+export function resolveServerExecutable(name: string): Promise<string | undefined> {
+    return serverExecutableResolver.resolve(name);
 }
 
-export function runtimeProcessEnvironment(): Promise<NodeJS.ProcessEnv> {
-    return runtimeExecutableResolver.environment();
+export function serverProcessEnvironment(): Promise<NodeJS.ProcessEnv> {
+    return serverExecutableResolver.environment();
 }
 
 export interface ExternalCommandOptions {
@@ -179,7 +179,7 @@ export interface ExternalCommandDependencies {
 
 /**
  * Runs an external CLI (`gh`, `linear`, `vc`, Agent binaries, …) through the login-shell PATH boundary. A GUI-launched
- * packaged app inherits the constrained macOS launchd PATH without Homebrew-style directories, so Runtime code must
+ * packaged app inherits the constrained macOS launchd PATH without Homebrew-style directories, so Server code must
  * never spawn a bare command name directly — this wrapper owns resolution, the sanitized environment, and the ENOENT
  * contract (`<name> was not found`) that callers map into their own error domains.
  */
@@ -189,8 +189,8 @@ export async function runExternalCommand(
     options: ExternalCommandOptions,
     dependencies: ExternalCommandDependencies = {},
 ): Promise<{ stderr: string; stdout: string }> {
-    const resolveExecutable = dependencies.resolveExecutable ?? resolveRuntimeExecutable;
-    const readEnvironment = dependencies.environment ?? runtimeProcessEnvironment;
+    const resolveExecutable = dependencies.resolveExecutable ?? resolveServerExecutable;
+    const readEnvironment = dependencies.environment ?? serverProcessEnvironment;
     const run = dependencies.run ?? runFile;
     const executable = await resolveExecutable(name);
     if (!executable) {

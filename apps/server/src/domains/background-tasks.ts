@@ -19,7 +19,7 @@ export function createBackgroundTasks(
 } {
     /**
      * File watching is recoverable background work (`FileWatcherService#watchSession` already catches and logs its own
-     * setup failures) and must never delay a Runtime IPC response, so every call site fires this without awaiting it.
+     * setup failures) and must never delay a Server IPC response, so every call site fires this without awaiting it.
      */
     function watchSessionInBackground(sessionId: string | undefined): void {
         // This helper is intentionally synchronous (`void` return) so sync IPC handlers such as

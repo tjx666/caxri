@@ -172,7 +172,7 @@ export function openDatabase(path: string): OpenedDatabase {
         database.pragma('busy_timeout = 5000');
         /**
          * Explicit, not a change: better-sqlite3 compiles with SQLITE_DEFAULT_WAL_SYNCHRONOUS=1, so WAL already runs at
-         * NORMAL. Pinning it keeps the Runtime's event-loop budget (sub-millisecond 2MiB snapshot upserts, measured for
+         * NORMAL. Pinning it keeps the Server's event-loop budget (sub-millisecond 2MiB snapshot upserts, measured for
          * issue #237) independent of a future build-flag change; NORMAL under WAL cannot corrupt the database, a power
          * loss merely loses the last transactions.
          */

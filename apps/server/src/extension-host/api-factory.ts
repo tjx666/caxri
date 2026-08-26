@@ -29,14 +29,21 @@ import {
     TreeItemCollapsibleState,
 } from 'caxri';
 
-import { createHostApiRequester, requestConfig, requestProjectStatus } from './host-api-binding';
-import { rejectPendingApiRequests, settleApiReply as settleHostApiReply } from './host-api-request';
 import type {
     ExtensionHostMessage,
     ExtensionHostRegistration,
     ExtensionViewEventScope,
     ExtensionWorkspaceOperation,
 } from './protocol';
+import {
+    createServerApiRequester,
+    requestConfig,
+    requestProjectStatus,
+} from './server-api-binding';
+import {
+    rejectPendingApiRequests,
+    settleApiReply as settleServerApiReply,
+} from './server-api-request';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
 import {
@@ -45,7 +52,7 @@ import {
     didCancelViewRequest,
     retireViewProviders,
     withViewEventContext,
-} from './view-provider-runtime';
+} from './view-provider-service';
 import { createWorkspaceApiClient } from './workspace-api-client';
 
 interface ApiBinding {
@@ -79,7 +86,7 @@ interface ProviderRegistration {
     refreshEpoch: number;
 }
 
-interface ExtensionRuntime {
+interface ExtensionInstance {
     registration: ExtensionHostRegistration;
     apiBinding: ApiBinding;
     context: ExtensionContext;
@@ -87,7 +94,7 @@ interface ExtensionRuntime {
     retired: boolean;
 }
 
-const extensions = new Map<string, ExtensionRuntime>();
+const extensions = new Map<string, ExtensionInstance>();
 const providers = new Map<string, ProviderRegistration>();
 const commands = new Map<
     string,
@@ -131,7 +138,7 @@ function send(message: ExtensionHostMessage): void {
     if (process.connected) process.send?.(message);
 }
 
-function assertCurrent(extensionId: string, generation: number): ExtensionRuntime {
+function assertCurrent(extensionId: string, generation: number): ExtensionInstance {
     const runtime = extensions.get(extensionId);
     if (!runtime || runtime.registration.generation !== generation)
         throw Object.assign(new Error(`Extension generation expired: ${extensionId}`), {
@@ -154,7 +161,7 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
         provider.handles = new WeakMap();
         provider.nextHandle = 0;
     }
-    // Generic TreeDataProviders may refresh outside a Host-scoped notification (for example, an internal timer). Keep
+    // Generic TreeDataProviders may refresh outside a Server-scoped notification (for example, an internal timer). Keep
     // their local handles generation-safe, but fail closed by suppressing an unscoped cross-process event.
     if (!context) return;
     const existing = pendingRefreshes.get(viewId);
@@ -232,7 +239,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
     const allowedCommands = new Set(
         registration.manifest.contributes.commands.map(({ command }) => command),
     );
-    const request = createHostApiRequester({
+    const request = createServerApiRequester({
         apiToken: registration.apiToken,
         extensionId: registration.extensionId,
         generation: registration.generation,
@@ -394,7 +401,7 @@ export function notifyGitChanged(context: ExtensionViewEventScope): { notified: 
     return { notified };
 }
 
-function disposeExtension(runtime: ExtensionRuntime): void {
+function disposeExtension(runtime: ExtensionInstance): void {
     runtime.retired = true;
     for (const disposable of runtime.context.subscriptions.toReversed()) {
         try {
@@ -445,7 +452,7 @@ export function extensionApiBinding(apiToken: string): ApiBinding {
     return runtime.apiBinding;
 }
 
-function assertBindingCurrent(registration: ExtensionHostRegistration): ExtensionRuntime {
+function assertBindingCurrent(registration: ExtensionHostRegistration): ExtensionInstance {
     const runtime = extensions.get(registration.extensionId);
     if (
         !runtime ||
@@ -459,7 +466,7 @@ function assertBindingCurrent(registration: ExtensionHostRegistration): Extensio
     return runtime;
 }
 
-function assertRuntimeCurrent(runtime: ExtensionRuntime): void {
+function assertInstanceCurrent(runtime: ExtensionInstance): void {
     if (extensions.get(runtime.registration.extensionId) !== runtime || runtime.retired)
         throw Object.assign(new Error('Extension generation expired during the request'), {
             code: 'GENERATION_EXPIRED',
@@ -479,7 +486,7 @@ export async function activateExtension(extensionId: string, generation: number)
                 code: 'ACTIVATION_FAILED',
             });
         await module.activate(runtime.context);
-        assertRuntimeCurrent(runtime);
+        assertInstanceCurrent(runtime);
     })();
     await runtime.activation;
 }
@@ -606,7 +613,7 @@ export async function getTreeChildren(parameters: {
         } catch (error) {
             throw providerFailure(error);
         }
-        assertRuntimeCurrent(runtime);
+        assertInstanceCurrent(runtime);
         assertRefreshCurrent(provider, refreshEpoch);
         if (isRequestCancelled(cancellation)) return { items: [] };
         if (children.length > MAX_VIEW_TREE_ITEMS)
@@ -632,10 +639,10 @@ export async function getTreeChildren(parameters: {
                 return { element, item };
             }),
         );
-        assertRuntimeCurrent(runtime);
+        assertInstanceCurrent(runtime);
         assertRefreshCurrent(provider, refreshEpoch);
         if (isRequestCancelled(cancellation)) return { items: [] };
-        assertRuntimeCurrent(runtime);
+        assertInstanceCurrent(runtime);
         const retiredHandles = collectDescendantHandles(provider, parentKey);
         if (provider.elements.size - retiredHandles.size + children.length > MAX_VIEW_TREE_HANDLES)
             throw Object.assign(new Error('Tree provider exceeded the handle limit'), {
@@ -753,7 +760,7 @@ export async function executeExtensionCommand(parameters: {
             code: 'ACTIVATION_FAILED',
         });
     await withViewEventContext(parameters.context, () => command.run(...parameters.arguments));
-    assertRuntimeCurrent(runtime);
+    assertInstanceCurrent(runtime);
     return { executed: true };
 }
 
@@ -769,7 +776,7 @@ export function settleApiReply(message: {
     result?: unknown;
     error?: { code: string; message: string };
 }): void {
-    settleHostApiReply(message, (apiToken) =>
+    settleServerApiReply(message, (apiToken) =>
         extensions.values().some(({ registration }) => registration.apiToken === apiToken),
     );
 }

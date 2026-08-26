@@ -110,7 +110,7 @@ function findTerminator(
 }
 
 /**
- * Removes image payloads from Runtime-owned recovery state while the raw bytes continue to the attached Renderer. Chunk
+ * Removes image payloads from Server-owned recovery state while the raw bytes continue to the attached Renderer. Chunk
  * boundaries and oversized/incomplete sequences stay bounded and resolve to one content-free placeholder, so SQLite and
  * diagnostics never retain image contents.
  */

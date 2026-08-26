@@ -312,7 +312,7 @@ describe('built-in theme contrast', () => {
     });
 
     /**
-     * `styles/theme.css` hardcodes the same palette as the pre-Runtime fallback that paints the first frame before
+     * `styles/theme.css` hardcodes the same palette as the pre-Server fallback that paints the first frame before
      * `applyCssTheme` runs. Drift between the two shows up as a color flash, so the stylesheet is asserted against the
      * source of truth rather than eyeballed.
      */

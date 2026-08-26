@@ -34,7 +34,7 @@ describe('Runtime Agent hook integration', () => {
             },
             agentHooksPath: join(directory, 'shared-hooks'),
             logger: new StructuredLogger(join(directory, 'logs')),
-            runtimeExecutable: process.execPath,
+            hookExecutable: process.execPath,
             send: () => {},
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/echo'),

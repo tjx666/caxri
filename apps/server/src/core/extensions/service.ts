@@ -34,7 +34,7 @@ import { ExtensionHostSupervisor } from './supervisor';
 import { assertActiveViewContext } from './view-scope';
 import {
     validatedExtensionWorkspaceResult,
-    validatedRuntimeWorkspaceResult,
+    validatedServerWorkspaceResult,
 } from './workspace-results';
 
 type DiscoveryResult = Awaited<ReturnType<typeof discoverExtensions>>;
@@ -367,7 +367,7 @@ export class ExtensionService extends EventTarget {
         const workspaceResult = signal
             ? await this.options.workspaceRequest(operation, parameters, active, signal)
             : await this.options.workspaceRequest(operation, parameters, active);
-        const result = validatedRuntimeWorkspaceResult(operation, workspaceResult);
+        const result = validatedServerWorkspaceResult(operation, workspaceResult);
         if (readWorkspaceOperations.has(operation))
             await this.assertApiContextCurrent(request, capability, active);
         return result;

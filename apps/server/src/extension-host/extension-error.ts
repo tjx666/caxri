@@ -17,7 +17,7 @@ export function extensionErrorShape(error: unknown): { code: string; message: st
             ? 'COMMONJS_API_UNSUPPORTED'
             : (rawCode ?? 'ACTIVATION_FAILED');
     /**
-     * The Host treats oversized child messages as a compromised Extension Host. Normalize errors here so one noisy
+     * Server Core treats oversized child messages as a compromised Extension Host. Normalize errors here so one noisy
      * provider cannot turn its local failure into a shared-host crash.
      */
     const code = rawStableCode.slice(0, 100) || 'ACTIVATION_FAILED';

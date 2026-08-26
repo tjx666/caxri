@@ -307,7 +307,7 @@ describe('domain-service composition root', () => {
             expect(populated.sessions).toHaveLength(1);
             expect(populated.selectedSessionId).toBe(created.session.id);
             /**
-             * Live PTY identity is Runtime state, not durable metadata, so it must come from the manager.
+             * Live PTY identity is Server state, not durable metadata, so it must come from the manager.
              */
             expect(populated.terminals[0]).toMatchObject({
                 id: created.terminal!.id,
@@ -466,15 +466,15 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             await mkdir(projectRoot);
             const resolveExecutable = () => Promise.resolve(`/usr/local/bin/${provider}`);
 
-            const runtimeA = await createDomainServices({
+            const domainsA = await createDomainServices({
                 userDataPath,
                 logger: new StructuredLogger(join(directory, 'logs-a')),
                 send: () => {},
                 terminal: { resolveExecutable, spawn: () => createFakePty() },
                 agentAdapters: createPendingAgentAdapters(),
             });
-            const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
-            const created = await runtimeA.handlers['session.create']({
+            const project = await domainsA.handlers['project.create']({ rootPath: projectRoot });
+            const created = await domainsA.handlers['session.create']({
                 projectId: project.id,
                 defaultAgent: provider,
             });
@@ -482,7 +482,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             /**
              * Orderly close marks the still-running Terminal `interrupted`, not `stopped`/`dead`.
              */
-            await runtimeA.close();
+            await domainsA.close();
 
             /**
              * Simulate a capability-detected Agent session id having been bound before the shutdown; done through the
@@ -498,7 +498,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
 
             const spawnSpy = vi.fn();
             spawnSpy.mockImplementation(() => createFakePty());
-            const runtimeB = await createDomainServices({
+            const domainsB = await createDomainServices({
                 userDataPath,
                 terminalRestoreGridWaitMs: 0,
                 logger: new StructuredLogger(join(directory, 'logs-b')),
@@ -511,7 +511,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
                 expect(spawnSpy.mock.calls[0]?.[1]).toEqual(resumeArguments);
 
                 const bootstrap = await vi.waitFor(async () => {
-                    const state = await runtimeB.handlers['app.bootstrap']({});
+                    const state = await domainsB.handlers['app.bootstrap']({});
                     const terminal = state.terminals.find(
                         (entry) => entry.id === created.terminal!.id,
                     );
@@ -523,7 +523,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
                 );
                 expect(restoredTerminal?.agentSessionId).toBe(sessionId);
             } finally {
-                await runtimeB.close();
+                await domainsB.close();
             }
         },
     );
@@ -535,7 +535,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
 
-        const runtimeA = await createDomainServices({
+        const domainsA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -544,16 +544,16 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
                 spawn: () => createFakePty(),
             },
         });
-        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
-        const created = await runtimeA.handlers['session.create']({
+        const project = await domainsA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await domainsA.handlers['session.create']({
             projectId: project.id,
             defaultAgent: 'shell',
         });
-        const second = await runtimeA.handlers['terminal.create']({
+        const second = await domainsA.handlers['terminal.create']({
             sessionId: created.session.id,
             kind: 'shell',
         });
-        await runtimeA.close();
+        await domainsA.close();
 
         const { promise: discoveryGate, resolve: releaseDiscovery } = Promise.withResolvers<void>();
         const resolveExecutable = vi.fn(async () => {
@@ -562,7 +562,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         });
         const spawnSpy = vi.fn(() => createFakePty());
         const events: ServerEvent[] = [];
-        const runtimeB = await createDomainServices({
+        const domainsB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
@@ -590,7 +590,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             });
         } finally {
             releaseDiscovery();
-            await runtimeB.close();
+            await domainsB.close();
         }
     });
 
@@ -602,26 +602,26 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         await mkdir(projectRoot);
         const resolveExecutable = () => Promise.resolve('/usr/local/bin/claude');
 
-        const runtimeA = await createDomainServices({
+        const domainsA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
             terminal: { resolveExecutable, spawn: () => createFakePty() },
             agentAdapters: createPendingAgentAdapters(),
         });
-        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
-        const created = await runtimeA.handlers['session.create']({
+        const project = await domainsA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await domainsA.handlers['session.create']({
             projectId: project.id,
             defaultAgent: 'claude',
         });
         /**
          * No Agent session id was ever bound, so the orderly close leaves `agentSessionId` unset.
          */
-        await runtimeA.close();
+        await domainsA.close();
 
         const freshSpawnSpy = vi.fn();
         freshSpawnSpy.mockImplementation(() => createFakePty());
-        const runtimeB = await createDomainServices({
+        const domainsB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
@@ -633,19 +633,19 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             await vi.waitFor(() => expect(freshSpawnSpy).toHaveBeenCalled());
             expect(freshSpawnSpy.mock.calls[0]?.[1]).toEqual([]);
 
-            await runtimeB.handlers['terminal.terminateAll']({});
-            const afterTerminate = await runtimeB.handlers['app.bootstrap']({});
+            await domainsB.handlers['terminal.terminateAll']({});
+            const afterTerminate = await domainsB.handlers['app.bootstrap']({});
             expect(
                 afterTerminate.terminals.find((entry) => entry.id === created.terminal!.id)
                     ?.lastProcessState,
             ).toBe('stopped');
         } finally {
-            await runtimeB.close();
+            await domainsB.close();
         }
 
         const noRestartSpawnSpy = vi.fn();
         noRestartSpawnSpy.mockImplementation(() => createFakePty());
-        const runtimeC = await createDomainServices({
+        const domainsC = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-c')),
             send: () => {},
@@ -659,7 +659,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             await new Promise((resolve) => setTimeout(resolve, 50));
             expect(noRestartSpawnSpy).not.toHaveBeenCalled();
         } finally {
-            await runtimeC.close();
+            await domainsC.close();
         }
     });
 });
@@ -672,7 +672,7 @@ describe('selected Session Agent probes', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
 
-        const runtimeA = await createDomainServices({
+        const domainsA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -682,17 +682,17 @@ describe('selected Session Agent probes', () => {
             },
             agentAdapters: createPendingAgentAdapters(),
         });
-        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
-        const first = await runtimeA.handlers['session.create']({
+        const project = await domainsA.handlers['project.create']({ rootPath: projectRoot });
+        const first = await domainsA.handlers['session.create']({
             projectId: project.id,
             defaultAgent: 'claude',
         });
-        const selected = await runtimeA.handlers['session.create']({
+        const selected = await domainsA.handlers['session.create']({
             projectId: project.id,
             defaultAgent: 'claude',
         });
-        await runtimeA.handlers['terminal.terminateAll']({});
-        await runtimeA.close();
+        await domainsA.handlers['terminal.terminateAll']({});
+        await domainsA.close();
 
         const snapshot = vi.fn((context: { correlationId?: string }) =>
             Promise.resolve({
@@ -703,7 +703,7 @@ describe('selected Session Agent probes', () => {
                 sessionId: context.correlationId,
             }),
         );
-        const runtimeB = await createDomainServices({
+        const domainsB = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: () => {},
@@ -716,11 +716,11 @@ describe('selected Session Agent probes', () => {
             await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(1));
             expect(snapshot.mock.calls[0]?.[0].correlationId).toBe(selected.terminal!.id);
 
-            await runtimeB.handlers['session.select']({ sessionId: first.session.id });
+            await domainsB.handlers['session.select']({ sessionId: first.session.id });
             await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
             expect(snapshot.mock.calls[1]?.[0].correlationId).toBe(first.terminal!.id);
         } finally {
-            await runtimeB.close();
+            await domainsB.close();
         }
     });
 });
@@ -732,7 +732,7 @@ describe('Session state recovery', () => {
         const userDataPath = join(directory, 'user-data');
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
-        const runtimeA = await createDomainServices({
+        const domainsA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -741,12 +741,12 @@ describe('Session state recovery', () => {
                 spawn: () => createFakePty(),
             },
         });
-        const project = await runtimeA.handlers['project.create']({ rootPath: projectRoot });
-        const created = await runtimeA.handlers['session.create']({
+        const project = await domainsA.handlers['project.create']({ rootPath: projectRoot });
+        const created = await domainsA.handlers['session.create']({
             projectId: project.id,
             defaultAgent: 'shell',
         });
-        await runtimeA.close();
+        await domainsA.close();
 
         const direct = new CaxriDatabase(join(userDataPath, 'caxri.db'));
         direct.database
@@ -755,9 +755,9 @@ describe('Session state recovery', () => {
         direct.close();
 
         const logger = new StructuredLogger(join(directory, 'logs-b'));
-        const runtimeB = await createDomainServices({ userDataPath, logger, send: () => {} });
+        const domainsB = await createDomainServices({ userDataPath, logger, send: () => {} });
         try {
-            const bootstrap = await runtimeB.handlers['app.bootstrap']({});
+            const bootstrap = await domainsB.handlers['app.bootstrap']({});
             const repaired = bootstrap.sessionStates.find(
                 (state) => state.sessionId === created.session.id,
             );
@@ -784,7 +784,7 @@ describe('Session state recovery', () => {
                 }),
             );
         } finally {
-            await runtimeB.close();
+            await domainsB.close();
         }
     });
 });

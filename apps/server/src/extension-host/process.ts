@@ -20,7 +20,7 @@ import type {
     ExtensionHostParentMessage,
     ExtensionHostRequest,
 } from './protocol';
-import { executeViewOperation } from './view-provider-runtime';
+import { executeViewOperation } from './view-provider-service';
 
 function isApiReply(
     message: unknown,

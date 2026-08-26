@@ -104,8 +104,8 @@ export interface WatcherServiceOptions {
      */
     subscribe?: typeof parcelWatcher.subscribe;
     /**
-     * Shared Runtime watch registry. Production passes the Runtime-wide hub; tests may omit it, in which case the
-     * service owns a private hub with equivalent behavior.
+     * Shared Server watch registry. Production passes the Server-wide hub; tests may omit it, in which case the service
+     * owns a private hub with equivalent behavior.
      */
     watchHub?: WatchHub;
 }

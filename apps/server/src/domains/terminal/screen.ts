@@ -63,7 +63,7 @@ export interface TerminalScreenStateOptions {
     maximumQueuedBytes?: number;
     onOverflow?: (droppedBytes: number) => void;
     /**
-     * Emitted for every Terminal the Runtime owns, mounted or not, because this parser runs independently of any
+     * Emitted for every Terminal the Server owns, mounted or not, because this parser runs independently of any
      * Renderer pane.
      */
     onTitleChange?: TerminalTitleObserver;

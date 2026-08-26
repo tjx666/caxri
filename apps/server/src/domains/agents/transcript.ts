@@ -79,7 +79,7 @@ async function readTranscriptTail(
 }
 
 /**
- * Resolves and reads the on-disk transcript for a bound Agent Terminal. The path is derived Runtime-side from the
+ * Resolves and reads the on-disk transcript for a bound Agent Terminal. The path is derived Server-side from the
  * Terminal's durable identity (provider, cwd, Agent session) — the caller never supplies a filesystem path, so this
  * deliberate out-of-Project read cannot be steered anywhere the owning provider does not already write.
  */

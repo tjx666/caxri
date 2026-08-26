@@ -19,11 +19,11 @@ import {
 } from '@caxri/system';
 import * as pty from 'node-pty';
 
-// Runtime providers use the public domain barrel by architecture contract.
+// Server providers use the public domain barrel by architecture contract.
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders } from '../agents';
 import type { CaxriDatabase } from '../db';
-import { runtimeProcessEnvironment } from '../executables';
+import { serverProcessEnvironment } from '../executables';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
@@ -86,7 +86,7 @@ export class TerminalManager {
         this.agentLaunchSettings = options.agentLaunchSettings;
         this.agentOutputRecoverySettings = options.agentOutputRecoverySettings;
         this.refreshOutputRecoveryAvailability();
-        this.agentEnvironment = options.agentEnvironment ?? runtimeProcessEnvironment;
+        this.agentEnvironment = options.agentEnvironment ?? serverProcessEnvironment;
         this.lifecycleEnvironment = options.lifecycleEnvironment;
         this.onLifecycleStarted = options.onLifecycleStarted;
         this.onLifecycleRetired = options.onLifecycleRetired;
@@ -219,7 +219,7 @@ export class TerminalManager {
                           terminator,
                       );
                       /**
-                       * Protocol replies are Runtime-internal, so they bypass `write()`'s E2E agent-input policy; the
+                       * Protocol replies are Server-internal, so they bypass `write()`'s E2E agent-input policy; the
                        * liveness check drops a reply that raced retire.
                        */
                       if (!reply || this.terminals.get(record.id)?.process !== child) return;
@@ -459,7 +459,7 @@ export class TerminalManager {
 
     /**
      * Stops tracking a live PTY: clears its timers, flushes queued output and metrics, and optionally persists a final
-     * parsed screen snapshot. Exit, restart, and Runtime shutdown preserve it; close and Session deletion discard it.
+     * parsed screen snapshot. Exit, restart, and Server shutdown preserve it; close and Session deletion discard it.
      * Returns no finalization when the Terminal was already retired or history is deliberately discarded.
      */
     private retireLiveTerminal(live: LiveTerminal, options: { shouldPersist: false }): undefined;
@@ -769,12 +769,12 @@ export class TerminalManager {
 
     /**
      * Kills every live PTY (final snapshot persisted) and bulk-marks Terminals per `reason`. `unclean` is excluded:
-     * that recovery path only ever runs from `openDatabase` on the next Runtime start, never from a live Runtime
-     * shutting itself down.
+     * that recovery path only ever runs from `openDatabase` on the next Server start, never from a live Server shutting
+     * itself down.
      */
     async shutdown(reason: Exclude<ShutdownReason, 'unclean'>): Promise<void> {
         /**
-         * Wake restore starts before their generation guard turns false so shutdown does not leave the Runtime alive
+         * Wake restore starts before their generation guard turns false so shutdown does not leave the Server alive
          * solely for the visible-Terminal grid grace period.
          */
         for (const terminalId of this.attachedSizeWaiters.keys())

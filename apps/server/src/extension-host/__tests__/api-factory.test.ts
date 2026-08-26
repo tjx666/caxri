@@ -18,7 +18,7 @@ import {
     notifyProjectStatusChanged,
 } from '../api-factory';
 import type { ExtensionHostRegistration } from '../protocol';
-import { currentViewEventContext, executeViewOperation } from '../view-provider-runtime';
+import { currentViewEventContext, executeViewOperation } from '../view-provider-service';
 
 const fixture = { extensionRoot: '' };
 

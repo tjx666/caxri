@@ -3,7 +3,7 @@ import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { RuntimeAgentEndpointLifecycle } from './agent-endpoints';
+import type { AgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentCoordinator, AgentLifecycleSignal } from './agents';
 import type { WorkbenchRootService } from './workbench-roots';
 
@@ -81,7 +81,7 @@ export function didHandleAgentLifecycleSignal(
 }
 
 export function isCurrentAgentWorkbenchEndpoint(
-    endpoints: RuntimeAgentEndpointLifecycle | undefined,
+    endpoints: AgentEndpointLifecycle | undefined,
     endpoint: AgentEndpointSummary,
 ): boolean {
     try {
@@ -92,7 +92,7 @@ export function isCurrentAgentWorkbenchEndpoint(
 }
 
 export async function retireAgentWorkbenchProvenance(options: {
-    endpoints: RuntimeAgentEndpointLifecycle | undefined;
+    endpoints: AgentEndpointLifecycle | undefined;
     logger: StructuredLogger;
     terminalId: string;
     workbenchRoots: WorkbenchRootService;
@@ -114,7 +114,7 @@ export async function retireAgentWorkbenchProvenance(options: {
  * Prepares a generation-scoped Endpoint and records its owning Git topology before the Agent process can spawn.
  */
 export async function prepareAgentWorkbenchProvenance(options: {
-    endpoints: RuntimeAgentEndpointLifecycle;
+    endpoints: AgentEndpointLifecycle;
     projectId: string;
     settings: AgentProviderSettings;
     terminal: TerminalRecord;

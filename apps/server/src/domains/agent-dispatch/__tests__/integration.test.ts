@@ -8,7 +8,7 @@ import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createPendingAgentAdapters } from '../../__tests__/create-test-domain-services';
-import { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';
+import { AgentEndpointLifecycle } from '../../agent-endpoints';
 import { createDomainServices } from '../../create-domain-services';
 
 const temporaryDirectories: string[] = [];
@@ -38,7 +38,7 @@ function fakePty(pid: number) {
 
 function endpointLifecycle() {
     const generations = new Map<string, number>();
-    return new RuntimeAgentEndpointLifecycle(
+    return new AgentEndpointLifecycle(
         {
             activate: () => Promise.resolve(true),
             begin: (parameters: AgentEndpointBeginParameters) => {

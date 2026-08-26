@@ -10,7 +10,7 @@ import { defaultAgentOutputRecoverySettings, defaultAgentProviderSettings } from
 import { describe, expect, it, vi } from 'vitest';
 
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
-import { classifyAgentPermission, RuntimeAgentEndpointLifecycle } from '../lifecycle';
+import { AgentEndpointLifecycle, classifyAgentPermission } from '../lifecycle';
 
 function terminal(
     kind: 'codex' | 'shell' = 'codex',
@@ -34,7 +34,7 @@ function terminal(
     };
 }
 
-describe('RuntimeAgentEndpointLifecycle', () => {
+describe('AgentEndpointLifecycle', () => {
     const probe = () =>
         new AgentMessagingCapabilityProbe({
             cliAvailable: () => Promise.resolve(true),
@@ -67,7 +67,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
         const messaging = vi.fn(() => {
             return Promise.resolve(true);
         });
-        const lifecycle = new RuntimeAgentEndpointLifecycle(
+        const lifecycle = new AgentEndpointLifecycle(
             { activate, begin, messaging, retire },
             '/profile',
             probe(),
@@ -140,7 +140,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             }),
         );
         const retire = vi.fn(() => Promise.resolve(true));
-        const lifecycle = new RuntimeAgentEndpointLifecycle(
+        const lifecycle = new AgentEndpointLifecycle(
             {
                 activate: vi.fn(() => Promise.resolve(true)),
                 begin,
@@ -180,7 +180,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
                 return Promise.resolve(true);
             },
         );
-        const lifecycle = new RuntimeAgentEndpointLifecycle(
+        const lifecycle = new AgentEndpointLifecycle(
             {
                 activate: vi.fn(() => Promise.resolve(true)),
                 begin: vi.fn(() => {
@@ -223,7 +223,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
     it('synchronously fences a live Endpoint while Host retirement is delayed', async () => {
         const retirement = Promise.withResolvers<boolean>();
         const activate = vi.fn(() => Promise.resolve(true));
-        const lifecycle = new RuntimeAgentEndpointLifecycle(
+        const lifecycle = new AgentEndpointLifecycle(
             {
                 activate,
                 begin: vi.fn(() =>
@@ -282,7 +282,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             },
         );
         const retire = vi.fn(() => Promise.resolve(true));
-        const lifecycle = new RuntimeAgentEndpointLifecycle(
+        const lifecycle = new AgentEndpointLifecycle(
             { activate: vi.fn(() => Promise.resolve(true)), begin, messaging, retire },
             '/profile',
             probe(),
@@ -318,7 +318,7 @@ describe('RuntimeAgentEndpointLifecycle', () => {
             probe: providerProbe,
         });
         let generation = 0;
-        const lifecycle = new RuntimeAgentEndpointLifecycle(
+        const lifecycle = new AgentEndpointLifecycle(
             {
                 activate: vi.fn(() => Promise.resolve(true)),
                 begin: vi.fn((parameters: AgentEndpointBeginParameters) => {

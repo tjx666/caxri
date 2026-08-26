@@ -576,8 +576,8 @@ describe('CaxriDatabase', () => {
         });
 
         /**
-         * `Terminal.title` is replayed as `agentEndpoint.begin.name` on the next launch, where the Host schema caps it
-         * at 200 characters and rejects the whole request otherwise — an over-long conversation name would fail the
+         * `Terminal.title` is replayed as `agentEndpoint.begin.name` on the next launch, where the Server schema caps
+         * it at 200 characters and rejects the whole request otherwise — an over-long conversation name would fail the
          * Agent's next start rather than just look wrong.
          */
         const title = database.getTerminal(terminal.id)?.title ?? '';

@@ -66,7 +66,7 @@ function areRangesOverlapping(
 }
 
 /**
- * Tracks OSC 8 identities beside Runtime's authoritative parsed screen. xterm's serializer retains label cells but not
+ * Tracks OSC 8 identities beside Server's authoritative parsed screen. xterm's serializer retains label cells but not
  * their URI metadata, so attach snapshots carry this separately and never depend on a detached Renderer's stale state.
  */
 export class TerminalOscLinkSnapshots {

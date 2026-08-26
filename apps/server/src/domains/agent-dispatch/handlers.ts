@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer';
 
 import { CaxriError } from '@caxri/protocol';
 
-import type { RuntimeAgentEndpointLifecycle } from '../agent-endpoints';
+import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
 import type { DomainHandlers } from '../domain-services';
 import type { TerminalManager } from '../terminal';
@@ -29,13 +29,13 @@ type AgentCommandMethod =
 export interface AgentCommandHandlerOptions {
     coordinator: AgentCoordinator;
     dispatch: AgentDispatchService;
-    endpoints?: RuntimeAgentEndpointLifecycle;
+    endpoints?: AgentEndpointLifecycle;
     mainOwned(method: AgentCommandMethod): never;
     terminals: TerminalManager;
 }
 
 /**
- * Keeps public Host ownership and private Runtime PTY ownership visibly separated.
+ * Keeps public Server ownership and private Server PTY ownership visibly separated.
  */
 export function createAgentCommandHandlers(
     options: AgentCommandHandlerOptions,

@@ -62,7 +62,7 @@ export interface AgentActionDiscoveryContext {
 
 export interface AgentActionDiscoveryAdapter {
     /**
-     * Declares only provider-owned, documented configuration roots. Generic Runtime code owns bounded traversal and
+     * Declares only provider-owned, documented configuration roots. Generic Server code owns bounded traversal and
      * metadata parsing so no provider can accidentally expose file paths or skill bodies over IPC.
      */
     roots(
@@ -84,7 +84,7 @@ export function defaultAgentEnvironment(
  * (`packages/protocol/src/agent/agents.ts`); this interface only carries provider-specific behavior so `service.ts`,
  * `discovery.ts`, and `coordinator.ts` can iterate providers instead of hard-coding a `claude`/`codex` branch each.
  * Provider-local state reads stay pure, and an optional hook adapter describes only that provider's configuration
- * representation; generic Runtime code owns every filesystem mutation, bridge process, and lifecycle signal.
+ * representation; generic Server code owns every filesystem mutation, bridge process, and lifecycle signal.
  */
 export interface AgentProviderDescriptor {
     actions?: AgentActionDiscoveryAdapter;
@@ -95,7 +95,7 @@ export interface AgentProviderDescriptor {
         environment: AgentEnvironment,
     ): Promise<LocalAgentState | undefined>;
     /**
-     * Structured argv for restoring one provider conversation. This is Runtime launch behavior, not a browser-safe
+     * Structured argv for restoring one provider conversation. This is Server launch behavior, not a browser-safe
      * identity or capability contract.
      */
     resumeArguments(agentSessionId: string): string[];
@@ -112,7 +112,7 @@ export interface AgentProviderDescriptor {
      */
     transcriptBaseRoot?(environment: AgentEnvironment): string;
     /**
-     * Owning directory for `transcriptPath`. Runtime canonicalizes this boundary independently before reading or
+     * Owning directory for `transcriptPath`. Server canonicalizes this boundary independently before reading or
      * watching the provider file.
      */
     transcriptRoot?(context: { cwd: string }, environment: AgentEnvironment): string;

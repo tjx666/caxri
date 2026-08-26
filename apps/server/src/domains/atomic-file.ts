@@ -4,8 +4,8 @@ import { mkdir, open, rename, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 /**
- * Durably replaces a small Runtime-owned configuration file through an exclusive same-directory temporary file.
- * Document saves and Host profile writes retain their stricter inode/CAS contracts and must not use this helper.
+ * Durably replaces a small Server-owned configuration file through an exclusive same-directory temporary file. Document
+ * saves and Server profile writes retain their stricter inode/CAS contracts and must not use this helper.
  */
 export async function atomicWrite(path: string, source: string, mode = 0o600): Promise<void> {
     const directory = dirname(path);

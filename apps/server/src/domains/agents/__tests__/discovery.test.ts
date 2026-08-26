@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ExecutablesModule from '../../executables';
 
 const mocks = vi.hoisted(() => ({
-    resolveRuntimeExecutable: vi.fn<(name: string) => Promise<string | undefined>>(),
-    clearRuntimeExecutableCache: vi.fn(),
-    runtimeProcessEnvironment: vi.fn<() => Promise<NodeJS.ProcessEnv>>(() =>
+    resolveServerExecutable: vi.fn<(name: string) => Promise<string | undefined>>(),
+    clearServerExecutableCache: vi.fn(),
+    serverProcessEnvironment: vi.fn<() => Promise<NodeJS.ProcessEnv>>(() =>
         Promise.resolve(process.env),
     ),
 }));
@@ -25,14 +25,14 @@ vi.mock('../../executables', async (importOriginal) => {
         dependencies = {},
     ) =>
         actual.runExternalCommand(name, arguments_, options, {
-            environment: mocks.runtimeProcessEnvironment,
+            environment: mocks.serverProcessEnvironment,
             ...dependencies,
         });
     return {
         ...actual,
-        resolveRuntimeExecutable: mocks.resolveRuntimeExecutable,
-        clearRuntimeExecutableCache: mocks.clearRuntimeExecutableCache,
-        runtimeProcessEnvironment: mocks.runtimeProcessEnvironment,
+        resolveServerExecutable: mocks.resolveServerExecutable,
+        clearServerExecutableCache: mocks.clearServerExecutableCache,
+        serverProcessEnvironment: mocks.serverProcessEnvironment,
         runExternalCommand,
     };
 });
@@ -47,12 +47,12 @@ const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
     // Reset in-flight/version caches before resetting the mocks so this cleanup call itself is
-    // never recorded against the next test's assertions on `mocks.clearRuntimeExecutableCache`.
+    // never recorded against the next test's assertions on `mocks.clearServerExecutableCache`.
     clearExecutableCache();
-    mocks.resolveRuntimeExecutable.mockReset();
-    mocks.clearRuntimeExecutableCache.mockReset();
-    mocks.runtimeProcessEnvironment.mockReset();
-    mocks.runtimeProcessEnvironment.mockResolvedValue(process.env);
+    mocks.resolveServerExecutable.mockReset();
+    mocks.clearServerExecutableCache.mockReset();
+    mocks.serverProcessEnvironment.mockReset();
+    mocks.serverProcessEnvironment.mockResolvedValue(process.env);
     const pendingCleanup = [...temporaryDirectories];
     temporaryDirectories.length = 0;
     await Promise.all(pendingCleanup.map((path) => rm(path, { recursive: true, force: true })));
@@ -72,11 +72,11 @@ async function writeVersionScript(
 describe('discoverExecutable', () => {
     it('coalesces concurrent requests for the same provider and executable into one resolution', async () => {
         const deferred = Promise.withResolvers<string | undefined>();
-        mocks.resolveRuntimeExecutable.mockReturnValue(deferred.promise);
+        mocks.resolveServerExecutable.mockReturnValue(deferred.promise);
 
         const first = discoverExecutable('codex', '/opt/tools/codex');
         const second = discoverExecutable('codex', '/opt/tools/codex');
-        expect(mocks.resolveRuntimeExecutable).toHaveBeenCalledTimes(1);
+        expect(mocks.resolveServerExecutable).toHaveBeenCalledTimes(1);
 
         deferred.resolve('/resolved/codex');
         await expect(first).resolves.toBe('/resolved/codex');
@@ -86,13 +86,13 @@ describe('discoverExecutable', () => {
     it('does not coalesce requests for different requested executables', async () => {
         const deferredA = Promise.withResolvers<string | undefined>();
         const deferredB = Promise.withResolvers<string | undefined>();
-        mocks.resolveRuntimeExecutable.mockImplementation((name: string) =>
+        mocks.resolveServerExecutable.mockImplementation((name: string) =>
             name === '/opt/tools/codex-a' ? deferredA.promise : deferredB.promise,
         );
 
         const first = discoverExecutable('codex', '/opt/tools/codex-a');
         const second = discoverExecutable('codex', '/opt/tools/codex-b');
-        expect(mocks.resolveRuntimeExecutable).toHaveBeenCalledTimes(2);
+        expect(mocks.resolveServerExecutable).toHaveBeenCalledTimes(2);
 
         deferredA.resolve('/resolved/a');
         deferredB.resolve('/resolved/b');
@@ -101,8 +101,8 @@ describe('discoverExecutable', () => {
     });
 
     it('issues a fresh resolution for each call once the previous one has settled', async () => {
-        mocks.resolveRuntimeExecutable.mockResolvedValueOnce('/resolved/first');
-        mocks.resolveRuntimeExecutable.mockResolvedValueOnce('/resolved/second');
+        mocks.resolveServerExecutable.mockResolvedValueOnce('/resolved/first');
+        mocks.resolveServerExecutable.mockResolvedValueOnce('/resolved/second');
 
         await expect(discoverExecutable('codex', '/opt/tools/codex')).resolves.toBe(
             '/resolved/first',
@@ -110,7 +110,7 @@ describe('discoverExecutable', () => {
         await expect(discoverExecutable('codex', '/opt/tools/codex')).resolves.toBe(
             '/resolved/second',
         );
-        expect(mocks.resolveRuntimeExecutable).toHaveBeenCalledTimes(2);
+        expect(mocks.resolveServerExecutable).toHaveBeenCalledTimes(2);
     });
 });
 
@@ -118,7 +118,7 @@ describe('clearExecutableCache', () => {
     it('delegates to the shared runtime executable cache', () => {
         clearExecutableCache();
 
-        expect(mocks.clearRuntimeExecutableCache).toHaveBeenCalledOnce();
+        expect(mocks.clearServerExecutableCache).toHaveBeenCalledOnce();
     });
 });
 

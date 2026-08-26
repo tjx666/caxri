@@ -603,7 +603,7 @@ export class GitRepoService {
     }
 
     /**
-     * Advances status state synchronously after an authorized Runtime mutation, independent of watcher latency.
+     * Advances status state synchronously after an authorized Server mutation, independent of watcher latency.
      */
     observeWorkingTreeMutation(rootPath: string): void {
         this.observeMetadataStatus('', [rootPath]);

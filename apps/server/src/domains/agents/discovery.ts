@@ -3,8 +3,8 @@ import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { readE2EAgentPolicy, selectE2EAgentExecutable } from '@caxri/system';
 
 import {
-    clearRuntimeExecutableCache,
-    resolveRuntimeExecutable,
+    clearServerExecutableCache,
+    resolveServerExecutable,
     runExternalCommand,
 } from '../executables';
 
@@ -16,7 +16,7 @@ const executableRequests = new Map<string, Promise<string | undefined>>();
 const versionCache = new Map<AgentProvider, { executable: string; version: string }>();
 
 export function clearExecutableCache(): void {
-    clearRuntimeExecutableCache();
+    clearServerExecutableCache();
     executableRequests.clear();
     versionCache.clear();
 }
@@ -34,7 +34,7 @@ export async function discoverExecutable(
     const requestKey = `${name}:${selectedExecutable}`;
     const pending = executableRequests.get(requestKey);
     if (pending) return pending;
-    const request = resolveRuntimeExecutable(selectedExecutable);
+    const request = resolveServerExecutable(selectedExecutable);
     executableRequests.set(requestKey, request);
     try {
         return await request;

@@ -117,7 +117,7 @@ async function readCodexState(
             };
         } catch {
             /**
-             * Private schema drift must degrade to unknown instead of affecting the Runtime.
+             * Private schema drift must degrade to unknown instead of affecting the Server.
              */
         } finally {
             database?.close();

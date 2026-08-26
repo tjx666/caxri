@@ -46,7 +46,7 @@ export interface WatchRegistrationOptions {
     ignore?: readonly string[];
     onEvents: (events: readonly parcelWatcher.Event[]) => void;
     /**
-     * Runtime watcher errors (post-subscribe). The hub always logs them; consumers escalate by calling
+     * Server watcher errors (post-subscribe). The hub always logs them; consumers escalate by calling
      * `handle.startFallback(error)` when an errored native subscription should degrade to polling.
      */
     onError?: (error: unknown, handle: WatchHandle) => void;
@@ -124,7 +124,7 @@ class Registration implements WatchHandle {
     ) {}
 
     startFallback(error: unknown): void {
-        // Runtime watcher callbacks are synchronous; activation continues independently after mode changes to polling.
+        // Server watcher callbacks are synchronous; activation continues independently after mode changes to polling.
         // eslint-disable-next-line no-void -- runtime fallback cannot block the native callback
         void this.hub.activateFallback(this, error);
     }
@@ -142,7 +142,7 @@ class Registration implements WatchHandle {
 }
 
 /**
- * Central registry for every filesystem watcher and intentional poller in the Runtime. Consumers register instead of
+ * Central registry for every filesystem watcher and intentional poller in the Server. Consumers register instead of
  * calling `@parcel/watcher` directly, which gives one place that owns the native backend selection, the
  * subscribe-failure → polling-fallback degradation, the dispose-while-subscribing race, a capacity gate on native
  * subscriptions, and a content-free diagnostics snapshot (how many listeners exist, which degraded to polling, and how

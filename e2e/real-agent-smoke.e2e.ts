@@ -5,7 +5,7 @@ import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
 
-import { resolveRuntimeExecutable } from '../apps/server/src/domains/executables.ts';
+import { resolveServerExecutable } from '../apps/server/src/domains/executables.ts';
 import { realCodexSmokeArguments } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
@@ -27,7 +27,7 @@ test('an explicitly authorized real Codex handles one natural read-only prompt',
             'Real Agent smoke prompts must be short natural text without control bytes',
         );
 
-    const executable = await resolveRuntimeExecutable('codex');
+    const executable = await resolveServerExecutable('codex');
     if (!executable) throw new Error('Real Agent E2E requires the Codex CLI on the login PATH');
     try {
         await execFileAsync(executable, ['login', 'status'], { timeout: 10_000 });

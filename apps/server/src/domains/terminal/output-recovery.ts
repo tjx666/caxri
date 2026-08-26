@@ -70,7 +70,7 @@ function matchingRule(
 }
 
 /**
- * One generation-scoped, opt-in recovery state machine. It observes only the Runtime's parsed Terminal tail and writes
+ * One generation-scoped, opt-in recovery state machine. It observes only the Server's parsed Terminal tail and writes
  * fixed bytes to the exact live PTY supplied by its owner; output and user patterns never enter events or logs.
  */
 export class AgentOutputRecovery {

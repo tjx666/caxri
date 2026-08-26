@@ -1,4 +1,4 @@
-import type { ServerOperationParameters as ServerOperationParameters } from '@caxri/protocol';
+import type { ServerOperationParameters } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../../core/domain-service';

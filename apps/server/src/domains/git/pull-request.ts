@@ -3,7 +3,7 @@ import type {
     GitFileStatus,
     GitPullRequestChanges,
     GitRepositorySummary as GitRepoSummary,
-    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationParameters,
 } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 import { z } from 'zod';
@@ -143,7 +143,7 @@ export class GitPullRequestService {
     private readonly maximumCacheEntries: number;
     private readonly now: () => number;
     /**
-     * Invalidates cache writes that began before a Session deletion or Runtime shutdown.
+     * Invalidates cache writes that began before a Session deletion or Server shutdown.
      */
     private cacheGeneration = 0;
 
@@ -185,7 +185,7 @@ export class GitPullRequestService {
     }
 
     /**
-     * Releases every retained Pull Request file list when the Runtime shuts down.
+     * Releases every retained Pull Request file list when the Server shuts down.
      */
     clear(): void {
         this.cache.clear();

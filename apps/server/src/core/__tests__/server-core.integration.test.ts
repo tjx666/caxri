@@ -51,7 +51,7 @@ function dispatchReceipt(
     };
 }
 
-function createRuntimeFixture(activePtyCount: number): CreateDomainServices {
+function createDomainFixture(activePtyCount: number): CreateDomainServices {
     return (dependencies) =>
         Promise.resolve({
             close: async () => dependencies.agentEndpoints?.close(),
@@ -534,7 +534,7 @@ describe('Headless Host application', () => {
         directories.push(userDataPath);
         const app = await startServerCore({
             commit: 'test',
-            createDomainServices: createRuntimeFixture(1),
+            createDomainServices: createDomainFixture(1),
             userDataPath,
             version: '1.0.0',
         });
@@ -625,7 +625,7 @@ describe('Headless Host application', () => {
         directories.push(userDataPath);
         const app = await startServerCore({
             commit: 'test',
-            createDomainServices: createRuntimeFixture(1),
+            createDomainServices: createDomainFixture(1),
             userDataPath,
             version: '1.0.0',
         });

@@ -19,7 +19,7 @@ async function temporaryDirectory(prefix: string): Promise<string> {
     return directory;
 }
 
-const runtimeMethodNames = [...Object.keys(methods), ...Object.keys(internalMethods)].toSorted(
+const serverOperationNames = [...Object.keys(methods), ...Object.keys(internalMethods)].toSorted(
     (a, b) => a.localeCompare(b),
 ) as ServerOperation[];
 
@@ -27,7 +27,7 @@ const runtimeMethodNames = [...Object.keys(methods), ...Object.keys(internalMeth
  * Handlers whose only job is to observe dispatch behaviour, independent of real domain services.
  */
 function stubHandlers(overrides: Partial<Record<ServerOperation, unknown>> = {}): DomainHandlers {
-    const table = Object.fromEntries(runtimeMethodNames.map((method) => [method, () => null]));
+    const table = Object.fromEntries(serverOperationNames.map((method) => [method, () => null]));
     return { ...table, ...overrides } as unknown as DomainHandlers;
 }
 
@@ -67,9 +67,9 @@ describe('domain handler table', () => {
 
         try {
             expect(Object.keys(runtime.handlers).toSorted((a, b) => a.localeCompare(b))).toEqual(
-                runtimeMethodNames,
+                serverOperationNames,
             );
-            for (const method of runtimeMethodNames)
+            for (const method of serverOperationNames)
                 expect(runtime.handlers[method]).toBeTypeOf('function');
         } finally {
             await runtime.close();

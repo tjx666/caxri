@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { AgentDispatchReceipt, Principal, TerminalRecord } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeAgentEndpointLifecycle } from '../../agent-endpoints';
+import type { AgentEndpointLifecycle } from '../../agent-endpoints';
 import type { AgentCoordinator } from '../../agents';
 import { CaxriDatabase } from '../../db';
 import type { TerminalManager } from '../../terminal';
@@ -76,7 +76,7 @@ function createService(database: CaxriDatabase, terminals: TerminalManager = fak
                     generation: 1,
                 },
             }),
-        } as RuntimeAgentEndpointLifecycle,
+        } as AgentEndpointLifecycle,
         launchSettings: () => ({ executable: '/fixture/codex', args: [] }),
         terminalDirectoryIdentity: (path) => Promise.resolve({ device: '1', inode: '1', path }),
         terminalWorkingDirectory: (projectRoot) => Promise.resolve(projectRoot),
