@@ -1,5 +1,6 @@
 import type {
     DurableEventStore,
+    DurableRecoveryObservation,
     EventRecovery,
     EventRecoveryRequest,
     ProtocolEventEnvelope,
@@ -20,13 +21,14 @@ export interface ServerRecoveryJournal {
  */
 export function createServerRecoveryJournal(
     snapshot: (cursor: number) => Promise<ProtocolRecoverySnapshot> | ProtocolRecoverySnapshot,
+    observe?: (observation: DurableRecoveryObservation) => void,
 ): ServerRecoveryJournal {
     let journal: ReturnType<typeof createDurableEventJournal> | undefined;
     const pending: ServerEvent[] = [];
     return {
         initialize(identity, store) {
             if (journal) throw new CaxriError('CONFLICT', 'Server recovery is already initialized');
-            journal = createDurableEventJournal({ identity, snapshot, store });
+            journal = createDurableEventJournal({ identity, observe, snapshot, store });
             for (const event of pending) journal.publish(event);
             pending.length = 0;
         },

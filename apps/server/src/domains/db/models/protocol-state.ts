@@ -20,7 +20,11 @@ import {
 } from '@caxri/protocol';
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm';
 
-import type { DurableProtocolIdentity, ProtocolRecoveryState } from '../../protocol-recovery';
+import type {
+    DurableProtocolIdentity,
+    ProtocolRecoveryInspection,
+    ProtocolRecoveryState,
+} from '../../protocol-recovery';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { protocolChangefeed, protocolCommandReceipts, protocolIdentity } from '../schema';
 
@@ -252,7 +256,9 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
         };
     }
 
-    inspect(): { changefeedEntries: number; commandReceipts: number } {
+    inspect(): ProtocolRecoveryInspection {
+        const identity = this.identity();
+        const bounds = this.changefeedBounds(identity.stateEpoch);
         return {
             changefeedEntries: this.database
                 .select({ value: count() })
@@ -262,6 +268,10 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
                 .select({ value: count() })
                 .from(protocolCommandReceipts)
                 .get()!.value,
+            earliestCursor: bounds.earliest,
+            latestCursor: bounds.latest,
+            serverIdSuffix: identity.serverId.slice(-8),
+            stateEpochSuffix: identity.stateEpoch.slice(-8),
         };
     }
 }

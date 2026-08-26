@@ -219,12 +219,21 @@ export interface DurableEventJournal {
     recover(request: EventRecoveryRequest): Promise<EventRecovery>;
 }
 
+export interface DurableRecoveryObservation {
+    cursor: number;
+    durationMs: number;
+    eventCount: number;
+    outcome: 'catch-up' | 'snapshot';
+    reason: 'matched' | 'cursor-expired' | 'identity-mismatch';
+}
+
 /**
  * Persists content-free invalidations and freezes a sequence barrier before an asynchronous snapshot. Events appended
  * after that barrier remain on the live lane, so snapshot/catch-up and live delivery cannot overlap or leave a gap.
  */
 export function createDurableEventJournal(options: {
     identity: { serverId: string; stateEpoch: string };
+    observe?(observation: DurableRecoveryObservation): void;
     snapshot(cursor: number): Promise<ProtocolRecoverySnapshot> | ProtocolRecoverySnapshot;
     store: DurableEventStore;
 }): DurableEventJournal {
@@ -232,12 +241,20 @@ export function createDurableEventJournal(options: {
     const stateEpoch = serverStateEpochSchema.parse(options.identity.stateEpoch);
     const attachIdentity = (envelope: ProtocolEventEnvelope): ProtocolEventEnvelope =>
         protocolEventEnvelopeSchema.parse({ ...envelope, serverId, stateEpoch });
+    const observe = (observation: DurableRecoveryObservation): void => {
+        try {
+            options.observe?.(observation);
+        } catch {
+            // Observability is best-effort and must never change recovery semantics.
+        }
+    };
     return {
         publish(event) {
             const durableEvent = durableServerEventSchema.parse(event);
             return attachIdentity(options.store.appendEvent(stateEpoch, durableEvent));
         },
         async recover(rawRequest) {
+            const startedAt = performance.now();
             const request = eventRecoveryRequestSchema.parse(rawRequest);
             const bounds = options.store.changefeedBounds(stateEpoch);
             const recoveryCursor = bounds.latest;
@@ -256,6 +273,13 @@ export function createDurableEventJournal(options: {
                 );
                 if (snapshot.cursor !== recoveryCursor)
                     throw new CaxriError('INTERNAL', 'Recovery snapshot cursor does not match');
+                observe({
+                    cursor: recoveryCursor,
+                    durationMs: performance.now() - startedAt,
+                    eventCount: 0,
+                    outcome: 'snapshot',
+                    reason: isIdentityMismatch ? 'identity-mismatch' : 'cursor-expired',
+                });
                 return eventRecoverySchema.parse({
                     kind: 'snapshot',
                     cursor: recoveryCursor,
@@ -280,6 +304,13 @@ export function createDurableEventJournal(options: {
                     'INTERNAL',
                     'Durable changefeed suffix ended before its barrier',
                 );
+            observe({
+                cursor: recoveryCursor,
+                durationMs: performance.now() - startedAt,
+                eventCount: events.length,
+                outcome: 'catch-up',
+                reason: 'matched',
+            });
             return eventRecoverySchema.parse({
                 kind: 'events',
                 cursor: recoveryCursor,

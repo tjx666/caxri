@@ -40,6 +40,10 @@ export function createTestProtocolRecoveryState(): ProtocolRecoveryState {
         inspect: () => ({
             changefeedEntries: events.length,
             commandReceipts: receipts.size,
+            earliestCursor: events.at(0)?.cursor ?? 0,
+            latestCursor: events.at(-1)?.cursor ?? 0,
+            serverIdSuffix: identity.serverId.slice(-8),
+            stateEpochSuffix: identity.stateEpoch.slice(-8),
         }),
         saveReceipt(input) {
             const receipt = { ...input };

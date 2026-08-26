@@ -141,9 +141,11 @@ describe('ProtocolStateModel changefeed', () => {
                 payload: { terminalId: 'terminal-1', data: 'private output' },
             } as never),
         ).toThrow(/Transient events/u);
-        expect(database.protocolState.inspect()).toEqual({
+        expect(database.protocolState.inspect()).toMatchObject({
             changefeedEntries: MAX_PROTOCOL_CHANGEFEED_EVENTS,
             commandReceipts: 0,
+            earliestCursor: 2,
+            latestCursor: MAX_PROTOCOL_CHANGEFEED_EVENTS + 1,
         });
         database.close();
     });

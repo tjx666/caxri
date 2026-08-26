@@ -39,6 +39,7 @@ import {
 import { acquireServerProfile } from './profile';
 import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
 import { createServerRecoveryJournal } from './recovery-journal';
+import { logDurableReceipt, logDurableRecovery } from './recovery-observability';
 import { principalRequestKey, RequestCancellationRegistry } from './request-cancellation';
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import { createTerminalExecution } from './terminal-host/create-execution';
@@ -201,7 +202,9 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             agentRevision: cursor,
         };
     };
-    const recoveryJournal = createServerRecoveryJournal(recoverySnapshot);
+    const recoveryJournal = createServerRecoveryJournal(recoverySnapshot, (observation) =>
+        logDurableRecovery(logger, observation),
+    );
 
     const deliver = (event: ServerEvent): void => {
         if (event.event === 'terminal.exit')
@@ -652,6 +655,9 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         const protocolRecovery = await domainService.recoveryState();
         const protocolIdentity = protocolRecovery.identity();
         recoveryJournal.initialize(protocolIdentity, protocolRecovery);
+        logger.write('info', logEventCatalog.serverCore.recoveryReady, {
+            fields: { ...protocolRecovery.inspect() },
+        });
         if (options.extensionHostPath && options.extensionRoots) {
             extensionService = new ExtensionService({
                 appVersion: options.version,
@@ -688,6 +694,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             adapters: {
                 durableReceipts: protocolRecovery,
                 features: protocolFeatures,
+                observeDurableReceipt: (observation) => logDurableReceipt(logger, observation),
                 server: serverAdapter,
             },
             authenticateAgent: (credential) => agentEndpoints.authenticate(credential),

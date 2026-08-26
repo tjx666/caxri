@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 import type { CaxriRequest } from '../registry/methods.js';
 import { commandRecoveryFor, methods } from '../registry/methods.js';
-import type { DurableCommandReceiptStore } from './command-receipts.js';
+import type {
+    DurableCommandReceiptStore,
+    StoredProtocolCommandReceipt,
+} from './command-receipts.js';
 import { CaxriError, toWireError } from './errors.js';
 import type { ProtocolFeature } from './identity.js';
 import { protocolConnectionIdentitySchema } from './identity.js';
@@ -38,6 +41,14 @@ export interface CommandDispatcherOptions {
     features?: readonly ProtocolFeature[];
     server: CommandAdapter;
     maximumReceipts?: number;
+    observeDurableReceipt?(observation: DurableReceiptObservation): void;
+}
+
+export interface DurableReceiptObservation {
+    durationMs: number;
+    method: keyof typeof methods;
+    outcome: 'hit' | 'miss' | 'stored' | 'failed';
+    phase: 'lookup' | 'store';
 }
 
 export interface CommandDispatchAdmission {
@@ -166,6 +177,13 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
     if (!Number.isSafeInteger(maximumReceipts) || maximumReceipts < 1 || maximumReceipts > 4_096)
         throw new CaxriError('VALIDATION', 'Receipt capacity must be between 1 and 4096');
     const receipts = new Map<string, Receipt>();
+    const observeDurableReceipt = (observation: DurableReceiptObservation): void => {
+        try {
+            options.observeDurableReceipt?.(observation);
+        } catch {
+            // Observability is best-effort and must never change command admission or reply semantics.
+        }
+    };
 
     function admitReceipt(): void {
         if (receipts.size < maximumReceipts) return;
@@ -240,11 +258,29 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
                 try {
                     if (isDurable) {
                         const connection = context.connection!;
-                        const stored = await options.durableReceipts!.getReceipt(
-                            connection.stateEpoch,
-                            connection.clientId,
-                            envelope.id,
-                        );
+                        const lookupStartedAt = performance.now();
+                        let stored: StoredProtocolCommandReceipt | undefined;
+                        try {
+                            stored = await options.durableReceipts!.getReceipt(
+                                connection.stateEpoch,
+                                connection.clientId,
+                                envelope.id,
+                            );
+                            observeDurableReceipt({
+                                durationMs: performance.now() - lookupStartedAt,
+                                method: request.method,
+                                outcome: stored ? 'hit' : 'miss',
+                                phase: 'lookup',
+                            });
+                        } catch (error) {
+                            observeDurableReceipt({
+                                durationMs: performance.now() - lookupStartedAt,
+                                method: request.method,
+                                outcome: 'failed',
+                                phase: 'lookup',
+                            });
+                            throw error;
+                        }
                         if (stored) {
                             if (
                                 stored.method !== request.method ||
@@ -266,15 +302,32 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
                     const commandReply = await executeSafely(envelope.id, request, context);
                     if (isDurable && commandReply.ok) {
                         const connection = context.connection!;
-                        await options.durableReceipts!.saveReceipt({
-                            stateEpoch: connection.stateEpoch,
-                            clientId: connection.clientId,
-                            requestId: envelope.id,
-                            requestFingerprint: fingerprint,
-                            method: request.method,
-                            reply: commandReply,
-                            createdAt: Date.now(),
-                        });
+                        const storeStartedAt = performance.now();
+                        try {
+                            await options.durableReceipts!.saveReceipt({
+                                stateEpoch: connection.stateEpoch,
+                                clientId: connection.clientId,
+                                requestId: envelope.id,
+                                requestFingerprint: fingerprint,
+                                method: request.method,
+                                reply: commandReply,
+                                createdAt: Date.now(),
+                            });
+                            observeDurableReceipt({
+                                durationMs: performance.now() - storeStartedAt,
+                                method: request.method,
+                                outcome: 'stored',
+                                phase: 'store',
+                            });
+                        } catch (error) {
+                            observeDurableReceipt({
+                                durationMs: performance.now() - storeStartedAt,
+                                method: request.method,
+                                outcome: 'failed',
+                                phase: 'store',
+                            });
+                            throw error;
+                        }
                     }
                     return commandReply;
                 } catch (error) {

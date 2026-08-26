@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { CaxriError } from '../errors';
 import type { DurableEventStore, DurableServerEvent } from '../event-journal';
@@ -167,8 +167,10 @@ describe('createDurableEventJournal', () => {
     });
 
     it('returns an identity-bound contiguous suffix followed by an explicit live barrier', async () => {
+        const observe = vi.fn();
         const journal = createDurableEventJournal({
             identity: durableIdentity,
+            observe,
             snapshot,
             store: durableStore(),
         });
@@ -188,6 +190,9 @@ describe('createDurableEventJournal', () => {
                 { cursor: 2, ...durableIdentity },
             ],
         });
+        expect(observe).toHaveBeenCalledWith(
+            expect.objectContaining({ outcome: 'catch-up', reason: 'matched', eventCount: 2 }),
+        );
     });
 
     it('uses a bounded snapshot for an expired cursor or mismatched recovery identity', async () => {
