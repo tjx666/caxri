@@ -4,7 +4,6 @@ import { settingsSpecByKey } from '../../configuration/settings-spec.js';
 import {
     businessInternalMethods,
     businessMethods,
-    diagnosticsSnapshotSchema,
     logQueryParametersSchema,
     logQueryRecordSchema,
     projectQuerySchema,
@@ -149,43 +148,6 @@ describe('businessMethods', () => {
         expect(businessMethods['events.query'].params.safeParse({ afterCursor: 0 }).success).toBe(
             true,
         );
-    });
-});
-
-describe('diagnosticsSnapshotSchema', () => {
-    it('accepts only content-free Terminal Host lifecycle and pressure fields', () => {
-        const snapshot = {
-            appVersion: '0.0.18',
-            protocolVersion: 2,
-            runtimeStatus: 'ready',
-            startedAt: 1,
-            activePtyCount: 1,
-            projectCount: 1,
-            sessionCount: 1,
-            terminalCount: 1,
-            recentErrorIds: [],
-            performance: [],
-            terminalHost: {
-                state: 'ready',
-                pid: 42,
-                startedAt: 1,
-                restartCount: 0,
-                pendingRequestCount: 2,
-                activeTerminalCount: 1,
-                attachedTerminalCount: 1,
-                inputQueueCount: 1,
-                queuedInputCharacters: 12,
-                resizeQueueCount: 1,
-            },
-        };
-
-        expect(diagnosticsSnapshotSchema.safeParse(snapshot).success).toBe(true);
-        expect(
-            diagnosticsSnapshotSchema.safeParse({
-                ...snapshot,
-                terminalHost: { ...snapshot.terminalHost, output: 'private-output' },
-            }).success,
-        ).toBe(false);
     });
 });
 

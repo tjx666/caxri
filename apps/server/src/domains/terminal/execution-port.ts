@@ -1,6 +1,5 @@
 import type {
     AgentOutputRecoverySettings,
-    TerminalHostDiagnostics,
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
@@ -57,7 +56,6 @@ export interface TerminalExecutionPort {
     discard(terminalId: string): void;
     detachAllViews(): void;
     detachView(terminalId: string): void;
-    diagnostics(): TerminalHostDiagnostics;
     onEvent(listener: (event: TerminalExecutionEvent) => void): () => void;
     onExit(listener: (event: TerminalExecutionExit) => void): () => void;
     onHostExit(listener: (terminalIds: readonly string[]) => void): () => void;

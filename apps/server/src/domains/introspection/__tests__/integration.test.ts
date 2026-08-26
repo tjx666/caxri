@@ -142,17 +142,8 @@ describe('Runtime business introspection', () => {
                 sessionCount: 1,
                 terminalCount: 1,
                 recentErrorIds: ['server-core:safe-error-id'],
-                terminalHost: {
-                    state: 'ready',
-                    restartCount: 0,
-                    pendingRequestCount: 0,
-                    activeTerminalCount: 1,
-                    attachedTerminalCount: 0,
-                    inputQueueCount: 0,
-                    queuedInputCharacters: 0,
-                    resizeQueueCount: 0,
-                },
             });
+            expect(snapshot).not.toHaveProperty('terminalHost');
             expect(JSON.stringify({ logs, snapshot })).not.toContain('secret-sentinel');
             expect(JSON.stringify({ logs, snapshot })).not.toContain(homeDirectory);
         } finally {

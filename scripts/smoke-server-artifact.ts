@@ -137,13 +137,6 @@ try {
     if (!resources) throw new Error('Standalone Terminal Host did not expose PTY resources');
     if ((await desktop.request('terminal.runningCount', {})) !== 1)
         throw new Error('Standalone Terminal Host running count is inconsistent');
-    const diagnostics = await desktop.request('diagnostics.snapshot');
-    if (
-        diagnostics.terminalHost?.state !== 'ready' ||
-        diagnostics.terminalHost.activeTerminalCount !== 1 ||
-        diagnostics.terminalHost.attachedTerminalCount !== 1
-    )
-        throw new Error('Standalone Terminal Host diagnostics do not match the live PTY');
     const observationManifests = await waitForObservationManifests(profile);
     await desktop.request('terminal.close', { terminalId });
     if ((await desktop.request('terminal.runningCount', {})) !== 0)
@@ -190,7 +183,7 @@ try {
             outputObserved: true,
             resizedGrid: { cols: terminalSnapshot.cols, rows: terminalSnapshot.rows },
             snapshotBytes: terminalSnapshot.byteCount,
-            state: diagnostics.terminalHost.state,
+            state: observationManifests['terminal-host']!.state,
         },
     };
     const receiptDirectory = resolve(root, '.records/server-artifact');
