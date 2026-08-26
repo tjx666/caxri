@@ -67,4 +67,13 @@ describe('command recovery policy', () => {
         expect(commandRecoveryFor('session.rename')).toBe('durable');
         expect(commandRecoveryFor('terminal.create')).toBe('durable');
     });
+
+    it('never persists ephemeral native paths or arbitrary failure messages', () => {
+        expect(commandRecoveryFor('dialog.selectDirectory')).toBe('memory');
+        expect(commandRecoveryFor('diagnostics.export')).toBe('memory');
+        expect(commandRecoveryFor('extensions.retry')).toBe('memory');
+        expect(commandRecoveryFor('updates.download')).toBe('memory');
+        expect(commandRecoveryFor('updates.cancel')).toBe('memory');
+        expect(commandRecoveryFor('updates.open')).toBe('memory');
+    });
 });
