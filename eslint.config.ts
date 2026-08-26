@@ -26,9 +26,12 @@ const rendererUnsafePackageImports = browserUnsafeImports.flatMap((specifier) =>
  * bans importing `child_process` outright via the Renderer `no-restricted-imports` config below).
  */
 const shellExecutionScopedDirectories = [
+    'apps/cli/src/**',
     'apps/desktop/src/main/**',
     'apps/desktop/src/preload/**',
+    'apps/desktop/src/shared/**',
     'apps/server/src/**',
+    'extensions/**',
     'scripts/**',
     '.agents/**',
     'e2e/**',
@@ -316,18 +319,21 @@ export default defineConfig(
     },
     {
         files: [
+            'apps/cli/src/**',
             'apps/desktop/src/main/**',
             'apps/desktop/src/preload/**',
+            'apps/desktop/src/shared/**',
             'apps/server/src/**',
+            'extensions/**',
             'packages/system/src/**',
         ],
         rules: {
             /**
-             * The `@/*` alias is declared only in the Renderer TypeScript project. Desktop Main/Preload, Server, and
-             * system code must use public package imports or relative imports so they keep resolving under the process
-             * module loader. This also bans `child_process`'s shell-string `exec`/`execSync` (arbitrary command
-             * strings) everywhere they are imported from; structured argv `spawn`/`execFile` (see AGENTS.md
-             * "Forbidden") stays allowed.
+             * The `@/*` alias is declared only in the Renderer TypeScript project. CLI, Desktop platform/shared,
+             * Server, extensions, and system code must use public package imports or relative imports so they keep
+             * resolving under their process module loaders. This also bans `child_process`'s shell-string
+             * `exec`/`execSync` (arbitrary command strings) everywhere they are imported from; structured argv
+             * `spawn`/`execFile` (see AGENTS.md "Forbidden") stays allowed.
              */
             'no-restricted-imports': [
                 'error',

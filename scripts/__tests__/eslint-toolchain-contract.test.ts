@@ -133,6 +133,24 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(ruleIds).toContain('no-restricted-imports');
     });
 
+    it('covers every executable application and extension source root with shell-string guards', async () => {
+        const roots = [
+            'apps/cli/src/shell-guard.ts',
+            'apps/desktop/src/shared/shell-guard.ts',
+            'extensions/fixture/src/shell-guard.ts',
+        ];
+        for (const path of roots) {
+            // eslint-disable-next-line no-await-in-loop -- each synthetic path verifies a distinct flat-config scope
+            const result = await lintSource(
+                path,
+                "import { exec, spawn } from 'node:child_process'; exec('unsafe'); spawn('tool', [], { shell: true });",
+            );
+            const ruleIds = result.messages.map((message) => message.ruleId);
+            expect(ruleIds, path).toContain('no-restricted-imports');
+            expect(ruleIds, path).toContain('no-restricted-syntax');
+        }
+    });
+
     it('bans spawn/execFile with shell: true', async () => {
         const result = await lint('scripts/fixtures/eslint/spawn-shell-true-fixture.ts');
         const ruleIds = result.messages.map((message) => message.ruleId);
