@@ -4,7 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { LiveTerminal } from '../../terminal-host/engine/types';
-import type { CaxriDatabase } from '../db';
+import type { TerminalStateStore } from './state-store';
 
 export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 3;
 
@@ -15,7 +15,7 @@ export class TerminalSnapshotPersistence {
     private readonly finalizations = new Map<string, Promise<void>>();
 
     constructor(
-        private readonly database: CaxriDatabase,
+        private readonly database: TerminalStateStore,
         private readonly logger: StructuredLogger,
     ) {}
 
