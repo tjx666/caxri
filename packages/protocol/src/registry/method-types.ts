@@ -35,11 +35,11 @@ export type RuntimeMethodResult<M extends RuntimeMethod> = z.infer<AllMethods[M]
 /**
  * Makes the params argument optional exactly when the method's schema accepts `undefined`.
  */
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by src/renderer and src/preload, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by Desktop Renderer and Preload, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type ParamsArg<M extends CaxriMethod> =
     undefined extends MethodInput<M> ? [params?: MethodInput<M>] : [params: MethodInput<M>];
 
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by src/host and src/main, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by Server and Desktop Main, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type RuntimeParamsArg<M extends RuntimeMethod> =
     undefined extends RuntimeMethodInput<M>
         ? [params?: RuntimeMethodInput<M>, timeoutMs?: number]

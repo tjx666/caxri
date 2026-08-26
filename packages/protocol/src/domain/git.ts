@@ -112,9 +112,9 @@ export const gitBranchSchema = z.object({
 });
 
 export type GitFileStatus = z.infer<typeof gitFileStatusSchema>;
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/renderer and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/desktop and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type GitRepositorySummary = z.infer<typeof gitRepoSummarySchema>;
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/renderer and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/desktop and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type GitRepositoryOverview = z.infer<typeof gitRepoOverviewSchema>;
 export type GitSummary = z.infer<typeof gitSummarySchema>;
 export type GitOverview = z.infer<typeof gitOverviewSchema>;

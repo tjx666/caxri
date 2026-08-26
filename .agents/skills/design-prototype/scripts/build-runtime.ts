@@ -70,7 +70,7 @@ async function buildRuntime(): Promise<void> {
             '--loader:.woff2=dataurl',
             '--loader:.svg=dataurl',
             '--loader:.png=dataurl',
-            `--alias:@=${path.join(repoRoot, 'src/renderer/src')}`,
+            `--alias:@=${path.join(repoRoot, 'apps/desktop/src/renderer/src')}`,
             `--alias:@shared=${path.join(repoRoot, 'src/shared')}`,
             `--outfile=${path.join(outDirectory, 'caxri-prototype-runtime.js')}`,
         ],
@@ -79,7 +79,7 @@ async function buildRuntime(): Promise<void> {
 }
 
 async function buildThemeScript(): Promise<void> {
-    const stylesDirectory = path.join(repoRoot, 'src/renderer/src/styles');
+    const stylesDirectory = path.join(repoRoot, 'apps/desktop/src/renderer/src/styles');
     const css = inlineThemeCss({
         themeCss: await readFile(path.join(stylesDirectory, 'theme.css'), 'utf8'),
         twAnimateCss: await readFile(

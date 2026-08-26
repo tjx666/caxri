@@ -747,7 +747,7 @@ export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
 export type ProjectStatusDeployment = z.infer<typeof projectStatusDeploymentSchema>;
 export type ProjectStatusError = z.infer<typeof projectStatusErrorSchema>;
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/renderer and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/desktop and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type ProjectStatusRepository = z.infer<typeof projectStatusRepoSchema>;
 export type ProjectStatusSummary = z.infer<typeof projectStatusSummarySchema>;
 export type ProjectStatusOverview = z.infer<typeof projectStatusOverviewSchema>;

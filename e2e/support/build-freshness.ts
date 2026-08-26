@@ -25,6 +25,10 @@ const watchedBuildInputExtensions = new Set([
 export function createE2EBuildFreshnessOptions(root: string): BuildFreshnessOptions {
     return {
         inputPaths: [
+            join(root, 'apps', 'desktop', 'package.json'),
+            join(root, 'apps', 'desktop', 'src'),
+            join(root, 'apps', 'desktop', 'tsconfig.node.json'),
+            join(root, 'apps', 'desktop', 'tsconfig.web.json'),
             join(root, 'src'),
             join(root, 'electron.vite.config.ts'),
             join(root, 'extensions', 'fixture', 'package.json'),

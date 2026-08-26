@@ -112,4 +112,4 @@ Project records are untouched — only pane placement resets. A layout is capped
 The old mutually-exclusive trees exposed separate split commands per tree. The unified tree exposes
 one family — `workbench.splitLeft` / `splitRight` / `splitUp` / `splitDown` — that splits whatever
 pane is active regardless of what its tabs hold; `workbench.closeActiveTab`, `workbench.nextTab`, and
-`workbench.previousTab` follow the same pattern (`src/renderer/src/commands/definitions.ts`).
+`workbench.previousTab` follow the same pattern (`apps/desktop/src/renderer/src/commands/definitions.ts`).

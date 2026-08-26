@@ -14,7 +14,7 @@ const prettierConfig: Config & {
 } = {
     ...sharedPrettierConfig,
     tailwindFunctions: ['cn', 'cva'],
-    tailwindStylesheet: './src/renderer/src/styles/theme.css',
+    tailwindStylesheet: './apps/desktop/src/renderer/src/styles/theme.css',
 };
 
 // Prettier's config loader contract requires a default export.

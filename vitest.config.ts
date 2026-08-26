@@ -85,7 +85,8 @@ export const desktopParallelExcludes = [...configDefaults.exclude, ...serialNati
 export const parallelMaxWorkers = partition.maxWorkers;
 
 export const workspaceAliases = {
-    '@': resolve(import.meta.dirname, 'src/renderer/src'),
+    '@': resolve(import.meta.dirname, 'apps/desktop/src/renderer/src'),
+    '@desktop-shared': resolve(import.meta.dirname, 'apps/desktop/src/shared'),
     '@caxri/agent-skills/testing': resolve(
         import.meta.dirname,
         'packages/agent-skills/src/testing.ts',

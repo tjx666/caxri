@@ -20,9 +20,9 @@ const javaScriptAndTypeScriptFiles = [
  * bans importing `child_process` outright via the Renderer `no-restricted-imports` config below).
  */
 const shellExecutionScopedDirectories = [
-    'src/main/**',
+    'apps/desktop/src/main/**',
+    'apps/desktop/src/preload/**',
     'src/host/**',
-    'src/preload/**',
     'src/runtime/**',
     'src/shared/**',
     'scripts/**',
@@ -214,7 +214,7 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/renderer/src/components/ui/dialog.tsx'],
+        files: ['apps/desktop/src/renderer/src/components/ui/dialog.tsx'],
         rules: {
             /**
              * Shadcn compound components intentionally share one module.
@@ -223,7 +223,7 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/**/*.tsx'],
+        files: ['apps/desktop/src/renderer/**/*.tsx'],
         rules: {
             'no-restricted-syntax': [
                 'error',
@@ -233,20 +233,20 @@ export default defineConfig(
                 },
                 /**
                  * Main's `setWindowOpenHandler` denies every `window.open`/`target="_blank"` navigation (see
-                 * `src/main/index.ts`), so a raw `target="_blank"` anchor never actually opens anything. Route external
-                 * navigation through `openExternalUrl` (`src/renderer/src/lib/external-link.ts`), which calls
-                 * `external.open`.
+                 * `apps/desktop/src/main/index.ts`), so a raw `target="_blank"` anchor never actually opens anything.
+                 * Route external navigation through `openExternalUrl`
+                 * (`apps/desktop/src/renderer/src/lib/external-link.ts`), which calls `external.open`.
                  */
                 {
                     selector: 'JSXAttribute[name.name="target"][value.value="_blank"]',
                     message:
-                        'target="_blank" anchors never navigate (Main denies window.open); use openExternalUrl from src/renderer/src/lib/external-link.ts instead.',
+                        'target="_blank" anchors never navigate (Main denies window.open); use openExternalUrl from apps/desktop/src/renderer/src/lib/external-link.ts instead.',
                 },
             ],
         },
     },
     {
-        files: ['src/renderer/**/*.ts', 'src/renderer/**/*.tsx'],
+        files: ['apps/desktop/src/renderer/**/*.ts', 'apps/desktop/src/renderer/**/*.tsx'],
         rules: {
             /**
              * The renderer must never reach Node.js, Electron, PTY, Git, or filesystem APIs directly; it may only use
@@ -287,7 +287,7 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/renderer/__tests__/*.test.ts'],
+        files: ['apps/desktop/src/renderer/__tests__/*.test.ts'],
         rules: {
             /**
              * Repository-level Renderer contracts inspect source from Vitest's Node environment.
@@ -310,7 +310,13 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/host/**', 'src/main/**', 'src/preload/**', 'src/runtime/**', 'src/shared/**'],
+        files: [
+            'apps/desktop/src/main/**',
+            'apps/desktop/src/preload/**',
+            'src/host/**',
+            'src/runtime/**',
+            'src/shared/**',
+        ],
         rules: {
             /**
              * `@shared/*` and `@/*` aliases are declared only in `tsconfig.web.json` (the Renderer TypeScript project,
@@ -403,7 +409,11 @@ export default defineConfig(
      * still needs a justifying comment (`// oxlint-disable-next-line node/no-sync -- <reason>`).
      */
     {
-        files: ['src/**/*.tsx', 'scripts/fixtures/eslint/*-fixture.tsx'],
+        files: [
+            'apps/desktop/src/**/*.tsx',
+            'src/**/*.tsx',
+            'scripts/fixtures/eslint/*-fixture.tsx',
+        ],
         ignores: [
             '**/main.tsx',
             '**/process-explorer-main.tsx',
@@ -419,7 +429,11 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/**/use-*.ts', 'scripts/fixtures/eslint/use-*-fixture.ts'],
+        files: [
+            'apps/desktop/src/**/use-*.ts',
+            'src/**/use-*.ts',
+            'scripts/fixtures/eslint/use-*-fixture.ts',
+        ],
         ignores: ['**/*.test.ts', '**/__tests__/**'],
         plugins: {
             caxri,
@@ -434,7 +448,7 @@ export default defineConfig(
      */
     {
         files: [
-            'src/renderer/src/features/**/*.{ts,tsx}',
+            'apps/desktop/src/renderer/src/features/**/*.{ts,tsx}',
             'scripts/fixtures/eslint/feature-structure/**/*.{ts,tsx}',
         ],
         plugins: {

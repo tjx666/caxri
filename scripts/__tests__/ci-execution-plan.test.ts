@@ -88,7 +88,7 @@ describe('CI execution plan', () => {
     it('runs source main pushes with optimized E2E and release commits with the control suite', () => {
         expect(
             evaluateCIExecutionPlan({
-                changedFiles: ['src/main/index.ts'],
+                changedFiles: ['apps/desktop/src/main/index.ts'],
                 eventName: 'push',
                 isReleaseCommit: false,
             }),
@@ -153,7 +153,7 @@ describe('CI execution plan', () => {
                 pullRequestDraft: false,
             },
             {
-                changedFiles: ['src/main/index.ts'],
+                changedFiles: ['apps/desktop/src/main/index.ts'],
                 eventName: 'push',
                 isReleaseCommit: false,
             },

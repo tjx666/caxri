@@ -5,6 +5,9 @@ const forbiddenDesktopImports = [
     '/src/main/',
     '/src/preload/',
     '/src/renderer/',
+    '/apps/desktop/src/main/',
+    '/apps/desktop/src/preload/',
+    '/apps/desktop/src/renderer/',
     '/src/runtime/',
     '@caxri/protocol',
 ] as const;

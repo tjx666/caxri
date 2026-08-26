@@ -31,8 +31,8 @@ only the dialog response:
 5. Report the native surface as manual or unverified unless the current request
    explicitly authorized native-dialog verification.
 
-Existing examples include `src/main/__tests__/workbench-root-authority.test.ts`,
-`src/main/__tests__/main-methods-dialogs.test.ts`, and the focused Electron specs
+Existing examples include `apps/desktop/src/main/__tests__/workbench-root-authority.test.ts`,
+`apps/desktop/src/main/__tests__/main-methods-dialogs.test.ts`, and the focused Electron specs
 that set `CAXRI_TEST_ROOT_PATHS`.
 
 ## Queue deterministic Project choices without a picker

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 const sourceControlRoot = join(
     process.cwd(),
-    'src/renderer/src/features/view-containers/source-control',
+    'apps/desktop/src/renderer/src/features/view-containers/source-control',
 );
 
 describe('generic controlled Renderer surfaces', () => {

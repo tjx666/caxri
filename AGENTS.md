@@ -2,18 +2,19 @@
 
 ## Repository layout
 
-| Path          | Purpose                                                                                    |
-| ------------- | ------------------------------------------------------------------------------------------ |
-| `src/`        | Electron Extension Host, Host, Main, Preload, Renderer, Runtime, and shared Desktop source |
-| `packages/`   | Browser-safe protocol, shared pure-utility, and standalone CLI workspaces                  |
-| `extensions/` | Bundled native ESM extensions and their packaging inputs                                   |
-| `e2e/`        | Playwright Electron workflows and shared desktop fixtures                                  |
-| `scripts/`    | Repository-wide CI, validation, benchmark, and runner tooling                              |
-| `.agents/`    | Canonical contributor skills; `.claude/skills` is a compatibility symlink                  |
-| `skills/`     | Product skill embedded in and distributed with the Caxri CLI                               |
-| `build/`      | Tracked packaging inputs, including icons and the CLI launcher                             |
-| `docs/`       | Durable product, module, operator, and architecture-debt documentation                     |
-| `licenses/`   | Vendored third-party license texts                                                         |
+| Path          | Purpose                                                                               |
+| ------------- | ------------------------------------------------------------------------------------- |
+| `apps/`       | Independently runnable Desktop and CLI workspaces; Server joins here in A2e           |
+| `src/`        | Transitional Server and shared source, removed by the A2 topology cutover             |
+| `packages/`   | Browser-safe protocol, Client, Extension API, Agent skills, and shared pure utilities |
+| `extensions/` | Bundled native ESM extensions and their packaging inputs                              |
+| `e2e/`        | Playwright Electron workflows and shared desktop fixtures                             |
+| `scripts/`    | Repository-wide CI, validation, benchmark, and runner tooling                         |
+| `.agents/`    | Canonical contributor skills; `.claude/skills` is a compatibility symlink             |
+| `skills/`     | Product skill embedded in and distributed with the Caxri CLI                          |
+| `build/`      | Tracked packaging inputs, including icons and the CLI launcher                        |
+| `docs/`       | Durable product, module, operator, and architecture-debt documentation                |
+| `licenses/`   | Vendored third-party license texts                                                    |
 
 Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test-results/`, `.records/`,
 `competitors/`, and `node_modules/` are intentionally gitignored and are not source directories.
@@ -85,7 +86,7 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
   proxy-variable workaround for `agent-browser connect` and the raw-CDP fallback.
 - Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Host, SQLite,
   and logs) so they never contend with the installed production app; `CAXRI_USER_DATA_DIR`
-  overrides it (`src/main/runtime-profile.ts`).
+  overrides it (`apps/desktop/src/main/runtime-profile.ts`).
 - Stop every dev instance you started before reporting a request complete, and verify it actually
   died. One launch leaves five separate processes: the `electron-vite dev` launcher, the Electron
   window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached
@@ -180,7 +181,7 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
   e2e gates alone does not count for visual changes.
 - The dev Host and Runtime are long-lived background processes that survive window restarts. The
   Desktop now replaces a Host whose `__CAXRI_BUILD_ID__` differs from its own on connect
-  (`src/main/host-staleness.ts`), but that only triggers when a window reconnects — a headless Host
+  (`apps/desktop/src/main/host-staleness.ts`), but that only triggers when a window reconnects — a headless Host
   can still serve stale code between launches. Before using a live instance to verify or disprove a
   Main/Runtime change, confirm the `out/main/host.js` / `out/main/runtime.js` process start times
   postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
@@ -228,7 +229,7 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
 - Generic helpers come from `es-toolkit` first; never hand-roll a function it already ships. What
   it lacks goes to the shared layers instead of a feature-local copy: browser-safe dependency-free
   pure functions in `@caxri/utils` (`packages/utils`), cross-feature React hooks in
-  `src/renderer/src/hooks` (`@/hooks`). Feature directories hold feature-specific logic only.
+  `apps/desktop/src/renderer/src/hooks` (`@/hooks`). Feature directories hold feature-specific logic only.
 - Coding agents reproduce the dominant precedent they see in neighboring code, so exemplar hygiene
   is a maintenance duty: when a shared implementation replaces local copies, migrate every call
   site in the same change, and never leave two coexisting ways of doing the same thing — the old

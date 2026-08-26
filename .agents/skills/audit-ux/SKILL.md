@@ -27,7 +27,7 @@ ask for one before spawning anything.
 - **Commit count / rev-range** ("last 15 commits", `HEAD~5..HEAD`): same, via `git log -n` or
   the range.
 - **Surface** ("settings dialog", "terminal", "sidebar"): map the name to its feature
-  directory under `src/renderer/src/features/` (plus its Runtime/Main counterparts when the
+  directory under `apps/desktop/src/renderer/src/features/` (plus its Runtime/Main counterparts when the
   UX spans processes) and audit the current state, not a diff.
 
 For commit scopes, keep only UX-relevant commits: renderer features, shared IPC that feeds
