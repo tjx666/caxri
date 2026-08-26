@@ -273,6 +273,12 @@ export class TerminalHostRuntime {
                     });
                     this.generations.set(record.id, scope.ptyGeneration);
                     this.identities.get(record.id)!.running = true;
+                    if (scope.ptyGeneration > 1)
+                        this.options.logger.recordMetric('process.restarts', 1, {
+                            owner: 'terminal-host',
+                            phase: 'startup',
+                            outcome: 'restart',
+                        });
                     return { processId };
                 } catch (error) {
                     if (previous) this.identities.set(record.id, previous);

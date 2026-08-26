@@ -22,6 +22,7 @@ import { TerminalAttachments } from './attachments';
 import { TerminalOutputQueue } from './buffer';
 import { oscColorReply, TerminalColorQueryResponder } from './color-query';
 import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
+import { recordPtyDroppedBytes, recordPtyThroughput } from './observability';
 import type { AgentOutputRecovery } from './output-recovery';
 import { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from './output-recovery-manager';
 import { sampleTerminalResources } from './resources';
@@ -159,6 +160,11 @@ export class TerminalExecutionEngine {
             live.metricDroppedBytes === 0
         )
             return;
+        recordPtyThroughput(this.options.logger, {
+            inputBytes: live.metricInputBytes,
+            outputBytes: live.metricOutputBytes,
+            droppedBytes: live.metricDroppedBytes,
+        });
         this.options.logger.write(
             live.metricDroppedBytes > 0 ? 'warn' : 'info',
             ptyLogEvents.throughput,
@@ -273,10 +279,12 @@ export class TerminalExecutionEngine {
                 initialSize.cols,
                 initialSize.rows,
                 {
-                    onOverflow: (droppedBytes) =>
+                    onOverflow: (droppedBytes) => {
+                        recordPtyDroppedBytes(this.options.logger, droppedBytes);
                         this.options.logger.write('warn', ptyLogEvents.screenBackpressure, {
                             fields: { terminalId: input.record.id, droppedBytes },
-                        }),
+                        });
+                    },
                     onTitleChange: Object.assign(
                         (title: string) =>
                             this.options.emit({

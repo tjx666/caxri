@@ -121,6 +121,56 @@ afterEach(() => {
 });
 
 describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
+    it('records successful PTY restarts without retaining Terminal identity', async () => {
+        const engine = fakeEngine();
+        const { logger, runtime } = createRuntime(engine.owner);
+        const lifecycleScope = {
+            scope: 'terminal',
+            capability: 'terminal.lifecycle',
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        } as const;
+        const start = (ptyGeneration: number, id: string) =>
+            runtime.accept(
+                privateRequest(
+                    {
+                        method: 'terminal.start',
+                        params: {
+                            record: terminal,
+                            executable: '/bin/zsh',
+                            args: [],
+                            environment: {},
+                        },
+                    },
+                    { ...lifecycleScope, ptyGeneration },
+                    id,
+                ),
+            );
+
+        await start(1, 'start-1');
+        await runtime.accept(
+            privateRequest(
+                { method: 'terminal.stop', params: { persistSnapshot: true } },
+                lifecycleScope,
+                'stop-1',
+            ),
+        );
+        await start(2, 'start-2');
+
+        expect(logger.metricSnapshot().series).toContainEqual({
+            average: 1,
+            count: 1,
+            labels: { owner: 'terminal-host', phase: 'startup', outcome: 'restart' },
+            last: 1,
+            maximum: 1,
+            minimum: 1,
+            name: 'process.restarts',
+            total: 1,
+        });
+        expect(JSON.stringify(logger.metricSnapshot())).not.toContain(terminal.id);
+    });
+
     it('fences a reserved generation and dispatches the authorized execution sequence', async () => {
         const engine = fakeEngine();
         const { messages, runtime } = createRuntime(engine.owner);
