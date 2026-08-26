@@ -39,11 +39,6 @@ const processManifest = new ObservationProcessManifestPublisher({
     owner: 'server-core',
 });
 processManifest.publish('starting');
-const processSampler = startProcessObservationSampler({
-    logger,
-    owner: 'server-core',
-    publisher: processManifest,
-});
 const desktopLaunchSource = process.env[SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
 const desktopLaunch = desktopLaunchSource
     ? serverDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
@@ -88,6 +83,15 @@ const processContext = {
 };
 logger.updateBaseContext(processContext);
 processManifest.publish('ready', { context: processContext });
+/**
+ * The first resource sample reads process state immediately. Start it only after Core readiness so diagnostics cannot
+ * contend with Project watcher installation on the startup critical path.
+ */
+const processSampler = startProcessObservationSampler({
+    logger,
+    owner: 'server-core',
+    publisher: processManifest,
+});
 
 {
     let isSignalReceived = false;
