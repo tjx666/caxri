@@ -32,9 +32,27 @@ interface FakeServerClient {
     requestServerOperation: ReturnType<typeof vi.fn>;
     triggerClose: (reason?: 'replaced') => void;
     triggerEvent: (envelope: unknown) => void;
+    welcome: {
+        connection: {
+            bootId: string;
+            clientId: string;
+            connectionId: string;
+            serverId: string;
+            stateEpoch: string;
+        };
+    };
 }
 
-function createFakeServerClient(): FakeServerClient {
+const defaultRecoveryIdentity = {
+    serverId: 'a'.repeat(32),
+    stateEpoch: 'b'.repeat(32),
+};
+
+function recoveryRequest(afterCursor: number, identity = defaultRecoveryIdentity) {
+    return { afterCursor, ...identity };
+}
+
+function createFakeServerClient(options: ServerRoundOptions = {}): FakeServerClient {
     const closeListeners: Array<(reason?: 'replaced') => void> = [];
     const eventListeners: Array<(envelope: unknown) => void> = [];
     return {
@@ -55,6 +73,15 @@ function createFakeServerClient(): FakeServerClient {
         },
         triggerEvent: (envelope) => {
             for (const listener of eventListeners) listener(envelope);
+        },
+        welcome: {
+            connection: {
+                bootId: options.bootId ?? 'c'.repeat(32),
+                clientId: 'desktop-1',
+                connectionId: 'd'.repeat(32),
+                serverId: options.serverId ?? defaultRecoveryIdentity.serverId,
+                stateEpoch: options.stateEpoch ?? defaultRecoveryIdentity.stateEpoch,
+            },
         },
     };
 }
@@ -112,11 +139,14 @@ function createConnection(identity: ServerBuildIdentity = {}) {
 }
 
 interface ServerRoundOptions {
+    bootId?: string;
     serverBuildId?: string;
     serverCommit?: string;
     serverVersion?: string;
     pid?: number;
     startedAt?: number;
+    serverId?: string;
+    stateEpoch?: string;
 }
 
 function createFakeOperator(options: ServerRoundOptions = {}) {
@@ -141,7 +171,7 @@ function createFakeOperator(options: ServerRoundOptions = {}) {
 }
 
 function mockServerRound(options: ServerRoundOptions = {}): FakeServerClient {
-    const client = createFakeServerClient();
+    const client = createFakeServerClient(options);
     vi.mocked(ensureServer).mockResolvedValue(createFakeOperator(options) as never);
     vi.mocked(connectDesktopToServer).mockResolvedValue(client as never);
     return client;
@@ -559,12 +589,12 @@ describe('Desktop Server connection facade', () => {
         await expect(connection.request('app.health')).resolves.toBeDefined();
     });
 
-    it('preserves the event cursor when reconnecting to the same Server process', async () => {
+    it('preserves the event cursor when reconnecting to the same Server history', async () => {
         vi.useFakeTimers();
         const first = mockServerRound();
         const { connection } = createConnection();
         await connection.start();
-        expect(first.request).toHaveBeenCalledWith('events.recover', { afterCursor: 0 });
+        expect(first.request).toHaveBeenCalledWith('events.recover', recoveryRequest(0));
         first.triggerEvent({
             cursor: 1,
             event: { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
@@ -574,7 +604,7 @@ describe('Desktop Server connection facade', () => {
         first.triggerClose();
         await vi.advanceTimersByTimeAsync(500);
 
-        expect(replacement.request).toHaveBeenCalledWith('events.recover', { afterCursor: 1 });
+        expect(replacement.request).toHaveBeenCalledWith('events.recover', recoveryRequest(1));
     });
 
     it('recovers an event created after reconnect recovery but before Desktop readiness', async () => {
@@ -607,10 +637,10 @@ describe('Desktop Server connection facade', () => {
 
         expect(replacement.markDesktopReady).toHaveBeenCalledTimes(1);
         expect(replacement.request).toHaveBeenNthCalledWith(1, 'events.recover', {
-            afterCursor: 0,
+            ...recoveryRequest(0),
         });
         expect(replacement.request).toHaveBeenNthCalledWith(2, 'events.recover', {
-            afterCursor: 0,
+            ...recoveryRequest(0),
         });
         expect(received).toEqual([
             {
@@ -629,7 +659,7 @@ describe('Desktop Server connection facade', () => {
         ]);
     });
 
-    it('resets the event cursor when a different Server process takes over', async () => {
+    it('preserves the event cursor when a new Boot continues the same durable history', async () => {
         vi.useFakeTimers();
         const first = mockServerRound();
         const { connection } = createConnection();
@@ -639,11 +669,39 @@ describe('Desktop Server connection facade', () => {
             event: { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
         });
 
-        const replacement = mockServerRound({ pid: 77, startedAt: 2000 });
+        const replacement = mockServerRound({
+            bootId: 'e'.repeat(32),
+            pid: 77,
+            startedAt: 2000,
+        });
         first.triggerClose();
         await vi.advanceTimersByTimeAsync(500);
 
-        expect(replacement.request).toHaveBeenCalledWith('events.recover', { afterCursor: 0 });
+        expect(replacement.request).toHaveBeenCalledWith('events.recover', recoveryRequest(1));
+    });
+
+    it('resets the event cursor when the State Epoch changes', async () => {
+        vi.useFakeTimers();
+        const first = mockServerRound();
+        const { connection } = createConnection();
+        await connection.start();
+        first.triggerEvent({
+            cursor: 1,
+            event: { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
+        });
+
+        const replacementIdentity = {
+            ...defaultRecoveryIdentity,
+            stateEpoch: 'f'.repeat(32),
+        };
+        const replacement = mockServerRound(replacementIdentity);
+        first.triggerClose();
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(replacement.request).toHaveBeenCalledWith(
+            'events.recover',
+            recoveryRequest(0, replacementIdentity),
+        );
     });
 
     it('does not reconnect after an intentional close', async () => {
