@@ -121,6 +121,9 @@ describe('pnpm workspace contract', () => {
     const cliManifest = manifest(join(root, 'apps/cli/package.json'));
     const desktopManifest = manifest(join(root, 'apps/desktop/package.json'));
     const serverManifest = manifest(join(root, 'apps/server/package.json'));
+    const extensionManifests = readdirSync(join(root, 'extensions'), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => manifest(join(root, 'extensions', entry.name, 'package.json')));
     const workspace = parse(
         readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'),
     ) as PnpmWorkspace;
@@ -385,6 +388,11 @@ describe('pnpm workspace contract', () => {
             expect(clientManifest.dependencies ?? {}).not.toHaveProperty(dependency);
             expect(protocolManifest.dependencies ?? {}).not.toHaveProperty(dependency);
             expect(systemManifest.dependencies ?? {}).not.toHaveProperty(dependency);
+            for (const extensionManifest of extensionManifests)
+                expect(
+                    extensionManifest.dependencies ?? {},
+                    `${extensionManifest.name}: native production dependency`,
+                ).not.toHaveProperty(dependency);
         }
     });
 
