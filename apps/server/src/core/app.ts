@@ -76,7 +76,7 @@ export interface HostApp {
 }
 
 /**
- * Starts the profile owner, authenticated local transport, and its sole Runtime child.
+ * Starts the profile owner, authenticated local transport, domain services, and Extension Host supervision.
  */
 export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     const startedAt = Date.now();

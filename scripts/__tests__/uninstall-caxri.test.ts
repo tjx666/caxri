@@ -177,7 +177,7 @@ describe('Caxri uninstaller', () => {
 
         const result = await uninstallCaxri(options, {
             inspectPathOwner: () => Promise.resolve(undefined),
-            inspectProcess: () => Promise.resolve('/app/server/bundles/host.js'),
+            inspectProcess: () => Promise.resolve('/app/server/bundles/server-core.js'),
         });
 
         expect(result.hostPids).toEqual([]);
@@ -190,7 +190,7 @@ describe('Caxri uninstaller', () => {
         await writeFile(join(profile, 'host', 'owner.lock'), JSON.stringify({ pid: 4242 }), {
             mode: 0o600,
         });
-        const inspectProcess = vi.fn(() => Promise.resolve('/app/server/bundles/host.js'));
+        const inspectProcess = vi.fn(() => Promise.resolve('/app/server/bundles/server-core.js'));
         const inspectPathOwner = vi.fn((path: string) =>
             Promise.resolve(path.endsWith('owner.lock') ? 4242 : undefined),
         );
@@ -235,7 +235,7 @@ describe('Caxri uninstaller', () => {
                     Promise.resolve(path.endsWith('owner.lock') ? 4242 : undefined),
                 inspectProcess: () =>
                     Promise.resolve(
-                        '/Applications/Caxri.app/Contents/Resources/server/runtime/bin/node /Applications/Caxri.app/Contents/Resources/server/bundles/host.js',
+                        '/Applications/Caxri.app/Contents/Resources/server/runtime/bin/node /Applications/Caxri.app/Contents/Resources/server/bundles/server-core.js',
                     ),
                 removeGlobalCli,
                 signalProcess,
@@ -383,7 +383,7 @@ describe('Caxri uninstaller', () => {
                 {
                     inspectPathOwner: (path) =>
                         Promise.resolve(path.endsWith('owner.lock') ? 4242 : undefined),
-                    inspectProcess: () => Promise.resolve('/app/server/bundles/host.js'),
+                    inspectProcess: () => Promise.resolve('/app/server/bundles/server-core.js'),
                     signalProcess,
                     waitForExit: () => Promise.resolve(false),
                 },

@@ -85,7 +85,7 @@ export function createE2EBuildFreshnessOptions(root: string): BuildFreshnessOpti
             join(root, 'extensions', 'git', 'dist', 'extension.js'),
             join(root, 'extensions', 'status', 'dist', 'extension.js'),
             join(root, 'out', 'main', 'index.js'),
-            join(root, 'apps', 'server', 'dist', 'server', 'bundles', 'host.js'),
+            join(root, 'apps', 'server', 'dist', 'server', 'bundles', 'server-core.js'),
             join(root, 'apps', 'server', 'dist', 'server', 'bundles', 'extension-host.js'),
             join(root, 'apps', 'server', 'dist', 'server', 'metadata', 'manifest.json'),
             join(root, 'out', 'preload', 'index.cjs'),

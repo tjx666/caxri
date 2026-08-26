@@ -83,13 +83,13 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
   expose `127.0.0.1:9224` by default during internal testing (`CAXRI_DEV_CDP_PORT` overrides
   either). The `debug` skill owns the live-inspection workflow, including the mandatory
   proxy-variable workaround for `agent-browser connect` and the raw-CDP fallback.
-- Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Host, SQLite,
+- Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Server, SQLite,
   and logs) so they never contend with the installed production app; `CAXRI_USER_DATA_DIR`
   overrides it (`apps/desktop/src/main/runtime-profile.ts`).
 - Stop every dev instance you started before reporting a request complete, and verify it actually
   died. One launch leaves five separate processes: the `electron-vite dev` launcher, the Electron
   window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached
-  `<worktree>/apps/server/dist/server/bundles/host.js`, `extension-host.js`, and `runtime.js`.
+  `<worktree>/apps/server/dist/server/bundles/server-core.js` and `extension-host.js`.
   `pkill -f "Electron.app/Contents/MacOS/Electron"`
   silently misses the window process and the launcher can outlive the signal, so never trust
   `pkill`'s exit code: confirm with `ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`, and
@@ -182,12 +182,11 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
   dev app: drive the real application over CDP (the `debug` skill owns the workflow), capture a
   screenshot of the affected surface, and check it before reporting completion. Passing unit or
   e2e gates alone does not count for visual changes.
-- The dev Host and Runtime are long-lived background processes that survive window restarts. The
-  Desktop now replaces a Host whose `__CAXRI_BUILD_ID__` differs from its own on connect
-  (`apps/desktop/src/main/host-staleness.ts`), but that only triggers when a window reconnects — a headless Host
-  can still serve stale code between launches. Before using a live instance to verify or disprove a
-  Main/Runtime change, confirm the `apps/server/dist/server/bundles/host.js` / `runtime.js` process start times
-  postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
+- The dev Server Core and Extension Host are long-lived background processes that survive window restarts. The Desktop
+  replaces a Server whose build fingerprint differs from its own on connect, but that only triggers when a window
+  reconnects — a headless Server can still serve stale code between launches. Before using a live instance to verify or
+  disprove a Server change, confirm the `apps/server/dist/server/bundles/server-core.js` and `extension-host.js` process
+  start times postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
 - Reproduce a reported bug before changing code: demonstrate the failure against the current build
   (a failing test, or the live app plus its on-disk state) so the fix targets the verified cause
   rather than the first plausible suspect.

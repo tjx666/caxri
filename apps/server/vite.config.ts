@@ -38,7 +38,7 @@ export default defineConfig(async () => {
                 external: Object.keys(nativeModulePaths),
                 input: {
                     'extension-host': resolve(import.meta.dirname, 'src/extension-host/process.ts'),
-                    'host': resolve(import.meta.dirname, 'src/core/process.ts'),
+                    'server-core': resolve(import.meta.dirname, 'src/core/process.ts'),
                 },
                 output: {
                     /**

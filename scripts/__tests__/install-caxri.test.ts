@@ -10,7 +10,7 @@ import {
 const GUI = { command: '/Applications/Caxri.app/Contents/MacOS/Caxri', pid: 100 };
 const HOST = {
     command:
-        '/Applications/Caxri.app/Contents/Resources/server/runtime/bin/node /Applications/Caxri.app/Contents/Resources/server/bundles/host.js',
+        '/Applications/Caxri.app/Contents/Resources/server/runtime/bin/node /Applications/Caxri.app/Contents/Resources/server/bundles/server-core.js',
     pid: 200,
 };
 

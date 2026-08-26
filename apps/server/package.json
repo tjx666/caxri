@@ -4,7 +4,7 @@
     "private": true,
     "description": "Caxri Server application.",
     "type": "module",
-    "main": "dist/server/bundles/host.js",
+    "main": "dist/server/bundles/server-core.js",
     "scripts": {
         "build": "vite build --config vite.config.ts && bun run scripts/build-artifact.ts",
         "dev": "bun run scripts/watch.ts",

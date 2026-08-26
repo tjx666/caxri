@@ -23,16 +23,16 @@ process.env.CAXRI_GIT_COMMIT = commit;
 const logger = new StructuredLogger(join(userDataPath, 'logs'), 'host', 'info');
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'host' });
 processErrorMonitor.attach(logger);
-const hostOutputDirectory = dirname(fileURLToPath(import.meta.url));
+const serverBundleDirectory = dirname(fileURLToPath(import.meta.url));
 /**
- * Captured once at startup: this is the fingerprint of the code this Host process is actually running. A later watch
+ * Captured once at startup: this is the fingerprint of the code this Server Core is actually running. A later watch
  * rebuild changes the on-disk bundles but not this value, which is exactly what lets the Desktop detect staleness.
  */
-const buildId = await computeBuildFingerprint(hostOutputDirectory);
+const buildId = await computeBuildFingerprint(serverBundleDirectory);
 const desktopLaunchSource = process.env[HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
 const desktopLaunch = desktopLaunchSource
     ? hostDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
-    : hostOutputDirectory.includes('.asar') && process.resourcesPath
+    : serverBundleDirectory.includes('.asar') && process.resourcesPath
       ? {
             executable: process.execPath,
             args: [],
@@ -47,11 +47,11 @@ const app = await startHostApp({
     commit,
     cliPath,
     executable: process.execPath,
-    extensionHostPath: join(hostOutputDirectory, 'extension-host.js'),
+    extensionHostPath: join(serverBundleDirectory, 'extension-host.js'),
     extensionRoots: extensionRootsForHost({
-        hostOutputDirectory,
+        hostOutputDirectory: serverBundleDirectory,
         userDataPath,
-        ...(hostOutputDirectory.includes('.asar') &&
+        ...(serverBundleDirectory.includes('.asar') &&
             process.resourcesPath && { resourcesPath: process.resourcesPath }),
     }),
     includeTestExtensions: process.env.CAXRI_E2E === '1',
@@ -73,10 +73,10 @@ const app = await startHostApp({
         try {
             await app.stop(signal);
         } finally {
-            // This file is the Host subprocess entrypoint (forked as its own OS process by Main);
+            // This file is the Server Core process entrypoint supervised by a client or platform;
             // an explicit exit after graceful async shutdown is the correct terminal action here,
             // not a throw, which would just surface as an unhandled rejection instead of a clean exit.
-            // eslint-disable-next-line unicorn/no-process-exit -- Host subprocess entrypoint, not a library
+            // eslint-disable-next-line unicorn/no-process-exit -- Server Core process entrypoint, not a library
             process.exit(0);
         }
     };

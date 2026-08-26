@@ -29,8 +29,8 @@ const runtime: RuntimeState = {
     launcherIdentity: 'launcher identity',
     launcherPid: 111,
     ownedProcesses: [
-        { identity: 'host identity', pid: 333, role: 'host' },
-        { identity: 'runtime identity', pid: 444, role: 'runtime' },
+        { identity: 'server core identity', pid: 333, role: 'server-core' },
+        { identity: 'extension host identity', pid: 444, role: 'extension-host' },
     ],
     ownedUserData: true,
     port: 9222,
@@ -87,7 +87,7 @@ describe('Acceptance Electron launcher seams', () => {
         expect(shouldPreserveInheritedRuntimeState([])).toBe(false);
     });
 
-    it('carries verified Host and Runtime identities into the next matching restart launch', async () => {
+    it('carries verified Server process identities into the next matching restart launch', async () => {
         const restartRuntime = {
             ...runtime,
             acceptanceCase: { id: 'start-case', mode: 'restart' as const },
@@ -134,7 +134,7 @@ describe('Acceptance Electron launcher seams', () => {
         expect(stale.removeOwnedUserData).not.toHaveBeenCalled();
     });
 
-    it('waits for exact Host and Runtime ownership after CDP becomes reachable', async () => {
+    it('waits for exact Server process ownership after CDP becomes reachable', async () => {
         const ownedProcesses = runtime.ownedProcesses;
         const discoverOwnedProcesses = vi
             .fn()

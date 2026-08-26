@@ -21,7 +21,7 @@ export interface ServerArtifactInput {
 }
 
 const manifestRelativePath = join('metadata', 'manifest.json');
-const requiredBundleNames = ['extension-host.js', 'host.js'] as const;
+const requiredBundleNames = ['extension-host.js', 'server-core.js'] as const;
 
 function compareCodeUnits(left: string, right: string): number {
     if (left === right) return 0;
@@ -129,7 +129,7 @@ function launcherSource(): string {
     return `#!/bin/sh
 set -eu
 runtime_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec "$runtime_directory/bin/node" "$runtime_directory/../bundles/host.js" "$@"
+exec "$runtime_directory/bin/node" "$runtime_directory/../bundles/server-core.js" "$@"
 `;
 }
 
@@ -198,7 +198,7 @@ export async function assembleServerArtifact(
         commit: input.commit,
         entrypoints: {
             extensionHost: 'bundles/extension-host.js',
-            server: 'bundles/host.js',
+            server: 'bundles/server-core.js',
         },
         extensions: extensions.toSorted((left, right) => compareCodeUnits(left.id, right.id)),
         integrity: {
