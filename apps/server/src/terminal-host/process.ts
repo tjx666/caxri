@@ -2,7 +2,13 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { serverCredentialTokenSchema, serverProcessIdentitySchema } from '@caxri/protocol';
-import { installProcessErrorMonitor, logEventCatalog, StructuredLogger } from '@caxri/system';
+import {
+    installProcessErrorMonitor,
+    logEventCatalog,
+    observationProcessManifestDirectory,
+    ObservationProcessManifestPublisher,
+    StructuredLogger,
+} from '@caxri/system';
 
 import { resolveE2ETerminalOutputFlushDelay } from './e2e-options';
 import type { TerminalHostMessage } from './protocol';
@@ -31,6 +37,12 @@ const logger = new StructuredLogger(join(userDataPath, 'logs'), 'terminal-host',
     bootId,
     buildId,
 });
+const processManifest = new ObservationProcessManifestPublisher({
+    context: { bootId, buildId },
+    directory: observationProcessManifestDirectory(userDataPath),
+    owner: 'terminal-host',
+});
+processManifest.publish('starting');
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'terminal-host' });
 processErrorMonitor.attach(logger);
 
@@ -61,10 +73,12 @@ const runtime = new TerminalHostRuntime({
 async function stop(exitCode: number): Promise<void> {
     if (lifecycle.isStopping) return;
     lifecycle.isStopping = true;
+    processManifest.publish('stopping');
     try {
         await runtime.stopAfterParentDisconnect();
         logger.write('info', logEventCatalog.terminalHost.stopped, { fields: { exitCode } });
         await logger.flush();
+        processManifest.publish('stopped');
     } finally {
         // eslint-disable-next-line unicorn/no-process-exit -- This is the owned Terminal Host process entrypoint.
         process.exit(exitCode);
@@ -91,4 +105,5 @@ process.once('SIGINT', () => {
 logger.write('info', logEventCatalog.terminalHost.ready, {
     fields: { bootId, buildId, pid: process.pid },
 });
+processManifest.publish('ready');
 runtime.ready();
