@@ -5,9 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { GitMetadataWatcher } from '../metadata-watcher';
 
 function createWatcher(subscribe: typeof parcelWatcher.subscribe) {
-    const write = vi.fn();
+    const recordMetric = vi.fn<StructuredLogger['recordMetric']>();
+    const write = vi.fn<StructuredLogger['write']>();
     const watcher = new GitMetadataWatcher({
-        logger: { write } as unknown as StructuredLogger,
+        logger: { recordMetric, write } as unknown as StructuredLogger,
         onStatusChanged: vi.fn(),
         onTopologyChanged: vi.fn(),
         subscribe,
