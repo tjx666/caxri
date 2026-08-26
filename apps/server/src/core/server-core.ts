@@ -239,7 +239,16 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 fields: { message: error instanceof Error ? error.message : String(error) },
             }),
         );
-        server?.broadcast(isTransientServerEvent(event) ? event : journal.publish(event));
+        if (isTransientServerEvent(event)) server?.broadcast(event);
+        else {
+            /**
+             * Domain services become ready before the control listener. Journal durable startup events even when no
+             * Client can attach yet, so a reconnecting Desktop observes the same `runtime.status` recovery barrier the
+             * former two-process topology emitted after its execution child restarted.
+             */
+            const envelope = journal.publish(event);
+            server?.broadcast(envelope);
+        }
     };
     domainService.onEvent(deliver);
 

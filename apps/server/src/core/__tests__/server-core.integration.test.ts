@@ -335,6 +335,10 @@ describe('Headless Host application', () => {
             ready: true,
         });
         await expect(operator.request('host.status')).resolves.toMatchObject({ pid: process.pid });
+        await expect(operator.request('events.query', { afterCursor: 0 })).resolves.toMatchObject({
+            kind: 'events',
+            events: [expect.objectContaining({ event: 'runtime.status' })],
+        });
 
         operator.close();
     });
