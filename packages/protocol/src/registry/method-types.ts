@@ -69,8 +69,9 @@ export function isCaxriMethod(value: string): value is CaxriMethod {
 
 /**
  * Exhaustive recovery/privacy review for every public effect. New write/control methods fail type checking until their
- * reply is classified. Durable replies must be content-free; memory-only entries intentionally include editor bodies,
- * configuration sources, Terminal screens, arbitrary extension results, or lifecycle semantics tied to one boot.
+ * reply is classified. Durable replies may contain only content-free results or metadata already owned by a durable
+ * domain record. Memory-only entries include editor bodies, configuration sources, Terminal screens, ephemeral native
+ * paths, arbitrary failure messages, or lifecycle semantics tied to one boot.
  */
 export const effectfulCommandRecovery = {
     'agent.dispatch.start': 'durable',
@@ -95,7 +96,7 @@ export const effectfulCommandRecovery = {
     'viewContainers.executeCommand': 'durable',
     'viewContainers.cancelRequest': 'durable',
     'requests.cancel': 'durable',
-    'extensions.retry': 'durable',
+    'extensions.retry': 'memory',
     'host.stop': 'memory',
     'desktop.focus': 'durable',
     'desktop.openPath': 'durable',
@@ -107,13 +108,13 @@ export const effectfulCommandRecovery = {
     'external.open': 'durable',
     'editor.confirmDiscard': 'durable',
     'processExplorer.open': 'durable',
-    'dialog.selectDirectory': 'durable',
-    'diagnostics.export': 'durable',
+    'dialog.selectDirectory': 'memory',
+    'diagnostics.export': 'memory',
     'bugReport.captureScreenshot': 'memory',
     'bugReport.send': 'durable',
-    'updates.download': 'durable',
-    'updates.cancel': 'durable',
-    'updates.open': 'durable',
+    'updates.download': 'memory',
+    'updates.cancel': 'memory',
+    'updates.open': 'memory',
     'project.create': 'durable',
     'project.cancelCreate': 'durable',
     'project.delete': 'memory',
