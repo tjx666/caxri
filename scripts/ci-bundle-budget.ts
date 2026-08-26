@@ -15,6 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import process from 'node:process';
 
+import { verifyServerArtifact } from '../apps/server/scripts/artifact';
 import { execFileAsync } from './exec';
 
 const MiB = 1_024 * 1_024;
@@ -34,23 +35,23 @@ interface TimeBudget {
 }
 
 /**
- * Byte ceilings for every packaged artifact this repository ships. Baseline (2026-08): out/main ≈ 2.5 MiB, out/preload
- * ≈ 12 KiB, out/renderer ≈ 35.4 MiB, app.asar ≈ 38.6 MiB, app.asar.unpacked ≈ 6 MiB, Caxri.app ≈ 276 MiB. The renderer
- * and asar ceilings were consciously raised for the full vscode-icons SVG set (~4.5 MiB, 1553 files): any file or
- * folder name can appear in a user's project at runtime, so there is no meaningful subset to ship
- * (docs/bundle-size.md).
+ * Byte ceilings for every packaged artifact this repository ships. Baseline (2026-08): standalone Server ≈ 123 MiB,
+ * out/main ≈ 650 KiB, out/preload ≈ 12 KiB, out/renderer ≈ 35.4 MiB, app.asar ≈ 36 MiB, Caxri.app ≈ 406 MiB. The Server
+ * deliberately includes its pinned 116 MiB runtime so Desktop and platform deployments consume one identical,
+ * self-contained artifact (docs/bundle-size.md).
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const SIZE_BUDGETS: SizeBudget[] = [
-    { path: 'out/main', maxBytes: 4 * MiB },
+    { path: 'apps/server/dist/server', maxBytes: 130 * MiB },
+    { path: 'out/main', maxBytes: 2 * MiB },
     { path: 'out/preload', maxBytes: 256 * 1_024 },
     { path: 'out/renderer', maxBytes: 37 * MiB },
     { path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar', maxBytes: 41 * MiB },
     {
-        path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar.unpacked',
-        maxBytes: 8 * MiB,
+        path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/server',
+        maxBytes: 130 * MiB,
     },
-    { path: 'release.noindex/mac-arm64/Caxri.app', maxBytes: 290 * MiB },
+    { path: 'release.noindex/mac-arm64/Caxri.app', maxBytes: 430 * MiB },
 ];
 
 /**
@@ -104,9 +105,13 @@ export const REPORT_COMPONENTS: ComponentSpec[] = [
         path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar',
     },
     {
-        label: 'app.asar.unpacked (native modules)',
-        path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar.unpacked',
+        label: 'Embedded Server artifact',
+        path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/server',
     },
+    { label: 'Server artifact', path: 'apps/server/dist/server' },
+    { label: 'Server › pinned runtime', path: 'apps/server/dist/server/runtime' },
+    { label: 'Server › native dependencies', path: 'apps/server/dist/server/native' },
+    { label: 'Server › bundles', path: 'apps/server/dist/server/bundles' },
     { label: 'out/main', path: 'out/main' },
     { label: 'out/preload', path: 'out/preload' },
     { label: 'out/renderer', path: 'out/renderer' },
@@ -243,20 +248,19 @@ async function writeBaseline(baseline: BundleBaseline): Promise<void> {
 }
 
 /**
- * Node-executable entry points inside the packaged asar. Loading them with `ELECTRON_RUN_AS_NODE` proves every
- * bundler-visible and bundler-invisible `require` resolves inside the package — exactly the regression class that
- * dependency rearrangement can introduce (a dep moved to `devDependencies` while some code still requires it externally
- * at runtime). Each entry is expected to fail fast on missing process wiring, not on module resolution.
+ * Executable Server entry points inside the packaged standalone artifact. Loading them with the artifact's own runtime
+ * proves every bundler-visible and external native import resolves without a sibling workspace. Each entry is expected
+ * to fail fast on missing process wiring, not on module resolution.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
-export const PACKAGED_NODE_ENTRIES = [
-    'out/main/host.js',
-    'out/main/extension-host.js',
-    'out/main/runtime.js',
+export const PACKAGED_SERVER_ENTRIES = [
+    'bundles/host.js',
+    'bundles/extension-host.js',
+    'bundles/runtime.js',
 ];
 
-const PACKAGED_EXECUTABLE = 'release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri';
-const PACKAGED_ASAR = 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar';
+const SOURCE_SERVER = 'apps/server/dist/server';
+const PACKAGED_SERVER = 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/server';
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export function findModuleResolutionFailure(stderr: string): string | undefined {
@@ -266,19 +270,19 @@ export function findModuleResolutionFailure(stderr: string): string | undefined 
 
 async function verifyPackagedModuleResolution(): Promise<string[]> {
     const failures: string[] = [];
-    for (const entry of PACKAGED_NODE_ENTRIES) {
+    const packagedServer = resolve(PACKAGED_SERVER);
+    const packagedManifest = await verifyServerArtifact(packagedServer);
+    const sourceManifest = await verifyServerArtifact(resolve(SOURCE_SERVER));
+    if (JSON.stringify(packagedManifest) !== JSON.stringify(sourceManifest)) {
+        failures.push('packaged Server artifact differs from the source artifact manifest');
+    }
+    const executable = join(packagedServer, packagedManifest.runtime.executable);
+    for (const entry of PACKAGED_SERVER_ENTRIES) {
         let stderr = '';
         try {
             // The entry is expected to exit non-zero on missing env wiring; only the stderr matters.
             // eslint-disable-next-line no-await-in-loop -- serial keeps the packaged binary contention-free
-            await execFileAsync(
-                resolve(PACKAGED_EXECUTABLE),
-                [join(resolve(PACKAGED_ASAR), entry)],
-                {
-                    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-                    timeout: 30_000,
-                },
-            );
+            await execFileAsync(executable, [join(packagedServer, entry)], { timeout: 30_000 });
         } catch (error) {
             stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
         }
@@ -373,7 +377,7 @@ async function main(): Promise<void> {
         );
         process.exit(1);
     }
-    console.log('Packaged module resolution ok.');
+    console.log('Packaged Server artifact integrity and module resolution ok.');
 
     const violations = findBudgetViolations(measurements);
     if (violations.length > 0) {
