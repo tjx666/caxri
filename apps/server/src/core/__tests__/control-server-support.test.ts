@@ -7,6 +7,7 @@ import {
     fileSystemCode,
     isTokenMatch,
     logControlRequestOutcome,
+    observationContextForRequest,
     operatorContext,
 } from '../control-server-support';
 
@@ -48,6 +49,71 @@ describe('Host request log sink', () => {
         expect(writes[0]?.[0]).toBe('debug');
         expect(writes[0]?.[1]).toBe(logEventCatalog.ipc.request);
         expect(writes[0]?.[2]?.fields).toMatchObject({ code: 'CANCELLED' });
+    });
+
+    it('derives opaque correlation and bounded metrics without retaining command content', () => {
+        const writes: ControlRequestLogWrite[] = [];
+        const metrics: unknown[][] = [];
+        const context = {
+            ...operatorContext('profile-1'),
+            connection: {
+                serverId: 'a'.repeat(32),
+                bootId: 'b'.repeat(32),
+                stateEpoch: 'c'.repeat(32),
+                clientId: 'client-1',
+                connectionId: 'd'.repeat(32),
+            },
+        };
+        const request = {
+            id: 'request-1',
+            method: 'files.write',
+            params: {
+                content: 'do-not-log-source',
+                path: '/private/project/secret.ts',
+                sessionId: 'session-1',
+            },
+        };
+
+        expect(observationContextForRequest(request, context)).toEqual({
+            bootId: 'b'.repeat(32),
+            clientId: 'client-1',
+            connectionId: 'd'.repeat(32),
+            requestId: 'request-1',
+            serverId: 'a'.repeat(32),
+            sessionId: 'session-1',
+            traceId: 'request-1',
+        });
+
+        logControlRequestOutcome(
+            {
+                logger: {
+                    write: (...arguments_: ControlRequestLogWrite) => writes.push(arguments_),
+                    recordMetric: (...arguments_: unknown[]) => metrics.push(arguments_),
+                },
+            },
+            request,
+            {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'request-1',
+                ok: false,
+                error: { code: 'UNAVAILABLE', message: 'Server Core is unavailable' },
+            },
+            context,
+            performance.now(),
+            { enqueuedAt: performance.now(), queueDepth: 3 },
+        );
+
+        expect(writes[0]?.[2]).toMatchObject({
+            context: { requestId: 'request-1', sessionId: 'session-1' },
+            failure: {
+                owner: 'control',
+                reason: 'core-unavailable',
+                remediation: 'restart-core',
+            },
+        });
+        expect(metrics).toHaveLength(2);
+        expect(JSON.stringify(writes)).not.toContain('do-not-log-source');
+        expect(JSON.stringify(writes)).not.toContain('/private/project/secret.ts');
     });
 });
 

@@ -21,8 +21,13 @@ import {
     localServerDesktopLeaseRevokedSchema,
     toWireError,
 } from '@caxri/protocol';
-import type { LogRecord } from '@caxri/system';
-import { isSecretMatch, logEventCatalog } from '@caxri/system';
+import type { LogRecord, LogWriteOptions, ObservationContext } from '@caxri/system';
+import {
+    isSecretMatch,
+    logEventCatalog,
+    normalizeObservationContext,
+    runWithObservationContext,
+} from '@caxri/system';
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
@@ -111,11 +116,59 @@ const REQUEST_TOTAL_WARN_MS = 5_000;
  * Structural subset of `StructuredLogger` so tests can observe per-request log writes without touching the filesystem.
  */
 interface ControlRequestLogSink {
-    write(
-        level: LogRecord['level'],
-        event: LogEventName,
-        options?: Pick<LogRecord, 'correlationId' | 'durationMs' | 'fields'>,
+    write(level: LogRecord['level'], event: LogEventName, options?: LogWriteOptions): void;
+    recordMetric?(
+        name: 'queue.depth' | 'queue.wait',
+        value: number,
+        labels: { owner: 'control'; phase: 'admission'; outcome?: 'failure' | 'success' },
     ): void;
+}
+
+function requestParameters(value: unknown): Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+}
+
+/**
+ * Builds only opaque IDs that are useful across process boundaries. The normalizer drops path-like or prose values, so
+ * adding an unrelated command parameter cannot silently expand the diagnostics content boundary.
+ */
+export function observationContextForRequest(
+    request: { id: string; method: string; params?: unknown },
+    context: CommandExecutionContext,
+): ObservationContext {
+    const parameters = requestParameters(request.params);
+    const connection = context.connection;
+    return normalizeObservationContext({
+        traceId: request.id,
+        requestId: request.id,
+        operationId:
+            typeof parameters.operationId === 'string' ? parameters.operationId : undefined,
+        projectId: typeof parameters.projectId === 'string' ? parameters.projectId : undefined,
+        sessionId: typeof parameters.sessionId === 'string' ? parameters.sessionId : undefined,
+        terminalId: typeof parameters.terminalId === 'string' ? parameters.terminalId : undefined,
+        agentRunId:
+            typeof parameters.agentRunId === 'string'
+                ? parameters.agentRunId
+                : typeof parameters.runId === 'string'
+                  ? parameters.runId
+                  : undefined,
+        ...(connection && {
+            bootId: connection.bootId,
+            clientId: connection.clientId,
+            connectionId: connection.connectionId,
+            serverId: connection.serverId,
+        }),
+    });
+}
+
+export function observeControlRequest<T>(
+    state: Pick<ClientState, 'context'>,
+    request: { id: string; method: string; params?: unknown },
+    action: () => T,
+): T {
+    return runWithObservationContext(observationContextForRequest(request, state.context), action);
 }
 
 /**
@@ -143,9 +196,22 @@ export function logControlRequestOutcome(
         queueMs,
         ...(timing && { queueDepth: timing.queueDepth }),
     };
+    const observationContext = observationContextForRequest(request, context);
+    logger.recordMetric?.('queue.wait', queueMs, {
+        owner: 'control',
+        phase: 'admission',
+        outcome: reply.ok ? 'success' : 'failure',
+    });
+    if (timing)
+        logger.recordMetric?.('queue.depth', timing.queueDepth, {
+            owner: 'control',
+            phase: 'admission',
+            outcome: reply.ok ? 'success' : 'failure',
+        });
     if (reply.ok) {
         logger.write(isSlow ? 'warn' : 'debug', logEventCatalog.ipc.request, {
             correlationId: request.id,
+            context: observationContext,
             durationMs,
             fields,
         });
@@ -154,6 +220,7 @@ export function logControlRequestOutcome(
     if (reply.error.code === 'CANCELLED') {
         logger.write('debug', logEventCatalog.ipc.request, {
             correlationId: request.id,
+            context: observationContext,
             durationMs,
             fields: { ...fields, code: reply.error.code },
         });
@@ -165,8 +232,29 @@ export function logControlRequestOutcome(
      */
     logger.write('warn', logEventCatalog.ipc.requestFailed, {
         correlationId: request.id,
+        context: observationContext,
         durationMs,
         fields: { ...fields, code: reply.error.code, error: reply.error.message },
+        ...(['CAPACITY', 'INTERNAL', 'TIMEOUT', 'UNAVAILABLE'].includes(reply.error.code) && {
+            failure: {
+                code: reply.error.code,
+                owner: 'control',
+                phase: 'execute',
+                reason:
+                    reply.error.code === 'CAPACITY'
+                        ? ('capacity' as const)
+                        : reply.error.code === 'TIMEOUT'
+                          ? ('timeout' as const)
+                          : ('core-unavailable' as const),
+                remediation:
+                    reply.error.code === 'CAPACITY'
+                        ? ('reduce-load' as const)
+                        : reply.error.code === 'UNAVAILABLE' || reply.error.code === 'INTERNAL'
+                          ? ('restart-core' as const)
+                          : ('retry' as const),
+                retryable: reply.error.code !== 'INTERNAL',
+            },
+        }),
     });
 }
 
