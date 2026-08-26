@@ -21,6 +21,7 @@ import {
     createCommandDispatcher,
     createProtocolWelcome,
     fromWireError,
+    isBinaryStreamMethod,
     localClientCommandSchema,
     localClientDesktopOperationCommandSchema,
     localClientDesktopReadySchema,
@@ -192,9 +193,27 @@ export class ControlServer {
         shouldSettleOutsideLane = false,
     ): Promise<void> {
         const startedAt = performance.now();
-        const isTerminalHotPath =
-            request.method === 'terminal.input' || request.method === 'terminal.resize';
-        const release = reserveControlRequest(state, isTerminalHotPath);
+        if (isBinaryStreamMethod(request.method)) {
+            const reply: CommandReplyEnvelope = {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: request.id,
+                ok: false,
+                error: toWireError(
+                    new CaxriError('VALIDATION', 'Bulk method requires an authenticated stream'),
+                ),
+            };
+            logControlRequestOutcome(
+                this.options,
+                request,
+                reply,
+                state.context,
+                startedAt,
+                timing,
+            );
+            this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }));
+            return;
+        }
+        const release = reserveControlRequest(state);
         if (!release) {
             const reply = controlCapacityReply(request.id);
             logControlRequestOutcome(
@@ -340,7 +359,6 @@ export class ControlServer {
             state.inFlightRequestIds.clear();
             state.closed = true;
             state.inFlightRequests = 0;
-            state.inFlightTerminalRequests = 0;
             if (!this.clients.has(socket)) return;
             if (state.desktopLease) this.revokeDesktop(state);
             else {
@@ -411,40 +429,25 @@ export class ControlServer {
                 this.write(socket, streamTicket);
                 return;
             }
-            /**
-             * Only authenticated Desktop PTY input can bypass a slow ordinary command. The handshake remains on
-             * `queue`, and this path keeps its own bounded reservation in `dispatchCommand`.
-             */
-            const hotCommand = state ? localClientCommandSchema.safeParse(raw) : undefined;
-            const hotRequest = hotCommand?.success ? hotCommand.data.request : undefined;
-            if (
-                hotRequest &&
-                (hotRequest.method === 'terminal.input' ||
-                    hotRequest.method === 'terminal.resize') &&
-                state?.context.principal.kind === 'desktop'
-            ) {
-                // This hot path intentionally bypasses `queue` for interactive Terminal
-                // traffic, and the enclosing 'data' handler is synchronous, so the dispatch
-                // here must be fire-and-forget rather than awaited.
-                // eslint-disable-next-line unicorn/prefer-await -- see comment above
-                this.dispatchCommand(socket, state, hotRequest).catch(() => socket.terminate());
-                return;
-            }
+            const immediateCommand = state ? localClientCommandSchema.safeParse(raw) : undefined;
+            const immediateRequest = immediateCommand?.success
+                ? immediateCommand.data.request
+                : undefined;
             /**
              * Cancellation is authenticated control traffic. It must reach the Core adapter immediately even when an
              * earlier request is still waiting on domain or Extension Host work.
              */
             if (
                 state &&
-                (hotRequest?.method === 'viewContainers.cancelRequest' ||
-                    hotRequest?.method === 'requests.cancel')
+                (immediateRequest?.method === 'viewContainers.cancelRequest' ||
+                    immediateRequest?.method === 'requests.cancel')
             ) {
                 // This path intentionally bypasses `queue`; the data callback is synchronous, so dispatch is
                 // fire-and-forget and owns its own reply/error handling.
                 const cancellation = this.dispatchCommand(
                     socket,
                     state,
-                    hotRequest,
+                    immediateRequest,
                     undefined,
                     true,
                 );
@@ -545,7 +548,6 @@ export class ControlServer {
                             desktopReady: false,
                             inFlightRequestIds: new Map(),
                             inFlightRequests: 0,
-                            inFlightTerminalRequests: 0,
                             features: welcome.features ?? [],
                             socket,
                         };
@@ -729,7 +731,8 @@ export class ControlServer {
     }
 
     broadcast(event: ProtocolEventEnvelope | TransientServerEvent): void {
-        if (this.binaryRuntime.deliver(event)) return;
+        const projected = typeof event.event === 'string' ? event : event.event;
+        if (this.binaryRuntime.deliver(event) || projected.event === 'terminal.output') return;
         const message = localServerEventSchema.parse({ type: 'event', event });
         /**
          * Raw domain payloads are a Desktop-only transport; other principals use projections.

@@ -26,6 +26,7 @@ import {
     encodeBinaryStreamFrame,
     fromWireError,
     isBinaryStreamMethod,
+    isNonExpiringServerOperation,
     parseCaxriRequest,
     parseCaxriResult,
 } from '@caxri/protocol';
@@ -521,7 +522,7 @@ class FileStreamClient extends ClientBinarySocket {
     private closed = false;
     private readonly result = Promise.withResolvers<FileDocument>();
     private reply?: Extract<BinaryStreamReply, { ok: true }>;
-    private readonly timer: NodeJS.Timeout;
+    private readonly timer?: NodeJS.Timeout;
 
     private constructor(
         options: BinaryStreamClientOptions,
@@ -530,12 +531,13 @@ class FileStreamClient extends ClientBinarySocket {
         private readonly onClosed: () => void,
     ) {
         super(options.endpoint, grant, options.timeoutMs);
-        this.timer = setTimeout(() => {
-            this.result.reject(
-                new CaxriError('TIMEOUT', `Caxri Server stream timed out: ${operation.method}`),
-            );
-            this.close();
-        }, options.timeoutMs);
+        if (!isNonExpiringServerOperation(operation.method))
+            this.timer = setTimeout(() => {
+                this.result.reject(
+                    new CaxriError('TIMEOUT', `Caxri Server stream timed out: ${operation.method}`),
+                );
+                this.close();
+            }, options.timeoutMs);
     }
 
     // eslint-disable-next-line unicorn/consistent-class-member-order -- factory construction is kept beside the private constructor contract
@@ -564,7 +566,7 @@ class FileStreamClient extends ClientBinarySocket {
         if (reply.method !== this.operation.method)
             throw new CaxriError('VALIDATION', 'Binary file reply method is invalid');
         if (!reply.ok) {
-            clearTimeout(this.timer);
+            if (this.timer) clearTimeout(this.timer);
             this.result.reject(fromWireError(reply.error));
             this.close();
             return;
@@ -599,7 +601,7 @@ class FileStreamClient extends ClientBinarySocket {
         } catch {
             throw new CaxriError('VALIDATION', 'Binary file content is not valid UTF-8');
         }
-        clearTimeout(this.timer);
+        if (this.timer) clearTimeout(this.timer);
         this.result.resolve(
             parseCaxriResult(this.operation.method, {
                 path: this.reply.result.path,
@@ -616,7 +618,7 @@ class FileStreamClient extends ClientBinarySocket {
     }
 
     protected fail(error: unknown): void {
-        clearTimeout(this.timer);
+        if (this.timer) clearTimeout(this.timer);
         this.result.reject(
             error instanceof Error ? error : new CaxriError('UNAVAILABLE', 'Binary file failed'),
         );
@@ -626,7 +628,7 @@ class FileStreamClient extends ClientBinarySocket {
     protected handleClose(code: number, reason: string): void {
         if (this.closed) return;
         this.closed = true;
-        clearTimeout(this.timer);
+        if (this.timer) clearTimeout(this.timer);
         this.result.reject(streamCloseError(code, reason));
         this.onClosed();
     }

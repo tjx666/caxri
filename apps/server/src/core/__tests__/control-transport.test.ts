@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import {
     binaryStreamAuthorization,
+    localServerReplySchema,
     localServerStreamTicketReplySchema,
     localServerWelcomeSchema,
     serverEndpointUrl,
@@ -63,6 +64,82 @@ function closeEvent(socket: WebSocket): Promise<{ code: number; reason: string }
 }
 
 describe('WebSocket control transport', () => {
+    it('rejects bulk control commands without a negotiated legacy fallback', async () => {
+        const lease = await fixture();
+        const invoke = vi.fn();
+        const server = new ControlServer({
+            adapters: { server: { invoke } },
+            desktopCredential: lease.desktopCredential,
+            identity: lease.identity,
+        });
+        await lease.publish(await server.start());
+        cleanups.push(() => server.close());
+        const control = await connect(serverEndpointUrl(lease.manifest.endpoint));
+        const welcome = nextJson(control);
+        control.send(
+            JSON.stringify({
+                type: 'hello',
+                clientId: 'desktop-no-bulk-control',
+                supportedVersions: [2],
+                profileId: lease.manifest.profileId,
+                credential: {
+                    kind: 'desktop',
+                    token: lease.desktopCredential.desktopToken,
+                    desktopId: 'desktop-no-bulk-control',
+                },
+            }),
+        );
+        const leaseGeneration = localServerWelcomeSchema.parse(await welcome).desktopLease!
+            .generation;
+        control.send(JSON.stringify({ type: 'desktop.ready', generation: leaseGeneration }));
+        const bulkCommands: Array<[string, Record<string, unknown>]> = [
+            ['files.read', { sessionId: 'session-1', path: '/project/file.txt' }],
+            [
+                'files.write',
+                {
+                    sessionId: 'session-1',
+                    path: '/project/file.txt',
+                    content: 'private-sentinel',
+                },
+            ],
+            ['terminal.attach', { terminalId: 'terminal-1' }],
+            ['terminal.input', { terminalId: 'terminal-1', data: 'private-input-sentinel' }],
+            ['terminal.resize', { terminalId: 'terminal-1', cols: 80, rows: 24 }],
+        ];
+        for (const [index, [method, parameters]] of bulkCommands.entries()) {
+            const replyMessage = nextJson(control);
+            control.send(
+                JSON.stringify({
+                    type: 'command',
+                    request: {
+                        protocolVersion: 2,
+                        id: `legacy-bulk-${index}`,
+                        method,
+                        params: parameters,
+                    },
+                }),
+            );
+            // eslint-disable-next-line no-await-in-loop -- each reply proves the preceding bulk command was rejected
+            expect(localServerReplySchema.parse(await replyMessage)).toMatchObject({
+                reply: {
+                    id: `legacy-bulk-${index}`,
+                    ok: false,
+                    error: { code: 'VALIDATION' },
+                },
+            });
+        }
+        expect(invoke).not.toHaveBeenCalled();
+
+        const leaked = vi.fn();
+        control.on('message', leaked);
+        server.broadcast({
+            event: 'terminal.output',
+            payload: { terminalId: 'terminal-1', data: 'private-output-sentinel' },
+        });
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(leaked).not.toHaveBeenCalled();
+    });
+
     it('serves content-free health on the same loopback listener as control traffic', async () => {
         const lease = await fixture();
         const server = new ControlServer({

@@ -29,10 +29,6 @@ import WebSocket from 'ws';
 import type { BinaryStreamControlOptions } from './binary-stream-control';
 
 export const MAX_IN_FLIGHT_REQUESTS = 64;
-/**
- * Reserve a small bounded lane so a busy Desktop cannot starve interactive PTY traffic.
- */
-export const MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS = 48;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
 export const DESKTOP_LEASE_MS = 60_000;
 export const DESKTOP_COMMAND_TIMEOUT_MS = 15_000;
@@ -63,28 +59,18 @@ export function controlCapacityReply(id: string): CommandReplyEnvelope {
 }
 
 /**
- * Limits one peer's concurrently executing work without reintroducing head-of-line blocking between ordinary Desktop
- * work and the legacy control hot path retained until every Terminal caller uses its binary attachment.
+ * Limits one peer's concurrently executing control work. Terminal and file bulk traffic has its own bounded stream
+ * budget and never consumes this lane.
  */
-export function reserveControlRequest(
-    state: ClientState,
-    isTerminalHotPath = false,
-): (() => void) | undefined {
-    const nonTerminalRequests = state.inFlightRequests - state.inFlightTerminalRequests;
-    if (
-        state.inFlightRequests >= MAX_IN_FLIGHT_REQUESTS ||
-        (!isTerminalHotPath && nonTerminalRequests >= MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS)
-    )
-        return;
+export function reserveControlRequest(state: ClientState): (() => void) | undefined {
+    if (state.inFlightRequests >= MAX_IN_FLIGHT_REQUESTS) return;
     state.inFlightRequests += 1;
-    if (isTerminalHotPath) state.inFlightTerminalRequests += 1;
     let isReleased = false;
     return () => {
         if (isReleased) return;
         isReleased = true;
         if (state.closed) return;
         state.inFlightRequests -= 1;
-        if (isTerminalHotPath) state.inFlightTerminalRequests -= 1;
     };
 }
 
@@ -100,7 +86,7 @@ export function isConcurrentRead(method: string): boolean {
     return getMethodSpec(method)?.effect === 'read';
 }
 
-const SELF_SERIALIZED_FILE_MUTATIONS = new Set(['files.copy', 'files.write']);
+const SELF_SERIALIZED_FILE_MUTATIONS = new Set(['files.copy']);
 
 /**
  * Reads do not carry mutation ordering, while non-expiring file mutations already serialize overlapping paths inside
@@ -146,7 +132,6 @@ export function logControlRequestOutcome(
 ): void {
     const logger = options.logger;
     if (!logger) return;
-    if (request.method === 'terminal.input' || request.method === 'terminal.resize') return;
     const durationMs = performance.now() - startedAt;
     const queueMs = timing ? startedAt - timing.enqueuedAt : 0;
     const isSlow =
@@ -250,7 +235,6 @@ export interface ClientState {
     desktopReady: boolean;
     inFlightRequestIds: Map<string, number>;
     inFlightRequests: number;
-    inFlightTerminalRequests: number;
     features: readonly ProtocolFeature[];
     leaseTimer?: NodeJS.Timeout;
     socket: WebSocket;

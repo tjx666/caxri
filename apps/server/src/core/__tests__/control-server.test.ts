@@ -498,7 +498,7 @@ describe('local Host transport', () => {
         await new Promise<void>((resolve) => socket.once('close', () => resolve()));
     });
 
-    it('routes reverse commands and transient PTY output only to the current Desktop generation', async () => {
+    it('routes reverse commands and transient events only to the current Desktop generation', async () => {
         const lease = await profile();
         const unavailable = vi.fn();
         const server = new ControlServer({
@@ -562,8 +562,12 @@ describe('local Host transport', () => {
         await vi.waitFor(() => expect(firstClosed).toHaveBeenCalledWith('replaced'));
         expect(server.clientCount()).toBe(1);
         server.broadcast({
-            event: 'terminal.output',
-            payload: { terminalId: 'terminal-1', data: 'live' },
+            event: 'workbench.changed',
+            payload: {
+                sessionId: 'session-1',
+                workbenchProjectId: 'workbench-project-1',
+                reason: 'selected',
+            },
         });
         await vi.waitFor(() => expect(secondEvents).toHaveBeenCalledTimes(1));
         expect(firstEvents).not.toHaveBeenCalled();
@@ -636,7 +640,7 @@ describe('local Host transport', () => {
         expect(revealed).toHaveBeenCalledWith('/project/draft.txt');
     });
 
-    it('does not let a slow Desktop command block later terminal traffic on the same socket', async () => {
+    it('does not let a slow file stream block later Terminal streams', async () => {
         const lease = await profile();
         const { promise: slowRead, resolve: releaseRead } = Promise.withResolvers<unknown>();
         const invoke = vi.fn((request: { method: string }) => {
@@ -646,9 +650,13 @@ describe('local Host transport', () => {
             throw new Error(`Unexpected method: ${request.method}`);
         });
         const server = new ControlServer({
-            adapters: { server: { invoke } },
+            adapters: { features: protocolFeatures, server: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
+            protocolIdentity: {
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'b'.repeat(32),
+            },
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
@@ -702,55 +710,11 @@ describe('local Host transport', () => {
         }
     });
 
-    it('bounds the Desktop terminal hot lane while preserving its reserved capacity', async () => {
-        const lease = await profile();
-        const { promise: slowInput, resolve: releaseInput } = Promise.withResolvers<null>();
-        const invoke = vi.fn((request: { method: string }) => {
-            if (request.method === 'terminal.input') return slowInput;
-            if (request.method === 'terminal.resize') return null;
-            throw new Error(`Unexpected method: ${request.method}`);
-        });
-        const server = new ControlServer({
-            adapters: { server: { invoke } },
-            desktopCredential: lease.desktopCredential,
-            identity: lease.identity,
-        });
-        await lease.publish(await server.start());
-        cleanups.push(() => server.close());
-        const client = await ServerClient.connect(lease.manifest, 2_000, {
-            kind: 'desktop',
-            desktopId: 'desktop-terminal-capacity',
-            credential: lease.desktopCredential,
-            handleCommand: () => Promise.resolve(null),
-        });
-        cleanups.push(() => {
-            client.close();
-            return Promise.resolve();
-        });
-        await client.markDesktopReady();
-
-        const pending = Array.from({ length: 64 }, (_value, index) =>
-            client.request('terminal.input', { terminalId: 'terminal-1', data: String(index) }),
-        );
-        await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(64));
-        try {
-            await expect(
-                client.request('terminal.resize', {
-                    terminalId: 'terminal-1',
-                    cols: 120,
-                    rows: 40,
-                }),
-            ).rejects.toMatchObject({ code: 'CAPACITY' });
-        } finally {
-            releaseInput(null);
-            await Promise.all(pending);
-        }
-    });
-
     it('keeps copy and write requests pending until their authoritative result arrives', async () => {
         const lease = await profile();
         const server = new ControlServer({
             adapters: {
+                features: protocolFeatures,
                 server: {
                     invoke: async (request) => {
                         if (request.method !== 'files.write') return null;
@@ -763,6 +727,10 @@ describe('local Host transport', () => {
                         };
                     },
                 },
+            },
+            protocolIdentity: {
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'b'.repeat(32),
             },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
