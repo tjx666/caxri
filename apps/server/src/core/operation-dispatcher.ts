@@ -1,9 +1,4 @@
-import type {
-    RuntimeMethod,
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
-    RuntimeWorkbenchContext,
-} from '@caxri/protocol';
+import type { RuntimeWorkbenchContext } from '@caxri/protocol';
 import {
     CaxriError,
     fromWireError,
@@ -14,29 +9,20 @@ import {
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-/**
- * Every Runtime-reachable method paired with its implementation. The mapped type is exhaustive, so a method added to
- * the shared table fails to compile until this Runtime provides a handler for it, instead of failing at request time.
- */
-export type RuntimeHandlers = {
-    [M in RuntimeMethod]: (
-        parameters: RuntimeMethodParameters<M>,
-        signal?: AbortSignal,
-    ) => Promise<RuntimeMethodResult<M>> | RuntimeMethodResult<M>;
-};
+import type { DomainHandlers } from '../domains/domain-services';
 
 /**
- * The raw request as it arrives from Main; nothing about it is trusted before validation.
+ * The raw operation as it enters the domain layer; nothing about it is trusted before validation.
  */
-interface RuntimeRequestEnvelope {
+interface DomainOperationEnvelope {
     context?: unknown;
     id: string;
     method: string;
     params: unknown;
 }
 
-export interface RuntimeOperationDispatcher {
-    (envelope: RuntimeRequestEnvelope): Promise<unknown>;
+export interface DomainOperationDispatcher {
+    (envelope: DomainOperationEnvelope): Promise<unknown>;
     cancel(requestId: string): boolean;
 }
 
@@ -58,13 +44,13 @@ function pruneCancelTombstones(tombstones: Map<string, number>, now = Date.now()
  * Validates and executes one internal operation without imposing a process or serialization boundary.
  */
 export function createOperationDispatcher(
-    handlers: RuntimeHandlers,
+    handlers: DomainHandlers,
     logger: StructuredLogger,
     validateContext?: (context: RuntimeWorkbenchContext) => void,
-): RuntimeOperationDispatcher {
+): DomainOperationDispatcher {
     const active = new Map<string, AbortController>();
     const cancelTombstones = new Map<string, number>();
-    const dispatch = async (envelope: RuntimeRequestEnvelope): Promise<unknown> => {
+    const dispatch = async (envelope: DomainOperationEnvelope): Promise<unknown> => {
         const started = performance.now();
         let cancellation: AbortController | undefined;
         try {
@@ -120,7 +106,7 @@ export function createOperationDispatcher(
                         code: wire.code,
                         error: wire.message,
                         /**
-                         * Only unclassified faults justify a stack trace in the Runtime log.
+                         * Only unclassified faults justify a stack trace in the Server log.
                          */
                         stack:
                             wire.code === 'INTERNAL' && normalizedError instanceof Error

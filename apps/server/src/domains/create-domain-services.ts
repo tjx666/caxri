@@ -28,26 +28,26 @@ import {
     defaultAgentEnvironment,
 } from './agents';
 import { createBackgroundTasks } from './background-tasks';
-import { createServiceHandlers, mainOwned } from './bootstrap-service-handlers';
-import type { Runtime, RuntimeDependencies } from './bootstrap-types';
 import { DiagnosticsService } from './diagnostics';
-import type { RuntimeHandlers } from './dispatch';
+import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createIntrospectionServices } from './introspection';
 import { assertInsideRoot } from './path-security';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
-import { validateRuntimeRequestContext } from './runtime-request-context';
+import { createServiceHandlers, mainOwned } from './service-handlers';
 import { SessionSelectionQueue } from './session-selection';
 import type { TerminalWorkingDirectoryIdentity } from './terminal';
 import { ShellIntegrationService, TerminalManager, TerminalRestoreSupervisor } from './terminal';
 import { createTerminalMoveHandler } from './terminal-move';
 import * as provenance from './workbench-provenance';
+import { validateWorkbenchRequestContext } from './workbench-request-context';
 import { createWorkbenchRootHandlers } from './workbench-roots';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
-export type { Runtime, RuntimeDependencies } from './bootstrap-types';
-export async function createRuntime(dependencies: RuntimeDependencies): Promise<Runtime> {
+export async function createDomainServices(
+    dependencies: DomainDependencies,
+): Promise<DomainServices> {
     const { logger, send, userDataPath } = dependencies;
     const startedAt = dependencies.startedAt ?? Date.now();
     const pid = dependencies.pid ?? process.pid;
@@ -444,7 +444,7 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
         terminals,
         watchSessionInBackground,
     };
-    const handlers: RuntimeHandlers = {
+    const handlers: DomainHandlers = {
         'extensions.retry': () => mainOwned('extensions.retry'),
         'requests.cancel': () => mainOwned('requests.cancel'),
         'viewContainers.cancelRequest': () => mainOwned('viewContainers.cancelRequest'),
@@ -795,6 +795,6 @@ export async function createRuntime(dependencies: RuntimeDependencies): Promise<
     return {
         handlers,
         close,
-        validateRequestContext: (context) => validateRuntimeRequestContext(database, context),
+        validateRequestContext: (context) => validateWorkbenchRequestContext(database, context),
     };
 }

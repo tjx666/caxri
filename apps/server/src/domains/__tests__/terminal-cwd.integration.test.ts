@@ -7,8 +7,8 @@ import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createRuntime } from '../bootstrap';
-import { createFakePty } from './create-test-runtime';
+import { createDomainServices } from '../create-domain-services';
+import { createFakePty } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -28,7 +28,7 @@ describe('Runtime Terminal cwd authorization', () => {
         await Promise.all([mkdir(projectFolder, { recursive: true }), mkdir(outside)]);
         let isSwapOnResolve = false;
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -79,7 +79,7 @@ describe('Runtime Terminal cwd authorization', () => {
         ]);
         let isSwapOnResolve = false;
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -130,7 +130,7 @@ describe('Runtime Terminal cwd authorization', () => {
             mkdir(join(outside, 'folder'), { recursive: true }),
         ]);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -169,7 +169,7 @@ describe('Runtime Terminal cwd authorization', () => {
         const projectFolder = join(projectRoot, 'folder');
         const outside = join(directory, 'outside');
         await Promise.all([mkdir(projectFolder, { recursive: true }), mkdir(outside)]);
-        const runtimeA = await createRuntime({
+        const runtimeA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -192,7 +192,7 @@ describe('Runtime Terminal cwd authorization', () => {
         await rename(projectFolder, `${projectFolder}-original`);
         await symlink(outside, projectFolder);
 
-        const runtimeB = await createRuntime({
+        const runtimeB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
@@ -223,7 +223,7 @@ describe('Runtime Terminal cwd authorization', () => {
         const projectFolder = join(projectRoot, 'folder');
         const outside = join(directory, 'outside');
         await Promise.all([mkdir(projectFolder, { recursive: true }), mkdir(outside)]);
-        const runtimeA = await createRuntime({
+        const runtimeA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -246,7 +246,7 @@ describe('Runtime Terminal cwd authorization', () => {
         await runtimeA.close();
 
         const events: RuntimeEvent[] = [];
-        const runtimeB = await createRuntime({
+        const runtimeB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),

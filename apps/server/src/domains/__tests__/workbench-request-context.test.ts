@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { CaxriDatabase } from '../db';
-import { validateRuntimeRequestContext } from '../runtime-request-context';
+import { validateWorkbenchRequestContext } from '../workbench-request-context';
 
-describe('validateRuntimeRequestContext', () => {
+describe('validateWorkbenchRequestContext', () => {
     it('accepts only the currently selected Workbench Root for the Session', () => {
         const getSessionWorkbenchBinding = vi.fn(() => ({
             projectId: 'project-owner',
@@ -14,13 +14,13 @@ describe('validateRuntimeRequestContext', () => {
         const database = { getSessionWorkbenchBinding } as unknown as CaxriDatabase;
 
         expect(() =>
-            validateRuntimeRequestContext(database, {
+            validateWorkbenchRequestContext(database, {
                 sessionId: 'session-1',
                 workbenchProjectId: 'project-worktree',
             }),
         ).not.toThrow();
         expect(() =>
-            validateRuntimeRequestContext(database, {
+            validateWorkbenchRequestContext(database, {
                 sessionId: 'session-1',
                 workbenchProjectId: 'project-owner',
             }),

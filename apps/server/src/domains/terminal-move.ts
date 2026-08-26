@@ -2,12 +2,12 @@ import type { RuntimeEvent } from '@caxri/protocol';
 
 import type { AgentCoordinator } from './agents';
 import type { CaxriDatabase } from './db';
-import type { RuntimeHandlers } from './dispatch';
+import type { DomainHandlers } from './domain-services';
 import type { TerminalManager } from './terminal';
 
 /**
- * Kept out of `bootstrap.ts` to stay under the file's physical-line budget, matching `./bootstrap-service-handlers.ts`
- * and `./workbench-roots.ts`'s precedent for extracted handler groups.
+ * Kept out of `create-domain-services.ts` to stay under the file's physical-line budget, matching
+ * `./service-handlers.ts`. and `./workbench-roots.ts`'s precedent for extracted handler groups.
  */
 export function createTerminalMoveHandler(dependencies: {
     coordinator: AgentCoordinator;
@@ -15,7 +15,7 @@ export function createTerminalMoveHandler(dependencies: {
     send: (event: RuntimeEvent) => void;
     terminals: TerminalManager;
     watchSessionInBackground: (sessionId: string | undefined) => void;
-}): Pick<RuntimeHandlers, 'terminal.moveToNewSession'> {
+}): Pick<DomainHandlers, 'terminal.moveToNewSession'> {
     const { coordinator, database, send, terminals, watchSessionInBackground } = dependencies;
     return {
         // Moves a live Terminal into a brand-new Session (DB ownership + PTY cache, see

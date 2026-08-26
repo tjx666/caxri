@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createRuntime } from '../bootstrap';
-import { createFakePty, createPendingAgentAdapters } from './create-test-runtime';
+import { createDomainServices } from '../create-domain-services';
+import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -24,7 +24,7 @@ describe('Runtime bug report delivery', () => {
         await mkdir(projectRoot);
         const pty = createFakePty();
         const write = vi.spyOn(pty, 'write');
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},

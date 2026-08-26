@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createTestAgentService } from '../../__tests__/create-test-runtime';
+import { createTestAgentService } from '../../__tests__/create-test-domain-services';
 import { clearExecutableCache, discoverExecutable } from '../discovery';
 import type { AgentAdapter } from '../service';
 import { AgentService } from '../service';

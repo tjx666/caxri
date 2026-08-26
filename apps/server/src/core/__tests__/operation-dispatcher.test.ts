@@ -7,9 +7,9 @@ import { CaxriError, internalMethods, methods } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createRuntime } from '../bootstrap';
-import type { RuntimeHandlers } from '../dispatch';
-import { createOperationDispatcher } from '../dispatch';
+import { createDomainServices } from '../../domains/create-domain-services';
+import type { DomainHandlers } from '../../domains/domain-services';
+import { createOperationDispatcher } from '../operation-dispatcher';
 
 const temporaryDirectories: string[] = [];
 
@@ -24,11 +24,11 @@ const runtimeMethodNames = [...Object.keys(methods), ...Object.keys(internalMeth
 ) as RuntimeMethod[];
 
 /**
- * Handlers whose only job is to observe dispatch behaviour, independent of real Runtime services.
+ * Handlers whose only job is to observe dispatch behaviour, independent of real domain services.
  */
-function stubHandlers(overrides: Partial<Record<RuntimeMethod, unknown>> = {}): RuntimeHandlers {
+function stubHandlers(overrides: Partial<Record<RuntimeMethod, unknown>> = {}): DomainHandlers {
     const table = Object.fromEntries(runtimeMethodNames.map((method) => [method, () => null]));
-    return { ...table, ...overrides } as unknown as RuntimeHandlers;
+    return { ...table, ...overrides } as unknown as DomainHandlers;
 }
 
 /**
@@ -56,10 +56,10 @@ afterEach(async () => {
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe('Runtime handler table', () => {
-    it('implements every Renderer-callable and internal Runtime method', async () => {
+describe('domain handler table', () => {
+    it('implements every Renderer-callable and internal domain operation', async () => {
         const directory = await temporaryDirectory('caxri-handler-table-');
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},

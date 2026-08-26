@@ -122,7 +122,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 
 ### AD-ext-public-git-diff — [RESOLVED · Architecture debt · S]
 
-- **Summary:** The obsolete raw-string `git.diff` operation is no longer part of the public protocol or Runtime handler table.
+- **Summary:** The obsolete raw-string `git.diff` operation is no longer part of the public protocol or domain handler table.
 - **Evidence:** `packages/protocol/src/registry/methods.ts:552-568` exposes only typed diff documents. `packages/protocol/src/__tests__/index.test.ts:227-253` proves Desktop negotiation omits `git.diff` and public request parsing rejects it.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ e7489de via [issue caxri#170](https://github.com/tjx666/caxri/issues/170).
@@ -131,7 +131,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-perf-pr-cache-unbounded — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Pull Request metadata caching now has TTL pruning, a fixed LRU capacity, deletion eviction, and shutdown cleanup.
-- **Evidence:** `apps/server/src/domains/git/pull-request.ts:161-188` implements Session eviction, clear, expiry pruning, and a 128-entry LRU. `apps/server/src/domains/bootstrap.ts:535-548,628-633` evicts Project and Session keys. `apps/server/src/domains/git/__tests__/pull-request.test.ts:73-202` covers expiry, capacity, deletion, collision, and in-flight invalidation.
+- **Evidence:** `apps/server/src/domains/git/pull-request.ts:161-188` implements Session eviction, clear, expiry pruning, and a 128-entry LRU. `apps/server/src/domains/create-domain-services.ts:535-548,628-633` evicts Project and Session keys. `apps/server/src/domains/git/__tests__/pull-request.test.ts:73-202` covers expiry, capacity, deletion, collision, and in-flight invalidation.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ e7489de via [issue caxri#170](https://github.com/tjx666/caxri/issues/170).
 - **Remediation target / Acceptance:** Historical Session/repository entries stay bounded, deleted Sessions cannot repopulate the cache, and unrelated identifiers cannot collide.

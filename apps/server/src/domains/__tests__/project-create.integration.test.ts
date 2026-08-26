@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createRuntime } from '../bootstrap';
+import { createDomainServices } from '../create-domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -23,7 +23,7 @@ describe('project.create', () => {
         const selectedRoot = join(directory, 'selected');
         await mkdir(selectedRoot);
         const selectedIdentity = await lstat(selectedRoot, { bigint: true });
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -54,7 +54,7 @@ describe('project.create', () => {
         const selectedIdentity = await lstat(selectedRoot, { bigint: true });
         await rename(selectedRoot, join(directory, 'selected-original'));
         await mkdir(selectedRoot);
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},

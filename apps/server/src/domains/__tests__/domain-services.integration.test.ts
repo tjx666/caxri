@@ -8,11 +8,11 @@ import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createRuntime } from '../bootstrap';
+import { createDomainServices } from '../create-domain-services';
 import { CaxriDatabase } from '../db/repository';
 import { GitService } from '../git';
 import { ProjectStatusService } from '../project-status';
-import { createFakePty, createPendingAgentAdapters } from './create-test-runtime';
+import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -22,14 +22,14 @@ afterEach(async () => {
     await Promise.all(pendingDirectories.map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe('Runtime composition root', () => {
-    it('applies provider settings through Runtime composition to a new Agent Terminal', async () => {
+describe('domain-service composition root', () => {
+    it('applies provider settings through domain composition to a new Agent Terminal', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-agent-settings-'));
         temporaryDirectories.push(directory);
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -97,7 +97,7 @@ describe('Runtime composition root', () => {
         ]);
         await symlink(customRoot, join(projectRoot, 'outside-link'));
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -210,7 +210,7 @@ describe('Runtime composition root', () => {
         temporaryDirectories.push(directory);
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -253,7 +253,7 @@ describe('Runtime composition root', () => {
         await mkdir(projectRoot);
         await writeFile(join(projectRoot, 'README.md'), '# Caxri\n', 'utf8');
         const events: RuntimeEvent[] = [];
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: (event) => {
@@ -357,7 +357,7 @@ describe('Runtime composition root', () => {
     it('reports a missing Session as NOT_FOUND and keeps the Runtime usable', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-errors-'));
         temporaryDirectories.push(directory);
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -378,7 +378,7 @@ describe('Runtime composition root', () => {
     it('closes every owned resource once, so shutdown can run twice', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-shutdown-'));
         temporaryDirectories.push(directory);
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -398,7 +398,7 @@ describe('Runtime composition root', () => {
         const evict = vi.spyOn(GitService.prototype, 'evictSessions');
         const evictStatus = vi.spyOn(ProjectStatusService.prototype, 'evictSessions');
         const clear = vi.spyOn(GitService.prototype, 'close');
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},
@@ -466,7 +466,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             await mkdir(projectRoot);
             const resolveExecutable = () => Promise.resolve(`/usr/local/bin/${provider}`);
 
-            const runtimeA = await createRuntime({
+            const runtimeA = await createDomainServices({
                 userDataPath,
                 logger: new StructuredLogger(join(directory, 'logs-a')),
                 send: () => {},
@@ -498,7 +498,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
 
             const spawnSpy = vi.fn();
             spawnSpy.mockImplementation(() => createFakePty());
-            const runtimeB = await createRuntime({
+            const runtimeB = await createDomainServices({
                 userDataPath,
                 terminalRestoreGridWaitMs: 0,
                 logger: new StructuredLogger(join(directory, 'logs-b')),
@@ -535,7 +535,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
 
-        const runtimeA = await createRuntime({
+        const runtimeA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -562,7 +562,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         });
         const spawnSpy = vi.fn(() => createFakePty());
         const events: RuntimeEvent[] = [];
-        const runtimeB = await createRuntime({
+        const runtimeB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
@@ -602,7 +602,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
         await mkdir(projectRoot);
         const resolveExecutable = () => Promise.resolve('/usr/local/bin/claude');
 
-        const runtimeA = await createRuntime({
+        const runtimeA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -621,7 +621,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
 
         const freshSpawnSpy = vi.fn();
         freshSpawnSpy.mockImplementation(() => createFakePty());
-        const runtimeB = await createRuntime({
+        const runtimeB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,
             logger: new StructuredLogger(join(directory, 'logs-b')),
@@ -645,7 +645,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
 
         const noRestartSpawnSpy = vi.fn();
         noRestartSpawnSpy.mockImplementation(() => createFakePty());
-        const runtimeC = await createRuntime({
+        const runtimeC = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-c')),
             send: () => {},
@@ -672,7 +672,7 @@ describe('selected Session Agent probes', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
 
-        const runtimeA = await createRuntime({
+        const runtimeA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -703,7 +703,7 @@ describe('selected Session Agent probes', () => {
                 sessionId: context.correlationId,
             }),
         );
-        const runtimeB = await createRuntime({
+        const runtimeB = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-b')),
             send: () => {},
@@ -732,7 +732,7 @@ describe('Session state recovery', () => {
         const userDataPath = join(directory, 'user-data');
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
-        const runtimeA = await createRuntime({
+        const runtimeA = await createDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs-a')),
             send: () => {},
@@ -755,7 +755,7 @@ describe('Session state recovery', () => {
         direct.close();
 
         const logger = new StructuredLogger(join(directory, 'logs-b'));
-        const runtimeB = await createRuntime({ userDataPath, logger, send: () => {} });
+        const runtimeB = await createDomainServices({ userDataPath, logger, send: () => {} });
         try {
             const bootstrap = await runtimeB.handlers['app.bootstrap']({});
             const repaired = bootstrap.sessionStates.find(

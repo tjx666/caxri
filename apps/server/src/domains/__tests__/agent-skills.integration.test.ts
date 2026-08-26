@@ -7,8 +7,8 @@ import { agentProviderIds, agentSkillHealthSchema } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createRuntime } from '../bootstrap';
-import { createFakePty } from './create-test-runtime';
+import { createDomainServices } from '../create-domain-services';
+import { createFakePty } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -35,7 +35,7 @@ describe('Runtime Agent skill health', () => {
             mkdir(environment.CLAUDE_CONFIG_DIR),
             mkdir(environment.CODEX_HOME),
         ]);
-        const runtime = await createRuntime({
+        const runtime = await createDomainServices({
             agentEnvironment: { homeDirectory: home, variables: environment },
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},

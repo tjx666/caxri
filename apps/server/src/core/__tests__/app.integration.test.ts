@@ -17,12 +17,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
 import type { CreateDomainServices } from '../../core/domain-service';
-import type { RuntimeHandlers } from '../../domains/dispatch';
+import type { DomainHandlers } from '../../domains/domain-services';
 import type { HostApp } from '../app';
 import { startHostApp } from '../app';
 
-function fixtureHandlers(overrides: Partial<RuntimeHandlers>): RuntimeHandlers {
-    return overrides as RuntimeHandlers;
+function fixtureHandlers(overrides: Partial<DomainHandlers>): DomainHandlers {
+    return overrides as DomainHandlers;
 }
 
 function dispatchReceipt(dispatchId: string): RuntimeMethodResult<'agent.dispatch.startInternal'> {
@@ -211,7 +211,7 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
                 enter,
             }),
             'runtime.shutdown': () => null,
-        } satisfies Partial<RuntimeHandlers>;
+        } satisfies Partial<DomainHandlers>;
         return {
             close: () => endpoints.close(),
             handlers: fixtureHandlers(handlers),

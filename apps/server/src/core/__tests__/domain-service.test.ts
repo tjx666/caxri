@@ -3,8 +3,7 @@ import { CaxriError, internalMethods, methods } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Runtime } from '../../domains/bootstrap-types';
-import type { RuntimeHandlers } from '../../domains/dispatch';
+import type { DomainHandlers, DomainServices } from '../../domains/domain-services';
 import { ServerDomainService } from '../domain-service';
 
 const runtimeMethodNames = [
@@ -12,11 +11,11 @@ const runtimeMethodNames = [
     ...Object.keys(internalMethods),
 ] as RuntimeMethod[];
 
-function handlers(overrides: Partial<Record<RuntimeMethod, unknown>> = {}): RuntimeHandlers {
+function handlers(overrides: Partial<Record<RuntimeMethod, unknown>> = {}): DomainHandlers {
     return {
         ...Object.fromEntries(runtimeMethodNames.map((method) => [method, () => null])),
         ...overrides,
-    } as unknown as RuntimeHandlers;
+    } as unknown as DomainHandlers;
 }
 
 function dependencies() {
@@ -31,7 +30,7 @@ afterEach(() => vi.useRealTimers());
 describe('ServerDomainService', () => {
     it('invokes domain handlers directly and publishes readiness once', async () => {
         const close = vi.fn(async () => {});
-        const createServices = vi.fn((): Promise<Runtime> =>
+        const createServices = vi.fn((): Promise<DomainServices> =>
             Promise.resolve({
                 close,
                 handlers: handlers({

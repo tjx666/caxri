@@ -4,7 +4,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { RuntimeAgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
-import type { RuntimeHandlers } from '../dispatch';
+import type { DomainHandlers } from '../domain-services';
 import type { TerminalManager } from '../terminal';
 import type { AgentDispatchService } from './service';
 
@@ -39,9 +39,9 @@ export interface AgentCommandHandlerOptions {
  */
 export function createAgentCommandHandlers(
     options: AgentCommandHandlerOptions,
-): Pick<RuntimeHandlers, AgentCommandMethod> {
+): Pick<DomainHandlers, AgentCommandMethod> {
     const signalAgent = (
-        endpoint: Parameters<RuntimeHandlers['agent.control.interruptInternal']>[0]['endpoint'],
+        endpoint: Parameters<DomainHandlers['agent.control.interruptInternal']>[0]['endpoint'],
         signal: 'SIGINT' | 'SIGHUP',
     ) => {
         if (!options.endpoints)
