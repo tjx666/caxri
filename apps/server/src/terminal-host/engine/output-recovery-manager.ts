@@ -2,8 +2,8 @@ import type { AgentOutputRecoverySettings, AgentProvider, ServerEvent } from '@c
 import { agentProviderIds } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-import type { LiveTerminal } from './manager-types';
 import { AgentOutputRecovery } from './output-recovery';
+import type { LiveTerminal } from './types';
 
 interface LiveOutputRecoveryOptions {
     emit: (event: ServerEvent) => void;

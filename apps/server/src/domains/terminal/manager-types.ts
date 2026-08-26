@@ -9,31 +9,6 @@ import type {
 } from '@caxri/protocol';
 import type * as pty from 'node-pty';
 
-import type { TerminalOutputQueue } from './buffer';
-import type { TerminalColorQueryResponder } from './color-query';
-import type { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
-import type { AgentOutputRecovery } from './output-recovery';
-import type { TerminalScreenState } from './screen';
-
-export interface LiveTerminal {
-    colorQuery?: TerminalColorQueryResponder;
-    imageRecovery: TerminalImageRecoveryFilter;
-    imageOutput: TerminalImageOutputFilter;
-    process: pty.IPty;
-    record: TerminalRecord;
-    screen: TerminalScreenState;
-    outputRecovery?: AgentOutputRecovery;
-    outputRecoveryProvider?: AgentProvider;
-    outputQueue: TerminalOutputQueue;
-    droppedBytes: number;
-    metricOutputBytes: number;
-    metricInputBytes: number;
-    metricDroppedBytes: number;
-    activityTimer?: NodeJS.Timeout;
-    outputTimer?: NodeJS.Timeout;
-    metricTimer?: NodeJS.Timeout;
-}
-
 export interface TerminalManagerOptions {
     /**
      * Test seam for deterministic output-queue backpressure. Production uses the fixed 16 ms coalescing window.
@@ -78,7 +53,7 @@ export interface TerminalManagerOptions {
     /**
      * Current theme terminal colors used to answer OSC 10/11 default-color queries at the PTY boundary. Without this,
      * an Agent CLI's short startup color probe (Codex allows ~100ms) always expires before the Renderer's xterm.js
-     * attaches and can reply, so TUIs silently drop their themed backgrounds. See {@link TerminalColorQueryResponder}.
+     * attaches and can reply, so TUIs silently drop their themed backgrounds. The Terminal Host owns the responder.
      */
     terminalColors?: () => { background: string; foreground: string };
 }
@@ -105,10 +80,3 @@ export interface TerminalStartOptions {
      */
     waitForAttachedSizeMs?: number;
 }
-
-export interface TerminalGridSize {
-    cols: number;
-    rows: number;
-}
-
-export type AttachedSizeWaiter = () => void;

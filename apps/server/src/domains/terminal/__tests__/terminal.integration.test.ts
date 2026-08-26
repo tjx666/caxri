@@ -7,9 +7,9 @@ import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { TERMINAL_IMAGE_RECOVERY_PLACEHOLDER } from '../../../terminal-host/engine/image-recovery';
 import { CaxriDatabase } from '../../db/repository';
 import { TerminalManager } from '..';
-import { TERMINAL_IMAGE_RECOVERY_PLACEHOLDER } from '../image-recovery';
 
 const temporaryDirectories: string[] = [];
 const temporaryLoggers: StructuredLogger[] = [];

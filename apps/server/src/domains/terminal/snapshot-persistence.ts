@@ -3,8 +3,8 @@ import { errorMessage, terminalSnapshotSchema } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import type { LiveTerminal } from '../../terminal-host/engine/types';
 import type { CaxriDatabase } from '../db';
-import type { LiveTerminal } from './manager-types';
 
 export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 3;
 
