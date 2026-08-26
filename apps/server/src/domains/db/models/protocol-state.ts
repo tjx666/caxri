@@ -1,7 +1,12 @@
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 
-import type { DurableServerEvent, ProtocolEventEnvelope } from '@caxri/protocol';
+import type {
+    DurableServerEvent,
+    NewProtocolCommandReceipt,
+    ProtocolEventEnvelope,
+    StoredProtocolCommandReceipt,
+} from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
@@ -15,12 +20,7 @@ import {
 } from '@caxri/protocol';
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm';
 
-import type {
-    DurableProtocolIdentity,
-    NewProtocolCommandReceipt,
-    ProtocolRecoveryState,
-    StoredProtocolCommandReceipt,
-} from '../../protocol-recovery';
+import type { DurableProtocolIdentity, ProtocolRecoveryState } from '../../protocol-recovery';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { protocolChangefeed, protocolCommandReceipts, protocolIdentity } from '../schema';
 

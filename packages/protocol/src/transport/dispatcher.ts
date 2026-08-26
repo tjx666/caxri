@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 import type { CaxriRequest } from '../registry/methods.js';
-import { methods } from '../registry/methods.js';
+import { commandRecoveryFor, methods } from '../registry/methods.js';
+import type { DurableCommandReceiptStore } from './command-receipts.js';
 import { CaxriError, toWireError } from './errors.js';
 import type { ProtocolFeature } from './identity.js';
 import { protocolConnectionIdentitySchema } from './identity.js';
@@ -33,6 +34,7 @@ export interface CommandAdapter {
 
 export interface CommandDispatcherOptions {
     desktop?: CommandAdapter;
+    durableReceipts?: DurableCommandReceiptStore;
     features?: readonly ProtocolFeature[];
     server: CommandAdapter;
     maximumReceipts?: number;
@@ -64,7 +66,13 @@ const contextSchema = z.object({
     connection: protocolConnectionIdentitySchema.optional(),
 });
 
-function principalReceiptKey(context: CommandExecutionContext, requestId: string): string {
+function receiptKey(
+    context: CommandExecutionContext,
+    requestId: string,
+    isDurable: boolean,
+): string {
+    if (isDurable)
+        return `durable:${context.connection!.stateEpoch}:${context.connection!.clientId}:${requestId}`;
     const { principal } = context;
     const generation =
         principal.kind === 'agent' || principal.kind === 'desktop'
@@ -210,7 +218,12 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
                 return { reply: executeSafely(envelope.id, request, context) };
             }
 
-            const key = principalReceiptKey(context, envelope.id);
+            const isDurable = Boolean(
+                commandRecoveryFor(request.method) === 'durable' &&
+                options.durableReceipts &&
+                context.connection,
+            );
+            const key = receiptKey(context, envelope.id, isDurable);
             const fingerprint = await requestFingerprint(request.method, request.params);
             const existing = receipts.get(key);
             if (existing) {
@@ -225,7 +238,47 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
             admitReceipt();
             const settleReply = async (): Promise<CommandReplyEnvelope> => {
                 try {
-                    return await executeSafely(envelope.id, request, context);
+                    if (isDurable) {
+                        const connection = context.connection!;
+                        const stored = await options.durableReceipts!.getReceipt(
+                            connection.stateEpoch,
+                            connection.clientId,
+                            envelope.id,
+                        );
+                        if (stored) {
+                            if (
+                                stored.method !== request.method ||
+                                stored.requestFingerprint !== fingerprint
+                            )
+                                throw new CaxriError(
+                                    'VALIDATION',
+                                    'A request ID cannot be reused for different command input',
+                                );
+                            const storedReply = commandReplyEnvelopeSchema.parse(stored.reply);
+                            if (storedReply.id !== envelope.id)
+                                throw new CaxriError(
+                                    'INTERNAL',
+                                    'Durable command receipt identity does not match',
+                                );
+                            return storedReply;
+                        }
+                    }
+                    const commandReply = await executeSafely(envelope.id, request, context);
+                    if (isDurable && commandReply.ok) {
+                        const connection = context.connection!;
+                        await options.durableReceipts!.saveReceipt({
+                            stateEpoch: connection.stateEpoch,
+                            clientId: connection.clientId,
+                            requestId: envelope.id,
+                            requestFingerprint: fingerprint,
+                            method: request.method,
+                            reply: commandReply,
+                            createdAt: Date.now(),
+                        });
+                    }
+                    return commandReply;
+                } catch (error) {
+                    return errorReply(envelope.id, error);
                 } finally {
                     const current = receipts.get(key);
                     if (current) current.settled = true;

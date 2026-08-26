@@ -655,7 +655,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
 
     try {
         await domainService.start();
-        const protocolIdentity = (await domainService.recoveryState()).identity();
+        const protocolRecovery = await domainService.recoveryState();
+        const protocolIdentity = protocolRecovery.identity();
         if (options.extensionHostPath && options.extensionRoots) {
             extensionService = new ExtensionService({
                 appVersion: options.version,
@@ -689,7 +690,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             await extensionService.start();
         }
         server = new ControlServer({
-            adapters: { features: protocolFeatures, server: serverAdapter },
+            adapters: {
+                durableReceipts: protocolRecovery,
+                features: protocolFeatures,
+                server: serverAdapter,
+            },
             authenticateAgent: (credential) => agentEndpoints.authenticate(credential),
             consumeDesktopTarget: (targetId, generation) => {
                 if (!desktopRouter)
