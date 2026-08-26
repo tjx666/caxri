@@ -31,7 +31,6 @@ import {
     TerminalOutputQueue,
     TerminalScreenState,
 } from '../../terminal-host/engine';
-import type { CaxriDatabase } from '../db';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
@@ -41,6 +40,7 @@ import {
     CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
     TerminalSnapshotPersistence,
 } from './snapshot-persistence';
+import type { TerminalStateStore } from './state-store';
 import { createTerminalTitleListener } from './terminal-title';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
@@ -64,7 +64,7 @@ export class TerminalManager {
     private readonly outputFlushMs: number;
 
     constructor(
-        private readonly database: CaxriDatabase,
+        private readonly database: TerminalStateStore,
         private readonly emit: (event: ServerEvent) => void,
         private readonly logger: StructuredLogger,
         options: TerminalManagerOptions = {},
