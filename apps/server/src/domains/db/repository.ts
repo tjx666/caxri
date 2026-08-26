@@ -38,6 +38,7 @@ import type {
     StoredAgentDispatchReceipt,
 } from './models/agent-dispatch-receipts';
 import type { AppStateKey, AppStateValue } from './models/app-state';
+import type { ProtocolStateModel } from './models/protocol-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
 import { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
 
@@ -49,9 +50,11 @@ import { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/termin
  */
 export class CaxriDatabase {
     private readonly db: CaxriDatabase_;
+    readonly protocolState: ProtocolStateModel;
 
     constructor(path: string, options?: CaxriDatabaseOptions) {
         this.db = new CaxriDatabase_(path, options);
+        this.protocolState = this.db.protocolState;
     }
 
     private assertTerminalCapacity(sessionId?: string): void {

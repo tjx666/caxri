@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 
 /**
  * Shared with `sessions.ts` so the DDL default and the `createSession` insert never drift apart.
@@ -169,4 +169,53 @@ export const agentDispatchReceipts = sqliteTable(
             table.dispatchId,
         ),
     ],
+);
+
+/**
+ * One durable identity row anchors recovery across Server boots. `state_epoch` changes only when the compatible
+ * changefeed history is deliberately replaced; a normal restart changes the Boot ID, not this row.
+ */
+export const protocolIdentity = sqliteTable('protocol_identity', {
+    singleton: integer('singleton').primaryKey(),
+    serverId: text('server_id').notNull().unique(),
+    stateEpoch: text('state_epoch').notNull(),
+    createdAt: integer('created_at').notNull(),
+});
+
+/**
+ * Replays a bounded, content-reviewed command reply after the original reply was lost. Parameters are represented only
+ * by a SHA-256 fingerprint; source text, Terminal output, prompts, transcripts, credentials, and environment values are
+ * never columns in this table.
+ */
+export const protocolCommandReceipts = sqliteTable(
+    'protocol_command_receipts',
+    {
+        stateEpoch: text('state_epoch').notNull(),
+        clientId: text('client_id').notNull(),
+        requestId: text('request_id').notNull(),
+        requestFingerprint: text('request_fingerprint').notNull(),
+        method: text('method').notNull(),
+        replyJson: text('reply_json').notNull(),
+        createdAt: integer('created_at').notNull(),
+    },
+    (table) => [
+        primaryKey({ columns: [table.stateEpoch, table.clientId, table.requestId] }),
+        index('protocol_command_receipts_created').on(table.createdAt),
+    ],
+);
+
+/**
+ * Bounded content-free structural invalidations. Authoritative state remains in the domain tables; this is a recovery
+ * cursor, not an event-sourced copy of Project files or Terminal streams.
+ */
+export const protocolChangefeed = sqliteTable(
+    'protocol_changefeed',
+    {
+        sequence: integer('sequence').primaryKey({ autoIncrement: true }),
+        stateEpoch: text('state_epoch').notNull(),
+        eventName: text('event_name').notNull(),
+        eventJson: text('event_json').notNull(),
+        createdAt: integer('created_at').notNull(),
+    },
+    (table) => [index('protocol_changefeed_epoch_sequence').on(table.stateEpoch, table.sequence)],
 );
