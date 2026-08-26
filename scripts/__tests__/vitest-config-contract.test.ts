@@ -5,6 +5,7 @@ import {
     apiTestFiles,
     clientTestFiles,
     cliTestFiles,
+    desktopParallelExcludes,
     desktopTestFiles,
     protocolTestFiles,
     resolveVitestPartition,
@@ -27,6 +28,12 @@ const SAFE_FILE_TESTS = [
 describe('Vitest project partition', () => {
     it('discovers skill tests colocated under scripts/__tests__', () => {
         expect(desktopTestFiles).toContain('.agents/skills/**/scripts/__tests__/*.test.ts');
+    });
+
+    it('never follows workspace dependencies while adding serial native exclusions', () => {
+        expect(desktopParallelExcludes).toEqual(
+            expect.arrayContaining(['**/node_modules/**', '**/.git/**']),
+        );
     });
 
     it('owns Desktop and workspace tests in named projects', () => {
