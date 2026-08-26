@@ -2,20 +2,20 @@ import { CAXRI_PROTOCOL_VERSION, errorMessage, isCaxriError } from '@caxri/proto
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { DesktopHostConnection } from './host-connection';
+import type { DesktopServerConnection } from './server-connection';
 
-interface HostStartupDialog {
+interface ServerStartupDialog {
     showErrorBox(title: string, content: string): void;
 }
 
-export interface HostStartupOptions {
-    dialog: HostStartupDialog;
+export interface ServerStartupOptions {
+    dialog: ServerStartupDialog;
     logger?: StructuredLogger;
     quit(): void;
-    supervisor: Pick<DesktopHostConnection, 'start'>;
+    supervisor: Pick<DesktopServerConnection, 'start'>;
 }
 
-function isIncompatibleHost(error: unknown): boolean {
+function isIncompatibleServer(error: unknown): boolean {
     if (!isCaxriError(error) || error.code !== 'CONFLICT') return false;
     return (
         error.details?.clientProtocolVersion === CAXRI_PROTOCOL_VERSION &&
@@ -24,7 +24,7 @@ function isIncompatibleHost(error: unknown): boolean {
     );
 }
 
-function incompatibleHostFailureMessage(): { content: string; title: string } {
+function incompatibleServerFailureMessage(): { content: string; title: string } {
     return {
         title: 'Caxri requires a local reset',
         content:
@@ -36,9 +36,9 @@ function incompatibleHostFailureMessage(): { content: string; title: string } {
 }
 
 /**
- * Starts one current-protocol Host attempt and preserves degraded startup for unrelated failures.
+ * Starts one current-protocol Server attempt and preserves degraded startup for unrelated failures.
  */
-export async function shouldContinueStartup(options: HostStartupOptions): Promise<boolean> {
+export async function shouldContinueStartup(options: ServerStartupOptions): Promise<boolean> {
     const startedAt = performance.now();
     try {
         await options.supervisor.start();
@@ -51,8 +51,8 @@ export async function shouldContinueStartup(options: HostStartupOptions): Promis
             durationMs: performance.now() - startedAt,
             fields: { error: errorMessage(error, 'unknown') },
         });
-        if (!isIncompatibleHost(error)) return true;
-        const failure = incompatibleHostFailureMessage();
+        if (!isIncompatibleServer(error)) return true;
+        const failure = incompatibleServerFailureMessage();
         try {
             options.dialog.showErrorBox(failure.title, failure.content);
         } finally {

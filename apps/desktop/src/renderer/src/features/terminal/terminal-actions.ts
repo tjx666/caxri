@@ -71,7 +71,7 @@ export async function createTerminal(
         await refreshWorkbench();
         /**
          * `Cmd+T` immediately followed by `Cmd+W` can close this Terminal while the refresh above is still in flight.
-         * Placing it afterwards would open a tab for a Terminal the Runtime has already deleted, which renders as a
+         * Placing it afterwards would open a tab for a Terminal the Server has already deleted, which renders as a
          * permanently blank pane no close can reach.
          */
         if (!getBootstrap()?.terminals.some((candidate) => candidate.id === terminal.id)) return;
@@ -114,7 +114,7 @@ export function closeTerminal(terminalId: string): void {
 async function requestTerminalRestart(terminalId: string, mode: 'resume' | 'fresh'): Promise<void> {
     const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
     /**
-     * A stopped PTY lost Runtime attachment ownership, while a running PTY must not be reattached because replaying its
+     * A stopped PTY lost Server attachment ownership, while a running PTY must not be reattached because replaying its
      * screen without a new xterm consumer would discard queued live output.
      */
     if (terminal?.lastProcessState !== 'running')

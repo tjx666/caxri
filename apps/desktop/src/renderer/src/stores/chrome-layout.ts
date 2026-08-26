@@ -8,7 +8,7 @@ import { create } from 'zustand';
 /**
  * Renderer-local chrome layout: PrimarySidebar/SecondarySidebar widths, Panel height, their visibility, and the Panel's
  * active view. Unlike Session state (`workbench.ts`), this is device-specific presentation, never written through to
- * the Runtime, so it persists to `localStorage` instead.
+ * the Server, so it persists to `localStorage` instead.
  */
 
 export const PRIMARY_SIDEBAR_MIN_WIDTH = 180;

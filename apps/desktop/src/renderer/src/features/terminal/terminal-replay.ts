@@ -1,7 +1,7 @@
 import type { TerminalOscLinkSnapshot } from '@caxri/protocol';
 
 /**
- * Match Runtime's delivery batch ceiling while also bounding many tiny IPC events.
+ * Match Server's delivery batch ceiling while also bounding many tiny IPC events.
  */
 const DEFAULT_MAXIMUM_PENDING_BYTES = 256 * 1024;
 const DEFAULT_MAXIMUM_PENDING_ITEMS = 256;
@@ -230,7 +230,7 @@ export class TerminalBackpressureRecovery {
 }
 
 /**
- * Replaces an already-mounted xterm from a fresh Runtime snapshot without losing live output.
+ * Replaces an already-mounted xterm from a fresh Server snapshot without losing live output.
  */
 export class TerminalReplayCoordinator {
     private disposed = false;
@@ -287,7 +287,7 @@ export class TerminalReplayCoordinator {
             this.replayOptions.beginSnapshot?.();
             try {
                 const snapshot = await loadSnapshot();
-                // The pane may be removed while Runtime is serializing its parsed screen.
+                // The pane may be removed while Server is serializing its parsed screen.
                 // oxlint-disable-next-line typescript/no-unnecessary-condition -- changed across await
                 if (this.disposed) return;
                 if (snapshot) this.replayOptions.prepareSnapshot?.(snapshot);
@@ -301,7 +301,7 @@ export class TerminalReplayCoordinator {
                 // oxlint-disable-next-line typescript/no-unnecessary-condition -- changed across await
                 if (this.disposed) return;
                 /**
-                 * Keep the existing screen on an attach failure, but release output buffered while the Runtime request
+                 * Keep the existing screen on an attach failure, but release output buffered while the Server request
                  * was pending.
                  */
                 await replay.restore('');

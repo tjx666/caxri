@@ -16,10 +16,10 @@ const emptyWorkDangerClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-danger';
 
 /**
- * Read-only viewer for an Agent Terminal's provider transcript (`caxri-agent-transcript://` tabs). Runtime/WatchHub
- * invalidation keeps the query fresh after its initial `terminal.agentTranscript` read; the Runtime derives the path,
- * so this surface never submits a filesystem path. Rendered as plain text: each jsonl line is an independent JSON
- * record, which Monaco's `json` mode would cover in bogus multi-root diagnostics.
+ * Read-only viewer for an Agent Terminal's provider transcript (`caxri-agent-transcript://` tabs). Server/WatchHub
+ * invalidation keeps the query fresh after its initial `terminal.agentTranscript` read; the Server derives the path, so
+ * this surface never submits a filesystem path. Rendered as plain text: each jsonl line is an independent JSON record,
+ * which Monaco's `json` mode would cover in bogus multi-root diagnostics.
  */
 export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
     const theme = useTheme();

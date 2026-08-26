@@ -9,9 +9,9 @@ vi.mock('electron', () => ({
     nativeImage: electronMock.nativeImage,
 }));
 
-import type { DesktopHostConnection } from '../host-connection';
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
+import type { DesktopServerConnection } from '../server-connection';
 import type { UpdateService } from '../updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
@@ -35,7 +35,7 @@ function handler(
     return createMainMethodHandler({
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,
         getUserDataPath: () => '/user-data',
-        getSupervisor: () => ({ request }) as unknown as DesktopHostConnection,
+        getSupervisor: () => ({ request }) as unknown as DesktopServerConnection,
         getUpdateService: () => ({}) as UpdateService,
         getWindow: () => window as never,
         workbenchRootAuthority: {} as ReturnType<typeof createWorkbenchRootAuthority>,

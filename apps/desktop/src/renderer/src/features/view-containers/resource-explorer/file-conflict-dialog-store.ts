@@ -11,7 +11,7 @@ export interface FileConflictRequest {
     /**
      * True when either side of the collision is a folder. `files.move`'s `replace` mode can only atomically overwrite a
      * plain file (see `mutations.ts`'s `assertReplaceableMove`), so a folder-gated request hides Replace and swaps in
-     * folder-specific copy instead of offering a choice Runtime would just reject.
+     * folder-specific copy instead of offering a choice Server would just reject.
      */
     folderGated: boolean;
 }

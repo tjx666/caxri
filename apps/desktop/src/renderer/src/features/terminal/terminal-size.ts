@@ -77,7 +77,7 @@ export function terminalSizeWithScrollbarGutter(
 }
 
 /**
- * ResizeObserver can repeat unchanged layouts; only a new PTY grid size needs Runtime IPC.
+ * ResizeObserver can repeat unchanged layouts; only a new PTY grid size needs Server IPC.
  */
 export function didTerminalSizeChange(
     previous: TerminalSize | undefined,

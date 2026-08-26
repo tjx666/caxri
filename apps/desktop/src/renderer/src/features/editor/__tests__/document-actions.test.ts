@@ -352,7 +352,7 @@ describe('session-scoped file mutation completion', () => {
         expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([]);
     });
 
-    it('keeps a Host-routed file bound to its target Session after selection changes', async () => {
+    it('keeps a Server-routed file bound to its target Session after selection changes', async () => {
         installSessions('/project/first-existing.ts', 'session-1', '/project/second-existing.ts');
         const read = deferred<{ content: string; mtimeMs: number; path: string; size: number }>();
         mocks.request.mockImplementation((method) =>

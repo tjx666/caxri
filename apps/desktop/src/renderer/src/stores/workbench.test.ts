@@ -321,7 +321,7 @@ describe('workbench Runtime events', () => {
         unsubscribe();
     });
 
-    it('re-attaches Terminal panes and refreshes state after a Host reconnect', async () => {
+    it('re-attaches Terminal panes and refreshes state after a Server reconnect', async () => {
         const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
         expect(useWorkbenchStore.getState().attachEpoch).toBe(0);
 

@@ -70,7 +70,7 @@ import { resolveChipVisibility } from './chip-priority';
 const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
 const AUTHORIZE_WORKBENCH_ROOT_VALUE = '__authorize_workbench_root__';
 
-type RuntimeStatus = BootstrapState['runtime']['status'];
+type ServerStatus = BootstrapState['runtime']['status'];
 
 const statusItemClassName =
     'statusbar-item inline-flex h-5 min-w-0 items-center gap-[5px] overflow-hidden rounded border-0 bg-transparent px-[5px] text-foreground no-underline cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--foreground)] [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
@@ -289,10 +289,10 @@ function ActiveTerminalStatus({
 
 /**
  * A healthy backend says nothing: the status bar only speaks up while Caxri is degraded, and it does so in the user's
- * vocabulary rather than naming the Runtime process.
+ * vocabulary rather than naming the Server process.
  */
 const DEGRADED_STATES: Partial<
-    Record<RuntimeStatus, { label: string; detail: string; className: string }>
+    Record<ServerStatus, { label: string; detail: string; className: string }>
 > = {
     /**
      * No imperative "Restart" here: recovery is offered by the native Relaunch dialog, not the chip.
@@ -371,7 +371,7 @@ function StatusItem({
 
 /**
  * Screencast Mode has no other persistent cue while active — see `screencast.ts`'s `toggleScreencastMode` for the
- * paired toast. Muted tokens keep it quiet per DESIGN.md's status bar redline (only degraded Runtime state earns a loud
+ * paired toast. Muted tokens keep it quiet per DESIGN.md's status bar redline (only degraded Server state earns a loud
  * chip); clicking replays the same toggle command a keybinding or the command palette would run.
  */
 const screencastChipClassName = 'text-muted';
@@ -406,9 +406,9 @@ function ScreencastModeChip() {
  * poll and is never invalidated by `files.changed` (see `invalidateFileDependentQueries` in `queries/invalidation.ts`).
  * Branch and changed-file count instead come from the `git.overview` query — a Files-free projection of the same
  * repository snapshot `SourceControlView` and `GitDiffEditor` read through `git.summary`, invalidated by the
- * Runtime-driven `git.changed` event — so the status bar reflects a Git-affecting change immediately without pulling
- * the full working-tree `files[]` payload across IPC or calling the delivery CLI any more often than the interval
- * already does.
+ * Server-driven `git.changed` event — so the status bar reflects a Git-affecting change immediately without pulling the
+ * full working-tree `files[]` payload across IPC or calling the delivery CLI any more often than the interval already
+ * does.
  */
 function useProjectOverview(sessionId: string | undefined) {
     const overviewQuery = usePolledQuery(
@@ -478,7 +478,7 @@ function BranchPicker({
     );
     useToastOnQueryError(branchesQuery.isError, branchesQuery.error, 'Unable to list branches');
     const loadedBranches = branchesQuery.data ?? [];
-    // The current branch is pinned first; the rest keep the Runtime's most-recent-commit order.
+    // The current branch is pinned first; the rest keep the Server's most-recent-commit order.
     // Before the query resolves only the current branch is known, without a commit time.
     const branches: Array<{ name: string; committedAt?: number }> = [
         loadedBranches.find((candidate) => candidate.name === branch) ?? { name: branch },
@@ -664,8 +664,8 @@ export function StatusBar() {
     const sessionId = session?.id;
     const overview = useProjectOverview(sessionId);
     const repo = overview?.repository;
-    const runtimeStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
-    const degraded = runtimeStatus ? DEGRADED_STATES[runtimeStatus] : undefined;
+    const serverStatus = useWorkbenchStore((state) => state.bootstrap?.runtime.status);
+    const degraded = serverStatus ? DEGRADED_STATES[serverStatus] : undefined;
     const activeResource = useActivePaneTab()?.resource;
     const [containerReference, containerWidth] = useContainerWidth<HTMLElement>();
     const chipVisibility = resolveChipVisibility(containerWidth);
@@ -677,7 +677,7 @@ export function StatusBar() {
         <footer
             ref={containerReference}
             className="statusbar col-span-full flex items-center gap-2 bg-surface px-2 text-[11px] text-muted"
-            data-runtime-status={runtimeStatus ?? 'starting'}
+            data-runtime-status={serverStatus ?? 'starting'}
         >
             <div className="statusbar-context flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
                 {/**

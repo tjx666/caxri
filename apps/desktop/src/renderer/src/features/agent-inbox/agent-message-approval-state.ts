@@ -13,7 +13,7 @@ interface LoadHeldMessageDetailOptions {
 
 /**
  * Reconciles an in-flight detail request with a receipt or decision that can remove the same held message first.
- * Keeping the active check beside the nullable Host result makes both callback orders deterministic and testable.
+ * Keeping the active check beside the nullable Server result makes both callback orders deterministic and testable.
  */
 export async function loadHeldMessageDetail({
     isActive,
@@ -33,7 +33,7 @@ export async function loadHeldMessageDetail({
 }
 
 /**
- * Non-retryable protocol failures mean the Host can no longer settle this held message. Retaining it would leave an
+ * Non-retryable protocol failures mean the Server can no longer settle this held message. Retaining it would leave an
  * undismissable modal whose buttons can only repeat the same failure.
  */
 export function heldMessageActionResultForError(error: unknown): HeldMessageActionResult {
@@ -46,7 +46,7 @@ export function heldMessageActionResultForError(error: unknown): HeldMessageActi
 }
 
 /**
- * Retains a held message until Host confirms its transition. A rejected Desktop request can be a transient transport
+ * Retains a held message until Server confirms its transition. A rejected Desktop request can be a transient transport
  * failure, so removing it would leave the user unable to retry the decision.
  */
 export function updateHeldMessagesAfterAction<T extends { messageId: string }>(

@@ -98,7 +98,7 @@ function request<M extends ResourceExplorerMethod>(
 }
 
 /**
- * Files Core uses the public typed IPC table directly. The submitted Session id is only a scope selector: Runtime
+ * Files Core uses the public typed IPC table directly. The submitted Session id is only a scope selector: Server
  * resolves and validates that Session's authorized Workbench Project root before touching the filesystem.
  */
 export function createResourceExplorerClient(

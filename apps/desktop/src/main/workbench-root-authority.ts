@@ -10,8 +10,8 @@ import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
 
-import type { DesktopHostConnection } from './host-connection';
 import type { ProjectRootGrants } from './root-grants';
+import type { DesktopServerConnection } from './server-connection';
 
 type ContinueParameters = Extract<MainRequest, { method: 'session.continueInWorktree' }>['params'];
 type AuthorizeParameters = Extract<
@@ -26,7 +26,7 @@ type OpenTerminalFileLinkParameters = Extract<
 >['params'];
 
 interface WorkbenchRootAuthorityOptions {
-    getHost(): DesktopHostConnection;
+    getServer(): DesktopServerConnection;
     getWindow(): BrowserWindow | undefined;
     grants: ProjectRootGrants;
     nextTestRoot(): string | undefined;
@@ -52,8 +52,8 @@ async function showMessageBox(
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
     async function chooseTargetSession(projectId: string): Promise<string | undefined> {
-        const host = options.getHost();
-        const state = await host.request('app.bootstrap');
+        const server = options.getServer();
+        const state = await server.request('app.bootstrap');
         const sessions = state.sessions.filter(
             (session) =>
                 session.archivedAt === undefined && session.workbenchProjectId === projectId,
@@ -62,8 +62,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         if (selected) return selected.id;
         if (sessions.length === 1) return sessions[0].id;
         if (sessions.length === 0)
-            return (await host.request('session.create', { projectId, defaultAgent: null })).session
-                .id;
+            return (await server.request('session.create', { projectId, defaultAgent: null }))
+                .session.id;
 
         const projectTitle =
             state.projects.find((project) => project.id === projectId)?.displayTitle ?? 'Project';
@@ -86,8 +86,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
     }
 
     async function openTerminalFileLink(parameters: OpenTerminalFileLinkParameters) {
-        const host = options.getHost();
-        const initial = await host.request('terminal.fileLink.resolve', parameters);
+        const server = options.getServer();
+        const initial = await server.request('terminal.fileLink.resolve', parameters);
         let expectedIdentity: NonNullable<
             ServerOperationParameters<'desktop.openFile'>['expectedIdentity']
         >;
@@ -122,7 +122,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             }
             if (!selectedRoot) return { canceled: true as const };
 
-            const selected = await host.request('terminal.fileLink.resolve', {
+            const selected = await server.request('terminal.fileLink.resolve', {
                 ...parameters,
                 selectedRoot,
             });
@@ -136,7 +136,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
              */
             try {
                 project = await options.grants.use(selected.rootPath, () =>
-                    host.request('project.create', {
+                    server.request('project.create', {
                         rootPath: selected.rootPath,
                         expectedRootIdentity: selected.identity.root,
                     }),
@@ -151,7 +151,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
 
         const sessionId = await chooseTargetSession(projectId);
         if (!sessionId) return { canceled: true as const };
-        await host.request('desktop.openFile', {
+        await server.request('desktop.openFile', {
             expectedIdentity,
             path,
             sessionId,
@@ -184,7 +184,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
 
         createProject(parameters: CreateProjectParameters) {
             return options.grants.use(parameters.rootPath, () =>
-                options.getHost().request('project.create', parameters),
+                options.getServer().request('project.create', parameters),
             );
         },
 
@@ -209,7 +209,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             options.grants.grant(canonicalRoot);
             try {
                 return await options.grants.use(canonicalRoot, () =>
-                    options.getHost().request('session.workbenchRoot.authorizeSelection', {
+                    options.getServer().request('session.workbenchRoot.authorizeSelection', {
                         sessionId: parameters.sessionId,
                         rootPath: canonicalRoot,
                     }),
@@ -222,14 +222,14 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
 
         async continueInWorktree(parameters: ContinueParameters) {
             const { candidateId, sessionId } = parameters;
-            const host = options.getHost();
-            const candidate = await host.request('session.workbenchCandidate.claim', {
+            const server = options.getServer();
+            const candidate = await server.request('session.workbenchCandidate.claim', {
                 candidateId,
                 sessionId,
             });
             try {
                 if (candidate.projectId)
-                    return await host.request('session.selectWorkbenchRoot', {
+                    return await server.request('session.selectWorkbenchRoot', {
                         sessionId,
                         projectId: candidate.projectId,
                     });
@@ -255,7 +255,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 options.grants.grant(selectedRoot);
                 try {
                     return await options.grants.use(selectedRoot, () =>
-                        host.request('session.workbenchCandidate.authorize', {
+                        server.request('session.workbenchCandidate.authorize', {
                             candidateId,
                             rootPath: selectedRoot,
                             sessionId,
@@ -267,7 +267,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 }
             } finally {
                 try {
-                    await host.request('session.workbenchCandidate.cancel', {
+                    await server.request('session.workbenchCandidate.cancel', {
                         candidateId,
                         sessionId,
                     });

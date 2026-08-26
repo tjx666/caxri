@@ -21,12 +21,12 @@ import { describeFailure, pushToast } from './toasts';
 
 interface WorkbenchState {
     /**
-     * The last Runtime snapshot, or `undefined` until the first `app.bootstrap` resolves.
+     * The last Server snapshot, or `undefined` until the first `app.bootstrap` resolves.
      */
     bootstrap?: BootstrapState;
     /**
-     * Bumped every time the Runtime reports ready again and after a Desktop↔Host reconnect. Mounted Terminal panes
-     * watch this to re-issue `terminal.attach`, because a Runtime restart drops attachment state — and a Host
+     * Bumped every time Server Core reports ready again and after a Desktop↔Server reconnect. Mounted Terminal panes
+     * watch this to re-issue `terminal.attach`, because a Server restart drops attachment state — and a Server
      * connection outage drops live `terminal.output` bytes — that the pane cannot observe on its own.
      */
     attachEpoch: number;
@@ -78,7 +78,7 @@ const terminalReads = {
 };
 /**
  * Monotonic count of `session.updateState` requests issued so far. Stamped on a write when it is _sent_, not when it
- * resolves: over a single serialized Runtime connection, any read issued after that point is guaranteed to observe the
+ * resolves: over a single serialized Server connection, any read issued after that point is guaranteed to observe the
  * write once it lands, regardless of which of the two responses comes back first. Comparing against resolution time
  * instead (as this used to) made a read whose response simply arrived first look "older" than a write it actually
  * postdated, so a `state.changed`-triggered refresh for an unrelated later mutation (e.g. closing a Terminal) could be
@@ -91,8 +91,8 @@ const pendingSessionPatches = new Map<
 >();
 /**
  * The latest Session state whose `session.updateState` completed, kept until a bootstrap read issued after the write
- * proves the Runtime snapshot includes it. `pendingSessionPatches` only shields the in-flight window; without this map
- * a snapshot read issued before the write but resolved after it would silently roll the UI back (observed as a Terminal
+ * proves the Server snapshot includes it. `pendingSessionPatches` only shields the in-flight window; without this map a
+ * snapshot read issued before the write but resolved after it would silently roll the UI back (observed as a Terminal
  * split collapsing right after the drop persisted).
  */
 const persistedSessionPatches = new Map<string, { sendStamp: number; state: SessionState }>();
@@ -122,7 +122,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 state.workbenchProjectId === next.workbenchProjectId,
         );
         /**
-         * Async UI work may finish after a root switch. Never make that stale root visible or submit a write Runtime
+         * Async UI work may finish after a root switch. Never make that stale root visible or submit a write Server
          * must reject.
          */
         if (!previous) return false;
@@ -209,12 +209,12 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
 /**
  * What the Workbench must show once `session.updateState` resolves.
  *
- * The Runtime answers with the state it actually stored, which can differ from what was sent: a layout that still
+ * The Server answers with the state it actually stored, which can differ from what was sent: a layout that still
  * carried a Terminal closed while this write was being assembled comes back pruned. Showing the answer rather than the
  * optimistic copy is what stops that tab from lingering as a blank pane, because {@link persistedSessionPatches} would
  * otherwise re-apply the stale layout over every later snapshot.
  *
- * The answer is treated as untrusted input for the same reason snapshots are: a write that the Runtime confirmed must
+ * The answer is treated as untrusted input for the same reason snapshots are: a write that the Server confirmed must
  * never be rolled back, or reported as failed, merely because its response body could not be read.
  */
 function settledSessionState(sent: SessionState, answer: unknown): SessionState {
@@ -228,7 +228,7 @@ function settledSessionState(sent: SessionState, answer: unknown): SessionState 
 }
 
 /**
- * Replaces one Session's visible state with the Runtime's canonical answer to a layout write.
+ * Replaces one Session's visible state with the Server's canonical answer to a layout write.
  */
 function applySettledSessionState(settled: SessionState): void {
     useWorkbenchStore.setState((current) => {
@@ -249,11 +249,11 @@ function applySettledSessionState(settled: SessionState): void {
 
 /**
  * A bootstrap read started before `session.updateState` can resolve after the optimistic Renderer write. Preserve the
- * latest unacknowledged Session state so that stale Runtime snapshots cannot make a just-selected tab or layout visibly
+ * latest unacknowledged Session state so that stale Server snapshots cannot make a just-selected tab or layout visibly
  * jump backwards.
  */
 function applyPendingSessionPatches(state: BootstrapState, readStamp: number): BootstrapState {
-    // A read issued after a write was sent observes it once it lands (Runtime serializes requests in
+    // A read issued after a write was sent observes it once it lands (Server serializes requests in
     // arrival order), so the snapshot is authoritative for that Session again and the persisted overlay
     // can retire.
     for (const [key, entry] of persistedSessionPatches)
@@ -289,7 +289,7 @@ function isCurrentTerminalRead(terminalId: string, readSequence: number): boolea
 
 /**
  * Dirtiness is no longer mirrored into the persisted Session state: an unsaved buffer lives only in the Renderer's
- * document cache, so a Runtime snapshot can be applied as is.
+ * document cache, so a Server snapshot can be applied as is.
  */
 function applySnapshot(
     state: BootstrapState,
@@ -460,8 +460,8 @@ function loadBootstrap(): Promise<void> {
 /**
  * Single-flight snapshot read. A caller that arrives while a read is already in flight cannot reuse it — its own
  * mutation may not be reflected there — so every such caller shares one follow-up read instead of issuing a burst of
- * `app.bootstrap` requests. React StrictMode's double mount therefore never doubles the Runtime work, and neither does
- * a burst of `state.changed` events.
+ * `app.bootstrap` requests. React StrictMode's double mount therefore never doubles the Server work, and neither does a
+ * burst of `state.changed` events.
  */
 export function initializeWorkbench(): Promise<void> {
     return bootstrapRead.inFlight ?? loadBootstrap();
@@ -491,7 +491,7 @@ export function patchSessionState(
 }
 
 /**
- * Allows durable workflows to wait until an optimistic Session-state patch reaches Runtime. `retainOnFailure` pins a
+ * Allows durable workflows to wait until an optimistic Session-state patch reaches Server. `retainOnFailure` pins a
  * target-path state that would be unsafe to roll back after disk mutation.
  */
 export function persistSessionState(
@@ -521,7 +521,7 @@ export interface WorkbenchEventHandlers {
      */
     onCommand(command: CommandId, wasViaAccelerator: boolean): void;
     /**
-     * Applies an authenticated Host open request after Main redeemed its one-use target.
+     * Applies an authenticated Server open request after Main redeemed its one-use target.
      */
     onDesktopOpen(
         sessionId: string,
@@ -531,15 +531,15 @@ export interface WorkbenchEventHandlers {
 }
 
 /**
- * The single `onEvent` subscription for Runtime-driven workbench state. Every listener that used to live inside App's
- * mount effect dispatches into this store instead. Unhandled events must be listed as explicit no-ops so a new Runtime
+ * The single `onEvent` subscription for Server-driven workbench state. Every listener that used to live inside App's
+ * mount effect dispatches into this store instead. Unhandled events must be listed as explicit no-ops so a new Server
  * event fails compile instead of disappearing.
  */
 export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
     return caxri.onEvent((event) => {
         switch (event.event) {
             case 'state.changed':
-                // Fire-and-forget: applyStateChange() catches its own Runtime request failures.
+                // Fire-and-forget: applyStateChange() catches its own Server request failures.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void applyStateChange(event.payload);
                 return;
@@ -554,7 +554,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     useWorkbenchStore.setState((current) => ({
                         attachEpoch: current.attachEpoch + 1,
                     }));
-                    // Fire-and-forget: refreshWorkbench() catches its own Runtime request failures.
+                    // Fire-and-forget: refreshWorkbench() catches its own Server request failures.
                     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                     void refreshWorkbench();
                 }
@@ -569,15 +569,15 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     return;
                 }
                 /**
-                 * PTY output sent while the Desktop↔Host socket was down (observed on macOS sleep/wake) was dropped
+                 * PTY output sent while the Desktop↔Server socket was down (observed on macOS sleep/wake) was dropped
                  * without replay: without a forced re-attach every backgrounded Terminal pane would stay frozen at the
                  * last byte received before the outage. Refresh converged state too — durable recovery may have been
-                 * reset when a replacement Host took over.
+                 * reset when a replacement Server took over.
                  */
                 useWorkbenchStore.setState((current) => ({
                     attachEpoch: current.attachEpoch + 1,
                 }));
-                // Fire-and-forget: refreshWorkbench() catches its own Runtime request failures.
+                // Fire-and-forget: refreshWorkbench() catches its own Server request failures.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void refreshWorkbench();
                 return;
@@ -586,7 +586,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'keybindings.changed':
             case 'theme.changed':
                 if (event.payload.error) pushToast('error', event.payload.error);
-                // Fire-and-forget: refreshWorkbench() catches its own Runtime request failures.
+                // Fire-and-forget: refreshWorkbench() catches its own Server request failures.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 else void refreshWorkbench();
                 return;

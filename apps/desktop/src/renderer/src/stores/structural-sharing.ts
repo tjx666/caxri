@@ -1,5 +1,5 @@
 /**
- * Structural sharing for Runtime snapshots.
+ * Structural sharing for Server snapshots.
  *
  * `app.bootstrap` crosses the IPC boundary as freshly structured-cloned JSON, so every refresh hands the Renderer brand
  * new object identities even when nothing changed. Without this merge a single full-convergence refresh would

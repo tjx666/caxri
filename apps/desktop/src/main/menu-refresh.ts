@@ -11,9 +11,9 @@ export interface MenuRefreshController {
 
 /**
  * Serializes native-menu refreshes so a slow read cannot overwrite a newer one. A request received during an active
- * read is collapsed into one trailing refresh, which observes the newest Runtime state after connection recovery.
- * Failed reads deliberately leave the installed Electron menu untouched: the current menu is the last-known-good state,
- * while the next configuration or recovery event schedules convergence again.
+ * read is collapsed into one trailing refresh, which observes the newest Server state after connection recovery. Failed
+ * reads deliberately leave the installed Electron menu untouched: the current menu is the last-known-good state, while
+ * the next configuration or recovery event schedules convergence again.
  */
 export function createMenuRefreshController(
     options: MenuRefreshControllerOptions,
@@ -30,8 +30,8 @@ export function createMenuRefreshController(
                 options.applyKeybindings(await options.loadKeybindings());
             } catch {
                 /**
-                 * A transient Host/Runtime outage is not an empty keybinding configuration. Skipping installation
-                 * preserves the last menu that was built from a successful response.
+                 * A transient Server outage is not an empty keybinding configuration. Skipping installation preserves
+                 * the last menu that was built from a successful response.
                  */
             }
             if (observedGeneration === requestedGeneration) return;

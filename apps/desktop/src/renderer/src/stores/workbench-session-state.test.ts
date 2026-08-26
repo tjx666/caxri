@@ -108,7 +108,7 @@ describe('workbench Session state', () => {
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([statusState]);
 
-        // A read issued after the write sees the Runtime's converged state and is authoritative.
+        // A read issued after the write sees the Server's converged state and is authoritative.
         mocks.request.mockImplementation((method: unknown) => {
             if (method === 'app.bootstrap')
                 return Promise.resolve({
@@ -124,8 +124,8 @@ describe('workbench Session state', () => {
     });
 
     /**
-     * Closing a Terminal while a layout write is being assembled leaves that write carrying a tab the Runtime has
-     * already dropped. The Runtime stores the layout pruned and answers with it; keeping the optimistic copy instead
+     * Closing a Terminal while a layout write is being assembled leaves that write carrying a tab the Server has
+     * already dropped. The Server stores the layout pruned and answers with it; keeping the optimistic copy instead
      * would strand the tab on screen as a blank pane, because the persisted overlay re-applies it over later
      * snapshots.
      */

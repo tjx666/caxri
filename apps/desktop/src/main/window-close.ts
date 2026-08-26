@@ -5,7 +5,7 @@ interface WindowCloseOptions {
     confirm: (runningCount: number) => Promise<'cancel' | 'close' | 'terminate'>;
     countRunning: () => Promise<number>;
     /**
-     * Runtime replies carry a result the close flow ignores; only rejection matters here.
+     * Server replies carry a result the close flow ignores; only rejection matters here.
      */
     detachAll: () => Promise<unknown>;
     logFailure: (message: string) => void;
@@ -13,7 +13,7 @@ interface WindowCloseOptions {
 }
 
 /**
- * Completes window closure even when the Runtime is unavailable during shutdown.
+ * Completes window closure even when the Server is unavailable during shutdown.
  */
 export async function resolveWindowClose(options: WindowCloseOptions): Promise<void> {
     try {

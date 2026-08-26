@@ -31,7 +31,7 @@ function snapshot(
 }
 
 /**
- * Drives the store the way the Workbench does: each id is a Session the Runtime reported as selected.
+ * Drives the store the way the Workbench does: each id is a Session the Server reported as selected.
  */
 function visit(...sessionIds: string[]): void {
     for (const sessionId of sessionIds) history().recordWorkbenchSelection(sessionId);
@@ -153,7 +153,7 @@ describe('Session navigation requests', () => {
     });
 
     /**
-     * The Runtime confirms a Session switch asynchronously, so a second navigation routinely lands before the first is
+     * The Server confirms a Session switch asynchronously, so a second navigation routinely lands before the first is
      * confirmed. Both compute from the state the user can already see, which is why the requests are projected on top
      * of the confirmed timeline.
      */
@@ -213,8 +213,8 @@ describe('Session navigation requests', () => {
     });
 
     /**
-     * The Runtime's selection queue keeps running after a failure, so a request queued behind a refused one still
-     * lands. Dropping it here would leave the user unable to go Forward to a Session that is on screen.
+     * The Server's selection queue keeps running after a failure, so a request queued behind a refused one still lands.
+     * Dropping it here would leave the user unable to go Forward to a Session that is on screen.
      */
     it('keeps a queued navigation when the one before it is refused', () => {
         visit('session-a', 'session-b', 'session-c');
@@ -300,8 +300,8 @@ describe('Session navigation requests', () => {
     });
 
     /**
-     * A stalled Runtime must not accumulate navigations it replays all at once on recovery, and the controls have to
-     * say so rather than staying lit while every press does nothing.
+     * A stalled Server must not accumulate navigations it replays all at once on recovery, and the controls have to say
+     * so rather than staying lit while every press does nothing.
      */
     it('stops queueing navigations a stalled Runtime never confirms', () => {
         for (let index = 0; index <= 40; index++) visit(`session-${index}`);
@@ -315,7 +315,7 @@ describe('Session navigation requests', () => {
     });
 
     /**
-     * The PrimarySidebar click is dispatched after two Backs, so the Runtime applies `C → B → C` and the Workbench ends
+     * The PrimarySidebar click is dispatched after two Backs, so the Server applies `C → B → C` and the Workbench ends
      * on the Session the user clicked. Attribution is what makes that recoverable: the folded snapshot only ever
      * reports `C`, and without it the two confirmations would leave the cursor on `B` while the screen shows `C`.
      */
@@ -335,7 +335,7 @@ describe('Session navigation requests', () => {
     });
 
     /**
-     * The Runtime can apply a selection just before the Session is archived. Recording it afterwards would put an
+     * The Server can apply a selection just before the Session is archived. Recording it afterwards would put an
      * archived Session back into a history that was already pruned, and nothing would prune it again.
      */
     it('does not write back a Session archived while its navigation was in flight', () => {
@@ -416,7 +416,7 @@ describe('Session navigation requests', () => {
     });
 
     /**
-     * The Runtime switches Sessions on its own — an archived current Session, a Terminal moved to a new Session — and
+     * The Server switches Sessions on its own — an archived current Session, a Terminal moved to a new Session — and
      * that snapshot arrives while a dispatched selection is still settling, where it is ignored as that selection's own
      * echo. The Session id never changes again, so the settlement is the only chance left to record where the Workbench
      * really ended up.

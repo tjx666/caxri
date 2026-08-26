@@ -13,7 +13,7 @@ export interface SettingsWriteCoordinatorOptions {
      */
     persist(kind: ConfigKind, source: string): Promise<() => void>;
     /**
-     * Re-reads the Runtime's authoritative state after recovery or an indeterminate write result.
+     * Re-reads the Server's authoritative state after recovery or an indeterminate write result.
      */
     read?(kind: ConfigKind): Promise<() => void>;
 }
@@ -26,8 +26,7 @@ interface ConfigChangedPayload {
 export interface SettingsWriteCoordinator {
     handleChanged: (kind: ConfigKind, payload: ConfigChangedPayload) => void;
     /**
-     * Consumes one matching source from a local write whose Runtime change event can arrive before the request
-     * resolves.
+     * Consumes one matching source from a local write whose Server change event can arrive before the request resolves.
      */
     isOwnEcho: (kind: ConfigKind, source: string) => boolean;
     persistNow: (kind: ConfigKind, source: string) => void;
@@ -74,8 +73,8 @@ export function createSettingsWriteCoordinator(
     };
 
     /**
-     * Runtime broadcasts a successful write before resolving its request. Recording the source before persistence
-     * starts lets the Renderer recognize that event without changing IPC.
+     * Server broadcasts a successful write before resolving its request. Recording the source before persistence starts
+     * lets the Renderer recognize that event without changing IPC.
      */
     const recordOwnWrite = (kind: ConfigKind, source: string, generation: number): void => {
         const sources = inFlightSources[kind];
@@ -94,7 +93,7 @@ export function createSettingsWriteCoordinator(
 
     /**
      * A retired token remains a one-shot ambiguity marker. Its eventual event may be either a delayed local echo or an
-     * external editor restoring identical text, so matching it must re-read Runtime instead of applying either guess.
+     * external editor restoring identical text, so matching it must re-read Server instead of applying either guess.
      */
     const retireOwnWritesThrough = (kind: ConfigKind, generation: number): void => {
         const sources = inFlightSources[kind];
@@ -177,7 +176,7 @@ export function createSettingsWriteCoordinator(
     };
 
     /**
-     * A failed request can still have committed in Runtime. Keep its token recognizable while the authoritative read is
+     * A failed request can still have committed in Server. Keep its token recognizable while the authoritative read is
      * pending, then retire every token at or before that request. Any later matching event is ambiguous and converges
      * through another read, while tokens from genuinely newer writes remain recognizable.
      */
@@ -256,9 +255,9 @@ export function createSettingsWriteCoordinator(
                 options.onApplied?.();
             } catch (error) {
                 /**
-                 * A request can reject after Runtime has committed and broadcast the write (for example, when
-                 * post-write Settings reconciliation fails). The result is therefore indeterminate: report the request
-                 * error, then re-read that ConfigKind and retire every marker no newer than this write.
+                 * A request can reject after Server has committed and broadcast the write (for example, when post-write
+                 * Settings reconciliation fails). The result is therefore indeterminate: report the request error, then
+                 * re-read that ConfigKind and retire every marker no newer than this write.
                  */
                 options.onError(error, kind);
                 await reconcileUncertainWrite(kind, generation);

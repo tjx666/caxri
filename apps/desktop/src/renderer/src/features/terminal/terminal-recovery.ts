@@ -1,7 +1,7 @@
 import type { ProcessState } from '@caxri/protocol';
 
 /**
- * A PTY mounted before launch needs one final-grid snapshot when Runtime reports that it is live.
+ * A PTY mounted before launch needs one final-grid snapshot when Server reports that it is live.
  */
 export function shouldReconcileTerminalRecovery(
     previous: ProcessState,

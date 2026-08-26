@@ -10,9 +10,9 @@ import { useWorkbenchStore } from '../../stores/workbench';
 const HISTORY_LIMIT = 50;
 
 /**
- * Upper bound on unconfirmed navigations. A human cannot outrun a healthy Runtime by more than a step or two; a queue
- * this deep means the Runtime stopped answering, and letting it grow would keep firing selections it replays all at
- * once on recovery.
+ * Upper bound on unconfirmed navigations. A human cannot outrun a healthy Server by more than a step or two; a queue
+ * this deep means the Server stopped answering, and letting it grow would keep firing selections it replays all at once
+ * on recovery.
  */
 const MAX_PENDING_NAVIGATIONS = 16;
 
@@ -21,7 +21,7 @@ export type SessionNavigationDirection = 'back' | 'forward';
 /**
  * The visit timeline and the cursor into it, modeled the way a browser models its own back/forward list.
  *
- * A pair of stacks cannot express this domain: Session selection round-trips to the Runtime, so a confirmation may
+ * A pair of stacks cannot express this domain: Session selection round-trips to the Server, so a confirmation may
  * arrive out of order, may fail while a later one succeeds, or may never arrive at all because `refreshWorkbench`
  * folded two selections into a single snapshot. Answering "where did the Workbench actually land" then requires an
  * absolute position, which a count of steps cannot name.
@@ -158,7 +158,7 @@ export function pruneSessionHistory(
 }
 
 /**
- * A navigation the user asked for and the Runtime has not answered yet.
+ * A navigation the user asked for and the Server has not answered yet.
  */
 export interface SessionNavigationRequest {
     /**
@@ -183,11 +183,11 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
      */
     timeline: SessionHistoryTimeline;
     /**
-     * Requested navigations still waiting for the Runtime, oldest first.
+     * Requested navigations still waiting for the Server, oldest first.
      */
     pending: SessionNavigationRequest[];
     /**
-     * Selections dispatched to the Runtime and not yet settled, from every source. While any is outstanding the
+     * Selections dispatched to the Server and not yet settled, from every source. While any is outstanding the
      * Workbench snapshot is an echo of a selection that reports its own outcome, so observing it would apply the same
      * move twice — and, because `refreshWorkbench` folds a burst of refreshes into one snapshot, it would apply the
      * wrong one of several.
@@ -200,7 +200,7 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
     liveSessionIds?: ReadonlySet<string>;
     nextRequestId: number;
     /**
-     * Records a Session the Workbench shows that no dispatched selection accounts for — a Runtime-driven switch, or the
+     * Records a Session the Workbench shows that no dispatched selection accounts for — a Server-driven switch, or the
      * reconciliation after everything settles. Selections the Renderer issued report themselves instead.
      */
     recordWorkbenchSelection(sessionId?: string): void;
@@ -218,8 +218,8 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
     request(direction: SessionNavigationDirection): SessionNavigationRequest | undefined;
     confirm(request: SessionNavigationRequest): void;
     /**
-     * Drops a navigation the Runtime refused. Later requests stay queued: their selections were already dispatched and
-     * the Runtime's selection queue keeps running after a failure, so they will land and confirm themselves.
+     * Drops a navigation the Server refused. Later requests stay queued: their selections were already dispatched and
+     * the Server's selection queue keeps running after a failure, so they will land and confirm themselves.
      */
     abandon(request: SessionNavigationRequest): void;
     reset(): void;
@@ -266,7 +266,7 @@ function recordLiveVisit(
 /**
  * Where the Workbench actually ended up, folded in once nothing is left in flight.
  *
- * Snapshots taken while a selection is settling are ignored as that selection's own echo, but the Runtime can switch
+ * Snapshots taken while a selection is settling are ignored as that selection's own echo, but the Server can switch
  * Sessions on its own in that window — the current Session gets archived, or a Terminal moves to a new Session. Nothing
  * else would ever record it: the Session id does not change again, so no later snapshot arrives to observe.
  */

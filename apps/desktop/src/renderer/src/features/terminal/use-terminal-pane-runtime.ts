@@ -309,7 +309,7 @@ export function useTerminalPaneRuntime({
                 await caxri.request('terminal.resize', { terminalId, ...size });
             } catch {
                 /**
-                 * Runtime restarts can reject a resize; allow the next layout observation to retry it.
+                 * Server restarts can reject a resize; allow the next layout observation to retry it.
                  */
                 if (lastSentSize?.cols === size.cols && lastSentSize.rows === size.rows)
                     lastSentSize = undefined;
@@ -449,7 +449,7 @@ export function useTerminalPaneRuntime({
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminalId)
                 return;
             /**
-             * Runtime's `TerminalImageOutputFilter` now reports its own size-limit drops as an inline
+             * Server's `TerminalImageOutputFilter` now reports its own size-limit drops as an inline
              * `TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER` inside `data` above instead of folding them into this
              * counter, so a nonzero value here is genuine output-queue backpressure only.
              */
@@ -563,7 +563,7 @@ export function useTerminalPaneRuntime({
             searchActiveReference.current = false;
             searchSignatureReference.current = '';
             if (replayReference.current === replay) replayReference.current = undefined;
-            // A cleanup function cannot be async; a Runtime restart racing this teardown has no view
+            // A cleanup function cannot be async; a Server restart racing this teardown has no view
             // left to notify, so the detach failure is intentionally unobserved.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void detachTerminalQuietly(terminalId);
@@ -598,7 +598,7 @@ export function useTerminalPaneRuntime({
         const xterm = xtermReference.current;
         if (!replay || !xterm) return;
         /**
-         * Runtime-owned attachment state is lost with the utility process even though this pane remains mounted.
+         * Server-owned attachment state is lost with the utility process even though this pane remains mounted.
          */
         const reattach = async (): Promise<void> => {
             try {
@@ -641,8 +641,8 @@ export function useTerminalPaneRuntime({
         });
         if (!replay || !shouldReconcileTerminalRecovery(previousProcessState, processState)) return;
         /**
-         * The initial attach can finish before Runtime spawns a new, restarted, or resumed PTY. Reattach once at the
-         * measured grid so Runtime resizes its parsed screen behind an ordering barrier, then replace any stale
+         * The initial attach can finish before Server spawns a new, restarted, or resumed PTY. Reattach once at the
+         * measured grid so Server resizes its parsed screen behind an ordering barrier, then replace any stale
          * persisted snapshot ahead of later live output.
          */
         const reattach = async (): Promise<void> => {

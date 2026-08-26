@@ -13,7 +13,7 @@ export interface PendingFileOperation {
      */
     affectedPaths: readonly string[];
     /**
-     * Only a durable mutation (create/rename/move) is journaled with a Runtime-recognized `operationId`, so only those
+     * Only a durable mutation (create/rename/move) is journaled with a Server-recognized `operationId`, so only those
      * can be canceled through `files.operation.cancel`. A plain copy has no journal entry to cancel — offering Cancel
      * for it would be a dead button.
      */
@@ -38,7 +38,7 @@ interface FileOperationState {
 }
 
 /**
- * Renderer lifecycle for long file mutations; Runtime remains the authority for every path.
+ * Renderer lifecycle for long file mutations; Server remains the authority for every path.
  */
 export const useFileOperationStore = create<FileOperationState>((set, get) => ({
     operations: [],
@@ -103,7 +103,7 @@ export function fileOperationsBlockingPath(
 
 /**
  * A Cancel affordance appears only once an operation has been running long enough that a progress label alone is no
- * longer reassuring, and only for a durable mutation Runtime can actually cancel.
+ * longer reassuring, and only for a durable mutation Server can actually cancel.
  */
 export const CANCEL_REVEAL_THRESHOLD_MS = 1_500;
 

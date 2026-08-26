@@ -56,7 +56,7 @@ import {
 } from './stores/workbench';
 
 /**
- * Attaches to the Runtime and keeps the snapshot current. `initialize` is single-flight, so React StrictMode's double
+ * Attaches to the Server and keeps the snapshot current. `initialize` is single-flight, so React StrictMode's double
  * mount issues one `app.bootstrap` request rather than two.
  */
 function useRuntimeAttachment(): void {
@@ -67,7 +67,7 @@ function useRuntimeAttachment(): void {
             },
             selectSession: didSelectSession,
         });
-        // Fire-and-forget: initializeWorkbench() catches its own Runtime request failures.
+        // Fire-and-forget: initializeWorkbench() catches its own Server request failures.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void initializeWorkbench();
         return subscribeWorkbenchEvents({
@@ -76,7 +76,7 @@ function useRuntimeAttachment(): void {
             onDesktopOpen: (sessionId, path, location) => {
                 // Fire-and-forget: a rejection here surfaces through the global
                 // `unhandledrejection` reporter (see renderer-error-reporter.ts), which is the
-                // established pattern for one-shot Host-triggered opens.
+                // established pattern for one-shot Server-triggered opens.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void desktopOpenQueue.enqueue({
                     sessionId,
@@ -152,7 +152,7 @@ export function App() {
                 className={cn(
                     /*
                      * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
-                     * of the Runtime-synced Session; each panel writes its own custom property directly on
+                     * of the Server-synced Session; each panel writes its own custom property directly on
                      * drag and through React on commit/reset. The 6px tracks are the divider hit areas — see
                      * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
                      */

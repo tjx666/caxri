@@ -66,7 +66,7 @@ function formatErrorDetails(error: unknown, componentStack?: string): string {
  * Top-level render-exception guard. React unmounts the whole tree on an uncaught error thrown during render, which
  * blanks the window with no in-app recovery path — Main's `render-process-gone` handler only covers process crashes,
  * not JS exceptions inside a live renderer. A full reload is safe to offer as the recovery action: durable workbench
- * state lives in the Runtime, while Process Explorer is a read-only diagnostic projection.
+ * state lives in the Server, while Process Explorer is a read-only diagnostic projection.
  *
  * The fallback renders the error message plus its stack and component stack so a crash is diagnosable directly from the
  * window. Error values stay inside the Renderer (only `console.error` mirrors them into local logs) — they may contain

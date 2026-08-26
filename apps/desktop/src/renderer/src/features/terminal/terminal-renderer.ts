@@ -36,7 +36,7 @@ export function resolveTerminalRendererTarget(
 
 /**
  * Owns the replaceable xterm renderer only. Falling back disposes WebGL and asks xterm to redraw; it never touches the
- * Runtime, PTY, buffer, or Agent lifecycle.
+ * Server, PTY, buffer, or Agent lifecycle.
  */
 export class TerminalRendererController {
     private contextLossCount = 0;
