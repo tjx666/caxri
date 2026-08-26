@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { TerminalRecord, TerminalSnapshot } from '@caxri/protocol';
+import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -45,7 +46,11 @@ class FakeTerminalHostControl implements TerminalHostControl {
     private readonly exitListeners = new Set<
         (event: { code: number; signal: NodeJS.Signals | null }) => void
     >();
+    private readonly inputResolvers: Array<() => void> = [];
+    private readonly resizeResolvers: Array<() => void> = [];
     readonly requests: Array<{ request: TerminalHostRequest; scope: TerminalHostScope }> = [];
+    holdInputRequests = false;
+    holdResizeRequests = false;
 
     emit(event: HostEvent): void {
         for (const listener of this.eventListeners) listener(event);
@@ -76,9 +81,27 @@ class FakeTerminalHostControl implements TerminalHostControl {
                 return Promise.resolve({ processId: 4243 });
             case 'terminal.stop':
                 return Promise.resolve({ snapshot, stopped: true });
+            case 'terminal.input':
+                if (!this.holdInputRequests) return Promise.resolve({ accepted: true });
+                return new Promise((resolve) =>
+                    this.inputResolvers.push(() => resolve({ accepted: true })),
+                );
+            case 'terminal.resize':
+                if (!this.holdResizeRequests) return Promise.resolve({ accepted: true });
+                return new Promise((resolve) =>
+                    this.resizeResolvers.push(() => resolve({ accepted: true })),
+                );
             default:
                 return Promise.resolve({ accepted: true });
         }
+    }
+
+    releaseInput(): void {
+        this.inputResolvers.shift()?.();
+    }
+
+    releaseResize(): void {
+        this.resizeResolvers.shift()?.();
     }
 
     shutdown(): Promise<TerminalSnapshot[]> {
@@ -146,7 +169,9 @@ describe('RemoteTerminalExecution', () => {
         });
         expect(attach.scope).toMatchObject({ ptyGeneration: 1 });
         expect(execution.write(terminal.id, 'echo safe\r')).toBe(true);
-        expect(control.requests.at(-1)!.request.method).toBe('terminal.input');
+        await vi.waitFor(() =>
+            expect(control.requests.at(-1)!.request.method).toBe('terminal.input'),
+        );
 
         const attachmentId = (
             attach.request as Extract<TerminalHostRequest, { method: 'terminal.attach' }>
@@ -219,5 +244,136 @@ describe('RemoteTerminalExecution', () => {
         await expect(execution.restartBarrier(terminal.id)).resolves.toEqual(snapshot);
         await execution.reserve(terminal);
         expect(control.requests.at(-1)!.scope).toMatchObject({ ptyGeneration: 2 });
+    });
+
+    it('coalesces burst input without changing byte order', async () => {
+        const { control, execution } = createExecution();
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+
+        const chunks = Array.from({ length: 300 }, (_, index) => `${index},`);
+        for (const chunk of chunks) expect(execution.write(terminal.id, chunk)).toBe(true);
+
+        await vi.waitFor(() => {
+            const inputs = control.requests.filter(
+                ({ request }) => request.method === 'terminal.input',
+            );
+            expect(inputs).toHaveLength(1);
+            expect(inputs[0].request).toEqual({
+                method: 'terminal.input',
+                params: { data: chunks.join('') },
+            });
+        });
+    });
+
+    it('bounds accepted input and keeps one private request in flight per Terminal', async () => {
+        const { control, execution } = createExecution();
+        control.holdInputRequests = true;
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        const maximumChunk = 'x'.repeat(MAX_TERMINAL_INPUT_LENGTH);
+
+        for (let index = 0; index < 4; index += 1)
+            expect(execution.write(terminal.id, maximumChunk)).toBe(true);
+        expect(() => execution.write(terminal.id, 'overflow')).toThrow(
+            expect.objectContaining({ code: 'CAPACITY' }),
+        );
+
+        for (let expectedRequests = 1; expectedRequests <= 4; expectedRequests += 1) {
+            // eslint-disable-next-line no-await-in-loop -- Each release proves the next request waits for the prior reply.
+            await vi.waitFor(() =>
+                expect(
+                    control.requests.filter(({ request }) => request.method === 'terminal.input'),
+                ).toHaveLength(expectedRequests),
+            );
+            control.releaseInput();
+        }
+        await vi.waitFor(() => expect(execution.write(terminal.id, 'accepted-again')).toBe(true));
+        await vi.waitFor(() =>
+            expect(
+                control.requests.filter(({ request }) => request.method === 'terminal.input'),
+            ).toHaveLength(5),
+        );
+        control.releaseInput();
+    });
+
+    it('collapses resize bursts to the latest dimensions', async () => {
+        const { control, execution } = createExecution();
+        control.holdResizeRequests = true;
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+
+        for (let index = 0; index < 300; index += 1)
+            expect(execution.resize(terminal.id, 80 + index, 24 + index)).toBe(true);
+
+        await vi.waitFor(() => {
+            const resizes = control.requests.filter(
+                ({ request }) => request.method === 'terminal.resize',
+            );
+            expect(resizes).toHaveLength(1);
+            expect(resizes[0].request).toEqual({
+                method: 'terminal.resize',
+                params: { cols: 379, rows: 323 },
+            });
+        });
+        control.releaseResize();
+    });
+
+    it('drains accepted input before stopping a Terminal', async () => {
+        const { control, execution } = createExecution();
+        control.holdInputRequests = true;
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+
+        expect(execution.write(terminal.id, 'exit\r')).toBe(true);
+        execution.close(terminal.id);
+        await vi.waitFor(() =>
+            expect(control.requests.at(-1)!.request.method).toBe('terminal.input'),
+        );
+        expect(control.requests.some(({ request }) => request.method === 'terminal.stop')).toBe(
+            false,
+        );
+
+        control.releaseInput();
+        await vi.waitFor(() =>
+            expect(control.requests.at(-1)!.request.method).toBe('terminal.stop'),
+        );
+    });
+
+    it('does not start an empty Terminal Host to detach an unreserved view', async () => {
+        const { control, execution } = createExecution();
+        await execution.attach(terminal.id);
+
+        execution.detachAllViews();
+
+        expect(control.requests).toEqual([]);
     });
 });
