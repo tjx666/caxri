@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { E2EApp } from './support/electron-app.ts';
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest, runtimeStatus, waitForRuntimeReady } from './support/helpers.ts';
 
 async function terminalCopyMenuItem(
@@ -17,9 +17,6 @@ async function terminalCopyMenuItem(
 }
 
 test('native menu preserves its keybinding hint across a failed read and Runtime recovery', async () => {
-    allowE2EErrors([
-        { source: 'host', event: 'host.runtime_exit', code: 'RUNTIME_EXIT', count: 1 },
-    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-menu-keybinding-recovery-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');

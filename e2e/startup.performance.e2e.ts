@@ -131,41 +131,43 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         await restoredPage.locator('.secondary-sidebar .tree-row').first().waitFor();
         const restoredFilesReadyMs = performance.now() - restoredFilesStartedAt;
 
-        const host = await connectToServer(userData, 2_000);
-        const serverPid = (await host.request('host.status')).pid;
+        const server = await connectToServer(userData, 2_000);
+        const serverPid = (await server.request('host.status')).pid;
         const projectListRoundTripMs: number[] = [];
         for (let index = 0; index < 10; index += 1) {
             const startedAt = performance.now();
             // Sequential samples isolate normal request latency from deliberate queue pressure.
             // eslint-disable-next-line no-await-in-loop
-            await host.request('project.list');
+            await server.request('project.list');
             projectListRoundTripMs.push(performance.now() - startedAt);
         }
-        host.close();
+        server.close();
         const [{ stdout: openFiles }, { stdout: residentSet }] = await Promise.all([
             execFileAsync('lsof', ['-p', String(serverPid)]),
             execFileAsync('ps', ['-o', 'rss=', '-p', String(serverPid)]),
         ]);
-        const runtimeOpenDescriptors = openFiles.split('\n').filter(Boolean).length - 1;
-        const runtimeMemoryMb = Number(residentSet.trim()) / 1024;
+        const serverCoreOpenDescriptors = openFiles.split('\n').filter(Boolean).length - 1;
+        const serverCoreMemoryMb = Number(residentSet.trim()) / 1024;
         // The logger now drains writes asynchronously, so poll the log files instead of reading
         // them once: the final `git.summary`/`window.ready_to_show` records may not be flushed
         // to disk yet. Keep polling until both are present, then read the settled records below.
         let records: PerformanceLog[] = [];
-        let mainRecords: PerformanceLog[] = [];
+        let desktopRecords: PerformanceLog[] = [];
         await expect
             .poll(
                 async () => {
-                    records = (await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8'))
+                    records = (await readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8'))
                         .split('\n')
                         .filter(Boolean)
                         .map((line) => JSON.parse(line) as PerformanceLog);
-                    mainRecords = (await readFile(join(userData, 'logs', 'main.jsonl'), 'utf8'))
+                    desktopRecords = (
+                        await readFile(join(userData, 'logs', 'desktop.jsonl'), 'utf8')
+                    )
                         .split('\n')
                         .filter(Boolean)
                         .map((line) => JSON.parse(line) as PerformanceLog);
                     return (
-                        mainRecords.some((record) => record.event === 'window.ready_to_show') &&
+                        desktopRecords.some((record) => record.event === 'window.ready_to_show') &&
                         records.some(
                             (record) =>
                                 record.event === 'git.summary' &&
@@ -183,7 +185,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const watcherErrors = records.filter(
             (record) => record.event === 'watcher.setup_failed',
         ).length;
-        const runtimeBoot = records.findLast((record) => record.event === 'runtime.ready');
+        const serverCoreBoot = records.findLast((record) => record.event === 'server_core.ready');
         const terminalSpawn = records.findLast((record) => record.event === 'pty.spawned');
         const fileList = records.findLast((record) => record.event === 'file.list');
         const gitCommand = records.findLast((record) => record.event === 'git.command');
@@ -201,7 +203,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const gitSummariesJoined = records.filter(
             (record) => record.event === 'git.summary' && record.fields?.outcome === 'joined',
         ).length;
-        const windowReady = mainRecords.findLast(
+        const windowReady = desktopRecords.findLast(
             (record) => record.event === 'window.ready_to_show',
         );
         const inputThroughput = records.find(
@@ -229,10 +231,10 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             restoredTerminalReadyMs: Math.round(restoredTerminalReadyMs),
             restoredFilesReadyMs: Math.round(restoredFilesReadyMs),
             restoredGitReadyMs: Math.round(restoredGitReadyMs),
-            runtimeBootMs:
-                runtimeBoot?.durationMs === undefined
+            serverCoreBootMs:
+                serverCoreBoot?.durationMs === undefined
                     ? undefined
-                    : Math.round(runtimeBoot.durationMs * 100) / 100,
+                    : Math.round(serverCoreBoot.durationMs * 100) / 100,
             terminalSpawnMs:
                 terminalSpawn?.durationMs === undefined
                     ? undefined
@@ -260,8 +262,8 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
                 watcherReady?.durationMs === undefined
                     ? undefined
                     : Math.round(watcherReady.durationMs * 100) / 100,
-            runtimeOpenDescriptors,
-            runtimeMemoryMb: Math.round(runtimeMemoryMb * 100) / 100,
+            serverCoreOpenDescriptors,
+            serverCoreMemoryMb: Math.round(serverCoreMemoryMb * 100) / 100,
             projectListRoundTripMs: projectListRoundTripMs.map(
                 (duration) => Math.round(duration * 100) / 100,
             ),
@@ -282,7 +284,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expect(restoredTerminalReadyMs).toBeLessThan(thresholdMs);
         expect(restoredFilesReadyMs).toBeLessThan(thresholdMs);
         expect(restoredGitReadyMs).toBeLessThan(thresholdMs);
-        expectTimedEvent(runtimeBoot);
+        expectTimedEvent(serverCoreBoot);
         expectTimedEvent(terminalSpawn);
         expectTimedEvent(fileList);
         // Every fresh summary production across cold start and restore stays under the gate; a
@@ -293,8 +295,8 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expectTimedEvent(windowReady);
         expect(watcherReady?.fields?.backend).toMatch(/^(fs-events|poll)$/);
         expect(inputThroughput?.fields?.inputBytes).toBeGreaterThan(0);
-        expect(runtimeOpenDescriptors).toBeLessThan(256);
-        expect(runtimeMemoryMb).toBeLessThan(512);
+        expect(serverCoreOpenDescriptors).toBeLessThan(256);
+        expect(serverCoreMemoryMb).toBeLessThan(512);
         expect(Math.max(...projectListRoundTripMs)).toBeLessThan(100);
         expect(watcherErrors).toBe(0);
         expect(ipcFailures).toBe(0);

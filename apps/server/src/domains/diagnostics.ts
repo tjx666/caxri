@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import process from 'node:process';
 
 import type { AppSettings } from '@caxri/protocol';
-import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, isLogProcess, logProcesses } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, redactLogValue, redactSecrets } from '@caxri/system';
 import { ZipArchive } from 'archiver';
@@ -13,7 +13,10 @@ import { ZipArchive } from 'archiver';
 import type { CaxriDatabase } from './db';
 import type { WatchHubSnapshot } from './watch-hub';
 
-const DIAGNOSTIC_LOG_NAME = /^(?:host|main|runtime)\.jsonl(?:\.1)?$/u;
+const DIAGNOSTIC_LOG_NAME = new RegExp(
+    String.raw`^(?:${logProcesses.join('|')})\.jsonl(?:\.1)?$`,
+    'u',
+);
 
 export function normalizeHome(path: string): string {
     const home = homedir();
@@ -88,9 +91,7 @@ export function summarizeRecentErrorIds(logs: string, limit = 5): string[] {
             };
             if (
                 record.level !== 'error' ||
-                (record.process !== 'host' &&
-                    record.process !== 'main' &&
-                    record.process !== 'runtime') ||
+                !isLogProcess(record.process) ||
                 typeof record.event !== 'string' ||
                 typeof record.timestamp !== 'string'
             )

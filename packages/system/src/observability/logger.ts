@@ -4,7 +4,7 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { LogEventName } from '@caxri/protocol';
+import type { LogEventName, LogProcess } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/protocol';
 import { once } from 'es-toolkit';
 
@@ -13,11 +13,11 @@ import { isSecretKey, redactLogValue } from './redaction.js';
 export { logEventCatalog };
 
 /**
- * Node-only structured JSONL logger; never import from apps/desktop/src/renderer.
+ * Native-process structured JSONL logger; never import from apps/desktop/src/renderer.
  */
 export interface LogRecord {
     timestamp: string;
-    process: 'host' | 'main' | 'runtime';
+    process: LogProcess;
     level: 'debug' | 'info' | 'warn' | 'error';
     event: LogEventName;
     correlationId?: string;
@@ -80,7 +80,7 @@ const installExitHook = once(() => {
 /**
  * Buffered asynchronous JSONL writer. `write()` only enqueues; a single in-flight drain appends batches with
  * `fs/promises`, so a stalled disk (swap storms, Spotlight, APFS snapshots) backs records up in memory instead of
- * freezing the event loop — measured on the Runtime's session-switch path, sync `appendFileSync` degrades from
+ * freezing the event loop — measured on Server Core's session-switch path, sync `appendFileSync` degrades from
  * microseconds to 30–100ms per call under moderate disk pressure and is unbounded under real IO stalls (issue #237).
  * Durability escape hatches: `error` records and process exit flush synchronously, so post-mortem evidence still
  * reaches disk even when the process dies on the next tick.
@@ -105,7 +105,7 @@ export class StructuredLogger {
 
     constructor(
         logDirectory: string,
-        private readonly processName: LogRecord['process'] = 'runtime',
+        private readonly processName: LogRecord['process'] = 'server-core',
         private readonly minimumLevel: LogRecord['level'] = 'debug',
     ) {
         // oxlint-disable-next-line node/no-sync -- deliberate: must exist before the first flush below.

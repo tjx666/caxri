@@ -73,13 +73,13 @@ async function expectGateFailure(
 test('issue-104-error-gate: observes a page exception while the UI remains usable', async () => {
     allowE2EErrors([
         {
-            source: 'main',
+            source: 'desktop',
             event: 'renderer.page_exception',
             code: 'PAGE_EXCEPTION',
             count: 1,
         },
         {
-            source: 'main',
+            source: 'desktop',
             event: 'renderer.console_error',
             code: 'CONSOLE_ERROR',
             count: 1,
@@ -98,7 +98,7 @@ test('issue-104-error-gate: observes a page exception while the UI remains usabl
                 throw new Error('CAXRI_EXPECTED_E2E_PAGE_EXCEPTION');
             }, 0);
         });
-        const mainLogPath = join(userData, 'logs', 'main.jsonl');
+        const mainLogPath = join(userData, 'logs', 'desktop.jsonl');
         await expect
             .poll(() => readFile(mainLogPath, 'utf8'))
             .toContain('"event":"renderer.page_exception"');
@@ -127,7 +127,9 @@ errorGateSelfTest(
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
 test('issue-104-error-gate: consumes one exact Main error after usable UI', async ({}, testInfo) => {
-    allowE2EErrors([{ source: 'main', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 }]);
+    allowE2EErrors([
+        { source: 'desktop', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
+    ]);
     await observeIpcFailure(testInfo, 'main-allowed', 'e2e.invalid', {}, 'VALIDATION');
 });
 
@@ -153,8 +155,8 @@ errorGateSelfTest(
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
 test('issue-104-error-gate: consumes exact Main and Runtime errors after usable UI', async ({}, testInfo) => {
     allowE2EErrors([
-        { source: 'main', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
-        { source: 'runtime', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
     ]);
     await observeIpcFailure(
         testInfo,

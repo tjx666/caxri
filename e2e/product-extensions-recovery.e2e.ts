@@ -74,12 +74,12 @@ async function expectStatusData(page: Page): Promise<void> {
 test('Files Core persists while Git and Status recover after Extension Host restart', async () => {
     allowE2EErrors([
         {
-            source: 'host',
-            event: 'host.extension_host_exit',
-            code: 'HOST_EXTENSION_HOST_EXIT',
+            source: 'server-core',
+            event: 'extension_host.exit',
+            code: 'EXTENSION_HOST_EXIT',
             count: 1,
         },
-        { source: 'main', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
     ]);
 
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-product-extension-recovery-e2e-'));

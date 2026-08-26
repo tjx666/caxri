@@ -10,7 +10,7 @@ const record = (() => {
         return {
             id: String(sequence).padStart(24, '0'),
             timestamp: `2026-08-19T02:31:${String(sequence).padStart(2, '0')}.000Z`,
-            process: 'runtime',
+            process: 'server-core',
             level: 'info',
             event,
         };

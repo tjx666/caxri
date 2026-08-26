@@ -239,7 +239,7 @@ describe('FileMutationService', () => {
         // The logger now drains writes asynchronously, so poll the log file instead of reading
         // it once: the `file.copied` record may not be flushed to disk yet.
         await vi.waitFor(async () => {
-            const copyLogs = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
+            const copyLogs = (await readFile(join(directory, 'logs', 'server-core.jsonl'), 'utf8'))
                 .trim()
                 .split('\n')
                 .map((line) => JSON.parse(line) as unknown as Record<string, unknown>)

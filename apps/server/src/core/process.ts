@@ -20,8 +20,8 @@ const version = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unk
 const commit = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
 process.env.CAXRI_APP_VERSION = version;
 process.env.CAXRI_GIT_COMMIT = commit;
-const logger = new StructuredLogger(join(userDataPath, 'logs'), 'host', 'info');
-const processErrorMonitor = installProcessErrorMonitor({ processName: 'host' });
+const logger = new StructuredLogger(join(userDataPath, 'logs'), 'server-core', 'info');
+const processErrorMonitor = installProcessErrorMonitor({ processName: 'server-core' });
 processErrorMonitor.attach(logger);
 const serverBundleDirectory = dirname(fileURLToPath(import.meta.url));
 /**
@@ -55,6 +55,7 @@ const app = await startServerCore({
             process.resourcesPath && { resourcesPath: process.resourcesPath }),
     }),
     includeTestExtensions: process.env.CAXRI_E2E === '1',
+    logger,
     ...(desktopLaunch && {
         launchDesktop: createDesktopLauncher({
             launch: desktopLaunch,

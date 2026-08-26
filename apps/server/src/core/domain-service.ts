@@ -9,7 +9,7 @@ import type {
     ServerOperationResult,
     WorkbenchRequestContext,
 } from '@caxri/protocol';
-import { CaxriError, isNonExpiringServerOperation } from '@caxri/protocol';
+import { CaxriError, isNonExpiringServerOperation, logEventCatalog } from '@caxri/protocol';
 
 import { createDomainServices } from '../domains/create-domain-services';
 import type { DomainDependencies, DomainServices } from '../domains/domain-services';
@@ -144,7 +144,7 @@ export class ServerDomainService extends EventTarget {
                 this.dependencies.logger,
                 (context) => services.validateRequestContext(context),
             );
-            this.dependencies.logger.write('info', 'runtime.ready', {
+            this.dependencies.logger.write('info', logEventCatalog.serverCore.domainsReady, {
                 durationMs: performance.now() - startedAt,
                 fields: { pid: process.pid },
             });

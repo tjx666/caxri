@@ -105,7 +105,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
     state: ErrorBoundaryState = { copyStatus: 'idle', hasError: false };
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-        // Main mirrors renderer `console.error` calls into `logs/main.jsonl` (see
+        // Desktop mirrors renderer `console.error` calls into `logs/desktop.jsonl` (see
         // `window.webContents.on('console-message', ...)` in `apps/desktop/src/main/index.ts`), so this is
         // enough to make a blank-window crash triageable without a dedicated IPC error channel.
         console.error(

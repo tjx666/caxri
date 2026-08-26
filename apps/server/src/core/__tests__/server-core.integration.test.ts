@@ -479,12 +479,15 @@ describe('Headless Host application', () => {
         // `terminal.human_steer` record (emitted by the `operator.request('terminal.send', ...)`
         // above) to prove the log has been flushed to disk, then assert the token is absent.
         await vi.waitFor(async () => {
-            const contents = await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8');
+            const contents = await readFile(
+                join(userDataPath, 'logs', 'server-core.jsonl'),
+                'utf8',
+            );
             expect(contents).toContain('terminal.human_steer');
         });
-        expect(await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8')).not.toContain(
-            endpoint.token,
-        );
+        expect(
+            await readFile(join(userDataPath, 'logs', 'server-core.jsonl'), 'utf8'),
+        ).not.toContain(endpoint.token);
         operator.close();
         agent.close();
     });
@@ -571,15 +574,18 @@ describe('Headless Host application', () => {
         expect(confirmed).toMatchObject({ stopping: true, activePtyCount: 1 });
         await waitForRemoval(app.lease.paths.manifest);
         // The logger now drains writes asynchronously, so first poll for the sentinel
-        // `host.stopped` record (emitted at the end of the `stop()` flow above) to prove the
+        // `server_core.stopped` record (emitted at the end of the `stop()` flow above) to prove the
         // log has been flushed to disk, then assert the token is absent.
         await vi.waitFor(async () => {
-            const contents = await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8');
-            expect(contents).toContain('host.stopped');
+            const contents = await readFile(
+                join(userDataPath, 'logs', 'server-core.jsonl'),
+                'utf8',
+            );
+            expect(contents).toContain('server_core.stopped');
         });
-        expect(await readFile(join(userDataPath, 'logs', 'host.jsonl'), 'utf8')).not.toContain(
-            app.lease.manifest.operatorToken,
-        );
+        expect(
+            await readFile(join(userDataPath, 'logs', 'server-core.jsonl'), 'utf8'),
+        ).not.toContain(app.lease.manifest.operatorToken);
     });
 
     it('closes mutation admission before evaluating an unconfirmed stop', async () => {

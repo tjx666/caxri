@@ -55,7 +55,7 @@ describe('TerminalManager process integration', () => {
         // The logger now drains writes asynchronously, so poll the log file instead of reading
         // it once: the `pty.spawned`/`pty.throughput` records may not be flushed to disk yet.
         await vi.waitFor(async () => {
-            const records = (await readFile(join(directory, 'logs', 'runtime.jsonl'), 'utf8'))
+            const records = (await readFile(join(directory, 'logs', 'server-core.jsonl'), 'utf8'))
                 .trim()
                 .split('\n')
                 .map(

@@ -258,7 +258,11 @@ describe('ExtensionHostSupervisor message boundary', () => {
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
-            logger: new StructuredLogger('/tmp/caxri-extension-supervisor-test', 'host', 'error'),
+            logger: new StructuredLogger(
+                '/tmp/caxri-extension-supervisor-test',
+                'server-core',
+                'error',
+            ),
             registrations: () => [],
             requestApi: () => Promise.resolve({ repositories: [], refreshedAt: Date.now() }),
         });
@@ -310,7 +314,11 @@ describe('ExtensionHostSupervisor message boundary', () => {
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
-            logger: new StructuredLogger('/tmp/caxri-extension-supervisor-test', 'host', 'error'),
+            logger: new StructuredLogger(
+                '/tmp/caxri-extension-supervisor-test',
+                'server-core',
+                'error',
+            ),
             registrations: () => [],
             requestApi: () => Promise.resolve({ repositories: [], refreshedAt: Date.now() }),
         });
@@ -366,7 +374,11 @@ describe('ExtensionHostSupervisor message boundary', () => {
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
-            logger: new StructuredLogger('/tmp/caxri-extension-supervisor-test', 'host', 'error'),
+            logger: new StructuredLogger(
+                '/tmp/caxri-extension-supervisor-test',
+                'server-core',
+                'error',
+            ),
             registrations: () => [],
             requestApi: () => Promise.resolve({}),
         });

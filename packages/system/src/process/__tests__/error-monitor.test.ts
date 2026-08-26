@@ -20,14 +20,14 @@ describe('installProcessErrorMonitor', () => {
         const target = new EventEmitter();
         const writer = createWriter();
         const monitor = installProcessErrorMonitor({
-            processName: 'runtime',
+            processName: 'server-core',
             target: target as ProcessErrorTarget,
         });
 
         target.emit('uncaughtExceptionMonitor', new Error('startup failed'), 'uncaughtException');
         monitor.attach(writer);
 
-        expect(writer.write).toHaveBeenCalledWith('error', 'runtime.uncaught_exception', {
+        expect(writer.write).toHaveBeenCalledWith('error', 'server_core.uncaught_exception', {
             fields: {
                 code: 'UNCAUGHT_EXCEPTION',
                 errorType: 'Error',
@@ -45,13 +45,13 @@ describe('installProcessErrorMonitor', () => {
         const writer = createWriter();
         installProcessErrorMonitor({
             bootstrapWriter: () => writer,
-            processName: 'main',
+            processName: 'desktop',
             target: target as ProcessErrorTarget,
         });
 
         target.emit('uncaughtExceptionMonitor', 'rejected', 'unhandledRejection');
 
-        expect(writer.write).toHaveBeenCalledWith('error', 'main.unhandled_rejection', {
+        expect(writer.write).toHaveBeenCalledWith('error', 'desktop.unhandled_rejection', {
             fields: {
                 code: 'UNHANDLED_REJECTION',
                 errorType: 'string',
@@ -67,7 +67,7 @@ describe('installProcessErrorMonitor', () => {
         // eslint-disable-next-line unicorn/prefer-event-target
         const target = new EventEmitter();
         const monitor = installProcessErrorMonitor({
-            processName: 'main',
+            processName: 'desktop',
             target: target as ProcessErrorTarget,
         });
 

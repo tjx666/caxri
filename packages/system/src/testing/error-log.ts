@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { isLogProcess, logProcesses } from '@caxri/protocol';
+
 import type { E2EErrorEvent, E2EErrorSource } from './error-policy.js';
 
 interface StructuredErrorRecord {
@@ -26,8 +28,7 @@ function fallbackCode(event: string): string {
 }
 
 function errorFromLog(record: StructuredErrorRecord): E2EErrorEvent | undefined {
-    if (record.process !== 'host' && record.process !== 'main' && record.process !== 'runtime')
-        return undefined;
+    if (!isLogProcess(record.process)) return undefined;
     if (typeof record.event !== 'string') return undefined;
     if (record.level !== 'error' && record.level !== 'fatal' && !fatalLogEvents.has(record.event))
         return undefined;
@@ -65,7 +66,7 @@ function parseSnapshotErrors(snapshot: E2ELogSnapshot): E2EErrorEvent[] {
  */
 export function readE2ELogSnapshots(userDataDirectory: string): E2ELogSnapshot[] {
     const snapshots: E2ELogSnapshot[] = [];
-    for (const source of ['host', 'main', 'runtime'] as const) {
+    for (const source of logProcesses) {
         const activePath = join(userDataDirectory, 'logs', `${source}.jsonl`);
         for (const path of [`${activePath}.1`, activePath]) {
             try {

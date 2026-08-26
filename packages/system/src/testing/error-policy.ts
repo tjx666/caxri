@@ -1,4 +1,6 @@
-export type E2EErrorSource = 'host' | 'main' | 'renderer' | 'runtime';
+import type { LogProcess } from '@caxri/protocol';
+
+export type E2EErrorSource = LogProcess | 'renderer';
 
 export interface E2EErrorEvent {
     source: E2EErrorSource;
