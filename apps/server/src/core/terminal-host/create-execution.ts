@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { StructuredLogger } from '@caxri/system';
+import { readE2EAgentPolicy } from '@caxri/system';
 
 import type { TerminalExecutionPort } from '../../domains/terminal';
 import { resolveE2ETerminalOutputFlushDelay } from '../../terminal-host/e2e-options';
@@ -32,6 +33,7 @@ export function createTerminalExecution(
         bootId: options.bootId,
         buildId: options.buildId,
         commit: options.commit,
+        e2eAgentPolicy: readE2EAgentPolicy(process.env),
         executable: options.executable,
         logger: options.logger,
         outputFlushMs: resolveE2ETerminalOutputFlushDelay(process.env),

@@ -17,7 +17,7 @@ import {
     errorMessage,
     visiblePaneTerminalIds,
 } from '@caxri/protocol';
-import { logEventCatalog } from '@caxri/system';
+import { assertE2EAgentInputFromEnvironment, logEventCatalog } from '@caxri/system';
 
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import {
@@ -701,6 +701,7 @@ export async function createDomainServices(
         },
         'terminal.openFileLink': () => mainOwned('terminal.openFileLink'),
         'terminal.input': ({ terminalId, data }) => {
+            assertE2EAgentInputFromEnvironment(database.getTerminal(terminalId)?.provider);
             if (terminals.processId(terminalId) !== undefined)
                 coordinator.observeInput(terminalId, data);
             terminals.write(terminalId, data);
