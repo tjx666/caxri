@@ -1,15 +1,17 @@
-# Target Server architecture
+# Server architecture
 
-- Status: accepted target (not current implementation)
+- Status: current implementation contract for the A7 cutover candidate
 - Date: 2026-08-25
-- Scope: pre-public target architecture; this document does not describe the currently shipped process layout
+- Scope: current repository, artifact, process, dependency, security, and observability boundaries;
+  sections explicitly labeled future describe post-cutover product work
 
 ## Outcome
 
-Caxri has one independently deployable Server and multiple replaceable Clients. The same Server
-artifact runs when supervised by Desktop, CLI, an operator, or a platform, and the same public protocol
-works over local, direct, or Relay access. Local-first security, Terminal fidelity, bounded recovery,
-and content-free diagnostics remain product invariants rather than Desktop-only implementation details.
+Caxri has one independently deployable Server and replaceable Desktop and CLI Clients. The same Server
+artifact runs when supervised by Desktop, CLI, an operator, or a platform. The current product uses an
+authenticated private loopback transport; direct and Relay access are future product capabilities.
+Local-first security, Terminal fidelity, bounded recovery, and content-free diagnostics are product
+invariants rather than Desktop-only implementation details.
 
 The irreversible choices are recorded in:
 
@@ -83,7 +85,7 @@ server/
   metadata/
 ```
 
-It may consume workspace packages while building, but running the artifact never requires installing
+This is the current emitted layout. It may consume workspace packages while building, but running the artifact never requires installing
 another Caxri workspace. Desktop embeds this directory unchanged, CLI supervises the same layout, and a
 platform image copies the same layout. A smoke test copies the artifact outside the monorepo, starts it
 with an isolated data directory, verifies readiness and a protocol handshake, and shuts it down cleanly.
@@ -110,21 +112,17 @@ Clients
 
 The Server Core owns access, authentication, connections, public command dispatch, subscriptions,
 Projects, Sessions, files, Git, settings, Agent orchestration, authoritative state, the changefeed, and
-durable command receipts. It performs no extra generic Host-to-Runtime hop before domain work.
+durable command receipts. It dispatches domain work directly without a second generic process hop.
 
 ### Terminal Host
 
 The Terminal Host owns PTY masters, Shell and Agent processes, bounded output buffers, screen state,
 process-tree metadata, and Terminal attachment fencing. The Server Core is its only supervisor and
-starts it detached. It is independently discoverable through an owner-readable manifest containing its
-process, endpoint, build, and Server identity, plus a private endpoint credential and versioned internal
-handshake.
-
-On startup, a Server Core authenticates and adopts a compatible existing Terminal Host. It terminates
-and replaces an incompatible or unverifiable instance and marks affected Terminals dead with a stable
-reason. A Server Core restart can therefore preserve Terminals, while a Terminal Host crash may terminate
-them. Transferring live descriptors between two Terminal Host versions is not part of the initial
-contract; a Server artifact upgrade terminates Terminals until that later capability exists.
+starts it as a private child with a versioned authenticated protocol. The child publishes a private
+owner manifest for diagnostics, but the current lifecycle deliberately remains coupled: a Server Core
+generation never adopts PTYs from another Terminal Host or Server Core generation. A Terminal Host loss
+invalidates its live PTYs, and a Server Core shutdown terminates its Terminal Host after bounded snapshot
+capture. Compatible discovery, adoption, and live Terminal continuity are future P1/P5 capabilities.
 
 ### Extension Host
 
@@ -150,7 +148,11 @@ owns Client-side projections and Session Views. `supervise` is the platform-spec
 discovery and lifecycle surface used by Desktop and CLI; it is unavailable to Web and Mobile and never
 imports `apps/server` source. UI components cannot create transports, retry loops, or raw RPC clients.
 
-## Multi-Client state ownership
+## Future Multi-Client state ownership
+
+This section records the accepted P2 ownership target. The current cutover preserves the existing
+single Desktop lease, Session-wide Workbench state, Renderer-local dirty buffers, and current Attention
+semantics. Those product behaviors do not change as part of A0–A7.
 
 Server domain state and Client presentation state are deliberately separate:
 
@@ -188,9 +190,12 @@ There is no global Desktop lease. Terminal input and resize use a Terminal Contr
 use revisions and preconditions. A command requiring native UI selects a currently connected Client
 that explicitly advertised the required capability.
 
-## State delivery and command recovery
+## Current state delivery and command recovery
 
-State tables are authoritative. In the same transaction as each structural mutation, the Server writes:
+State tables are authoritative. The current Server writes structural changes to a bounded durable
+changefeed and uses request identity to prevent duplicate effectful work. The fully durable Multi-Client
+receipt model below remains part of P2 wherever the current command does not yet persist its receipt in
+the same transaction. In that target, the Server writes:
 
 1. the new state;
 2. a content-free changefeed entry;
@@ -208,9 +213,9 @@ Terminal bytes, source contents, prompts, and transcripts never enter the change
 recovers from bounded screen snapshots. Agent Run and Attention lifecycle metadata may be durable when
 it contains no user content.
 
-## Public transport
+## Transport
 
-WebSocket is the common bidirectional transport. The protocol specifies logical lanes while allowing
+WebSocket is the current common bidirectional transport. The protocol specifies logical lanes while allowing
 their physical mapping to evolve:
 
 - one JSON control WebSocket for handshake, commands, replies, subscriptions, and liveness;
@@ -221,8 +226,10 @@ Separate stream connections avoid cross-lane head-of-line blocking and provide n
 backpressure. Each connection has byte budgets, bounded queues, chunk limits, high-water behavior, and
 explicit close reasons. Caxri does not implement a custom priority multiplexer over one WebSocket.
 
-Minimal HTTP endpoints are limited to liveness, readiness, pairing, and short-lived WebSocket tickets.
-Business commands are not mirrored as REST, and SSE is not a second event transport.
+The current Server does not expose public HTTP, readiness, pairing, or remote ticket endpoints. Future
+direct access may add only minimal liveness, readiness, pairing, and short-lived WebSocket ticket
+endpoints. Business commands will not be mirrored as REST, and SSE will not become a second event
+transport.
 
 The initial handshake exposes build ID, protocol version, Server ID, Server Boot ID, State Epoch,
 framing features, principal, scopes, and supported capabilities. Compatibility gates individual
@@ -232,13 +239,15 @@ A Terminal stream ticket is bound to Server, Session, Terminal, PTY generation, 
 operation. The Server Core authenticates public streams and proxies bounded bytes to the private Terminal
 Host; direct Client access never expands the Terminal Host trust boundary.
 
-## Identity and access
+## Current identity and future remote access
 
 The Client never supplies an authoritative principal or capability list. The Server derives both from
 the authenticated connection and checks per-method scopes, method capabilities, effect classification,
 ownership, input schema, output schema, and command identity.
 
-Direct access uses TLS with a certificate fingerprint carried by pairing, revocable Client Grants, and
+The current local transport derives authority from the private profile manifest, bootstrap credential,
+authenticated connection, and method capability checks. Direct access is future P3 work and will use
+TLS with a certificate fingerprint carried by pairing, revocable Client Grants, and
 one-use short-lived WebSocket tickets. The same ticket authority authenticates control and attached
 binary streams without putting a long-lived credential in a WebSocket URL or subprotocol.
 
@@ -290,8 +299,7 @@ collection is best-effort, non-overlapping, and unable to fail product work.
 
 ## Enforced dependency graph
 
-The following graph means “may import” and is enforced by ESLint from the first commit that introduces
-the target workspaces:
+The following current graph means “may import” and is enforced by ESLint:
 
 ```text
 agent-skills  -> protocol

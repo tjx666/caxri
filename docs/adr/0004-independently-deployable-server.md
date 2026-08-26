@@ -1,6 +1,6 @@
 # Independently deployable Server and process ownership
 
-- Status: accepted (target; implementation pending)
+- Status: accepted (artifact and process topology implemented; Terminal adoption pending P1)
 - Date: 2026-08-25
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 
@@ -12,13 +12,12 @@ separate product that orchestrates isolated Server instances, and supervision mo
 local, direct, or Relay access.
 
 The Server contains a restartable Server Core for access, domain services, persistence, and durable
-change delivery; an independently discoverable Terminal Host for PTYs and Agent processes; and one
-trusted Extension Host for Extension objects and Extension providers. The Server Core is the Terminal
-Host's only supervisor: it starts the process detached and, on startup, authenticates and adopts one
-compatible existing instance through a private owner-readable manifest, endpoint credential, build
-handshake, and versioned internal protocol. An incompatible or unverifiable instance is terminated and
-replaced, and affected Terminals become dead with a stable reason. A Server Core restart may therefore
-preserve Terminals, while a Terminal Host crash may terminate them. Server artifact upgrades terminate
-Terminals until descriptor handoff is implemented as a later product capability. This preserves the
+change delivery; a separately running Terminal Host for PTYs and Agent processes; and one trusted
+Extension Host for Extension objects and Extension providers. The Server Core is the Terminal Host's
+only supervisor and starts it through a private credential, build handshake, and versioned internal
+protocol. The A0–A7 implementation intentionally keeps lifecycle coupling and never adopts PTYs across
+Server Core generations; compatible discovery and adoption are deferred to P1, while live descriptor
+handoff remains P5. Until then, Server Core or Terminal Host replacement terminates affected Terminals
+with a stable reason. This preserves the
 trusted shared-process decision in [ADR 0003](./0003-host-owned-esm-extension-host.md) while replacing
 the former generic Host and Runtime ownership model.

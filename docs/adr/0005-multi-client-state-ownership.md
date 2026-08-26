@@ -1,6 +1,6 @@
 # Multi-Client identity and state ownership
 
-- Status: accepted (target; implementation pending)
+- Status: accepted (post-cutover P2 product capability; implementation pending)
 - Date: 2026-08-25
 - Supersedes: state-ownership portions of ADR 0001 and ADR 0002
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)

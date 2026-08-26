@@ -32,7 +32,7 @@ per-extension API object, while named runtime exports include `Disposable`, `Eve
 The ordinary package build contains an explicit outside-host stub. Bundled extension builds
 externalize only `caxri`, and the Extension Host's native ESM resolve hook injects a synthetic
 generation-scoped module instead. Contract tests reject a bundled copy of the stub and any deep
-Desktop, protocol, Runtime, Renderer, or Electron import.
+Desktop, protocol internals, Renderer, or Electron import.
 
 The loader determines ownership from the canonical extension root and the importing module's
 `parentURL`. An unowned `caxri` import fails closed. Each `(extensionId, generation)` receives a
@@ -104,17 +104,17 @@ Rejected packages receive a stable catalog-safe synthetic identity and an isolat
 Retry re-runs discovery, so repairing the manifest or entry on disk replaces that error container
 with the extension's declared identity without restarting the Desktop.
 
-Manifest capabilities are declarations, not grants. The Host records actual capability and Project
+Manifest capabilities are declarations, not grants. The Server Core records actual capability and Project
 scope per extension. Bundled extensions receive their reviewed grants; installed extensions
 currently receive none. Every API call validates the opaque identity, current generation,
-capability, and Runtime-authoritative active Session/Project scope before returning projected data.
+capability, and Server Core-authoritative active Session/Project scope before returning projected data.
 Configuration reads additionally require `settings.read` and are limited to keys listed by the
 extension view's `configurationDependencies`; declaring the broad capability alone cannot read an
 unlisted setting.
 
 ## Unified catalog and selection
 
-Builtin Logs and Info, Workbench Core contributions, and extension contributions share one Host
+Builtin Logs and Info, Workbench Core contributions, and extension contributions share one Server Core
 catalog. Files is a typed `core` contribution outside discovery and Extension Host lifecycle; Git
 and Status are extension-sourced lifecycle entries. Files and Git cannot be registered as
 `builtin-react`. Descriptors use `builtin-react` only for the remaining reviewed native components,
@@ -122,7 +122,7 @@ and Status are extension-sourced lifecycle entries. Files and Git cannot be regi
 `source-control` for extension-owned source control. The Renderer dispatches only these declared
 kinds; extension code cannot inject a component.
 
-The Command Palette and app-level keybindings resolve extension commands through this same Host
+The Command Palette and app-level keybindings resolve extension commands through this same Server Core
 catalog. A shortcut reloads a missing, stale, or invalidated catalog before dispatch, executes the
 extension command once, and reports unknown or failed commands through the shared toast path. The
 native application menu does not synthesize dynamic extension accelerators.
@@ -138,11 +138,11 @@ explicit user selection updates desired state.
 
 The Core Resource Explorer calls the public typed `files.*` table directly with the selected Session
 as a scope selector. Caller-owned request identity plus `requests.cancel` propagates an AbortSignal to
-Runtime without exposing arbitrary IPC. Runtime resolves and revalidates the Session's authorized
+Server Core without exposing arbitrary IPC. Server Core resolves and revalidates the Session's authorized
 Workbench Project root immediately before filesystem execution; Finder reveal and Trash remain
 bounded Desktop operations. Directory enumeration streams at most 4,096 candidates before applying
 the smaller sorted 1,024-entry and serialized-byte page limits, so a large directory cannot inflate
-Runtime memory before IPC bounds apply. Files never enters extension activation, generation,
+Server Core memory before protocol bounds apply. Files never enters extension activation, generation,
 capability, or provider lifecycle.
 
 `registerSourceControlProvider` is the public declarative extension view contract. Snapshot,
@@ -173,7 +173,7 @@ generic snapshot/history/details/action operations and generic effects such as o
 toast, and refresh. Resource identity remains stable and bounded independently from full Git paths.
 Git also bounds path-derived labels, tooltips, accessibility text, and tree paths to the controlled
 surface contract. An encoded diff URI that exceeds the generic open-editor limit is omitted instead
-of invalidating the whole snapshot; destructive action arguments retain the full Runtime-authorized
+of invalidating the whole snapshot; destructive action arguments retain the full Server-authorized
 path.
 The global background-detail limiter starts every waiter in its originating Workbench scope before it
 waits for a slot, preserving Extension Host AsyncLocalStorage authorization while maintaining FIFO
@@ -181,7 +181,7 @@ fairness. Git invalidation and Session/Project changes enter the extension event
 provider advances its revision and retires stale state rather than retaining an old root or repository
 grant. Once an authorized Sync or Discard crosses its mutation boundary, a concurrent invalidation
 cannot turn its authoritative completion into a retryable stale-generation error. Cancellation still
-propagates to Host, but non-expiring mutations keep their API request pending until Host distinguishes
+propagates to Server Core, but non-expiring mutations keep their API request pending until Server Core distinguishes
 pre-boundary `CANCELLED` from an authoritative post-boundary completion.
 
 ## Tree RPC
@@ -230,7 +230,7 @@ development-only `caxri: workspace:*` dependency.
 Server artifact builder copies exactly Git and Status manifests, bundles, icons, and media assets
 under `server/extensions`; it carries neither Fixture nor extension source maps. `package:e2e`
 rebuilds a separate, fully manifested Server artifact that adds Fixture explicitly, packages it,
-and then restores the production artifact. Runtime `testOnly` filtering remains defense in depth,
+and then restores the production artifact. Server Core `testOnly` filtering remains defense in depth,
 not the release-artifact boundary. The Server starts the Extension Host from
 `server/bundles/extension-host.js`; installed extensions, when present, are discovered from
 `<userData>/extensions` after bundled identities.

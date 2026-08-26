@@ -1,6 +1,6 @@
 # Durable changefeed and streaming protocol
 
-- Status: accepted (target; implementation pending)
+- Status: accepted (local changefeed and binary streams implemented; Multi-Client completion pending P2)
 - Date: 2026-08-25
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 

@@ -2,7 +2,7 @@
 
 The scriptable `caxri` CLI talks only to the authenticated, profile-scoped Server. It never
 reads Caxri's SQLite database, settings, or logs directly. Local help and protocol introspection
-work without a running Host:
+work without a running Server:
 
 ```bash
 bun run build:cli

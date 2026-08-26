@@ -11,7 +11,7 @@ skill owns placement inside those roots.
 
 ## 1. Pick the tree
 
-The accepted target topology has one independently runnable product per `apps/*` workspace and only
+The current topology has one independently runnable product per `apps/*` workspace and only
 importable boundaries under `packages/*`:
 
 | Work                          | Target path                   |
@@ -28,7 +28,7 @@ importable boundaries under `packages/*`:
 Do not create an empty future application. The repository root owns no product `src/` tree.
 The executable source of truth for ownership is `scripts/architecture-boundaries.ts`.
 `caxri/architecture-boundaries` rejects application-to-application source imports, package-private
-imports, and platform dependencies in browser-safe packages; `import-x/no-cycle` protects target
+imports, and platform dependencies in browser-safe packages; `import-x/no-cycle` protects current
 workspaces. Renderer never imports Node.js, Electron, or native APIs. Playwright support stays in
 `e2e/support/`. Contributor skills live at `.agents/skills/<name>/`.
 
@@ -84,7 +84,7 @@ a folder for a one- or two-file cluster.
 
 Locked protocol and CLI domains in `AGENTS.md` stay even when they have only two production
 modules. Do not add or remove one of those domains without updating `AGENTS.md` and
-`scripts/__tests__/workspace-contract.test.ts`. A new Runtime domain with three or more modules
+`scripts/__tests__/workspace-contract.test.ts`. A new Server domain with three or more modules
 needs a barrel; `apps/server/src/domains/__tests__/structure.test.ts` rejects a missing one and rejects
 production imports that reach past another domain's root.
 
