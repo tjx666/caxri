@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import {
     DEFAULT_FILES_EXCLUDE,
     defaultKeybindings,
@@ -256,7 +256,7 @@ describe('ConfigurationService', () => {
         const configDirectory = join(directory, 'config');
         await mkdir(configDirectory);
         await writeFile(join(configDirectory, 'settings.jsonc'), '{ broken', 'utf8');
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const service = new ConfigService(directory, (event) => {
             events.push(event);
         });
@@ -284,7 +284,7 @@ describe('ConfigurationService', () => {
                 writeFile(join(configDirectory, name), oversizedSource, 'utf8'),
             ),
         );
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const service = new ConfigService(directory, (event) => {
             events.push(event);
         });
@@ -354,7 +354,7 @@ describe('ConfigurationService', () => {
     it('does not commit an external read that settles after close', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-close-read-'));
         temporaryDirectories.push(directory);
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const lateRead = Promise.withResolvers<string>();
         const readStarted = Promise.withResolvers<void>();
         let shouldDelaySettingsRead = false;
@@ -390,7 +390,7 @@ describe('ConfigurationService', () => {
     it('does not commit an external read error that settles after close', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-close-read-error-'));
         temporaryDirectories.push(directory);
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const lateRead = Promise.withResolvers<string>();
         const readStarted = Promise.withResolvers<void>();
         let shouldDelaySettingsRead = false;
@@ -424,7 +424,7 @@ describe('ConfigurationService', () => {
     it('fences an in-flight write and the Settings mutations queued behind it on close', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-close-write-'));
         temporaryDirectories.push(directory);
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const writeRelease = Promise.withResolvers<void>();
         const writeStarted = Promise.withResolvers<void>();
         let shouldDelayWrites = false;
@@ -469,7 +469,7 @@ describe('ConfigurationService', () => {
     it('keeps theme state, source, file, and events unchanged after a low-contrast import', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-theme-contrast-'));
         temporaryDirectories.push(directory);
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const service = new ConfigService(directory, (event) => events.push(event));
         await service.initialize();
         events.length = 0;
@@ -490,7 +490,7 @@ describe('ConfigurationService', () => {
     it('reloads settings after an external atomic replacement', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-'));
         temporaryDirectories.push(directory);
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const service = new ConfigService(directory, (event) => {
             events.push(event);
         });
@@ -516,7 +516,7 @@ describe('ConfigurationService', () => {
     it('keeps last-known-good sources after oversized external replacements', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-oversized-reload-'));
         temporaryDirectories.push(directory);
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const service = new ConfigService(directory, (event) => {
             events.push(event);
         });
@@ -577,7 +577,7 @@ describe('ConfigurationService', () => {
     it('reports an unchanged oversized source only once while fallback polling', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-oversized-poll-'));
         temporaryDirectories.push(directory);
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const subscribe = vi
             .spyOn(parcelWatcher, 'subscribe')
             .mockRejectedValueOnce(new Error('watcher unavailable'));
@@ -627,7 +627,7 @@ describe('ConfigurationService', () => {
     it('does not emit a second change when the watcher observes an internal write', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-'));
         temporaryDirectories.push(directory);
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const service = new ConfigService(directory, (event) => {
             events.push(event);
         });

@@ -1,6 +1,6 @@
 import { resolve, sep } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 
 /**
  * Debounce window that folds a burst of generation bumps (rapid Agent writes, a rebase touching many refs) into one
@@ -19,7 +19,7 @@ interface TrackedSession {
 
 interface GitChangeTrackerOptions {
     delayMs?: number;
-    emit?: (event: RuntimeEvent) => void;
+    emit?: (event: ServerEvent) => void;
     repositoryId: (rootPath: string) => string;
 }
 

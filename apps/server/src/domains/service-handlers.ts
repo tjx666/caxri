@@ -1,4 +1,4 @@
-import type { RuntimeMethod } from '@caxri/protocol';
+import type { ServerOperation } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { agentSkillHealthReader } from './agent-skills';
@@ -76,7 +76,7 @@ type ServiceHandlerMethods =
 /**
  * Methods the Renderer may call but that only Electron Main can satisfy.
  */
-export function mainOwned(method: RuntimeMethod): never {
+export function mainOwned(method: ServerOperation): never {
     throw new CaxriError('CONFLICT', `${method} must be handled by Electron Main`);
 }
 

@@ -1,7 +1,7 @@
 import { lstat, readdir } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve } from 'node:path';
 
-import type { FileChange, RuntimeEvent } from '@caxri/protocol';
+import type { FileChange, ServerEvent } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
@@ -151,7 +151,7 @@ export class WatcherService {
 
     constructor(
         private readonly resolveSessionPath: ResolveSessionPath,
-        private readonly emit: (event: RuntimeEvent) => void,
+        private readonly emit: (event: ServerEvent) => void,
         private readonly logger: StructuredLogger,
         options: WatcherServiceOptions = {},
     ) {

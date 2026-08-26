@@ -3,11 +3,11 @@ import type {
     CaxriBridge,
     CaxriMethod,
     MethodReply,
-    ParamsArg as ParametersArgument,
+    ParametersArgument,
     ProtocolEventEnvelope,
     ProtocolWelcome,
-    RuntimeEvent,
-    TransientRuntimeEvent,
+    ServerEvent,
+    TransientServerEvent,
 } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, fromWireError } from '@caxri/protocol';
 import { contextBridge, ipcRenderer } from 'electron';
@@ -54,7 +54,7 @@ async function request<M extends CaxriMethod>(
     return requestWithId(crypto.randomUUID(), method, ...arguments_);
 }
 
-const eventListeners = new Set<(event: RuntimeEvent) => void>();
+const eventListeners = new Set<(event: ServerEvent) => void>();
 const eventClient = createRecoveringEventClient({
     emit: (event) => {
         for (const listener of eventListeners) listener(event);
@@ -67,7 +67,7 @@ const eventClient = createRecoveringEventClient({
 });
 const eventHandler = (
     _event: Electron.IpcRendererEvent,
-    message: ProtocolEventEnvelope | TransientRuntimeEvent,
+    message: ProtocolEventEnvelope | TransientServerEvent,
 ): void => eventClient.receive(message);
 
 const bridge: CaxriBridge = {
@@ -78,7 +78,7 @@ const bridge: CaxriBridge = {
     request,
     requestWithId,
     reportError: (kind) => ipcRenderer.send(rendererErrorChannel, kind),
-    onEvent: (listener: (event: RuntimeEvent) => void): (() => void) => {
+    onEvent: (listener: (event: ServerEvent) => void): (() => void) => {
         eventListeners.add(listener);
         if (eventListeners.size === 1) {
             ipcRenderer.on('caxri:event', eventHandler);

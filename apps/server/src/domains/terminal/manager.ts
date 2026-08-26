@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 
 import type {
-    RuntimeEvent,
+    ServerEvent,
     TerminalFailureReason,
     TerminalRecord,
     TerminalResourceUsage,
@@ -78,7 +78,7 @@ export class TerminalManager {
 
     constructor(
         private readonly database: CaxriDatabase,
-        private readonly emit: (event: RuntimeEvent) => void,
+        private readonly emit: (event: ServerEvent) => void,
         private readonly logger: StructuredLogger,
         options: TerminalManagerOptions = {},
     ) {

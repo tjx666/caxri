@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import type { CaxriMethod, MethodResult, ParamsArg } from '@caxri/protocol';
+import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 import { QueryClient, useQuery } from '@tanstack/react-query';
@@ -34,7 +34,7 @@ export const queryClient = new QueryClient({
 /**
  * The single params argument a Caxri method accepts, or `undefined` for a no-params method.
  */
-type MethodParameters<M extends CaxriMethod> = ParamsArg<M>[0];
+type MethodParameters<M extends CaxriMethod> = ParametersArgument<M>[0];
 
 /**
  * Cache key for a Caxri read: the method name paired with its params, so distinct params (a different Session, a
@@ -67,7 +67,7 @@ export function useCaxriQuery<M extends CaxriMethod>(
 ): UseQueryResult<MethodResult<M>, Error> {
     return useQuery({
         queryKey: caxriQueryKey(method, parameters),
-        queryFn: () => caxri.request(method, ...([parameters] as ParamsArg<M>)),
+        queryFn: () => caxri.request(method, ...([parameters] as ParametersArgument<M>)),
         ...options,
     });
 }

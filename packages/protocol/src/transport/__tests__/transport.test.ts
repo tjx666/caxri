@@ -8,22 +8,22 @@ import {
     createCaxriClient,
     parseCaxriRequest,
     parseCaxriResult,
-    parseRuntimeRequest,
-    parseRuntimeResult,
+    parseServerOperationRequest,
+    parseServerOperationResult,
     wireErrorSchema,
 } from '../transport';
 
-describe('parseCaxriRequest / parseRuntimeRequest', () => {
+describe('parseCaxriRequest / parseServerOperationRequest', () => {
     it('validates params and pairs them with their method for a bounded Caxri command', () => {
         const request = parseCaxriRequest('app.health', {});
         expect(request).toEqual({ method: 'app.health', params: {} });
     });
 
     it('rejects an unknown method with a typed VALIDATION error', () => {
-        expect(() => parseRuntimeRequest('does.not.exist', {})).toThrow(CaxriError);
+        expect(() => parseServerOperationRequest('does.not.exist', {})).toThrow(CaxriError);
         let caught: unknown;
         try {
-            parseRuntimeRequest('does.not.exist', {});
+            parseServerOperationRequest('does.not.exist', {});
         } catch (error) {
             caught = error;
         }
@@ -35,12 +35,12 @@ describe('parseCaxriRequest / parseRuntimeRequest', () => {
         // intentionally incomplete payload rather than from an "Unknown Runtime method" lookup miss.
         let caught: unknown;
         try {
-            parseRuntimeRequest('agent.dispatch.cancelWaitInternal', {});
+            parseServerOperationRequest('agent.dispatch.cancelWaitInternal', {});
         } catch (error) {
             caught = error;
         }
         expect((caught as CaxriError).message).not.toContain('Unknown Runtime method');
-        const request = parseRuntimeRequest('agent.dispatch.cancelWaitInternal', {
+        const request = parseServerOperationRequest('agent.dispatch.cancelWaitInternal', {
             waitId: 'wait-1',
         });
         expect(request).toEqual({
@@ -50,7 +50,7 @@ describe('parseCaxriRequest / parseRuntimeRequest', () => {
     });
 });
 
-describe('parseCaxriResult / parseRuntimeResult', () => {
+describe('parseCaxriResult / parseServerOperationResult', () => {
     it('returns a validated result for a well-formed payload', () => {
         const result = parseCaxriResult('app.health', {
             ready: true,
@@ -77,11 +77,11 @@ describe('parseCaxriResult / parseRuntimeResult', () => {
 
     it('rejects an unknown Runtime result method distinctly from a malformed result', () => {
         // Widened intentionally: this exercises the runtime lookup-miss branch for an untrusted
-        // method string, which `parseRuntimeResult`'s generic signature otherwise rejects statically.
-        const unknownMethod = 'does.not.exist' as Parameters<typeof parseRuntimeResult>[0];
+        // method string, which `parseServerOperationResult`'s generic signature otherwise rejects statically.
+        const unknownMethod = 'does.not.exist' as Parameters<typeof parseServerOperationResult>[0];
         let caught: unknown;
         try {
-            parseRuntimeResult(unknownMethod, {});
+            parseServerOperationResult(unknownMethod, {});
         } catch (error) {
             caught = error;
         }

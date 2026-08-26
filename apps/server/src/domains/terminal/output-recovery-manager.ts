@@ -1,4 +1,4 @@
-import type { AgentOutputRecoverySettings, AgentProvider, RuntimeEvent } from '@caxri/protocol';
+import type { AgentOutputRecoverySettings, AgentProvider, ServerEvent } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
@@ -6,7 +6,7 @@ import type { LiveTerminal } from './manager-types';
 import { AgentOutputRecovery } from './output-recovery';
 
 interface LiveOutputRecoveryOptions {
-    emit: (event: RuntimeEvent) => void;
+    emit: (event: ServerEvent) => void;
     getSettings?: (provider: AgentProvider) => AgentOutputRecoverySettings;
     isCurrent: () => boolean;
     logger: StructuredLogger;

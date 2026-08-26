@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeMethodParams as RuntimeMethodParameters } from '@caxri/protocol';
+import type { ServerOperationParameters as ServerOperationParameters } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -60,8 +60,8 @@ async function fixture(options?: ConstructorParameters<typeof FileService>[4]) {
 
 function searchParameters(
     sessionId: string,
-    overrides: Partial<RuntimeMethodParameters<'files.search'>> = {},
-): RuntimeMethodParameters<'files.search'> {
+    overrides: Partial<ServerOperationParameters<'files.search'>> = {},
+): ServerOperationParameters<'files.search'> {
     return {
         sessionId,
         mode: 'content',

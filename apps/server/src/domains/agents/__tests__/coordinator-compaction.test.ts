@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -32,7 +32,7 @@ describe('AgentCoordinator compaction', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const coordinator = new AgentCoordinator(
             database,
             createAgents(() => Promise.reject(new Error('not used'))),

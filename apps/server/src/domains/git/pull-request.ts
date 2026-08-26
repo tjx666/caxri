@@ -3,7 +3,7 @@ import type {
     GitFileStatus,
     GitPullRequestChanges,
     GitRepositorySummary as GitRepoSummary,
-    RuntimeMethodParams as RuntimeMethodParameters,
+    ServerOperationParameters as ServerOperationParameters,
 } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 import { z } from 'zod';
@@ -193,7 +193,7 @@ export class GitPullRequestService {
     }
 
     async changes(
-        parameters: RuntimeMethodParameters<'git.pullRequestChanges'>,
+        parameters: ServerOperationParameters<'git.pullRequestChanges'>,
     ): Promise<GitPullRequestChanges | null> {
         const cacheGeneration = this.cacheGeneration;
         const cacheKey = JSON.stringify([parameters.sessionId, parameters.repositoryId]);
@@ -285,7 +285,7 @@ export class GitPullRequestService {
     }
 
     async diffDocument(
-        parameters: RuntimeMethodParameters<'git.pullRequestDiffDocument'>,
+        parameters: ServerOperationParameters<'git.pullRequestDiffDocument'>,
     ): Promise<GitDiffDocument> {
         const [repo, pullRequest] = await Promise.all([
             this.dependencies.resolveRepository(parameters.sessionId, parameters.repositoryId),

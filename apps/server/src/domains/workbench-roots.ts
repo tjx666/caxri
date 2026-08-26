@@ -7,7 +7,7 @@ import type {
     AgentProvider,
     AgentWorktreeCreatedResult,
     NewWorktreeBehavior,
-    RuntimeEvent,
+    ServerEvent,
     SessionRecord,
     WorkbenchRootOption,
 } from '@caxri/protocol';
@@ -62,7 +62,7 @@ interface WorkbenchRootServiceOptions {
     beforeRootIdentityRealpath?: () => Promise<void>;
     behavior(): NewWorktreeBehavior;
     database: CaxriDatabase;
-    emit(event: RuntimeEvent): void;
+    emit(event: ServerEvent): void;
     git: GitService;
     logger: StructuredLogger;
 }

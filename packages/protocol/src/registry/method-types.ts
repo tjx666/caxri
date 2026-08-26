@@ -5,7 +5,7 @@ import { internalMethods, methods } from './method-registry.js';
 
 export type CaxriMethod = keyof typeof methods;
 type InternalMethod = keyof typeof internalMethods;
-export type RuntimeMethod = CaxriMethod | InternalMethod;
+export type ServerOperation = CaxriMethod | InternalMethod;
 
 type DesktopMethod = {
     [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'desktop'> extends never ? never : M;
@@ -27,23 +27,20 @@ type MethodParameters<M extends CaxriMethod> = z.infer<(typeof methods)[M]['para
 type MethodInput<M extends CaxriMethod> = z.input<(typeof methods)[M]['params']>;
 export type MethodResult<M extends CaxriMethod> = z.infer<(typeof methods)[M]['result']>;
 
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/server/src/domains, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
-export type RuntimeMethodParams<M extends RuntimeMethod> = z.infer<AllMethods[M]['params']>;
-type RuntimeMethodInput<M extends RuntimeMethod> = z.input<AllMethods[M]['params']>;
-export type RuntimeMethodResult<M extends RuntimeMethod> = z.infer<AllMethods[M]['result']>;
+export type ServerOperationParameters<M extends ServerOperation> = z.infer<AllMethods[M]['params']>;
+type ServerOperationInput<M extends ServerOperation> = z.input<AllMethods[M]['params']>;
+export type ServerOperationResult<M extends ServerOperation> = z.infer<AllMethods[M]['result']>;
 
 /**
  * Makes the params argument optional exactly when the method's schema accepts `undefined`.
  */
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by Desktop Renderer and Preload, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
-export type ParamsArg<M extends CaxriMethod> =
+export type ParametersArgument<M extends CaxriMethod> =
     undefined extends MethodInput<M> ? [params?: MethodInput<M>] : [params: MethodInput<M>];
 
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by Server and Desktop Main, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
-export type RuntimeParamsArg<M extends RuntimeMethod> =
-    undefined extends RuntimeMethodInput<M>
-        ? [params?: RuntimeMethodInput<M>, timeoutMs?: number]
-        : [params: RuntimeMethodInput<M>, timeoutMs?: number];
+export type ServerOperationArguments<M extends ServerOperation> =
+    undefined extends ServerOperationInput<M>
+        ? [params?: ServerOperationInput<M>, timeoutMs?: number]
+        : [params: ServerOperationInput<M>, timeoutMs?: number];
 
 /**
  * Discriminated request unions let a `switch` on `method` narrow `params` without a cast.
@@ -59,9 +56,9 @@ export type HostRequest = Extract<CaxriRequest, { method: HostMethod }>;
  */
 export type MainRequest = DesktopRequest;
 
-export type RuntimeRequest = {
-    [M in RuntimeMethod]: { method: M; params: RuntimeMethodParams<M> };
-}[RuntimeMethod];
+export type ServerOperationRequest = {
+    [M in ServerOperation]: { method: M; params: ServerOperationParameters<M> };
+}[ServerOperation];
 
 export function isCaxriMethod(value: string): value is CaxriMethod {
     return Object.hasOwn(methods, value);

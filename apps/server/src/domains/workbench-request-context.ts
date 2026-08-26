@@ -1,4 +1,4 @@
-import type { RuntimeWorkbenchContext } from '@caxri/protocol';
+import type { WorkbenchRequestContext } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from './db';
@@ -9,7 +9,7 @@ import type { CaxriDatabase } from './db';
  */
 export function validateWorkbenchRequestContext(
     database: CaxriDatabase,
-    context: RuntimeWorkbenchContext,
+    context: WorkbenchRequestContext,
 ): void {
     const binding = database.getSessionWorkbenchBinding(context.sessionId);
     if (!binding || binding.workbenchProjectId !== context.workbenchProjectId)

@@ -1,10 +1,10 @@
 import type {
     AgentProvider,
-    RuntimeEvent,
-    RuntimeMethod,
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
-    RuntimeWorkbenchContext,
+    ServerEvent,
+    ServerOperation,
+    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationResult,
+    WorkbenchRequestContext,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
@@ -13,10 +13,10 @@ import type { AgentAdapter, AgentEnvironment } from './agents';
 import type { TerminalManagerOptions } from './terminal';
 
 export type DomainHandlers = {
-    [M in RuntimeMethod]: (
-        parameters: RuntimeMethodParameters<M>,
+    [M in ServerOperation]: (
+        parameters: ServerOperationParameters<M>,
         signal?: AbortSignal,
-    ) => Promise<RuntimeMethodResult<M>> | RuntimeMethodResult<M>;
+    ) => Promise<ServerOperationResult<M>> | ServerOperationResult<M>;
 };
 
 /**
@@ -25,7 +25,7 @@ export type DomainHandlers = {
 export interface DomainDependencies {
     userDataPath: string;
     logger: StructuredLogger;
-    send: (event: RuntimeEvent) => void;
+    send: (event: ServerEvent) => void;
     startedAt?: number;
     pid?: number;
     agentRefreshDelayMs?: number;
@@ -44,5 +44,5 @@ export interface DomainServices {
      * Releases every owned resource: schedulers, PTYs, watchers, and the database.
      */
     close(): Promise<void>;
-    validateRequestContext(context: RuntimeWorkbenchContext): void;
+    validateRequestContext(context: WorkbenchRequestContext): void;
 }

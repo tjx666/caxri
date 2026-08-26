@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -28,7 +28,7 @@ describe('Git ignored file decorations', () => {
         const rulePath = join(root, '.git', 'info', 'exclude');
         await mkdir(join(root, '.git', 'info'), { recursive: true });
         await writeFile(rulePath, 'before\n', 'utf8');
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const watcher = new WatcherService(
             () => Promise.resolve({ path: root, root }),
             (event) => {
@@ -69,7 +69,7 @@ describe('Git ignored file decorations', () => {
             return Promise.resolve({ unsubscribe: () => Promise.resolve(undefined) });
         }) as unknown as typeof parcelWatcher.subscribe;
         const watchHub = new WatchHub({ subscribe });
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const watcher = new WatcherService(
             () => Promise.resolve({ path: root, root }),
             (event) => {
@@ -109,7 +109,7 @@ describe('Git ignored file decorations', () => {
         const rulePath = join(root, 'packages', 'foo', '.gitignore');
         await mkdir(join(root, 'packages', 'foo'), { recursive: true });
         await writeFile(rulePath, 'before\n', 'utf8');
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const watcher = new WatcherService(
             () => Promise.resolve({ path: root, root }),
             (event) => {

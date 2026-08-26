@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { connectToHost, HostClient } from '@caxri/client/supervise';
-import type { HostManifest, RuntimeMethodResult, TerminalRecord } from '@caxri/protocol';
+import type { HostManifest, ServerOperationResult, TerminalRecord } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     defaultAgentProviderSettings,
@@ -25,7 +25,9 @@ function fixtureHandlers(overrides: Partial<DomainHandlers>): DomainHandlers {
     return overrides as DomainHandlers;
 }
 
-function dispatchReceipt(dispatchId: string): RuntimeMethodResult<'agent.dispatch.startInternal'> {
+function dispatchReceipt(
+    dispatchId: string,
+): ServerOperationResult<'agent.dispatch.startInternal'> {
     const launch = {
         provider: 'codex',
         mode: 'fresh',
@@ -70,7 +72,6 @@ function createRuntimeFixture(activePtyCount: number): CreateDomainServices {
                         },
                     ],
                 }),
-                'runtime.shutdown': () => null,
             }),
             validateRequestContext: () => {},
         });
@@ -97,7 +98,6 @@ function createMutationRaceFixture(): CreateDomainServices {
                     activePtyCount = 1;
                     return null;
                 },
-                'runtime.shutdown': () => null,
             }),
             validateRequestContext: () => {},
         });
@@ -145,7 +145,7 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
                 token: environment.CAXRI_AGENT_ENDPOINT_TOKEN,
             }),
         );
-        type WaitResult = RuntimeMethodResult<'agent.dispatch.waitInternal'>;
+        type WaitResult = ServerOperationResult<'agent.dispatch.waitInternal'>;
         const pendingDispatchWaits = new Map<string, PromiseWithResolvers<WaitResult>>();
         const handlers = {
             'app.health': () => ({
@@ -210,7 +210,6 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
                 byteLength: Buffer.byteLength(text),
                 enter,
             }),
-            'runtime.shutdown': () => null,
         } satisfies Partial<DomainHandlers>;
         return {
             close: () => endpoints.close(),

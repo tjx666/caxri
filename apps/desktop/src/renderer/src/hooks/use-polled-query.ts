@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { CaxriMethod, MethodResult, ParamsArg } from '@caxri/protocol';
+import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/protocol';
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 
 import {
@@ -16,7 +16,7 @@ import { useOnVisible } from './use-on-visible';
  * The single params argument a Caxri method accepts, or `undefined` for a no-params method. Mirrors the same helper
  * type in `queries/client.ts`, kept local because that module does not export it.
  */
-type MethodParameters<M extends CaxriMethod> = ParamsArg<M>[0];
+type MethodParameters<M extends CaxriMethod> = ParametersArgument<M>[0];
 
 export interface UsePolledQueryOptions<M extends CaxriMethod> extends Omit<
     UseQueryOptions<MethodResult<M>, Error, MethodResult<M>, readonly [M, MethodParameters<M>]>,

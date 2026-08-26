@@ -1,4 +1,4 @@
-import type { RuntimeEvent, TerminalRecord } from '@caxri/protocol';
+import type { ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { normalizeTerminalTitle } from '@caxri/protocol';
 import { throttle } from 'es-toolkit';
 
@@ -33,7 +33,7 @@ export const TERMINAL_TITLE_THROTTLE_MS = 250;
 export function createTerminalTitleListener(
     terminalId: string,
     database: TerminalTitleStore,
-    emit: (event: RuntimeEvent) => void,
+    emit: (event: ServerEvent) => void,
     throttleMs = TERMINAL_TITLE_THROTTLE_MS,
 ): TerminalTitleObserver {
     const publish = throttle(

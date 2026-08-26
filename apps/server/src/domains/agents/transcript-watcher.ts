@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 
 import type { WatchHandle, WatchHub } from '../watch-hub';
 import type { AgentTranscriptLocation } from './transcript-security';
@@ -26,7 +26,7 @@ interface PendingTranscriptInstall {
 }
 
 export interface AgentTranscriptWatcherOptions {
-    emit: (event: RuntimeEvent) => void;
+    emit: (event: ServerEvent) => void;
     locationForTerminal: (terminalId: string) => AgentTranscriptLocation | undefined;
     pollIntervalMs?: number;
     terminalIdsForSession: (sessionId: string) => readonly string[];

@@ -1,10 +1,10 @@
-import type { RuntimeWorkbenchContext } from '@caxri/protocol';
+import type { WorkbenchRequestContext } from '@caxri/protocol';
 import {
     CaxriError,
     fromWireError,
-    parseRuntimeRequest,
-    runtimeWorkbenchContextSchema,
+    parseServerOperationRequest,
     toWireError,
+    workbenchRequestContextSchema,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -46,7 +46,7 @@ function pruneCancelTombstones(tombstones: Map<string, number>, now = Date.now()
 export function createOperationDispatcher(
     handlers: DomainHandlers,
     logger: StructuredLogger,
-    validateContext?: (context: RuntimeWorkbenchContext) => void,
+    validateContext?: (context: WorkbenchRequestContext) => void,
 ): DomainOperationDispatcher {
     const active = new Map<string, AbortController>();
     const cancelTombstones = new Map<string, number>();
@@ -54,9 +54,9 @@ export function createOperationDispatcher(
         const started = performance.now();
         let cancellation: AbortController | undefined;
         try {
-            const request = parseRuntimeRequest(envelope.method, envelope.params);
+            const request = parseServerOperationRequest(envelope.method, envelope.params);
             if (envelope.context !== undefined) {
-                const context = runtimeWorkbenchContextSchema.parse(envelope.context);
+                const context = workbenchRequestContextSchema.parse(envelope.context);
                 validateContext?.(context);
             }
             pruneCancelTombstones(cancelTombstones);

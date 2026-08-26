@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto';
 import process from 'node:process';
 
 import type {
-    RuntimeEvent,
-    RuntimeMethod,
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
-    RuntimeParamsArg as RuntimeParametersArgument,
-    RuntimeWorkbenchContext,
+    ServerEvent,
+    ServerOperation,
+    ServerOperationArguments as ServerOperationArguments,
+    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationResult,
+    WorkbenchRequestContext,
 } from '@caxri/protocol';
-import { CaxriError, isNonExpiringRuntimeMethod } from '@caxri/protocol';
+import { CaxriError, isNonExpiringServerOperation } from '@caxri/protocol';
 
 import { createDomainServices } from '../domains/create-domain-services';
 import type { DomainDependencies, DomainServices } from '../domains/domain-services';
@@ -27,8 +27,8 @@ export type CreateDomainServices = (dependencies: DomainDependencies) => Promise
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 
-function requestTimeout(method: RuntimeMethod): number | undefined {
-    return isNonExpiringRuntimeMethod(method) ? undefined : DEFAULT_REQUEST_TIMEOUT_MS;
+function requestTimeout(method: ServerOperation): number | undefined {
+    return isNonExpiringServerOperation(method) ? undefined : DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
 /**
@@ -49,10 +49,10 @@ export class ServerDomainService extends EventTarget {
     }
 
     private async send(
-        method: RuntimeMethod,
+        method: ServerOperation,
         parameters: unknown = {},
         timeoutMs = requestTimeout(method),
-        context?: RuntimeWorkbenchContext,
+        context?: WorkbenchRequestContext,
         signal?: AbortSignal,
     ): Promise<unknown> {
         await this.start();
@@ -132,7 +132,7 @@ export class ServerDomainService extends EventTarget {
             const services = await this.createServices({
                 ...this.dependencies,
                 send: (event) =>
-                    this.dispatchEvent(new CustomEvent<RuntimeEvent>('event', { detail: event })),
+                    this.dispatchEvent(new CustomEvent<ServerEvent>('event', { detail: event })),
             });
             if (this.stopped) {
                 await services.close();
@@ -149,7 +149,7 @@ export class ServerDomainService extends EventTarget {
                 fields: { pid: process.pid },
             });
             this.dispatchEvent(
-                new CustomEvent<RuntimeEvent>('event', {
+                new CustomEvent<ServerEvent>('event', {
                     detail: {
                         event: 'runtime.status',
                         payload: { status: 'ready', restartCount: 0 },
@@ -174,50 +174,50 @@ export class ServerDomainService extends EventTarget {
         return true;
     }
 
-    onEvent(listener: (event: RuntimeEvent) => void): () => void {
+    onEvent(listener: (event: ServerEvent) => void): () => void {
         const handler = (event: Event): void =>
-            listener((event as CustomEvent<RuntimeEvent>).detail);
+            listener((event as CustomEvent<ServerEvent>).detail);
         this.addEventListener('event', handler);
         return () => this.removeEventListener('event', handler);
     }
 
-    request<M extends RuntimeMethod>(
+    request<M extends ServerOperation>(
         method: M,
-        ...arguments_: RuntimeParametersArgument<M>
-    ): Promise<RuntimeMethodResult<M>> {
+        ...arguments_: ServerOperationArguments<M>
+    ): Promise<ServerOperationResult<M>> {
         const [parameters, timeoutMs] = arguments_;
-        return this.send(method, parameters, timeoutMs) as Promise<RuntimeMethodResult<M>>;
+        return this.send(method, parameters, timeoutMs) as Promise<ServerOperationResult<M>>;
     }
 
-    requestWithSignal<M extends RuntimeMethod>(
+    requestWithSignal<M extends ServerOperation>(
         method: M,
-        parameters: RuntimeMethodParameters<M>,
+        parameters: ServerOperationParameters<M>,
         signal: AbortSignal,
         timeoutMs = requestTimeout(method),
-    ): Promise<RuntimeMethodResult<M>> {
+    ): Promise<ServerOperationResult<M>> {
         return this.send(method, parameters, timeoutMs, undefined, signal) as Promise<
-            RuntimeMethodResult<M>
+            ServerOperationResult<M>
         >;
     }
 
-    requestInWorkbenchContext<M extends RuntimeMethod>(
+    requestInWorkbenchContext<M extends ServerOperation>(
         method: M,
-        parameters: RuntimeMethodParameters<M>,
-        context: RuntimeWorkbenchContext,
+        parameters: ServerOperationParameters<M>,
+        context: WorkbenchRequestContext,
         timeoutMs?: number,
         signal?: AbortSignal,
-    ): Promise<RuntimeMethodResult<M>> {
+    ): Promise<ServerOperationResult<M>> {
         return this.send(
             method,
             parameters,
             timeoutMs ?? requestTimeout(method),
             context,
             signal,
-        ) as Promise<RuntimeMethodResult<M>>;
+        ) as Promise<ServerOperationResult<M>>;
     }
 
     forward(
-        method: RuntimeMethod,
+        method: ServerOperation,
         parameters: unknown,
         timeoutMs?: number,
         signal?: AbortSignal,

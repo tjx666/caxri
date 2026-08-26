@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -42,7 +42,7 @@ describe('File watcher scopes', () => {
         const project = database.createProject(root);
         const first = database.createSession(project.id, 'shell').session;
         const second = database.createSession(project.id, 'codex').session;
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         let callback: Parameters<typeof parcelWatcher.subscribe>[1] | undefined;
         let subscribeCalls = 0;
         const subscribe: typeof parcelWatcher.subscribe = (_root, onEvents) => {
@@ -115,7 +115,7 @@ describe('File watcher scopes', () => {
         const secondProject = database.createProject(secondRoot);
         const first = database.createSession(firstProject.id, 'shell').session;
         const second = database.createSession(secondProject.id, 'codex').session;
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const callbacks: Array<Parameters<typeof parcelWatcher.subscribe>[1]> = [];
         const subscribe: typeof parcelWatcher.subscribe = (_root, onEvents) => {
             callbacks.push(onEvents);

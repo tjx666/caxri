@@ -3,31 +3,31 @@ import { describe, expect, it } from 'vitest';
 import { CaxriError } from '../errors';
 import {
     createEventJournal,
-    durableRuntimeEventSchema,
-    isTransientRuntimeEvent,
+    durableServerEventSchema,
+    isTransientServerEvent,
     MAX_EVENT_JOURNAL_EVENTS,
-    transientRuntimeEventSchema,
+    transientServerEventSchema,
 } from '../event-journal';
 
-describe('isTransientRuntimeEvent / transient and durable schemas', () => {
+describe('isTransientServerEvent / transient and durable schemas', () => {
     it('classifies direct-delivery events (PTY bytes, one-shot commands) as transient', () => {
-        expect(isTransientRuntimeEvent({ event: 'terminal.output', payload: {} } as never)).toBe(
+        expect(isTransientServerEvent({ event: 'terminal.output', payload: {} } as never)).toBe(
             true,
         );
         expect(
-            isTransientRuntimeEvent({ event: 'terminal.outputRecovery', payload: {} } as never),
+            isTransientServerEvent({ event: 'terminal.outputRecovery', payload: {} } as never),
         ).toBe(true);
-        expect(isTransientRuntimeEvent({ event: 'command.execute', payload: {} } as never)).toBe(
+        expect(isTransientServerEvent({ event: 'command.execute', payload: {} } as never)).toBe(
             true,
         );
         expect(
-            isTransientRuntimeEvent({ event: 'host.connectionChanged', payload: {} } as never),
+            isTransientServerEvent({ event: 'host.connectionChanged', payload: {} } as never),
         ).toBe(true);
         expect(
-            isTransientRuntimeEvent({ event: 'projectStatus.changed', payload: {} } as never),
+            isTransientServerEvent({ event: 'projectStatus.changed', payload: {} } as never),
         ).toBe(true);
         expect(
-            isTransientRuntimeEvent({
+            isTransientServerEvent({
                 event: 'viewContainers.catalogChanged',
                 payload: {},
             } as never),
@@ -36,37 +36,37 @@ describe('isTransientRuntimeEvent / transient and durable schemas', () => {
 
     it('classifies a durable state event as non-transient', () => {
         expect(
-            isTransientRuntimeEvent({
+            isTransientServerEvent({
                 event: 'state.changed',
                 payload: { kind: 'full', reason: 'unknown' },
             } as never),
         ).toBe(false);
     });
 
-    it('accepts only transient events through transientRuntimeEventSchema', () => {
+    it('accepts only transient events through transientServerEventSchema', () => {
         expect(
-            transientRuntimeEventSchema.safeParse({
+            transientServerEventSchema.safeParse({
                 event: 'terminal.output',
                 payload: { terminalId: 'terminal-1', data: 'hi' },
             }).success,
         ).toBe(true);
         expect(
-            transientRuntimeEventSchema.safeParse({
+            transientServerEventSchema.safeParse({
                 event: 'state.changed',
                 payload: { kind: 'full', reason: 'unknown' },
             }).success,
         ).toBe(false);
     });
 
-    it('rejects a transient event through durableRuntimeEventSchema', () => {
+    it('rejects a transient event through durableServerEventSchema', () => {
         expect(
-            durableRuntimeEventSchema.safeParse({
+            durableServerEventSchema.safeParse({
                 event: 'terminal.output',
                 payload: { terminalId: 'terminal-1', data: 'hi' },
             }).success,
         ).toBe(false);
         expect(
-            durableRuntimeEventSchema.safeParse({
+            durableServerEventSchema.safeParse({
                 event: 'state.changed',
                 payload: { kind: 'full', reason: 'unknown' },
             }).success,

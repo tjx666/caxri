@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentProvider, RuntimeEvent } from '@caxri/protocol';
+import type { AgentProvider, ServerEvent } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -395,7 +395,7 @@ describe('AgentCoordinator', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'claude');
         const shell = database.createTerminal(created.session.id, 'shell');
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const snapshot = vi.fn<AgentAdapter['snapshot']>((context) =>
             Promise.resolve({
                 provider: 'claude',

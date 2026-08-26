@@ -1,4 +1,4 @@
-import type { RuntimeMethod } from '@caxri/protocol';
+import type { ServerOperation } from '@caxri/protocol';
 import { CaxriError, internalMethods, methods } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,9 +9,9 @@ import { ServerDomainService } from '../domain-service';
 const runtimeMethodNames = [
     ...Object.keys(methods),
     ...Object.keys(internalMethods),
-] as RuntimeMethod[];
+] as ServerOperation[];
 
-function handlers(overrides: Partial<Record<RuntimeMethod, unknown>> = {}): DomainHandlers {
+function handlers(overrides: Partial<Record<ServerOperation, unknown>> = {}): DomainHandlers {
     return {
         ...Object.fromEntries(runtimeMethodNames.map((method) => [method, () => null])),
         ...overrides,

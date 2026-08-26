@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { listPaneTerminalIds } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
@@ -252,7 +252,7 @@ describe('domain-service composition root', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
         await writeFile(join(projectRoot, 'README.md'), '# Caxri\n', 'utf8');
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
@@ -384,7 +384,7 @@ describe('domain-service composition root', () => {
             send: () => {},
         });
 
-        expect(await runtime.handlers['runtime.shutdown']({})).toBeNull();
+        await expect(runtime.close()).resolves.toBeUndefined();
         await expect(runtime.close()).resolves.toBeUndefined();
     });
 
@@ -561,7 +561,7 @@ describe('Interrupted Terminal auto-restore (GitHub issue #18)', () => {
             return '/bin/zsh';
         });
         const spawnSpy = vi.fn(() => createFakePty());
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const runtimeB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,

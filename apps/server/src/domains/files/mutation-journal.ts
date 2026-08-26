@@ -4,7 +4,7 @@ import type {
     FileMutationOperation,
     MovedFileEntry,
     MutableFileEntry,
-    RuntimeEvent,
+    ServerEvent,
 } from '@caxri/protocol';
 import {
     CaxriError,
@@ -103,7 +103,7 @@ export class FileMutationJournal {
 
     constructor(
         private readonly path: string | undefined,
-        private readonly emit: (event: RuntimeEvent) => void,
+        private readonly emit: (event: ServerEvent) => void,
         private readonly logger: StructuredLogger,
         options: FileMutationJournalOptions = {},
     ) {

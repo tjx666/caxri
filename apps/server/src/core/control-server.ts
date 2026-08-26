@@ -12,7 +12,7 @@ import type {
     HostControlEndpoint,
     LocalClientCommand,
     ProtocolEventEnvelope,
-    TransientRuntimeEvent,
+    TransientServerEvent,
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -22,20 +22,20 @@ import {
     createProtocolWelcome,
     fromWireError,
     localClientCommandSchema,
+    localClientDesktopOperationCommandSchema,
     localClientDesktopReadySchema,
     localClientDesktopReplySchema,
-    localClientDesktopRuntimeCommandSchema,
     localClientDesktopTargetConsumeSchema,
     localClientHelloSchema,
     localClientLeaseRenewSchema,
     localServerDesktopCommandSchema,
-    localServerDesktopRuntimeReplySchema,
+    localServerDesktopOperationReplySchema,
     localServerDesktopTargetReplySchema,
     localServerEventSchema,
     localServerLeaseRenewedSchema,
     localServerReplySchema,
     localServerWelcomeSchema,
-    parseRuntimeRequest,
+    parseServerOperationRequest,
     toWireError,
 } from '@caxri/protocol';
 import type { RawData, WebSocketServer } from 'ws';
@@ -279,7 +279,7 @@ export class ControlServer {
         } else await settle();
     }
 
-    private async dispatchDesktopRuntimeCommand(
+    private async dispatchDesktopOperation(
         socket: WebSocket,
         state: ClientState,
         request: { id: string; method: string; params: unknown },
@@ -291,17 +291,17 @@ export class ControlServer {
             ? await executeReply(request.id, async () => {
                   if (state.context.principal.kind !== 'desktop' || this.currentDesktop !== state)
                       throw new CaxriError('CONFLICT', 'Desktop capability lease is stale');
-                  if (!this.options.invokeDesktopRuntime)
+                  if (!this.options.invokeDesktopOperation)
                       throw new CaxriError('UNAVAILABLE', 'Desktop Runtime bridge is unavailable');
-                  return this.options.invokeDesktopRuntime(
-                      parseRuntimeRequest(request.method, request.params),
+                  return this.options.invokeDesktopOperation(
+                      parseServerOperationRequest(request.method, request.params),
                   );
               })
             : this.capacityReply(request.id);
         logControlRequestOutcome(this.options, request, reply, state.context, startedAt, timing);
         this.write(
             socket,
-            localServerDesktopRuntimeReplySchema.parse({
+            localServerDesktopOperationReplySchema.parse({
                 type: 'desktop-runtime-reply',
                 reply,
             }),
@@ -582,9 +582,9 @@ export class ControlServer {
                         this.desktopLeaseWaiters.clear();
                         return;
                     }
-                    const runtimeCommand = localClientDesktopRuntimeCommandSchema.safeParse(raw);
+                    const runtimeCommand = localClientDesktopOperationCommandSchema.safeParse(raw);
                     if (runtimeCommand.success) {
-                        const dispatch = this.dispatchDesktopRuntimeCommand(
+                        const dispatch = this.dispatchDesktopOperation(
                             socket,
                             clientState,
                             runtimeCommand.data.request,
@@ -718,7 +718,7 @@ export class ControlServer {
         return listener.endpoint;
     }
 
-    broadcast(event: ProtocolEventEnvelope | TransientRuntimeEvent): void {
+    broadcast(event: ProtocolEventEnvelope | TransientServerEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
         /**
          * Raw domain payloads are a Desktop-only transport; other principals use projections.
@@ -729,7 +729,7 @@ export class ControlServer {
     /**
      * Delivers a transient, body-free receipt only to the exact authenticated Agent generation.
      */
-    broadcastAgent(endpoint: AgentEndpointReference, event: TransientRuntimeEvent): void {
+    broadcastAgent(endpoint: AgentEndpointReference, event: TransientServerEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
         for (const state of this.clients.values()) {
             const principal = state.context.principal;
@@ -745,7 +745,7 @@ export class ControlServer {
     /**
      * Delivers a one-shot Server UI event without placing it in the recoverable event journal.
      */
-    broadcastDesktop(event: TransientRuntimeEvent): void {
+    broadcastDesktop(event: TransientServerEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
         if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
     }

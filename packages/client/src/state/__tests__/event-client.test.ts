@@ -1,4 +1,4 @@
-import type { EventRecovery, RuntimeEvent } from '@caxri/protocol';
+import type { EventRecovery, ServerEvent } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { createRecoveringEventClient } from '../event-client';
@@ -24,7 +24,7 @@ describe('createRecoveringEventClient', () => {
     });
 
     it('emits a transient event immediately without waiting for recovery to settle', () => {
-        const emitted: RuntimeEvent[] = [];
+        const emitted: ServerEvent[] = [];
         const client = createRecoveringEventClient({
             emit: (event) => {
                 emitted.push(event);
@@ -51,7 +51,7 @@ describe('createRecoveringEventClient', () => {
         const secondRecovery = Promise.withResolvers<EventRecovery>();
         const recoveries = [firstRecovery, secondRecovery];
         const recoveryCursors: number[] = [];
-        const emitted: RuntimeEvent[] = [];
+        const emitted: ServerEvent[] = [];
         const firstEvent = {
             protocolVersion: 2 as const,
             cursor: 1,

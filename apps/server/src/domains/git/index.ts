@@ -11,8 +11,8 @@ import type {
     GitOverview,
     GitRepositorySummary as GitRepoSummary,
     GitSummary,
-    RuntimeEvent,
-    RuntimeMethodParams as RuntimeMethodParameters,
+    ServerEvent,
+    ServerOperationParameters as ServerOperationParameters,
 } from '@caxri/protocol';
 import {
     CaxriError,
@@ -102,7 +102,7 @@ interface GitServiceOptions {
     /**
      * Runtime event sink for `git.changed`; absent in focused tests.
      */
-    emit?: (event: RuntimeEvent) => void;
+    emit?: (event: ServerEvent) => void;
     /**
      * Test seam forwarded to the Git metadata watcher.
      */
@@ -492,13 +492,13 @@ export class GitService {
     }
 
     async branches(
-        parameters: RuntimeMethodParameters<'git.branches'>,
+        parameters: ServerOperationParameters<'git.branches'>,
     ): Promise<Array<{ name: string; committedAt: number }>> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
         return this.listBranches(repo);
     }
 
-    async switchBranch(parameters: RuntimeMethodParameters<'git.switchBranch'>): Promise<null> {
+    async switchBranch(parameters: ServerOperationParameters<'git.switchBranch'>): Promise<null> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
         const branches = await this.listBranches(repo);
         if (branches.every((candidate) => candidate.name !== parameters.branch))
@@ -507,20 +507,20 @@ export class GitService {
             await this.git(repo.rootPath, ['switch', '--', parameters.branch]);
         return null;
     }
-    sync(parameters: RuntimeMethodParameters<'git.sync'>): Promise<null> {
+    sync(parameters: ServerOperationParameters<'git.sync'>): Promise<null> {
         return this.workingTreeService.sync(parameters);
     }
     discardPreflight(
-        parameters: RuntimeMethodParameters<'git.discard.preflight'>,
+        parameters: ServerOperationParameters<'git.discard.preflight'>,
     ): ReturnType<GitWorkingTreeService['discardPreflight']> {
         return this.workingTreeService.discardPreflight(parameters);
     }
     discardApply(
-        parameters: RuntimeMethodParameters<'git.discard.apply'>,
+        parameters: ServerOperationParameters<'git.discard.apply'>,
     ): ReturnType<GitWorkingTreeService['discardApply']> {
         return this.workingTreeService.discardApply(parameters);
     }
-    pullRequestChanges(parameters: RuntimeMethodParameters<'git.pullRequestChanges'>) {
+    pullRequestChanges(parameters: ServerOperationParameters<'git.pullRequestChanges'>) {
         return this.pullRequestService.changes(parameters);
     }
     /**
@@ -529,7 +529,7 @@ export class GitService {
      * extra Git spawns.
      */
     async remoteHost(
-        parameters: RuntimeMethodParameters<'git.remoteHost'>,
+        parameters: ServerOperationParameters<'git.remoteHost'>,
     ): Promise<string | null> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
         const cached = this.remoteHostByRoot.get(repo.rootPath);
@@ -546,7 +546,7 @@ export class GitService {
         );
     }
 
-    pullRequestDiffDocument(parameters: RuntimeMethodParameters<'git.pullRequestDiffDocument'>) {
+    pullRequestDiffDocument(parameters: ServerOperationParameters<'git.pullRequestDiffDocument'>) {
         return this.pullRequestService.diffDocument(parameters);
     }
 
@@ -570,7 +570,7 @@ export class GitService {
         await this.metadataWatcher.close();
     }
 
-    commits(parameters: RuntimeMethodParameters<'git.commits'>): Promise<GitCommitPage> {
+    commits(parameters: ServerOperationParameters<'git.commits'>): Promise<GitCommitPage> {
         return sharedGitRequest(() =>
             this.histories.run(JSON.stringify(parameters), async () => {
                 const repo = await this.resolveRepository(
@@ -601,7 +601,7 @@ export class GitService {
     }
 
     async commitDetails(
-        parameters: RuntimeMethodParameters<'git.commitDetails'>,
+        parameters: ServerOperationParameters<'git.commitDetails'>,
     ): Promise<GitCommitDetails> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
         const [path, commitOutput] = await Promise.all([
@@ -649,11 +649,11 @@ export class GitService {
         };
     }
 
-    blame(parameters: RuntimeMethodParameters<'git.blame'>) {
+    blame(parameters: ServerOperationParameters<'git.blame'>) {
         return this.blameService.blame(parameters);
     }
 
-    fileHead(parameters: RuntimeMethodParameters<'git.fileHead'>): Promise<GitCommit | null> {
+    fileHead(parameters: ServerOperationParameters<'git.fileHead'>): Promise<GitCommit | null> {
         return this.blameService.fileHead(parameters);
     }
 
@@ -662,7 +662,7 @@ export class GitService {
      * without the Renderer having to submit a `previousPath`.
      */
     async commitDiffDocument(
-        parameters: RuntimeMethodParameters<'git.commitDiffDocument'>,
+        parameters: ServerOperationParameters<'git.commitDiffDocument'>,
     ): Promise<GitDiffDocument> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
         const files = parseCommitFiles(

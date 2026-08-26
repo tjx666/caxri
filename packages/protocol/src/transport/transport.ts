@@ -1,15 +1,15 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
-import type { RuntimeEvent } from '../registry/events.js';
+import type { ServerEvent } from '../registry/events.js';
 import type {
     CaxriMethod,
     CaxriRequest,
     MethodResult,
-    ParamsArg as ParametersArgument,
-    RuntimeMethod,
-    RuntimeMethodResult,
-    RuntimeRequest,
+    ParametersArgument,
+    ServerOperation,
+    ServerOperationRequest,
+    ServerOperationResult,
 } from '../registry/methods.js';
 import { getMethodSpec, isCaxriMethod, methods } from '../registry/methods.js';
 import type { WireError } from './errors.js';
@@ -37,12 +37,15 @@ export function parseCaxriRequest(method: CaxriMethod, parameters: unknown): Cax
 }
 
 /**
- * Runtime-side equivalent that also accepts the internal Main-to-Runtime methods.
+ * Server-side equivalent that also accepts internal operations.
  */
-export function parseRuntimeRequest(method: string, parameters: unknown): RuntimeRequest {
+export function parseServerOperationRequest(
+    method: string,
+    parameters: unknown,
+): ServerOperationRequest {
     const spec = getMethodSpec(method);
     if (!spec) throw new CaxriError('VALIDATION', `Unknown Runtime method: ${method}`);
-    return { method, params: spec.params.parse(parameters) } as RuntimeRequest;
+    return { method, params: spec.params.parse(parameters) } as ServerOperationRequest;
 }
 
 function invalidResult(method: string, issues: z.core.$ZodIssue[]): CaxriError {
@@ -55,7 +58,7 @@ function invalidResult(method: string, issues: z.core.$ZodIssue[]): CaxriError {
 }
 
 /**
- * Validates a Main or Runtime result before it crosses the Renderer IPC boundary.
+ * Validates a Desktop or Server result before it crosses the Renderer IPC boundary.
  */
 export function parseCaxriResult<M extends CaxriMethod>(
     method: M,
@@ -67,17 +70,17 @@ export function parseCaxriResult<M extends CaxriMethod>(
 }
 
 /**
- * Validates a Runtime result, including internal Main-to-Runtime methods.
+ * Validates a Server result, including internal operations.
  */
-export function parseRuntimeResult<M extends RuntimeMethod>(
+export function parseServerOperationResult<M extends ServerOperation>(
     method: M,
     result: unknown,
-): RuntimeMethodResult<M> {
+): ServerOperationResult<M> {
     const spec = getMethodSpec(method);
     if (!spec) throw new CaxriError('INTERNAL', `Unknown Runtime result method: ${method}`);
     const parsed = spec.result.safeParse(result);
     if (!parsed.success) throw invalidResult(method, parsed.error.issues);
-    return parsed.data as RuntimeMethodResult<M>;
+    return parsed.data as ServerOperationResult<M>;
 }
 
 export const wireErrorSchema = z
@@ -93,16 +96,16 @@ export const wireErrorSchema = z
     }));
 
 /**
- * Host-attested context attached only to Extension workspace requests. It binds a request to the Workbench Root that
- * was selected when the public API call began; the Runtime rechecks the binding immediately before invoking a domain
+ * Server-attested context attached only to Extension workspace requests. It binds a request to the Workbench Root that
+ * was selected when the public API call began; the domain layer rechecks the binding immediately before invoking a
  * handler so a same-Session root switch cannot redirect an in-flight operation.
  */
-export const runtimeWorkbenchContextSchema = z.object({
+export const workbenchRequestContextSchema = z.object({
     sessionId: identifierSchema,
     workbenchProjectId: identifierSchema,
 });
 
-export type RuntimeWorkbenchContext = z.infer<typeof runtimeWorkbenchContextSchema>;
+export type WorkbenchRequestContext = z.infer<typeof workbenchRequestContextSchema>;
 
 /**
  * Main answers `caxri:request` with this envelope so the error code survives the Electron hop.
@@ -164,7 +167,7 @@ export interface CaxriBridge {
         method: M,
         ...arguments_: ParametersArgument<M>
     ): Promise<MethodReply<M>>;
-    onEvent(listener: (event: RuntimeEvent) => void): () => void;
+    onEvent(listener: (event: ServerEvent) => void): () => void;
     /**
      * Reports only a fault class; private exception values never cross the preload boundary.
      */
@@ -185,7 +188,7 @@ export interface CaxriClient {
         signal: AbortSignal,
         ...arguments_: ParametersArgument<M>
     ): Promise<MethodResult<M>>;
-    onEvent(listener: (event: RuntimeEvent) => void): () => void;
+    onEvent(listener: (event: ServerEvent) => void): () => void;
 }
 
 export function createCaxriClient(

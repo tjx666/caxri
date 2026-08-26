@@ -4,8 +4,8 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import type {
     GitFileStatus,
     GitRepositorySummary as GitRepoSummary,
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
+    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationResult,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
@@ -24,8 +24,8 @@ interface WorkingTreeCommandOptions {
     timeoutMs?: number;
 }
 
-type DiscardPreflightParameters = RuntimeMethodParameters<'git.discard.preflight'>;
-type DiscardPreflightResult = RuntimeMethodResult<'git.discard.preflight'>;
+type DiscardPreflightParameters = ServerOperationParameters<'git.discard.preflight'>;
+type DiscardPreflightResult = ServerOperationResult<'git.discard.preflight'>;
 type DiscardReady = Extract<DiscardPreflightResult, { status: 'ready' }>;
 
 interface PendingDiscardConsent extends Omit<DiscardReady, 'token'> {
@@ -218,7 +218,7 @@ export class GitWorkingTreeService {
      * Consumes a preflight token and re-reads the full status fingerprint immediately before any destructive Git argv.
      * A stale, replayed, or status-kind-mismatched token fails closed without running a mutation.
      */
-    async discardApply(parameters: RuntimeMethodParameters<'git.discard.apply'>): Promise<null> {
+    async discardApply(parameters: ServerOperationParameters<'git.discard.apply'>): Promise<null> {
         const { consent, snapshot } = await this.snapshotForApply(parameters.token);
         if (consent.scope.kind === 'all') {
             if (snapshot.files.length !== consent.scope.fileCount)
@@ -245,7 +245,7 @@ export class GitWorkingTreeService {
     /**
      * VS Code-style Sync Changes: integrate the upstream first, then publish local commits.
      */
-    async sync(parameters: RuntimeMethodParameters<'git.sync'>): Promise<null> {
+    async sync(parameters: ServerOperationParameters<'git.sync'>): Promise<null> {
         const repo = await this.options.resolveRepository(
             parameters.sessionId,
             parameters.repositoryId,

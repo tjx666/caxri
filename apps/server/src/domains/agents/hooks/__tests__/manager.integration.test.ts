@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -268,7 +268,7 @@ describe('AgentHookManager', () => {
         const codexHome = join(directory, 'codex');
         const settings = structuredClone(defaultAgentProviderSettings);
         settings.codex.hooks.enabled = true;
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const signals = vi.fn<(signal: AgentLifecycleSignal) => boolean>(() => true);
         const launches = vi.fn();
         const manager = new AgentHookManager({

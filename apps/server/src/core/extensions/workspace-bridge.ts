@@ -1,4 +1,4 @@
-import type { RuntimeMethodParams as RuntimeMethodParameters } from '@caxri/protocol';
+import type { ServerOperationParameters as ServerOperationParameters } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../../core/domain-service';
@@ -50,7 +50,7 @@ export function createExtensionWorkspaceRequest(options: ExtensionWorkspaceBridg
             if (!desktopRouter)
                 throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
             return desktopRouter.discard(
-                parameters as RuntimeMethodParameters<'git.discard'>,
+                parameters as ServerOperationParameters<'git.discard'>,
                 signal,
                 context,
             );

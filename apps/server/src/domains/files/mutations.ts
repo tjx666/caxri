@@ -3,8 +3,8 @@ import { lstat, mkdir, open, rename } from 'node:fs/promises';
 import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
 
 import type {
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
+    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationResult,
 } from '@caxri/protocol';
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -24,8 +24,8 @@ import {
     streamCopyFile,
 } from './mutations-copy';
 
-type MutableEntry = RuntimeMethodResult<'files.create'>;
-type MovedEntry = RuntimeMethodResult<'files.rename'>;
+type MutableEntry = ServerOperationResult<'files.create'>;
+type MovedEntry = ServerOperationResult<'files.rename'>;
 type MutationStage<Result> = (expectedResult: Result) => Promise<void>;
 interface StagedCreatedEntry extends MutableEntry {
     device?: string;
@@ -35,13 +35,13 @@ interface StagedMovedEntry extends MovedEntry {
     device: string;
     inode: string;
 }
-type CreateMutationParameters = Omit<RuntimeMethodParameters<'files.create'>, 'operationId'> & {
+type CreateMutationParameters = Omit<ServerOperationParameters<'files.create'>, 'operationId'> & {
     operationId?: string;
 };
-type RenameMutationParameters = Omit<RuntimeMethodParameters<'files.rename'>, 'operationId'> & {
+type RenameMutationParameters = Omit<ServerOperationParameters<'files.rename'>, 'operationId'> & {
     operationId?: string;
 };
-type MoveMutationParameters = Omit<RuntimeMethodParameters<'files.move'>, 'operationId'> & {
+type MoveMutationParameters = Omit<ServerOperationParameters<'files.move'>, 'operationId'> & {
     operationId?: string;
 };
 
@@ -367,7 +367,7 @@ export class FileMutationService {
     async create(
         parameters: CreateMutationParameters,
         stage?: MutationStage<StagedCreatedEntry>,
-    ): Promise<RuntimeMethodResult<'files.create'>> {
+    ): Promise<ServerOperationResult<'files.create'>> {
         try {
             const directory = await this.resolveExisting(
                 parameters.sessionId,
@@ -417,8 +417,8 @@ export class FileMutationService {
     }
 
     async copy(
-        parameters: RuntimeMethodParameters<'files.copy'>,
-    ): Promise<RuntimeMethodResult<'files.copy'>> {
+        parameters: ServerOperationParameters<'files.copy'>,
+    ): Promise<ServerOperationResult<'files.copy'>> {
         const observedAt = performance.now();
         let phase = 'preflight';
         let entryCount = 0;
@@ -560,7 +560,7 @@ export class FileMutationService {
     rename(
         parameters: RenameMutationParameters,
         stage?: MutationStage<StagedMovedEntry>,
-    ): Promise<RuntimeMethodResult<'files.rename'>> {
+    ): Promise<ServerOperationResult<'files.rename'>> {
         return this.moveTo(
             parameters.sessionId,
             parameters.path,
@@ -574,7 +574,7 @@ export class FileMutationService {
     move(
         parameters: MoveMutationParameters,
         stage?: MutationStage<StagedMovedEntry>,
-    ): Promise<RuntimeMethodResult<'files.move'>> {
+    ): Promise<ServerOperationResult<'files.move'>> {
         return this.moveTo(
             parameters.sessionId,
             parameters.path,
@@ -586,15 +586,15 @@ export class FileMutationService {
     }
 
     async authorizeOpen(
-        parameters: RuntimeMethodParameters<'files.authorizeOpen'>,
-    ): Promise<RuntimeMethodResult<'files.authorizeOpen'>> {
+        parameters: ServerOperationParameters<'files.authorizeOpen'>,
+    ): Promise<ServerOperationResult<'files.authorizeOpen'>> {
         const entry = await this.resolveExisting(parameters.sessionId, parameters.path, true);
         return entry;
     }
 
     async authorizeTrash(
-        parameters: RuntimeMethodParameters<'files.authorizeTrash'>,
-    ): Promise<RuntimeMethodResult<'files.authorizeTrash'>> {
+        parameters: ServerOperationParameters<'files.authorizeTrash'>,
+    ): Promise<ServerOperationResult<'files.authorizeTrash'>> {
         const entry = await this.resolveExisting(parameters.sessionId, parameters.path);
         return {
             kind: entry.kind,

@@ -6,8 +6,8 @@ import { basename, join, relative, sep } from 'node:path';
 import type {
     FileDocument,
     FileSearchMatch,
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
+    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationResult,
 } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -28,8 +28,8 @@ export interface SearchServiceOptions {
     maxScannedFiles?: number;
 }
 
-type SearchParameters = RuntimeMethodParameters<'files.search'>;
-type SearchResult = RuntimeMethodResult<'files.search'>;
+type SearchParameters = ServerOperationParameters<'files.search'>;
+type SearchResult = ServerOperationResult<'files.search'>;
 interface SearchAccumulator {
     matches: FileSearchMatch[];
     bytes: number;

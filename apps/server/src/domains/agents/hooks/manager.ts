@@ -9,7 +9,7 @@ import type {
     AgentHookHealthMap,
     AgentProvider,
     AgentProviderSettings,
-    RuntimeEvent,
+    ServerEvent,
 } from '@caxri/protocol';
 import { agentProviderIds, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -68,7 +68,7 @@ interface AgentHookManagerOptions {
     onLaunchStarted: (terminalId: string, launchId: string) => void;
     onSignal: (signal: AgentLifecycleSignal) => boolean;
     runtimeExecutable: string;
-    send: (event: RuntimeEvent) => void;
+    send: (event: ServerEvent) => void;
     sharedPath?: string;
     userDataPath: string;
     /**

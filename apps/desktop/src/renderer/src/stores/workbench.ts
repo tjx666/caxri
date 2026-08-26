@@ -1,7 +1,7 @@
 import type {
     BootstrapState,
     CommandId,
-    RuntimeEvent,
+    ServerEvent,
     SessionRecord,
     SessionState,
     TerminalRecord,
@@ -430,7 +430,7 @@ function scheduleRecordRefresh(): Promise<void> {
 }
 
 function applyStateChange(
-    payload: Extract<RuntimeEvent, { event: 'state.changed' }>['payload'],
+    payload: Extract<ServerEvent, { event: 'state.changed' }>['payload'],
 ): Promise<void> {
     if (payload.kind === 'full') return refreshWorkbench();
     for (const sessionId of payload.sessionIds) pendingSessionRecordIds.add(sessionId);

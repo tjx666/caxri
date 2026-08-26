@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeMethod } from '@caxri/protocol';
+import type { ServerOperation } from '@caxri/protocol';
 import { CaxriError, internalMethods, methods } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -21,12 +21,12 @@ async function temporaryDirectory(prefix: string): Promise<string> {
 
 const runtimeMethodNames = [...Object.keys(methods), ...Object.keys(internalMethods)].toSorted(
     (a, b) => a.localeCompare(b),
-) as RuntimeMethod[];
+) as ServerOperation[];
 
 /**
  * Handlers whose only job is to observe dispatch behaviour, independent of real domain services.
  */
-function stubHandlers(overrides: Partial<Record<RuntimeMethod, unknown>> = {}): DomainHandlers {
+function stubHandlers(overrides: Partial<Record<ServerOperation, unknown>> = {}): DomainHandlers {
     const table = Object.fromEntries(runtimeMethodNames.map((method) => [method, () => null]));
     return { ...table, ...overrides } as unknown as DomainHandlers;
 }

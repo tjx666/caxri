@@ -12,7 +12,7 @@ import type {
     AgentProvider,
     Principal,
     ProcessState,
-    RuntimeEvent,
+    ServerEvent,
     TerminalRecord,
 } from '@caxri/protocol';
 import { CaxriError, toWireError } from '@caxri/protocol';
@@ -46,7 +46,7 @@ export interface AgentDispatchServiceOptions {
     launchSettings(provider: AgentProvider): AgentLaunchSettings;
     terminalDirectoryIdentity(path: string): Promise<TerminalWorkingDirectoryIdentity>;
     terminalWorkingDirectory(projectRoot: string): Promise<string>;
-    emit(event: RuntimeEvent): void;
+    emit(event: ServerEvent): void;
     now?: () => number;
 }
 

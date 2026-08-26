@@ -10,7 +10,7 @@ import type {
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusState,
     ProjectStatusSummary,
-    RuntimeEvent,
+    ServerEvent,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -142,7 +142,7 @@ interface SummaryCacheEntry {
 export interface ProjectStatusServiceOptions {
     cacheLimit?: number;
     cacheTtlMs?: number;
-    emit?: (event: RuntimeEvent) => void;
+    emit?: (event: ServerEvent) => void;
     failureCacheTtlMs?: number;
     now?: () => number;
 }
