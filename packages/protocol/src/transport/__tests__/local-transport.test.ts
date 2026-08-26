@@ -102,6 +102,13 @@ describe('local transport hello / welcome envelopes', () => {
             capabilities: [],
             commands: [],
             features: [],
+            connection: {
+                serverId: 'a'.repeat(32),
+                bootId: 'b'.repeat(32),
+                stateEpoch: 'c'.repeat(32),
+                clientId: 'client-1',
+                connectionId: 'd'.repeat(32),
+            },
         };
         expect(localServerWelcomeSchema.safeParse(welcome).success).toBe(true);
         expect(

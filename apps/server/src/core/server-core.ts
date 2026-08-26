@@ -655,6 +655,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
 
     try {
         await domainService.start();
+        const protocolIdentity = (await domainService.recoveryState()).identity();
         if (options.extensionHostPath && options.extensionRoots) {
             extensionService = new ExtensionService({
                 appVersion: options.version,
@@ -699,6 +700,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             invokeDesktopOperation: (request) => forwardDomainOperation(request),
             logger,
             identity: lease.identity,
+            protocolIdentity,
             onClientCountChanged: (clientCount) =>
                 logger.write('info', logEventCatalog.serverCore.clientCount, {
                     fields: { clientCount },

@@ -50,6 +50,7 @@ import type {
     PendingDesktopCommand,
 } from './control-server-support';
 import {
+    assertDurableRecoveryIdentity,
     closeReplacedDesktop,
     DESKTOP_COMMAND_TIMEOUT_MS,
     DESKTOP_LEASE_MS,
@@ -88,6 +89,7 @@ export class ControlServer {
     private webSocketServer?: WebSocketServer;
 
     constructor(private readonly options: ControlServerOptions) {
+        assertDurableRecoveryIdentity(options);
         this.dispatch = createCommandDispatcher(options.adapters);
     }
 
@@ -231,7 +233,8 @@ export class ControlServer {
         this.trackRequest(state, request.id);
         let context: CommandExecutionContext;
         try {
-            context = this.options.refreshContext?.(state.context) ?? state.context;
+            const refreshed = this.options.refreshContext?.(state.context) ?? state.context;
+            context = { ...refreshed, connection: state.context.connection };
         } catch (error) {
             const reply: CommandReplyEnvelope = {
                 protocolVersion: CAXRI_PROTOCOL_VERSION,
@@ -529,6 +532,18 @@ export class ControlServer {
                                 closeReplacedDesktop(replaced);
                             }
                         }
+                        const protocolIdentity = this.options.protocolIdentity ?? {
+                            serverId: identity.processIdentity,
+                            stateEpoch: identity.processIdentity,
+                        };
+                        const connection = {
+                            serverId: protocolIdentity.serverId,
+                            bootId: identity.processIdentity,
+                            stateEpoch: protocolIdentity.stateEpoch,
+                            clientId: hello.clientId,
+                            connectionId: randomUUID().replaceAll('-', ''),
+                        };
+                        context = { ...context, connection };
                         state = {
                             closed: false,
                             context,
