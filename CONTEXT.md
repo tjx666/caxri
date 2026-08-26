@@ -3,9 +3,9 @@
 Caxri organizes development work around independently deployed Servers, the Clients that connect to
 them, and durable Projects, Sessions, Terminals, and Agent activity.
 
-This glossary defines the accepted target language. Until architecture batch A7, the current process
-model remains documented by the project architecture reference; `_Avoid_` constrains new design and new
-code but does not authorize an out-of-scope rename of existing implementation.
+This glossary defines the current language after the architecture cutover. `_Avoid_` constrains new
+design and code but does not rename frozen public compatibility identifiers such as `host.status`; those
+identifiers require a separate product and protocol change.
 
 ## Execution environment
 

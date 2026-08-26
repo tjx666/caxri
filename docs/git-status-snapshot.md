@@ -101,7 +101,7 @@ callbacks. Watched repository groups are bounded to 16 (`MAX_WATCHED_REPOSITORIE
 ## Repository-identity invalidation (`git.changed`)
 
 `apps/server/src/domains/git/change-tracker.ts` — `GitChangeTracker` owns the Session ↔ repository mapping
-behind the `git.changed` Runtime event (`packages/protocol/src/registry/events.ts`). Each summary
+behind the `git.changed` Server event (`packages/protocol/src/registry/events.ts`). Each summary
 registers, via `registerSession`, the canonical roots it projected for one Session
 (`GitRepoService.registerProjection`, `apps/server/src/domains/git/repo.ts:571-584`). A generation bump —
 `scheduleStatusChanged(roots)` from a working-tree write or `observeMetadataStatus`, or
@@ -177,7 +177,7 @@ asserts against it rather than the last `git.command` record.
   clear Pull Request state and, on `close`, stop the change tracker's pending flush timer and
   `unsubscribe` every metadata watcher.
 - Project/Session deletion or authorization changes flow through this same eviction path — never a
-  separate ad hoc teardown — keeping the Runtime file-descriptor gate intact (watcher subscriptions
+  separate ad hoc teardown — keeping the Server file-descriptor gate intact (watcher subscriptions
   are the scarce resource, bounded at 16 groups).
 
 ## Non-goals

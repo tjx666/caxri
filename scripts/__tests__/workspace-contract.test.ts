@@ -427,7 +427,7 @@ describe('pnpm workspace contract', () => {
         expect(existsSync(join(root, 'src'))).toBe(false);
     });
 
-    it('keeps Host and Extension Host production imports on the protocol package root', () => {
+    it('keeps Server Core and Extension Host production imports on the protocol package root', () => {
         expect(
             protocolDeepImports(`
 import '@caxri/protocol';
