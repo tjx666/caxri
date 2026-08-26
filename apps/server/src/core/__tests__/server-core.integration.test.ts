@@ -348,6 +348,60 @@ describe('Server Core application', () => {
         operator.close();
     });
 
+    it('catches up through the persisted changefeed after a Server restart', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-server-changefeed-'));
+        directories.push(userDataPath);
+        const firstApp = await startServerCore({
+            commit: 'test',
+            userDataPath,
+            version: '1.0.0',
+        });
+        apps.push(firstApp);
+        const firstClient = await connectToServer(userDataPath, 2_000);
+        const firstIdentity = firstClient.welcome.connection!;
+        const firstRecovery = await firstClient.request('events.query', {
+            afterCursor: 0,
+            serverId: firstIdentity.serverId,
+            stateEpoch: firstIdentity.stateEpoch,
+        });
+        firstClient.close();
+        await firstApp.stop('test-restart');
+
+        const secondApp = await startServerCore({
+            commit: 'test',
+            userDataPath,
+            version: '1.0.0',
+        });
+        apps.push(secondApp);
+        const secondClient = await connectToServer(userDataPath, 2_000);
+        const secondIdentity = secondClient.welcome.connection!;
+
+        expect(secondIdentity.serverId).toBe(firstIdentity.serverId);
+        expect(secondIdentity.stateEpoch).toBe(firstIdentity.stateEpoch);
+        expect(secondIdentity.bootId).not.toBe(firstIdentity.bootId);
+        await expect(
+            secondClient.request('events.query', {
+                afterCursor: firstRecovery.cursor,
+                serverId: firstIdentity.serverId,
+                stateEpoch: firstIdentity.stateEpoch,
+            }),
+        ).resolves.toMatchObject({
+            kind: 'events',
+            serverId: firstIdentity.serverId,
+            stateEpoch: firstIdentity.stateEpoch,
+            events: [expect.objectContaining({ event: 'runtime.status' })],
+        });
+        await expect(
+            secondClient.request('events.query', {
+                afterCursor: firstRecovery.cursor,
+                serverId: firstIdentity.serverId,
+                stateEpoch: 'f'.repeat(32),
+            }),
+        ).resolves.toMatchObject({ kind: 'snapshot', gap: true });
+
+        secondClient.close();
+    });
+
     it('binds an Agent principal to one Runtime-owned PTY generation and retires it before close', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-agent-endpoint-'));
         directories.push(userDataPath);

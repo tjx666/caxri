@@ -13,7 +13,6 @@ import type {
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
-    createEventJournal,
     getMethodSpec,
     hasRequiredCapabilities,
     isServerRequest,
@@ -39,6 +38,7 @@ import {
 } from './extensions/workspace-bridge';
 import { acquireServerProfile } from './profile';
 import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
+import { createServerRecoveryJournal } from './recovery-journal';
 import { principalRequestKey, RequestCancellationRegistry } from './request-cancellation';
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import { createTerminalExecution } from './terminal-host/create-execution';
@@ -189,20 +189,19 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         }
     };
 
-    const journal = createEventJournal({
-        snapshot: async (cursor) => {
-            const state = await domainService.request('app.bootstrap');
-            return {
-                cursor,
-                projectIds: state.projects.map(({ id }) => id),
-                sessionIds: state.sessions.map(({ id }) => id),
-                terminalIds: state.terminals.map(({ id }) => id),
-                settingsRevision: cursor,
-                diagnosticsRevision: cursor,
-                agentRevision: cursor,
-            };
-        },
-    });
+    const recoverySnapshot = async (cursor: number) => {
+        const state = await domainService.request('app.bootstrap');
+        return {
+            cursor,
+            projectIds: state.projects.map(({ id }) => id),
+            sessionIds: state.sessions.map(({ id }) => id),
+            terminalIds: state.terminals.map(({ id }) => id),
+            settingsRevision: cursor,
+            diagnosticsRevision: cursor,
+            agentRevision: cursor,
+        };
+    };
+    const recoveryJournal = createServerRecoveryJournal(recoverySnapshot);
 
     const deliver = (event: ServerEvent): void => {
         if (event.event === 'terminal.exit')
@@ -228,13 +227,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         );
         if (isTransientServerEvent(event)) server?.broadcast(event);
         else {
-            /**
-             * Domain services become ready before the control listener. Journal durable startup events even when no
-             * Client can attach yet, so a reconnecting Desktop observes the same `runtime.status` recovery barrier the
-             * former two-process topology emitted after its execution child restarted.
-             */
-            const envelope = journal.publish(event);
-            server?.broadcast(envelope);
+            const envelope = recoveryJournal.publish(event);
+            if (envelope) server?.broadcast(envelope);
         }
     };
     domainService.onEvent(deliver);
@@ -264,10 +258,10 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 );
             switch (request.method) {
                 case 'events.recover':
-                    return journal.recover(request.params.afterCursor);
+                    return recoveryJournal.recover(request.params);
                 case 'events.query':
                     return projectObservableEventRecovery(
-                        await journal.recover(request.params.afterCursor),
+                        await recoveryJournal.recover(request.params),
                     );
                 case 'viewContainers.catalog':
                     if (!extensionService)
@@ -657,6 +651,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         await domainService.start();
         const protocolRecovery = await domainService.recoveryState();
         const protocolIdentity = protocolRecovery.identity();
+        recoveryJournal.initialize(protocolIdentity, protocolRecovery);
         if (options.extensionHostPath && options.extensionRoots) {
             extensionService = new ExtensionService({
                 appVersion: options.version,
