@@ -63,7 +63,7 @@ interface PendingRequest {
     timer?: NodeJS.Timeout;
 }
 
-export type HostClientCredential =
+export type ServerClientCredential =
     | { kind: 'operator' }
     | {
           kind: 'agent';
@@ -99,7 +99,7 @@ function controlMessageText(data: RawData): string {
 }
 
 /**
- * Host shutdown may unlink discovery data after `lstat`; keep that race classified as absence.
+ * Server shutdown may unlink discovery data after `lstat`; keep that race classified as absence.
  */
 async function readDiscoveryJson(
     path: string,
@@ -121,9 +121,9 @@ async function readDiscoveryJson(
 }
 
 /**
- * Reads only the private discovery record; business state always goes through Host commands.
+ * Reads only the private discovery record; business state always goes through Server commands.
  */
-export async function discoverHostManifest(userDataPath: string): Promise<ServerManifest> {
+export async function discoverServerManifest(userDataPath: string): Promise<ServerManifest> {
     let canonicalPath: string;
     try {
         canonicalPath = await realpath(userDataPath);
@@ -173,7 +173,7 @@ export async function discoverHostManifest(userDataPath: string): Promise<Server
 }
 
 /**
- * Reads the Desktop-only credential and binds it to the current Host process identity.
+ * Reads the Desktop-only credential and binds it to the current Server process identity.
  */
 export async function discoverDesktopCredential(
     userDataPath: string,
@@ -215,18 +215,18 @@ export async function discoverDesktopCredential(
 /**
  * Authenticated local client shared by the CLI command surface and its future Agent adapter.
  */
-export class HostClient {
+export class ServerClient {
     static async connect(
         manifest: ServerManifest,
         timeoutMs = DEFAULT_TIMEOUT_MS,
-        credential?: HostClientCredential,
-    ): Promise<HostClient> {
+        credential?: ServerClientCredential,
+    ): Promise<ServerClient> {
         if (manifest.protocolVersion !== CAXRI_PROTOCOL_VERSION)
             throw new CaxriError('CONFLICT', 'Caxri Host protocol version is incompatible', {
                 clientProtocolVersion: CAXRI_PROTOCOL_VERSION,
                 hostProtocolVersion: manifest.protocolVersion,
             });
-        const resolvedCredential: HostClientCredential = credential ?? { kind: 'operator' };
+        const resolvedCredential: ServerClientCredential = credential ?? { kind: 'operator' };
         const socket = new WebSocket(serverEndpointUrl(manifest.endpoint), {
             maxPayload: CONTROL_TRANSPORT_MAX_FRAME_BYTES,
         });
@@ -308,7 +308,7 @@ export class HostClient {
                 );
             });
         });
-        const client = new HostClient(
+        const client = new ServerClient(
             socket,
             handshake.welcome,
             timeoutMs,
@@ -342,10 +342,10 @@ export class HostClient {
         private readonly timeoutMs: number,
         desktopLease?: DesktopLease,
         private readonly desktopCommandHandler?: Extract<
-            HostClientCredential,
+            ServerClientCredential,
             { kind: 'desktop' }
         >['handleCommand'],
-        readonly hostVersion?: string,
+        readonly serverVersion?: string,
     ) {
         this.desktopLease = desktopLease;
         socket.on('message', (data, isBinary) => {
@@ -606,7 +606,7 @@ export class HostClient {
     }
 
     /**
-     * Preserves the caller's transport request ID across the Desktop-to-Host hop.
+     * Preserves the caller's transport request ID across the Desktop-to-Server hop.
      */
     requestWithId<M extends CaxriMethod>(
         id: string,
@@ -625,7 +625,7 @@ export class HostClient {
 
     /**
      * Notifies once when this connection closes for any reason (socket loss, protocol failure, or an explicit
-     * `close()`). An orderly Host lease takeover supplies `replaced`; other closures have no reason. A listener
+     * `close()`). An orderly Server lease takeover supplies `replaced`; other closures have no reason. A listener
      * registered after closure fires synchronously so callers cannot miss the transition.
      */
     onClose(listener: (reason?: DesktopLeaseRevocationReason) => void): () => void {
@@ -672,27 +672,27 @@ export class HostClient {
     }
 }
 
-export async function connectToHost(
+export async function connectToServer(
     userDataPath: string,
     timeoutMs = DEFAULT_TIMEOUT_MS,
-    credential?: Extract<HostClientCredential, { kind: 'operator' | 'agent' }>,
-): Promise<HostClient> {
-    return HostClient.connect(
-        await discoverHostManifest(userDataPath),
+    credential?: Extract<ServerClientCredential, { kind: 'operator' | 'agent' }>,
+): Promise<ServerClient> {
+    return ServerClient.connect(
+        await discoverServerManifest(userDataPath),
         timeoutMs,
         credential ?? { kind: 'operator' },
     );
 }
 
-export async function connectDesktopToHost(
+export async function connectDesktopToServer(
     userDataPath: string,
     desktopId: string,
-    handleCommand: Extract<HostClientCredential, { kind: 'desktop' }>['handleCommand'],
+    handleCommand: Extract<ServerClientCredential, { kind: 'desktop' }>['handleCommand'],
     timeoutMs = DEFAULT_TIMEOUT_MS,
-): Promise<HostClient> {
-    const manifest = await discoverHostManifest(userDataPath);
+): Promise<ServerClient> {
+    const manifest = await discoverServerManifest(userDataPath);
     const credential = await discoverDesktopCredential(userDataPath, manifest);
-    return HostClient.connect(manifest, timeoutMs, {
+    return ServerClient.connect(manifest, timeoutMs, {
         kind: 'desktop',
         desktopId,
         credential,
@@ -712,11 +712,11 @@ function isProcessAlive(pid: number): boolean {
 /**
  * Reuses a healthy owner or launches exactly one contender and waits for authenticated readiness.
  */
-export async function ensureHost(
+export async function ensureServer(
     userDataPath: string,
     launch: ServerLaunchOptions,
     timeoutMs = DEFAULT_TIMEOUT_MS,
-): Promise<HostClient> {
+): Promise<ServerClient> {
     const deadline = Date.now() + timeoutMs;
     let isLaunched = false;
     while (Date.now() < deadline) {
@@ -725,14 +725,14 @@ export async function ensureHost(
             // This polling loop must retry discovery/connect/launch sequentially against the same
             // profile lock on each iteration; the awaits cannot be parallelized across iterations.
             // eslint-disable-next-line no-await-in-loop
-            manifest = await discoverHostManifest(userDataPath);
+            manifest = await discoverServerManifest(userDataPath);
         } catch (error) {
             if (!(error instanceof CaxriError) || error.code !== 'NOT_FOUND') throw error;
         }
         /**
-         * An incompatible live Host fails closed and requires the explicit pre-release reset tool. If its recorded
+         * An incompatible live Server fails closed and requires the explicit pre-release reset tool. If its recorded
          * process is already gone, no PTY owner remains to protect and the stale discovery record must not permanently
-         * block launching the current Host. The profile lock arbitrates the replacement; this path never signals or
+         * block launching the current Server. The profile lock arbitrates the replacement; this path never signals or
          * removes another process.
          */
         if (
@@ -745,7 +745,7 @@ export async function ensureHost(
             const connectTimeoutMs = Math.min(2_000, deadline - Date.now());
             try {
                 // eslint-disable-next-line no-await-in-loop -- see the discovery-call justification above.
-                return await HostClient.connect(manifest, Math.max(1, connectTimeoutMs));
+                return await ServerClient.connect(manifest, Math.max(1, connectTimeoutMs));
             } catch (error) {
                 if (!(error instanceof CaxriError) || error.code !== 'UNAVAILABLE') throw error;
                 if (isProcessAlive(manifest.pid))

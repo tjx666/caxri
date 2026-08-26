@@ -1,12 +1,12 @@
-import { connectDesktopToHost, ensureHost } from '@caxri/client/supervise';
+import { connectDesktopToServer, ensureServer } from '@caxri/client/supervise';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DesktopHostConnection } from '../host-connection';
 import type { HostBuildIdentity } from '../host-staleness';
 
 vi.mock('@caxri/client/supervise', () => ({
-    connectDesktopToHost: vi.fn(),
-    ensureHost: vi.fn(),
+    connectDesktopToServer: vi.fn(),
+    ensureServer: vi.fn(),
     resolveServerArtifact: vi.fn(() =>
         Promise.resolve({
             bundleDirectory: '/app/server/bundles',
@@ -76,7 +76,7 @@ function createConnection(identity: HostBuildIdentity = {}) {
 interface HostRoundOptions {
     hostBuildId?: string;
     hostCommit?: string;
-    hostVersion?: string;
+    serverVersion?: string;
     pid?: number;
     startedAt?: number;
 }
@@ -94,7 +94,7 @@ function createFakeOperator(options: HostRoundOptions = {}) {
                        */
                       pid: options.pid ?? 999_999,
                       startedAt: options.startedAt ?? 1000,
-                      version: options.hostVersion ?? '0.0.9',
+                      version: options.serverVersion ?? '0.0.9',
                       ...(options.hostCommit && { commit: options.hostCommit }),
                       ...(options.hostBuildId && { buildId: options.hostBuildId }),
                   }),
@@ -104,8 +104,8 @@ function createFakeOperator(options: HostRoundOptions = {}) {
 
 function mockHostRound(options: HostRoundOptions = {}): FakeHostClient {
     const client = createFakeHostClient();
-    vi.mocked(ensureHost).mockResolvedValue(createFakeOperator(options) as never);
-    vi.mocked(connectDesktopToHost).mockResolvedValue(client as never);
+    vi.mocked(ensureServer).mockResolvedValue(createFakeOperator(options) as never);
+    vi.mocked(connectDesktopToServer).mockResolvedValue(client as never);
     return client;
 }
 
@@ -119,12 +119,12 @@ describe('Desktop Host connection facade', () => {
     it('forwards the bounded Terminal backpressure seam only through the E2E Host environment', async () => {
         vi.stubEnv('CAXRI_E2E', '1');
         vi.stubEnv('CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS', '1000');
-        mockHostRound({ hostBuildId: 'build-a', hostVersion: '0.0.9' });
+        mockHostRound({ hostBuildId: 'build-a', serverVersion: '0.0.9' });
         const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
 
         await connection.start();
 
-        expect(vi.mocked(ensureHost).mock.calls[0]?.[1]?.environment).toMatchObject({
+        expect(vi.mocked(ensureServer).mock.calls[0]?.[1]?.environment).toMatchObject({
             CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS: '1000',
         });
     });
@@ -140,7 +140,7 @@ describe('Desktop Host connection facade', () => {
     });
 
     it('routes Terminal Home-link resolution through the Desktop-authenticated Runtime channel', async () => {
-        const client = mockHostRound({ hostBuildId: 'build-a', hostVersion: '0.0.9' });
+        const client = mockHostRound({ hostBuildId: 'build-a', serverVersion: '0.0.9' });
         client.requestRuntime.mockResolvedValueOnce({
             status: 'authorization_required',
             path: '/Users/test/file.ts',
@@ -188,19 +188,19 @@ describe('Desktop Host connection facade', () => {
         const staleOperator = createFakeOperator({
             hostBuildId: 'build-old',
             hostCommit: 'aaaaaaa',
-            hostVersion: '0.0.9',
+            serverVersion: '0.0.9',
         });
         const freshOperator = createFakeOperator({
             hostBuildId: 'build-new',
             hostCommit: 'aaaaaaa',
-            hostVersion: '0.0.9',
+            serverVersion: '0.0.9',
             pid: 100,
             startedAt: 2000,
         });
-        vi.mocked(ensureHost)
+        vi.mocked(ensureServer)
             .mockResolvedValueOnce(staleOperator as never)
             .mockResolvedValueOnce(freshOperator as never);
-        vi.mocked(connectDesktopToHost).mockResolvedValue(createFakeHostClient() as never);
+        vi.mocked(connectDesktopToServer).mockResolvedValue(createFakeHostClient() as never);
         const { connection, logger } = createConnection({
             buildId: 'build-new',
             commit: 'aaaaaaa',
@@ -222,12 +222,12 @@ describe('Desktop Host connection facade', () => {
     });
 
     it('replaces an adopted Host on version skew when it predates the buildId stamp', async () => {
-        const staleOperator = createFakeOperator({ hostVersion: '0.0.6' });
-        const freshOperator = createFakeOperator({ hostVersion: '0.0.9', pid: 100 });
-        vi.mocked(ensureHost)
+        const staleOperator = createFakeOperator({ serverVersion: '0.0.6' });
+        const freshOperator = createFakeOperator({ serverVersion: '0.0.9', pid: 100 });
+        vi.mocked(ensureServer)
             .mockResolvedValueOnce(staleOperator as never)
             .mockResolvedValueOnce(freshOperator as never);
-        vi.mocked(connectDesktopToHost).mockResolvedValue(createFakeHostClient() as never);
+        vi.mocked(connectDesktopToServer).mockResolvedValue(createFakeHostClient() as never);
         const { connection } = createConnection({ buildId: 'build-new', version: '0.0.9' });
 
         await connection.start();
@@ -239,7 +239,7 @@ describe('Desktop Host connection facade', () => {
     });
 
     it('downgrades a still-stale replacement to a warning instead of stopping Hosts forever', async () => {
-        mockHostRound({ hostBuildId: 'build-old', hostVersion: '0.0.9' });
+        mockHostRound({ hostBuildId: 'build-old', serverVersion: '0.0.9' });
         const { connection, logger } = createConnection({
             buildId: 'build-new',
             version: '0.0.9',
@@ -262,10 +262,10 @@ describe('Desktop Host connection facade', () => {
      */
     it('replaces a persistently stale Host at most once per connection across reconnects', async () => {
         vi.useFakeTimers();
-        const operator = createFakeOperator({ hostBuildId: 'build-old', hostVersion: '0.0.9' });
-        vi.mocked(ensureHost).mockResolvedValue(operator as never);
+        const operator = createFakeOperator({ hostBuildId: 'build-old', serverVersion: '0.0.9' });
+        vi.mocked(ensureServer).mockResolvedValue(operator as never);
         const first = createFakeHostClient();
-        vi.mocked(connectDesktopToHost).mockResolvedValue(first as never);
+        vi.mocked(connectDesktopToServer).mockResolvedValue(first as never);
         const { connection, logger } = createConnection({
             buildId: 'build-new',
             version: '0.0.9',
@@ -281,7 +281,7 @@ describe('Desktop Host connection facade', () => {
             expect.anything(),
         );
 
-        vi.mocked(connectDesktopToHost).mockResolvedValue(createFakeHostClient() as never);
+        vi.mocked(connectDesktopToServer).mockResolvedValue(createFakeHostClient() as never);
         first.triggerClose();
         await vi.advanceTimersByTimeAsync(500);
         expect(logger.write).toHaveBeenCalledWith('info', 'host.reconnected', expect.anything());
@@ -289,7 +289,7 @@ describe('Desktop Host connection facade', () => {
     });
 
     it('stays silent when the adopted Host matches this build', async () => {
-        mockHostRound({ hostBuildId: 'build-a', hostVersion: '0.0.9' });
+        mockHostRound({ hostBuildId: 'build-a', serverVersion: '0.0.9' });
         const { connection, logger } = createConnection({ buildId: 'build-a', version: '0.0.9' });
 
         await connection.start();
@@ -336,12 +336,12 @@ describe('Desktop Host connection facade', () => {
         const received: unknown[] = [];
         connection.onEvent((event) => received.push(event));
         await connection.start();
-        const attachmentCount = vi.mocked(ensureHost).mock.calls.length;
+        const attachmentCount = vi.mocked(ensureServer).mock.calls.length;
 
         first.triggerClose('replaced');
         await vi.advanceTimersByTimeAsync(30_000);
 
-        expect(ensureHost).toHaveBeenCalledTimes(attachmentCount);
+        expect(ensureServer).toHaveBeenCalledTimes(attachmentCount);
         expect(logger.write).toHaveBeenCalledWith('warn', 'host.desktop_lease_replaced', {});
         expect(received).toEqual([
             {
@@ -386,7 +386,7 @@ describe('Desktop Host connection facade', () => {
         const { connection, logger } = createConnection();
         await connection.start();
 
-        vi.mocked(ensureHost).mockRejectedValue(new Error('host is still down'));
+        vi.mocked(ensureServer).mockRejectedValue(new Error('host is still down'));
         first.triggerClose();
 
         await vi.advanceTimersByTimeAsync(500);

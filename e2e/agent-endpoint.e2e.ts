@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { discoverHostManifest, HostClient } from '@caxri/client/supervise';
+import { discoverServerManifest, ServerClient } from '@caxri/client/supervise';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -109,7 +109,7 @@ process.stdin.resume();
             grants: [],
         });
         expect(JSON.stringify(first.context)).not.toContain(first.credential.token);
-        const agent = await HostClient.connect(await discoverHostManifest(userData), 2_000, {
+        const agent = await ServerClient.connect(await discoverServerManifest(userData), 2_000, {
             kind: 'agent',
             ...first.credential,
         });

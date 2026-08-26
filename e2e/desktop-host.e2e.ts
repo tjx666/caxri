@@ -14,7 +14,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectDesktopToHost, connectToHost, discoverHostManifest } from '@caxri/client/supervise';
+import {
+    connectDesktopToServer,
+    connectToServer,
+    discoverServerManifest,
+} from '@caxri/client/supervise';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
@@ -82,7 +86,7 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
         testRootPath: root,
         windowMode: 'visible',
     });
-    const client = await connectToHost(userData, 2_000);
+    const client = await connectToServer(userData, 2_000);
     try {
         await createShellSession(running.page);
         const bootstrap = await pageRequest<{
@@ -217,7 +221,7 @@ test('queues concurrent Host open requests by their exact Session targets', asyn
     ]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
-    const client = await connectToHost(userData, 2_000);
+    const client = await connectToServer(userData, 2_000);
     try {
         await createShellSession(running.page);
         const initial = await pageRequest<{
@@ -286,7 +290,7 @@ test('keeps one focused Desktop and one process profile for a repeated same-prof
         testRootPath: root,
         windowMode: 'visible',
     });
-    const client = await connectToHost(userData, 2_000);
+    const client = await connectToServer(userData, 2_000);
     try {
         const before = await client.request('host.status');
         await running.app.evaluate(({ BrowserWindow }) => {
@@ -334,7 +338,7 @@ test('keeps one focused Desktop and one process profile for a repeated same-prof
 
         const after = await client.request('host.status');
         expect(after).toMatchObject({ pid: before.pid });
-        const manifest = await discoverHostManifest(userData);
+        const manifest = await discoverServerManifest(userData);
         expect(manifest.profileId).toBe(after.profileId);
         await Promise.all(
             ['caxri.db', 'logs/main.jsonl', 'logs/host.jsonl', 'logs/runtime.jsonl'].map((path) =>
@@ -376,9 +380,9 @@ test('stops reconnecting when another Desktop takes over the same profile', asyn
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
-    let replacement: Awaited<ReturnType<typeof connectDesktopToHost>> | undefined;
+    let replacement: Awaited<ReturnType<typeof connectDesktopToServer>> | undefined;
     try {
-        replacement = await connectDesktopToHost(
+        replacement = await connectDesktopToServer(
             userData,
             'desktop-replacement-e2e',
             () => Promise.resolve(null),
@@ -423,7 +427,7 @@ test('recovers requests, events, and Desktop commands after the Host process is 
         testRootPath: root,
         windowMode: 'visible',
     });
-    let recoveredClient: Awaited<ReturnType<typeof connectToHost>> | undefined;
+    let recoveredClient: Awaited<ReturnType<typeof connectToServer>> | undefined;
     try {
         const selectedRoot = await pageRequest<string | null>(
             running.page,
@@ -469,9 +473,9 @@ test('recovers requests, events, and Desktop commands after the Host process is 
         let after: { pid: number } | undefined;
         await expect
             .poll(async () => {
-                let candidate: Awaited<ReturnType<typeof connectToHost>> | undefined;
+                let candidate: Awaited<ReturnType<typeof connectToServer>> | undefined;
                 try {
-                    candidate = await connectToHost(userData, 2_000);
+                    candidate = await connectToServer(userData, 2_000);
                     after = await candidate.request('host.status');
                     if (after.pid === before.pid) return before.pid;
                     recoveredClient?.close();
@@ -540,7 +544,7 @@ test('reconnects a new Desktop generation to the same live PTY', async () => {
         testRootPath: root,
     });
     let second: Awaited<ReturnType<typeof launchCaxri>> | undefined;
-    const client = await connectToHost(userData, 2_000);
+    const client = await connectToServer(userData, 2_000);
     try {
         await createShellSession(first.page);
         const before = await pageRequest<{
@@ -587,9 +591,9 @@ test('reconnects a new Desktop generation to the same live PTY', async () => {
             // Ignore close errors during test cleanup.
         }
         if (!second) {
-            let cleanup: Awaited<ReturnType<typeof connectToHost>> | undefined;
+            let cleanup: Awaited<ReturnType<typeof connectToServer>> | undefined;
             try {
-                cleanup = await connectToHost(userData, 2_000);
+                cleanup = await connectToServer(userData, 2_000);
             } catch {
                 // The Host may already be offline; nothing left to stop.
             }

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { ensureHost } from '@caxri/client/supervise';
+import { ensureServer } from '@caxri/client/supervise';
 
 import { verifyServerArtifact } from '../apps/server/scripts/artifact';
 
@@ -51,7 +51,7 @@ try {
     }
 
     const readyStartedAt = performance.now();
-    const client = await ensureHost(profile, { artifactRoot: copiedArtifact }, 15_000);
+    const client = await ensureServer(profile, { artifactRoot: copiedArtifact }, 15_000);
     const readyMs = performance.now() - readyStartedAt;
     const status = await client.request('host.status');
     await client.request('host.stop', { confirmLivePtys: true });

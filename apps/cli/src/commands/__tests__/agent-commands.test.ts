@@ -27,7 +27,7 @@ function io(options: Partial<CliIo> = {}) {
 function host(result: unknown, commands: string[]): CliHostClient {
     return {
         close: vi.fn(),
-        hostVersion: CLI_VERSION,
+        serverVersion: CLI_VERSION,
         request: vi.fn(() => Promise.resolve(result)),
         requestWithId: vi.fn(() => Promise.resolve(result)),
         welcome: {
@@ -88,7 +88,7 @@ describe('CLI Agent commands', () => {
         expect(denied.stderr()).toContain('directly managed Caxri Agent Endpoint credential');
 
         const stale = io();
-        client.hostVersion = '0.0.1';
+        client.serverVersion = '0.0.1';
         await expect(
             runCli(['agent', 'worktree', 'created', '/projects/repo-worktree', '--json'], {
                 connect: () => Promise.resolve(client),

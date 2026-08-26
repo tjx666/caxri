@@ -27,8 +27,8 @@ export function isHostBuildStale(desktop: HostBuildIdentity, host: HostBuildIden
     const hostBuildId = knownValue(host.buildId);
     if (desktopBuildId && hostBuildId) return desktopBuildId !== hostBuildId;
     const desktopVersion = knownValue(desktop.version);
-    const hostVersion = knownValue(host.version);
-    if (desktopVersion && hostVersion && desktopVersion !== hostVersion) return true;
+    const serverVersion = knownValue(host.version);
+    if (desktopVersion && serverVersion && desktopVersion !== serverVersion) return true;
     const desktopCommit = knownValue(desktop.commit);
     const hostCommit = knownValue(host.commit);
     return Boolean(desktopCommit && hostCommit && desktopCommit !== hostCommit);

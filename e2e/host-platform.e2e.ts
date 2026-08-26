@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToHost, ensureHost } from '@caxri/client/supervise';
+import { connectToServer, ensureServer } from '@caxri/client/supervise';
 
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
@@ -51,9 +51,9 @@ function runCli(arguments_: readonly string[], environment: NodeJS.ProcessEnv): 
 }
 
 async function stopHost(userDataPath: string): Promise<void> {
-    let client: Awaited<ReturnType<typeof connectToHost>> | undefined;
+    let client: Awaited<ReturnType<typeof connectToServer>> | undefined;
     try {
-        client = await connectToHost(userDataPath, 2_000);
+        client = await connectToServer(userDataPath, 2_000);
     } catch {
         client = undefined;
     }
@@ -133,7 +133,7 @@ test('shares settings across an app-managed headless Host and Desktop', async ()
     };
     let running: Awaited<ReturnType<typeof launchCaxri>> | undefined;
     try {
-        const headless = await ensureHost(
+        const headless = await ensureServer(
             userData,
             { artifactRoot: serverArtifactRoot, environment: hostEnvironment },
             15_000,

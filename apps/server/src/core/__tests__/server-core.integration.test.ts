@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { connectToHost, HostClient } from '@caxri/client/supervise';
+import { connectToServer, ServerClient } from '@caxri/client/supervise';
 import type { ServerManifest, ServerOperationResult, TerminalRecord } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -327,7 +327,7 @@ describe('Headless Host application', () => {
             version: '1.0.0',
         });
         apps.push(app);
-        const operator = await connectToHost(userDataPath, 2_000);
+        const operator = await connectToServer(userDataPath, 2_000);
 
         await expect(operator.request('app.health')).resolves.toMatchObject({
             activePtyCount: 0,
@@ -358,7 +358,7 @@ describe('Headless Host application', () => {
             ref: { hostId: string; endpointId: string; generation: number };
             token: string;
         };
-        const agent = await HostClient.connect(app.lease.manifest, 2_000, {
+        const agent = await ServerClient.connect(app.lease.manifest, 2_000, {
             kind: 'agent',
             ...endpoint.ref,
             token: endpoint.token,
@@ -410,7 +410,7 @@ describe('Headless Host application', () => {
             app.lease.manifest,
             app.lease.desktopCredential.desktopToken,
         );
-        const operator = await connectToHost(userDataPath, 2_000);
+        const operator = await connectToServer(userDataPath, 2_000);
         await operator.request('agent.grant', {
             endpoint: endpoint.ref,
             policy: 'agent:control',
@@ -506,7 +506,7 @@ describe('Headless Host application', () => {
             version: '1.0.0',
         });
         apps.push(app);
-        const operator = await connectToHost(userDataPath, 2_000);
+        const operator = await connectToServer(userDataPath, 2_000);
         // The dispatch-wait request is intentionally not awaited here: it must stay pending
         // while the operator disconnects below, and is awaited later once cancellation is
         // observed. `.catch()` prevents an unhandled rejection in that interim window.
@@ -541,10 +541,10 @@ describe('Headless Host application', () => {
         apps.push(app);
 
         await expect(
-            HostClient.connect({ ...app.lease.manifest, protocolVersion: 1 }),
+            ServerClient.connect({ ...app.lease.manifest, protocolVersion: 1 }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
 
-        const first = await connectToHost(userDataPath, 2_000);
+        const first = await connectToServer(userDataPath, 2_000);
         const health = await first.request('app.health');
         expect(health).toMatchObject({ ready: true, activePtyCount: 1 });
         await expect(first.request('project.query', { mode: 'list' })).resolves.toEqual({
@@ -553,7 +553,7 @@ describe('Headless Host application', () => {
         });
         first.close();
 
-        const second = await connectToHost(userDataPath, 2_000);
+        const second = await connectToServer(userDataPath, 2_000);
         const status = await second.request('host.status');
         expect(status).toMatchObject({
             pid: process.pid,
@@ -596,7 +596,7 @@ describe('Headless Host application', () => {
             app.lease.manifest,
             app.lease.desktopCredential.desktopToken,
         );
-        const operator = await connectToHost(userDataPath, 2_000);
+        const operator = await connectToServer(userDataPath, 2_000);
 
         desktop.socket.send(
             `${JSON.stringify({

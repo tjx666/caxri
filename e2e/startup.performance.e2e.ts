@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToHost } from '@caxri/client/supervise';
+import { connectToServer } from '@caxri/client/supervise';
 import { execFileAsync } from '@caxri/system';
 
 import type { E2EApp as ElectronApp } from './support/electron-app.ts';
@@ -131,7 +131,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         await restoredPage.locator('.secondary-sidebar .tree-row').first().waitFor();
         const restoredFilesReadyMs = performance.now() - restoredFilesStartedAt;
 
-        const host = await connectToHost(userData, 2_000);
+        const host = await connectToServer(userData, 2_000);
         const serverPid = (await host.request('host.status')).pid;
         const projectListRoundTripMs: number[] = [];
         for (let index = 0; index < 10; index += 1) {
