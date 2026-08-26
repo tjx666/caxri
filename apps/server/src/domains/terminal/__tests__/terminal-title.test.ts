@@ -158,6 +158,19 @@ describe('TerminalScreenState title observation', () => {
         screen.dispose();
     });
 
+    it('keeps an empty OSC title behind the private Terminal Host protocol boundary', async () => {
+        const observed: string[] = [];
+        const screen = new TerminalScreenState('', 80, 24, {
+            onTitleChange: Object.assign((title: string) => observed.push(title), {
+                cancel: () => {},
+            }),
+        });
+        screen.write(`${ESCAPE}]0;kept${BELL}${ESCAPE}]0;${BELL}`);
+        await screen.snapshot();
+        expect(observed).toEqual(['kept']);
+        screen.dispose();
+    });
+
     it('cancels its observer on dispose so the retired parser stops writing', () => {
         const cancel = vi.fn();
         const screen = new TerminalScreenState('', 80, 24, {
