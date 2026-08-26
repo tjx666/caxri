@@ -33,6 +33,7 @@ import type {
     ExtensionHostParentMessage,
     ExtensionHostRequest,
 } from './protocol';
+import { extensionHostParentMessageSchema } from './protocol';
 import { executeViewOperation } from './view-provider-service';
 
 function isApiReply(
@@ -133,7 +134,14 @@ Object.defineProperty(globalThis, Symbol.for('caxri.extension-api'), {
     writable: false,
 });
 
-process.on('message', (message: ExtensionHostParentMessage) => {
+process.on('message', (value: unknown) => {
+    const parsed = extensionHostParentMessageSchema.safeParse(value);
+    if (!parsed.success) {
+        logger.write('error', logEventCatalog.extensionHost.invalidMessage);
+        processLifecycle.stopAfterProtocolViolation();
+        return;
+    }
+    const message: ExtensionHostParentMessage = parsed.data;
     if (isApiReply(message)) {
         settleApiReply(message);
         return;

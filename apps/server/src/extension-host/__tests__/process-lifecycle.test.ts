@@ -47,4 +47,19 @@ describe('Extension Host process lifecycle', () => {
         expect(publish.mock.calls).toEqual([['stopping'], ['stopped']]);
         expect(exit).toHaveBeenCalledOnce();
     });
+
+    it('exits unsuccessfully after a private protocol violation', () => {
+        const exit = vi.fn();
+        const lifecycle = createExtensionHostProcessLifecycle({
+            disposeExtensions: vi.fn(),
+            exit,
+            publish: vi.fn(),
+            schedule: vi.fn(),
+            stopSampler: vi.fn(),
+        });
+
+        lifecycle.stopAfterProtocolViolation();
+
+        expect(exit).toHaveBeenCalledWith(1);
+    });
 });

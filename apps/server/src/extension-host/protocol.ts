@@ -1,11 +1,24 @@
+import { Buffer } from 'node:buffer';
+
 import type {
-    ExtensionCapability,
-    ExtensionManifest,
     ExtensionViewChange,
     ExtensionViewEventContext,
     ProjectStatusSummary,
 } from '@caxri/protocol';
+import {
+    extensionCapabilitySchema,
+    extensionCommandIdSchema,
+    extensionIdSchema,
+    extensionManifestSchema,
+    extensionViewEventContextSchema,
+    MAX_EXTENSION_COMMAND_ARGUMENTS,
+    MAX_VIEW_CATALOG_EXTENSIONS,
+    viewIdSchema,
+} from '@caxri/protocol';
 import type { ObservationContext } from '@caxri/system';
+import { z } from 'zod';
+
+import { observationContextSchema } from '../observability/context-schema';
 
 export type ExtensionProjectStatusSummary = Omit<ProjectStatusSummary, 'repositories'> & {
     repositories: Array<Omit<ProjectStatusSummary['repositories'][number], 'rootPath'>>;
@@ -25,87 +38,179 @@ export const extensionWorkspaceOperations = [
 
 export type ExtensionWorkspaceOperation = (typeof extensionWorkspaceOperations)[number];
 
-export type ExtensionViewOperation =
-    'source.snapshot' | 'source.historyPage' | 'source.historyDetails' | 'source.action';
+export const extensionViewOperations = [
+    'source.snapshot',
+    'source.historyPage',
+    'source.historyDetails',
+    'source.action',
+] as const;
+export type ExtensionViewOperation = (typeof extensionViewOperations)[number];
 
-export interface ExtensionHostRegistration {
-    extensionId: string;
-    generation: number;
-    apiToken: string;
-    rootPath: string;
-    entryPath: string;
-    manifest: ExtensionManifest;
-    grants: ExtensionCapability[];
-    projectIds: string[];
+const privateIdentifierSchema = z.string().min(1).max(200);
+const privatePathSchema = z.string().min(1).max(16_384);
+const generationSchema = z.number().int().nonnegative();
+const activationReasonSchema = z.string().min(1).max(200);
+const parentHandleSchema = z.string().min(1).max(512);
+const optionalParentHandleSchema = parentHandleSchema.optional();
+const optionalObservationContextSchema = observationContextSchema.optional();
+const optionalExtensionViewEventContextSchema = extensionViewEventContextSchema.optional();
+const extensionViewOperationSchema = z.enum(extensionViewOperations);
+const extensionHostErrorSchema = z
+    .object({
+        code: z.string().min(1).max(100),
+        message: z.string().min(1).max(2_048),
+    })
+    .strict();
+
+function hasBoundedJson(value: unknown, maximumBytes: number): boolean {
+    try {
+        const serialized = JSON.stringify([value]);
+        return Buffer.byteLength(serialized, 'utf8') <= maximumBytes;
+    } catch {
+        return false;
+    }
 }
+
+const commandArgumentsSchema = z
+    .array(z.unknown())
+    .max(MAX_EXTENSION_COMMAND_ARGUMENTS)
+    .refine((value) => hasBoundedJson(value, 64 * 1_024), 'Command arguments exceed IPC bounds');
+const viewArgumentsSchema = z
+    .unknown()
+    .refine(
+        (value) => hasBoundedJson(value, 4 * 1_024 * 1_024),
+        'View arguments exceed IPC bounds',
+    );
+const apiReplyResultSchema = z
+    .unknown()
+    .refine((value) => hasBoundedJson(value, 4 * 1_024 * 1_024), 'API result exceeds IPC bounds');
+
+export const extensionHostRegistrationSchema = z
+    .object({
+        extensionId: extensionIdSchema,
+        generation: generationSchema,
+        apiToken: privateIdentifierSchema,
+        rootPath: privatePathSchema,
+        entryPath: privatePathSchema,
+        manifest: extensionManifestSchema,
+        grants: z.array(extensionCapabilitySchema).max(32),
+        projectIds: z.array(privateIdentifierSchema).max(4_096),
+    })
+    .strict();
+export type ExtensionHostRegistration = z.infer<typeof extensionHostRegistrationSchema>;
+const extensionRegistrationsSchema = z
+    .array(extensionHostRegistrationSchema)
+    .max(MAX_VIEW_CATALOG_EXTENSIONS);
 
 export type ExtensionViewEventScope = ExtensionViewEventContext;
 
-export type ExtensionHostRequest = (
-    | {
-          id: string;
-          method: 'configure';
-          params: { extensions: ExtensionHostRegistration[] };
-      }
-    | {
-          id: string;
-          method: 'activate';
-          params: { extensionId: string; generation: number; reason: string };
-      }
-    | {
-          id: string;
-          method: 'treeChildren';
-          params: {
-              extensionId: string;
-              generation: number;
-              viewId: string;
-              parentHandle?: string;
-              requestId: string;
-              context?: ExtensionViewEventScope;
-          };
-      }
-    | {
-          id: string;
-          method: 'executeCommand';
-          params: {
-              extensionId: string;
-              generation: number;
-              commandId: string;
-              arguments: unknown[];
-              context: ExtensionViewEventScope;
-          };
-      }
-    | {
-          id: string;
-          method: 'viewOperation';
-          params: {
-              extensionId: string;
-              generation: number;
-              viewId: string;
-              operation: ExtensionViewOperation;
-              arguments: unknown;
-              requestId: string;
-              context: ExtensionViewEventScope;
-          };
-      }
-    | {
-          id: string;
-          method: 'activeContextChanged';
-          params: { context: ExtensionViewEventScope };
-      }
-    | {
-          id: string;
-          method: 'gitChanged';
-          params: { context: ExtensionViewEventScope };
-      }
-    | {
-          id: string;
-          method: 'projectStatusChanged';
-          params: { context: ExtensionViewEventScope };
-      }
-    | { id: string; method: 'cancel'; params: { requestId: string } }
-    | { id: string; method: 'shutdown'; params: Record<string, never> }
-) & { observation?: ObservationContext };
+const requestBase = {
+    id: privateIdentifierSchema,
+    observation: optionalObservationContextSchema,
+};
+const extensionContextNotificationSchemas = [
+    'activeContextChanged',
+    'gitChanged',
+    'projectStatusChanged',
+] as const;
+export const extensionHostRequestSchema = z.discriminatedUnion('method', [
+    z
+        .object({
+            ...requestBase,
+            method: z.literal('configure'),
+            params: z
+                .object({
+                    extensions: extensionRegistrationsSchema,
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
+            ...requestBase,
+            method: z.literal('activate'),
+            params: z
+                .object({
+                    extensionId: extensionIdSchema,
+                    generation: generationSchema,
+                    reason: activationReasonSchema,
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
+            ...requestBase,
+            method: z.literal('treeChildren'),
+            params: z
+                .object({
+                    extensionId: extensionIdSchema,
+                    generation: generationSchema,
+                    viewId: viewIdSchema,
+                    parentHandle: optionalParentHandleSchema,
+                    requestId: privateIdentifierSchema,
+                    context: optionalExtensionViewEventContextSchema,
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
+            ...requestBase,
+            method: z.literal('executeCommand'),
+            params: z
+                .object({
+                    extensionId: extensionIdSchema,
+                    generation: generationSchema,
+                    commandId: extensionCommandIdSchema,
+                    arguments: commandArgumentsSchema,
+                    context: extensionViewEventContextSchema,
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
+            ...requestBase,
+            method: z.literal('viewOperation'),
+            params: z
+                .object({
+                    extensionId: extensionIdSchema,
+                    generation: generationSchema,
+                    viewId: viewIdSchema,
+                    operation: extensionViewOperationSchema,
+                    arguments: viewArgumentsSchema,
+                    requestId: privateIdentifierSchema,
+                    context: extensionViewEventContextSchema,
+                })
+                .strict(),
+        })
+        .strict(),
+    ...extensionContextNotificationSchemas.map((method) =>
+        z
+            .object({
+                ...requestBase,
+                method: z.literal(method),
+                params: z.object({ context: extensionViewEventContextSchema }).strict(),
+            })
+            .strict(),
+    ),
+    z
+        .object({
+            ...requestBase,
+            method: z.literal('cancel'),
+            params: z.object({ requestId: privateIdentifierSchema }).strict(),
+        })
+        .strict(),
+    z
+        .object({
+            ...requestBase,
+            method: z.literal('shutdown'),
+            params: z.object({}).strict(),
+        })
+        .strict(),
+]);
+export type ExtensionHostRequest = z.infer<typeof extensionHostRequestSchema>;
 
 interface ExtensionHostApiRequestBase {
     type: 'api-request';
@@ -168,17 +273,26 @@ export type ExtensionHostMessage =
           change: ExtensionViewChange;
       };
 
-export type ExtensionHostParentMessage =
-    | ExtensionHostRequest
-    | {
-          type: 'api-reply';
-          id: string;
-          ok: true;
-          result: unknown;
-      }
-    | {
-          type: 'api-reply';
-          id: string;
-          ok: false;
-          error: { code: string; message: string };
-      };
+const extensionHostApiReplySchema = z.discriminatedUnion('ok', [
+    z
+        .object({
+            type: z.literal('api-reply'),
+            id: privateIdentifierSchema,
+            ok: z.literal(true),
+            result: apiReplyResultSchema,
+        })
+        .strict(),
+    z
+        .object({
+            type: z.literal('api-reply'),
+            id: privateIdentifierSchema,
+            ok: z.literal(false),
+            error: extensionHostErrorSchema,
+        })
+        .strict(),
+]);
+export const extensionHostParentMessageSchema = z.union([
+    extensionHostRequestSchema,
+    extensionHostApiReplySchema,
+]);
+export type ExtensionHostParentMessage = z.infer<typeof extensionHostParentMessageSchema>;
