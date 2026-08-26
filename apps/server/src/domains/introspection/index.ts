@@ -11,7 +11,7 @@ export * from './logs';
 export * from './records';
 
 /**
- * Keeps the Runtime composition root small while all introspection sources remain Runtime-owned.
+ * Keeps the domain-service composition root small while all introspection sources remain domain-owned.
  */
 export function createIntrospectionServices(database: CaxriDatabase, logger: StructuredLogger) {
     return {

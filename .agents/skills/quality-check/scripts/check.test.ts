@@ -307,9 +307,9 @@ describe('testCandidatesForFile', () => {
     });
 
     it('does not treat a top-level runtime file as a domain integration suite', () => {
-        expect(testCandidatesForFile('apps/server/src/domains/bootstrap.ts')).not.toContain(
-            'apps/server/src/domains/__tests__/runtime.integration.test.ts',
-        );
+        expect(
+            testCandidatesForFile('apps/server/src/domains/create-domain-services.ts'),
+        ).not.toContain('apps/server/src/domains/__tests__/runtime.integration.test.ts');
     });
 });
 

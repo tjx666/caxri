@@ -17,7 +17,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from './agents';
 import type { CaxriDatabase } from './db';
-import type { RuntimeHandlers } from './dispatch';
+import type { DomainHandlers } from './domain-services';
 import type { GitService, GitWorktreeTopology } from './git';
 import { SingleFlight } from './single-flight';
 import { BoundedSerialBatcher } from './workbench-provenance';
@@ -741,8 +741,8 @@ export class WorkbenchRootService {
     }
 }
 
-type WorkbenchRuntimeHandlers = Pick<
-    RuntimeHandlers,
+type WorkbenchRootHandlers = Pick<
+    DomainHandlers,
     | 'session.authorizeWorkbenchRoot'
     | 'session.continueInWorktree'
     | 'session.dismissWorkbenchCandidate'
@@ -763,7 +763,7 @@ export function createWorkbenchRootHandlers(
     service: WorkbenchRootService,
     mainOwned: (method: 'session.authorizeWorkbenchRoot' | 'session.continueInWorktree') => never,
     isCurrentEndpoint: (endpoint: AgentEndpointSummary) => boolean,
-): WorkbenchRuntimeHandlers {
+): WorkbenchRootHandlers {
     return {
         'session.authorizeWorkbenchRoot': () => mainOwned('session.authorizeWorkbenchRoot'),
         'session.continueInWorktree': () => mainOwned('session.continueInWorktree'),

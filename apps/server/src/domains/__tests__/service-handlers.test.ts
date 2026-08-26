@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createServiceHandlers } from '../bootstrap-service-handlers';
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
 import type { DiagnosticsService } from '../diagnostics';
@@ -9,6 +8,7 @@ import type { GitService } from '../git';
 import { currentGitRequestSignal } from '../git/request-signal';
 import type { createIntrospectionServices } from '../introspection';
 import type { ProjectStatusService } from '../project-status';
+import { createServiceHandlers } from '../service-handlers';
 
 describe('Runtime service handler cancellation', () => {
     it('binds git.sync to the admitted Runtime request signal', async () => {

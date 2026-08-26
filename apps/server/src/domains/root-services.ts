@@ -8,9 +8,9 @@ import { logEventCatalog } from '@caxri/system';
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { AgentTranscriptWatcher, resolveAgentTranscriptLocation } from './agents';
-import type { RuntimeDependencies } from './bootstrap-types';
 import { ConfigService } from './config';
 import { CaxriDatabase } from './db';
+import type { DomainDependencies } from './domain-services';
 import { FileService } from './files';
 import { GitService } from './git';
 import { ProjectRootResolver } from './project-roots';
@@ -51,7 +51,7 @@ export async function createRootServices({
     logger,
     send,
     userDataPath,
-}: RuntimeDependencies) {
+}: DomainDependencies) {
     const database = new CaxriDatabase(join(userDataPath, 'caxri.db'), {
         onSessionStateRepair: ({ reason, sessionId, stateVersion }) =>
             logger.write('warn', logEventCatalog.database.sessionStateRepaired, {

@@ -42,10 +42,10 @@ import type { SessionWorkbenchBinding } from './models/sessions';
 import { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from './models/terminals';
 
 /**
- * Facade kept close to the pre-split `Database` API so every consumer (bootstrap, Terminal manager, File service, Agent
- * coordinator, Diagnostics) needs no changes. `./index` (`CaxriDatabaseConnection`) owns connection lifecycle and pure
- * SQL; `../session-policy` owns the domain decisions; this class composes the two per operation, each inside one
- * transaction.
+ * Facade kept close to the pre-split `Database` API so every consumer (composition root, Terminal manager, File
+ * service, Agent coordinator, Diagnostics) needs no changes. `./index` (`CaxriDatabaseConnection`) owns connection
+ * lifecycle and pure SQL; `../session-policy` owns the domain decisions; this class composes the two per operation,
+ * each inside one transaction.
  */
 export class CaxriDatabase {
     private readonly db: CaxriDatabase_;
@@ -458,9 +458,9 @@ export class CaxriDatabase {
     /**
      * Moves a live Terminal (its PTY untouched) into a brand-new Session under the same Project, analogous to a browser
      * "move tab to new window". Mirrors `createSession`'s new-Session bootstrap and `closeTerminal`'s source-Session
-     * cleanup, but in one transaction so the Terminal is never observably ownerless. The caller (`bootstrap.ts`) must
-     * additionally call `TerminalManager.reassignSession` afterward to keep the live PTY cache's `sessionId` in sync —
-     * this DB call alone does not touch the in-memory cache.
+     * cleanup, but in one transaction so the Terminal is never observably ownerless. The composition root must call
+     * `TerminalManager.reassignSession` afterward to keep the live PTY cache's `sessionId` in sync — this DB call alone
+     * does not touch the in-memory cache.
      */
     moveTerminalToNewSession(terminalId: string): {
         session: SessionRecord;
@@ -490,7 +490,7 @@ export class CaxriDatabase {
             }
             this.db.sessions.removeTerminalFromAllRootStates(sourceSession.id, terminalId);
 
-            // New Session bootstrap, mirroring `createSession`.
+            // New Session state, mirroring `createSession`.
             const assignment = choosePrimaryAgentForNewTerminal(newSession, movedTerminal);
             if (assignment) this.db.sessions.setPrimaryAgent(newSession.id, assignment);
             this.db.sessions.insertInitialState(newSession.id, movedTerminal.id);

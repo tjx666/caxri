@@ -46,7 +46,7 @@ export interface FileServiceOptions extends WatcherServiceOptions {
 /**
  * Composes Session-root resolution, document read/write, directory listing, and watching into the Runtime's file
  * surface. Each concern lives in its own module under `files/`; this class only wires them together and preserves the
- * public API bootstrap.ts and tests depend on.
+ * public API composition root and tests depend on.
  */
 export class FileService {
     private readonly projectRoots: ProjectRootResolver;

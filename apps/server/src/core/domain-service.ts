@@ -11,10 +11,10 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, isNonExpiringRuntimeMethod } from '@caxri/protocol';
 
-import { createRuntime } from '../domains/bootstrap';
-import type { Runtime, RuntimeDependencies } from '../domains/bootstrap-types';
-import type { RuntimeOperationDispatcher } from '../domains/dispatch';
-import { createOperationDispatcher } from '../domains/dispatch';
+import { createDomainServices } from '../domains/create-domain-services';
+import type { DomainDependencies, DomainServices } from '../domains/domain-services';
+import type { DomainOperationDispatcher } from './operation-dispatcher';
+import { createOperationDispatcher } from './operation-dispatcher';
 
 interface PendingOperation {
     abortCleanup?: () => void;
@@ -22,8 +22,8 @@ interface PendingOperation {
     timer?: NodeJS.Timeout;
 }
 
-export type ServerDomainDependencies = Omit<RuntimeDependencies, 'send'>;
-export type CreateDomainServices = (dependencies: RuntimeDependencies) => Promise<Runtime>;
+export type ServerDomainDependencies = Omit<DomainDependencies, 'send'>;
+export type CreateDomainServices = (dependencies: DomainDependencies) => Promise<DomainServices>;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 
@@ -35,15 +35,15 @@ function requestTimeout(method: RuntimeMethod): number | undefined {
  * Owns Server domain services in the Server Core process and invokes them without a generic IPC hop.
  */
 export class ServerDomainService extends EventTarget {
-    private dispatch?: RuntimeOperationDispatcher;
+    private dispatch?: DomainOperationDispatcher;
     private readonly pending = new Map<string, PendingOperation>();
-    private services?: Runtime;
+    private services?: DomainServices;
     private startPromise?: Promise<void>;
     private stopped = false;
 
     constructor(
         private readonly dependencies: ServerDomainDependencies,
-        private readonly createServices: CreateDomainServices = createRuntime,
+        private readonly createServices: CreateDomainServices = createDomainServices,
     ) {
         super();
     }
@@ -107,8 +107,8 @@ export class ServerDomainService extends EventTarget {
      * Owns completion handling so a caller can be canceled immediately without awaiting a non-cooperative handler.
      */
     private async runOperation(
-        dispatch: RuntimeOperationDispatcher,
-        envelope: Parameters<RuntimeOperationDispatcher>[0],
+        dispatch: DomainOperationDispatcher,
+        envelope: Parameters<DomainOperationDispatcher>[0],
         resolve: (result: unknown) => void,
         reject: (error: CaxriError) => void,
     ): Promise<void> {

@@ -7,8 +7,8 @@ import type { AgentAdapter } from '../agents/service';
 import { AgentService } from '../agents/service';
 
 /**
- * Creates the inert PTY used by Runtime composition tests that must not launch a login shell. Tests that need to emit
- * PTY data or exit events should keep a richer domain-local fake.
+ * Creates the inert PTY used by domain-service tests that must not launch a login shell. Tests that need to emit PTY
+ * data or exit events should keep a richer domain-local fake.
  */
 export function createFakePty(): IPty {
     return {
@@ -22,7 +22,7 @@ export function createFakePty(): IPty {
 }
 
 /**
- * Prevents background Agent metadata probes from escaping hermetic Runtime composition tests.
+ * Prevents background Agent metadata probes from escaping hermetic domain-service tests.
  */
 export function createPendingAgentAdapters(
     overrides: Partial<Record<AgentProvider, AgentAdapter>> = {},

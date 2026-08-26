@@ -4,11 +4,10 @@ import { CaxriError } from '@caxri/protocol';
 import { agentSkillHealthReader } from './agent-skills';
 import type { AgentEnvironment, AgentHookManager, AgentTranscriptWatcher } from './agents';
 import { listAgentActions, readAgentTranscript } from './agents';
-import type { RuntimeDependencies } from './bootstrap-types';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DiagnosticsService } from './diagnostics';
-import type { RuntimeHandlers } from './dispatch';
+import type { DomainDependencies, DomainHandlers } from './domain-services';
 import type { FileService } from './files';
 import type { GitService } from './git';
 import { withGitRequestSignal } from './git';
@@ -83,7 +82,7 @@ export function mainOwned(method: RuntimeMethod): never {
 
 /**
  * Handlers that only delegate to an already-constructed Runtime service, with no dependency on the composition root's
- * own closures. Kept out of `bootstrap.ts` to stay under the file's physical-line budget.
+ * own closures. Kept out of `create-domain-services.ts` to stay under the file's physical-line budget.
  */
 export function createServiceHandlers(services: {
     acknowledgeFileMutation: (sessionId: string, operationId: string) => Promise<void>;
@@ -92,7 +91,7 @@ export function createServiceHandlers(services: {
     awaitAgentSettingsReconcile: () => Promise<void>;
     configuration: ConfigService;
     database: CaxriDatabase;
-    emit: RuntimeDependencies['send'];
+    emit: DomainDependencies['send'];
     diagnostics: DiagnosticsService;
     files: FileService;
     git: GitService;
@@ -100,7 +99,7 @@ export function createServiceHandlers(services: {
     projectStatus: ProjectStatusService;
     transcripts: AgentTranscriptWatcher;
     userDataPath: string;
-}): Pick<RuntimeHandlers, ServiceHandlerMethods> {
+}): Pick<DomainHandlers, ServiceHandlerMethods> {
     const {
         acknowledgeFileMutation,
         agentEnvironment,

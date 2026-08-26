@@ -6,7 +6,8 @@ import type { FileService } from './files';
 
 /**
  * Fire-and-forget wrappers for recoverable background work (file watching, interrupted-Terminal restore) that must
- * never delay the triggering IPC response. Kept out of `bootstrap.ts` to stay under the file's physical-line budget.
+ * never delay the triggering IPC response. Kept out of `create-domain-services.ts` to stay under the file's
+ * physical-line budget.
  */
 export function createBackgroundTasks(
     logger: StructuredLogger,

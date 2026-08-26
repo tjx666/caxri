@@ -1,15 +1,28 @@
-import type { AgentProvider, RuntimeEvent, RuntimeWorkbenchContext } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    RuntimeEvent,
+    RuntimeMethod,
+    RuntimeMethodParams as RuntimeMethodParameters,
+    RuntimeMethodResult,
+    RuntimeWorkbenchContext,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { RuntimeAgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentAdapter, AgentEnvironment } from './agents';
-import type { RuntimeHandlers } from './dispatch';
 import type { TerminalManagerOptions } from './terminal';
 
+export type DomainHandlers = {
+    [M in RuntimeMethod]: (
+        parameters: RuntimeMethodParameters<M>,
+        signal?: AbortSignal,
+    ) => Promise<RuntimeMethodResult<M>> | RuntimeMethodResult<M>;
+};
+
 /**
- * Environment-owned seams supplied to the Runtime composition root.
+ * Environment-owned seams supplied to the domain-service composition root.
  */
-export interface RuntimeDependencies {
+export interface DomainDependencies {
     userDataPath: string;
     logger: StructuredLogger;
     send: (event: RuntimeEvent) => void;
@@ -25,8 +38,8 @@ export interface RuntimeDependencies {
     agentEndpoints?: RuntimeAgentEndpointLifecycle;
 }
 
-export interface Runtime {
-    handlers: RuntimeHandlers;
+export interface DomainServices {
+    handlers: DomainHandlers;
     /**
      * Releases every owned resource: schedulers, PTYs, watchers, and the database.
      */
