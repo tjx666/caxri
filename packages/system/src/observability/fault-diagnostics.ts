@@ -139,7 +139,8 @@ function isManifestFailure(
     if (!manifest) return false;
     return (
         manifest.state === 'failed' ||
-        (manifest.state === 'ready' && processState(manifest.pid) === 'dead')
+        ((manifest.state === 'starting' || manifest.state === 'ready') &&
+            processState(manifest.pid) === 'dead')
     );
 }
 
