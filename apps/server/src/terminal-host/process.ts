@@ -1,0 +1,89 @@
+import { join } from 'node:path';
+import process from 'node:process';
+
+import { serverCredentialTokenSchema, serverProcessIdentitySchema } from '@caxri/protocol';
+import { installProcessErrorMonitor, logEventCatalog, StructuredLogger } from '@caxri/system';
+
+import type { TerminalHostMessage } from './protocol';
+import { TerminalHostRuntime } from './runtime';
+
+if (!process.connected || !process.send)
+    throw new Error(
+        'CAXRI_TERMINAL_HOST_IPC_REQUIRED: Terminal Host must be forked by Server Core',
+    );
+
+function requiredEnvironment(name: string): string {
+    const value = process.env[name];
+    if (!value) throw new Error(`${name} is required`);
+    return value;
+}
+
+const userDataPath = requiredEnvironment('CAXRI_USER_DATA_PATH');
+const appVersion = requiredEnvironment('CAXRI_APP_VERSION');
+const buildId = requiredEnvironment('CAXRI_BUILD_ID');
+const commit = requiredEnvironment('CAXRI_GIT_COMMIT');
+const credential = serverCredentialTokenSchema.parse(
+    requiredEnvironment('CAXRI_TERMINAL_HOST_CREDENTIAL'),
+);
+const serverId = serverProcessIdentitySchema.parse(requiredEnvironment('CAXRI_SERVER_ID'));
+const logger = new StructuredLogger(join(userDataPath, 'logs'), 'terminal-host', 'info');
+const processErrorMonitor = installProcessErrorMonitor({ processName: 'terminal-host' });
+processErrorMonitor.attach(logger);
+
+const lifecycle = { isStopping: false };
+const send = (message: TerminalHostMessage): void => {
+    if (process.connected) process.send?.(message);
+};
+const runtime = new TerminalHostRuntime({
+    appVersion,
+    buildId,
+    commit,
+    credential,
+    logger,
+    onProtocolViolation: () => {
+        logger.write('error', logEventCatalog.terminalHost.invalidMessage);
+        if (lifecycle.isStopping) return;
+        lifecycle.isStopping = true;
+        setImmediate(() => {
+            // eslint-disable-next-line unicorn/no-process-exit -- A malformed private IPC frame invalidates the child.
+            process.exit(1);
+        });
+    },
+    send,
+    serverId,
+});
+
+async function stop(exitCode: number): Promise<void> {
+    if (lifecycle.isStopping) return;
+    lifecycle.isStopping = true;
+    try {
+        await runtime.stopAfterParentDisconnect();
+        logger.write('info', logEventCatalog.terminalHost.stopped, { fields: { exitCode } });
+        await logger.flush();
+    } finally {
+        // eslint-disable-next-line unicorn/no-process-exit -- This is the owned Terminal Host process entrypoint.
+        process.exit(exitCode);
+    }
+}
+
+process.on('message', (message: unknown) => {
+    // eslint-disable-next-line no-void -- Runtime accepts and replies to each private request independently.
+    void runtime.accept(message);
+});
+process.once('disconnect', () => {
+    // eslint-disable-next-line no-void -- Parent loss intentionally tears down every owned PTY.
+    void stop(0);
+});
+process.once('SIGTERM', () => {
+    // eslint-disable-next-line no-void -- Signal fallback uses the same bounded owner shutdown.
+    void stop(0);
+});
+process.once('SIGINT', () => {
+    // eslint-disable-next-line no-void -- Signal fallback uses the same bounded owner shutdown.
+    void stop(0);
+});
+
+logger.write('info', logEventCatalog.terminalHost.ready, {
+    fields: { buildId, pid: process.pid, serverId },
+});
+runtime.ready();

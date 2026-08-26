@@ -51,6 +51,7 @@ export interface TerminalExecutionStart {
     args: string[];
     environment: NodeJS.ProcessEnv;
     executable: string;
+    initialSize?: { cols: number; rows: number };
     initialSnapshot: string;
     record: TerminalRecord;
 }
@@ -71,7 +72,7 @@ export interface TerminalExecutionEngineOptions {
     outputFlushMs?: number;
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
     spawn?: typeof pty.spawn;
-    terminalColors?: () => { background: string; foreground: string };
+    terminalColors?: (terminalId: string) => { background: string; foreground: string } | undefined;
 }
 
 /**
@@ -238,7 +239,8 @@ export class TerminalExecutionEngine {
     start(input: TerminalExecutionStart): number {
         const existing = this.terminals.get(input.record.id);
         if (existing) return existing.process.pid;
-        const initialSize = this.attachments.size(input.record.id) ?? { cols: 100, rows: 30 };
+        const initialSize = this.attachments.size(input.record.id) ??
+            input.initialSize ?? { cols: 100, rows: 30 };
         const child = this.spawnProcess(input.executable, input.args, {
             name: 'xterm-256color',
             cols: initialSize.cols,
@@ -248,7 +250,7 @@ export class TerminalExecutionEngine {
         });
         const colorQuery = this.options.terminalColors
             ? new TerminalColorQueryResponder((slot, terminator) => {
-                  const colors = this.options.terminalColors?.();
+                  const colors = this.options.terminalColors?.(input.record.id);
                   if (!colors) return;
                   const reply = oscColorReply(
                       slot,
