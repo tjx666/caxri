@@ -63,6 +63,32 @@ export function controlCapacityReply(id: string): CommandReplyEnvelope {
 }
 
 /**
+ * Limits one peer's concurrently executing work without reintroducing head-of-line blocking between ordinary Desktop
+ * work and the legacy control hot path retained until every Terminal caller uses its binary attachment.
+ */
+export function reserveControlRequest(
+    state: ClientState,
+    isTerminalHotPath = false,
+): (() => void) | undefined {
+    const nonTerminalRequests = state.inFlightRequests - state.inFlightTerminalRequests;
+    if (
+        state.inFlightRequests >= MAX_IN_FLIGHT_REQUESTS ||
+        (!isTerminalHotPath && nonTerminalRequests >= MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS)
+    )
+        return;
+    state.inFlightRequests += 1;
+    if (isTerminalHotPath) state.inFlightTerminalRequests += 1;
+    let isReleased = false;
+    return () => {
+        if (isReleased) return;
+        isReleased = true;
+        if (state.closed) return;
+        state.inFlightRequests -= 1;
+        if (isTerminalHotPath) state.inFlightTerminalRequests -= 1;
+    };
+}
+
+/**
  * Queue metadata captured before an authenticated frame enters the ordered admission lane.
  */
 export interface OrderedQueueTiming {
