@@ -10,7 +10,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 
-import type { HostRuntimeSupervisor } from './runtime-supervisor';
+import type { ServerDomainService } from '../core/domain-service';
 
 type AuthorizedEntry = RuntimeMethodResult<'files.authorizeOpen'>;
 type ExpectedIdentity = NonNullable<
@@ -42,7 +42,7 @@ export interface DesktopRouterOptions {
     maximumTargets?: number;
     now?: () => number;
     runtime: Pick<
-        HostRuntimeSupervisor,
+        ServerDomainService,
         'request' | 'requestInWorkbenchContext' | 'requestWithSignal'
     >;
     targetTtlMs?: number;

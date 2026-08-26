@@ -39,7 +39,6 @@ import {
     extensionActiveContext,
 } from './extensions/workspace-bridge';
 import type { HostForwardedMethod } from './host-methods';
-import { createLegacyRuntimeFixture } from './legacy-runtime-fixture';
 import { LocalHostServer } from './local-server';
 import type { HostProfileLease } from './profile';
 import { acquireHostProfile } from './profile';
@@ -48,7 +47,6 @@ import {
     principalRequestKey,
     RuntimeRequestCancellationRegistry,
 } from './runtime-request-cancellation';
-import { HostRuntimeSupervisor } from './runtime-supervisor';
 
 export interface HostAppOptions {
     agentHooksPath?: string;
@@ -68,8 +66,6 @@ export interface HostAppOptions {
     extensionRoots?: string[];
     includeTestExtensions?: boolean;
     launchDesktop?: () => Promise<void>;
-    runtimePath?: string;
-    runtimeEnvironment?: NodeJS.ProcessEnv;
     userDataPath: string;
     version: string;
 }
@@ -113,23 +109,14 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         messaging: (parameters) => Promise.resolve(agentEndpoints.updateMessaging(parameters)),
         retire: (parameters) => Promise.resolve(agentEndpoints.retire(parameters)),
     };
-    const runtimePath = options.runtimePath;
-    const supervisor = runtimePath
-        ? createLegacyRuntimeFixture(
-              { ...options, runtimePath },
-              agentEndpoints,
-              logDirectory,
-              logger,
-              lease.paths.userDataPath,
-          )
-        : createServerDomainService({
-              agentEndpointControl: endpointControl,
-              agentHooksPath: options.agentHooksPath,
-              createServices: options.createDomainServices,
-              executable: options.executable,
-              logDirectory,
-              userDataPath: lease.paths.userDataPath,
-          });
+    const supervisor = createServerDomainService({
+        agentEndpointControl: endpointControl,
+        agentHooksPath: options.agentHooksPath,
+        createServices: options.createDomainServices,
+        executable: options.executable,
+        logDirectory,
+        userDataPath: lease.paths.userDataPath,
+    });
     let extensionService: ExtensionService | undefined;
     let desktopRouter: HostDesktopRouter | undefined;
     let stopPromise: Promise<void> | undefined;
@@ -260,8 +247,6 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         server?.broadcast(isTransientRuntimeEvent(event) ? event : journal.publish(event));
     };
     supervisor.onEvent(deliver);
-    if (supervisor instanceof HostRuntimeSupervisor)
-        supervisor.onRuntimeExit(() => agentEndpoints.clear());
 
     const stop = (reason = 'requested'): Promise<void> => {
         isMutationAdmissionClosed = true;

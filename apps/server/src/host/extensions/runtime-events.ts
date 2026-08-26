@@ -1,11 +1,11 @@
 import type { ExtensionViewEventContext, RuntimeEvent } from '@caxri/protocol';
 
-import type { HostRuntimeSupervisor } from '../runtime-supervisor';
+import type { ServerDomainService } from '../../core/domain-service';
 import type { ExtensionService } from './service';
 import { toExtensionViewEventContext } from './service-events';
 import { extensionActiveContext } from './workspace-bridge';
 
-type RuntimeBootstrapReader = Pick<HostRuntimeSupervisor, 'request'>;
+type RuntimeBootstrapReader = Pick<ServerDomainService, 'request'>;
 
 export async function readActiveExtensionContext(
     supervisor: RuntimeBootstrapReader,

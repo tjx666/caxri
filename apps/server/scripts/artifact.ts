@@ -21,7 +21,7 @@ export interface ServerArtifactInput {
 }
 
 const manifestRelativePath = join('metadata', 'manifest.json');
-const requiredBundleNames = ['extension-host.js', 'host.js', 'runtime.js'] as const;
+const requiredBundleNames = ['extension-host.js', 'host.js'] as const;
 
 function compareCodeUnits(left: string, right: string): number {
     if (left === right) return 0;
@@ -198,7 +198,6 @@ export async function assembleServerArtifact(
         commit: input.commit,
         entrypoints: {
             extensionHost: 'bundles/extension-host.js',
-            runtime: 'bundles/runtime.js',
             server: 'bundles/host.js',
         },
         extensions: extensions.toSorted((left, right) => compareCodeUnits(left.id, right.id)),

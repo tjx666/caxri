@@ -1,9 +1,9 @@
 import type { RuntimeMethodParams as RuntimeMethodParameters } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import type { ServerDomainService } from '../../core/domain-service';
 import type { ExtensionWorkspaceOperation } from '../../extension-host/protocol';
 import type { HostDesktopRouter } from '../desktop-router';
-import type { HostRuntimeSupervisor } from '../runtime-supervisor';
 
 interface ExtensionBootstrapContext {
     selectedSessionId?: string;
@@ -16,7 +16,7 @@ interface ExtensionBootstrapContext {
 
 interface ExtensionWorkspaceBridgeOptions {
     desktopRouter(): HostDesktopRouter | undefined;
-    runtime: Pick<HostRuntimeSupervisor, 'requestInWorkbenchContext'>;
+    runtime: Pick<ServerDomainService, 'requestInWorkbenchContext'>;
 }
 
 export function extensionActiveContext(bootstrap: ExtensionBootstrapContext): {
