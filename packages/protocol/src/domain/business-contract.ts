@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
-import { observableEventRecoverySchema } from '../transport/event-journal.js';
+import {
+    eventRecoveryRequestSchema,
+    observableEventRecoverySchema,
+} from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
@@ -306,7 +309,7 @@ export const businessMethods = {
     },
     'events.query': {
         ...commandPolicy('server', 'read', ['events.read']),
-        params: z.object({ afterCursor: z.number().int().nonnegative() }),
+        params: eventRecoveryRequestSchema,
         result: observableEventRecoverySchema,
     },
 } as const satisfies Record<string, MethodSpec>;
