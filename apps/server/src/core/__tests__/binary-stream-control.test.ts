@@ -36,6 +36,7 @@ describe('BinaryStreamTicketAuthority', () => {
         const grant = authority.issue(
             { context, connectionId: context.connection!.connectionId },
             operation,
+            'request-1',
         );
 
         expect(grant.ticket).toBe('1'.repeat(64));
@@ -44,6 +45,7 @@ describe('BinaryStreamTicketAuthority', () => {
             context,
             connectionId: context.connection!.connectionId,
             operation,
+            requestId: 'request-1',
         });
         expect(() => authority.redeem(grant.ticket)).toThrow(BinaryStreamTicketError);
     });
@@ -63,16 +65,16 @@ describe('BinaryStreamTicketAuthority', () => {
             sessionId: 'session-1',
             path: '/project/file.txt',
         };
-        const first = authority.issue(owner, operation);
-        expect(() => authority.issue(owner, operation)).toThrow(/capacity-exceeded/u);
+        const first = authority.issue(owner, operation, 'request-1');
+        expect(() => authority.issue(owner, operation, 'request-2')).toThrow(/capacity-exceeded/u);
         now = 111;
         expect(() => authority.redeem(first.ticket)).toThrow(/ticket-expired/u);
 
-        const second = authority.issue(owner, operation);
+        const second = authority.issue(owner, operation, 'request-3');
         authority.revokeConnection(owner.connectionId, 'stale-generation');
         authority.revokeConnection(owner.connectionId, 'server-unavailable');
         expect(() => authority.redeem(second.ticket)).toThrow(/stale-generation/u);
-        expect(() => authority.issue(owner, operation)).toThrow(/stale-generation/u);
+        expect(() => authority.issue(owner, operation, 'request-4')).toThrow(/stale-generation/u);
     });
 });
 

@@ -42,6 +42,7 @@ import type { WebSocketServer } from 'ws';
 import WebSocket from 'ws';
 
 import { BinaryStreamControl } from './binary-stream-control';
+import { BinaryStreamRuntime } from './binary-stream-runtime';
 import { listenForControlConnections } from './control-listener';
 import type {
     ClientState,
@@ -62,9 +63,8 @@ import {
     isConcurrentRead,
     isTokenMatch,
     logControlRequestOutcome,
-    MAX_IN_FLIGHT_REQUESTS,
-    MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS,
     operatorContext,
+    reserveControlRequest,
     shouldSettleOutsideOrderedLane,
     trackControlRequest,
     untrackControlRequest,
@@ -76,6 +76,7 @@ export type { ControlServerOptions } from './control-server-support';
  * Authenticated, profile-scoped WebSocket adapter for Desktop, Agent, and human CLI clients.
  */
 export class ControlServer {
+    private readonly binaryRuntime: BinaryStreamRuntime;
     private readonly binaryStreams: BinaryStreamControl;
     private readonly clients = new Map<WebSocket, ClientState>();
     private readonly sockets = new Set<WebSocket>();
@@ -91,7 +92,17 @@ export class ControlServer {
     constructor(private readonly options: ControlServerOptions) {
         assertDurableRecoveryIdentity(options);
         this.dispatch = createCommandDispatcher(options.adapters);
-        this.binaryStreams = new BinaryStreamControl({ handleClaim: options.handleBinaryStream });
+        this.binaryRuntime = new BinaryStreamRuntime({
+            dispatch: this.dispatch,
+            isDesktopConnectionCurrent: (connectionId) =>
+                this.currentDesktop?.context.connection?.connectionId === connectionId,
+            refreshContext: (context) => options.refreshContext?.(context) ?? context,
+        });
+        this.binaryStreams = new BinaryStreamControl({
+            handleClaim:
+                options.handleBinaryStream ??
+                ((socket, claim) => this.binaryRuntime.accept(socket, claim)),
+        });
     }
 
     private settleDesktopReply(state: ClientState, raw: unknown): boolean {
@@ -127,7 +138,10 @@ export class ControlServer {
         if (state.leaseTimer) clearTimeout(state.leaseTimer);
         state.leaseTimer = undefined;
         const connectionId = state.context.connection?.connectionId;
-        if (connectionId) this.binaryStreams.revokeConnection(connectionId, 'stale-generation');
+        if (connectionId) {
+            this.binaryStreams.revokeConnection(connectionId, 'stale-generation');
+            this.binaryRuntime.revokeConnection(connectionId, 'stale-generation');
+        }
         this.rejectDesktopCommands(state);
         this.clients.delete(state.socket);
         const wasCurrent = this.currentDesktop === state;
@@ -147,32 +161,6 @@ export class ControlServer {
         state.leaseTimer = setTimeout(() => this.revokeDesktop(state), durationMs);
         state.leaseTimer.unref();
         return renewed;
-    }
-
-    /**
-     * Limits one peer's concurrently executing work without reintroducing head-of-line blocking between normal Desktop
-     * work and Terminal keystrokes/resizes.
-     */
-    private reserveRequest(
-        state: ClientState,
-        isTerminalHotPath = false,
-    ): (() => void) | undefined {
-        const nonTerminalRequests = state.inFlightRequests - state.inFlightTerminalRequests;
-        if (
-            state.inFlightRequests >= MAX_IN_FLIGHT_REQUESTS ||
-            (!isTerminalHotPath && nonTerminalRequests >= MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS)
-        )
-            return undefined;
-        state.inFlightRequests += 1;
-        if (isTerminalHotPath) state.inFlightTerminalRequests += 1;
-        let isReleased = false;
-        return () => {
-            if (isReleased) return;
-            isReleased = true;
-            if (state.closed) return;
-            state.inFlightRequests -= 1;
-            if (isTerminalHotPath) state.inFlightTerminalRequests -= 1;
-        };
     }
 
     private writeCommandReply(
@@ -206,7 +194,7 @@ export class ControlServer {
         const startedAt = performance.now();
         const isTerminalHotPath =
             request.method === 'terminal.input' || request.method === 'terminal.resize';
-        const release = this.reserveRequest(state, isTerminalHotPath);
+        const release = reserveControlRequest(state, isTerminalHotPath);
         if (!release) {
             const reply = controlCapacityReply(request.id);
             logControlRequestOutcome(
@@ -279,7 +267,7 @@ export class ControlServer {
         timing?: OrderedQueueTiming,
     ): Promise<void> {
         const startedAt = performance.now();
-        const release = this.reserveRequest(state);
+        const release = reserveControlRequest(state);
         const reply = release
             ? await executeReply(request.id, async () => {
                   if (state.context.principal.kind !== 'desktop' || this.currentDesktop !== state)
@@ -307,7 +295,7 @@ export class ControlServer {
         state: ClientState,
         request: { generation: number; id: string; targetId: string },
     ): Promise<void> {
-        const release = this.reserveRequest(state);
+        const release = reserveControlRequest(state);
         const reply = release
             ? await executeReply(request.id, async () => {
                   if (
@@ -343,8 +331,10 @@ export class ControlServer {
             this.sockets.delete(socket);
             if (!state) return;
             const connectionId = state.context.connection?.connectionId;
-            if (connectionId)
+            if (connectionId) {
                 this.binaryStreams.revokeConnection(connectionId, 'server-unavailable');
+                this.binaryRuntime.revokeConnection(connectionId, 'server-unavailable');
+            }
             for (const requestId of state.inFlightRequestIds.keys())
                 this.options.onRequestDisconnected?.(requestId, state.context);
             state.inFlightRequestIds.clear();
@@ -739,6 +729,7 @@ export class ControlServer {
     }
 
     broadcast(event: ProtocolEventEnvelope | TransientServerEvent): void {
+        if (this.binaryRuntime.deliver(event)) return;
         const message = localServerEventSchema.parse({ type: 'event', event });
         /**
          * Raw domain payloads are a Desktop-only transport; other principals use projections.
@@ -781,6 +772,7 @@ export class ControlServer {
             waiter.reject(new CaxriError('UNAVAILABLE', 'Host transport is closing'));
         }
         this.desktopLeaseWaiters.clear();
+        this.binaryRuntime.close();
         this.binaryStreams.close();
         for (const socket of this.sockets) socket.terminate();
         this.sockets.clear();

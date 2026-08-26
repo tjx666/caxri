@@ -30,6 +30,7 @@ export interface BinaryStreamOwner {
 
 export interface BinaryStreamClaim extends BinaryStreamOwner {
     operation: BinaryStreamOperation;
+    requestId: string;
 }
 
 interface PendingTicket extends BinaryStreamClaim {
@@ -95,7 +96,11 @@ export class BinaryStreamTicketAuthority {
             if (revoked.expiresAt <= now) this.revokedConnections.delete(connectionId);
     }
 
-    issue(owner: BinaryStreamOwner, operation: BinaryStreamOperation): BinaryStreamTicketGrant {
+    issue(
+        owner: BinaryStreamOwner,
+        operation: BinaryStreamOperation,
+        requestId: string,
+    ): BinaryStreamTicketGrant {
         this.prune();
         const revoked = this.revokedConnections.get(owner.connectionId);
         if (revoked) throw new BinaryStreamTicketError(revoked.reason);
@@ -111,7 +116,7 @@ export class BinaryStreamTicketAuthority {
         }
         if (!ticket) throw new CaxriError('INTERNAL', 'Binary stream ticket entropy collided');
         const expiresAt = this.now() + this.ticketTtlMs;
-        this.tickets.set(ticket, { ...owner, operation, expiresAt, ticket });
+        this.tickets.set(ticket, { ...owner, operation, requestId, expiresAt, ticket });
         return { ticket, path: BINARY_STREAM_PATH, expiresAt };
     }
 
@@ -124,8 +129,8 @@ export class BinaryStreamTicketAuthority {
         const revoked = this.revokedConnections.get(pending.connectionId);
         if (revoked) throw new BinaryStreamTicketError(revoked.reason);
         if (pending.expiresAt <= this.now()) throw new BinaryStreamTicketError('ticket-expired');
-        const { context, connectionId, operation } = pending;
-        return { context, connectionId, operation };
+        const { context, connectionId, operation, requestId } = pending;
+        return { context, connectionId, operation, requestId };
     }
 
     revokeConnection(connectionId: string, reason: BinaryStreamCloseReason): void {
@@ -192,6 +197,7 @@ export class BinaryStreamControl {
             const grant = this.authority.issue(
                 { context: state.context, connectionId },
                 request.operation,
+                request.id,
             );
             return localServerStreamTicketReplySchema.parse({
                 type: 'stream-ticket.reply',
