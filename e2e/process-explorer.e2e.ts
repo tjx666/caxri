@@ -32,12 +32,11 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         const memoryAction = running.page.getByRole('button', {
             name: /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
         });
-        await memoryAction.hover();
-        await expect(running.page.locator('.tooltip-popup')).toHaveText(
-            /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
-        );
-        await running.page.mouse.move(0, 0);
-        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
+        /**
+         * This visible-window workflow owns native keyboard focus and Process Explorer lifecycle. Mouse tooltip
+         * behavior for the same shared StatusItem primitive stays covered by `statusbar.e2e.ts`, where the OS pointer
+         * is isolated.
+         */
         await memoryAction.focus();
         await expect(memoryAction).toBeFocused();
         await memoryAction.press('Enter');
