@@ -301,7 +301,7 @@ test('keeps one focused Desktop and one process profile for a repeated same-prof
             )
             .toBe(true);
 
-        const second = spawn(electronPath, ['.', '--disable-gpu'], {
+        const second = spawn(electronPath, ['apps/desktop', '--disable-gpu'], {
             cwd: projectRoot,
             env: {
                 ...process.env,
