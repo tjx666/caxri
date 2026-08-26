@@ -4,6 +4,48 @@ import { describe, expect, it } from 'vitest';
 import { createRecoveringEventClient } from '../event-client';
 
 describe('createRecoveringEventClient', () => {
+    it('fails closed on a recovery or live event from another durable history', async () => {
+        const errors: unknown[] = [];
+        const emitted: ServerEvent[] = [];
+        const identity = {
+            serverId: 'a'.repeat(32),
+            stateEpoch: 'b'.repeat(32),
+        };
+        const client = createRecoveringEventClient({
+            emit: (event) => emitted.push(event),
+            identity,
+            onError: (error) => errors.push(error),
+            // oxlint-disable-next-line typescript/require-await -- deterministic identity rejection fixture
+            recover: async () => ({
+                kind: 'events',
+                cursor: 0,
+                events: [],
+                serverId: identity.serverId,
+                stateEpoch: 'c'.repeat(32),
+                barrier: { kind: 'live', cursor: 0 },
+            }),
+        });
+
+        await client.start();
+        client.receive({
+            protocolVersion: 2,
+            cursor: 1,
+            serverId: identity.serverId,
+            stateEpoch: 'c'.repeat(32),
+            event: {
+                event: 'state.changed',
+                payload: { kind: 'full', reason: 'unknown' },
+            },
+        });
+
+        expect(errors).toHaveLength(2);
+        expect(errors).toEqual([
+            expect.objectContaining({ code: 'CONFLICT' }),
+            expect.objectContaining({ code: 'CONFLICT' }),
+        ]);
+        expect(emitted).toEqual([]);
+    });
+
     it('reports a failed recovery through onError instead of throwing out of start()', async () => {
         const errors: unknown[] = [];
         const client = createRecoveringEventClient({

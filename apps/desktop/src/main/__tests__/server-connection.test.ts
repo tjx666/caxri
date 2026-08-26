@@ -52,9 +52,31 @@ function recoveryRequest(afterCursor: number, identity = defaultRecoveryIdentity
     return { afterCursor, ...identity };
 }
 
+function durableEnvelope(cursor: number, event: unknown, identity = defaultRecoveryIdentity) {
+    return { cursor, event, ...identity };
+}
+
+function recoveryResult(
+    cursor: number,
+    events: Array<{ cursor: number; event: unknown }> = [],
+    identity = defaultRecoveryIdentity,
+) {
+    return {
+        kind: 'events' as const,
+        cursor,
+        events: events.map((event) => ({ ...event, ...identity })),
+        barrier: { kind: 'live' as const, cursor },
+        ...identity,
+    };
+}
+
 function createFakeServerClient(options: ServerRoundOptions = {}): FakeServerClient {
     const closeListeners: Array<(reason?: 'replaced') => void> = [];
     const eventListeners: Array<(envelope: unknown) => void> = [];
+    const recoveryIdentity = {
+        serverId: options.serverId ?? defaultRecoveryIdentity.serverId,
+        stateEpoch: options.stateEpoch ?? defaultRecoveryIdentity.stateEpoch,
+    };
     return {
         close: vi.fn(),
         markDesktopReady: vi.fn().mockResolvedValue(undefined),
@@ -66,7 +88,7 @@ function createFakeServerClient(options: ServerRoundOptions = {}): FakeServerCli
             eventListeners.push(listener);
             return () => {};
         }),
-        request: vi.fn().mockResolvedValue({ cursor: 0, events: [], kind: 'events' }),
+        request: vi.fn().mockResolvedValue(recoveryResult(0, [], recoveryIdentity)),
         requestServerOperation: vi.fn(),
         triggerClose: (reason) => {
             for (const listener of closeListeners) listener(reason);
@@ -79,8 +101,7 @@ function createFakeServerClient(options: ServerRoundOptions = {}): FakeServerCli
                 bootId: options.bootId ?? 'c'.repeat(32),
                 clientId: 'desktop-1',
                 connectionId: 'd'.repeat(32),
-                serverId: options.serverId ?? defaultRecoveryIdentity.serverId,
-                stateEpoch: options.stateEpoch ?? defaultRecoveryIdentity.stateEpoch,
+                ...recoveryIdentity,
             },
         },
     };
@@ -416,9 +437,8 @@ describe('Desktop Server connection facade', () => {
             status: 'restarting',
         };
         const replacement = mockServerRound({ pid: 77, startedAt: 2000 });
-        replacement.request.mockResolvedValueOnce({
-            cursor: 1,
-            events: [
+        replacement.request.mockResolvedValueOnce(
+            recoveryResult(1, [
                 {
                     cursor: 1,
                     event: {
@@ -426,9 +446,8 @@ describe('Desktop Server connection facade', () => {
                         payload: { restartCount: 0, status: 'ready' },
                     },
                 },
-            ],
-            kind: 'events',
-        });
+            ]),
+        );
 
         first.triggerClose();
         expect(received).toEqual([
@@ -595,10 +614,12 @@ describe('Desktop Server connection facade', () => {
         const { connection } = createConnection();
         await connection.start();
         expect(first.request).toHaveBeenCalledWith('events.recover', recoveryRequest(0));
-        first.triggerEvent({
-            cursor: 1,
-            event: { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
-        });
+        first.triggerEvent(
+            durableEnvelope(1, {
+                event: 'state.changed',
+                payload: { kind: 'full', reason: 'unknown' },
+            }),
+        );
 
         const replacement = mockServerRound();
         first.triggerClose();
@@ -617,21 +638,17 @@ describe('Desktop Server connection facade', () => {
         await connection.markDesktopReady();
 
         const replacement = mockServerRound();
-        replacement.request
-            .mockResolvedValueOnce({ cursor: 0, events: [], kind: 'events' })
-            .mockResolvedValueOnce({
-                cursor: 1,
-                kind: 'events',
-                events: [
-                    {
-                        cursor: 1,
-                        event: {
-                            event: 'state.changed',
-                            payload: { kind: 'full', reason: 'unknown' },
-                        },
+        replacement.request.mockResolvedValueOnce(recoveryResult(0)).mockResolvedValueOnce(
+            recoveryResult(1, [
+                {
+                    cursor: 1,
+                    event: {
+                        event: 'state.changed',
+                        payload: { kind: 'full', reason: 'unknown' },
                     },
-                ],
-            });
+                },
+            ]),
+        );
         first.triggerClose();
         await vi.advanceTimersByTimeAsync(500);
 
@@ -664,10 +681,12 @@ describe('Desktop Server connection facade', () => {
         const first = mockServerRound();
         const { connection } = createConnection();
         await connection.start();
-        first.triggerEvent({
-            cursor: 1,
-            event: { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
-        });
+        first.triggerEvent(
+            durableEnvelope(1, {
+                event: 'state.changed',
+                payload: { kind: 'full', reason: 'unknown' },
+            }),
+        );
 
         const replacement = mockServerRound({
             bootId: 'e'.repeat(32),
@@ -685,10 +704,12 @@ describe('Desktop Server connection facade', () => {
         const first = mockServerRound();
         const { connection } = createConnection();
         await connection.start();
-        first.triggerEvent({
-            cursor: 1,
-            event: { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
-        });
+        first.triggerEvent(
+            durableEnvelope(1, {
+                event: 'state.changed',
+                payload: { kind: 'full', reason: 'unknown' },
+            }),
+        );
 
         const replacementIdentity = {
             ...defaultRecoveryIdentity,

@@ -27,6 +27,7 @@ export interface RecoveringEventClient {
  */
 export function createRecoveringEventClient(options: {
     emit(event: ServerEvent): void;
+    identity?: { serverId: string; stateEpoch: string };
     onError?(error: unknown): void;
     recover(afterCursor: number): Promise<EventRecovery>;
 }): RecoveringEventClient {
@@ -41,6 +42,28 @@ export function createRecoveringEventClient(options: {
     let isActive = true;
     let generation = 0;
     let recovery: RecoveryState | undefined;
+
+    function assertEnvelopeIdentity(envelope: ProtocolEventEnvelope): void {
+        if (!options.identity) return;
+        if (
+            envelope.serverId !== options.identity.serverId ||
+            envelope.stateEpoch !== options.identity.stateEpoch
+        )
+            throw new CaxriError('CONFLICT', 'Event belongs to a different Server history');
+    }
+
+    function assertRecoveryIdentity(result: EventRecovery): void {
+        if (!options.identity) return;
+        if (
+            result.serverId !== options.identity.serverId ||
+            result.stateEpoch !== options.identity.stateEpoch ||
+            result.barrier?.cursor !== result.cursor
+        )
+            throw new CaxriError(
+                'CONFLICT',
+                'Recovery barrier belongs to a different Server history',
+            );
+    }
 
     function isCurrent(state: RecoveryState): boolean {
         return isActive && recovery === state && generation === state.generation;
@@ -65,6 +88,7 @@ export function createRecoveringEventClient(options: {
     ): boolean {
         for (const envelope of events) {
             if (!isCurrent(state)) return false;
+            assertEnvelopeIdentity(envelope);
             if (envelope.cursor <= cursor) continue;
             if (envelope.cursor !== cursor + 1)
                 throw new CaxriError('INTERNAL', 'Host returned a non-contiguous event suffix');
@@ -80,6 +104,7 @@ export function createRecoveringEventClient(options: {
     ): boolean {
         for (const envelope of events) {
             if (!isCurrent(state)) return false;
+            assertEnvelopeIdentity(envelope);
             if (envelope.cursor <= cursor) continue;
             if (envelope.cursor !== cursor + 1) return false;
             cursor = envelope.cursor;
@@ -105,6 +130,7 @@ export function createRecoveringEventClient(options: {
             // eslint-disable-next-line no-await-in-loop -- each retry depends on whether the previous recovery converged; the loop cannot be parallelized.
             const result = await options.recover(cursor);
             if (!isCurrent(state)) return;
+            assertRecoveryIdentity(result);
             if (state.isQueuedOverflowed) {
                 state.queued.length = 0;
                 state.isQueuedOverflowed = false;
@@ -172,6 +198,12 @@ export function createRecoveringEventClient(options: {
 
     function acceptLive(envelope: ProtocolEventEnvelope): void {
         if (!isActive) return;
+        try {
+            assertEnvelopeIdentity(envelope);
+        } catch (error) {
+            options.onError?.(error);
+            return;
+        }
         if (recovery) {
             queue(recovery, envelope);
             return;
