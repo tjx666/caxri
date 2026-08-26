@@ -52,10 +52,7 @@ describe('Vitest project partition', () => {
         expect(apiTestFiles).toEqual(['packages/extension-api/src/**/*.test.ts']);
         expect(clientTestFiles).toEqual(['packages/client/src/**/*.test.ts']);
         expect(utilitiesTestFiles).toEqual(['packages/utils/src/**/*.test.ts']);
-        expect(cliTestFiles).toEqual([
-            'apps/cli/{scripts,src}/**/*.test.ts',
-            'packages/cli/{scripts,src}/**/*.test.ts',
-        ]);
+        expect(cliTestFiles).toEqual(['apps/cli/{scripts,src}/**/*.test.ts']);
         expect(desktopTestFiles).toEqual(
             expect.arrayContaining([
                 'apps/desktop/src/**/*.test.ts',

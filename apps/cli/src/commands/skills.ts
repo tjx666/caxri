@@ -6,7 +6,7 @@
 import { agentSkillProviderUsage, parseAgentSkillProvider } from '@caxri/agent-skills';
 import { CaxriError } from '@caxri/protocol';
 
-import type { LocalCommandDefinition } from './catalog';
+import type { LocalCommandDefinition } from './types';
 
 const SKILL_NAME = 'caxri-cli';
 const providerUsage = `<${agentSkillProviderUsage}>`;

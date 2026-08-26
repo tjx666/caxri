@@ -11,9 +11,7 @@ import type { CliCommandDefinition } from './types';
 export {
     CLI_GROUPS,
     type CliCommandDefinition,
-    type CliCommandDescription,
     describeCliCommand,
-    type LocalCommandDefinition,
     type RemoteCommandDefinition,
 } from './types';
 

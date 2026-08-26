@@ -30,7 +30,7 @@ describe('CLI delivery artifact', () => {
     it('ships the standalone bundle byte-for-byte inside the Desktop package', () => {
         const cliPackage = readManifest(new URL('../../package.json', import.meta.url));
         const agentSkillsPackage = readManifest(
-            new URL('../../../agent-skills/package.json', import.meta.url),
+            new URL('../../../../packages/agent-skills/package.json', import.meta.url),
         );
         const rootPackage = readManifest(new URL('../../../../package.json', import.meta.url));
 
@@ -40,7 +40,7 @@ describe('CLI delivery artifact', () => {
         expect(cliPackage.scripts?.build).toContain('scripts/validate-skill.ts');
         expect(cliPackage.scripts?.build).toContain('scripts/verify-bundle.ts');
         expect(rootPackage.build?.extraResources).toContainEqual({
-            from: 'packages/cli/dist/caxri.cjs',
+            from: 'apps/cli/dist/caxri.cjs',
             to: 'cli/caxri.cjs',
         });
         expect(rootPackage.build?.electronFuses?.runAsNode).toBe(true);

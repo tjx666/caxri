@@ -18,10 +18,7 @@ export const agentSkillsTestFiles = ['packages/agent-skills/{scripts,src}/**/*.t
 export const apiTestFiles = ['packages/extension-api/src/**/*.test.ts'];
 export const clientTestFiles = ['packages/client/src/**/*.test.ts'];
 export const utilitiesTestFiles = ['packages/utils/src/**/*.test.ts'];
-export const cliTestFiles = [
-    'apps/cli/{scripts,src}/**/*.test.ts',
-    'packages/cli/{scripts,src}/**/*.test.ts',
-];
+export const cliTestFiles = ['apps/cli/{scripts,src}/**/*.test.ts'];
 export const testProjectNames = [
     'desktop-parallel',
     'desktop-serial-native',
@@ -104,7 +101,6 @@ export const workspaceAliases = {
         'packages/client/src/supervise/index.ts',
     ),
     '@caxri/client': resolve(import.meta.dirname, 'packages/client/src/index.ts'),
-    '@caxri/cli': resolve(import.meta.dirname, 'packages/cli/src/index.ts'),
     '@caxri/protocol': resolve(import.meta.dirname, 'packages/protocol/src/index.ts'),
     '@caxri/utils': resolve(import.meta.dirname, 'packages/utils/src/index.ts'),
     '@shared': resolve(import.meta.dirname, 'src/shared'),

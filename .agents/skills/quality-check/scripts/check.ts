@@ -96,7 +96,6 @@ function dirtyLayerForFile(file: string): DirtyLayer {
         normalized.startsWith('packages/extension-api/')
     )
         return 'Shared';
-    if (normalized.startsWith('packages/cli/')) return 'CLI';
     if (normalized.startsWith('e2e/')) return 'e2e';
     if (normalized.startsWith('.agents/skills/')) return 'skills';
     if (

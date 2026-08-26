@@ -6,13 +6,13 @@ work without a running Host:
 
 ```bash
 bun run build:cli
-node packages/cli/dist/caxri.cjs --help
-node packages/cli/dist/caxri.cjs capabilities --json
+node apps/cli/dist/caxri.cjs --help
+node apps/cli/dist/caxri.cjs capabilities --json
 ```
 
 ## Artifacts and Host startup
 
-`packages/cli/dist/caxri.cjs` is the standalone artifact and requires Node.js 24 or newer. The
+`apps/cli/dist/caxri.cjs` is the standalone artifact and requires Node.js 24 or newer. The
 macOS app contains the exact same bundle at `Caxri.app/Contents/Resources/cli/caxri.cjs` plus an
 app-managed launcher at `Caxri.app/Contents/Resources/bin/caxri`; that launcher uses the packaged
 Electron executable only in `ELECTRON_RUN_AS_NODE=1` mode. From that exact installed layout, a

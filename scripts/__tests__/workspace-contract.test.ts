@@ -109,7 +109,7 @@ describe('pnpm workspace contract', () => {
     const agentSkillsManifest = manifest(join(root, 'packages/agent-skills/package.json'));
     const clientManifest = manifest(join(root, 'packages/client/package.json'));
     const protocolManifest = manifest(join(root, 'packages/protocol/package.json'));
-    const cliManifest = manifest(join(root, 'packages/cli/package.json'));
+    const cliManifest = manifest(join(root, 'apps/cli/package.json'));
     const workspace = parse(
         readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'),
     ) as PnpmWorkspace;
@@ -272,12 +272,12 @@ describe('pnpm workspace contract', () => {
             );
         }
 
-        const cliRoot = join(root, 'packages/cli/src');
+        const cliRoot = join(root, 'apps/cli/src');
         const cliDomains = readdirSync(cliRoot, { withFileTypes: true })
             .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
             .map((entry) => entry.name)
             .toSorted((left, right) => left.localeCompare(right));
-        expect(cliDomains).toEqual(['commands', 'host']);
+        expect(cliDomains).toEqual(['commands']);
         for (const domain of cliDomains) {
             expect(readdirSync(join(cliRoot, domain)), `${domain} CLI barrel`).toContain(
                 'index.ts',
@@ -306,7 +306,7 @@ describe('pnpm workspace contract', () => {
             "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --if-present run build",
         );
         expect(rootManifest.scripts?.['link:cli']).toBe(
-            'bun run build:cli && bun run packages/cli/scripts/link-global.ts',
+            'bun run build:cli && bun run apps/cli/scripts/link-global.ts',
         );
         expect(rootManifest.scripts?.['unlink:cli']).toBe('pnpm remove --global @caxri/cli');
     });
@@ -397,7 +397,7 @@ const requiredProtocol = require('@caxri/protocol');
         await expect(
             eslint.isPathIgnored(join(root, 'packages/protocol/dist/index.js')),
         ).resolves.toBe(true);
-        await expect(eslint.isPathIgnored(join(root, 'packages/cli/dist/caxri.cjs'))).resolves.toBe(
+        await expect(eslint.isPathIgnored(join(root, 'apps/cli/dist/caxri.cjs'))).resolves.toBe(
             true,
         );
     });

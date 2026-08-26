@@ -29,12 +29,9 @@ its current root and move the file with its owner:
 
 | Current path                                       | Target owner      | Removal batch |
 | -------------------------------------------------- | ----------------- | ------------- |
-| `packages/cli/`                                    | `apps/cli/`       | A2c           |
-| `packages/api/`                                    | `extension-api`   | A2b           |
 | `src/main/`, `src/preload/`, `src/renderer/`       | `apps/desktop/`   | A2d           |
 | `src/host/`, `src/runtime/`, `src/extension-host/` | `apps/server/`    | A2e           |
-| `src/shared/ipc/`                                  | `protocol`        | A2b           |
-| other `src/shared/` modules                        | package/app owner | A2b/A2d/A2e   |
+| other `src/shared/` modules                        | package/app owner | A2d/A2e       |
 
 The executable source of truth for these allowances is `scripts/architecture-boundaries.ts`.
 `caxri/architecture-boundaries` rejects application-to-application source imports, package-private
@@ -123,8 +120,8 @@ production imports that reach past another domain's root.
   `file-conflict-dialog-store.ts`.
 
 Cross-domain production imports target the domain barrel, not a deep file. Package consumers use
-the package root; `packages/cli/src` composition-root files (`application`, `environment`,
-`output`, `selectors`) stay at that root.
+the package root; `apps/cli/src` composition-root files (`application`, `environment`, `output`,
+`selectors`) stay at that root and are not an importable package boundary.
 
 When moving, `git mv`, then fix relative imports and `import.meta.url` paths in the same change.
 

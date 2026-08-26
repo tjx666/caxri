@@ -42,7 +42,7 @@ const cliPath =
     process.env.CAXRI_CLI_PATH ??
     (process.resourcesPath
         ? join(process.resourcesPath, 'cli', 'caxri.cjs')
-        : join(hostOutputDirectory, '../../packages/cli/dist/caxri.cjs'));
+        : join(hostOutputDirectory, '../../apps/cli/dist/caxri.cjs'));
 const runtimeEnvironment = {
     ...e2eAgentPolicyEnvironment(readE2EAgentPolicy()),
     ...(process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS && {

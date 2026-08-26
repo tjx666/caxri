@@ -122,13 +122,6 @@ export const packageBoundaries: readonly PackageBoundary[] = [
  */
 export const legacyOwnershipRoots: readonly LegacyOwnershipRoot[] = [
     {
-        root: 'packages/cli',
-        kind: 'application',
-        owner: 'cli',
-        removeInBatch: 'A2c',
-        target: 'apps/cli',
-    },
-    {
         root: 'src/main',
         kind: 'application',
         owner: 'desktop',
