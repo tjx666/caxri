@@ -61,6 +61,16 @@ export async function listenForControlConnections(options: {
             socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
             return;
         }
+        /**
+         * Supported Desktop and CLI clients are native local processes and send no Origin header. Browsers always add
+         * one to WebSocket handshakes, so rejecting every Origin closes the localhost cross-site request path before a
+         * credential can be presented. Future Direct or Relay browser access must replace this with its reviewed
+         * allowlist rather than silently widening the local listener.
+         */
+        if (request.headers.origin !== undefined) {
+            socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
+            return;
+        }
         webSocketServer.handleUpgrade(request, socket, head, (connection) => {
             webSocketServer.emit('connection', connection, request);
         });

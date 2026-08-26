@@ -63,6 +63,25 @@ function closeEvent(socket: WebSocket): Promise<{ code: number; reason: string }
     });
 }
 
+function upgradeOutcome(
+    url: string,
+    origin: string,
+): Promise<{ kind: 'open' | 'rejected'; status?: number }> {
+    const connection = new WebSocket(url, { headers: { origin } });
+    cleanups.push(() => {
+        connection.terminate();
+        return Promise.resolve();
+    });
+    return new Promise((resolve, reject) => {
+        connection.once('open', () => resolve({ kind: 'open' }));
+        connection.once('unexpected-response', (_request, response) => {
+            response.resume();
+            resolve({ kind: 'rejected', status: response.statusCode });
+        });
+        connection.once('error', reject);
+    });
+}
+
 describe('WebSocket control transport', () => {
     it('rejects bulk control commands without a negotiated legacy fallback', async () => {
         const lease = await fixture();
@@ -160,6 +179,29 @@ describe('WebSocket control transport', () => {
         expect(body).toEqual({ status: 'ok', version: '1.0.0', protocolVersion: 2 });
         expect(JSON.stringify(body)).not.toContain(lease.manifest.operatorToken);
         expect(notFound.status).toBe(404);
+    });
+
+    it('rejects browser-origin WebSocket upgrades on both local lanes', async () => {
+        const lease = await fixture();
+        const server = new ControlServer({
+            adapters: { server: { invoke: () => null } },
+            desktopCredential: lease.desktopCredential,
+            identity: lease.identity,
+        });
+        await lease.publish(await server.start());
+        cleanups.push(() => server.close());
+        const { host, port } = lease.manifest.endpoint;
+
+        await expect(
+            upgradeOutcome(`ws://${host}:${port}/control`, 'https://untrusted.test'),
+        ).resolves.toEqual({
+            kind: 'rejected',
+            status: 403,
+        });
+        await expect(upgradeOutcome(`ws://${host}:${port}/stream`, 'null')).resolves.toEqual({
+            kind: 'rejected',
+            status: 403,
+        });
     });
 
     it('rejects binary control messages before authentication', async () => {
