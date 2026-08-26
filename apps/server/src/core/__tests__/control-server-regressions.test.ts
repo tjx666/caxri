@@ -10,6 +10,7 @@ import {
     CaxriError,
     localServerReplySchema,
     localServerWelcomeSchema,
+    protocolFeatures,
     serverEndpointUrl,
 } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -243,9 +244,13 @@ describe('local Host transport regressions', () => {
             },
         };
         const server = new ControlServer({
-            adapters: { server: host },
+            adapters: { features: protocolFeatures, server: host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
+            protocolIdentity: {
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'b'.repeat(32),
+            },
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
@@ -358,9 +363,13 @@ describe('local Host transport regressions', () => {
             }),
         };
         const server = new ControlServer({
-            adapters: { server: host },
+            adapters: { features: protocolFeatures, server: host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
+            protocolIdentity: {
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'b'.repeat(32),
+            },
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
@@ -453,10 +462,10 @@ describe('local Host transport regressions', () => {
         const { promise: started, resolve: markStarted } = Promise.withResolvers<void>();
         const host: CommandAdapter = {
             invoke: async (request) => {
-                if (request.method === 'files.read') {
+                if (request.method === 'app.health') {
                     markStarted();
                     await readStarted;
-                    return { path: '/project/a.txt', content: 'done', mtimeMs: 1, size: 4 };
+                    return { ready: true, pid: 88, startedAt: 1, activePtyCount: 0 };
                 }
                 return null;
             },
@@ -487,7 +496,7 @@ describe('local Host transport regressions', () => {
         );
         const welcome = localServerWelcomeSchema.parse(await read());
         const generation = welcome.desktopLease!.generation;
-        socket.send(command('slow-read', 'files.read', { sessionId: 'session-1', path: 'a.txt' }));
+        socket.send(command('slow-health', 'app.health', {}));
         await started;
 
         await new Promise((resolve) => nativeSetTimeout(resolve, 250));
@@ -505,7 +514,7 @@ describe('local Host transport regressions', () => {
         releaseRead();
         await expect(read()).resolves.toMatchObject({
             type: 'reply',
-            reply: { id: 'slow-read', ok: true },
+            reply: { id: 'slow-health', ok: true },
         });
         socket.send(command('health-after-renewal', 'app.health', {}));
         await expect(read()).resolves.toMatchObject({
