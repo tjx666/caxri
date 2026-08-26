@@ -28,7 +28,7 @@ describe('E2E build freshness inputs', () => {
             expect.arrayContaining([
                 join(root, 'extensions', 'git', 'dist', 'extension.js'),
                 join(root, 'out', 'main', 'extension-host.js'),
-                join(root, 'packages', 'cli', 'dist', 'caxri.cjs'),
+                join(root, 'apps', 'cli', 'dist', 'caxri.cjs'),
             ]),
         );
     });
@@ -43,6 +43,7 @@ describe('E2E build freshness inputs', () => {
                 join(root, 'packages', 'agent-skills', 'src'),
                 join(root, 'packages', 'client', 'src'),
                 join(root, 'packages', 'extension-api', 'src'),
+                join(root, 'apps', 'cli', 'src'),
                 join(root, 'packages', 'utils', 'package.json'),
                 join(root, 'packages', 'utils', 'src'),
                 join(root, 'packages', 'utils', 'tsconfig.json'),
