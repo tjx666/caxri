@@ -244,6 +244,7 @@ export class ExtensionHostSupervisor extends EventTarget {
     private restartTimer?: NodeJS.Timeout;
     private restartResetTimer?: NodeJS.Timeout;
     private circuitOpen = false;
+    private startAttempts = 0;
 
     constructor(private readonly options: ExtensionHostSupervisorOptions) {
         super();
@@ -408,6 +409,9 @@ export class ExtensionHostSupervisor extends EventTarget {
 
     private async startOnce(): Promise<void> {
         if (this.intentionalStop) throw new Error('Extension Host has been stopped');
+        const startedAt = performance.now();
+        const isRestart = this.startAttempts > 0;
+        this.startAttempts += 1;
         this.readiness = new Promise((resolve, reject) => {
             const timeout = setTimeout(
                 () => reject(new Error('Extension Host did not become ready within 15 seconds')),
@@ -452,7 +456,23 @@ export class ExtensionHostSupervisor extends EventTarget {
         try {
             await this.readiness;
             await this.sendRequest('configure', { extensions: this.options.registrations() });
+            this.options.logger.recordMetric('startup.phase', performance.now() - startedAt, {
+                owner: 'extension-host',
+                phase: 'startup',
+                outcome: isRestart ? 'restart' : 'success',
+            });
+            if (isRestart)
+                this.options.logger.recordMetric('process.restarts', 1, {
+                    owner: 'extension-host',
+                    phase: 'startup',
+                    outcome: 'restart',
+                });
         } catch (error) {
+            this.options.logger.recordMetric('startup.phase', performance.now() - startedAt, {
+                owner: 'extension-host',
+                phase: 'startup',
+                outcome: 'failure',
+            });
             if (this.child === child) {
                 this.rejectPendingRequests('Extension Host failed to start');
                 await this.terminateChild(child);
