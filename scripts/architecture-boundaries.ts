@@ -43,8 +43,8 @@ export interface TransitionalCycleAllowance {
 }
 
 /**
- * Target topology. An application is independently runnable or deployable and can depend on public package exports, but
- * application source is never an importable implementation boundary.
+ * Current topology. An application is independently runnable or deployable and can depend on public package exports,
+ * but application source is never an importable implementation boundary.
  */
 export const appBoundaries: readonly AppBoundary[] = [
     {
@@ -69,7 +69,7 @@ export const appBoundaries: readonly AppBoundary[] = [
 ];
 
 /**
- * Importable target packages and the only subpaths consumers may use.
+ * Current importable packages and the only subpaths consumers may use.
  */
 export const packageBoundaries: readonly PackageBoundary[] = [
     {
@@ -125,8 +125,8 @@ export const packageBoundaries: readonly PackageBoundary[] = [
 ];
 
 /**
- * Current production roots remain authoritative only until their owning move. The list is data so lint and contract
- * tests cannot silently turn a transitional directory into permanent architecture.
+ * Legacy production roots retained only until their owning move. The completed cutover keeps this list empty so lint
+ * and contract tests cannot silently reintroduce a transitional directory.
  */
 export const legacyOwnershipRoots: readonly LegacyOwnershipRoot[] = [];
 
