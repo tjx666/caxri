@@ -37,6 +37,7 @@ import {
 } from './clipboard.ts';
 import type { E2EApp } from './electron-app.ts';
 import { registerE2ELaunch } from './error-gate.ts';
+import { stageDevelopmentTestExtension } from './test-extension.ts';
 import { resolveE2EClipboardPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
@@ -264,6 +265,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         clipboard = false,
         clipboardFixture,
     } = options;
+    if (!executablePath) await stageDevelopmentTestExtension(projectRoot, userDataDir);
     const agentEnvironment = await e2eAgentEnvironment(userDataDir, agentMode, environment);
     const clipboardPolicy = resolveE2EClipboardPolicy(process.env, clipboard);
     if (clipboardFixture && !clipboard) {
