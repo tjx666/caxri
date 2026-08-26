@@ -35,14 +35,14 @@ async function observeIpcFailure(
         }
         await expect
             .poll(() => ({
-                main: testInfo.attachments.some((attachment) =>
-                    attachment.name.startsWith('caxri-main-'),
+                desktop: testInfo.attachments.some((attachment) =>
+                    attachment.name.startsWith('caxri-desktop-'),
                 ),
-                runtime: testInfo.attachments.some((attachment) =>
-                    attachment.name.startsWith('caxri-runtime-'),
+                server: testInfo.attachments.some((attachment) =>
+                    attachment.name.startsWith('caxri-server-core-'),
                 ),
             }))
-            .toEqual({ main: true, runtime: true });
+            .toEqual({ desktop: true, server: true });
         await rm(testDirectory, { recursive: true, force: true });
     }
 }
@@ -114,36 +114,36 @@ test('issue-104-error-gate: observes a page exception while the UI remains usabl
 });
 
 errorGateSelfTest(
-    'issue-104-error-gate: rejects an unexpected Main error after usable UI',
+    'issue-104-error-gate: rejects an unexpected Desktop error after usable UI',
     // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
     async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
-            'Unexpected E2E errors: main/ipc.request_failed/VALIDATION x1',
-            () => observeIpcFailure(testInfo, 'main-unallowed', 'e2e.invalid', {}, 'VALIDATION'),
+            'Unexpected E2E errors: desktop/ipc.request_failed/VALIDATION x1',
+            () => observeIpcFailure(testInfo, 'desktop-unallowed', 'e2e.invalid', {}, 'VALIDATION'),
         );
     },
 );
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
-test('issue-104-error-gate: consumes one exact Main error after usable UI', async ({}, testInfo) => {
+test('issue-104-error-gate: consumes one exact Desktop error after usable UI', async ({}, testInfo) => {
     allowE2EErrors([
         { source: 'desktop', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
     ]);
-    await observeIpcFailure(testInfo, 'main-allowed', 'e2e.invalid', {}, 'VALIDATION');
+    await observeIpcFailure(testInfo, 'desktop-allowed', 'e2e.invalid', {}, 'VALIDATION');
 });
 
 errorGateSelfTest(
-    'issue-104-error-gate: rejects an unexpected Runtime error after usable UI',
+    'issue-104-error-gate: rejects an unexpected Server error after usable UI',
     // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
     async ({}, testInfo) => {
         await expectGateFailure(
             testInfo,
-            'Unexpected E2E errors: main/ipc.request_failed/NOT_FOUND x1, runtime/ipc.request_failed/NOT_FOUND x1',
+            'Unexpected E2E errors: desktop/ipc.request_failed/NOT_FOUND x1, server-core/ipc.request_failed/NOT_FOUND x1',
             () =>
                 observeIpcFailure(
                     testInfo,
-                    'runtime-unallowed',
+                    'server-unallowed',
                     'terminal.restart',
                     { terminalId: 'missing-terminal', mode: 'resume' },
                     'NOT_FOUND',
@@ -160,7 +160,7 @@ test('issue-104-error-gate: consumes exact Desktop and Server errors after usabl
     ]);
     await observeIpcFailure(
         testInfo,
-        'runtime-allowed',
+        'server-allowed',
         'terminal.restart',
         { terminalId: 'missing-terminal', mode: 'resume' },
         'NOT_FOUND',
