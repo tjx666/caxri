@@ -4,8 +4,8 @@ import { commandPolicy } from '../method-spec';
 
 describe('commandPolicy', () => {
     it('derives idempotency from effect: reads are none, writes and controls are request-scoped', () => {
-        expect(commandPolicy('host', 'read').idempotency).toBe('none');
-        expect(commandPolicy('host', 'write').idempotency).toBe('request');
+        expect(commandPolicy('server', 'read').idempotency).toBe('none');
+        expect(commandPolicy('server', 'write').idempotency).toBe('request');
         expect(commandPolicy('desktop', 'control').idempotency).toBe('request');
     });
 
@@ -14,9 +14,9 @@ describe('commandPolicy', () => {
     });
 
     it('preserves an explicit, narrower capability list', () => {
-        const policy = commandPolicy('host', 'write', ['projects.write']);
+        const policy = commandPolicy('server', 'write', ['projects.write']);
         expect(policy.requiredCapabilities).toEqual(['projects.write']);
-        expect(policy.owner).toBe('host');
+        expect(policy.owner).toBe('server');
         expect(policy.effect).toBe('write');
     });
 });

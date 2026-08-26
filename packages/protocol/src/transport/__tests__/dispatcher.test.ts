@@ -32,9 +32,11 @@ describe('requestIdFromEnvelope', () => {
 
 describe('createCommandDispatcher receipt capacity', () => {
     it('rejects a maximumReceipts value outside the 1..4096 bound', () => {
-        const host: CommandAdapter = { invoke: () => null };
-        expect(() => createCommandDispatcher({ host, maximumReceipts: 0 })).toThrow(CaxriError);
-        expect(() => createCommandDispatcher({ host, maximumReceipts: 4_097 })).toThrow(CaxriError);
+        const server: CommandAdapter = { invoke: () => null };
+        expect(() => createCommandDispatcher({ server, maximumReceipts: 0 })).toThrow(CaxriError);
+        expect(() => createCommandDispatcher({ server, maximumReceipts: 4_097 })).toThrow(
+            CaxriError,
+        );
     });
 
     it('evicts the oldest settled receipt once at capacity instead of rejecting new idempotent commands', async () => {
@@ -57,14 +59,14 @@ describe('createCommandDispatcher receipt capacity', () => {
                 workbenchProjectId: 'project-1',
             };
         }
-        const host: CommandAdapter = {
+        const server: CommandAdapter = {
             invoke: (command) => {
                 if (command.method === 'session.rename')
                     return record((command.params as { displayTitle: string }).displayTitle);
                 return null;
             },
         };
-        const dispatch = createCommandDispatcher({ host, maximumReceipts: 1 });
+        const dispatch = createCommandDispatcher({ server, maximumReceipts: 1 });
 
         await dispatch(
             request('rename-1', 'session.rename', { sessionId: 's1', displayTitle: 'First' }),
@@ -85,7 +87,7 @@ describe('createCommandDispatcher admission', () => {
         const completion = Promise.withResolvers<unknown>();
         let isInvoked = false;
         const dispatch = createCommandDispatcher({
-            host: {
+            server: {
                 invoke: () => {
                     isInvoked = true;
                     return completion.promise;
@@ -115,11 +117,11 @@ describe('createCommandDispatcher admission', () => {
 
 describe('createCommandDispatcher adapter availability', () => {
     it('reports UNAVAILABLE when the owning adapter is present but reports itself unavailable', async () => {
-        const host: CommandAdapter = {
+        const server: CommandAdapter = {
             invoke: () => ({ ready: true, pid: 1, startedAt: 1, activePtyCount: 0 }),
             isAvailable: () => false,
         };
-        const dispatch = createCommandDispatcher({ host });
+        const dispatch = createCommandDispatcher({ server });
         await expect(dispatch(request('r1', 'app.health'), desktop)).resolves.toMatchObject({
             ok: false,
             error: { code: 'UNAVAILABLE', message: 'Host is unavailable' },
@@ -127,8 +129,8 @@ describe('createCommandDispatcher adapter availability', () => {
     });
 
     it('excludes commands owned by an unavailable adapter from the negotiated welcome', () => {
-        const host: CommandAdapter = { invoke: () => null, isAvailable: () => false };
-        const welcome = createProtocolWelcome({ host }, { supportedVersions: [2] }, desktop);
+        const server: CommandAdapter = { invoke: () => null, isAvailable: () => false };
+        const welcome = createProtocolWelcome({ server }, { supportedVersions: [2] }, desktop);
         expect(welcome.commands).not.toContain('app.health');
     });
 });

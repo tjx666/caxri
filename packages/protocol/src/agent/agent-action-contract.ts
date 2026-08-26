@@ -133,7 +133,7 @@ export const agentActionListResultSchema = z.strictObject({
 
 export const agentActionMethods = {
     'agentActions.list': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: z.strictObject({ terminalId: identifierSchema }),
         result: agentActionListResultSchema,
     },

@@ -6,8 +6,8 @@ describe('workbenchMethods', () => {
     it('restricts Workbench Root authorization to the Desktop owner while selection stays Host-owned', () => {
         expect(workbenchMethods['session.authorizeWorkbenchRoot'].owner).toBe('desktop');
         expect(workbenchMethods['session.continueInWorktree'].owner).toBe('desktop');
-        expect(workbenchMethods['session.selectWorkbenchRoot'].owner).toBe('host');
-        expect(workbenchMethods['session.workbenchRoots'].owner).toBe('host');
+        expect(workbenchMethods['session.selectWorkbenchRoot'].owner).toBe('server');
+        expect(workbenchMethods['session.workbenchRoots'].owner).toBe('server');
     });
 
     it('marks root listing as read and every mutation as write', () => {
@@ -40,7 +40,7 @@ describe('workbenchMethods', () => {
 describe('workbenchInternalMethods', () => {
     it('keeps every internal handoff Host-owned and write-effect', () => {
         for (const spec of Object.values(workbenchInternalMethods)) {
-            expect(spec.owner).toBe('host');
+            expect(spec.owner).toBe('server');
             expect(spec.effect).toBe('write');
         }
     });

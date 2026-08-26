@@ -470,7 +470,7 @@ if (ownsProfileInstance) {
 
     function installIpc(): void {
         const dispatchCommand = createElectronIpcCommandAdapter({
-            host: {
+            server: {
                 invoke: (request, _context, invocation) =>
                     request.method === 'events.recover'
                         ? eventRelay.recover(request.params.afterCursor)
@@ -482,7 +482,7 @@ if (ownsProfileInstance) {
                     if (!isMainRequest(request))
                         throw new CaxriError(
                             'INTERNAL',
-                            'Host command reached the Desktop adapter',
+                            'Server command reached the Desktop adapter',
                         );
                     return handleMainMethod(request);
                 }) satisfies CommandAdapter['invoke'],

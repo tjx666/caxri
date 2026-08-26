@@ -42,13 +42,13 @@ export const desktopOpenParametersSchema = z.object({
 });
 
 const hostDesktopRead = {
-    owner: 'host',
+    owner: 'server',
     effect: 'read',
     requiredCapabilities: ['desktop.window'],
     idempotency: 'none',
 } as const;
 const hostDesktopControl = {
-    owner: 'host',
+    owner: 'server',
     effect: 'control',
     requiredCapabilities: ['desktop.window'],
     idempotency: 'request',

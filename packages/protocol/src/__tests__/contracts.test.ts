@@ -26,7 +26,7 @@ describe('method table', () => {
 
     it('gives every method a validated owner, params schema, and result schema', () => {
         for (const [name, spec] of Object.entries(allMethods)) {
-            expect(['desktop', 'host'], name).toContain(spec.owner);
+            expect(['desktop', 'server'], name).toContain(spec.owner);
             expect(['read', 'write', 'control'], name).toContain(spec.effect);
             expect(spec.requiredCapabilities.length, name).toBeGreaterThan(0);
             expect(spec.params.safeParse(undefined), name).toHaveProperty('success');
@@ -393,14 +393,14 @@ describe('file mutation contracts', () => {
     };
 
     it('keeps filesystem mutations narrow and gives Trash to Main only', () => {
-        expect(methods['files.create'].owner).toBe('host');
-        expect(methods['files.copy'].owner).toBe('host');
-        expect(methods['files.rename'].owner).toBe('host');
-        expect(methods['files.move'].owner).toBe('host');
-        expect(methods['files.reveal'].owner).toBe('host');
+        expect(methods['files.create'].owner).toBe('server');
+        expect(methods['files.copy'].owner).toBe('server');
+        expect(methods['files.rename'].owner).toBe('server');
+        expect(methods['files.move'].owner).toBe('server');
+        expect(methods['files.reveal'].owner).toBe('server');
         expect(methods['files.trash'].owner).toBe('desktop');
-        expect(internalMethods['files.authorizeOpen'].owner).toBe('host');
-        expect(internalMethods['files.authorizeTrash'].owner).toBe('host');
+        expect(internalMethods['files.authorizeOpen'].owner).toBe('server');
+        expect(internalMethods['files.authorizeTrash'].owner).toBe('server');
     });
 
     it('defaults creation to a file and drag movement to conflict rejection', () => {

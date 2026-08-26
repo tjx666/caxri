@@ -118,7 +118,7 @@ describe('local Host transport regressions', () => {
                 },
             };
             const server = new ControlServer({
-                adapters: { host },
+                adapters: { server: host },
                 desktopCredential: lease.desktopCredential,
                 identity: lease.identity,
             });
@@ -180,7 +180,7 @@ describe('local Host transport regressions', () => {
             },
         };
         const server = new ControlServer({
-            adapters: { host },
+            adapters: { server: host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -241,7 +241,7 @@ describe('local Host transport regressions', () => {
             },
         };
         const server = new ControlServer({
-            adapters: { host },
+            adapters: { server: host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -314,7 +314,7 @@ describe('local Host transport regressions', () => {
             },
         };
         const server = new ControlServer({
-            adapters: { host },
+            adapters: { server: host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -356,7 +356,7 @@ describe('local Host transport regressions', () => {
             }),
         };
         const server = new ControlServer({
-            adapters: { host },
+            adapters: { server: host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -389,7 +389,7 @@ describe('local Host transport regressions', () => {
     it('severs the replaced Desktop socket without accumulating connection state', async () => {
         const lease = await profile();
         const server = new ControlServer({
-            adapters: { host: { invoke: () => null } },
+            adapters: { server: { invoke: () => null } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -459,7 +459,7 @@ describe('local Host transport regressions', () => {
             },
         };
         const server = new ControlServer({
-            adapters: { host },
+            adapters: { server: host },
             desktopCredential: lease.desktopCredential,
             desktopLeaseDurationMs: 500,
             identity: lease.identity,
@@ -537,7 +537,7 @@ describe('local Host transport regressions', () => {
             };
         }> = [];
         const server = new ControlServer({
-            adapters: { host },
+            adapters: { server: host },
             desktopCredential: lease.desktopCredential,
             logger: { write: (level, event, options) => written.push({ level, event, options }) },
             identity: lease.identity,

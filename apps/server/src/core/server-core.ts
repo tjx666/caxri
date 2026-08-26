@@ -701,7 +701,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             await extensionService.start();
         }
         server = new ControlServer({
-            adapters: { host: serverAdapter },
+            adapters: { server: serverAdapter },
             authenticateAgent: (credential) => agentEndpoints.authenticate(credential),
             consumeDesktopTarget: (targetId, generation) => {
                 if (!desktopRouter)

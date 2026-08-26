@@ -105,27 +105,27 @@ export const agentWorktreeCreatedResultSchema = z.discriminatedUnion('status', [
 
 export const agentEndpointMethods = {
     'agent.context': {
-        ...commandPolicy('host', 'read', ['agents.read']),
+        ...commandPolicy('server', 'read', ['agents.read']),
         params: noParameters,
         result: agentContextResultSchema,
     },
     'agent.list': {
-        ...commandPolicy('host', 'read', ['agents.read']),
+        ...commandPolicy('server', 'read', ['agents.read']),
         params: noParameters,
         result: agentListResultSchema,
     },
     'agent.worktree.created': {
-        ...commandPolicy('host', 'write', ['worktrees.report']),
+        ...commandPolicy('server', 'write', ['worktrees.report']),
         params: z.object({ rootPath: pathSchema }),
         result: agentWorktreeCreatedResultSchema,
     },
     'agent.grants': {
-        ...commandPolicy('host', 'read', ['agents.grant']),
+        ...commandPolicy('server', 'read', ['agents.grant']),
         params: endpointTargetParametersSchema,
         result: z.object({ grants: z.array(agentEndpointGrantSchema).max(32) }),
     },
     'agent.grant': {
-        ...commandPolicy('host', 'write', ['agents.grant']),
+        ...commandPolicy('server', 'write', ['agents.grant']),
         params: endpointTargetParametersSchema.extend({
             policy: agentGrantPolicySchema,
             ttlMs: z.number().int().min(1_000).max(3_600_000).default(900_000),
@@ -133,7 +133,7 @@ export const agentEndpointMethods = {
         result: agentEndpointGrantSchema,
     },
     'agent.revoke': {
-        ...commandPolicy('host', 'write', ['agents.grant']),
+        ...commandPolicy('server', 'write', ['agents.grant']),
         params: endpointTargetParametersSchema.extend({ grantId: identifierSchema }),
         result: z.object({ revoked: z.boolean() }),
     },

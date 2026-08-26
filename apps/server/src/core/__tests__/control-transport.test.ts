@@ -45,7 +45,7 @@ describe('WebSocket control transport', () => {
     it('serves content-free health on the same loopback listener as control traffic', async () => {
         const lease = await fixture();
         const server = new ControlServer({
-            adapters: { host: { invoke: () => null } },
+            adapters: { server: { invoke: () => null } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -68,7 +68,7 @@ describe('WebSocket control transport', () => {
         const lease = await fixture();
         const invoke = vi.fn();
         const server = new ControlServer({
-            adapters: { host: { invoke } },
+            adapters: { server: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
