@@ -21,6 +21,7 @@ interface PackageManifest {
     build?: { extraMetadata?: { main?: string; name?: string }; files?: string[] };
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
+    files?: string[];
     main?: string;
     name?: string;
     packageManager?: string;
