@@ -9,7 +9,13 @@ import type { CausalCapsule } from './causal-chain.js';
 import { failureReasons, remediationCategories } from './causal-chain.js';
 import type { ObservationContext } from './context.js';
 import { mergeObservationContext, normalizeObservationContext } from './context.js';
-import { observationOwners, observationPhases } from './metrics.js';
+import type { ObservationMetricRegistrySnapshot, ObservationMetricSnapshot } from './metrics.js';
+import {
+    observationMetricNames,
+    observationOutcomes,
+    observationOwners,
+    observationPhases,
+} from './metrics.js';
 
 export const observationProcessOwners = ['server-core', 'terminal-host', 'extension-host'] as const;
 export const observationProcessStates = [
@@ -26,6 +32,7 @@ export type ObservationProcessState = (typeof observationProcessStates)[number];
 export interface ObservationProcessManifest {
     context: ObservationContext;
     failure?: CausalCapsule;
+    metrics?: ObservationMetricRegistrySnapshot;
     owner: ObservationProcessOwner;
     pid: number;
     schemaVersion: 1;
@@ -39,6 +46,7 @@ export type ObservationProcessManifests = Partial<
 >;
 
 export const MAX_OBSERVATION_PROCESS_MANIFEST_BYTES = 32 * 1024;
+export const MAX_PROCESS_MANIFEST_METRIC_SERIES = 64;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -112,6 +120,72 @@ function parseCausalCapsule(value: unknown): CausalCapsule | undefined {
     return { ...value, context } as CausalCapsule;
 }
 
+function isNonnegativeFinite(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function parseMetric(value: unknown): ObservationMetricSnapshot | undefined {
+    if (
+        !isRecord(value) ||
+        !hasOnlyKeys(value, [
+            'average',
+            'count',
+            'labels',
+            'last',
+            'maximum',
+            'minimum',
+            'name',
+            'total',
+        ]) ||
+        !observationMetricNames.includes(value.name as never) ||
+        !Number.isSafeInteger(value.count) ||
+        Number(value.count) <= 0 ||
+        !isNonnegativeFinite(value.average) ||
+        !isNonnegativeFinite(value.last) ||
+        !isNonnegativeFinite(value.maximum) ||
+        !isNonnegativeFinite(value.minimum) ||
+        !isNonnegativeFinite(value.total) ||
+        !isRecord(value.labels) ||
+        !hasOnlyKeys(value.labels, ['outcome', 'owner', 'phase']) ||
+        !observationOwners.includes(value.labels.owner as never) ||
+        (value.labels.phase !== undefined &&
+            !observationPhases.includes(value.labels.phase as never)) ||
+        (value.labels.outcome !== undefined &&
+            !observationOutcomes.includes(value.labels.outcome as never))
+    )
+        return;
+    return value as unknown as ObservationMetricSnapshot;
+}
+
+function parseMetricRegistry(value: unknown): ObservationMetricRegistrySnapshot | undefined {
+    if (
+        !isRecord(value) ||
+        !hasOnlyKeys(value, ['rejectedSeries', 'series']) ||
+        !Number.isSafeInteger(value.rejectedSeries) ||
+        Number(value.rejectedSeries) < 0 ||
+        !Array.isArray(value.series) ||
+        value.series.length > MAX_PROCESS_MANIFEST_METRIC_SERIES
+    )
+        return;
+    const series = value.series.map(parseMetric);
+    if (series.includes(undefined)) return;
+    return {
+        rejectedSeries: Number(value.rejectedSeries),
+        series: series as ObservationMetricSnapshot[],
+    };
+}
+
+function boundedMetricRegistry(
+    value: ObservationMetricRegistrySnapshot,
+): ObservationMetricRegistrySnapshot {
+    const series = value.series.slice(0, MAX_PROCESS_MANIFEST_METRIC_SERIES);
+    return {
+        rejectedSeries:
+            Math.max(0, Math.floor(value.rejectedSeries)) + value.series.length - series.length,
+        series: structuredClone(series),
+    };
+}
+
 export function parseObservationProcessManifest(
     value: unknown,
 ): ObservationProcessManifest | undefined {
@@ -120,6 +194,7 @@ export function parseObservationProcessManifest(
         !hasOnlyKeys(value, [
             'context',
             'failure',
+            'metrics',
             'owner',
             'pid',
             'schemaVersion',
@@ -139,11 +214,14 @@ export function parseObservationProcessManifest(
         return;
     const context = parseObservationContext(value.context);
     const failure = value.failure === undefined ? undefined : parseCausalCapsule(value.failure);
+    const metrics = value.metrics === undefined ? undefined : parseMetricRegistry(value.metrics);
     if (!context || context.processId !== value.pid) return;
     if (!failure && value.failure !== undefined) return;
+    if (!metrics && value.metrics !== undefined) return;
     return {
         context,
         ...(failure && { failure }),
+        ...(metrics && { metrics }),
         owner: value.owner as ObservationProcessOwner,
         pid: Number(value.pid),
         schemaVersion: 1,
@@ -268,11 +346,13 @@ export interface ObservationProcessManifestPublisherOptions {
 export class ObservationProcessManifestPublisher {
     private context: ObservationContext;
     private drainPromise?: Promise<void>;
+    private metrics?: ObservationMetricRegistrySnapshot;
     private readonly now: () => Date;
     private readonly path: string;
     private pending?: ObservationProcessManifest;
     private readonly pid: number;
     private readonly startedAt: number;
+    private state?: ObservationProcessState;
     private writeFailures = 0;
 
     constructor(private readonly options: ObservationProcessManifestPublisherOptions) {
@@ -311,14 +391,21 @@ export class ObservationProcessManifestPublisher {
 
     publish(
         state: ObservationProcessState,
-        options: { context?: ObservationContext; failure?: CausalCapsule } = {},
+        options: {
+            context?: ObservationContext;
+            failure?: CausalCapsule;
+            metrics?: ObservationMetricRegistrySnapshot;
+        } = {},
     ): void {
+        this.state = state;
         this.context = mergeObservationContext(this.context, options.context, {
             processId: this.pid,
         });
+        if (options.metrics) this.metrics = boundedMetricRegistry(options.metrics);
         this.pending = {
             context: this.context,
             ...(options.failure && { failure: structuredClone(options.failure) }),
+            ...(this.metrics && { metrics: this.metrics }),
             owner: this.options.owner,
             pid: this.pid,
             schemaVersion: 1,
@@ -327,6 +414,11 @@ export class ObservationProcessManifestPublisher {
             updatedAt: this.now().toISOString(),
         };
         this.scheduleDrain();
+    }
+
+    publishMetrics(metrics: ObservationMetricRegistrySnapshot): void {
+        if (!this.state) return;
+        this.publish(this.state, { metrics });
     }
 
     failureCount(): number {

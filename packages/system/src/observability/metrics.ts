@@ -70,6 +70,11 @@ export interface ObservationMetricSnapshot {
     total: number;
 }
 
+export interface ObservationMetricRegistrySnapshot {
+    rejectedSeries: number;
+    series: ObservationMetricSnapshot[];
+}
+
 type ObservationMetricAggregate = ObservationMetricSnapshot;
 
 export const MAX_OBSERVATION_METRIC_SERIES = 256;
@@ -115,7 +120,7 @@ export class BoundedMetricRegistry {
         });
     }
 
-    snapshot(): { rejectedSeries: number; series: ObservationMetricSnapshot[] } {
+    snapshot(): ObservationMetricRegistrySnapshot {
         return {
             rejectedSeries: this.rejectedSeries,
             series: this.aggregates
