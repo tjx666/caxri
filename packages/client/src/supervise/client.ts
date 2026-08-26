@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type {
+    BinaryStreamOperation,
+    BinaryStreamTicketGrant,
     CaxriMethod,
     DesktopLease,
     DesktopLeaseRevocationReason,
@@ -19,6 +21,7 @@ import type {
     MethodResult,
     ParametersArgument,
     ProtocolWelcome,
+    ServerControlEndpoint,
     ServerDesktopCredential,
     ServerManifest,
 } from '@caxri/protocol';
@@ -38,6 +41,7 @@ import {
     localServerEventSchema,
     localServerLeaseRenewedSchema,
     localServerReplySchema,
+    localServerStreamTicketReplySchema,
     localServerWelcomeSchema,
     parseCaxriRequest,
     parseCaxriResult,
@@ -51,6 +55,8 @@ import {
 } from '@caxri/protocol';
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
+
+import { BinaryStreamClient } from './binary-stream-client';
 
 const MAX_MANIFEST_BYTES = 16 * 1024;
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -337,6 +343,7 @@ export class ServerClient {
                       resolvedCredential.handleCommand(operation, consumeTarget)
                 : undefined,
             manifest.version,
+            manifest.endpoint,
         );
         if (handshakeMessageListener) socket.removeListener('message', handshakeMessageListener);
         for (const message of deferredMessages) {
@@ -349,6 +356,7 @@ export class ServerClient {
 
     private readonly eventListeners = new Set<(event: LocalServerEvent['event']) => void>();
     private readonly closeListeners = new Set<(reason?: DesktopLeaseRevocationReason) => void>();
+    private readonly binaryStreams?: BinaryStreamClient;
     private readonly pending = new Map<string, PendingRequest>();
     private closed = false;
     private closeReason?: DesktopLeaseRevocationReason;
@@ -365,8 +373,20 @@ export class ServerClient {
             { kind: 'desktop' }
         >['handleCommand'],
         readonly serverVersion?: string,
+        endpoint?: ServerControlEndpoint,
     ) {
         this.desktopLease = desktopLease;
+        if (endpoint && welcome.features?.includes('binary-streams-v1')) {
+            this.binaryStreams = new BinaryStreamClient({
+                emitEvent: (event) => {
+                    for (const listener of this.eventListeners) listener(event);
+                },
+                endpoint,
+                issueTicket: (id, operation) => this.issueStreamTicket(id, operation),
+                onTerminalTransportFailure: () => this.closeTransport(),
+                timeoutMs,
+            });
+        }
         socket.on('message', (data, isBinary) => {
             if (isBinary) this.closeTransport();
             else this.receive(controlMessageText(data));
@@ -389,7 +409,17 @@ export class ServerClient {
             const renewed = localServerLeaseRenewedSchema.safeParse(raw);
             const revoked = localServerDesktopLeaseRevokedSchema.safeParse(raw);
             const event = localServerEventSchema.safeParse(raw);
-            if (renewed.success) {
+            const streamTicket = localServerStreamTicketReplySchema.safeParse(raw);
+            if (streamTicket.success) {
+                const pending = this.pending.get(streamTicket.data.id);
+                if (pending) {
+                    clearTimeout(pending.timer);
+                    this.pending.delete(streamTicket.data.id);
+                    if (streamTicket.data.ok)
+                        pending.resolve(pending.parse(streamTicket.data.grant));
+                    else pending.reject(fromWireError(streamTicket.data.error));
+                }
+            } else if (renewed.success) {
                 if (
                     !this.desktopLease ||
                     renewed.data.lease.desktopId !== this.desktopLease.desktopId ||
@@ -525,6 +555,7 @@ export class ServerClient {
             pending.reject(error);
         }
         this.pending.clear();
+        this.binaryStreams?.close(error);
         const listeners = [...this.closeListeners];
         this.closeListeners.clear();
         for (const listener of listeners) listener(this.closeReason);
@@ -548,10 +579,43 @@ export class ServerClient {
         });
     }
 
+    private issueStreamTicket(
+        id: string,
+        operation: BinaryStreamOperation,
+    ): Promise<BinaryStreamTicketGrant> {
+        if (this.closed)
+            return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.pending.delete(id);
+                reject(
+                    new CaxriError(
+                        'TIMEOUT',
+                        `Caxri Server stream ticket timed out: ${operation.method}`,
+                    ),
+                );
+            }, this.timeoutMs);
+            this.pending.set(id, {
+                parse: (value) => value,
+                resolve: (value) => resolve(value as BinaryStreamTicketGrant),
+                reject,
+                timer,
+            });
+            this.send({
+                type: 'stream-ticket.request',
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id,
+                operation,
+            });
+        });
+    }
+
     private sendRequest(id: string, method: CaxriMethod, parameters: unknown): Promise<unknown> {
         if (this.closed)
             return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
         const request = parseCaxriRequest(method, parameters);
+        if (this.binaryStreams?.supports(request.method))
+            return this.binaryStreams.request(id, request.method, request.params);
         return new Promise<unknown>((resolve, reject) => {
             const timer = isNonExpiringServerOperation(method)
                 ? undefined
@@ -561,7 +625,11 @@ export class ServerClient {
                   }, this.timeoutMs);
             this.pending.set(id, {
                 parse: (value) => parseCaxriResult(method, value),
-                resolve,
+                resolve: (value) => {
+                    if (request.method === 'terminal.detach' || request.method === 'terminal.close')
+                        this.binaryStreams?.closeTerminal(request.params.terminalId);
+                    resolve(value);
+                },
                 reject,
                 timer,
             });
