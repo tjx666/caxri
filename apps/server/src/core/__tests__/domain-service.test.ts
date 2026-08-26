@@ -3,6 +3,7 @@ import { CaxriError, internalMethods, methods } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestProtocolRecoveryState } from '../../__tests__/support/protocol-recovery';
 import type { DomainHandlers, DomainServices } from '../../domains/domain-services';
 import type { TerminalExecutionPort } from '../../domains/terminal';
 import { ServerDomainService } from '../domain-service';
@@ -43,6 +44,7 @@ describe('ServerDomainService', () => {
                         startedAt: 1,
                     }),
                 }),
+                protocolRecovery: createTestProtocolRecoveryState(),
                 validateRequestContext: vi.fn(),
             }),
         );
@@ -82,6 +84,7 @@ describe('ServerDomainService', () => {
                         return [];
                     },
                 }),
+                protocolRecovery: createTestProtocolRecoveryState(),
                 validateRequestContext: () => {},
             }),
         );
@@ -117,6 +120,7 @@ describe('ServerDomainService', () => {
                         return null;
                     },
                 }),
+                protocolRecovery: createTestProtocolRecoveryState(),
                 validateRequestContext: () => {},
             }),
         );

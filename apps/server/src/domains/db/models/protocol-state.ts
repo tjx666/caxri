@@ -1,12 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 
-import type {
-    CaxriMethod,
-    CommandReplyEnvelope,
-    DurableServerEvent,
-    ProtocolEventEnvelope,
-} from '@caxri/protocol';
+import type { DurableServerEvent, ProtocolEventEnvelope } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
@@ -20,6 +15,12 @@ import {
 } from '@caxri/protocol';
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm';
 
+import type {
+    DurableProtocolIdentity,
+    NewProtocolCommandReceipt,
+    ProtocolRecoveryState,
+    StoredProtocolCommandReceipt,
+} from '../../protocol-recovery';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { protocolChangefeed, protocolCommandReceipts, protocolIdentity } from '../schema';
 
@@ -28,31 +29,6 @@ export const MAX_PROTOCOL_COMMAND_RECEIPTS = 1_024;
 export const MAX_PROTOCOL_CHANGEFEED_EVENTS = 256;
 export const MAX_PROTOCOL_RECEIPT_BYTES = 512 * 1024;
 export const MAX_PROTOCOL_CHANGEFEED_EVENT_BYTES = 256 * 1024;
-
-export interface DurableProtocolIdentity {
-    serverId: string;
-    stateEpoch: string;
-}
-
-export interface StoredProtocolCommandReceipt {
-    clientId: string;
-    createdAt: number;
-    method: CaxriMethod;
-    reply: CommandReplyEnvelope;
-    requestFingerprint: string;
-    requestId: string;
-    stateEpoch: string;
-}
-
-export interface NewProtocolCommandReceipt {
-    clientId: string;
-    createdAt: number;
-    method: CaxriMethod;
-    reply: CommandReplyEnvelope;
-    requestFingerprint: string;
-    requestId: string;
-    stateEpoch: string;
-}
 
 function opaqueIdentity(): string {
     return randomBytes(16).toString('hex');
@@ -77,7 +53,7 @@ function parseJson(source: string, label: string): unknown {
  * Owns bounded protocol recovery state. The method table decides which command results are content-safe before calling
  * this model; this boundary validates wire shape, byte budgets, stable identities, and retention again before writing.
  */
-export class ProtocolStateModel {
+export class ProtocolStateModel implements ProtocolRecoveryState {
     constructor(private readonly database: CaxriDrizzleDatabase) {}
 
     private pruneReceipts(): void {

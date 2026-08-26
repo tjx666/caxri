@@ -13,6 +13,7 @@ import { CaxriError, isNonExpiringServerOperation, logEventCatalog } from '@caxr
 
 import { createDomainServices } from '../domains/create-domain-services';
 import type { DomainDependencies, DomainServices } from '../domains/domain-services';
+import type { ProtocolRecoveryState } from '../domains/protocol-recovery';
 import type { DomainOperationDispatcher } from './operation-dispatcher';
 import { createOperationDispatcher } from './operation-dispatcher';
 
@@ -187,6 +188,13 @@ export class ServerDomainService extends EventTarget {
     ): Promise<ServerOperationResult<M>> {
         const [parameters, timeoutMs] = arguments_;
         return this.send(method, parameters, timeoutMs) as Promise<ServerOperationResult<M>>;
+    }
+
+    async recoveryState(): Promise<ProtocolRecoveryState> {
+        await this.start();
+        if (!this.services)
+            throw new CaxriError('UNAVAILABLE', 'Server recovery state is unavailable');
+        return this.services.protocolRecovery;
     }
 
     requestWithSignal<M extends ServerOperation>(

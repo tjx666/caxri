@@ -10,6 +10,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentAdapter, AgentEnvironment } from './agents';
+import type { ProtocolRecoveryState } from './protocol-recovery';
 import type { TerminalExecutionPort, TerminalManagerOptions } from './terminal';
 
 export type DomainHandlers = {
@@ -41,6 +42,7 @@ export interface DomainDependencies {
 
 export interface DomainServices {
     handlers: DomainHandlers;
+    protocolRecovery: ProtocolRecoveryState;
     /**
      * Releases every owned resource: schedulers, PTYs, watchers, and the database.
      */

@@ -16,6 +16,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
+import { createTestProtocolRecoveryState } from '../../__tests__/support/protocol-recovery';
 import type { CreateDomainServices } from '../../core/domain-service';
 import type { DomainHandlers } from '../../domains/domain-services';
 import type { ServerCore } from '../server-core';
@@ -73,6 +74,7 @@ function createDomainFixture(activePtyCount: number): CreateDomainServices {
                     ],
                 }),
             }),
+            protocolRecovery: createTestProtocolRecoveryState(),
             validateRequestContext: () => {},
         });
 }
@@ -99,6 +101,7 @@ function createMutationRaceFixture(): CreateDomainServices {
                     return null;
                 },
             }),
+            protocolRecovery: createTestProtocolRecoveryState(),
             validateRequestContext: () => {},
         });
     };
@@ -214,6 +217,7 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
         return {
             close: () => endpoints.close(),
             handlers: fixtureHandlers(handlers),
+            protocolRecovery: createTestProtocolRecoveryState(),
             validateRequestContext: () => {},
         };
     };
