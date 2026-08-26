@@ -2,14 +2,24 @@ import { randomUUID } from 'node:crypto';
 import process from 'node:process';
 
 import type {
+    ProtocolEventEnvelope,
     ServerEvent,
     ServerOperation,
     ServerOperationArguments,
     ServerOperationParameters,
+    ServerOperationRequest,
     ServerOperationResult,
     WorkbenchRequestContext,
 } from '@caxri/protocol';
-import { CaxriError, isNonExpiringServerOperation, logEventCatalog } from '@caxri/protocol';
+import {
+    CaxriError,
+    durableServerEventSchema,
+    isNonExpiringServerOperation,
+    logEventCatalog,
+    parseServerOperationRequest,
+    protocolEventEnvelopeSchema,
+    toWireError,
+} from '@caxri/protocol';
 
 import { createDomainServices } from '../domains/create-domain-services';
 import type { DomainDependencies, DomainServices } from '../domains/domain-services';
@@ -21,6 +31,11 @@ interface PendingOperation {
     abortCleanup?: () => void;
     reject(error: CaxriError): void;
     timer?: NodeJS.Timeout;
+}
+
+interface DomainEventDelivery {
+    event: ServerEvent;
+    persistedEnvelope?: ProtocolEventEnvelope;
 }
 
 export type ServerDomainDependencies = Omit<DomainDependencies, 'send'>;
@@ -36,6 +51,7 @@ function requestTimeout(method: ServerOperation): number | undefined {
  * Owns Server domain services in the Server Core process and invokes them without a generic IPC hop.
  */
 export class ServerDomainService extends EventTarget {
+    private atomicEvents?: ServerEvent[];
     private dispatch?: DomainOperationDispatcher;
     private readonly pending = new Map<string, PendingOperation>();
     private services?: DomainServices;
@@ -47,6 +63,20 @@ export class ServerDomainService extends EventTarget {
         private readonly createServices: CreateDomainServices = createDomainServices,
     ) {
         super();
+    }
+
+    private publishEvent(event: ServerEvent, persistedEnvelope?: ProtocolEventEnvelope): void {
+        if (this.atomicEvents) {
+            if (persistedEnvelope)
+                throw new CaxriError('INTERNAL', 'Nested persisted domain event is invalid');
+            this.atomicEvents.push(event);
+            return;
+        }
+        this.dispatchEvent(
+            new CustomEvent<DomainEventDelivery>('event', {
+                detail: { event, ...(persistedEnvelope && { persistedEnvelope }) },
+            }),
+        );
     }
 
     private async send(
@@ -132,8 +162,7 @@ export class ServerDomainService extends EventTarget {
             const startedAt = performance.now();
             const services = await this.createServices({
                 ...this.dependencies,
-                send: (event) =>
-                    this.dispatchEvent(new CustomEvent<ServerEvent>('event', { detail: event })),
+                send: (event) => this.publishEvent(event),
             });
             if (this.stopped) {
                 await services.close();
@@ -149,14 +178,10 @@ export class ServerDomainService extends EventTarget {
                 durationMs: performance.now() - startedAt,
                 fields: { pid: process.pid },
             });
-            this.dispatchEvent(
-                new CustomEvent<ServerEvent>('event', {
-                    detail: {
-                        event: 'runtime.status',
-                        payload: { status: 'ready', restartCount: 0 },
-                    },
-                }),
-            );
+            this.publishEvent({
+                event: 'runtime.status',
+                payload: { status: 'ready', restartCount: 0 },
+            });
         })();
         return this.startPromise;
     }
@@ -175,9 +200,13 @@ export class ServerDomainService extends EventTarget {
         return true;
     }
 
-    onEvent(listener: (event: ServerEvent) => void): () => void {
-        const handler = (event: Event): void =>
-            listener((event as CustomEvent<ServerEvent>).detail);
+    onEvent(
+        listener: (event: ServerEvent, persistedEnvelope?: ProtocolEventEnvelope) => void,
+    ): () => void {
+        const handler = (event: Event): void => {
+            const delivery = (event as CustomEvent<DomainEventDelivery>).detail;
+            listener(delivery.event, delivery.persistedEnvelope);
+        };
         this.addEventListener('event', handler);
         return () => this.removeEventListener('event', handler);
     }
@@ -231,6 +260,89 @@ export class ServerDomainService extends EventTarget {
         signal?: AbortSignal,
     ): Promise<unknown> {
         return this.send(method, parameters, timeoutMs, undefined, signal);
+    }
+
+    /**
+     * Executes one reviewed synchronous structural handler inside the owning SQLite transaction. The handler's state
+     * changes, its content-free events, and the protocol dispatcher's successful receipt either all commit or all roll
+     * back. External-effect and asynchronous handlers are deliberately rejected from this path.
+     */
+    forwardAtomically(
+        request: ServerOperationRequest,
+        requestId: string,
+        persistResult: (result: unknown) => void,
+    ): unknown {
+        const services = this.services;
+        if (!services) throw new CaxriError('UNAVAILABLE', 'Server Core is unavailable');
+        if (this.atomicEvents)
+            throw new CaxriError('CONFLICT', 'A structural transaction is already active');
+        const startedAt = performance.now();
+        const parsed = parseServerOperationRequest(request.method, request.params);
+        const events: ServerEvent[] = [];
+        const persisted: ProtocolEventEnvelope[] = [];
+        const identity = services.protocolRecovery.identity();
+        this.atomicEvents = events;
+        try {
+            const result = services.protocolRecovery.transaction(() => {
+                const handler = services.handlers[parsed.method] as (
+                    parameters: unknown,
+                    signal?: AbortSignal,
+                ) => unknown;
+                const outcome = handler(parsed.params);
+                if (
+                    typeof outcome === 'object' &&
+                    outcome !== null &&
+                    'then' in outcome &&
+                    typeof outcome.then === 'function'
+                )
+                    throw new CaxriError(
+                        'INTERNAL',
+                        `${parsed.method} is not a synchronous structural command`,
+                    );
+                for (const event of events) {
+                    const durableEvent = durableServerEventSchema.parse(event);
+                    persisted.push(
+                        protocolEventEnvelopeSchema.parse({
+                            ...services.protocolRecovery.appendEvent(
+                                identity.stateEpoch,
+                                durableEvent,
+                            ),
+                            ...identity,
+                        }),
+                    );
+                }
+                persistResult(outcome);
+                return outcome;
+            });
+            this.atomicEvents = undefined;
+            for (const [index, event] of events.entries())
+                this.publishEvent(event, persisted[index]);
+            this.dependencies.logger.write('debug', logEventCatalog.ipc.request, {
+                correlationId: requestId,
+                durationMs: performance.now() - startedAt,
+                fields: { method: parsed.method, transaction: 'structural' },
+            });
+            return result;
+        } catch (error) {
+            const wire = toWireError(error);
+            this.dependencies.logger.write('error', logEventCatalog.ipc.requestFailed, {
+                correlationId: requestId,
+                durationMs: performance.now() - startedAt,
+                fields: {
+                    method: parsed.method,
+                    code: wire.code,
+                    error: wire.message,
+                    stack:
+                        wire.code === 'INTERNAL' && error instanceof Error
+                            ? (error.stack ?? null)
+                            : null,
+                    transaction: 'structural',
+                },
+            });
+            throw error;
+        } finally {
+            this.atomicEvents = undefined;
+        }
     }
 
     async shutdown(): Promise<void> {

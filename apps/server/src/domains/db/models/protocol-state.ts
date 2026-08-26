@@ -29,10 +29,10 @@ import type { CaxriDrizzleDatabase } from '../connection';
 import { protocolChangefeed, protocolCommandReceipts, protocolIdentity } from '../schema';
 
 const IDENTITY_SINGLETON = 1;
-export const MAX_PROTOCOL_COMMAND_RECEIPTS = 1_024;
+const MAX_PROTOCOL_COMMAND_RECEIPTS = 1_024;
 export const MAX_PROTOCOL_CHANGEFEED_EVENTS = 256;
-export const MAX_PROTOCOL_RECEIPT_BYTES = 512 * 1024;
-export const MAX_PROTOCOL_CHANGEFEED_EVENT_BYTES = 256 * 1024;
+const MAX_PROTOCOL_RECEIPT_BYTES = 512 * 1024;
+const MAX_PROTOCOL_CHANGEFEED_EVENT_BYTES = 256 * 1024;
 
 function opaqueIdentity(): string {
     return randomBytes(16).toString('hex');
@@ -58,7 +58,10 @@ function parseJson(source: string, label: string): unknown {
  * this model; this boundary validates wire shape, byte budgets, stable identities, and retention again before writing.
  */
 export class ProtocolStateModel implements ProtocolRecoveryState {
-    constructor(private readonly database: CaxriDrizzleDatabase) {}
+    constructor(
+        private readonly database: CaxriDrizzleDatabase,
+        private readonly runTransaction: <T>(work: () => T) => T,
+    ) {}
 
     private pruneReceipts(): void {
         const rows = this.database
@@ -273,5 +276,9 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
             serverIdSuffix: identity.serverId.slice(-8),
             stateEpochSuffix: identity.stateEpoch.slice(-8),
         };
+    }
+
+    transaction<T>(work: () => T): T {
+        return this.runTransaction(work);
     }
 }

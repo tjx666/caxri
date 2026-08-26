@@ -21,4 +21,8 @@ export interface ProtocolRecoveryInspection {
 export interface ProtocolRecoveryState extends DurableCommandReceiptStore, DurableEventStore {
     identity(now?: number): DurableProtocolIdentity;
     inspect(): ProtocolRecoveryInspection;
+    /**
+     * Shares the owning domain database transaction with structural state, changefeed, and command-receipt writes.
+     */
+    transaction<T>(work: () => T): T;
 }

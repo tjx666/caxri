@@ -6,6 +6,7 @@ import process from 'node:process';
 import type {
     CommandAdapter,
     CommandExecutionContext,
+    ProtocolEventEnvelope,
     ServerEvent,
     ServerOperationRequest,
     ServerRequest,
@@ -26,6 +27,7 @@ import { createServerDomainService } from '../core/create-domain-service';
 import type { AgentEndpointControl } from '../domains/agent-endpoints';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
+import { isAtomicStructuralMethod } from './atomic-structural-methods';
 import { ControlServer } from './control-server';
 import type { CoreForwardedMethod } from './core-methods';
 import { ServerDesktopRouter } from './desktop-router';
@@ -206,7 +208,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         logDurableRecovery(logger, observation),
     );
 
-    const deliver = (event: ServerEvent): void => {
+    const deliver = (event: ServerEvent, persistedEnvelope?: ProtocolEventEnvelope): void => {
         if (event.event === 'terminal.exit')
             agentEndpoints.retireTerminal(event.payload.terminalId);
         else if (event.event === 'runtime.status')
@@ -230,7 +232,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         );
         if (isTransientServerEvent(event)) server?.broadcast(event);
         else {
-            const envelope = recoveryJournal.publish(event);
+            const envelope = persistedEnvelope ?? recoveryJournal.publish(event);
             if (envelope) server?.broadcast(envelope);
         }
     };
@@ -641,6 +643,15 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 default: {
                     const forwarded: Extract<ServerRequest, { method: CoreForwardedMethod }> =
                         request;
+                    if (
+                        invocation.persistDurableResult &&
+                        isAtomicStructuralMethod(forwarded.method)
+                    )
+                        return domainService.forwardAtomically(
+                            forwarded,
+                            invocation.requestId,
+                            (result) => invocation.persistDurableResult!(result),
+                        );
                     return requestCancellations.run(
                         principalRequestKey(context, invocation.requestId),
                         (signal) => forwardDomainOperation(forwarded, signal),

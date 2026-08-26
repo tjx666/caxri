@@ -1,9 +1,14 @@
-import type { ServerOperation } from '@caxri/protocol';
-import { CaxriError, internalMethods, methods } from '@caxri/protocol';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import type { ServerOperation, ServerOperationParameters } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, CaxriError, internalMethods, methods } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestProtocolRecoveryState } from '../../__tests__/support/protocol-recovery';
+import { CaxriDatabase } from '../../domains/db';
 import type { DomainHandlers, DomainServices } from '../../domains/domain-services';
 import type { TerminalExecutionPort } from '../../domains/terminal';
 import { ServerDomainService } from '../domain-service';
@@ -133,5 +138,99 @@ describe('ServerDomainService', () => {
         await vi.advanceTimersByTimeAsync(10);
         await rejected;
         await service.shutdown();
+    });
+
+    it('commits structural state, changefeed, and receipt together or rolls all of them back', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-atomic-domain-command-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject('/private/project-one');
+        const original = database.createSession(project.id, null).session;
+        const identity = database.protocolState.identity();
+        const service = new ServerDomainService(dependencies(), (domainDependencies) =>
+            Promise.resolve({
+                close: () => {
+                    database.close();
+                    return Promise.resolve();
+                },
+                handlers: handlers({
+                    'session.rename': ({
+                        sessionId,
+                        displayTitle,
+                    }: ServerOperationParameters<'session.rename'>) => {
+                        const renamed = database.renameSession(sessionId, displayTitle);
+                        domainDependencies.send({
+                            event: 'state.changed',
+                            payload: {
+                                kind: 'records',
+                                sessionIds: [sessionId],
+                                terminalIds: [],
+                            },
+                        });
+                        return renamed;
+                    },
+                }),
+                protocolRecovery: database.protocolState,
+                validateRequestContext: () => {},
+            }),
+        );
+        const deliveries: unknown[] = [];
+        service.onEvent((event, persistedEnvelope) =>
+            deliveries.push({ event, persistedEnvelope }),
+        );
+
+        try {
+            await service.start();
+            expect(() =>
+                service.forwardAtomically(
+                    {
+                        method: 'session.rename',
+                        params: { sessionId: original.id, displayTitle: 'Rolled back' },
+                    },
+                    'rename-rollback',
+                    () => {
+                        throw new Error('receipt write failed');
+                    },
+                ),
+            ).toThrow('receipt write failed');
+            expect(database.getSession(original.id)?.displayTitle).toBe(original.displayTitle);
+            expect(database.protocolState.changefeedBounds(identity.stateEpoch).count).toBe(0);
+            expect(database.protocolState.inspect().commandReceipts).toBe(0);
+
+            const result = service.forwardAtomically(
+                {
+                    method: 'session.rename',
+                    params: { sessionId: original.id, displayTitle: 'Committed' },
+                },
+                'rename-commit',
+                (renamed) => {
+                    database.protocolState.saveReceipt({
+                        stateEpoch: identity.stateEpoch,
+                        clientId: 'desktop:workbench-1',
+                        requestId: 'rename-commit',
+                        requestFingerprint: 'a'.repeat(64),
+                        method: 'session.rename',
+                        reply: {
+                            protocolVersion: CAXRI_PROTOCOL_VERSION,
+                            id: 'rename-commit',
+                            ok: true,
+                            result: renamed,
+                        },
+                        createdAt: 1,
+                    });
+                },
+            );
+
+            expect(result).toMatchObject({ displayTitle: 'Committed' });
+            expect(database.getSession(original.id)?.displayTitle).toBe('Committed');
+            expect(database.protocolState.changefeedBounds(identity.stateEpoch).count).toBe(1);
+            expect(database.protocolState.inspect().commandReceipts).toBe(1);
+            expect(deliveries.at(-1)).toMatchObject({
+                event: { event: 'state.changed' },
+                persistedEnvelope: { cursor: 1, ...identity },
+            });
+        } finally {
+            await service.shutdown();
+            await rm(directory, { recursive: true, force: true });
+        }
     });
 });

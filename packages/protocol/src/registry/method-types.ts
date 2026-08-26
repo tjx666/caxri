@@ -153,6 +153,10 @@ export const effectfulCommandRecovery = {
     'theme.import': 'memory',
 } as const satisfies Record<EffectfulCaxriMethod, CommandRecovery>;
 
+export type DurableCaxriMethod = {
+    [M in EffectfulCaxriMethod]: (typeof effectfulCommandRecovery)[M] extends 'durable' ? M : never;
+}[EffectfulCaxriMethod];
+
 export function commandRecoveryFor(method: CaxriMethod): CommandRecovery {
     if (methods[method].effect === 'read') return 'none';
     return effectfulCommandRecovery[method as EffectfulCaxriMethod];

@@ -53,7 +53,7 @@ export class CaxriDatabaseConnection {
         this.snapshots = new SnapshotsModel(this.db);
         this.appState = new AppStateModel(this.db);
         this.agentDispatchReceipts = new AgentDispatchReceiptsModel(this.db);
-        this.protocolState = new ProtocolStateModel(this.db);
+        this.protocolState = new ProtocolStateModel(this.db, (work) => this.transaction(work));
         this.appState.set('schemaVersion', CURRENT_SCHEMA_VERSION);
     }
 
