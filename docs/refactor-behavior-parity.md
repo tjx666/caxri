@@ -174,6 +174,13 @@ absolute delta so single-digit-millisecond operations are not failed by schedule
 absolute ceiling remains unconditional. A faster result does not excuse a semantic failure; a semantic
 pass does not excuse a budget regression.
 
+Process resource metrics compare the complete set of general Server owners rather than one historical
+PID. The immutable A0 receipt sampled only Runtime, so A3a adds a source-bound topology baseline from
+the same archived artifact and fixture: Host plus Runtime used 241.69–242.58 MiB and 78 open file
+descriptors across three repetitions. From A3a onward the candidate sums Server Core plus any later
+split Terminal Host, while Extension Host remains excluded on both sides. The original ratio and
+absolute ceilings still apply; this additive baseline cannot normalize or allowlist a regression.
+
 ## Per-batch gate
 
 Every architecture batch follows the same order:
