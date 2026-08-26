@@ -30,8 +30,10 @@ function durableStore(maximumEvents = 2): DurableEventStore {
             earliest: events.at(0)?.cursor ?? 0,
             latest: events.at(-1)?.cursor ?? 0,
         }),
-        eventsAfter: (_stateEpoch, afterSequence) =>
-            events.filter((event) => event.cursor > afterSequence),
+        eventsAfter: (_stateEpoch, afterSequence) => ({
+            events: events.filter((event) => event.cursor > afterSequence),
+            requiresSnapshot: false,
+        }),
     };
 }
 
@@ -218,6 +220,21 @@ describe('createDurableEventJournal', () => {
                 afterCursor: 2,
             }),
         ).resolves.toMatchObject({ kind: 'snapshot', cursor: 2 });
+    });
+
+    it('uses a bounded snapshot when the durable suffix contains a private payload marker', async () => {
+        const store = durableStore();
+        store.eventsAfter = () => ({ events: [], requiresSnapshot: true });
+        const journal = createDurableEventJournal({
+            identity: durableIdentity,
+            snapshot,
+            store,
+        });
+        journal.publish({ event: 'settings.changed', payload: { source: '{"secret":true}' } });
+
+        await expect(
+            journal.recover({ ...durableIdentity, afterCursor: 0 }),
+        ).resolves.toMatchObject({ kind: 'snapshot', cursor: 1 });
     });
 
     it('freezes the snapshot barrier before later live events are appended', async () => {

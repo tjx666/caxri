@@ -58,6 +58,27 @@ describe('removeSessionQueries', () => {
 });
 
 describe('subscribeRuntimeQueryInvalidation', () => {
+    it('invalidates every cached read after private changefeed recovery uses a snapshot', () => {
+        const queryClient = new QueryClient();
+        const agentActions = ['agentActions.list', { terminalId: 'terminal-a' }] as const;
+        const files = ['files.browse', { sessionId: 'session-a' }] as const;
+        const git = ['git.summary', { sessionId: 'session-a' }] as const;
+        queryClient.setQueryData(agentActions, { actions: [] });
+        queryClient.setQueryData(files, { entries: [] });
+        queryClient.setQueryData(git, { status: 'clean' });
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'unknown' },
+        });
+
+        expect(queryClient.getQueryData(agentActions)).toBeUndefined();
+        expect(queryClient.getQueryState(files)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(git)?.isInvalidated).toBe(true);
+        unsubscribe();
+    });
+
     it('drops cached Agent Actions only after a valid settings change', () => {
         const queryClient = new QueryClient();
         const key = ['agentActions.list', { terminalId: 'terminal-a' }];

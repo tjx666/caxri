@@ -72,6 +72,26 @@ export const durableServerEventSchema = serverEventSchema.refine(
     'Transient events cannot enter durable protocol replay',
 ) as z.ZodType<DurableServerEvent>;
 
+const SNAPSHOT_ONLY_DURABLE_EVENT_NAMES = new Set<DurableServerEvent['event']>([
+    'agent.dispatch.changed',
+    'agentHooks.changed',
+    'files.changed',
+    'keybindings.changed',
+    'settings.changed',
+    'theme.changed',
+    'updates.state',
+]);
+
+/**
+ * Payloads on these events may carry configuration sources, paths, or arbitrary failure text. Live delivery preserves
+ * the public event, while durable recovery stores only a marker and converges through a bounded snapshot.
+ */
+export function isSnapshotOnlyDurableEventName(
+    event: string,
+): event is DurableServerEvent['event'] {
+    return SNAPSHOT_ONLY_DURABLE_EVENT_NAMES.has(event as DurableServerEvent['event']);
+}
+
 export const protocolEventEnvelopeSchema = z.object({
     protocolVersion: protocolVersionSchema,
     cursor: cursorSchema,
@@ -211,7 +231,12 @@ export interface DurableEventStore {
         createdAt?: number,
     ): ProtocolEventEnvelope;
     changefeedBounds(stateEpoch: string): { count: number; earliest: number; latest: number };
-    eventsAfter(stateEpoch: string, afterSequence: number): ProtocolEventEnvelope[];
+    eventsAfter(stateEpoch: string, afterSequence: number): DurableEventStorePage;
+}
+
+export interface DurableEventStorePage {
+    events: ProtocolEventEnvelope[];
+    requiresSnapshot: boolean;
 }
 
 export interface DurableEventJournal {
@@ -224,7 +249,7 @@ export interface DurableRecoveryObservation {
     durationMs: number;
     eventCount: number;
     outcome: 'catch-up' | 'snapshot';
-    reason: 'matched' | 'cursor-expired' | 'identity-mismatch';
+    reason: 'matched' | 'cursor-expired' | 'identity-mismatch' | 'snapshot-required';
 }
 
 /**
@@ -289,8 +314,30 @@ export function createDurableEventJournal(options: {
                     snapshot,
                 });
             }
-            const events = options.store
-                .eventsAfter(stateEpoch, request.afterCursor)
+            const page = options.store.eventsAfter(stateEpoch, request.afterCursor);
+            if (page.requiresSnapshot) {
+                const snapshot = protocolRecoverySnapshotSchema.parse(
+                    await options.snapshot(recoveryCursor),
+                );
+                if (snapshot.cursor !== recoveryCursor)
+                    throw new CaxriError('INTERNAL', 'Recovery snapshot cursor does not match');
+                observe({
+                    cursor: recoveryCursor,
+                    durationMs: performance.now() - startedAt,
+                    eventCount: 0,
+                    outcome: 'snapshot',
+                    reason: 'snapshot-required',
+                });
+                return eventRecoverySchema.parse({
+                    kind: 'snapshot',
+                    cursor: recoveryCursor,
+                    serverId,
+                    stateEpoch,
+                    barrier,
+                    snapshot,
+                });
+            }
+            const events = page.events
                 .filter(({ cursor }) => cursor <= recoveryCursor)
                 .map(attachIdentity);
             let expectedCursor = request.afterCursor + 1;

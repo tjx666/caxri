@@ -91,6 +91,10 @@ describe('Main event relay', () => {
 
         relay.send({ event: 'keybindings.changed', payload: { source: '[]' } });
         relay.send({
+            event: 'state.changed',
+            payload: { kind: 'full', reason: 'unknown' },
+        });
+        relay.send({
             event: 'host.connectionChanged',
             payload: { attempt: 1, downtimeMs: 10, isHostReplaced: false, status: 'reconnected' },
         });
@@ -105,6 +109,6 @@ describe('Main event relay', () => {
             payload: { restartCount: 2, status: 'restarting' },
         });
 
-        expect(onMenuRefreshRequested).toHaveBeenCalledTimes(3);
+        expect(onMenuRefreshRequested).toHaveBeenCalledTimes(4);
     });
 });

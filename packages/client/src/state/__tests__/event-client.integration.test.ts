@@ -35,8 +35,10 @@ describe('recoverable event client integration', () => {
                 earliest: events.at(0)?.cursor ?? 0,
                 latest: events.at(-1)?.cursor ?? 0,
             }),
-            eventsAfter: (_stateEpoch, afterCursor) =>
-                events.filter(({ cursor }) => cursor > afterCursor),
+            eventsAfter: (_stateEpoch, afterCursor) => ({
+                events: events.filter(({ cursor }) => cursor > afterCursor),
+                requiresSnapshot: false,
+            }),
         };
     }
 

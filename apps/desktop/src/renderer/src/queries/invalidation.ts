@@ -347,6 +347,16 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
                 for (const terminalId of event.payload.terminalIds)
                     invalidateAgentTranscriptQuery(queryClient, terminalId);
             }
+            if (event.payload.kind === 'full' && event.payload.reason === 'unknown') {
+                /**
+                 * Snapshot recovery intentionally replaces private changefeed payloads with one full invalidation.
+                 * Refetch every mounted read so Files, Git, settings-derived actions, and extension projections all
+                 * converge without persisting the original configuration source, path, or failure message.
+                 */
+                removeAgentActionQueries(queryClient);
+                // eslint-disable-next-line no-void -- React Query owns each refetch result and error state.
+                void queryClient.invalidateQueries();
+            }
             return;
         }
         if (event.event === 'host.connectionChanged') {

@@ -32,8 +32,10 @@ export function createTestProtocolRecoveryState(): ProtocolRecoveryState {
             earliest: events.at(0)?.cursor ?? 0,
             latest: events.at(-1)?.cursor ?? 0,
         }),
-        eventsAfter: (_stateEpoch, afterSequence) =>
-            events.filter(({ cursor }) => cursor > afterSequence),
+        eventsAfter: (_stateEpoch, afterSequence) => ({
+            events: events.filter(({ cursor }) => cursor > afterSequence),
+            requiresSnapshot: false,
+        }),
         getReceipt: (_stateEpoch, clientId, requestId) =>
             receipts.get(receiptKey(clientId, requestId)),
         identity: () => identity,
