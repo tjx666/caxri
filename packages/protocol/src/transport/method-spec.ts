@@ -2,7 +2,7 @@ import type { z } from 'zod';
 
 import type { Capability, Principal } from './principal.js';
 
-export type CommandOwner = 'host' | 'desktop';
+export type CommandOwner = 'server' | 'desktop';
 export type CommandEffect = 'read' | 'write' | 'control';
 export type CommandIdempotency = 'none' | 'request';
 

@@ -17,9 +17,9 @@ import {
     pathSchema,
 } from './domain.js';
 
-const hostRead = commandPolicy('host', 'read');
-const hostWrite = commandPolicy('host', 'write');
-const hostControl = commandPolicy('host', 'control');
+const serverRead = commandPolicy('server', 'read');
+const serverWrite = commandPolicy('server', 'write');
+const serverControl = commandPolicy('server', 'control');
 const desktopWrite = commandPolicy('desktop', 'write');
 
 const gitDiscardScopeSchema = z.discriminatedUnion('kind', [
@@ -54,7 +54,7 @@ const gitDiscardConsentScopeSchema = z.discriminatedUnion('kind', [
  */
 export const gitMethods = {
     'git.summary': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             /**
@@ -66,12 +66,12 @@ export const gitMethods = {
         result: gitSummarySchema,
     },
     'git.overview': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({ sessionId: identifierSchema }),
         result: gitOverviewSchema,
     },
     'git.branches': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -79,7 +79,7 @@ export const gitMethods = {
         result: z.array(gitBranchSchema).max(1_000),
     },
     'git.switchBranch': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -88,7 +88,7 @@ export const gitMethods = {
         result: z.null(),
     },
     'git.sync': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -96,7 +96,7 @@ export const gitMethods = {
         result: z.null(),
     },
     'git.remoteHost': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -121,7 +121,7 @@ export const gitMethods = {
         result: z.union([canceledResultSchema, z.null()]),
     },
     'git.diffDocument': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -130,7 +130,7 @@ export const gitMethods = {
         result: gitDiffDocumentSchema,
     },
     'git.pullRequestChanges': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -139,7 +139,7 @@ export const gitMethods = {
         result: gitPullRequestChangesSchema.nullable(),
     },
     'git.pullRequestDiffDocument': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -148,7 +148,7 @@ export const gitMethods = {
         result: gitDiffDocumentSchema,
     },
     'git.commits': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -159,7 +159,7 @@ export const gitMethods = {
         result: gitCommitPageSchema,
     },
     'git.commitDetails': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -169,7 +169,7 @@ export const gitMethods = {
         result: gitCommitDetailsSchema,
     },
     'git.commitDiffDocument': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -179,7 +179,7 @@ export const gitMethods = {
         result: gitDiffDocumentSchema,
     },
     'git.blame': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             path: pathSchema,
@@ -188,7 +188,7 @@ export const gitMethods = {
         result: gitBlameSchema.nullable(),
     },
     'git.fileHead': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             path: pathSchema,
@@ -204,7 +204,7 @@ export const gitMethods = {
  */
 export const gitInternalMethods = {
     'git.discard.preflight': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
@@ -221,7 +221,7 @@ export const gitInternalMethods = {
         ]),
     },
     'git.discard.apply': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({ token: identifierSchema }),
         result: z.null(),
     },

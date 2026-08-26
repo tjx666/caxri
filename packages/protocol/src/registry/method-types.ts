@@ -12,7 +12,7 @@ type DesktopMethod = {
 }[CaxriMethod];
 
 export type ServerMethod = {
-    [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'host'> extends never ? never : M;
+    [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'server'> extends never ? never : M;
 }[CaxriMethod];
 
 type AllMethods = typeof methods & typeof internalMethods;
@@ -75,7 +75,7 @@ export function isDesktopRequest(request: CaxriRequest): request is DesktopReque
  * Narrows a validated public request to the Server-owned portion of the method table.
  */
 export function isServerRequest(request: CaxriRequest): request is ServerRequest {
-    return methods[request.method].owner === 'host';
+    return methods[request.method].owner === 'server';
 }
 
 /**

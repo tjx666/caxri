@@ -76,7 +76,7 @@ describe('Runtime business introspection', () => {
                     return handler(request.params);
                 },
             };
-            const dispatch = createCommandDispatcher({ host: adapter });
+            const dispatch = createCommandDispatcher({ server: adapter });
             const context = { principal, capabilities: ['settings.write'] as const };
             const request = {
                 protocolVersion: 2,

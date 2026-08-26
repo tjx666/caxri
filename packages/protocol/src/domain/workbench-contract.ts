@@ -20,12 +20,12 @@ const canceled = z.object({ canceled: z.literal(true) });
  */
 export const workbenchMethods = {
     'session.workbenchRoots': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: z.object({ sessionId: identifierSchema }),
         result: z.array(workbenchRootOptionSchema).max(1_024),
     },
     'session.selectWorkbenchRoot': {
-        ...commandPolicy('host', 'write'),
+        ...commandPolicy('server', 'write'),
         params: z.object({ sessionId: identifierSchema, projectId: identifierSchema }),
         result: sessionRecordSchema,
     },
@@ -35,7 +35,7 @@ export const workbenchMethods = {
         result: z.union([canceled, sessionRecordSchema]),
     },
     'session.dismissWorkbenchCandidate': {
-        ...commandPolicy('host', 'write'),
+        ...commandPolicy('server', 'write'),
         params: z.object({ sessionId: identifierSchema, candidateId: identifierSchema }),
         result: z.null(),
     },
@@ -51,12 +51,12 @@ export const workbenchMethods = {
  */
 export const workbenchInternalMethods = {
     'session.workbenchRoot.reportCreated': {
-        ...commandPolicy('host', 'write'),
+        ...commandPolicy('server', 'write'),
         params: z.object({ endpoint: agentEndpointSummarySchema, rootPath: pathSchema }),
         result: agentWorktreeCreatedResultSchema,
     },
     'session.workbenchCandidate.claim': {
-        ...commandPolicy('host', 'write'),
+        ...commandPolicy('server', 'write'),
         params: z.object({ sessionId: identifierSchema, candidateId: identifierSchema }),
         result: z.object({
             candidateId: identifierSchema,
@@ -65,7 +65,7 @@ export const workbenchInternalMethods = {
         }),
     },
     'session.workbenchCandidate.authorize': {
-        ...commandPolicy('host', 'write'),
+        ...commandPolicy('server', 'write'),
         params: z.object({
             sessionId: identifierSchema,
             candidateId: identifierSchema,
@@ -74,17 +74,17 @@ export const workbenchInternalMethods = {
         result: sessionRecordSchema,
     },
     'session.workbenchCandidate.cancel': {
-        ...commandPolicy('host', 'write'),
+        ...commandPolicy('server', 'write'),
         params: z.object({ sessionId: identifierSchema, candidateId: identifierSchema }),
         result: z.null(),
     },
     'session.workbenchRoot.authorizeSelection': {
-        ...commandPolicy('host', 'write'),
+        ...commandPolicy('server', 'write'),
         params: z.object({ sessionId: identifierSchema, rootPath: pathSchema }),
         result: sessionRecordSchema,
     },
     'session.validateWorkbenchRoots': {
-        ...commandPolicy('host', 'write'),
+        ...commandPolicy('server', 'write'),
         params: z.object({ sessionId: identifierSchema.optional() }).default({}),
         result: z.null(),
     },

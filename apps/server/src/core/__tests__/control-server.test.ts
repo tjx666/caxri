@@ -84,7 +84,7 @@ describe('local Host transport', () => {
             };
         });
         const server = new ControlServer({
-            adapters: { host: { invoke } },
+            adapters: { server: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -130,7 +130,7 @@ describe('local Host transport', () => {
         };
         const counts: number[] = [];
         const server = new ControlServer({
-            adapters: { host },
+            adapters: { server: host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
             onClientCountChanged: (count) => {
@@ -209,7 +209,7 @@ describe('local Host transport', () => {
         const lease = await profile();
         const invoke = vi.fn();
         const server = new ControlServer({
-            adapters: { host: { invoke } },
+            adapters: { server: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -253,7 +253,7 @@ describe('local Host transport', () => {
         expect(endpoints.activate({ ref: endpoint.ref, launchId: 'launch-1' })).toBe(true);
         const server = new ControlServer({
             adapters: {
-                host: {
+                server: {
                     invoke: (request, context) => {
                         if (request.method === 'agent.context') return endpoints.context(context);
                         if (request.method === 'diagnostics.snapshot')
@@ -366,7 +366,7 @@ describe('local Host transport', () => {
             },
         };
         const server = new ControlServer({
-            adapters: { host },
+            adapters: { server: host },
             authenticateAgent: (credential) => endpoints.authenticate(credential),
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -433,7 +433,7 @@ describe('local Host transport', () => {
     it('does not let the operator credential self-assert the Desktop principal', async () => {
         const lease = await profile();
         const server = new ControlServer({
-            adapters: { host: { invoke: vi.fn() } },
+            adapters: { server: { invoke: vi.fn() } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -459,7 +459,7 @@ describe('local Host transport', () => {
     it('fails closed when the client has no compatible protocol version', async () => {
         const lease = await profile();
         const server = new ControlServer({
-            adapters: { host: { invoke: vi.fn() } },
+            adapters: { server: { invoke: vi.fn() } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -485,7 +485,7 @@ describe('local Host transport', () => {
         const unavailable = vi.fn();
         const server = new ControlServer({
             adapters: {
-                host: {
+                server: {
                     invoke: (request) =>
                         request.method === 'app.health'
                             ? { ready: true, pid: 88, startedAt: 1, activePtyCount: 0 }
@@ -560,7 +560,7 @@ describe('local Host transport', () => {
         const revealed = vi.fn();
         const server: ControlServer = new ControlServer({
             adapters: {
-                host: {
+                server: {
                     invoke: async (request) => {
                         if (request.method !== 'files.reveal') return null;
                         const generation = server.desktopLease()?.generation;
@@ -628,7 +628,7 @@ describe('local Host transport', () => {
             throw new Error(`Unexpected method: ${request.method}`);
         });
         const server = new ControlServer({
-            adapters: { host: { invoke } },
+            adapters: { server: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -693,7 +693,7 @@ describe('local Host transport', () => {
             throw new Error(`Unexpected method: ${request.method}`);
         });
         const server = new ControlServer({
-            adapters: { host: { invoke } },
+            adapters: { server: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
         });
@@ -733,7 +733,7 @@ describe('local Host transport', () => {
         const lease = await profile();
         const server = new ControlServer({
             adapters: {
-                host: {
+                server: {
                     invoke: async (request) => {
                         if (request.method !== 'files.write') return null;
                         await new Promise((resolve) => setTimeout(resolve, 80));

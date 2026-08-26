@@ -71,20 +71,20 @@ import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { extensionViewMethods } from './view-methods.js';
 
-const hostRead = commandPolicy('host', 'read');
-const hostWrite = commandPolicy('host', 'write');
-const hostControl = commandPolicy('host', 'control');
+const serverRead = commandPolicy('server', 'read');
+const serverWrite = commandPolicy('server', 'write');
+const serverControl = commandPolicy('server', 'control');
 /**
  * PTY traffic must enter adapters in transport submission order. Request fingerprints are asynchronous and can reorder
  * overlapping input before either Main or Host reaches the adapter.
  */
-const terminalStreamControl = { ...hostControl, idempotency: 'none' as const };
+const terminalStreamControl = { ...serverControl, idempotency: 'none' as const };
 const desktopRead = commandPolicy('desktop', 'read');
 const desktopWrite = commandPolicy('desktop', 'write');
 const desktopControl = commandPolicy('desktop', 'control');
-const hostStatusRead = commandPolicy('host', 'read', ['host.read']);
-const hostStopControl = commandPolicy('host', 'control', ['host.stop']);
-const desktopEventRead = commandPolicy('host', 'read');
+const serverStatusRead = commandPolicy('server', 'read', ['host.read']);
+const serverStopControl = commandPolicy('server', 'control', ['host.stop']);
+const desktopEventRead = commandPolicy('server', 'read');
 
 /**
  * Methods without required parameters still accept the preload's `{}` placeholder, and the default makes `undefined` a
@@ -148,12 +148,12 @@ export const methods = {
     ...workbenchMethods,
     ...extensionViewMethods,
     'viewContainers.catalog': {
-        ...hostRead,
+        ...serverRead,
         params: noParameters,
         result: viewCatalogSnapshotSchema,
     },
     'viewContainers.treeChildren': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             viewId: viewIdSchema,
             parentHandle: z.string().min(1).max(512).optional(),
@@ -162,7 +162,7 @@ export const methods = {
         result: treeChildrenResultSchema,
     },
     'viewContainers.executeCommand': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({
             commandId: extensionCommandIdSchema,
             arguments: z.array(z.unknown()).max(MAX_EXTENSION_COMMAND_ARGUMENTS).default([]),
@@ -170,23 +170,23 @@ export const methods = {
         result: z.object({ executed: z.literal(true) }),
     },
     'viewContainers.cancelRequest': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({ requestId: identifierSchema }),
         result: z.object({ cancelled: z.boolean() }),
     },
     'requests.cancel': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({ requestId: identifierSchema }),
         result: z.object({ cancelled: z.boolean() }),
     },
     'extensions.retry': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({ extensionId: extensionIdSchema }),
         result: z.object({ accepted: z.boolean(), error: extensionErrorSchema.optional() }),
     },
-    'app.bootstrap': { ...hostRead, params: noParameters, result: bootstrapStateSchema },
+    'app.bootstrap': { ...serverRead, params: noParameters, result: bootstrapStateSchema },
     'app.records': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionIds: z.array(identifierSchema).max(64).default([]),
             terminalIds: z.array(identifierSchema).max(64).default([]),
@@ -197,7 +197,7 @@ export const methods = {
         }),
     },
     'app.health': {
-        ...hostStatusRead,
+        ...serverStatusRead,
         params: noParameters,
         result: z.object({
             ready: z.boolean(),
@@ -207,7 +207,7 @@ export const methods = {
         }),
     },
     'host.status': {
-        ...hostStatusRead,
+        ...serverStatusRead,
         params: noParameters,
         result: z.object({
             profileId: identifierSchema,
@@ -232,7 +232,7 @@ export const methods = {
         }),
     },
     'host.stop': {
-        ...hostStopControl,
+        ...serverStopControl,
         params: z
             .object({ confirmLivePtys: z.boolean().default(false) })
             .default({ confirmLivePtys: false }),
@@ -288,7 +288,7 @@ export const methods = {
         result: exportedFile.nullable(),
     },
     'bugReport.context': {
-        ...hostRead,
+        ...serverRead,
         params: noParameters,
         result: z.object({
             appVersion: z.string().min(1).max(100),
@@ -337,7 +337,7 @@ export const methods = {
         result: z.union([canceled, bootstrapStateSchema]),
     },
     'project.reorder': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             projectId: identifierSchema,
             targetIndex: z.number().int().nonnegative(),
@@ -345,7 +345,7 @@ export const methods = {
         result: z.array(projectRecordSchema),
     },
     'project.setIcon': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.strictObject({
             projectId: identifierSchema,
             icon: projectIconSchema.nullable(),
@@ -353,7 +353,7 @@ export const methods = {
         result: projectRecordSchema,
     },
     'session.create': {
-        ...hostWrite,
+        ...serverWrite,
         /**
          * A `null` defaultAgent creates the Session without any Terminal.
          */
@@ -372,12 +372,12 @@ export const methods = {
         result: z.union([canceled, bootstrapStateSchema]),
     },
     'session.select': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ sessionId: identifierSchema }),
         result: sessionRecordSchema,
     },
     'session.markRead': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             sessionId: identifierSchema,
             attentionEpoch: z.number().int().nonnegative(),
@@ -385,7 +385,7 @@ export const methods = {
         result: sessionRecordSchema,
     },
     'session.rename': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             sessionId: identifierSchema,
             displayTitle: z.string().trim().min(1).max(200),
@@ -393,22 +393,22 @@ export const methods = {
         result: sessionRecordSchema,
     },
     'session.archive': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ sessionId: identifierSchema }),
         result: sessionRecordSchema,
     },
     'session.unarchive': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ sessionId: identifierSchema }),
         result: sessionRecordSchema,
     },
     'session.updateState': {
-        ...hostWrite,
+        ...serverWrite,
         params: sessionStateSchema,
         result: sessionStateSchema,
     },
     'terminal.create': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({
             sessionId: identifierSchema,
             kind: terminalKindSchema,
@@ -437,12 +437,12 @@ export const methods = {
         result: z.null(),
     },
     'terminal.close': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({ terminalId: identifierSchema }),
         result: z.null(),
     },
     'terminal.attach': {
-        ...hostControl,
+        ...serverControl,
         params: z
             .object({
                 terminalId: identifierSchema,
@@ -455,12 +455,12 @@ export const methods = {
         result: terminalSnapshotSchema.nullable(),
     },
     'terminal.detach': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({ terminalId: identifierSchema }),
         result: z.null(),
     },
     'terminal.moveToNewSession': {
-        ...hostWrite,
+        ...serverWrite,
         /**
          * Creates a brand-new Session under the same Project and moves the live Terminal (its running PTY preserved)
          * into it, analogous to a browser "move tab to new window".
@@ -472,7 +472,7 @@ export const methods = {
         }),
     },
     'terminal.restart': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({
             terminalId: identifierSchema,
             mode: z.enum(['resume', 'fresh']).default('resume'),
@@ -494,17 +494,17 @@ export const methods = {
         result: z.union([canceled, z.object({ opened: z.literal(true) })]),
     },
     'terminal.snapshot': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({ terminalId: identifierSchema }),
         result: terminalSnapshotSchema.nullable(),
     },
     'terminal.runningCount': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({ sessionId: identifierSchema.optional() }).default({}),
         result: z.number(),
     },
     'terminal.resources': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({ terminalId: identifierSchema }),
         result: terminalResourceUsageSchema.nullable(),
     },
@@ -514,7 +514,7 @@ export const methods = {
      * this out-of-Project read.
      */
     'terminal.agentTranscript': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             terminalId: identifierSchema,
             withContent: z.boolean().default(false),
@@ -522,7 +522,7 @@ export const methods = {
         result: agentTranscriptSchema.nullable(),
     },
     'files.list': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({ sessionId: identifierSchema, directory: pathSchema.optional() }),
         result: z.object({
             entries: z.array(fileEntrySchema).max(MAX_FILE_LIST_ENTRIES),
@@ -530,7 +530,7 @@ export const methods = {
         }),
     },
     'files.browse': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             directory: pathSchema.optional(),
@@ -542,7 +542,7 @@ export const methods = {
         }),
     },
     'files.create': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             operationId: identifierSchema,
             sessionId: identifierSchema,
@@ -553,7 +553,7 @@ export const methods = {
         result: mutableFileEntrySchema,
     },
     'files.copy': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             sessionId: identifierSchema,
             path: pathSchema,
@@ -562,7 +562,7 @@ export const methods = {
         result: mutableFileEntrySchema,
     },
     'files.rename': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             operationId: identifierSchema,
             sessionId: identifierSchema,
@@ -572,7 +572,7 @@ export const methods = {
         result: movedFileEntrySchema,
     },
     'files.move': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             operationId: identifierSchema,
             sessionId: identifierSchema,
@@ -583,22 +583,22 @@ export const methods = {
         result: movedFileEntrySchema,
     },
     'files.operation.get': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({ operationId: identifierSchema, sessionId: identifierSchema }),
         result: fileMutationOperationSchema.nullable(),
     },
     'files.operation.list': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({ sessionId: identifierSchema }),
         result: z.array(fileMutationOperationSchema).max(256),
     },
     'files.operation.cancel': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({ operationId: identifierSchema, sessionId: identifierSchema }),
         result: fileMutationOperationSchema,
     },
     'files.operation.acknowledge': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ operationId: identifierSchema, sessionId: identifierSchema }),
         result: z.null(),
     },
@@ -616,12 +616,12 @@ export const methods = {
         result: z.union([canceled, mutableFileEntrySchema]),
     },
     'files.read': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({ sessionId: identifierSchema, path: pathSchema }),
         result: fileDocumentSchema,
     },
     'files.write': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({
             sessionId: identifierSchema,
             path: pathSchema,
@@ -630,7 +630,7 @@ export const methods = {
         result: fileDocumentSchema,
     },
     'files.search': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             mode: fileSearchModeSchema,
@@ -645,7 +645,7 @@ export const methods = {
     },
     ...gitMethods,
     'projectStatus.summary': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
             /**
@@ -656,27 +656,27 @@ export const methods = {
         result: projectStatusSummarySchema,
     },
     'projectStatus.overview': {
-        ...hostRead,
+        ...serverRead,
         params: z.object({ sessionId: identifierSchema }),
         result: projectStatusOverviewSchema,
     },
-    'settings.get': { ...hostRead, params: noParameters, result: settingsResult },
-    'agentHooks.get': { ...hostRead, params: noParameters, result: agentHookHealthMapSchema },
-    'agentSkills.get': { ...hostRead, params: noParameters, result: agentSkillHealthSchema },
+    'settings.get': { ...serverRead, params: noParameters, result: settingsResult },
+    'agentHooks.get': { ...serverRead, params: noParameters, result: agentHookHealthMapSchema },
+    'agentSkills.get': { ...serverRead, params: noParameters, result: agentSkillHealthSchema },
     'settings.update': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ source: configSourceSchema }),
         result: settingsResult,
     },
-    'keybindings.get': { ...hostRead, params: noParameters, result: keybindingsResult },
+    'keybindings.get': { ...serverRead, params: noParameters, result: keybindingsResult },
     'keybindings.update': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ source: configSourceSchema }),
         result: keybindingsResult,
     },
-    'theme.get': { ...hostRead, params: noParameters, result: themeResult },
+    'theme.get': { ...serverRead, params: noParameters, result: themeResult },
     'theme.update': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ source: configSourceSchema }),
         result: themeResult,
     },
@@ -692,17 +692,17 @@ export const internalMethods = {
     ...gitInternalMethods,
     ...workbenchInternalMethods,
     'app.windowState.get': {
-        ...hostRead,
+        ...serverRead,
         params: noParameters,
         result: persistedWindowStateSchema,
     },
     'app.windowState.update': {
-        ...hostWrite,
+        ...serverWrite,
         params: persistedWindowStateSchema,
         result: persistedWindowStateSchema,
     },
     'bugReport.deliver': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({
             pasteImage: z.boolean(),
             report: bugReportText,
@@ -712,7 +712,7 @@ export const internalMethods = {
         result: z.null(),
     },
     'config.paths': {
-        ...hostRead,
+        ...serverRead,
         params: noParameters,
         result: z.object({
             settings: z.string(),
@@ -721,17 +721,17 @@ export const internalMethods = {
         }),
     },
     'settings.trustDomain': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ domain: z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH) }),
         result: settingsResult,
     },
     'diagnostics.exportPath': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ destination: pathSchema }),
         result: exportedFile,
     },
     'files.authorizeTrash': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({ sessionId: identifierSchema, path: pathSchema }),
         result: mutableFileEntrySchema.extend({
             device: z.string().regex(/^\d+$/),
@@ -744,7 +744,7 @@ export const internalMethods = {
         }),
     },
     'files.authorizeOpen': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({ sessionId: identifierSchema, path: pathSchema }),
         result: mutableFileEntrySchema.extend({
             device: z.string().regex(/^\d+$/),
@@ -757,7 +757,7 @@ export const internalMethods = {
         }),
     },
     'terminal.fileLink.resolve': {
-        ...hostControl,
+        ...serverControl,
         params: z.object({
             terminalId: identifierSchema,
             target: z.string().min(3).max(4_096),
@@ -785,10 +785,10 @@ export const internalMethods = {
             }),
         ]),
     },
-    'terminal.detachAll': { ...hostControl, params: noParameters, result: z.null() },
-    'terminal.terminateAll': { ...hostControl, params: noParameters, result: z.null() },
+    'terminal.detachAll': { ...serverControl, params: noParameters, result: z.null() },
+    'terminal.terminateAll': { ...serverControl, params: noParameters, result: z.null() },
     'theme.importPath': {
-        ...hostWrite,
+        ...serverWrite,
         params: z.object({ path: pathSchema }),
         result: themeTokensSchema,
     },

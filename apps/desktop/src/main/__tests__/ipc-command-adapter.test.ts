@@ -50,8 +50,8 @@ function handler(): CommandAdapter {
 describe('Electron IPC command adapter', () => {
     it.each(cases)('matches the in-memory contract for $method', async (testCase) => {
         const envelope = { protocolVersion: CAXRI_PROTOCOL_VERSION, ...testCase };
-        const electron = createElectronIpcCommandAdapter({ host: handler() });
-        const inMemory = createCommandDispatcher({ host: handler() });
+        const electron = createElectronIpcCommandAdapter({ server: handler() });
+        const inMemory = createCommandDispatcher({ server: handler() });
 
         await expect(electron.dispatch(envelope)).resolves.toEqual(
             await inMemory(envelope, desktop),
@@ -65,8 +65,8 @@ describe('Electron IPC command adapter', () => {
             method: 'terminal.resize',
             params: { terminalId: 'terminal-1', cols: 0, rows: 24 },
         };
-        const electron = createElectronIpcCommandAdapter({ host: handler() });
-        const inMemory = createCommandDispatcher({ host: handler() });
+        const electron = createElectronIpcCommandAdapter({ server: handler() });
+        const inMemory = createCommandDispatcher({ server: handler() });
 
         await expect(electron.dispatch(envelope)).resolves.toEqual(
             await inMemory(envelope, desktop),
@@ -74,7 +74,7 @@ describe('Electron IPC command adapter', () => {
     });
 
     it('negotiates an authenticated capability and command welcome', () => {
-        const electron = createElectronIpcCommandAdapter({ host: handler() });
+        const electron = createElectronIpcCommandAdapter({ server: handler() });
         const welcome = electron.negotiate({ supportedVersions: [2] });
         expect(welcome).toMatchObject({
             protocolVersion: 2,

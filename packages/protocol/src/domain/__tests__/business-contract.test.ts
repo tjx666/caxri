@@ -133,7 +133,7 @@ describe('logQueryParametersSchema', () => {
 describe('businessMethods', () => {
     it('keeps every public business command Host-owned', () => {
         for (const spec of Object.values(businessMethods)) {
-            expect(spec.owner).toBe('host');
+            expect(spec.owner).toBe('server');
         }
     });
 

@@ -109,7 +109,7 @@ describe('@caxri/protocol contract', () => {
 
     it('gives every command one owner, effect, capability set, schemas, and idempotency policy', () => {
         for (const [name, spec] of Object.entries(methods)) {
-            expect(['host', 'desktop'], name).toContain(spec.owner);
+            expect(['server', 'desktop'], name).toContain(spec.owner);
             expect(['read', 'write', 'control'], name).toContain(spec.effect);
             expect(['none', 'request'], name).toContain(spec.idempotency);
             expect(spec.requiredCapabilities.length, name).toBeGreaterThan(0);
@@ -207,7 +207,7 @@ describe('@caxri/protocol contract', () => {
 
     it('negotiates only commands reachable by the authenticated principal', () => {
         const welcome = createProtocolWelcome(
-            { host: { invoke: () => null } },
+            { server: { invoke: () => null } },
             { supportedVersions: [2] },
             human,
         );
@@ -223,7 +223,7 @@ describe('@caxri/protocol contract', () => {
 
     it('does not negotiate or parse the retired raw git.diff command', () => {
         const welcome = createProtocolWelcome(
-            { host: { invoke: () => null } },
+            { server: { invoke: () => null } },
             { supportedVersions: [2] },
             desktop,
         );
@@ -269,7 +269,7 @@ describe('@caxri/protocol contract', () => {
 
     it('negotiates the bounded Host control surface for an authenticated operator', () => {
         const welcome = createProtocolWelcome(
-            { host: { invoke: () => null } },
+            { server: { invoke: () => null } },
             { supportedVersions: [2] },
             hostOperator,
         );
@@ -283,7 +283,7 @@ describe('@caxri/protocol contract', () => {
 });
 
 describe('transport-neutral dispatcher', () => {
-    const host: CommandAdapter = {
+    const server: CommandAdapter = {
         invoke: (command) => {
             if (command.method === 'project.list') return { view: 'desktop', projects };
             if (command.method === 'session.rename')
@@ -297,7 +297,7 @@ describe('transport-neutral dispatcher', () => {
     it('preserves submission order for overlapping Terminal input', async () => {
         const invoked: string[] = [];
         const dispatch = createCommandDispatcher({
-            host: {
+            server: {
                 invoke: (command) => {
                     if (command.method === 'terminal.input') invoked.push(command.params.data);
                     return null;
@@ -339,7 +339,7 @@ describe('transport-neutral dispatcher', () => {
     });
 
     it('projects the same handler result for Desktop, human CLI, and scoped Agent principals', async () => {
-        const dispatch = createCommandDispatcher({ host });
+        const dispatch = createCommandDispatcher({ server });
         const desktopReply = await dispatch(request('r1', 'project.list'), desktop);
         const humanReply = await dispatch(request('r2', 'project.list'), human);
         const agentReply = await dispatch(request('r3', 'project.list'), agent);
@@ -432,7 +432,7 @@ describe('transport-neutral dispatcher', () => {
     });
 
     it('enforces capability checks and a stable unavailable Desktop owner', async () => {
-        const dispatch = createCommandDispatcher({ host });
+        const dispatch = createCommandDispatcher({ server });
         await expect(dispatch(request('r1', 'app.bootstrap'), human)).resolves.toMatchObject({
             ok: false,
             error: { code: 'FORBIDDEN' },
@@ -461,10 +461,10 @@ describe('transport-neutral dispatcher', () => {
         const release = gateResolvers.resolve;
         const gate = gateResolvers.promise;
         const dispatch = createCommandDispatcher({
-            host: {
+            server: {
                 invoke: async (command, context, invocation) => {
                     if (command.method !== 'session.rename')
-                        return host.invoke(command, context, invocation);
+                        return server.invoke(command, context, invocation);
                     writes += 1;
                     await gate;
                     return {

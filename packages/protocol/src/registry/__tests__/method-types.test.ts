@@ -35,8 +35,8 @@ describe('owner narrowing guards', () => {
 
 describe('getMethodSpec', () => {
     it('resolves a public method, an internal-only method, and returns undefined otherwise', () => {
-        expect(getMethodSpec('project.list')?.owner).toBe('host');
-        expect(getMethodSpec('app.windowState.get')?.owner).toBe('host');
+        expect(getMethodSpec('project.list')?.owner).toBe('server');
+        expect(getMethodSpec('app.windowState.get')?.owner).toBe('server');
         expect(getMethodSpec('not.a.method')).toBeUndefined();
     });
 });

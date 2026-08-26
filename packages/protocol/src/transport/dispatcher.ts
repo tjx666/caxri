@@ -31,7 +31,7 @@ export interface CommandAdapter {
 
 export interface CommandDispatcherOptions {
     desktop?: CommandAdapter;
-    host: CommandAdapter;
+    server: CommandAdapter;
     maximumReceipts?: number;
 }
 
@@ -70,7 +70,7 @@ function principalReceiptKey(context: CommandExecutionContext, requestId: string
 }
 
 function adapterFor(owner: CommandOwner, options: CommandDispatcherOptions): CommandAdapter {
-    const adapter = owner === 'host' ? options.host : options.desktop;
+    const adapter = owner === 'server' ? options.server : options.desktop;
     if (!adapter || adapter.isAvailable?.() === false)
         throw new CaxriError(
             'UNAVAILABLE',
@@ -80,7 +80,7 @@ function adapterFor(owner: CommandOwner, options: CommandDispatcherOptions): Com
 }
 
 function isAdapterAvailable(owner: CommandOwner, options: CommandDispatcherOptions): boolean {
-    const adapter = owner === 'host' ? options.host : options.desktop;
+    const adapter = owner === 'server' ? options.server : options.desktop;
     return Boolean(adapter && adapter.isAvailable?.() !== false);
 }
 

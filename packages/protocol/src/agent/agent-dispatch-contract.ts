@@ -136,37 +136,37 @@ export const terminalSendResultSchema = z.strictObject({
 
 export const agentDispatchMethods = {
     'agent.dispatch.start': {
-        ...commandPolicy('host', 'control', ['agents.dispatch']),
+        ...commandPolicy('server', 'control', ['agents.dispatch']),
         params: agentDispatchStartParametersSchema,
         result: agentDispatchReceiptSchema,
     },
     'agent.dispatch.resume': {
-        ...commandPolicy('host', 'control', ['agents.dispatch']),
+        ...commandPolicy('server', 'control', ['agents.dispatch']),
         params: agentDispatchResumeParametersSchema,
         result: agentDispatchReceiptSchema,
     },
     'agent.dispatch.status': {
-        ...commandPolicy('host', 'read', ['agents.read']),
+        ...commandPolicy('server', 'read', ['agents.read']),
         params: agentDispatchStatusParametersSchema,
         result: agentDispatchReceiptSchema,
     },
     'agent.dispatch.wait': {
-        ...commandPolicy('host', 'read', ['agents.read']),
+        ...commandPolicy('server', 'read', ['agents.read']),
         params: agentDispatchWaitParametersSchema,
         result: agentDispatchWaitResultSchema,
     },
     'agent.control.interrupt': {
-        ...commandPolicy('host', 'control', ['agents.control']),
+        ...commandPolicy('server', 'control', ['agents.control']),
         params: agentControlParametersSchema,
         result: agentControlResultSchema,
     },
     'agent.control.stop': {
-        ...commandPolicy('host', 'control', ['agents.control']),
+        ...commandPolicy('server', 'control', ['agents.control']),
         params: agentControlParametersSchema,
         result: agentControlResultSchema,
     },
     'terminal.send': {
-        ...commandPolicy('host', 'control', ['terminals.steer']),
+        ...commandPolicy('server', 'control', ['terminals.steer']),
         params: terminalSendParametersSchema,
         result: terminalSendResultSchema,
     },
@@ -181,29 +181,29 @@ const projectScopeSchema = z.array(identifierSchema).max(128).nullable();
 
 export const agentDispatchInternalMethods = {
     'agent.dispatch.startInternal': {
-        ...commandPolicy('host', 'control'),
+        ...commandPolicy('server', 'control'),
         params: internalIdentitySchema.extend({ input: agentDispatchStartParametersSchema }),
         result: agentDispatchReceiptSchema,
     },
     'agent.dispatch.resumeInternal': {
-        ...commandPolicy('host', 'control'),
+        ...commandPolicy('server', 'control'),
         params: internalIdentitySchema.extend({ input: agentDispatchResumeParametersSchema }),
         result: agentDispatchReceiptSchema,
     },
     'agent.dispatch.wakeInternal': {
-        ...commandPolicy('host', 'control'),
+        ...commandPolicy('server', 'control'),
         params: internalIdentitySchema.extend({
             target: dispatchTargetSchema.extend({ terminalId: identifierSchema }),
         }),
         result: agentDispatchReceiptSchema,
     },
     'agent.dispatch.statusInternal': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: agentDispatchStatusParametersSchema.extend({ projectScope: projectScopeSchema }),
         result: agentDispatchReceiptSchema,
     },
     'agent.dispatch.waitInternal': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: agentDispatchWaitParametersSchema.extend({
             projectScope: projectScopeSchema,
             waitId: identifierSchema,
@@ -211,22 +211,22 @@ export const agentDispatchInternalMethods = {
         result: agentDispatchWaitResultSchema,
     },
     'agent.dispatch.cancelWaitInternal': {
-        ...commandPolicy('host', 'control'),
+        ...commandPolicy('server', 'control'),
         params: z.strictObject({ waitId: identifierSchema }),
         result: z.strictObject({ canceled: z.boolean() }),
     },
     'agent.control.interruptInternal': {
-        ...commandPolicy('host', 'control'),
+        ...commandPolicy('server', 'control'),
         params: agentControlParametersSchema,
         result: agentControlResultSchema,
     },
     'agent.control.stopInternal': {
-        ...commandPolicy('host', 'control'),
+        ...commandPolicy('server', 'control'),
         params: agentControlParametersSchema,
         result: agentControlResultSchema,
     },
     'terminal.sendInternal': {
-        ...commandPolicy('host', 'control'),
+        ...commandPolicy('server', 'control'),
         params: terminalSendParametersSchema,
         result: terminalSendResultSchema,
     },

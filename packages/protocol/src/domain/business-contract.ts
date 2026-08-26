@@ -237,48 +237,48 @@ export const diagnosticsSnapshotSchema = z.object({
 
 export const businessMethods = {
     'project.list': {
-        ...commandPolicy('host', 'read', ['projects.read']),
+        ...commandPolicy('server', 'read', ['projects.read']),
         params: noParameters,
         result: projectListResultSchema,
         projectResult: projectListForPrincipal,
     },
     'project.query': {
-        ...commandPolicy('host', 'read', ['projects.read']),
+        ...commandPolicy('server', 'read', ['projects.read']),
         params: projectQuerySchema,
         result: projectQueryResultSchema,
     },
     'session.query': {
-        ...commandPolicy('host', 'read', ['sessions.read']),
+        ...commandPolicy('server', 'read', ['sessions.read']),
         params: sessionQuerySchema,
         result: sessionQueryResultSchema,
     },
     'terminal.query': {
-        ...commandPolicy('host', 'read', ['terminals.read']),
+        ...commandPolicy('server', 'read', ['terminals.read']),
         params: terminalQuerySchema,
         result: terminalQueryResultSchema,
     },
     'settings.inspect': {
-        ...commandPolicy('host', 'read', ['settings.read']),
+        ...commandPolicy('server', 'read', ['settings.read']),
         params: noParameters,
         result: settingsInspectionSchema,
     },
     'settings.patch': {
-        ...commandPolicy('host', 'write', ['settings.write']),
+        ...commandPolicy('server', 'write', ['settings.write']),
         params: settingsPatchParametersSchema,
         result: settingsPatchResultSchema,
     },
     'logs.query': {
-        ...commandPolicy('host', 'read', ['diagnostics.read']),
+        ...commandPolicy('server', 'read', ['diagnostics.read']),
         params: logQueryParametersSchema,
         result: logQueryResultSchema,
     },
     'diagnostics.snapshot': {
-        ...commandPolicy('host', 'read', ['diagnostics.read']),
+        ...commandPolicy('server', 'read', ['diagnostics.read']),
         params: noParameters,
         result: diagnosticsSnapshotSchema,
     },
     'events.query': {
-        ...commandPolicy('host', 'read', ['events.read']),
+        ...commandPolicy('server', 'read', ['events.read']),
         params: z.object({ afterCursor: z.number().int().nonnegative() }),
         result: observableEventRecoverySchema,
     },
@@ -286,17 +286,17 @@ export const businessMethods = {
 
 export const businessInternalMethods = {
     'project.queryForPrincipal': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: z.object({ query: projectQuerySchema, principal: principalSchema }),
         result: projectQueryResultSchema,
     },
     'session.queryForPrincipal': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: z.object({ query: sessionQuerySchema, principal: principalSchema }),
         result: sessionQueryResultSchema,
     },
     'terminal.queryForPrincipal': {
-        ...commandPolicy('host', 'read'),
+        ...commandPolicy('server', 'read'),
         params: z.object({ query: terminalQuerySchema, principal: principalSchema }),
         result: terminalQueryResultSchema,
     },
