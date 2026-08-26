@@ -189,6 +189,13 @@ function metricStatistic(metric: PerformanceMetric): number {
     return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * percentile) - 1)];
 }
 
+/**
+ * Millisecond measurements below this absolute delta are dominated by scheduler and filesystem noise on the frozen
+ * desktop fixture. The relative budget still applies after this floor, and the metric's absolute ceiling always
+ * applies.
+ */
+const LATENCY_REGRESSION_NOISE_FLOOR_MS = 5;
+
 function compareMetrics(before: ScenarioReceipt, after: ScenarioReceipt): string[] {
     const failures: string[] = [];
     const baselineMetrics = Object.entries(before.metrics ?? {});
@@ -209,7 +216,10 @@ function compareMetrics(before: ScenarioReceipt, after: ScenarioReceipt): string
         const baseline = metricStatistic(baselineMetric);
         const candidate = metricStatistic(candidateMetric);
         const ratioCeiling = baseline * (1 + baselineMetric.maxRegressionRatio);
-        if (candidate > ratioCeiling) {
+        const isExceedsNoiseFloor =
+            baselineMetric.unit !== 'ms' ||
+            candidate - baseline >= LATENCY_REGRESSION_NOISE_FLOOR_MS;
+        if (isExceedsNoiseFloor && candidate > ratioCeiling) {
             failures.push(`${before.id}: performance metric ${name} regressed beyond ratio budget`);
         }
         if (

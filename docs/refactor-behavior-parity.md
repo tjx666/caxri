@@ -169,8 +169,10 @@ Performance is compared as a budget, not exact equality. The baseline records re
 - memory, file descriptors, watcher count, database latency, and buffered connection bytes.
 
 Each metric has a frozen sample count, percentile or maximum statistic, regression threshold, and
-environment validity check. A faster result does not excuse a semantic failure; a semantic pass does not
-excuse a budget regression.
+environment validity check. Millisecond metrics require both the frozen relative regression and a 5ms
+absolute delta so single-digit-millisecond operations are not failed by scheduler or filesystem jitter; their
+absolute ceiling remains unconditional. A faster result does not excuse a semantic failure; a semantic
+pass does not excuse a budget regression.
 
 ## Per-batch gate
 

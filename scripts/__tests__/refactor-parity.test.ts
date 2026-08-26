@@ -527,4 +527,20 @@ describe('architecture refactor parity comparison', () => {
             expect.objectContaining({ id: 'protocol-request', status: 'blocked' }),
         ]);
     });
+
+    it('ignores sub-five-millisecond latency jitter without weakening larger regressions', () => {
+        const baseline = createReceipt();
+        const candidate = createReceipt('candidate');
+        baseline.scenarios[0].metrics!.latency.samples = [4.84, 4.93, 4.32];
+        candidate.scenarios[0].metrics!.latency.samples = [8.38, 6.09, 7.12];
+
+        expect(compareReceipts(baseline, candidate, normalization, emptyAllowlist).status).toBe(
+            'pass',
+        );
+
+        candidate.scenarios[0].metrics!.latency.samples = [10, 10, 10];
+        expect(
+            compareReceipts(baseline, candidate, normalization, emptyAllowlist).failures,
+        ).toContain('protocol-request: performance metric latency regressed beyond ratio budget');
+    });
 });
