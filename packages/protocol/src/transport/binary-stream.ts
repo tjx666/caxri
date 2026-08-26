@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import { identifierSchema, pathSchema } from '../domain/domain.js';
+import { identifierSchema, MAX_TERMINAL_INPUT_LENGTH, pathSchema } from '../domain/domain.js';
 import { CaxriError, errorCodes } from './errors.js';
 import { protocolVersionSchema } from './version.js';
 
@@ -12,8 +12,15 @@ export const BINARY_STREAM_MAX_CHUNK_BYTES = 64 * 1024;
 export const BINARY_STREAM_MAX_FRAME_BYTES =
     BINARY_STREAM_FRAME_HEADER_BYTES + BINARY_STREAM_MAX_CHUNK_BYTES;
 export const BINARY_STREAM_MAX_BUFFERED_BYTES = 1024 * 1024;
-export const BINARY_STREAM_MAX_FILE_BYTES = MAX_CONFIGURABLE_FILE_BYTES;
+export const BINARY_STREAM_MAX_FILE_UPLOAD_BYTES = MAX_CONFIGURABLE_FILE_BYTES;
+/**
+ * `Buffer#toString('utf8')` replaces each malformed source byte with a three-byte replacement character. The editor
+ * already accepts such non-NUL text files, so download framing must preserve that worst-case expansion.
+ */
+export const BINARY_STREAM_MAX_FILE_CONTENT_BYTES = 3 * MAX_CONFIGURABLE_FILE_BYTES;
+export const BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES = 4 * MAX_TERMINAL_INPUT_LENGTH;
 export const BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES = 4 * 1024 * 1024;
+export const BINARY_STREAM_MAX_REPLY_BYTES = 256 * 1024;
 export const BINARY_STREAM_TICKET_TTL_MS = 10_000;
 export const BINARY_STREAM_MAX_PENDING_TICKETS = 128;
 
@@ -43,7 +50,7 @@ export const binaryStreamOperationSchema = z.discriminatedUnion('method', [
         .object({
             method: z.literal('terminal.input'),
             terminalId: identifierSchema,
-            byteLength: z.number().int().positive().max(BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES),
+            byteLength: z.number().int().positive().max(BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES),
         })
         .strict(),
     z
@@ -65,7 +72,7 @@ export const binaryStreamOperationSchema = z.discriminatedUnion('method', [
             method: z.literal('files.write'),
             sessionId: identifierSchema,
             path: pathSchema,
-            byteLength: z.number().int().nonnegative().max(BINARY_STREAM_MAX_FILE_BYTES),
+            byteLength: z.number().int().nonnegative().max(BINARY_STREAM_MAX_FILE_UPLOAD_BYTES),
         })
         .strict(),
 ]);
@@ -121,6 +128,53 @@ export const localServerStreamTicketReplySchema = z.discriminatedUnion('ok', [
 ]);
 
 export type LocalServerStreamTicketReply = z.infer<typeof localServerStreamTicketReplySchema>;
+
+const binaryStreamEmptyResultSchema = z.object({ kind: z.literal('empty') }).strict();
+const binaryStreamTerminalAttachmentResultSchema = z
+    .object({
+        kind: z.literal('terminal-attachment'),
+        snapshotBytes: z.number().int().nonnegative().max(BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES),
+    })
+    .strict();
+const binaryStreamFileDocumentResultSchema = z
+    .object({
+        kind: z.literal('file-document'),
+        path: pathSchema,
+        mtimeMs: z.number(),
+        size: z.number().int().nonnegative(),
+        contentBytes: z.number().int().nonnegative().max(BINARY_STREAM_MAX_FILE_CONTENT_BYTES),
+    })
+    .strict();
+
+export const binaryStreamReplyResultSchema = z.discriminatedUnion('kind', [
+    binaryStreamEmptyResultSchema,
+    binaryStreamTerminalAttachmentResultSchema,
+    binaryStreamFileDocumentResultSchema,
+]);
+
+export type BinaryStreamReplyResult = z.infer<typeof binaryStreamReplyResultSchema>;
+
+const binaryStreamReplyBaseSchema = z.object({
+    id: identifierSchema,
+    method: z.enum([
+        'terminal.attach',
+        'terminal.input',
+        'terminal.resize',
+        'files.read',
+        'files.write',
+    ]),
+});
+
+export const binaryStreamReplySchema = z.discriminatedUnion('ok', [
+    binaryStreamReplyBaseSchema
+        .extend({ ok: z.literal(true), result: binaryStreamReplyResultSchema })
+        .strict(),
+    binaryStreamReplyBaseSchema
+        .extend({ ok: z.literal(false), error: binaryStreamWireErrorSchema })
+        .strict(),
+]);
+
+export type BinaryStreamReply = z.infer<typeof binaryStreamReplySchema>;
 
 export const binaryStreamFrameKinds = [
     'terminal-input',
