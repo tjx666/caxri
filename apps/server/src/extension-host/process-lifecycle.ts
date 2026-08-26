@@ -15,6 +15,7 @@ export function createExtensionHostProcessLifecycle(
 ): {
     scheduleRequestedShutdown(): void;
     stopAfterParentDisconnect(): void;
+    stopAfterProtocolViolation(): void;
 } {
     let state: 'active' | 'prepared' | 'stopped' = 'active';
 
@@ -25,19 +26,20 @@ export function createExtensionHostProcessLifecycle(
         options.publish('stopping');
         options.disposeExtensions();
     };
-    const exit = (): void => {
+    const exit = (exitCode: number): void => {
         if (state === 'stopped') return;
         prepare();
         state = 'stopped';
         options.publish('stopped');
-        options.exit(0);
+        options.exit(exitCode);
     };
 
     return {
         scheduleRequestedShutdown() {
             prepare();
-            options.schedule(exit);
+            options.schedule(() => exit(0));
         },
-        stopAfterParentDisconnect: exit,
+        stopAfterParentDisconnect: () => exit(0),
+        stopAfterProtocolViolation: () => exit(1),
     };
 }
