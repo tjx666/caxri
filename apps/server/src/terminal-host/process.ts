@@ -4,6 +4,7 @@ import process from 'node:process';
 import { serverCredentialTokenSchema, serverProcessIdentitySchema } from '@caxri/protocol';
 import { installProcessErrorMonitor, logEventCatalog, StructuredLogger } from '@caxri/system';
 
+import { resolveE2ETerminalOutputFlushDelay } from './e2e-options';
 import type { TerminalHostMessage } from './protocol';
 import { TerminalHostRuntime } from './runtime';
 
@@ -40,6 +41,7 @@ const runtime = new TerminalHostRuntime({
     commit,
     credential,
     logger,
+    outputFlushMs: resolveE2ETerminalOutputFlushDelay(process.env),
     onProtocolViolation: () => {
         logger.write('error', logEventCatalog.terminalHost.invalidMessage);
         if (lifecycle.isStopping) return;

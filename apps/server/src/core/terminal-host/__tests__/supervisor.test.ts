@@ -54,6 +54,7 @@ function createSupervisor(): {
             commit: 'deadbeef',
             forkProcess,
             logger: new StructuredLogger(join(directory, 'logs'), 'server-core'),
+            outputFlushMs: 1_000,
             serverId,
             terminalHostPath: '/out/main/terminal-host.js',
             userDataPath: directory,
@@ -98,6 +99,8 @@ describe('TerminalHostSupervisor', () => {
         const launchOptions = forkProcess.mock.calls[0][2] as { env: Record<string, string> };
         expect(launchOptions.env.CAXRI_TERMINAL_HOST_CREDENTIAL).toMatch(/^[0-9a-f]{64}$/u);
         expect(launchOptions.env.CAXRI_SERVER_ID).toBe(serverId);
+        expect(launchOptions.env.CAXRI_E2E).toBe('1');
+        expect(launchOptions.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS).toBe('1000');
         expect(child.sent[0]).toMatchObject({
             credential: launchOptions.env.CAXRI_TERMINAL_HOST_CREDENTIAL,
             serverId,

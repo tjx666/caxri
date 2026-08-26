@@ -66,6 +66,7 @@ export interface TerminalHostRuntimeOptions {
     credential: string;
     engine?: TerminalExecutionOwner;
     logger: StructuredLogger;
+    outputFlushMs?: number;
     onProtocolViolation?: () => void;
     send(message: TerminalHostMessage): void;
     serverId: string;
@@ -92,6 +93,7 @@ export class TerminalHostRuntime {
                 emit: (event) => this.projectExecutionEvent(event),
                 logger: options.logger,
                 onExit: (event) => this.projectExecutionExit(event),
+                outputFlushMs: options.outputFlushMs,
                 terminalColors: (terminalId) => this.colors.get(terminalId),
             });
     }

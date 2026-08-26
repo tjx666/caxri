@@ -43,6 +43,7 @@ export interface TerminalHostSupervisorOptions {
     executable?: string;
     forkProcess?: typeof fork;
     logger: StructuredLogger;
+    outputFlushMs?: number;
     serverId: string;
     terminalHostPath: string;
     userDataPath: string;
@@ -206,6 +207,10 @@ export class TerminalHostSupervisor extends EventTarget {
                 CAXRI_SERVER_ID: this.options.serverId,
                 CAXRI_TERMINAL_HOST_CREDENTIAL: credential,
                 CAXRI_USER_DATA_PATH: this.options.userDataPath,
+                ...(this.options.outputFlushMs !== undefined && {
+                    CAXRI_E2E: '1',
+                    CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS: String(this.options.outputFlushMs),
+                }),
             },
             serialization: 'advanced',
             stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
