@@ -5,6 +5,11 @@ import process from 'node:process';
 import { connectToHost, discoverHostManifest } from '@caxri/client/supervise';
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
+import {
+    e2eAgentPolicyEnvironment,
+    e2eAgentShellShims,
+    e2eFakeExecutableEnvironmentKeys,
+} from '@caxri/system';
 import type { ElectronApplication, Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
@@ -16,11 +21,6 @@ import {
     releaseDesktopLease,
     transferDesktopLease,
 } from '../../.agents/skills/switch-worktree/scripts/desktop-lease.ts';
-import {
-    e2eAgentPolicyEnvironment,
-    e2eAgentShellShims,
-    e2eFakeExecutableEnvironmentKeys,
-} from '../../src/shared/node/e2e-agent-policy.ts';
 import {
     createE2EAgentIsolationEnvironment,
     e2eAgentStateEnvironmentKeys,

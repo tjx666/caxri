@@ -2,19 +2,18 @@
 
 ## Repository layout
 
-| Path          | Purpose                                                                               |
-| ------------- | ------------------------------------------------------------------------------------- |
-| `apps/`       | Independently runnable Desktop and CLI workspaces; Server joins here in A2e           |
-| `src/`        | Transitional Server and shared source, removed by the A2 topology cutover             |
-| `packages/`   | Browser-safe protocol, Client, Extension API, Agent skills, and shared pure utilities |
-| `extensions/` | Bundled native ESM extensions and their packaging inputs                              |
-| `e2e/`        | Playwright Electron workflows and shared desktop fixtures                             |
-| `scripts/`    | Repository-wide CI, validation, benchmark, and runner tooling                         |
-| `.agents/`    | Canonical contributor skills; `.claude/skills` is a compatibility symlink             |
-| `skills/`     | Product skill embedded in and distributed with the Caxri CLI                          |
-| `build/`      | Tracked packaging inputs, including icons and the CLI launcher                        |
-| `docs/`       | Durable product, module, operator, and architecture-debt documentation                |
-| `licenses/`   | Vendored third-party license texts                                                    |
+| Path          | Purpose                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------- |
+| `apps/`       | Independently runnable Desktop, Server, and CLI workspaces                                      |
+| `packages/`   | Importable Client, protocol, Extension API, Agent skills, system primitives, and pure utilities |
+| `extensions/` | Bundled native ESM extensions and their packaging inputs                                        |
+| `e2e/`        | Playwright Electron workflows and shared desktop fixtures                                       |
+| `scripts/`    | Repository-wide CI, validation, benchmark, and runner tooling                                   |
+| `.agents/`    | Canonical contributor skills; `.claude/skills` is a compatibility symlink                       |
+| `skills/`     | Product skill embedded in and distributed with the Caxri CLI                                    |
+| `build/`      | Tracked packaging inputs, including icons and the CLI launcher                                  |
+| `docs/`       | Durable product, module, operator, and architecture-debt documentation                          |
+| `licenses/`   | Vendored third-party license texts                                                              |
 
 Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test-results/`, `.records/`,
 `competitors/`, and `node_modules/` are intentionally gitignored and are not source directories.
@@ -128,23 +127,25 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
 - Never change the `typescript` / `@typescript/native` dependency aliases or run
   `npm i typescript@latest`; the repository intentionally pins TS6 for typescript-eslint while
   compiling with TS7.
-- The `@shared` / `@` path aliases exist only in the Renderer TypeScript project
-  (`tsconfig.web.json`) and Vitest; Main, Preload, and Runtime code must use relative imports.
+- The `@` and `@desktop-shared` path aliases exist only in the Renderer TypeScript project
+  (`tsconfig.web.json`) and Vitest. Other application code uses relative imports internally and public
+  package exports across ownership boundaries.
 - Never import Node.js, Electron, or native APIs in Renderer code.
 - Never bypass the structured IPC request contract with arbitrary shell commands.
 - Do not edit `pnpm-lock.yaml` by hand. Do not add `packageManager` or
   `devEngines.packageManager`; `mise.toml` and the explicit GitHub Actions setup own tool versions.
 - Keep `packages/protocol` browser-safe and keep Electron, SQLite, PTY, watcher, and other Desktop
   native dependencies out of `apps/cli`'s production dependency graph.
+- Keep `packages/system` free of product domain state and native dependencies. It owns reusable
+  process, filesystem, observability, build, and test-harness primitives for non-browser consumers.
 - Keep `packages/utils` browser-safe and free of runtime dependencies; it holds pure functions
   only. Domain types, protocol schemas, and React code never move there.
 - Keep `packages/protocol/src` grouped by its `agent`, `configuration`, `desktop`, `domain`,
-  `registry`, and `transport` boundaries. External consumers use the package root; compatibility
-  re-exports under `src/shared` may target the owning domain module directly.
-- Keep `apps/cli/src` grouped by its `commands` domain and the composition-root modules
-  (`application`, `environment`, `output`, `selectors`). The CLI consumes Client supervision
-  directly and must not expose application source as an importable package boundary. Domain barrels stay thin;
-  tests live in domain-local `__tests__/` directories.
+  `registry`, and `transport` boundaries. External consumers use the package root.
+- Keep `apps/cli/src` grouped by its `commands`, `host`, and `skills` boundaries. The package root
+  remains the composition root (`application`, `environment`, `output`, `selectors`) and the only
+  public package entrypoint. Domain barrels stay thin; tests live in domain-local `__tests__/`
+  directories.
 
 ## Compatibility policy
 

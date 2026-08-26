@@ -1,7 +1,7 @@
 import { join, resolve } from 'node:path';
 
-import type { BuildFreshnessOptions } from '../../src/shared/node/build-freshness.ts';
-import { createBuildFreshnessGuard } from '../../src/shared/node/build-freshness.ts';
+import type { BuildFreshnessOptions } from '@caxri/system';
+import { createBuildFreshnessGuard } from '@caxri/system';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
 const staleBuildMessage = 'Build output is stale — run "bun run build" before running e2e specs.';

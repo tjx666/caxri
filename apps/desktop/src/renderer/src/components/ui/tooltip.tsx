@@ -1,8 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
-import type { CommandId } from '@shared/commands';
-import { getCommandDefinition } from '@shared/commands';
+import type { CommandId } from '@caxri/protocol';
+import { getCommandDefinition } from '@caxri/protocol';
 
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';

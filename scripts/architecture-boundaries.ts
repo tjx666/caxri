@@ -10,7 +10,7 @@ export interface AppBoundary {
 
 export interface PackageBoundary {
     allowedPackages: ReadonlyArray<PackageBoundary['id']>;
-    id: 'agent-skills' | 'client' | 'extension-api' | 'protocol' | 'utils';
+    id: 'agent-skills' | 'client' | 'extension-api' | 'protocol' | 'system' | 'utils';
     root: `packages/${string}`;
     packageNames: readonly string[];
     publicSubpaths: readonly string[];
@@ -51,13 +51,13 @@ export const appBoundaries: readonly AppBoundary[] = [
         id: 'desktop',
         root: 'apps/desktop',
         packageNames: ['@caxri/desktop'],
-        allowedPackages: ['client', 'protocol', 'utils'],
+        allowedPackages: ['client', 'protocol', 'system', 'utils'],
     },
     {
         id: 'server',
         root: 'apps/server',
         packageNames: ['@caxri/server'],
-        allowedPackages: ['agent-skills', 'extension-api', 'protocol', 'utils'],
+        allowedPackages: ['agent-skills', 'extension-api', 'protocol', 'system', 'utils'],
         testAllowedPackages: ['client'],
     },
     {
@@ -96,7 +96,7 @@ export const packageBoundaries: readonly PackageBoundary[] = [
         packageNames: ['@caxri/protocol'],
         publicSubpaths: ['.'],
         browserSafe: true,
-        allowedPackages: [],
+        allowedPackages: ['utils'],
     },
     {
         id: 'extension-api',
@@ -105,6 +105,14 @@ export const packageBoundaries: readonly PackageBoundary[] = [
         publicSubpaths: ['.'],
         browserSafe: true,
         allowedPackages: [],
+    },
+    {
+        id: 'system',
+        root: 'packages/system',
+        packageNames: ['@caxri/system'],
+        publicSubpaths: ['.'],
+        browserSafe: false,
+        allowedPackages: ['protocol', 'utils'],
     },
     {
         id: 'utils',
@@ -120,43 +128,7 @@ export const packageBoundaries: readonly PackageBoundary[] = [
  * Current production roots remain authoritative only until their owning move. The list is data so lint and contract
  * tests cannot silently turn a transitional directory into permanent architecture.
  */
-export const legacyOwnershipRoots: readonly LegacyOwnershipRoot[] = [
-    {
-        root: 'src/host',
-        kind: 'application',
-        owner: 'server',
-        removeInBatch: 'A2e',
-        target: 'apps/server/src/core',
-    },
-    {
-        root: 'src/runtime',
-        kind: 'application',
-        owner: 'server',
-        removeInBatch: 'A2e',
-        target: 'apps/server/src/runtime',
-    },
-    {
-        root: 'src/extension-host',
-        kind: 'application',
-        owner: 'server',
-        removeInBatch: 'A2e',
-        target: 'apps/server/src/extension-host',
-    },
-    {
-        root: 'src/shared/node',
-        kind: 'shared',
-        owner: 'application-specific-node-support',
-        removeInBatch: 'A2e',
-        target: 'apps/desktop or apps/server owning module',
-    },
-    {
-        root: 'src/shared',
-        kind: 'shared',
-        owner: 'unassigned-shared-source',
-        removeInBatch: 'A2e',
-        target: 'packages or owning application',
-    },
-];
+export const legacyOwnershipRoots: readonly LegacyOwnershipRoot[] = [];
 
 /**
  * Temporary cross-boundary imports. A2b eliminated every allowance it inherited; later topology moves may remove the

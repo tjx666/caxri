@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -139,9 +140,9 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
         /**
          * A new Terminal's pane attaches its PTY asynchronously (`use-terminal-pane-runtime.ts`). Pressing `Meta+W`
          * before that round-trip resolves queues `terminal.close` behind it on the Host's ordered command queue
-         * (`src/host/local-server.ts`) and the tab is still open when the assertion below runs — a race no human could
-         * hit by hand, but one Playwright's instant keypress does under CI's contended pool. Mirrors the same wait in
-         * `session-title.e2e.ts`.
+         * (`apps/server/src/host/local-server.ts`) and the tab is still open when the assertion below runs — a race no
+         * human could hit by hand, but one Playwright's instant keypress does under CI's contended pool. Mirrors the
+         * same wait in `session-title.e2e.ts`.
          */
         const openedTerminalId = await openedTab.getAttribute('data-terminal-id');
         await expect(

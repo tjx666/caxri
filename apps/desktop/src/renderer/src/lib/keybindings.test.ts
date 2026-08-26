@@ -1,4 +1,4 @@
-import { formatShortcut } from '@shared/shortcuts';
+import { formatShortcut } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {

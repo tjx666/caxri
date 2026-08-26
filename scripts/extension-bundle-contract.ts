@@ -1,14 +1,14 @@
 import { builtinModules } from 'node:module';
 
 const forbiddenDesktopImports = [
-    '/src/host/',
+    '/apps/server/src/host/',
     '/src/main/',
     '/src/preload/',
     '/src/renderer/',
     '/apps/desktop/src/main/',
     '/apps/desktop/src/preload/',
     '/apps/desktop/src/renderer/',
-    '/src/runtime/',
+    '/apps/server/src/runtime/',
     '@caxri/protocol',
 ] as const;
 

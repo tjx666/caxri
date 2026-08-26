@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
-import { formatShortcutParts } from '@shared/shortcuts';
+import { formatShortcutParts } from '@caxri/protocol';
 
 import { useNow } from '@/hooks/use-now';
 

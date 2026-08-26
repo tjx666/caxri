@@ -2,12 +2,12 @@ import type { ReactElement, ReactNode } from 'react';
 import { useState } from 'react';
 
 import type {
+    CommandId,
     ExtensionBuiltinIconId,
     ViewContainerId,
     ViewContainerLocation,
     ViewIcon,
 } from '@caxri/protocol';
-import type { CommandId } from '@shared/commands';
 import type { LucideIcon } from 'lucide-react';
 import {
     Activity,

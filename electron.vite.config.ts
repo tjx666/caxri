@@ -86,10 +86,10 @@ export default defineConfig(async ({ command }) => {
                 // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
                     input: {
-                        'extension-host': resolve('src/extension-host/process.ts'),
-                        'host': resolve('src/host/process.ts'),
+                        'extension-host': resolve('apps/server/src/extension-host/process.ts'),
+                        'host': resolve('apps/server/src/host/process.ts'),
                         'index': resolve('apps/desktop/src/main/index.ts'),
-                        'runtime': resolve('src/runtime/index.ts'),
+                        'runtime': resolve('apps/server/src/runtime/index.ts'),
                     },
                 },
             },
@@ -146,7 +146,6 @@ export default defineConfig(async ({ command }) => {
                 alias: {
                     '@': resolve('apps/desktop/src/renderer/src'),
                     '@desktop-shared': resolve('apps/desktop/src/shared'),
-                    '@shared': resolve('src/shared'),
                 },
             },
             plugins: [

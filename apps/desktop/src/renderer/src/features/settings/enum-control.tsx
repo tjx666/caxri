@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import type { EnumSettingSpec } from '@shared/config';
+import type { EnumSettingSpec } from '@caxri/protocol';
 
 import {
     Select,

@@ -4,7 +4,8 @@ import { promisify } from 'node:util';
 
 /**
  * Promisified `execFile` shared by repository scripts so each tool avoids re-declaring the `promisify(execFile)`
- * boilerplate. Scripts stay independent of `src/`, so this intentionally mirrors `src/shared/node/exec.ts`.
+ * boilerplate. Scripts stay independent of `src/`, so this intentionally mirrors
+ * `packages/system/src/filesystem/exec.ts`.
  */
 export const execFileAsync = promisify(execFile);
 

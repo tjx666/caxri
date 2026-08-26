@@ -6,8 +6,7 @@ import type {
     AppSettings,
     ArgvConfigChanges,
 } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
-import { settingsSpecByKey } from '@shared/config';
+import { agentProviderCatalog, settingsSpecByKey } from '@caxri/protocol';
 import { Archive, RotateCcw } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';

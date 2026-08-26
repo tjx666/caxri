@@ -37,7 +37,10 @@ describe('CI execution plan', () => {
     });
 
     it('uses focused source checks for drafts and full gates for ready source pull requests', () => {
-        const input = { changedFiles: ['src/runtime/index.ts'], eventName: 'pull_request' };
+        const input = {
+            changedFiles: ['apps/server/src/runtime/index.ts'],
+            eventName: 'pull_request',
+        };
 
         expect(evaluateCIExecutionPlan({ ...input, pullRequestDraft: true })).toMatchObject({
             checksScope: 'focused-source',
@@ -53,7 +56,10 @@ describe('CI execution plan', () => {
     it('checks only a safe incremental delta after a validated ancestor full-green run', () => {
         expect(
             evaluateCIExecutionPlan({
-                changedFiles: ['src/runtime/index.ts', '.agents/skills/go/scripts/state.ts'],
+                changedFiles: [
+                    'apps/server/src/runtime/index.ts',
+                    '.agents/skills/go/scripts/state.ts',
+                ],
                 eventName: 'pull_request',
                 pullRequestDraft: false,
                 reusableGreenRun: {
@@ -73,11 +79,11 @@ describe('CI execution plan', () => {
     it('ignores an invalid reuse receipt and keeps full ready-PR coverage', () => {
         expect(
             evaluateCIExecutionPlan({
-                changedFiles: ['src/runtime/index.ts'],
+                changedFiles: ['apps/server/src/runtime/index.ts'],
                 eventName: 'pull_request',
                 pullRequestDraft: false,
                 reusableGreenRun: {
-                    changedFiles: ['src/runtime/index.ts'],
+                    changedFiles: ['apps/server/src/runtime/index.ts'],
                     headSha: 'a'.repeat(40),
                     runId: 123,
                 },
@@ -122,7 +128,7 @@ describe('CI execution plan', () => {
     it('keeps eligible retry modes on macOS while skipping Linux checks', () => {
         expect(
             evaluateCIExecutionPlan({
-                changedFiles: ['src/runtime/index.ts'],
+                changedFiles: ['apps/server/src/runtime/index.ts'],
                 eventName: 'pull_request',
                 pullRequestDraft: false,
                 retryMode: 'e2e-repair',
@@ -148,7 +154,7 @@ describe('CI execution plan', () => {
     it('never selects concurrent full checks without the E2E job that owns them', () => {
         const inputs = [
             {
-                changedFiles: ['src/runtime/index.ts'],
+                changedFiles: ['apps/server/src/runtime/index.ts'],
                 eventName: 'pull_request',
                 pullRequestDraft: false,
             },

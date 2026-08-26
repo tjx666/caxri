@@ -1,7 +1,10 @@
-import type { AgentProvider } from '@caxri/protocol';
-import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
-import type { SettingCategoryId, SettingKey, SettingSpec } from '@shared/config';
-import { settingCategories, settingsSpecByKey } from '@shared/config';
+import type { AgentProvider, SettingCategoryId, SettingKey, SettingSpec } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    agentProviderIds,
+    settingCategories,
+    settingsSpecByKey,
+} from '@caxri/protocol';
 
 /**
  * How a Settings row reads and writes its value. Scalar `settings.jsonc` fields render a generic control from their

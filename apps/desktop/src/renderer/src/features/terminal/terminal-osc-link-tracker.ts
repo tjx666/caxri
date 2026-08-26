@@ -1,18 +1,16 @@
 import type { TerminalOscLinkSnapshot } from '@caxri/protocol';
 import {
+    areTerminalOscLinkRangesOverlapping,
     MAX_TERMINAL_LINK_LENGTH,
     MAX_TERMINAL_OSC_LINK_CELLS,
     MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS,
     MAX_TERMINAL_OSC_LINKS,
-} from '@caxri/protocol';
-import {
-    areTerminalOscLinkRangesOverlapping,
     resolveTerminalOscLinkCellOffset,
     resolveTerminalOscLinkLogicalPosition,
     terminalOscLinkCellAnchor,
     terminalOscLinkFingerprint,
     terminalOscLinkFingerprintCellCount,
-} from '@shared/terminal-osc-link-fingerprint';
+} from '@caxri/protocol';
 import type { IBuffer, IMarker, Terminal } from '@xterm/xterm';
 
 import type { TerminalLinkMatch } from './terminal-links';

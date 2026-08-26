@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { assertBuildOutputsFresh } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { assertBuildOutputsFresh } from '../../src/shared/node/build-freshness';
 import { createE2EBuildFreshnessOptions } from './build-freshness';
 
 const temporaryDirectories: string[] = [];

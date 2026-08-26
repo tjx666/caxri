@@ -121,16 +121,17 @@ mega-move. Each sub-batch moves tests with their owner, updates every path-sensi
 consumer in the same change, removes the superseded path, and passes the frozen parity catalog before
 the next move starts.
 
-| Current ownership                                        | Target ownership                                                    | Batch       |
-| -------------------------------------------------------- | ------------------------------------------------------------------- | ----------- |
-| reusable connection and projection code                  | `packages/client`                                                   | A2b         |
-| reusable Agent skill installation and health logic       | `packages/agent-skills`                                             | A2b         |
-| `packages/api`                                           | `packages/extension-api`                                            | A2b         |
-| `src/shared`                                             | owning application or browser-safe package, with no shared catchall | A2b/A2d/A2e |
-| `packages/cli`                                           | `apps/cli`                                                          | A2c         |
-| `src/main`, `src/preload`, and `src/renderer`            | `apps/desktop`                                                      | A2d         |
-| `src/host`, `src/runtime`, and `src/extension-host`      | `apps/server`                                                       | A2e         |
-| root product entrypoints and transitional path machinery | none; root becomes a private workspace orchestrator                 | A2f         |
+| Current ownership                                                 | Target ownership                                                    | Batch       |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------- | ----------- |
+| reusable connection and projection code                           | `packages/client`                                                   | A2b         |
+| reusable Agent skill installation and health logic                | `packages/agent-skills`                                             | A2b         |
+| `packages/api`                                                    | `packages/extension-api`                                            | A2b         |
+| `src/shared`                                                      | owning application or browser-safe package, with no shared catchall | A2b/A2d/A2e |
+| `packages/cli`                                                    | `apps/cli`                                                          | A2c         |
+| `src/main`, `src/preload`, and `src/renderer`                     | `apps/desktop`                                                      | A2d         |
+| `src/host`, `src/runtime`, and `src/extension-host`               | `apps/server`                                                       | A2e         |
+| reusable process, filesystem, build, and observability primitives | `packages/system`                                                   | A2e         |
+| root product entrypoints and transitional path machinery          | none; root becomes a private workspace orchestrator                 | A2f         |
 
 ### A2a — Workspace contract and import guardrails
 
@@ -259,6 +260,8 @@ process and failure topology until A3.
 - update process entrypoints, `import.meta.url` assets, native-module loading, migrations, extension
   bundles, worker paths, packaging inputs, development runners, benchmarks, and fault-injection fixtures;
 - make Desktop and CLI consume only `packages/client` rather than importing `apps/server` source;
+- place reusable non-browser process, filesystem, build, observability, and test-harness primitives in
+  `packages/system`, which the standalone Server bundles rather than requiring at runtime;
 - remove the root Server source paths and their A2a allowances after all launchers target the new app.
 
 #### A2e exit receipts

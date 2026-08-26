@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { BootstrapState } from '@caxri/protocol';
+import { listPaneTerminalIds } from '@caxri/protocol';
 
-import { listPaneTerminalIds } from '../src/shared/pane-layout.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {

@@ -123,7 +123,8 @@
                 ],
                 "ignoreDependencies": [
                     "tailwindcss",
-                    "tw-animate-css"
+                    "tw-animate-css",
+                    "ws"
                 ]
             },
             "apps/desktop": {
@@ -131,6 +132,13 @@
                     "src/preload/process-explorer.ts",
                     "src/renderer/src/main.tsx",
                     "src/renderer/src/process-explorer-main.tsx"
+                ]
+            },
+            "apps/server": {
+                "entry": [
+                    "src/extension-host/process.ts",
+                    "src/host/process.ts",
+                    "src/runtime/index.ts"
                 ]
             },
             "*/cli": {
@@ -171,43 +179,34 @@
         "ws": "catalog:"
     },
     "devDependencies": {
-        "@caxri/agent-skills": "workspace:*",
         "@caxri/client": "workspace:*",
         "@caxri/protocol": "workspace:*",
+        "@caxri/system": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",
         "@electron/rebuild": "4.2.0",
         "@playwright/test": "1.62.1",
         "@rolldown/plugin-babel": "0.2.3",
         "@tailwindcss/vite": "4.3.3",
-        "@types/archiver": "8.0.0",
         "@types/better-sqlite3": "9.6.0",
         "@types/estree": "1.0.9",
         "@types/node": "26.1.2",
         "@types/react": "19.2.18",
         "@types/react-dom": "19.2.4",
         "@types/semver": "catalog:",
-        "@types/ws": "catalog:",
         "@typescript/native": "npm:typescript@7.0.2",
         "@vitejs/plugin-react": "6.0.5",
-        "@xterm/addon-serialize": "0.15.0-beta.299",
-        "@xterm/addon-unicode11": "0.10.0-beta.299",
-        "@xterm/headless": "6.1.0-beta.301",
-        "@xterm/xterm": "6.1.0-beta.301",
         "@yutengjing/eslint-config-typescript": "catalog:",
         "@yutengjing/prettier-config": "catalog:",
-        "archiver": "8.0.0",
         "babel-plugin-react-compiler": "1.0.0",
         "caxri": "workspace:*",
         "class-variance-authority": "0.7.1",
         "clsx": "2.1.1",
         "cmdk": "1.1.1",
         "drizzle-kit": "0.31.10",
-        "drizzle-orm": "0.45.2",
         "electron": "43.2.0",
         "electron-builder": "26.15.3",
         "electron-vite": "6.0.0-beta.1",
-        "es-toolkit": "1.50.0",
         "eslint": "10.8.1",
         "eslint-plugin-import-x": "catalog:",
         "eslint-plugin-react-hooks": "7.1.1",
@@ -222,7 +221,6 @@
         "oxlint": "catalog:",
         "oxlint-tsgolint": "catalog:",
         "playwright": "1.62.1",
-        "plist": "5.0.0",
         "prettier": "3.9.6",
         "prettier-plugin-tailwindcss": "catalog:",
         "react": "19.2.8",

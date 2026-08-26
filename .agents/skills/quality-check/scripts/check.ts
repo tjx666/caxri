@@ -38,6 +38,7 @@ export type DirtyLayer =
     | 'Host'
     | 'Runtime'
     | 'Server'
+    | 'System'
     | 'IPC'
     | 'Shared'
     | 'CLI'
@@ -64,6 +65,7 @@ const DIRTY_LAYER_ORDER: DirtyLayer[] = [
     'Host',
     'Runtime',
     'Server',
+    'System',
     'IPC',
     'Shared',
     'CLI',
@@ -79,14 +81,13 @@ function dirtyLayerForFile(file: string): DirtyLayer {
     if (normalized.startsWith('apps/desktop/src/renderer/')) return 'Renderer';
     if (normalized.startsWith('apps/desktop/src/main/')) return 'Main';
     if (normalized.startsWith('apps/desktop/src/preload/')) return 'Preload';
+    if (normalized.startsWith('apps/server/src/host/')) return 'Host';
+    if (normalized.startsWith('apps/server/src/runtime/')) return 'Runtime';
     if (normalized.startsWith('apps/server/')) return 'Server';
     if (normalized.startsWith('apps/cli/')) return 'CLI';
-    if (normalized.startsWith('src/host/')) return 'Host';
-    if (normalized.startsWith('src/runtime/')) return 'Runtime';
-    if (normalized.startsWith('packages/protocol/') || normalized.startsWith('src/shared/ipc/'))
-        return 'IPC';
-    if (normalized.startsWith('packages/utils/') || normalized.startsWith('src/shared/'))
-        return 'Shared';
+    if (normalized.startsWith('packages/system/')) return 'System';
+    if (normalized.startsWith('packages/protocol/')) return 'IPC';
+    if (normalized.startsWith('packages/utils/')) return 'Shared';
     if (
         normalized.startsWith('packages/agent-skills/') ||
         normalized.startsWith('packages/client/') ||
@@ -117,7 +118,12 @@ export function dirtyLayerReportForFiles(
     const layers = DIRTY_LAYER_ORDER.filter((layer) => dirtyLayers.has(layer));
     const suggestedGates: string[] = [];
     if (dirtyLayers.has('Renderer')) suggestedGates.push('bun run doctor:changed');
-    if (dirtyLayers.has('Renderer') || dirtyLayers.has('IPC') || dirtyLayers.has('Shared'))
+    if (
+        dirtyLayers.has('Renderer') ||
+        dirtyLayers.has('IPC') ||
+        dirtyLayers.has('Shared') ||
+        dirtyLayers.has('System')
+    )
         suggestedGates.push('bun run knip');
     if (hasExplicitFiles) {
         const e2eSpecs = files.filter((file) => /^e2e\/.+\.e2e\.ts$/.test(file));
@@ -326,11 +332,12 @@ export function testCandidatesForFile(file: string): string[] {
 
     /**
      * Domain-level integration suites are named after their owning subdirectory rather than an individual source stem
-     * (e.g. `src/runtime/db/*.ts` -> `db.integration.test.ts`). Applying this at the top level would match broad,
-     * expensive suites for nearly every source file.
+     * (e.g. `apps/server/src/runtime/db/*.ts` -> `db.integration.test.ts`). Applying this at the top level would match
+     * broad, expensive suites for nearly every source file.
      */
     const directorySegments = directory.split('/').filter(Boolean);
-    if (directorySegments.length >= 3) {
+    const sourceRootIndex = directorySegments.lastIndexOf('src');
+    if (sourceRootIndex !== -1 && directorySegments.length - sourceRootIndex - 1 >= 2) {
         const domain = directorySegments.at(-1);
         candidates.push(
             ...TEST_EXTENSIONS.flatMap((testExtension) => [
@@ -350,16 +357,9 @@ export function testCandidatesForFile(file: string): string[] {
 export const IMPORT_PATH_ALIASES: ReadonlyArray<{ prefix: string; target: string }> = [
     { prefix: '@/', target: 'apps/desktop/src/renderer/src/' },
     { prefix: '@desktop-shared/', target: 'apps/desktop/src/shared/' },
-    { prefix: '@shared/', target: 'src/shared/' },
 ];
 
-export const VITEST_SOURCE_ROOTS = [
-    'apps',
-    'src',
-    '.agents/skills',
-    'scripts',
-    'packages',
-] as const;
+export const VITEST_SOURCE_ROOTS = ['apps', '.agents/skills', 'scripts', 'packages'] as const;
 
 /**
  * Returns whether a test directly imports or re-exports a source file through a relative or tsconfig-alias static

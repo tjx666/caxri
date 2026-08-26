@@ -1,5 +1,5 @@
 import type { TerminalRecord } from '@caxri/protocol';
-import { agentTranscriptTabPath } from '@shared/agent-transcript';
+import { agentTranscriptTabPath } from '@caxri/protocol';
 import { capitalize } from 'es-toolkit';
 import { CircleDot } from 'lucide-react';
 

@@ -123,7 +123,7 @@ Final reply in the conversation language; code, paths, and UI strings stay Engli
 The audit itself is read-only. When the user asks for implementation:
 
 - Regroup accepted findings into **file-disjoint work packages** by feature area; shared
-  contracts (`src/shared/`) belong to exactly one package. Launch packages concurrently only
+  contracts under `packages/` belong to exactly one package. Launch packages concurrently only
   when their file sets cannot collide.
 - Every implementation subagent gets the same rails: read `AGENTS.md` + `DESIGN.md`; English
   UI strings; tokens-only colors; do not commit; validate with `bun run check <files>`

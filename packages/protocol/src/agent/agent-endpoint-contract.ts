@@ -7,7 +7,7 @@ import { capabilitySchema } from '../transport/principal.js';
 
 const noParameters = z.object({}).default({});
 
-// eslint-disable-next-line unicorn/name-replacements -- exported schema is imported across the Host/Runtime process boundary (e.g. src/runtime/db/models/agent-dispatch-receipts.ts), which is outside this change's authorized file scope.
+// eslint-disable-next-line unicorn/name-replacements -- exported schema is imported across the Host/Runtime process boundary (e.g. apps/server/src/runtime/db/models/agent-dispatch-receipts.ts), which is outside this change's authorized file scope.
 export const agentEndpointRefSchema = z.object({
     hostId: identifierSchema,
     endpointId: identifierSchema,
@@ -139,7 +139,7 @@ export const agentEndpointMethods = {
     },
 } as const satisfies Record<string, MethodSpec>;
 
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/host and src/runtime, which is outside this change's authorized file scope.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/server/src/host and apps/server/src/runtime, which is outside this change's authorized file scope.
 export type AgentEndpointRef = z.infer<typeof agentEndpointRefSchema>;
 export type AgentEndpointSummary = z.infer<typeof agentEndpointSummarySchema>;
 export type AgentEndpointGrant = z.infer<typeof agentEndpointGrantSchema>;

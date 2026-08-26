@@ -35,6 +35,7 @@ packages/
   client/
   protocol/
   extension-api/
+  system/
   utils/
 
 extensions/

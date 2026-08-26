@@ -107,19 +107,15 @@ describe('shared ESLint preset toolchain contract', () => {
         ).resolves.toBe(true);
     });
 
-    it('bans the @shared/@ Renderer aliases outside the Renderer', async () => {
-        const config = await effectiveConfigFor('src/runtime/index.ts');
+    it('bans the Renderer alias outside the Renderer', async () => {
+        const config = await effectiveConfigFor('apps/server/src/runtime/index.ts');
         const noRestrictedImports = config.rules?.['no-restricted-imports'] as [
             number,
             { patterns?: Array<{ group?: string[] }> },
         ];
 
         expect(noRestrictedImports[0]).toBe(2);
-        expect(noRestrictedImports[1].patterns?.[0]?.group).toEqual([
-            '@shared',
-            '@shared/*',
-            '@/*',
-        ]);
+        expect(noRestrictedImports[1].patterns?.[0]?.group).toEqual(['@/*']);
     });
 
     it('bans child_process exec/execSync everywhere they are imported from', async () => {
@@ -221,7 +217,7 @@ describe('shared ESLint preset toolchain contract', () => {
 
     it('leaves the async-Node-API ban to oxlint (n/no-sync requires typed linting)', async () => {
         // See scripts/__tests__/oxlint-toolchain-contract.test.ts for the node/no-sync coverage.
-        const config = await effectiveConfigFor('src/runtime/index.ts');
+        const config = await effectiveConfigFor('apps/server/src/runtime/index.ts');
 
         expect(config.rules?.['n/no-sync']).toBeUndefined();
     });

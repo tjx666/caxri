@@ -2,9 +2,9 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { execFileAsync } from '@caxri/system';
 import type { Page } from 'playwright';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
 import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import {

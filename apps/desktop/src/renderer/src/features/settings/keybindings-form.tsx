@@ -2,9 +2,7 @@ import type { KeyboardEvent } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { Keybinding } from '@caxri/protocol';
-import { commandDefinitions } from '@shared/commands';
-import { findKeybindingConflicts } from '@shared/config';
-import { normalizeShortcut } from '@shared/shortcuts';
+import { commandDefinitions, findKeybindingConflicts, normalizeShortcut } from '@caxri/protocol';
 import { AlertTriangle, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';

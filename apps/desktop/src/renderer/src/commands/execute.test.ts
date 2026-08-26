@@ -1,14 +1,13 @@
-import type { BootstrapState, PaneLayout } from '@caxri/protocol';
-import { MAX_PANE_LAYOUT_PANES } from '@caxri/protocol';
-import type { CommandId } from '@shared/commands';
-import { commandDefinitions as sharedCommandDefinitions } from '@shared/commands';
+import type { BootstrapState, CommandId, PaneLayout } from '@caxri/protocol';
 import {
     activePane,
+    commandDefinitions as sharedCommandDefinitions,
     createPaneLayout,
     listPanes,
+    MAX_PANE_LAYOUT_PANES,
     openResource,
     splitTabIntoPane,
-} from '@shared/pane-layout';
+} from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isEditableEventTarget } from '../lib/keybindings';

@@ -27,12 +27,9 @@ import {
     isCaxriMethod,
     isDesktopRuntimeMethod,
 } from '@caxri/protocol';
+import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
+import { computeBuildFingerprint, e2eAgentPolicyEnvironment, logEventCatalog } from '@caxri/system';
 
-import { computeBuildFingerprint } from '../../../../src/shared/node/build-fingerprint';
-import type { E2EAgentPolicy } from '../../../../src/shared/node/e2e-agent-policy';
-import { e2eAgentPolicyEnvironment } from '../../../../src/shared/node/e2e-agent-policy';
-import type { StructuredLogger } from '../../../../src/shared/node/logger';
-import { logEventCatalog } from '../../../../src/shared/node/logger';
 import type { HostBuildIdentity } from './host-staleness';
 import { isHostBuildStale } from './host-staleness';
 

@@ -1,5 +1,5 @@
 import type { ContributedCommandDescriptor, ViewCatalogSnapshot } from '@caxri/protocol';
-import { commandDefinitions } from '@shared/commands';
+import { commandDefinitions } from '@caxri/protocol';
 
 const STATIC_COMMAND_IDS: ReadonlySet<string> = new Set(commandDefinitions.map(({ id }) => id));
 

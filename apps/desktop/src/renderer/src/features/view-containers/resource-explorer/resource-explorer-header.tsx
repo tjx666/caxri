@@ -1,4 +1,4 @@
-import type { CommandId } from '@shared/commands';
+import type { CommandId } from '@caxri/protocol';
 import { FilePlus, FolderPlus, Search, SquareMinus } from 'lucide-react';
 
 import { getRegisteredCommand } from '../../../commands/registry';

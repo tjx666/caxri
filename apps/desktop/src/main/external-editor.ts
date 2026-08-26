@@ -4,8 +4,7 @@ import { delimiter, join } from 'node:path';
 import process from 'node:process';
 
 import { CaxriError } from '@caxri/protocol';
-
-import { isAccessible } from '../../../../src/shared/node/fs';
+import { isAccessible } from '@caxri/system';
 
 /**
  * Common CLI-shim locations missing from the constrained PATH a macOS GUI launch inherits (`/usr/bin:/bin:...`), where

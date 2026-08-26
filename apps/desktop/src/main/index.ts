@@ -11,12 +11,15 @@ import type {
     RuntimeEvent,
 } from '@caxri/protocol';
 import { CaxriError, errorMessage, isMainRequest } from '@caxri/protocol';
+import {
+    installProcessErrorMonitor,
+    logEventCatalog,
+    readE2EAgentPolicy,
+    StructuredLogger,
+} from '@caxri/system';
 import type { WebContents } from 'electron';
 import { app, BrowserWindow, dialog, Menu, shell } from 'electron';
 
-import { readE2EAgentPolicy } from '../../../../src/shared/node/e2e-agent-policy';
-import { logEventCatalog, StructuredLogger } from '../../../../src/shared/node/logger';
-import { installProcessErrorMonitor } from '../../../../src/shared/node/process-error-monitor';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import { discardGitChangesPrompt, trashPrompt } from './confirmations';

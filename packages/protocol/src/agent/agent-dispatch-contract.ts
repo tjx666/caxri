@@ -237,8 +237,8 @@ export type AgentDispatchStatus = z.infer<typeof agentDispatchStatusSchema>;
 export type AgentDispatchLaunch = z.infer<typeof agentDispatchLaunchSchema>;
 export type AgentDispatchFailure = z.infer<typeof agentDispatchFailureSchema>;
 export type AgentDispatchReceipt = z.infer<typeof agentDispatchReceiptSchema>;
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by src/runtime/agent-dispatch/service.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by apps/server/src/runtime/agent-dispatch/service.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type AgentDispatchStartParams = z.infer<typeof agentDispatchStartParametersSchema>;
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by src/runtime/agent-dispatch/service.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by apps/server/src/runtime/agent-dispatch/service.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type AgentDispatchResumeParams = z.infer<typeof agentDispatchResumeParametersSchema>;
 export type AgentDispatchWaitResult = z.infer<typeof agentDispatchWaitResultSchema>;

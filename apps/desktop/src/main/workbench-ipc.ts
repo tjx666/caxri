@@ -7,11 +7,11 @@ import {
     requestIdFromEnvelope,
     toWireError,
 } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 import type { WebContents } from 'electron';
 import { ipcMain } from 'electron';
 
-import type { StructuredLogger } from '../../../../src/shared/node/logger';
-import { logEventCatalog } from '../../../../src/shared/node/logger';
 import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 
 export interface WorkbenchIpcOptions {

@@ -1,13 +1,18 @@
 import { writeFileSync } from 'node:fs';
 
+import type {
+    E2EErrorAllowance,
+    E2EErrorEvent,
+    E2ELaunchFinalizer,
+    E2ELogSnapshot,
+} from '@caxri/system';
+import {
+    assertE2EErrorPolicy,
+    createE2ELaunchFinalizer,
+    parseE2ELogErrors,
+    readE2ELogSnapshots,
+} from '@caxri/system';
 import type { ElectronApplication, Page, TestInfo } from '@playwright/test';
-
-import type { E2ELogSnapshot } from '../../src/shared/node/e2e-error-log.ts';
-import { parseE2ELogErrors, readE2ELogSnapshots } from '../../src/shared/node/e2e-error-log.ts';
-import type { E2EErrorAllowance, E2EErrorEvent } from '../../src/shared/node/e2e-error-policy.ts';
-import { assertE2EErrorPolicy } from '../../src/shared/node/e2e-error-policy.ts';
-import type { E2ELaunchFinalizer } from '../../src/shared/node/e2e-launch-finalizer.ts';
-import { createE2ELaunchFinalizer } from '../../src/shared/node/e2e-launch-finalizer.ts';
 
 const gateState: { current: E2EErrorGate | undefined } = { current: undefined };
 
