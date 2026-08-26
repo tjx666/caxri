@@ -3,10 +3,10 @@ import type { ProtocolWelcome } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CliHostClient } from '../application';
-import { createCliHostConnector } from '../application';
+import type { CliServerClient } from '../application';
+import { createCliServerConnector } from '../application';
 
-function host(): CliHostClient {
+function server(): CliServerClient {
     return {
         close: vi.fn(),
         request: vi.fn(() => Promise.resolve({})),
@@ -20,39 +20,39 @@ function host(): CliHostClient {
     };
 }
 
-describe('CLI Host connector', () => {
+describe('CLI Server connector', () => {
     it.each(['agent', 'ci'] as const)(
-        'never starts a Host implicitly for %s automation',
+        'never starts a Server implicitly for %s automation',
         async (automation) => {
             const connectExisting = vi.fn(() =>
                 Promise.reject(new CaxriError('NOT_FOUND', 'No Caxri Host is running')),
             );
-            const startHost = vi.fn(() => Promise.resolve(host()));
-            const connect = createCliHostConnector({
+            const startServer = vi.fn(() => Promise.resolve(server()));
+            const connect = createCliServerConnector({
                 automation,
                 connectExisting,
                 serverLaunch: { artifactRoot: '/Applications/Caxri/server' },
-                startHost,
+                startServer,
             });
 
             await expect(
                 connect({ profilePath: '/profiles/selected', timeoutMs: 15_000 }),
             ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
             expect(connectExisting).toHaveBeenCalledOnce();
-            expect(startHost).not.toHaveBeenCalled();
+            expect(startServer).not.toHaveBeenCalled();
         },
     );
 
-    it('never starts a Host implicitly for an Endpoint credential without automation markers', async () => {
+    it('never starts a Server implicitly for an Endpoint credential without automation markers', async () => {
         const connectExisting = vi.fn(() =>
             Promise.reject(new CaxriError('NOT_FOUND', 'No Caxri Host is running')),
         );
-        const startHost = vi.fn(() => Promise.resolve(host()));
-        const connect = createCliHostConnector({
+        const startServer = vi.fn(() => Promise.resolve(server()));
+        const connect = createCliServerConnector({
             automation: 'human',
             connectExisting,
             serverLaunch: { artifactRoot: '/Applications/Caxri/server' },
-            startHost,
+            startServer,
         });
 
         await expect(
@@ -69,6 +69,6 @@ describe('CLI Host connector', () => {
             }),
         ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         expect(connectExisting).toHaveBeenCalledOnce();
-        expect(startHost).not.toHaveBeenCalled();
+        expect(startServer).not.toHaveBeenCalled();
     });
 });

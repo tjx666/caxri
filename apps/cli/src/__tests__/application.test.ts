@@ -3,7 +3,7 @@ import type { ProtocolWelcome } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CliConnectOptions, CliHostClient, CliIo } from '../application';
+import type { CliConnectOptions, CliIo, CliServerClient } from '../application';
 import { runCli } from '../application';
 
 function io(options: Partial<CliIo> = {}) {
@@ -24,10 +24,10 @@ function io(options: Partial<CliIo> = {}) {
     return { io: value, stderr: () => stderr, stdout: () => stdout };
 }
 
-function host(
+function server(
     result: unknown,
     commands = ['host.status', 'host.stop', 'desktop.status', 'desktop.focus'],
-): CliHostClient {
+): CliServerClient {
     return {
         close: vi.fn(),
         request: vi.fn(() => Promise.resolve(result)),
@@ -86,9 +86,9 @@ describe('CLI application', () => {
                 capabilities: ['host.read'],
             }),
         );
-        const hostStatus = parsed.commands.find((command) => command.method === 'host.status');
-        expect(typeof hostStatus?.paramsSchema).toBe('object');
-        expect(typeof hostStatus?.resultSchema).toBe('object');
+        const serverStatus = parsed.commands.find((command) => command.method === 'host.status');
+        expect(typeof serverStatus?.paramsSchema).toBe('object');
+        expect(typeof serverStatus?.resultSchema).toBe('object');
         expect(parsed.protocolMethods).toContainEqual(
             expect.objectContaining({ method: 'settings.get' }),
         );
@@ -107,7 +107,7 @@ describe('CLI application', () => {
 
     it('projects top-level status through negotiation without expanding Agent authority', async () => {
         const output = io();
-        const client = host({}, ['agent.context']);
+        const client = server({}, ['agent.context']);
         client.welcome = {
             protocolVersion: CAXRI_PROTOCOL_VERSION,
             principal: {
@@ -183,7 +183,7 @@ describe('CLI application', () => {
             capabilities: ['agents.read'],
             grants: [],
         };
-        const client = host(context, ['agent.context']);
+        const client = server(context, ['agent.context']);
         client.welcome = {
             protocolVersion: CAXRI_PROTOCOL_VERSION,
             principal: {
@@ -196,7 +196,7 @@ describe('CLI application', () => {
             capabilities: ['agents.read'],
             commands: ['agent.context'],
         };
-        const connect = vi.fn<(options: CliConnectOptions) => Promise<CliHostClient>>(() =>
+        const connect = vi.fn<(options: CliConnectOptions) => Promise<CliServerClient>>(() =>
             Promise.resolve(client),
         );
 
@@ -268,7 +268,7 @@ describe('CLI application', () => {
             expiresAt: 2,
         };
         const senderOutput = io();
-        const senderClient = host(receipt, ['agent.message.send']);
+        const senderClient = server(receipt, ['agent.message.send']);
         senderClient.welcome = {
             protocolVersion: CAXRI_PROTOCOL_VERSION,
             principal: {
@@ -314,7 +314,7 @@ describe('CLI application', () => {
         expect(senderOutput.stdout()).not.toContain('private peer body');
 
         const waitOutput = io();
-        const waitClient = host(
+        const waitClient = server(
             {
                 message: {
                     id: 'message-1',
@@ -355,7 +355,7 @@ describe('CLI application', () => {
         expect(waitOutput.stdout()).toContain('private peer body');
 
         const checkOutput = io();
-        const checkClient = host({ message: null, outcome: 'empty' }, ['agent.message.check']);
+        const checkClient = server({ message: null, outcome: 'empty' }, ['agent.message.check']);
         checkClient.welcome = {
             ...senderClient.welcome,
             commands: ['agent.message.check'],
@@ -396,7 +396,7 @@ describe('CLI application', () => {
 
     it('negotiates the command with the selected profile and emits stable JSON', async () => {
         const output = io();
-        const client = host({
+        const client = server({
             profileId: 'profile-1',
             version: '0.0.6',
             pid: 10,
@@ -425,7 +425,7 @@ describe('CLI application', () => {
 
     it('fails closed when negotiation does not advertise a selected command', async () => {
         const output = io();
-        const client = host({}, []);
+        const client = server({}, []);
 
         await expect(
             runCli(['host', 'status', '--json'], {
@@ -465,7 +465,7 @@ describe('CLI application', () => {
 
     it('executes a confirmed mutation and never mixes progress into JSON stdout', async () => {
         const output = io({ stdinIsTTY: false, stdoutIsTTY: false });
-        const client = host({ state: 'stopped' });
+        const client = server({ state: 'stopped' });
 
         await expect(
             runCli(['host', 'stop', '--yes', '--profile', '/profiles/selected', '--json'], {
@@ -558,7 +558,7 @@ describe('CLI application', () => {
 
     it('queries shared Project projections and emits only IDs in quiet mode', async () => {
         const output = io();
-        const client = host(
+        const client = server(
             {
                 view: 'human-cli',
                 projects: [
@@ -581,7 +581,7 @@ describe('CLI application', () => {
 
     it('validates a Settings patch without mutation confirmation', async () => {
         const output = io({ stdinIsTTY: false });
-        const client = host(
+        const client = server(
             {
                 value: { 'terminal.fontSize': 17 },
                 revision: 'a'.repeat(64),
@@ -607,7 +607,7 @@ describe('CLI application', () => {
 
     it('sends an explicit request ID for an accepted Settings mutation', async () => {
         const output = io({ stdinIsTTY: false });
-        const client = host(
+        const client = server(
             {
                 value: { 'terminal.fontSize': 18 },
                 revision: 'b'.repeat(64),
@@ -645,7 +645,7 @@ describe('CLI application', () => {
 
     it('routes an explicit Desktop file open through the shared Host command', async () => {
         const output = io({ stdinIsTTY: false });
-        const client = host(
+        const client = server(
             {
                 state: 'requested',
                 generation: 3,
@@ -689,7 +689,7 @@ describe('CLI application', () => {
     it('backs off idle log polling and resets after output without exposing log fields', async () => {
         const output = io({ stdinIsTTY: false, stdoutIsTTY: false });
         const controller = new AbortController();
-        const client = host({}, ['logs.query']);
+        const client = server({}, ['logs.query']);
         const pages = [
             { records: [], nextCursor: 'cursor-1', gap: false, truncated: false },
             { records: [], nextCursor: 'cursor-2', gap: false, truncated: false },
@@ -743,7 +743,7 @@ describe('CLI application', () => {
     it('watches projected event names without receiving Desktop event payloads', async () => {
         const output = io({ stdinIsTTY: false, stdoutIsTTY: false });
         const controller = new AbortController();
-        const client = host(
+        const client = server(
             {
                 kind: 'events',
                 cursor: 1,

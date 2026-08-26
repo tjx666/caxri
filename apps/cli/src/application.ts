@@ -42,7 +42,7 @@ export interface CliIo {
     writeStdout(text: string): void;
 }
 
-export interface CliHostClient {
+export interface CliServerClient {
     close: () => void;
     serverVersion?: string;
     request: (method: CaxriMethod, parameters: unknown) => Promise<unknown>;
@@ -59,7 +59,7 @@ export interface CliConnectOptions {
 
 export interface RunCliOptions {
     confirm?: (message: string) => Promise<boolean>;
-    connect?: (options: CliConnectOptions) => Promise<CliHostClient>;
+    connect?: (options: CliConnectOptions) => Promise<CliServerClient>;
     cwd?: string;
     environment?: NodeJS.ProcessEnv;
     home?: string;
@@ -69,17 +69,20 @@ export interface RunCliOptions {
     wait?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 }
 
-export interface CliHostConnectorOptions {
+export interface CliServerConnectorOptions {
     automation: CliAutomation;
-    connectExisting?: (options: CliConnectOptions) => Promise<CliHostClient>;
+    connectExisting?: (options: CliConnectOptions) => Promise<CliServerClient>;
     serverLaunch?: ServerLaunchOptions;
-    startHost?: (options: CliConnectOptions, launch: ServerLaunchOptions) => Promise<CliHostClient>;
+    startServer?: (
+        options: CliConnectOptions,
+        launch: ServerLaunchOptions,
+    ) => Promise<CliServerClient>;
 }
 
 /**
- * Keeps packaged Host startup exclusive to an interactive human/operator invocation.
+ * Keeps packaged Server startup exclusive to an interactive human/operator invocation.
  */
-export function createCliHostConnector(options: CliHostConnectorOptions) {
+export function createCliServerConnector(options: CliServerConnectorOptions) {
     const connectExisting =
         options.connectExisting ??
         ((connection: CliConnectOptions) =>
@@ -88,17 +91,17 @@ export function createCliHostConnector(options: CliHostConnectorOptions) {
                 connection.timeoutMs,
                 connection.credential ?? { kind: 'operator' },
             ));
-    const startHost =
-        options.startHost ??
+    const startServer =
+        options.startServer ??
         ((connection: CliConnectOptions, launch: ServerLaunchOptions) =>
             ensureServer(connection.profilePath, launch, connection.timeoutMs));
-    return async (connection: CliConnectOptions): Promise<CliHostClient> => {
+    return async (connection: CliConnectOptions): Promise<CliServerClient> => {
         if (
             options.automation === 'human' &&
             options.serverLaunch &&
             connection.credential === undefined
         ) {
-            return startHost(connection, options.serverLaunch);
+            return startServer(connection, options.serverLaunch);
         }
         try {
             return await connectExisting(connection);
@@ -262,7 +265,7 @@ function defaultWait(milliseconds: number, signal?: AbortSignal): Promise<void> 
 async function streamRemote(
     command: RemoteCommandDefinition,
     initialParameters: unknown,
-    client: CliHostClient,
+    client: CliServerClient,
     mode: CliOutputMode,
     io: CliIo,
     options: RunCliOptions,
@@ -457,7 +460,7 @@ export async function runCli(
     const automation = detectAutomation(environment);
     const io = options.io ?? defaultIo;
     let mode = fallbackOutputMode(argv, automation);
-    let client: CliHostClient | undefined;
+    let client: CliServerClient | undefined;
     const abort = (): void => client?.close();
     options.signal?.addEventListener('abort', abort, { once: true });
     try {
@@ -508,7 +511,7 @@ export async function runCli(
         });
         const connect =
             options.connect ??
-            createCliHostConnector({
+            createCliServerConnector({
                 automation,
                 ...(serverLaunch && { serverLaunch }),
             });
@@ -615,7 +618,7 @@ export async function runCli(
             timeoutMs: parsed.connectTimeoutMs,
         });
         if (options.signal?.aborted) return 130;
-        if (command.requiresHostVersionMatch && client.serverVersion !== CLI_VERSION)
+        if (command.requiresServerVersionMatch && client.serverVersion !== CLI_VERSION)
             throw new CaxriError(
                 'CONFLICT',
                 'This command requires the CLI version bundled with the active Caxri Host',
