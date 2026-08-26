@@ -81,12 +81,18 @@ async function verifyStartupProbe(
     }
 }
 
+export function hasEmbeddedSourceCommit(marker: Buffer, commit: string): boolean {
+    const shortCommit = commit.slice(0, 8);
+    return [`var commit = "${shortCommit}";`, `CAXRI_GIT_COMMIT = "${shortCommit}";`].some(
+        (sourceMarker) => marker.includes(Buffer.from(sourceMarker, 'utf8')),
+    );
+}
+
 async function verifySourceMarker(artifactPath: string, commit: string): Promise<string[]> {
     const markerPath = join(artifactPath, CAXRI_DESKTOP_SOURCE_MARKER_PATH);
     try {
         const marker = await readFile(markerPath);
-        const expected = Buffer.from(`var commit = "${commit.slice(0, 8)}";`, 'utf8');
-        return marker.includes(expected)
+        return hasEmbeddedSourceCommit(marker, commit)
             ? []
             : ['Artifact source marker does not match the receipt commit'];
     } catch (error: unknown) {
