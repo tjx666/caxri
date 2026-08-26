@@ -6,6 +6,7 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
+import { CaxriError, MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -34,10 +35,32 @@ interface RemoteView {
     size?: { cols: number; rows: number };
 }
 
+interface RemoteInputQueue {
+    attachmentId: string;
+    chunks: string[];
+    completion?: Promise<void>;
+    head: number;
+    identity: RemoteTerminalIdentity;
+    queuedCharacters: number;
+}
+
+interface RemoteResizeQueue {
+    completion?: Promise<void>;
+    identity: RemoteTerminalIdentity;
+    latest?: { cols: number; rows: number };
+    view: RemoteView;
+}
+
 type TerminalHostEvent = Exclude<
     Extract<TerminalHostMessage, { type: 'event' }>,
     { event: 'host.ready' }
 >;
+
+/**
+ * Bounds accepted-but-not-yet-delivered input while allowing short bursts to coalesce. The private protocol has a
+ * stricter per-request limit, so each drain emits at most one public request's worth of text.
+ */
+const MAX_QUEUED_TERMINAL_INPUT_CHARACTERS = MAX_TERMINAL_INPUT_LENGTH * 4;
 
 export interface TerminalHostControl {
     onEvent(listener: (event: TerminalHostEvent) => void): () => void;
@@ -57,6 +80,8 @@ export interface TerminalHostControl {
 export class RemoteTerminalExecution extends EventTarget implements TerminalExecutionPort {
     private readonly generations = new Map<string, number>();
     private readonly identities = new Map<string, RemoteTerminalIdentity>();
+    private readonly inputQueues = new Map<string, RemoteInputQueue>();
+    private readonly resizeQueues = new Map<string, RemoteResizeQueue>();
     private readonly views = new Map<string, RemoteView>();
 
     constructor(
@@ -132,6 +157,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 return;
             case 'terminal.exit': {
                 this.identities.delete(identity.record.id);
+                this.inputQueues.delete(identity.record.id);
+                this.resizeQueues.delete(identity.record.id);
                 this.views.delete(identity.record.id);
                 const capture = event.snapshot
                     ? Promise.resolve(event.snapshot)
@@ -161,6 +188,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .map(({ record }) => record.id)
             .toArray();
         this.identities.clear();
+        this.inputQueues.clear();
+        this.resizeQueues.clear();
         if (terminalIds.length > 0)
             this.dispatchEvent(
                 new CustomEvent<readonly string[]>('host-exit', { detail: terminalIds }),
@@ -170,6 +199,81 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     private background(promise: Promise<unknown>, method: string, terminalId?: string): void {
         // eslint-disable-next-line no-void -- Synchronous hot paths preserve acceptance while this observer records failure.
         void this.observeBackground(promise, method, terminalId);
+    }
+
+    private takeInputBatch(queue: RemoteInputQueue): { data: string; length: number } {
+        const chunks: string[] = [];
+        let batchLength = 0;
+        while (queue.head < queue.chunks.length) {
+            const chunk = queue.chunks[queue.head];
+            if (batchLength > 0 && batchLength + chunk.length > MAX_TERMINAL_INPUT_LENGTH) break;
+            queue.head += 1;
+            chunks.push(chunk);
+            batchLength += chunk.length;
+        }
+        return { data: chunks.join(''), length: batchLength };
+    }
+
+    private compactInputQueue(queue: RemoteInputQueue): void {
+        if (queue.head === queue.chunks.length) {
+            queue.chunks = [];
+            queue.head = 0;
+        } else if (queue.head >= 1_024) {
+            queue.chunks = queue.chunks.slice(queue.head);
+            queue.head = 0;
+        }
+    }
+
+    private async drainInput(queue: RemoteInputQueue): Promise<void> {
+        const terminalId = queue.identity.record.id;
+        try {
+            await queue.identity.ready;
+            while (this.inputQueues.get(terminalId) === queue && queue.head < queue.chunks.length) {
+                const batch = this.takeInputBatch(queue);
+                // eslint-disable-next-line no-await-in-loop -- Input ordering requires one private request in flight per Terminal.
+                await this.supervisor.request(
+                    { method: 'terminal.input', params: { data: batch.data } },
+                    this.terminalScope(queue.identity, 'terminal.input', queue.attachmentId),
+                );
+                queue.queuedCharacters -= batch.length;
+                this.compactInputQueue(queue);
+            }
+        } finally {
+            if (this.inputQueues.get(terminalId) === queue) this.inputQueues.delete(terminalId);
+        }
+    }
+
+    private async drainResize(queue: RemoteResizeQueue): Promise<void> {
+        const terminalId = queue.identity.record.id;
+        try {
+            await queue.identity.ready;
+            while (this.resizeQueues.get(terminalId) === queue && queue.latest) {
+                const size = queue.latest;
+                queue.latest = undefined;
+                // eslint-disable-next-line no-await-in-loop -- Resize pressure stays bounded by serializing the latest dimensions.
+                await this.supervisor.request(
+                    { method: 'terminal.resize', params: size },
+                    this.terminalScope(queue.identity, 'terminal.view', queue.view.attachmentId),
+                );
+            }
+        } finally {
+            if (this.resizeQueues.get(terminalId) === queue) this.resizeQueues.delete(terminalId);
+        }
+    }
+
+    private hotPathCompletions(terminalIds: Iterable<string>): Array<Promise<void>> {
+        const completions: Array<Promise<void>> = [];
+        for (const terminalId of terminalIds) {
+            const input = this.inputQueues.get(terminalId)?.completion;
+            const resize = this.resizeQueues.get(terminalId)?.completion;
+            if (input) completions.push(input);
+            if (resize) completions.push(resize);
+        }
+        return completions;
+    }
+
+    private async settleHotPaths(terminalIds: Iterable<string>): Promise<void> {
+        await Promise.allSettled(this.hotPathCompletions(terminalIds));
     }
 
     private async observeBackground(
@@ -212,6 +316,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
 
     async reserve(record: TerminalRecord): Promise<void> {
         const previous = this.identities.get(record.id);
+        this.inputQueues.delete(record.id);
+        this.resizeQueues.delete(record.id);
         const generation = (this.generations.get(record.id) ?? 0) + 1;
         const identity: RemoteTerminalIdentity = {
             generation,
@@ -292,14 +398,29 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     write(terminalId: string, data: string): boolean {
         const identity = this.identities.get(terminalId);
         if (!identity?.processId || !identity.attachmentId) return false;
-        this.background(
-            this.supervisor.request(
-                { method: 'terminal.input', params: { data } },
-                this.terminalScope(identity, 'terminal.input', identity.attachmentId),
-            ),
-            'terminal.input',
-            terminalId,
-        );
+        if (data.length > MAX_TERMINAL_INPUT_LENGTH) return false;
+        if (data.length === 0) return true;
+        let queue = this.inputQueues.get(terminalId);
+        if (queue && (queue.identity !== identity || queue.attachmentId !== identity.attachmentId))
+            queue = undefined;
+        if (!queue) {
+            queue = {
+                attachmentId: identity.attachmentId,
+                chunks: [],
+                head: 0,
+                identity,
+                queuedCharacters: 0,
+            };
+            this.inputQueues.set(terminalId, queue);
+        }
+        if (queue.queuedCharacters + data.length > MAX_QUEUED_TERMINAL_INPUT_CHARACTERS)
+            throw new CaxriError('CAPACITY', 'Terminal input queue capacity exceeded');
+        queue.chunks.push(data);
+        queue.queuedCharacters += data.length;
+        if (!queue.completion) {
+            queue.completion = this.drainInput(queue);
+            this.background(queue.completion, 'terminal.input', terminalId);
+        }
         return true;
     }
 
@@ -347,14 +468,17 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const view = this.views.get(terminalId);
         if (!view || !identity?.processId) return false;
         view.size = { cols, rows };
-        this.background(
-            this.supervisor.request(
-                { method: 'terminal.resize', params: { cols, rows } },
-                this.terminalScope(identity, 'terminal.view', view.attachmentId),
-            ),
-            'terminal.resize',
-            terminalId,
-        );
+        let queue = this.resizeQueues.get(terminalId);
+        if (queue && (queue.identity !== identity || queue.view !== view)) queue = undefined;
+        if (!queue) {
+            queue = { identity, view };
+            this.resizeQueues.set(terminalId, queue);
+        }
+        queue.latest = { cols, rows };
+        if (!queue.completion) {
+            queue.completion = this.drainResize(queue);
+            this.background(queue.completion, 'terminal.resize', terminalId);
+        }
         return true;
     }
 
@@ -386,32 +510,46 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const view = this.views.get(terminalId);
         this.views.delete(terminalId);
         if (!identity || !view) return;
+        const completions = this.hotPathCompletions([terminalId]);
+        delete identity.attachmentId;
         this.background(
-            this.supervisor.request(
-                { method: 'terminal.detach', params: {} },
-                this.terminalScope(identity, 'terminal.view', view.attachmentId),
-            ),
+            (async () => {
+                await Promise.allSettled(completions);
+                await this.supervisor.request(
+                    { method: 'terminal.detach', params: {} },
+                    this.terminalScope(identity, 'terminal.view', view.attachmentId),
+                );
+            })(),
             'terminal.detach',
             terminalId,
         );
-        delete identity.attachmentId;
     }
 
     detachAllViews(): void {
+        const attached = this.identities
+            .values()
+            .filter(({ attachmentId }) => attachmentId !== undefined)
+            .toArray();
         this.views.clear();
+        if (attached.length === 0) return;
+        const completions = this.hotPathCompletions(attached.map(({ record }) => record.id));
+        for (const identity of attached) delete identity.attachmentId;
         this.background(
-            this.supervisor.request(
-                { method: 'terminal.detachAll', params: {} },
-                { scope: 'server', capability: 'terminal.view' },
-            ),
+            (async () => {
+                await Promise.allSettled(completions);
+                await this.supervisor.request(
+                    { method: 'terminal.detachAll', params: {} },
+                    { scope: 'server', capability: 'terminal.view' },
+                );
+            })(),
             'terminal.detachAll',
         );
-        for (const identity of this.identities.values()) delete identity.attachmentId;
     }
 
     async restartBarrier(terminalId: string): Promise<TerminalSnapshot | null> {
         const identity = this.identities.get(terminalId);
         if (!identity?.processId) return null;
+        await this.settleHotPaths([terminalId]);
         const result = (await this.supervisor.request(
             { method: 'terminal.stop', params: { persistSnapshot: true } },
             this.terminalScope(identity, 'terminal.lifecycle'),
@@ -422,14 +560,18 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
 
     close(terminalId: string): void {
         const identity = this.identities.get(terminalId);
+        const completions = this.hotPathCompletions([terminalId]);
         this.identities.delete(terminalId);
         this.views.delete(terminalId);
         if (!identity) return;
         this.background(
-            this.supervisor.request(
-                { method: 'terminal.stop', params: { persistSnapshot: false } },
-                this.terminalScope(identity, 'terminal.lifecycle'),
-            ),
+            (async () => {
+                await Promise.allSettled(completions);
+                await this.supervisor.request(
+                    { method: 'terminal.stop', params: { persistSnapshot: false } },
+                    this.terminalScope(identity, 'terminal.lifecycle'),
+                );
+            })(),
             'terminal.stop',
             terminalId,
         );
@@ -492,11 +634,14 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .filter(({ processId }) => processId !== undefined)
             .map(({ record }) => record.id)
             .toArray();
+        await this.settleHotPaths(liveIds);
         const snapshots = await this.supervisor.shutdown();
         const snapshotByTerminal = new Map(
             snapshots.map((snapshot) => [snapshot.terminalId, snapshot]),
         );
         this.identities.clear();
+        this.inputQueues.clear();
+        this.resizeQueues.clear();
         this.views.clear();
         return liveIds.map((terminalId) => ({
             terminalId,
