@@ -668,6 +668,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         });
         extensionService = await createExtensionService({
             appVersion: options.version,
+            bootId: lease.identity.processIdentity,
+            buildId: options.buildId ?? 'unknown',
             commit: options.commit,
             desktopRouter: () => desktopRouter,
             domainService,
@@ -677,6 +679,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             includeTestExtensions: options.includeTestExtensions,
             logger,
             server: () => server,
+            serverId: protocolIdentity.serverId,
+            userDataPath: lease.paths.userDataPath,
         });
         server = new ControlServer({
             adapters: {

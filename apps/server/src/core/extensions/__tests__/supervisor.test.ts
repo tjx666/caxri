@@ -23,6 +23,13 @@ vi.mock('node:child_process', async (importOriginal) => ({
     fork: vi.fn(),
 }));
 
+const observationIdentity = {
+    bootId: 'b'.repeat(32),
+    buildId: 'build-1',
+    serverId: 'c'.repeat(32),
+    userDataPath: '/tmp/caxri-extension-supervisor-test',
+};
+
 afterEach(() => {
     vi.useRealTimers();
     vi.resetAllMocks();
@@ -275,6 +282,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
         });
         vi.mocked(fork).mockReturnValue(child as unknown as ChildProcess);
         const supervisor = new ExtensionHostSupervisor({
+            ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
@@ -310,6 +318,17 @@ describe('ExtensionHostSupervisor message boundary', () => {
             undefined,
             { activated: true },
         ]);
+        const launchEnvironment = (
+            vi.mocked(fork).mock.calls[0][2] as {
+                env: NodeJS.ProcessEnv;
+            }
+        ).env;
+        expect(launchEnvironment).toMatchObject({
+            CAXRI_BUILD_ID: observationIdentity.buildId,
+            CAXRI_SERVER_BOOT_ID: observationIdentity.bootId,
+            CAXRI_SERVER_ID: observationIdentity.serverId,
+            CAXRI_USER_DATA_PATH: observationIdentity.userDataPath,
+        });
         expect(sent.map(({ method }) => method)).toEqual(['configure', 'activate']);
         expect(sent[1].observation).toEqual({
             operationId: sent[1].id,
@@ -368,6 +387,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
             return child;
         });
         const supervisor = new ExtensionHostSupervisor({
+            ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
@@ -428,6 +448,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
         });
         vi.mocked(fork).mockReturnValue(child as unknown as ChildProcess);
         const supervisor = new ExtensionHostSupervisor({
+            ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',

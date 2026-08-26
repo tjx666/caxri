@@ -160,6 +160,13 @@ vi.mock('../supervisor', () => ({
 
 import { ExtensionService } from '../service';
 
+const observationIdentity = {
+    bootId: 'b'.repeat(32),
+    buildId: 'build-1',
+    serverId: 'c'.repeat(32),
+    userDataPath: '/tmp/caxri-extension-service-test',
+};
+
 describe('ExtensionService generation lifecycle', () => {
     beforeEach(() => {
         supervisorHarness.activation = Promise.withResolvers<void>();
@@ -172,6 +179,7 @@ describe('ExtensionService generation lifecycle', () => {
 
     it('cancels a controlled operation before activation when its Renderer scope is stale', async () => {
         const service = new ExtensionService({
+            ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
@@ -221,6 +229,7 @@ describe('ExtensionService generation lifecycle', () => {
                 workbenchProjectId: 'project-1',
             };
             const service = new ExtensionService({
+                ...observationIdentity,
                 appVersion: '0.0.17',
                 commit: 'test',
                 extensionHostPath: '/out/main/extension-host.js',
@@ -274,6 +283,7 @@ describe('ExtensionService generation lifecycle', () => {
 
     it('does not let a rejected retired activation overwrite the crash generation', async () => {
         const service = new ExtensionService({
+            ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
@@ -313,6 +323,7 @@ describe('ExtensionService generation lifecycle', () => {
 
     it('clears the crash error when recovery activation started before the child became ready', async () => {
         const service = new ExtensionService({
+            ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
@@ -374,6 +385,7 @@ describe('ExtensionService generation lifecycle', () => {
 
     it('recovers an expired branch handle with a current root snapshot', async () => {
         const service = new ExtensionService({
+            ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
@@ -412,6 +424,7 @@ describe('ExtensionService generation lifecycle', () => {
 
     it('recovers a root request invalidated by a concurrent provider refresh', async () => {
         const service = new ExtensionService({
+            ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
@@ -449,6 +462,7 @@ describe('ExtensionService generation lifecycle', () => {
 
     it('validates a controlled view result against its exact operation schema', async () => {
         const service = new ExtensionService({
+            ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',

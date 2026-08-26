@@ -104,6 +104,13 @@ vi.mock('../supervisor', () => ({
 
 import { ExtensionService } from '../service';
 
+const observationIdentity = {
+    bootId: 'b'.repeat(32),
+    buildId: 'build-1',
+    serverId: 'c'.repeat(32),
+    userDataPath: '/tmp/caxri-extension-workspace-api-test',
+};
+
 const defaultApiContext = {
     kind: 'session' as const,
     sessionId: 'session-1',
@@ -155,6 +162,7 @@ describe('ExtensionService Git workspace API authority', () => {
         harness.capabilities = capabilities;
         harness.configurationDependencies = options.configurationDependencies ?? [];
         const service = new ExtensionService({
+            ...observationIdentity,
             appVersion: '0.0.18',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',

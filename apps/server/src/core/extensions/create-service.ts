@@ -9,6 +9,8 @@ import { createExtensionWorkspaceRequest, extensionActiveContext } from './works
 
 export interface CreateExtensionServiceOptions {
     appVersion: string;
+    bootId: string;
+    buildId: string;
     commit: string;
     desktopRouter(): ServerDesktopRouter | undefined;
     domainService: ServerDomainService;
@@ -18,6 +20,8 @@ export interface CreateExtensionServiceOptions {
     includeTestExtensions?: boolean;
     logger: StructuredLogger;
     server(): ControlServer | undefined;
+    serverId: string;
+    userDataPath: string;
 }
 
 /**
@@ -30,12 +34,16 @@ export async function createExtensionService(
     if (!options.extensionHostPath || !options.extensionRoots) return;
     const service = new ExtensionService({
         appVersion: options.appVersion,
+        bootId: options.bootId,
+        buildId: options.buildId,
         commit: options.commit,
         executable: options.executable,
         extensionHostPath: options.extensionHostPath,
         extensionRoots: options.extensionRoots,
         includeTestOnly: options.includeTestExtensions ?? false,
         logger: options.logger,
+        serverId: options.serverId,
+        userDataPath: options.userDataPath,
         activeContext: async () =>
             extensionActiveContext(await options.domainService.request('app.bootstrap')),
         projectIds: async () => {
