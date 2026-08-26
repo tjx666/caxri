@@ -38,7 +38,7 @@ export const extensionWorkspaceOperations = [
 
 export type ExtensionWorkspaceOperation = (typeof extensionWorkspaceOperations)[number];
 
-export const extensionViewOperations = [
+const extensionViewOperations = [
     'source.snapshot',
     'source.historyPage',
     'source.historyDetails',
@@ -85,7 +85,7 @@ const apiReplyResultSchema = z
     .unknown()
     .refine((value) => hasBoundedJson(value, 4 * 1_024 * 1_024), 'API result exceeds IPC bounds');
 
-export const extensionHostRegistrationSchema = z
+const extensionHostRegistrationSchema = z
     .object({
         extensionId: extensionIdSchema,
         generation: generationSchema,
@@ -113,7 +113,7 @@ const extensionContextNotificationSchemas = [
     'gitChanged',
     'projectStatusChanged',
 ] as const;
-export const extensionHostRequestSchema = z.discriminatedUnion('method', [
+const extensionHostRequestSchema = z.discriminatedUnion('method', [
     z
         .object({
             ...requestBase,
