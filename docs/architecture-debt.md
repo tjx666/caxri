@@ -8,7 +8,7 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
 | **Last full audit**      | 2026-08-16 @ `19474c0` (`main`)                                                                        |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
-| **Full-audit scope**     | Repository-wide revalidation of every prior OPEN entry plus Host, protocol, CLI, and Agent deltas      |
+| **Full-audit scope**     | Repository-wide revalidation of every prior OPEN entry plus Server, protocol, CLI, and Agent deltas    |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
@@ -30,9 +30,10 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 
 ### Incremental audit coverage
 
-- Host authentication and lease replacement: capability fencing remains sound; the formerly tracked stale-socket lifecycle gap is resolved below.
+- Server authentication and lease replacement: capability fencing remains sound; the formerly tracked stale-socket lifecycle gap is resolved below.
 - Protocol: the `agent`, `configuration`, `desktop`, `domain`, `registry`, and `transport` boundaries remain complete from the package root.
-- CLI: production dependencies remain limited to `@caxri/protocol` and `zod`, with protocol imports through the package root.
+- CLI: production dependencies remain limited to `@caxri/agent-skills`, `@caxri/client`,
+  `@caxri/protocol`, and `zod`, with package imports through reviewed public exports.
 - Agent Endpoint and Peer Inbox: endpoint generation and duplicate-window cleanup are resolved below; inbox bytes, messages, waiters, receipts, pair traffic, expiry, and close cleanup remain bounded.
 - A path-only CI parser was not added: ledger evidence includes symbols and shorthand whose semantic validity cannot be established by file existence alone. The maintenance cadence above requires semantic revalidation.
 
@@ -99,7 +100,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-state-sibling-session-invalidation — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Project-shared filesystem and Git facts now invalidate every same-Project Session, including a sibling selected during a queued watcher batch.
-- **Evidence:** Runtime emits scope-bound `files.changed` events; `apps/desktop/src/renderer/src/queries/invalidation.ts` invalidates Core Resource Explorer reads for every same-Project Session without an Extension Host echo. `apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts` covers queued rebind and cross-Project fencing.
+- **Evidence:** Server Core emits scope-bound `files.changed` events; `apps/desktop/src/renderer/src/queries/invalidation.ts` invalidates Core Resource Explorer reads for every same-Project Session without an Extension Host echo. `apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts` covers queued rebind and cross-Project fencing.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ 660ef29 via [issue caxri#168](https://github.com/tjx666/caxri/issues/168).
 - **Remediation target / Acceptance:** Two Sessions sharing one Project observe matching `files.list` and `git.summary` after an external write and immediate Session switch; another Project remains untouched.
@@ -150,11 +151,11 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 - **Evidence:** `apps/server/src/domains/files/documents.ts:122-203` writes and syncs a same-directory `O_NOFOLLOW` replacement, revalidates its identity and containment, atomically renames it, syncs the directory, and cleans up only the trusted inode. `apps/server/src/domains/files/__tests__/documents.test.ts:53-203` covers complete replacement, interrupted writes, swapped parents, and safe cleanup.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 85cbbd1 via [issue caxri#75](https://github.com/tjx666/caxri/issues/75) (initial implementation 99f533a; containment hardening d3e4540 and 85cbbd1).
-- **Remediation target / Acceptance:** Atomic replace for `files.write` (same-dir temp write + fsync + rename) or journaled save. Acceptance: kill Runtime mid-save never leaves a permanently empty file that previously had content; user gets old full bytes or new full bytes. Regression covers crash-between-truncate-and-write.
+- **Remediation target / Acceptance:** Atomic replace for `files.write` (same-dir temp write + fsync + rename) or journaled save. Acceptance: kill Server Core mid-save never leaves a permanently empty file that previously had content; user gets old full bytes or new full bytes. Regression covers crash-between-truncate-and-write.
 
 ### AD-sec-config-disk-size-cap — [RESOLVED · Architecture debt · S]
 
-- **Summary:** Settings/keybindings/theme disk load and hot-reload read and parse without a pre-parse size cap, while IPC update and theme import already bound sources—so an oversized userData config can inflate Runtime memory and cross-process event/get payloads.
+- **Summary:** Settings/keybindings/theme disk load and hot-reload read and parse without a pre-parse size cap, while IPC update and theme import already bound sources—so an oversized userData config can inflate Server memory and cross-process event/get payloads.
 - **Evidence:** `packages/protocol/src/configuration/configuration-contract.ts` owns the bounded source and keybinding limits. `apps/server/src/domains/config.ts` performs bounded reads before parsing; protocol registry and event schemas reuse the same contracts. `apps/server/src/domains/__tests__/configuration.test.ts` and `packages/protocol/src/__tests__/contracts.test.ts` cover startup, hot reload, and protocol rejection.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 40d6d13 via [issue caxri#76](https://github.com/tjx666/caxri/issues/76).
@@ -170,11 +171,11 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 
 ### AD-domain-runtime-index-boundary — [RESOLVED · Architecture debt · M]
 
-- **Summary:** Nested Runtime domains `files/` and `agents/` lack `index.ts` public surfaces while production and cross-domain code deep-import internals, so Agents cannot predict import boundaries.
+- **Summary:** Nested Server domains `files/` and `agents/` lack `index.ts` public surfaces while production and cross-domain code deep-import internals, so Agents cannot predict import boundaries.
 - **Evidence:** `apps/server/src/domains/agents/index.ts` and `apps/server/src/domains/files/index.ts` expose the public surfaces; current production consumers import their domain roots. `apps/server/src/domains/__tests__/structure.test.ts:54-92` independently requires barrels for domains with at least three modules and rejects cross-domain deep imports.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 310f068 via [issue caxri#78](https://github.com/tjx666/caxri/issues/78).
-- **Remediation target / Acceptance:** Domain `index.ts` barrels for files and agents; production imports only through those surfaces; Terminal launch resolve via public Agents (or executables) export. Acceptance: production Runtime imports of nested domains resolve only through each domain's `index.ts`.
+- **Remediation target / Acceptance:** Domain `index.ts` barrels for files and agents; production imports only through those surfaces; Terminal launch resolve via public Agents (or executables) export. Acceptance: production Server imports of nested domains resolve only through each domain's `index.ts`.
 
 ### AD-ext-agent-display-single-source — [RESOLVED · Architecture debt · S]
 
@@ -186,8 +187,8 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 
 ### AD-test-runtime-scale-rule-gate — [RESOLVED · Coverage or observability gap · S]
 
-- **Summary:** The Runtime domain scale / `index.ts` boundary is documented but has no test, lint, or knip gate, so boundary drift stays green under typecheck.
-- **Evidence:** `apps/server/src/domains/__tests__/structure.test.ts:54-92` scans direct Runtime domains, requires `index.ts` at the scale threshold, parses production imports, and rejects cross-domain paths below a domain root. The focused structure test still passes on `main@8037720`.
+- **Summary:** The Server domain scale / `index.ts` boundary is documented but has no test, lint, or knip gate, so boundary drift stays green under typecheck.
+- **Evidence:** `apps/server/src/domains/__tests__/structure.test.ts:54-92` scans direct Server domains, requires `index.ts` at the scale threshold, parses production imports, and rejects cross-domain paths below a domain root. The focused structure test still passes on `main@8037720`.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 310f068 via [issue caxri#78](https://github.com/tjx666/caxri/issues/78).
 - **Remediation target / Acceptance:** Cheap structure test or eslint/knip boundary rule requiring nested-domain `index.ts` and forbidding production deep cross-domain imports. Acceptance: introducing missing domain `index.ts` or illegal deep imports fails a focused automated check.
@@ -261,7 +262,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | IT-disk-wins-dirty-buffer           | External disk changes replace dirty editor buffers without a conflict dialog                                                                                                         | architecture / `external-sync`                                                                  |
 | IT-unsaved-buffers-not-durable      | Document bodies stay Renderer-local; SQLite holds tab metadata only                                                                                                                  | `session_state` / session-view                                                                  |
-| IT-terminal-snapshot-finalization   | Parsed snapshot encoding 3 persists its source grid; unclean Runtime loss may drop latest visual state                                                                               | `apps/server/src/domains/terminal/snapshot-persistence.ts`, TerminalManager                     |
+| IT-terminal-snapshot-finalization   | Parsed snapshot encoding 3 persists its source grid; unclean Server Core loss may drop latest visual state                                                                           | `apps/server/src/domains/terminal/snapshot-persistence.ts`, TerminalManager                     |
 | IT-copy-not-journaled               | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled                                                                       | `supervisor.ts`, `mutation-journal`, partial-copy tests                                         |
 | IT-project-status-fixed-allowlist   | Project Status CLIs fixed to gh / linear / vc; not a plugin adapter surface                                                                                                          | architecture, `project-status.ts`                                                               |
 | IT-pe-flag-redaction-only           | Process Explorer redacts common credential **flag** argv shapes only (best-effort); not full `redactSecretText`                                                                      | `process-explorer.ts` `redactProcessName`                                                       |
@@ -269,7 +270,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-cli-global-wrapper               | Global CLI linking registers a dependency-free wrapper around the verified standalone bundle                                                                                         | `apps/cli/scripts/link-global.ts`                                                               |
 | IT-typescript-6-eslint-plus-7-tsc   | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                                                                                     | electron-toolchain / stack-baseline                                                             |
 | IT-electron-vite-beta               | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                                                                                            | package.json, electron-toolchain.md                                                             |
-| IT-runtime-integration-not-inferred | `check` does not map every `apps/server/src/domains/*.ts` edit onto `runtime.integration.test.ts`                                                                                    | `check.ts`, `check.test.ts`                                                                     |
+| IT-runtime-integration-not-inferred | `check` does not map every `apps/server/src/domains/*.ts` edit onto the historical `runtime.integration.test.ts` compatibility test                                                  | `check.ts`, `check.test.ts`                                                                     |
 | IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload, not nested feature boundaries                                                                                | `error-boundary.tsx`, both Renderer entries                                                     |
 | IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk                                                                               | `eslint.config.ts`, `BrowserWindow` webPreferences                                              |
 | IT-go-cooperative-ledger            | Go receipts validate cooperative exact-head state and lineage; they do not execute commands, derive findings, or form an adversarial security boundary                               | `.agents/skills/go/SKILL.md`                                                                    |

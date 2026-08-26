@@ -1,6 +1,6 @@
 # Server architecture refactor plan
 
-- Status: accepted
+- Status: implemented
 - Date: 2026-08-25
 - Target: [Target Server architecture](./server-architecture.md)
 - Acceptance: [Architecture refactor behavior parity](./refactor-behavior-parity.md)
@@ -39,12 +39,12 @@ A0 Freeze behavior and install parity gates
                                                   -> A7 Full differential Acceptance and architecture cutover
 ```
 
-The order deliberately lands [issue caxri#366](https://github.com/tjx666/caxri/issues/366) before
-the A2 workspace migration. Its existing baseline and implementation point at the current source layout,
-and its UDS-specific connection code should be deleted before connection logic is extracted into
-`packages/client`. A2 is a six-batch migration family, making fourteen independently gated architecture
-batches in total. Every A2 sub-batch lands as its own exact-head review and parity boundary; the source
-tree is never copied into parallel old and new implementations for a later bulk cutover.
+The implementation landed [issue caxri#366](https://github.com/tjx666/caxri/issues/366) before the A2
+workspace migration. Its baseline and implementation pointed at the former source layout, and its
+UDS-specific connection code was deleted before connection logic moved into `packages/client`. A2 was a
+six-batch migration family, making fourteen independently gated architecture batches in total. Every A2
+sub-batch landed as its own exact-head review and parity boundary; the source tree was never copied into
+parallel old and new implementations for a later bulk cutover.
 
 ## A0 — Freeze behavior and install parity gates
 
@@ -319,7 +319,8 @@ PTY ownership and current recovery results unchanged.
 - keep PTY implementation in Server Core until A3b so one batch changes one failure boundary;
 - preserve public command ordering, request cancellation, Desktop targeting, event recovery, Terminal
   death/restart outcomes, and stable errors;
-- remove Host-to-Runtime request serialization and every old owner term or compatibility path;
+- remove Host-to-Runtime request serialization and every obsolete internal owner term or compatibility
+  path; frozen public identifiers such as `host.status` remain unchanged for behavior parity;
 - update diagnostics to distinguish the new internal cause without changing product-facing outcomes.
 
 ### A3a exit receipts
@@ -329,7 +330,8 @@ PTY ownership and current recovery results unchanged.
   persistence, and stable error outcomes;
 - a real Desktop Core-crash scenario reaches the same visible recovery state, data preservation,
   Terminal death report, available actions, and recovery-time budget as the A0 Runtime-crash baseline;
-- no old Host/Runtime source, protocol owner, launch path, or process-name assumption remains;
+- no old Host/Runtime source, internal protocol owner, launch path, or process-name assumption remains;
+  frozen public compatibility identifiers are the only terminology exception;
 - queue, startup, memory, database, watcher, and Terminal budgets do not regress.
 
 ## A3b — Extract the Terminal Host boundary
@@ -374,16 +376,24 @@ product and event behavior.
 
 - persist Server ID and add Server Boot ID, Client ID, Connection ID, and State Epoch;
 - extend the handshake with identity and feature-gated framing metadata;
-- write structural state, content-free changefeed records, and effectful-command receipts atomically;
+- write structural state, content-free changefeed records, and receipts atomically for the reviewed
+  synchronous SQLite structural commands;
 - replace the current event journal with bounded snapshot or catch-up followed by a live barrier;
-- return durable receipts for repeated command IDs without changing documented command results;
+- classify every effectful command as unrecoverable, boot-memory recoverable, transactionally durable, or
+  dependent on an owning external-effect idempotency protocol;
+- return durable receipts for repeated command IDs without changing documented command results, while
+  preserving the A0 outcome for filesystem, PTY, Git, and Desktop effects that cannot share a SQLite
+  transaction;
 - preserve the current global Desktop lease, Session state ownership, dirty-buffer behavior, public event
-  kinds, event ordering guarantees, and recovery results;
+  kinds, event projection, CLI output, event ordering guarantees, and recovery results; durable Server
+  identity and live barriers remain internal to `events.recover`;
 - add private parity inspection for changefeed state without adding a new public CLI command.
 
 ### A4 exit receipts
 
-- reply-loss fault injection cannot execute an effect twice while producing the same documented outcome;
+- reply-loss fault injection cannot execute a reviewed transactionally durable structural command twice;
+- every other effectful command preserves its A0 outcome and is explicitly classified without claiming
+  database-transactional exactly-once behavior across an external side effect;
 - disconnects at every snapshot, catch-up, and live boundary converge without gaps or duplicate public
   effects;
 - wrong epoch and expired cursor take deterministic bounded paths that project the same current state;
@@ -457,8 +467,9 @@ current implementation contract.
 - inspect all real-Electron screenshots and temporal evidence;
 - audit the intentional-difference allowlist and remove entries that expired with earlier batches;
 - update current architecture, CLI, Extension, operator, source-layout, and contributor documentation;
-- verify searches find no obsolete path, Host/Runtime term, UDS path, mixed Session state owner, or
-  forbidden import precedent;
+- verify searches find no obsolete path, obsolete internal Host/Runtime owner term, UDS path, mixed
+  Session state owner, or forbidden import precedent; frozen public compatibility identifiers and
+  historical baseline language are explicit exceptions;
 - mark the behavior-preserving architecture cutover complete only when every required case is green.
 
 ### A7 exit receipts
@@ -467,8 +478,8 @@ current implementation contract.
 - zero user-visible intentional differences;
 - every performance metric remains within its frozen budget;
 - standalone Server artifact and packaged Desktop use identical Server inputs;
-- focused gates, production build, full remote CI, exact-head review, and immutable Acceptance evidence
-  are independently green.
+- focused gates, production build, standalone artifact smoke, exact-head local review, and immutable
+  Acceptance evidence are independently green.
 
 ## Later product capabilities
 
@@ -528,5 +539,5 @@ Every architecture batch must include:
 - no parallel old and new source-of-truth implementation after the batch lands.
 
 The future capability batches become separate issues only after A7. Existing
-[issue caxri#366](https://github.com/tjx666/caxri/issues/366) remains the independent A1 transport
-migration and must complete its exact-before/exact-after parity record before A2a starts.
+[issue caxri#366](https://github.com/tjx666/caxri/issues/366) was the independent A1 transport migration
+and completed its exact-before/exact-after parity record before A2a started.

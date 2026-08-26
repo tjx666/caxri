@@ -25,10 +25,10 @@ The irreversible choices are recorded in:
 
 Architecture ownership uses Server, Server Core, Terminal Host, Extension Host, Desktop, and Client.
 The pre-refactor public protocol and CLI already exposed identifiers such as `host.status`, `host.stop`,
-`host.read`, `hostId`, and `CAXRI_AGENT_ENDPOINT_HOST_ID`, together with established error text. A7
-keeps those observable contracts byte-for-byte stable to preserve A0 behavior. They are compatibility
-identifiers, not current owner terminology; renaming them requires a separate product and protocol
-change with its own Acceptance evidence.
+`host.read`, `hostId`, and `CAXRI_AGENT_ENDPOINT_HOST_ID`, together with established error text. The
+cutover keeps those observable contracts byte-for-byte stable to preserve A0 behavior. They are
+compatibility identifiers, not current owner terminology; renaming them requires a separate product and
+protocol change with its own Acceptance evidence.
 
 ## Repository topology
 
@@ -94,10 +94,11 @@ server/
   metadata/
 ```
 
-This is the current emitted layout. It may consume workspace packages while building, but running the artifact never requires installing
-another Caxri workspace. Desktop embeds this directory unchanged, CLI supervises the same layout, and a
-platform image copies the same layout. A smoke test copies the artifact outside the monorepo, starts it
-with an isolated data directory, verifies readiness and a protocol handshake, and shuts it down cleanly.
+This is the current emitted layout. It may consume workspace packages while building, but running the
+artifact never requires installing another Caxri workspace. Desktop embeds this directory unchanged,
+CLI supervises the same layout, and a platform image copies the same layout. A smoke test copies the
+artifact outside the monorepo, starts it with an isolated data directory, verifies readiness and a
+protocol handshake, and shuts it down cleanly.
 
 The Server archive and platform image are independent release artifacts. Desktop embeds the matching
 archive. A self-managed distribution may co-install CLI and Server artifacts, while
@@ -202,17 +203,22 @@ that explicitly advertised the required capability.
 ## Current state delivery and command recovery
 
 State tables are authoritative. The current Server writes structural changes to a bounded durable
-changefeed and uses request identity to prevent duplicate effectful work. The fully durable Multi-Client
-receipt model below remains part of P2 wherever the current command does not yet persist its receipt in
-the same transaction. In that target, the Server writes:
+changefeed and uses request identity to deduplicate in-flight and completed requests. Five reviewed
+synchronous SQLite structural commands (`project.reorder`, `project.setIcon`, `session.markRead`,
+`session.rename`, and `session.unarchive`) commit state, content-free events, and their receipt in one
+transaction. Commands that cross filesystem, PTY, Git, or Desktop boundaries retain their A0 behavior
+and persist a content-free receipt after the owning effect returns; they do not claim transactional
+exactly-once behavior across the external effect. The fully durable Multi-Client idempotency model for
+those owners remains part of P2. In that target, the Server writes or coordinates:
 
 1. the new state;
 2. a content-free changefeed entry;
 3. a durable receipt for an effectful command when applicable.
 
-Every effectful command carries a Client-generated command ID. Repeating the ID returns the durable
-receipt rather than executing the effect twice, including when the original reply was lost during a
-disconnect.
+Every effectful command is explicitly classified as no recovery, boot-memory recovery, transactionally
+durable, or dependent on an owning external-effect idempotency protocol. Repeating a completed durable
+command ID returns its receipt. Only the reviewed structural class currently guarantees that losing the
+original reply cannot expose an execute-before-receipt crash window.
 
 A changefeed cursor is `(serverId, stateEpoch, sequence)`. Subscription startup performs bounded
 snapshot or catch-up delivery and crosses an explicit live barrier before receiving new entries. Wrong
@@ -240,9 +246,12 @@ direct access may add only minimal liveness, readiness, pairing, and short-lived
 endpoints. Business commands will not be mirrored as REST, and SSE will not become a second event
 transport.
 
-The initial handshake exposes build ID, protocol version, Server ID, Server Boot ID, State Epoch,
-framing features, principal, scopes, and supported capabilities. Compatibility gates individual
-features rather than relying only on one globally increasing protocol number.
+The initial handshake exposes protocol version, negotiated framing features, authenticated principal,
+supported capabilities and commands, plus Client, connection, Server, boot, and State Epoch identity
+when durable recovery is negotiated. Build identity is discovered through the private artifact manifest
+and the frozen `host.status` compatibility command; it is not part of the welcome envelope.
+Compatibility gates individual features rather than relying only on one globally increasing protocol
+number.
 
 A Terminal stream ticket is bound to Server, Session, Terminal, PTY generation, attachment, and
 operation. The Server Core authenticates public streams and proxies bounded bytes to the private Terminal
@@ -313,8 +322,10 @@ The following current graph means “may import” and is enforced by ESLint:
 ```text
 agent-skills  -> protocol
 client        -> protocol, utils
-server        -> agent-skills, protocol, extension-api, utils
-desktop       -> client, protocol, utils
+protocol      -> utils
+system        -> protocol, utils
+server        -> agent-skills, extension-api, protocol, system, utils
+desktop       -> client, protocol, system, utils
 cli           -> agent-skills, client, protocol, utils
 extensions    -> extension-api
 ```
