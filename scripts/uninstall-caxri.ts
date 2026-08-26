@@ -7,7 +7,7 @@ import process from 'node:process';
 import { execFileAsync } from './exec';
 
 const HOST_SHUTDOWN_TIMEOUT_MS = 10_000;
-const HOST_ENTRY_PATTERN = /(?:^|\/)out\/main\/host\.js(?:\s|$)/u;
+const HOST_ENTRY_PATTERN = /(?:^|\/)server\/bundles\/host\.js(?:\s|$)/u;
 const WORKTREE_PROFILE_ID =
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 

@@ -78,13 +78,20 @@ describe('Acceptance runtime ownership', () => {
             canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
             getProcessCommand: vi
                 .fn()
-                .mockResolvedValue('/Applications/Electron /repo/out/main/host.js'),
+                .mockResolvedValue(
+                    '/repo/apps/server/dist/server/runtime/bin/node /repo/apps/server/dist/server/bundles/host.js',
+                ),
             getProcessIdentity,
             inspectPathOwner: vi.fn().mockResolvedValue(333),
             listChildProcesses: vi.fn().mockResolvedValue([
-                { command: '/Applications/Electron /repo/out/main/runtime.js', pid: 444 },
                 {
-                    command: '/Applications/Electron /repo-sibling/out/main/runtime.js',
+                    command:
+                        '/repo/apps/server/dist/server/runtime/bin/node /repo/apps/server/dist/server/bundles/runtime.js',
+                    pid: 444,
+                },
+                {
+                    command:
+                        '/repo-sibling/apps/server/dist/server/runtime/bin/node /repo-sibling/apps/server/dist/server/bundles/runtime.js',
                     pid: 555,
                 },
             ]),
@@ -120,7 +127,9 @@ describe('Acceptance runtime ownership', () => {
                     canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
                     getProcessCommand: vi
                         .fn()
-                        .mockResolvedValue('/Applications/Electron /repo-sibling/out/main/host.js'),
+                        .mockResolvedValue(
+                            '/repo-sibling/apps/server/dist/server/runtime/bin/node /repo-sibling/apps/server/dist/server/bundles/host.js',
+                        ),
                     getProcessIdentity: vi.fn().mockResolvedValue('identity-333'),
                     inspectPathOwner: vi.fn().mockResolvedValue(333),
                     listChildProcesses: vi.fn().mockResolvedValue([]),

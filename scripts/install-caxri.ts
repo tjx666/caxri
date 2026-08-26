@@ -54,6 +54,7 @@ export function findDmgPair(names: string[]): { checksum?: string; dmg: string }
 }
 
 const EXECUTABLE_PREFIX = `${INSTALL_PATH}/Contents/MacOS/`;
+const SERVER_RUNTIME_PREFIX = `${INSTALL_PATH}/Contents/Resources/server/runtime/bin/node`;
 const QUIT_POLL_INTERVAL_MS = 500;
 const APPLE_EVENT_ATTEMPTS = 10;
 const SIGNAL_ATTEMPTS = 10;
@@ -65,7 +66,7 @@ interface CaxriProcess {
 
 interface QuitOperations {
     /**
-     * Lists every process currently executing the installed bundle's main executable.
+     * Lists the installed Desktop and standalone Server artifact processes.
      */
     list: () => Promise<CaxriProcess[]>;
     quitApplication: () => Promise<void>;
@@ -74,13 +75,13 @@ interface QuitOperations {
 }
 
 /**
- * Distinguishes the detached Host and Runtime from the windowed application. Both run the same executable — the Desktop
- * re-launches its own binary as a Node runtime with an explicit entry script — so only the argument list tells them
- * apart.
+ * Distinguishes standalone Server artifact processes from the windowed Desktop application.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
 export function isHeadlessCaxriProcess(command: string): boolean {
-    return /\/out\/main\/[\w-]+\.js\b/u.test(command);
+    return /\/Contents\/Resources\/server\/runtime\/bin\/node\s+\S*\/server\/bundles\/[\w-]+\.js\b/u.test(
+        command,
+    );
 }
 
 async function listInstalledCaxriProcesses(): Promise<CaxriProcess[]> {
@@ -88,7 +89,8 @@ async function listInstalledCaxriProcesses(): Promise<CaxriProcess[]> {
     return stdout.split('\n').flatMap((line) => {
         const match = /^\s*(?<pid>\d+)\s+(?<command>\S.*)$/u.exec(line);
         const command = match?.groups?.command;
-        if (!command?.startsWith(EXECUTABLE_PREFIX)) return [];
+        if (!command?.startsWith(EXECUTABLE_PREFIX) && !command?.startsWith(SERVER_RUNTIME_PREFIX))
+            return [];
         return [{ command, pid: Number(match?.groups?.pid) }];
     });
 }
