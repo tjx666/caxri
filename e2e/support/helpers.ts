@@ -533,6 +533,18 @@ export async function waitForCreatedSession(
 }
 
 /**
+ * Activates a Terminal choice through its keyboard contract. The choice handler synchronously closes the dialog, so a
+ * pointer click can observe the button detaching after its click event already created the Session and then retry the
+ * action until timeout. Enter dispatches the same accessible activation without waiting on the removed pointer target.
+ */
+async function chooseDefaultTerminal(page: Page, name: string): Promise<void> {
+    const choice = page.getByRole('dialog').getByRole('button', { exact: true, name });
+    await choice.focus();
+    await expect(choice).toBeFocused();
+    await choice.press('Enter');
+}
+
+/**
  * Opens the "Add Project" dialog, picks the requested default Terminal, and returns only after the new Session
  * satisfies {@link waitForCreatedSession}. Specs that also need a writable Shell surface should use
  * {@link createShellSession} instead.
@@ -544,13 +556,10 @@ export async function createProjectSession(
     const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
     await openAddProjectDialog(page);
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
-    await page
-        .getByRole('dialog')
-        .getByRole('button', {
-            name: kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName,
-            exact: true,
-        })
-        .click();
+    await chooseDefaultTerminal(
+        page,
+        kind === 'shell' ? 'Shell' : agentProviderCatalog[kind].displayName,
+    );
     return waitForCreatedSession(page, previous.selectedSessionId);
 }
 
@@ -583,7 +592,7 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
         .hover();
     await page.getByRole('button', { name: /^New Session in / }).click();
     await expect(page.getByRole('heading', { name: 'Choose the default Terminal' })).toBeVisible();
-    await page.getByRole('dialog').getByRole('button', { name: 'Shell', exact: true }).click();
+    await chooseDefaultTerminal(page, 'Shell');
     const terminalId = await waitForNewTerminalId(
         page,
         before.terminals.map((terminal) => terminal.id),
