@@ -205,10 +205,11 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         server.close();
         const serverResources = await measureServerOwnerResources(serverPid);
         // The logger now drains writes asynchronously, so poll the log files instead of reading
-        // them once: the final `git.summary`/`window.ready_to_show` records may not be flushed
-        // to disk yet. Keep polling until both are present, then read the settled records below.
+        // them once: the final Core, Desktop, and Terminal Host records may not be flushed to disk yet. Poll every
+        // owning process so moving PTY execution does not make the throughput gate silently inspect the wrong log.
         let records: PerformanceLog[] = [];
         let desktopRecords: PerformanceLog[] = [];
+        let terminalHostRecords: PerformanceLog[] = [];
         await expect
             .poll(
                 async () => {
@@ -222,12 +223,23 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
                         .split('\n')
                         .filter(Boolean)
                         .map((line) => JSON.parse(line) as PerformanceLog);
+                    terminalHostRecords = (
+                        await readFile(join(userData, 'logs', 'terminal-host.jsonl'), 'utf8')
+                    )
+                        .split('\n')
+                        .filter(Boolean)
+                        .map((line) => JSON.parse(line) as PerformanceLog);
                     return (
                         desktopRecords.some((record) => record.event === 'window.ready_to_show') &&
                         records.some(
                             (record) =>
                                 record.event === 'git.summary' &&
                                 record.fields?.outcome === 'fresh',
+                        ) &&
+                        terminalHostRecords.some(
+                            (record) =>
+                                record.event === 'pty.throughput' &&
+                                Number(record.fields?.inputBytes) > 0,
                         )
                     );
                 },
@@ -262,7 +274,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const windowReady = desktopRecords.findLast(
             (record) => record.event === 'window.ready_to_show',
         );
-        const inputThroughput = records.find(
+        const inputThroughput = terminalHostRecords.find(
             (record) => record.event === 'pty.throughput' && Number(record.fields?.inputBytes) > 0,
         );
         const ipcFailures = records.filter(
