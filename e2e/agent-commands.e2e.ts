@@ -12,7 +12,7 @@ import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');
+const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');
 
 interface EndpointCapture {
     context: {
