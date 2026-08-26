@@ -20,6 +20,10 @@ const concurrentValidation = await readFile(
     'utf8',
 );
 const platformChecks = await readFile(new URL('../ci-platform-checks.ts', import.meta.url), 'utf8');
+const selfHostedRunner = await readFile(
+    new URL('../self-hosted-runner.ts', import.meta.url),
+    'utf8',
+);
 const bunVersion = (await readFile(new URL('../../.bun-version', import.meta.url), 'utf8')).trim();
 const packageManifest = JSON.parse(
     await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
@@ -29,6 +33,20 @@ const setupActionDocument = parse(setupAction) as {
 };
 
 describe('CI workflow contract', () => {
+    it('keeps the pre-install runner boundary free of runtime package imports', () => {
+        const packageImports = selfHostedRunner
+            .split(';')
+            .flatMap((statement) => {
+                const source = statement.trim();
+                if (!source.startsWith('import ') || source.startsWith('import type ')) return [];
+                const match = /['"]([^'"]+)['"]$/u.exec(source);
+                return match ? [match[1]] : [];
+            })
+            .filter((specifier) => !specifier.startsWith('node:') && !specifier.startsWith('.'));
+
+        expect(packageImports).toEqual([]);
+    });
+
     it('evaluates retry trailers on the pushed PR head instead of the synthetic merge commit', () => {
         const retryPolicyJob = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1];
 
