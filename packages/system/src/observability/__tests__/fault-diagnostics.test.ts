@@ -88,6 +88,17 @@ describe('architecture-a6-agent-observability', () => {
         expect(diagnoseInternalFault(input).classification).toBe('server-core');
     });
 
+    it('classifies a process that died during startup but ignores an orderly stopped manifest', () => {
+        const input = evidence('control');
+        input.probes.control = 'healthy';
+        input.manifests['terminal-host']!.state = 'starting';
+        input.processState = (pid) => (pid === 42 ? 'dead' : 'alive');
+        expect(diagnoseInternalFault(input).classification).toBe('terminal-host');
+
+        input.manifests['terminal-host']!.state = 'stopped';
+        expect(diagnoseInternalFault(input).classification).toBe('healthy');
+    });
+
     it('reports healthy and inconclusive probes without inventing a failure', () => {
         const healthy = evidence('control');
         healthy.probes.control = 'healthy';

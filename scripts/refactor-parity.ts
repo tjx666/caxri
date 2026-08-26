@@ -4,6 +4,10 @@ import process from 'node:process';
 import { parseArgs } from 'node:util';
 
 import { compareCandidate, recordBaseline, verifyBaseline } from './refactor-parity/core';
+import {
+    diagnoseRefactorOwner,
+    readOwnerDiagnosticProbes,
+} from './refactor-parity/owner-diagnostics';
 
 function required(values: Record<string, unknown>, name: string): string {
     const value = values[name];
@@ -17,6 +21,7 @@ function help(): string {
 Usage:
   refactor-parity record --baseline-id ID --artifact PATH --catalog PATH --receipt PATH --normalization PATH --allowlist PATH --output-root PATH --startup-executable PATH
   refactor-parity verify-baseline --baseline PATH
+  refactor-parity diagnose-owner --user-data-path PATH --probes PATH
   refactor-parity compare --baseline PATH --candidate-artifact PATH --candidate-receipt PATH --batch BATCH [--output PATH]`;
 }
 
@@ -40,8 +45,10 @@ async function main(argv: string[]): Promise<void> {
             'normalization': { type: 'string' },
             'output': { type: 'string' },
             'output-root': { type: 'string' },
+            'probes': { type: 'string' },
             'receipt': { type: 'string' },
             'startup-executable': { type: 'string' },
+            'user-data-path': { type: 'string' },
         },
         strict: true,
     });
@@ -65,6 +72,14 @@ async function main(argv: string[]): Promise<void> {
             `${JSON.stringify({ baselineId: result.manifest.baselineId, failures: result.failures, status: result.failures.length === 0 ? 'pass' : 'fail' })}\n`,
         );
         if (result.failures.length > 0) process.exitCode = 1;
+        return;
+    }
+    if (command === 'diagnose-owner') {
+        const result = await diagnoseRefactorOwner({
+            probes: await readOwnerDiagnosticProbes(required(values, 'probes')),
+            userDataPath: required(values, 'user-data-path'),
+        });
+        process.stdout.write(`${JSON.stringify(result)}\n`);
         return;
     }
     if (command === 'compare') {
