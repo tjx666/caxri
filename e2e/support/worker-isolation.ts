@@ -11,7 +11,7 @@ export interface E2EClipboardPolicy {
     protectClipboard: boolean;
 }
 
-interface E2EWorkerCleanupDependencies {
+interface E2ETemporaryDirectoryCleanupDependencies {
     remove?: typeof rm;
     wait?: (delay: number) => Promise<void>;
 }
@@ -47,14 +47,14 @@ export function e2eWorkerTemporaryDirectory(
 }
 
 /**
- * The worker fixture runs only after every launch finalizer has awaited Electron and Host shutdown, but macOS can still
+ * Callers run this only after their launch finalizers have awaited Desktop and Server shutdown, but macOS can still
  * expose a last directory entry while Node's recursive traversal is finishing. Retry only that observed `ENOTEMPTY` on
- * the exact worker-owned root for a small bounded window; every other error and the final failed attempt propagate
+ * the exact temporary root for a small bounded window; every other error and the final failed attempt propagate
  * unchanged.
  */
-export async function removeE2EWorkerTemporaryDirectory(
+export async function removeE2ETemporaryDirectory(
     directory: string,
-    dependencies: E2EWorkerCleanupDependencies = {},
+    dependencies: E2ETemporaryDirectoryCleanupDependencies = {},
 ): Promise<void> {
     const remove = dependencies.remove ?? rm;
     const wait =

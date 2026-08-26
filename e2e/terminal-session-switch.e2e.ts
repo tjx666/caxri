@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -14,6 +14,7 @@ import {
     sessionCard,
     typeTerminal,
 } from './support/helpers.ts';
+import { removeE2ETemporaryDirectory } from './support/worker-isolation.ts';
 
 test('Session switches preserve a cursor-addressed Terminal screen and its live PTY', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-session-switch-e2e-'));
@@ -115,6 +116,6 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
         } catch {
             // Ignore close failures during cleanup.
         }
-        await rm(testDirectory, { recursive: true, force: true });
+        await removeE2ETemporaryDirectory(testDirectory);
     }
 });
