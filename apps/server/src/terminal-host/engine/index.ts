@@ -7,4 +7,5 @@ export type { AgentOutputRecovery } from './output-recovery';
 export { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from './output-recovery-manager';
 export { sampleTerminalResources } from './resources';
 export { TerminalScreenState } from './screen';
+export { captureTerminalSnapshot, CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from './snapshot';
 export type { LiveTerminal } from './types';

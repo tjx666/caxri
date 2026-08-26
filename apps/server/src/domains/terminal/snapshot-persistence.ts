@@ -3,10 +3,8 @@ import { errorMessage, terminalSnapshotSchema } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { LiveTerminal } from '../../terminal-host/engine/types';
+import { CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from '../../terminal-host/engine';
 import type { TerminalStateStore } from './state-store';
-
-export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 3;
 
 /**
  * Owns the asynchronous parser barrier and version gate for durable Terminal screen snapshots.
@@ -19,15 +17,12 @@ export class TerminalSnapshotPersistence {
         private readonly logger: StructuredLogger,
     ) {}
 
-    private async capture(live: LiveTerminal): Promise<void> {
-        const terminalId = live.record.id;
+    private async persistCapture(
+        terminalId: string,
+        capture: Promise<TerminalSnapshot>,
+    ): Promise<void> {
         try {
-            const snapshot: TerminalSnapshot = {
-                terminalId,
-                encodingVersion: CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
-                ...(await live.screen.snapshot({ excludeModes: true })),
-                updatedAt: Date.now(),
-            };
+            const snapshot = await capture;
             if (this.database.getTerminal(terminalId)) this.database.saveSnapshot(snapshot);
         } catch (error) {
             /**
@@ -37,7 +32,6 @@ export class TerminalSnapshotPersistence {
                 fields: { terminalId, error: errorMessage(error, 'unknown') },
             });
         } finally {
-            live.screen.dispose();
             this.finalizations.delete(terminalId);
         }
     }
@@ -54,9 +48,8 @@ export class TerminalSnapshotPersistence {
             : null;
     }
 
-    finalize(live: LiveTerminal): Promise<void> {
-        const terminalId = live.record.id;
-        const completion = this.capture(live);
+    finalize(terminalId: string, capture: Promise<TerminalSnapshot>): Promise<void> {
+        const completion = this.persistCapture(terminalId, capture);
         this.finalizations.set(terminalId, completion);
         return completion;
     }

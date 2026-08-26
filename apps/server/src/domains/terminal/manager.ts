@@ -20,6 +20,8 @@ import * as pty from 'node-pty';
 import type { AgentOutputRecovery, LiveTerminal } from '../../terminal-host/engine';
 import {
     attachLogFields,
+    captureTerminalSnapshot,
+    CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
     ensureLiveOutputRecovery,
     hasConfiguredOutputRecovery,
     oscColorReply,
@@ -36,10 +38,7 @@ import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { TerminalLaunchPlanner } from './launch-plan';
 import type { TerminalManagerOptions, TerminalStartOptions } from './manager-types';
-import {
-    CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
-    TerminalSnapshotPersistence,
-} from './snapshot-persistence';
+import { TerminalSnapshotPersistence } from './snapshot-persistence';
 import type { TerminalStateStore } from './state-store';
 import { createTerminalTitleListener } from './terminal-title';
 
@@ -398,7 +397,7 @@ export class TerminalManager {
             live.screen.dispose();
             return;
         }
-        return this.snapshots.finalize(live);
+        return this.snapshots.finalize(live.record.id, captureTerminalSnapshot(live));
     }
 
     private clearTerminalTimers(live: LiveTerminal): void {
