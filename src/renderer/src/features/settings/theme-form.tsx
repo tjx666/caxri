@@ -1,4 +1,4 @@
-import type { ThemeTokens } from '@shared/types';
+import type { ThemeTokens } from '@caxri/protocol';
 import { Import } from 'lucide-react';
 
 import { Alert } from '../../components/ui/alert';

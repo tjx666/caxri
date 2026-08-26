@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { LogProcess, LogQueryRecord, LogQueryResult } from '@shared/types';
+import type { LogProcess, LogQueryRecord, LogQueryResult } from '@caxri/protocol';
 
 import { usePolledQuery } from '../../../../hooks/use-polled-query';
 import { appendLogPage, clearLogStream, emptyLogStream } from './log-stream';

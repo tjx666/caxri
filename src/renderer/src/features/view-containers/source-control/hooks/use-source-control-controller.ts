@@ -4,7 +4,7 @@ import type {
     SourceControlAction,
     SourceControlActionEffect,
     SourceControlViewModel,
-} from '@shared/views';
+} from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';

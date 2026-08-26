@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CaxriRequest } from '../method-types';
+import type { CaxriRequest } from '../../index';
 import {
     getMethodSpec,
     isCaxriMethod,
     isDesktopRequest,
     isHostRequest,
     isMainRequest,
-} from '../method-types';
+} from '../../index';
 
 describe('isCaxriMethod', () => {
     it('accepts a public method name and rejects an internal-only or unknown name', () => {

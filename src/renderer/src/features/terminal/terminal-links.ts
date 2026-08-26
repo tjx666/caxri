@@ -1,4 +1,4 @@
-import type { TerminalOscLinkSnapshot } from '@shared/types';
+import type { TerminalOscLinkSnapshot } from '@caxri/protocol';
 import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
 
 import type { TerminalLinkScanner } from './terminal-link-scanner';

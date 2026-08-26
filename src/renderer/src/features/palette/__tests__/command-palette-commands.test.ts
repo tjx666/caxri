@@ -1,4 +1,4 @@
-import type { ViewCatalogSnapshot } from '@shared/views';
+import type { ViewCatalogSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { getPaletteExtensionCommands } from '../command-palette-commands';

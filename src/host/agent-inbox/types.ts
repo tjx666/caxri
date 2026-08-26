@@ -1,12 +1,10 @@
 import type {
     AgentEndpointRef as AgentEndpointReference,
     AgentEndpointSummary,
-} from '../../shared/ipc/agent-endpoint-contract';
-import type {
     AgentHeldMessage,
     AgentMessagePullResult,
     AgentMessageReceipt,
-} from '../../shared/ipc/agent-inbox-contract';
+} from '@caxri/protocol';
 
 export type PendingState = 'waiting' | 'held' | 'delivering';
 

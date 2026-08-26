@@ -1,5 +1,5 @@
-import { CaxriError } from '../../shared/ipc/errors';
-import type { GitCommitFile } from '../../shared/types';
+import type { GitCommitFile } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
 function commitFileStatus(code: string): GitCommitFile['status'] {
     if (code.startsWith('A')) return 'added';

@@ -1,4 +1,4 @@
-import type { ProcessState } from '@shared/types';
+import type { ProcessState } from '@caxri/protocol';
 
 export type WorkTabNavigationKey = 'ArrowLeft' | 'ArrowRight' | 'End' | 'Home';
 

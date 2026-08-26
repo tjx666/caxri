@@ -1,4 +1,4 @@
-import type { RuntimeEvent } from '@shared/ipc';
+import type { RuntimeEvent } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

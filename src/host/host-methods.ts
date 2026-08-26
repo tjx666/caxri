@@ -1,4 +1,4 @@
-import type { HostMethod } from '../shared/ipc/methods';
+import type { HostMethod } from '@caxri/protocol';
 
 /**
  * Host-owned methods the Host adapter may forward to Runtime. A new `owner: 'host'` method is `HostHandledMethod` until

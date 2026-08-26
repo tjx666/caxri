@@ -3,9 +3,9 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { RuntimeMethodParams as RuntimeMethodParameters } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../../shared/ipc/methods';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
 import { FileService } from '../service';

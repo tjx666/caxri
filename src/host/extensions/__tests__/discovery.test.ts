@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { extensionIdSchema } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { extensionIdSchema } from '../../../../packages/protocol/src/domain/views';
 import { discoverExtensions } from '../discovery';
 
 const temporaryDirectories: string[] = [];

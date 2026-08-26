@@ -1,6 +1,6 @@
+import type { Principal } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { Principal } from '../../../shared/ipc/principal';
 import type { RecordQuerySource } from '../records';
 import { RecordQueryService } from '../records';
 

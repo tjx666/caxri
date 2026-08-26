@@ -1,6 +1,5 @@
+import { CaxriError } from '@caxri/protocol';
 import type { WebContents } from 'electron';
-
-import { CaxriError } from '../shared/ipc/errors';
 
 type ReadinessOutcome = 'closed' | 'ready' | 'superseded' | 'timeout';
 

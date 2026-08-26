@@ -1,4 +1,4 @@
-import { errorMessage } from '@shared/ipc';
+import { errorMessage } from '@caxri/protocol';
 
 import { caxri } from './caxri';
 

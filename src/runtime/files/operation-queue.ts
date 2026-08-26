@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 
-import { CaxriError } from '../../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
+
 import { isSameOrInside } from '../path-security';
 
 const DEFAULT_MAXIMUM_PENDING_OPERATIONS = 64;

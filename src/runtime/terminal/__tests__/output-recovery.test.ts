@@ -1,6 +1,6 @@
+import type { AgentOutputRecoverySettings, AgentProvider } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentOutputRecoverySettings, AgentProvider } from '../../../shared/agents';
 import type { StructuredLogger } from '../../../shared/node/logger';
 import { AgentOutputRecovery } from '../output-recovery';
 

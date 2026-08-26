@@ -1,5 +1,4 @@
-import type { CommandId } from '@shared/types';
-import type { ViewContainerId } from '@shared/views';
+import type { CommandId, ViewContainerId } from '@caxri/protocol';
 
 import type { SessionNavigationDirection } from '../features/session/session-navigation-history';
 import type { SettingsView } from '../stores/dialogs';

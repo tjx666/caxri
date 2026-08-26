@@ -1,5 +1,5 @@
+import type { ViewCatalogSnapshot } from '@caxri/protocol';
 import { commandDefinitions } from '@shared/commands';
-import type { ViewCatalogSnapshot } from '@shared/views';
 
 import { executeCommand } from '../../commands/execute';
 import { ShortcutBadge } from '../../components/shortcut-badge';

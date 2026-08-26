@@ -1,9 +1,8 @@
 import { isAbsolute } from 'node:path';
 import process from 'node:process';
 
-import type { AgentLaunchSettings, AgentProvider } from '../agents';
-import { agentProviderCatalog, agentProviderIds } from '../agents';
-import { CaxriError } from '../ipc/errors';
+import type { AgentLaunchSettings, AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, CaxriError } from '@caxri/protocol';
 
 export type E2EAgentPolicy =
     | { mode: 'blocked' }

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-import type { ThemeTokens } from '@shared/types';
+import type { ThemeTokens } from '@caxri/protocol';
 
 import { cn } from '../../lib/utilities';
 

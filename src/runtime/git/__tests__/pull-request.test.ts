@@ -1,6 +1,6 @@
+import type { GitRepositorySummary as GitRepoSummary } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { GitRepositorySummary as GitRepoSummary } from '../../../shared/types';
 import { GitPullRequestService, parsePullRequestView } from '../pull-request';
 
 const BASE_OID = 'a'.repeat(40);

@@ -1,13 +1,12 @@
 import { useState } from 'react';
 
-import type { AgentProvider } from '@shared/agents';
-import type { AgentActionOverride, AgentActionsSettings } from '@shared/ipc';
+import type { AgentActionOverride, AgentActionsSettings, AgentProvider } from '@caxri/protocol';
 import {
     agentActionInvocationSchema,
     defaultAgentActions,
     MAX_AGENT_ACTION_DESCRIPTION_LENGTH,
     MAX_AGENT_ACTIONS,
-} from '@shared/types';
+} from '@caxri/protocol';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';

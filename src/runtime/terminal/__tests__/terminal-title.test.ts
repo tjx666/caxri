@@ -1,6 +1,6 @@
+import type { RuntimeEvent } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { TerminalScreenState } from '../screen';
 import { createTerminalTitleListener, TERMINAL_TITLE_THROTTLE_MS } from '../terminal-title';
 

@@ -8,9 +8,9 @@ import type {
     LogQueryParams as LogQueryParameters,
     LogQueryRecord,
     LogQueryResult,
-} from '../../shared/ipc/business-contract';
-import { logQueryRecordSchema } from '../../shared/ipc/business-contract';
-import { CaxriError } from '../../shared/ipc/errors';
+} from '@caxri/protocol';
+import { CaxriError, logQueryRecordSchema } from '@caxri/protocol';
+
 import { isSecretKey, redactLogValue } from '../../shared/node/redaction';
 
 const LOG_NAME = /^(?:host|main|runtime)\.jsonl(?:\.1)?$/u;

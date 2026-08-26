@@ -1,8 +1,7 @@
+import type { RuntimeEvent, TerminalRecord } from '@caxri/protocol';
 import { throttle } from 'es-toolkit';
 
-import type { RuntimeEvent } from '../../shared/ipc/events';
 import { normalizeTerminalTitle } from '../../shared/terminal-title';
-import type { TerminalRecord } from '../../shared/types';
 import type { TerminalTitleObserver } from './screen';
 
 /**

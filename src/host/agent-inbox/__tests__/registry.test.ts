@@ -1,8 +1,10 @@
+import type {
+    AgentEndpointBeginParams as AgentEndpointBeginParameters,
+    AgentMessageReceipt,
+} from '@caxri/protocol';
+import { agentMessageBodySchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { AgentEndpointBeginParams as AgentEndpointBeginParameters } from '../../../../packages/protocol/src/agent/agent-endpoint-control';
-import type { AgentMessageReceipt } from '../../../shared/ipc/agent-inbox-contract';
-import { agentMessageBodySchema } from '../../../shared/ipc/agent-inbox-contract';
 import { AgentEndpointRegistry } from '../../agent-endpoints';
 import { AgentInboxRegistry, decideInboundStatus } from '..';
 import { MAX_RECEIPTS } from '../rules';

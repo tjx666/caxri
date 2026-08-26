@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import type { FileHandle } from 'node:fs/promises';
 import { open } from 'node:fs/promises';
 
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
 
 type OpenRegularFile = (path: string, flags: number) => Promise<FileHandle>;
 

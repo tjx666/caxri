@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
+import type { UpdateState } from '@caxri/protocol';
 import { formatBytes } from '@caxri/utils';
-import type { UpdateState } from '@shared/types';
 import { CheckCircle2, Download, FolderOpen, RefreshCw, XCircle } from 'lucide-react';
 
 import { Alert } from '../../components/ui/alert';

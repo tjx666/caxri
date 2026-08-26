@@ -7,6 +7,5 @@ export * from './color-contrast';
 export * from './compare-tree-nodes';
 export * from './css-font-family';
 export * from './format-bytes';
-export * from './github-avatar';
 export * from './path-basename';
 export * from './relative-time';

@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 
-import { CaxriError, errorMessage } from '../shared/ipc/errors';
+import { CaxriError, errorMessage } from '@caxri/protocol';
+
 import { logEventCatalog } from '../shared/node/logger';
 /**
  * Runtime domain boundaries require cross-domain dependencies to enter through the owning domain root.

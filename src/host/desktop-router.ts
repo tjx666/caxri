@@ -1,16 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
-import { CaxriError, isCaxriError } from '../shared/ipc/errors';
 import type {
     DesktopLease,
     DesktopOperation,
     DesktopTargetPayload,
-} from '../shared/ipc/local-transport';
-import type {
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
-} from '../shared/ipc/methods';
-import type { RuntimeWorkbenchContext } from '../shared/ipc/transport';
+    RuntimeWorkbenchContext,
+} from '@caxri/protocol';
+import { CaxriError, isCaxriError } from '@caxri/protocol';
+
 import type { HostRuntimeSupervisor } from './runtime-supervisor';
 
 type AuthorizedEntry = RuntimeMethodResult<'files.authorizeOpen'>;

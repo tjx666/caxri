@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
-import type { CaxriMethod, MethodResult, ParamsArg } from '@shared/ipc';
-import { isCaxriError } from '@shared/ipc';
+import type { CaxriMethod, MethodResult, ParamsArg } from '@caxri/protocol';
+import { isCaxriError } from '@caxri/protocol';
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 import { QueryClient, useQuery } from '@tanstack/react-query';
 
@@ -52,10 +52,10 @@ export function caxriQueryKey<M extends CaxriMethod>(
 }
 
 /**
- * Typed `useQuery` over a Caxri RPC method. Full inference flows from the method table in `@shared/ipc`: `params` must
- * match the method's schema and the resolved data is `MethodResult<M>`, with no `any` at any point. Callers gate an
- * unavailable dependency (no Session selected, for instance) with `enabled: false` rather than skipping the hook — the
- * params value itself may be a placeholder in that case, since a disabled query never runs `queryFn`.
+ * Typed `useQuery` over a Caxri RPC method. Full inference flows from the method table in `@caxri/protocol`: `params`
+ * must match the method's schema and the resolved data is `MethodResult<M>`, with no `any` at any point. Callers gate
+ * an unavailable dependency (no Session selected, for instance) with `enabled: false` rather than skipping the hook —
+ * the params value itself may be a placeholder in that case, since a disabled query never runs `queryFn`.
  */
 export function useCaxriQuery<M extends CaxriMethod>(
     method: M,

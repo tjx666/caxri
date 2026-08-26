@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentSkillsTestFiles,
     apiTestFiles,
     clientTestFiles,
     cliTestFiles,
@@ -28,21 +29,20 @@ describe('Vitest project partition', () => {
         expect(desktopTestFiles).toContain('.agents/skills/**/scripts/__tests__/*.test.ts');
     });
 
-    it('owns Desktop and workspace tests in six named projects', () => {
+    it('owns Desktop and workspace tests in named projects', () => {
         expect(testProjectNames).toEqual([
             'desktop-parallel',
             'desktop-serial-native',
+            'agent-skills',
             'protocol',
             'api',
             'client',
             'utils',
             'cli',
         ]);
+        expect(agentSkillsTestFiles).toEqual(['packages/agent-skills/{scripts,src}/**/*.test.ts']);
         expect(protocolTestFiles).toEqual(['packages/protocol/src/**/*.test.ts']);
-        expect(apiTestFiles).toEqual([
-            'packages/api/src/**/*.test.ts',
-            'packages/extension-api/src/**/*.test.ts',
-        ]);
+        expect(apiTestFiles).toEqual(['packages/extension-api/src/**/*.test.ts']);
         expect(clientTestFiles).toEqual(['packages/client/src/**/*.test.ts']);
         expect(utilitiesTestFiles).toEqual(['packages/utils/src/**/*.test.ts']);
         expect(cliTestFiles).toEqual([
@@ -56,7 +56,10 @@ describe('Vitest project partition', () => {
             ]),
         );
         expect(workspaceAliases.caxri).toBe(
-            new URL('../../packages/api/src/index.ts', import.meta.url).pathname,
+            new URL('../../packages/extension-api/src/index.ts', import.meta.url).pathname,
+        );
+        expect(workspaceAliases['@caxri/agent-skills/testing']).toBe(
+            new URL('../../packages/agent-skills/src/testing.ts', import.meta.url).pathname,
         );
     });
 

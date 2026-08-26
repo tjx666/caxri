@@ -2,8 +2,9 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { RuntimeEvent } from '../shared/ipc/events';
-import { runtimeCancelRequestSchema } from '../shared/ipc/transport';
+import type { RuntimeEvent } from '@caxri/protocol';
+import { runtimeCancelRequestSchema } from '@caxri/protocol';
+
 import { startEventLoopMonitor } from '../shared/node/event-loop-monitor';
 import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';

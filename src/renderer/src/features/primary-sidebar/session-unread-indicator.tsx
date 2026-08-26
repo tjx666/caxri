@@ -1,4 +1,4 @@
-import type { SessionRecord } from '@shared/types';
+import type { SessionRecord } from '@caxri/protocol';
 
 import { cn } from '../../lib/utilities';
 import {

@@ -1,4 +1,4 @@
-import type { UpdateState } from '@shared/types';
+import type { UpdateState } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

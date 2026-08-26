@@ -1,7 +1,6 @@
-import type { AgentProvider } from '@shared/agents';
-import { agentProviderCatalog } from '@shared/agents';
+import type { AgentProvider, PaneResource, TerminalRecord } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import { redactSecretText } from '@shared/redaction';
-import type { PaneResource, TerminalRecord } from '@shared/types';
 
 export interface BugReportDraft {
     actual: string;

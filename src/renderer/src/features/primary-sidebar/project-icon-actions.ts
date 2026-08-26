@@ -1,4 +1,4 @@
-import type { ProjectIcon } from '@shared/project-customization';
+import type { ProjectIcon } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';

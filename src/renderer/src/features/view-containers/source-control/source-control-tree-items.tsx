@@ -1,4 +1,4 @@
-import type { SourceControlAction, SourceControlResource } from '@shared/views';
+import type { SourceControlAction, SourceControlResource } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../components/disclosure-motion';

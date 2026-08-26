@@ -1,4 +1,4 @@
-import { errorMessage } from '../shared/ipc/errors';
+import { errorMessage } from '@caxri/protocol';
 
 interface WindowCloseOptions {
     close: () => void;

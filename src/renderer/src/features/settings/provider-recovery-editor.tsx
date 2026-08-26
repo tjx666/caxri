@@ -1,11 +1,11 @@
 import { useState } from 'react';
 
-import type { AgentOutputRecoverySettings, AgentProvider } from '@shared/agents';
+import type { AgentOutputRecoverySettings, AgentProvider } from '@caxri/protocol';
 import {
     agentProviderCatalog,
     MAX_AGENT_OUTPUT_RECOVERY_DELAY_MS,
     MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS,
-} from '@shared/agents';
+} from '@caxri/protocol';
 
 import { FieldDescription, FieldLabel } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';

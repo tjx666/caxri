@@ -3,18 +3,20 @@ import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import type {
+    CaxriRequest,
+    CommandAdapter,
+    Keybinding,
+    PersistedWindowState,
+    RuntimeEvent,
+} from '@caxri/protocol';
+import { CaxriError, errorMessage, isMainRequest } from '@caxri/protocol';
 import type { WebContents } from 'electron';
 import { app, BrowserWindow, dialog, Menu, shell } from 'electron';
 
-import type { CommandAdapter } from '../shared/ipc/dispatcher';
-import { CaxriError, errorMessage } from '../shared/ipc/errors';
-import type { RuntimeEvent } from '../shared/ipc/events';
-import type { CaxriRequest } from '../shared/ipc/methods';
-import { isMainRequest } from '../shared/ipc/methods';
 import { readE2EAgentPolicy } from '../shared/node/e2e-agent-policy';
 import { logEventCatalog, StructuredLogger } from '../shared/node/logger';
 import { installProcessErrorMonitor } from '../shared/node/process-error-monitor';
-import type { Keybinding, PersistedWindowState } from '../shared/types';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import { discardGitChangesPrompt, trashPrompt } from './confirmations';

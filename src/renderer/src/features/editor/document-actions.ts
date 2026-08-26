@@ -1,3 +1,4 @@
+import type { PaneLayout, SessionState } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { editorModelPath } from '@shared/editor-state';
 import type { PaneTabCloseMode } from '@shared/pane-layout';
@@ -11,7 +12,6 @@ import {
     pinPaneTab,
     remapPaneLayoutPaths,
 } from '@shared/pane-layout';
-import type { PaneLayout, SessionState } from '@shared/types';
 import { isVirtualEditorTabPath } from '@shared/virtual-tabs';
 
 import { caxri } from '../../lib/caxri';

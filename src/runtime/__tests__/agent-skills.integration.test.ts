@@ -2,11 +2,10 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { executeSkillCommand } from '@caxri/agent-skills';
+import { agentProviderIds, agentSkillHealthSchema } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { executeSkillCommand } from '../../../packages/cli/src/skills';
-import { agentSkillHealthSchema } from '../../../packages/protocol/src';
-import { agentProviderIds } from '../../shared/agents';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
 import { createFakePty } from './create-test-runtime';

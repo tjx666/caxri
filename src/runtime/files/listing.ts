@@ -3,16 +3,21 @@ import type { Dirent } from 'node:fs';
 import { lstat, opendir, realpath } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
-import { CaxriError, errorMessage } from '../../shared/ipc/errors';
 import type {
+    FileEntry,
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
-} from '../../shared/ipc/methods';
-import { MAX_FILE_BROWSE_ENTRIES, MAX_FILE_LIST_ENTRIES } from '../../shared/ipc/methods';
+} from '@caxri/protocol';
+import {
+    CaxriError,
+    errorMessage,
+    MAX_FILE_BROWSE_ENTRIES,
+    MAX_FILE_LIST_ENTRIES,
+} from '@caxri/protocol';
+
 import { AsyncSemaphore, mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
-import type { FileEntry } from '../../shared/types';
 import { SingleFlight } from '../single-flight';
 import type { ResolveSessionPath } from './documents';
 import type { FileTreeExcludes } from './file-tree-excludes';

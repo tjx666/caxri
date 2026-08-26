@@ -1,4 +1,4 @@
-import type { SessionRecord } from '@shared/types';
+import type { SessionRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { shouldAcknowledgeSessionAttention } from '../session-attention';

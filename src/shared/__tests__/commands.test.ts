@@ -1,3 +1,4 @@
+import { commandIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -6,7 +7,6 @@ import {
     getNativeMenuCommandGroups,
     nativeMenuIds,
 } from '../commands';
-import { commandIds } from '../ipc';
 
 describe('command registry', () => {
     it('has unique IDs and owns every default keybinding command', () => {

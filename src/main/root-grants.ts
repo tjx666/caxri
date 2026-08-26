@@ -1,4 +1,4 @@
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
 
 export class ProjectRootGrants {
     private readonly roots = new Map<string, number>();

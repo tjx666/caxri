@@ -1,4 +1,5 @@
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
+
 import { resolveRendererEntryUrl } from './renderer-entry';
 
 interface ProcessExplorerRendererUrlOptions {

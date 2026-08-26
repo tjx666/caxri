@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 
+import type { SourceControlHistoryDescriptor, SourceControlHistoryPage } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
-import type { SourceControlHistoryDescriptor, SourceControlHistoryPage } from '@shared/views';
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../../components/ui/hover-card';
 import { SourceControlHistoryAvatar } from './source-control-history-avatar';

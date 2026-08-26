@@ -1,4 +1,4 @@
-import { CaxriError } from '@shared/ipc';
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { shouldToastQueryError } from './client';

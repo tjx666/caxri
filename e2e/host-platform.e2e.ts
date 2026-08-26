@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToHost, ensureHost } from '@caxri/cli';
+import { connectToHost, ensureHost } from '@caxri/client/supervise';
 
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';

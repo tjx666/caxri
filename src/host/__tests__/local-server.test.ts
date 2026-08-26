@@ -3,15 +3,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { HostClient } from '@caxri/client/supervise';
+import type { CaxriError, CommandAdapter, HostControlEndpoint } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, hostEndpointUrl, localServerWelcomeSchema } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
-import { HostClient } from '../../../packages/cli/src/host';
-import type { CommandAdapter } from '../../shared/ipc/dispatcher';
-import type { CaxriError } from '../../shared/ipc/errors';
-import type { HostControlEndpoint } from '../../shared/ipc/local-transport';
-import { hostEndpointUrl, localServerWelcomeSchema } from '../../shared/ipc/local-transport';
-import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import { AgentEndpointRegistry } from '../agent-endpoints';
 import { AgentInboxRegistry } from '../agent-inbox';
 import { LocalHostServer } from '../local-server';

@@ -1,7 +1,7 @@
+import type { DesktopOperation } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { CaxriError } from '../../shared/ipc/errors';
-import type { DesktopOperation } from '../../shared/ipc/local-transport';
 import { HostDesktopRouter } from '../desktop-router';
 import type { HostRuntimeSupervisor } from '../runtime-supervisor';
 

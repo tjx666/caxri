@@ -4,17 +4,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import WebSocket from 'ws';
-
-import { connectToHost, HostClient } from '../../../packages/cli/src/host';
-import type { HostManifest } from '../../../packages/protocol/src';
+import { connectToHost, HostClient } from '@caxri/client/supervise';
+import type { HostManifest } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     hostEndpointUrl,
     localServerEventSchema,
     localServerWelcomeSchema,
-} from '../../../packages/protocol/src';
+} from '@caxri/protocol';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import WebSocket from 'ws';
+
 import type { HostApp } from '../app';
 import { startHostApp } from '../app';
 

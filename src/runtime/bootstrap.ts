@@ -4,17 +4,17 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import process from 'node:process';
 
-import { agentProviderCatalog } from '../shared/agents';
-import { CaxriError, errorMessage } from '../shared/ipc/errors';
-import { logEventCatalog } from '../shared/node/logger';
-import { visiblePaneTerminalIds } from '../shared/pane-layout';
 import type {
     AgentProvider,
     BootstrapState,
     PersistedWindowState,
     TerminalKind,
     TerminalRecord,
-} from '../shared/types';
+} from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError, errorMessage } from '@caxri/protocol';
+
+import { logEventCatalog } from '../shared/node/logger';
+import { visiblePaneTerminalIds } from '../shared/pane-layout';
 import { AgentDispatchService, createAgentCommandHandlers } from './agent-dispatch';
 import {
     AgentCoordinator,

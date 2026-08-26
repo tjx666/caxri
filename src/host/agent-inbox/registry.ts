@@ -4,8 +4,6 @@ import { randomUUID } from 'node:crypto';
 import type {
     AgentEndpointRef as AgentEndpointReference,
     AgentEndpointSummary,
-} from '../../shared/ipc/agent-endpoint-contract';
-import type {
     AgentHeldMessage,
     AgentHeldMessageDetail,
     AgentHeldRetention,
@@ -13,10 +11,10 @@ import type {
     AgentInboundPolicy,
     AgentMessagePullResult,
     AgentMessageReceipt,
-} from '../../shared/ipc/agent-inbox-contract';
-import { AGENT_MESSAGE_APPROVAL_TTL_MS } from '../../shared/ipc/agent-inbox-contract';
-import { CaxriError } from '../../shared/ipc/errors';
-import type { CommandExecutionContext } from '../../shared/ipc/principal';
+    CommandExecutionContext,
+} from '@caxri/protocol';
+import { AGENT_MESSAGE_APPROVAL_TTL_MS, CaxriError } from '@caxri/protocol';
+
 import type { AgentEndpointRegistry } from '../agent-endpoints';
 import {
     agentMessageDigest,

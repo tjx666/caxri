@@ -1,4 +1,5 @@
-import type { AgentOutputRecoverySettings, AgentProvider } from '../../shared/agents';
+import type { AgentOutputRecoverySettings, AgentProvider } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
 import type { TerminalTextTail } from './screen';

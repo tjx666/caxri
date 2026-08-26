@@ -2,11 +2,10 @@ import { appendFile, mkdtemp, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
+import type { CommandAdapter, RuntimeEvent } from '@caxri/protocol';
+import { createCommandDispatcher } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { RuntimeEvent } from '../../../shared/ipc';
-import type { CommandAdapter } from '../../../shared/ipc/dispatcher';
-import { createCommandDispatcher } from '../../../shared/ipc/dispatcher';
 import { logEventCatalog, StructuredLogger } from '../../../shared/node/logger';
 import { createFakePty } from '../../__tests__/create-test-runtime';
 import { createRuntime } from '../../bootstrap';

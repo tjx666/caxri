@@ -1,4 +1,4 @@
-import type { ProjectIconColor, ProjectIconName } from '@shared/project-customization';
+import type { ProjectIconColor, ProjectIconName } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     Braces,

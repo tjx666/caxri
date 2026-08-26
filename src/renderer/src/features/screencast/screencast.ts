@@ -1,5 +1,5 @@
+import type { Keybinding } from '@caxri/protocol';
 import { commandDefinitions } from '@shared/commands';
-import type { Keybinding } from '@shared/types';
 import { create } from 'zustand';
 
 import {

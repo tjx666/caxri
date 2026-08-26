@@ -1,8 +1,10 @@
-import type { CommandDispatcherOptions } from '../shared/ipc/dispatcher';
-import { createCommandDispatcher, createProtocolWelcome } from '../shared/ipc/dispatcher';
-import type { CommandExecutionContext } from '../shared/ipc/principal';
-import type { CommandReplyEnvelope } from '../shared/ipc/transport';
-import type { ProtocolWelcome } from '../shared/ipc/version';
+import type {
+    CommandDispatcherOptions,
+    CommandExecutionContext,
+    CommandReplyEnvelope,
+    ProtocolWelcome,
+} from '@caxri/protocol';
+import { createCommandDispatcher, createProtocolWelcome } from '@caxri/protocol';
 
 const electronDesktopContext = {
     capabilities: ['desktop'],

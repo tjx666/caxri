@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
+import type { RuntimeEvent } from '@caxri/protocol';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeEvent } from '../../shared/ipc';
 import { StructuredLogger } from '../../shared/node/logger';
 import { listPaneTerminalIds } from '../../shared/pane-layout';
 import { createRuntime } from '../bootstrap';

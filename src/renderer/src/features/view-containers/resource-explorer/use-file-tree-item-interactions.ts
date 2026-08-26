@@ -1,7 +1,7 @@
 import type { Dispatch, DragEvent, KeyboardEvent, RefObject, SetStateAction } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 
-import type { FileEntry } from '@shared/types';
+import type { FileEntry } from '@caxri/protocol';
 
 import { dragPath } from '../../../lib/file-drag';
 import { openFile } from '../../editor/document-actions';

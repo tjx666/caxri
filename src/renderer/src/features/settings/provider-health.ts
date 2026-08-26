@@ -4,7 +4,7 @@ import type {
     AgentSkillHealth,
     AgentSkillInstallationHealth,
     AgentSkillScope,
-} from '@shared/types';
+} from '@caxri/protocol';
 
 /**
  * Plain-language health caption for a provider's lifecycle-hook adapter. DESIGN.md principle 3 forbids implementation

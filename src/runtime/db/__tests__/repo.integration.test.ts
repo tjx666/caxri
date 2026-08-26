@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { PaneLayout } from '@caxri/protocol';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,7 +13,6 @@ import {
     splitTabIntoPane,
 } from '../../../shared/pane-layout';
 import { MAX_TERMINAL_TITLE_LENGTH } from '../../../shared/terminal-title';
-import type { PaneLayout } from '../../../shared/types';
 import { CaxriDatabase } from '../repository';
 
 const temporaryDirectories: string[] = [];

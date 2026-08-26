@@ -1,4 +1,4 @@
-import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { agentIconRegistry, resolveAgentIcon } from './agent-icon-registry';

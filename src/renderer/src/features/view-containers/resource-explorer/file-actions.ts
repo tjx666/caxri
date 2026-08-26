@@ -1,7 +1,6 @@
+import type { FileEntry, MethodResult, MutableFileEntry } from '@caxri/protocol';
+import { errorMessage, isCaxriError } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import type { MethodResult } from '@shared/ipc';
-import { errorMessage, isCaxriError } from '@shared/ipc';
-import type { FileEntry, MutableFileEntry } from '@shared/types';
 
 import { projectRelativePath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';

@@ -1,4 +1,4 @@
-import type { LogQueryRecord, LogQueryResult } from '@shared/types';
+import type { LogQueryRecord, LogQueryResult } from '@caxri/protocol';
 
 /**
  * Records accumulated across cursor-follow `logs.query` pages, oldest first. `cursor` is the resume point for the next

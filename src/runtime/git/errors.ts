@@ -1,4 +1,4 @@
-import { CaxriError, isCaxriError } from '../../shared/ipc/errors';
+import { CaxriError, isCaxriError } from '@caxri/protocol';
 
 export function describeGitFailure(error: unknown): string {
     // Deliberately not `NodeJS.ErrnoException` here: that type inherits `Error`'s required

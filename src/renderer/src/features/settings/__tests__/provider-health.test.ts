@@ -1,4 +1,4 @@
-import type { AgentSkillHealth } from '@shared/types';
+import type { AgentSkillHealth } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { hookHealthLabel, skillScopeHealth, skillScopeSummary } from '../provider-health';

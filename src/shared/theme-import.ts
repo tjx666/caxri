@@ -1,5 +1,5 @@
-import type { ThemeImportFormatId } from './ipc/domain';
-import { themeImportFormatIds } from './ipc/domain';
+import type { ThemeImportFormatId } from '@caxri/protocol';
+import { themeImportFormatIds } from '@caxri/protocol';
 
 interface ThemeImportFormatDefinition {
     extensions: readonly string[];

@@ -2,22 +2,25 @@ import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 
-import type { RawData, WebSocketServer } from 'ws';
-import WebSocket from 'ws';
-
-import type { AgentEndpointRef as AgentEndpointReference } from '../shared/ipc/agent-endpoint-contract';
-import type { CommandDispatcher } from '../shared/ipc/dispatcher';
-import { createCommandDispatcher, createProtocolWelcome } from '../shared/ipc/dispatcher';
-import { CaxriError, fromWireError, toWireError } from '../shared/ipc/errors';
-import type { ProtocolEventEnvelope, TransientRuntimeEvent } from '../shared/ipc/event-journal';
 import type {
+    AgentEndpointRef as AgentEndpointReference,
+    CommandDispatcher,
+    CommandExecutionContext,
+    CommandReplyEnvelope,
     DesktopLease,
     DesktopOperation,
     HostControlEndpoint,
     LocalClientCommand,
-} from '../shared/ipc/local-transport';
+    ProtocolEventEnvelope,
+    TransientRuntimeEvent,
+} from '@caxri/protocol';
 import {
+    CAXRI_PROTOCOL_VERSION,
+    CaxriError,
     CONTROL_TRANSPORT_MAX_FRAME_BYTES,
+    createCommandDispatcher,
+    createProtocolWelcome,
+    fromWireError,
     localClientCommandSchema,
     localClientDesktopReadySchema,
     localClientDesktopReplySchema,
@@ -32,11 +35,12 @@ import {
     localServerLeaseRenewedSchema,
     localServerReplySchema,
     localServerWelcomeSchema,
-} from '../shared/ipc/local-transport';
-import type { CommandExecutionContext } from '../shared/ipc/principal';
-import type { CommandReplyEnvelope } from '../shared/ipc/transport';
-import { parseRuntimeRequest } from '../shared/ipc/transport';
-import { CAXRI_PROTOCOL_VERSION } from '../shared/ipc/version';
+    parseRuntimeRequest,
+    toWireError,
+} from '@caxri/protocol';
+import type { RawData, WebSocketServer } from 'ws';
+import WebSocket from 'ws';
+
 import { listenForControlConnections } from './control-listener';
 import type {
     ClientState,

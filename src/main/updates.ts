@@ -3,10 +3,9 @@ import type { FileHandle } from 'node:fs/promises';
 import { mkdir, open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import type { UpdateState } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
 import { z } from 'zod';
-
-import { errorMessage } from '../shared/ipc/errors';
-import type { UpdateState } from '../shared/types';
 
 const LATEST_RELEASE_URL = 'https://api.github.com/repos/tjx666/caxri/releases/latest';
 const MAX_RELEASE_RESPONSE_BYTES = 1024 * 1024;

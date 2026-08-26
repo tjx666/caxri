@@ -1,4 +1,4 @@
-import type { FileDocument } from './types';
+import type { FileDocument } from '@caxri/protocol';
 
 export interface EditorDocument extends FileDocument {
     dirty: boolean;

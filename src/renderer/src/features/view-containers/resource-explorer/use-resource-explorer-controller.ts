@@ -1,7 +1,7 @@
 import type { DragEvent, RefCallback } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { ProjectRecord, SessionRecord } from '@shared/types';
+import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 
 import { executeCommand } from '../../../commands/execute';
 import { dragPath, hasDraggedPath } from '../../../lib/file-drag';

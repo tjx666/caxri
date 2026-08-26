@@ -170,12 +170,16 @@ export default defineConfig(
             'import-x/no-cycle': ['error', { ignoreExternal: true }],
         },
     },
-    {
-        files: transitionalCycleAllowances.flatMap(({ files }) => files),
-        rules: {
-            'import-x/no-cycle': 'off',
-        },
-    },
+    ...(transitionalCycleAllowances.length > 0
+        ? [
+              {
+                  files: transitionalCycleAllowances.flatMap(({ files }) => [...files]),
+                  rules: {
+                      'import-x/no-cycle': 'off' as const,
+                  },
+              },
+          ]
+        : []),
     {
         files: typescriptFiles,
         rules: {

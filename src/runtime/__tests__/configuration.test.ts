@@ -4,15 +4,17 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { RuntimeEvent } from '@caxri/protocol';
+import {
+    DEFAULT_FILES_EXCLUDE,
+    MAX_CONFIGURATION_SOURCE_BYTES,
+    MAX_TERMINAL_INPUT_LENGTH,
+} from '@caxri/protocol';
 import parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultKeybindings } from '../../shared/commands';
 import { findKeybindingConflicts } from '../../shared/config';
-import { MAX_CONFIGURATION_SOURCE_BYTES } from '../../shared/config-contract';
-import type { RuntimeEvent } from '../../shared/ipc';
-import { MAX_TERMINAL_INPUT_LENGTH } from '../../shared/ipc';
-import { DEFAULT_FILES_EXCLUDE } from '../../shared/types';
 import { ConfigService } from '../config';
 import { draculaTheme } from '../theme';
 

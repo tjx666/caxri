@@ -24,7 +24,7 @@ the reviewed public API and Host grants; the `desktop` principal bypass is never
 
 ## Public API package
 
-`packages/api` publishes the physical ESM-only package named `caxri`. Its `exports` map provides
+`packages/extension-api` publishes the physical ESM-only package named `caxri`. Its `exports` map provides
 `types` and `import` only; CommonJS `require('caxri')` is unsupported. The default export is the
 per-extension API object, while named runtime exports include `Disposable`, `EventEmitter`,
 `CancellationTokenSource`, `ThemeIcon`, `TreeItem`, and `TreeItemCollapsibleState`.

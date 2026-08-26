@@ -1,6 +1,7 @@
+import type { ProjectStatusDeployment, ProjectStatusError } from '@caxri/protocol';
+
 import { execFileAsync } from '../shared/node/exec';
 import { safeProcessEnvironment } from '../shared/node/process-environment';
-import type { ProjectStatusDeployment, ProjectStatusError } from '../shared/types';
 import type { ExternalCommandDependencies } from './executables';
 import { runExternalCommand } from './executables';
 

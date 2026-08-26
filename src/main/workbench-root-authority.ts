@@ -1,15 +1,15 @@
 import { realpath } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import type { BrowserWindow } from 'electron';
-import { dialog } from 'electron';
-
-import { CaxriError } from '../shared/ipc/errors';
 import type {
     MainRequest,
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
-} from '../shared/ipc/methods';
+} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+import type { BrowserWindow } from 'electron';
+import { dialog } from 'electron';
+
 import type { DesktopHostConnection } from './host-connection';
 import type { ProjectRootGrants } from './root-grants';
 

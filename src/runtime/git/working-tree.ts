@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, relative, resolve } from 'node:path';
 
-import { CaxriError } from '../../shared/ipc/errors';
 import type {
+    GitFileStatus,
+    GitRepositorySummary as GitRepoSummary,
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
-} from '../../shared/ipc/methods';
-import type { GitFileStatus, GitRepositorySummary as GitRepoSummary } from '../../shared/types';
+} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+
 import { isOutsideRoot } from '../path-security';
 import type { GitDiscardSnapshot } from './repo';
 import { authoritativeGitMutation } from './request-signal';

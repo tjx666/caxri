@@ -1,14 +1,13 @@
 import { lstat, readdir } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve } from 'node:path';
 
+import type { FileChange, RuntimeEvent } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
 import type parcelWatcher from '@parcel/watcher';
 
-import { errorMessage } from '../../shared/ipc/errors';
-import type { RuntimeEvent } from '../../shared/ipc/events';
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
-import type { FileChange } from '../../shared/types';
 import { NATIVE_WATCHER_BACKEND } from '../native-watcher';
 import { isOutsideRoot } from '../path-security';
 import type { WatchHandle } from '../watch-hub';

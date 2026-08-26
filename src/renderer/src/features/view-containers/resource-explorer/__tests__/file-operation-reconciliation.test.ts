@@ -1,4 +1,4 @@
-import type { BootstrapState, FileMutationOperation, SessionState } from '@shared/types';
+import type { BootstrapState, FileMutationOperation, SessionState } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

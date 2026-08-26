@@ -1,7 +1,6 @@
-import type { RuntimeEvent } from '../shared/ipc/events';
-import type { RuntimeWorkbenchContext } from '../shared/ipc/transport';
+import type { AgentProvider, RuntimeEvent, RuntimeWorkbenchContext } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../shared/node/logger';
-import type { AgentProvider } from '../shared/types';
 import type { RuntimeAgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentAdapter, AgentEnvironment } from './agents';
 import type { RuntimeHandlers } from './dispatch';

@@ -1,7 +1,7 @@
 import type { SubmitEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { FileEntry } from '@shared/types';
+import type { FileEntry } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 

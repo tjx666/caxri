@@ -2,29 +2,28 @@ import type { Buffer } from 'node:buffer';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import type {
+    AgentContextResult,
     AgentEndpointActivateParams as AgentEndpointActivateParameters,
     AgentEndpointBeginParams as AgentEndpointBeginParameters,
     AgentEndpointBeginResult,
+    AgentEndpointGrant,
     AgentEndpointMessagingParams as AgentEndpointMessagingParameters,
+    AgentEndpointRef as AgentEndpointReference,
     AgentEndpointRetireParams as AgentEndpointRetireParameters,
-} from '../../../packages/protocol/src/agent/agent-endpoint-control';
+    AgentEndpointSummary,
+    AgentGrantPolicy,
+    Capability,
+    CommandExecutionContext,
+} from '@caxri/protocol';
 import {
     agentEndpointActivateParamsSchema as agentEndpointActivateParametersSchema,
     agentEndpointBeginParamsSchema as agentEndpointBeginParametersSchema,
     agentEndpointBeginResultSchema,
     agentEndpointMessagingParamsSchema as agentEndpointMessagingParametersSchema,
     agentEndpointRetireParamsSchema as agentEndpointRetireParametersSchema,
-} from '../../../packages/protocol/src/agent/agent-endpoint-control';
-import type {
-    AgentContextResult,
-    AgentEndpointGrant,
-    AgentEndpointRef as AgentEndpointReference,
-    AgentEndpointSummary,
-    AgentGrantPolicy,
-} from '../../shared/ipc/agent-endpoint-contract';
-import { CaxriError } from '../../shared/ipc/errors';
-import type { Capability, CommandExecutionContext } from '../../shared/ipc/principal';
-import { capabilityIds } from '../../shared/ipc/principal';
+    capabilityIds,
+    CaxriError,
+} from '@caxri/protocol';
 
 const ENDPOINT_TTL_MS = 24 * 60 * 60 * 1_000;
 const MAX_RETIRED_ENDPOINTS = 256;

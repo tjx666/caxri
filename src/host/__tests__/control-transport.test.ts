@@ -3,10 +3,10 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { hostEndpointUrl } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
-import { hostEndpointUrl } from '../../shared/ipc/local-transport';
 import { LocalHostServer } from '../local-server';
 import { acquireHostProfile } from '../profile';
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { AppSettings, ProjectRecord, SessionRecord } from '@shared/types';
+import type { AppSettings, ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { isEqual } from 'es-toolkit';
 
 import type { ProjectCollapseState } from '../project-collapse';

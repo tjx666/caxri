@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useEffect, useId, useState } from 'react';
 
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '@shared/types';
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { Circle } from 'lucide-react';
 
 import { useNow } from '@/hooks/use-now';

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToHost } from '@caxri/cli';
+import { connectToHost } from '@caxri/client/supervise';
 
 import { execFileAsync } from '../src/shared/node/exec.ts';
 import type { E2EApp as ElectronApp } from './support/electron-app.ts';

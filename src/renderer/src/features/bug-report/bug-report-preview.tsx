@@ -1,5 +1,5 @@
-import { agentProviderCatalog } from '@shared/agents';
-import type { TerminalRecord } from '@shared/types';
+import type { TerminalRecord } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
 import {

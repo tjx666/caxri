@@ -3,7 +3,8 @@ import { constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import process from 'node:process';
 
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
+
 import { isAccessible } from '../shared/node/fs';
 
 /**

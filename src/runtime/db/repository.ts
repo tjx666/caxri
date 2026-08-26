@@ -2,14 +2,11 @@
 // updating imports across files/, agents/, git/, and root __tests__/ that other concurrent lint
 // passes own; flagged for a coordinated repo-wide rename instead of a cross-scope edit here.
 // eslint-disable-next-line unicorn/name-replacements
-import type Database from 'better-sqlite3';
-
-import { CaxriError } from '../../shared/ipc/errors';
-import type { ProjectIcon } from '../../shared/project-customization';
 import type {
     AgentProvider,
     AgentSnapshot,
     ProcessState,
+    ProjectIcon,
     ProjectRecord,
     SessionRecord,
     SessionState,
@@ -17,7 +14,10 @@ import type {
     TerminalKind,
     TerminalRecord,
     TerminalSnapshot,
-} from '../../shared/types';
+} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+import type Database from 'better-sqlite3';
+
 import type { AgentLifecycleSignal } from '../agents';
 import type { ShutdownReason } from '../session-policy';
 import {

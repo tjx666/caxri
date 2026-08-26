@@ -4,7 +4,7 @@ import type {
     ExtensionViewChange,
     ExtensionViewEventContext,
     ProjectStatusSummary,
-} from '../../packages/protocol/src';
+} from '@caxri/protocol';
 
 export type ExtensionProjectStatusSummary = Omit<ProjectStatusSummary, 'repositories'> & {
     repositories: Array<Omit<ProjectStatusSummary['repositories'][number], 'rootPath'>>;

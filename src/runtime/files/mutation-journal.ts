@@ -1,14 +1,28 @@
-import { lstat, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 
+import type {
+    FileMutationOperation,
+    MovedFileEntry,
+    MutableFileEntry,
+    RuntimeEvent,
+} from '@caxri/protocol';
+import {
+    CaxriError,
+    errorMessage,
+    fileMutationOperationSchema,
+    isCaxriError,
+} from '@caxri/protocol';
 import { z } from 'zod';
 
-import { fileMutationOperationSchema } from '../../shared/ipc/domain';
-import { CaxriError, errorMessage, isCaxriError } from '../../shared/ipc/errors';
-import type { RuntimeEvent } from '../../shared/ipc/events';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
-import type { FileMutationOperation, MovedFileEntry, MutableFileEntry } from '../../shared/types';
 import { atomicWrite } from '../atomic-file';
+import {
+    cloneOperation,
+    operationFailure,
+    pathIdentity,
+    pathKind,
+} from './mutation-journal-support';
 
 type FileMutationResult = MutableFileEntry | MovedFileEntry;
 type FileMutationExpectedResult = NonNullable<FileMutationOperation['expectedResult']>;
@@ -63,48 +77,6 @@ const DEFAULT_PRE_STAGE_TIMEOUT_MS = 15_000;
 const DEFAULT_COMPLETION_RETRY_BASE_MS = 250;
 const MAXIMUM_COMPLETION_RETRY_MS = 30_000;
 const finalPhases = new Set<FileMutationOperation['phase']>(['completed', 'failed', 'canceled']);
-
-function cloneOperation(operation: FileMutationOperation): FileMutationOperation {
-    return structuredClone(operation);
-}
-
-function operationFailure(error: unknown): { code: string; message: string } {
-    return {
-        code:
-            (isCaxriError(error) ? error.code : undefined) ??
-            (error as NodeJS.ErrnoException).code ??
-            'IO',
-        message: errorMessage(error, 'File operation failed'),
-    };
-}
-
-async function pathKind(path: string): Promise<'file' | 'directory' | undefined> {
-    try {
-        const stats = await lstat(path);
-        if (stats.isSymbolicLink()) return undefined;
-        if (stats.isFile()) return 'file';
-        if (stats.isDirectory()) return 'directory';
-        return undefined;
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-        throw error;
-    }
-}
-
-async function pathIdentity(
-    path: string,
-): Promise<{ device: string; inode: string; kind: 'file' | 'directory' } | undefined> {
-    try {
-        const stats = await lstat(path, { bigint: true });
-        if (stats.isSymbolicLink()) return undefined;
-        const kind = stats.isFile() ? 'file' : stats.isDirectory() ? 'directory' : undefined;
-        if (!kind) return undefined;
-        return { device: stats.dev.toString(), inode: stats.ino.toString(), kind };
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-        throw error;
-    }
-}
 
 /**
  * Persists the lifecycle boundary around non-cancelable file-system mutations. `pre_stage` may be canceled safely;

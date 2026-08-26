@@ -1,13 +1,12 @@
-import { agentProviderCatalog } from '@shared/agents';
-import { assertNever } from '@shared/ipc';
-import type { RuntimeEvent } from '@shared/ipc/events';
 import type {
     BootstrapState,
     CommandId,
+    RuntimeEvent,
     SessionRecord,
     SessionState,
     TerminalRecord,
-} from '@shared/types';
+} from '@caxri/protocol';
+import { agentProviderCatalog, assertNever } from '@caxri/protocol';
 import { isEqual } from 'es-toolkit';
 import { create } from 'zustand';
 

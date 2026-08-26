@@ -2,9 +2,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { RuntimeEvent } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeEvent } from '../../../shared/ipc';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';
 import { TerminalManager } from '..';

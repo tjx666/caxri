@@ -1,6 +1,6 @@
+import type { GitRepositorySummary as GitRepoSummary } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { GitRepositorySummary as GitRepoSummary } from '../../../shared/types';
 import type { GitDiscardSnapshot } from '../repo';
 import { GitWorkingTreeService } from '../working-tree';
 

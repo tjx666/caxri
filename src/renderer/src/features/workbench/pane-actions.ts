@@ -1,3 +1,4 @@
+import type { PaneLayout, PaneResource, PaneTab } from '@caxri/protocol';
 import type { PaneFocusDirection, PaneSplitSide } from '@shared/pane-layout';
 import {
     activePane,
@@ -10,7 +11,6 @@ import {
     selectTab,
     splitTabIntoPane,
 } from '@shared/pane-layout';
-import type { PaneLayout, PaneResource, PaneTab } from '@shared/types';
 
 import { getSessionState, useSessionState } from '../../stores/selectors';
 import { patchSessionState } from '../../stores/workbench';

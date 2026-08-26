@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import type { AgentHeldMessage, AgentHeldMessageDetail } from '@shared/ipc';
+import type { AgentHeldMessage, AgentHeldMessageDetail } from '@caxri/protocol';
 import { sortBy } from 'es-toolkit';
 
 import { Button } from '../../components/ui/button';

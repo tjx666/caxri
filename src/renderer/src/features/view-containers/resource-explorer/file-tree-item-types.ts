@@ -1,4 +1,4 @@
-import type { FileEntry } from '@shared/types';
+import type { FileEntry } from '@caxri/protocol';
 
 /**
  * Shared copy for every Paste/Duplicate/Drag affordance disabled by an in-flight file operation.

@@ -1,6 +1,6 @@
+import { agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentProviderIds } from '../../../../shared/agents';
 import { agentProviders } from '..';
 
 describe('Agent provider Runtime descriptors', () => {

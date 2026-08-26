@@ -3,8 +3,8 @@ import { homedir } from 'node:os';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 
-import type { AgentProvider } from '../../shared/agents';
-import type { AgentActivityState, ProcessState } from '../../shared/types';
+import type { AgentActivityState, AgentProvider, ProcessState } from '@caxri/protocol';
+
 import type { AgentHookAdapter } from './hooks/contract';
 
 export interface AgentSnapshotContext {

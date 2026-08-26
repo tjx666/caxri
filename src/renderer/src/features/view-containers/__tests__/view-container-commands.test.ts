@@ -1,5 +1,4 @@
-import type { BootstrapState } from '@shared/types';
-import type { ViewCatalogSnapshot } from '@shared/views';
+import type { BootstrapState, ViewCatalogSnapshot } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

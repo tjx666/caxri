@@ -1,4 +1,4 @@
-import { MAX_TERMINAL_LINK_LENGTH, MAX_TERMINAL_LINK_ROWS } from './ipc';
+import { MAX_TERMINAL_LINK_LENGTH, MAX_TERMINAL_LINK_ROWS } from '@caxri/protocol';
 
 interface TerminalBufferLineReader {
     getCell(column: number): { getChars(): string; getWidth(): number } | undefined;

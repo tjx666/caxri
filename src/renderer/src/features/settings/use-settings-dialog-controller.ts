@@ -7,7 +7,7 @@ import type {
     ArgvConfig,
     ArgvConfigChanges,
     Keybinding,
-} from '@shared/types';
+} from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { setSettingsOpen, useDialogStore } from '../../stores/dialogs';

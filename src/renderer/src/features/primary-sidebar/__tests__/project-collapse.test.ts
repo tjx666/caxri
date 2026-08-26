@@ -1,4 +1,4 @@
-import type { ProjectRecord, SessionRecord } from '@shared/types';
+import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {

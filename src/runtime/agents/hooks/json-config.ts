@@ -1,7 +1,7 @@
+import type { AgentProvider } from '@caxri/protocol';
 import type { FormattingOptions, ParseError } from 'jsonc-parser';
 import { applyEdits, modify, parse } from 'jsonc-parser';
 
-import type { AgentProvider } from '../../../shared/agents';
 import type {
     AgentHookBinding,
     AgentHookConfigEdit,

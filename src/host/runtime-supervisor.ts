@@ -3,23 +3,27 @@ import { fork } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import process from 'node:process';
 
-import type { RuntimeHostControlRequest } from '../../packages/protocol/src/agent/agent-endpoint-control';
-import { runtimeHostControlRequestSchema } from '../../packages/protocol/src/agent/agent-endpoint-control';
-import { CaxriError, fromWireError, toWireError } from '../shared/ipc/errors';
-import type { RuntimeEvent } from '../shared/ipc/events';
 import type {
+    RuntimeEvent,
+    RuntimeHostControlRequest,
+    RuntimeMessage,
     RuntimeMethod,
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
     RuntimeParamsArg as RuntimeParametersArgument,
-} from '../shared/ipc/methods';
-import { isNonExpiringRuntimeMethod } from '../shared/ipc/request-lifetime';
-import type { RuntimeMessage, RuntimeWorkbenchContext } from '../shared/ipc/transport';
+    RuntimeWorkbenchContext,
+} from '@caxri/protocol';
 import {
+    CaxriError,
+    fromWireError,
+    isNonExpiringRuntimeMethod,
     parseRuntimeMessage,
     parseRuntimeResult,
     runtimeCancelRequestSchema,
-} from '../shared/ipc/transport';
+    runtimeHostControlRequestSchema,
+    toWireError,
+} from '@caxri/protocol';
+
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 import { safeProcessEnvironment } from '../shared/node/process-environment';

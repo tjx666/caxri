@@ -2,15 +2,6 @@ import { createHash } from 'node:crypto';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
-import { MAX_CONFIGURABLE_FILE_BYTES } from '../../shared/ipc';
-import { CaxriError, errorMessage, isCaxriError } from '../../shared/ipc/errors';
-import type { RuntimeEvent } from '../../shared/ipc/events';
-import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
-import { AsyncSemaphore } from '../../shared/node/concurrency';
-import { execFileAsync } from '../../shared/node/exec';
-import type { StructuredLogger } from '../../shared/node/logger';
-import { logEventCatalog } from '../../shared/node/logger';
-import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import type {
     GitCommit,
     GitCommitDetails,
@@ -20,7 +11,21 @@ import type {
     GitOverview,
     GitRepositorySummary as GitRepoSummary,
     GitSummary,
-} from '../../shared/types';
+    RuntimeEvent,
+    RuntimeMethodParams as RuntimeMethodParameters,
+} from '@caxri/protocol';
+import {
+    CaxriError,
+    errorMessage,
+    isCaxriError,
+    MAX_CONFIGURABLE_FILE_BYTES,
+} from '@caxri/protocol';
+
+import { AsyncSemaphore } from '../../shared/node/concurrency';
+import { execFileAsync } from '../../shared/node/exec';
+import type { StructuredLogger } from '../../shared/node/logger';
+import { logEventCatalog } from '../../shared/node/logger';
+import { safeProcessEnvironment } from '../../shared/node/process-environment';
 import { runExternalCommand } from '../executables';
 import { assertInsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';

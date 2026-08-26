@@ -1,12 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { relative, resolve } from 'node:path';
 
+import type {
+    AgentActivityState,
+    SessionAttentionKind,
+    SessionRecord,
+    SessionState,
+    SessionTitleMode,
+} from '@caxri/protocol';
+import { CaxriError, sessionStateSchema } from '@caxri/protocol';
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
-import { sessionStateSchema } from '../../../shared/ipc/domain';
-import { CaxriError } from '../../../shared/ipc/errors';
 import {
     addPaneTerminalSilently,
     createPaneLayout,
@@ -15,13 +21,6 @@ import {
     remapPaneLayoutPaths,
     removePaneTerminal,
 } from '../../../shared/pane-layout';
-import type {
-    AgentActivityState,
-    SessionAttentionKind,
-    SessionRecord,
-    SessionState,
-    SessionTitleMode,
-} from '../../../shared/types';
 import { isVirtualEditorTabPath } from '../../../shared/virtual-tabs';
 import { isOutsideRoot } from '../../path-security';
 import type { CaxriDrizzleDatabase } from '../connection';

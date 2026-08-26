@@ -1,4 +1,4 @@
-import type { SourceControlResource } from '@shared/views';
+import type { SourceControlResource } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { buildSourceControlResourceTree } from '../source-control-tree';

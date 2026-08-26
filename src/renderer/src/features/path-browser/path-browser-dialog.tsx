@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import type { FileEntry } from '@shared/types';
+import type { FileEntry } from '@caxri/protocol';
 import { clamp } from 'es-toolkit';
 import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react';
 

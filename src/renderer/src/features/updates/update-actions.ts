@@ -1,4 +1,4 @@
-import type { UpdateState } from '@shared/types';
+import type { UpdateState } from '@caxri/protocol';
 import { create } from 'zustand';
 
 import { caxri } from '../../lib/caxri';

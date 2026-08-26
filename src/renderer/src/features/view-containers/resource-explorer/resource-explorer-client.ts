@@ -1,11 +1,13 @@
-import type { CaxriMethod, MethodResult, ParamsArg } from '@shared/ipc';
-import { CaxriError } from '@shared/ipc';
 import type {
+    CaxriMethod,
     FileEntry,
     FileMutationOperation,
+    MethodResult,
     MovedFileEntry,
     MutableFileEntry,
-} from '@shared/types';
+    ParamsArg,
+} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
 import { caxri } from '../../../lib/caxri';
 

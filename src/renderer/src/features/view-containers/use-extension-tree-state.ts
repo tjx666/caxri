@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ExtensionTreeViewState } from '@shared/views';
-import { MAX_EXTENSION_TREE_VIEW_STATES } from '@shared/views';
+import type { ExtensionTreeViewState } from '@caxri/protocol';
+import { MAX_EXTENSION_TREE_VIEW_STATES } from '@caxri/protocol';
 
 import { getBootstrap } from '../../stores/selectors';
 import { patchSessionState } from '../../stores/workbench';

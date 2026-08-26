@@ -1,4 +1,4 @@
-import type { TerminalRecord } from './types';
+import type { TerminalRecord } from '@caxri/protocol';
 
 /**
  * Upper bound on a persisted Terminal title, whichever source produced it. Long enough for a path plus a command, short

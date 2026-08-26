@@ -1,10 +1,9 @@
 import { lstat, realpath } from 'node:fs/promises';
 import process from 'node:process';
 
-import type { AgentLaunchSettings } from '../../shared/agents';
-import { agentProviderCatalog } from '../../shared/agents';
-import { CaxriError } from '../../shared/ipc/errors';
-import type { TerminalKind } from '../../shared/types';
+import type { AgentLaunchSettings, TerminalKind } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
+
 /**
  * Runtime domain boundaries require cross-domain dependencies to enter through the owning domain root.
  */

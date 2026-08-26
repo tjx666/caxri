@@ -124,6 +124,7 @@ the next move starts.
 | Current ownership                                        | Target ownership                                                    | Batch       |
 | -------------------------------------------------------- | ------------------------------------------------------------------- | ----------- |
 | reusable connection and projection code                  | `packages/client`                                                   | A2b         |
+| reusable Agent skill installation and health logic       | `packages/agent-skills`                                             | A2b         |
 | `packages/api`                                           | `packages/extension-api`                                            | A2b         |
 | `src/shared`                                             | owning application or browser-safe package, with no shared catchall | A2b/A2d/A2e |
 | `packages/cli`                                           | `apps/cli`                                                          | A2c         |
@@ -168,6 +169,9 @@ Establish the reusable package seams that applications consume before applicatio
 
 - extract WS-native connection, retry, recovery, projection, and artifact-supervision contracts into
   `packages/client` without carrying deleted UDS code;
+- extract provider-neutral Agent skill installation, filesystem transactions, bundle generation, and
+  health inspection into `packages/agent-skills`, shared by Server and CLI without introducing an
+  application-to-application edge;
 - keep the `@caxri/client` root browser-safe and expose environment-specific supervision only through
   its reviewed subpath;
 - rename the physical public API workspace to `packages/extension-api` while retaining its reviewed
@@ -180,7 +184,7 @@ Establish the reusable package seams that applications consume before applicatio
 #### A2b exit receipts
 
 - package-consumer tests prove only declared exports are reachable;
-- `packages/client`, `packages/protocol`, `packages/extension-api`, and `packages/utils` satisfy their
+- `packages/agent-skills`, `packages/client`, `packages/protocol`, `packages/extension-api`, and `packages/utils` satisfy their
   browser, runtime-dependency, and ownership constraints;
 - no application imports another application's source or a package-private deep path;
 - control connection, recovery, CLI, Agent, and Desktop parity receipts remain equal.

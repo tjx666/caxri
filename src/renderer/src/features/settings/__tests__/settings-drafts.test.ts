@@ -1,4 +1,4 @@
-import type { AppSettings, Keybinding, ThemeTokens } from '@shared/types';
+import type { AppSettings, Keybinding, ThemeTokens } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { ConfigAction, ConfigState } from '../settings-drafts';

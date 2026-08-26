@@ -6,16 +6,16 @@ import type {
     AgentEndpointBeginParams as AgentEndpointBeginParameters,
     AgentEndpointBeginResult,
     AgentEndpointMessagingParams as AgentEndpointMessagingParameters,
-    AgentEndpointRetireParams as AgentEndpointRetireParameters,
-} from '../../../packages/protocol/src/agent/agent-endpoint-control';
-import type { AgentLaunchSettings, AgentProviderSettings } from '../../shared/agents';
-import { agentProviderCatalog } from '../../shared/agents';
-import type {
     AgentEndpointRef as AgentEndpointReference,
+    AgentEndpointRetireParams as AgentEndpointRetireParameters,
+    AgentLaunchSettings,
     AgentPermissionClass,
-} from '../../shared/ipc/agent-endpoint-contract';
-import { CaxriError } from '../../shared/ipc/errors';
-import type { AgentProvider, TerminalRecord } from '../../shared/types';
+    AgentProvider,
+    AgentProviderSettings,
+    TerminalRecord,
+} from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
+
 import type { AgentMessagingProbeInput } from '../agent-messaging';
 import { AgentMessagingCapabilityProbe, pendingMessagingCapability } from '../agent-messaging';
 

@@ -14,10 +14,8 @@ export const desktopTestFiles = [
     'scripts/__tests__/*.test.ts',
 ];
 export const protocolTestFiles = ['packages/protocol/src/**/*.test.ts'];
-export const apiTestFiles = [
-    'packages/api/src/**/*.test.ts',
-    'packages/extension-api/src/**/*.test.ts',
-];
+export const agentSkillsTestFiles = ['packages/agent-skills/{scripts,src}/**/*.test.ts'];
+export const apiTestFiles = ['packages/extension-api/src/**/*.test.ts'];
 export const clientTestFiles = ['packages/client/src/**/*.test.ts'];
 export const utilitiesTestFiles = ['packages/utils/src/**/*.test.ts'];
 export const cliTestFiles = [
@@ -27,6 +25,7 @@ export const cliTestFiles = [
 export const testProjectNames = [
     'desktop-parallel',
     'desktop-serial-native',
+    'agent-skills',
     'protocol',
     'api',
     'client',
@@ -89,11 +88,26 @@ export const parallelMaxWorkers = partition.maxWorkers;
 
 export const workspaceAliases = {
     '@': resolve(import.meta.dirname, 'src/renderer/src'),
+    '@caxri/agent-skills/testing': resolve(
+        import.meta.dirname,
+        'packages/agent-skills/src/testing.ts',
+    ),
+    '@caxri/agent-skills': resolve(import.meta.dirname, 'packages/agent-skills/src/index.ts'),
+    '@caxri/client/connection': resolve(
+        import.meta.dirname,
+        'packages/client/src/connection/index.ts',
+    ),
+    '@caxri/client/state': resolve(import.meta.dirname, 'packages/client/src/state/index.ts'),
+    '@caxri/client/supervise': resolve(
+        import.meta.dirname,
+        'packages/client/src/supervise/index.ts',
+    ),
+    '@caxri/client': resolve(import.meta.dirname, 'packages/client/src/index.ts'),
     '@caxri/cli': resolve(import.meta.dirname, 'packages/cli/src/index.ts'),
     '@caxri/protocol': resolve(import.meta.dirname, 'packages/protocol/src/index.ts'),
     '@caxri/utils': resolve(import.meta.dirname, 'packages/utils/src/index.ts'),
     '@shared': resolve(import.meta.dirname, 'src/shared'),
-    'caxri': resolve(import.meta.dirname, 'packages/api/src/index.ts'),
+    'caxri': resolve(import.meta.dirname, 'packages/extension-api/src/index.ts'),
 };
 
 export default defineConfig({
@@ -124,6 +138,14 @@ export default defineConfig({
                      */
                     fileParallelism: false,
                     include: serialNativeTests,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'agent-skills',
+                    include: agentSkillsTestFiles,
+                    maxWorkers: parallelMaxWorkers,
                 },
             },
             {

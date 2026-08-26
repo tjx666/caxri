@@ -1,4 +1,4 @@
-import { CaxriError } from '@shared/ipc';
+import { CaxriError } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

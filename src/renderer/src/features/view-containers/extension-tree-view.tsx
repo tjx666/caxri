@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import type { ExtensionTreeViewState, TreeItemDto } from '@shared/views';
+import type { ExtensionTreeViewState, TreeItemDto } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
     AlertTriangle,

@@ -1,17 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import type {
     AgentEndpointActivateParams as AgentEndpointActivateParameters,
     AgentEndpointBeginParams as AgentEndpointBeginParameters,
     AgentEndpointBeginResult,
     AgentEndpointMessagingParams as AgentEndpointMessagingParameters,
     AgentEndpointRetireParams as AgentEndpointRetireParameters,
-} from '../../../../packages/protocol/src/agent/agent-endpoint-control';
-import {
-    defaultAgentOutputRecoverySettings,
-    defaultAgentProviderSettings,
-} from '../../../shared/agents';
-import type { TerminalRecord } from '../../../shared/types';
+    TerminalRecord,
+} from '@caxri/protocol';
+import { defaultAgentOutputRecoverySettings, defaultAgentProviderSettings } from '@caxri/protocol';
+import { describe, expect, it, vi } from 'vitest';
+
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { classifyAgentPermission, RuntimeAgentEndpointLifecycle } from '../lifecycle';
 

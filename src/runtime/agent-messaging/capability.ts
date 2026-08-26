@@ -1,8 +1,8 @@
 import { constants } from 'node:fs';
 
-import type { AgentLaunchSettings, AgentProvider } from '../../shared/agents';
-import { agentProviderIds } from '../../shared/agents';
-import type { AgentMessagingCapability } from '../../shared/ipc/agent-endpoint-contract';
+import type { AgentLaunchSettings, AgentMessagingCapability, AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
+
 import { readE2EAgentPolicy } from '../../shared/node/e2e-agent-policy';
 import { isAccessible } from '../../shared/node/fs';
 /**

@@ -1,5 +1,5 @@
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
 import { SquareDashed } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';

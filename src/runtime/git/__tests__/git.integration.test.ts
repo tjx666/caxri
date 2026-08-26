@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import type { RuntimeEvent } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeEvent } from '../../../shared/ipc/events';
 import { execFileAsync } from '../../../shared/node/exec';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';

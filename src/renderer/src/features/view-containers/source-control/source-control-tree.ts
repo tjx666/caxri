@@ -1,5 +1,5 @@
+import type { SourceControlResource } from '@caxri/protocol';
 import { compareTreeNodesDirectoriesFirst } from '@caxri/utils';
-import type { SourceControlResource } from '@shared/views';
 
 interface SourceControlTreeDirectory {
     children: SourceControlTreeNode[];

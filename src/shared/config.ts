@@ -1,9 +1,8 @@
+import type { Keybinding, KeybindingConflict } from '@caxri/protocol';
+import { keybindingSchema, MAX_KEYBINDINGS } from '@caxri/protocol';
 import { z } from 'zod';
 
-import { MAX_KEYBINDINGS } from './config-contract';
 import { normalizeShortcut } from './shortcuts';
-import type { Keybinding, KeybindingConflict } from './types';
-import { keybindingSchema } from './types';
 
 /**
  * Settings validation lives in `packages/protocol/src/configuration`: `settings-spec.ts` is the per-field source of
@@ -11,10 +10,6 @@ import { keybindingSchema } from './types';
  * `appSettingsFileSchema` (the lenient `settings.jsonc` parser producing the same `AppSettings` shape). Re-exported
  * here as the stable Desktop import path.
  */
-export {
-    appSettingsFileSchema,
-    defaultAppSettings,
-} from '../../packages/protocol/src/configuration/settings-schema';
 export type {
     EnumSettingSpec,
     IntegerSettingSpec,
@@ -22,11 +17,9 @@ export type {
     SettingKey,
     SettingSpec,
     StringSettingSpec,
-} from '../../packages/protocol/src/configuration/settings-spec';
-export {
-    settingCategories,
-    settingsSpecByKey,
-} from '../../packages/protocol/src/configuration/settings-spec';
+} from '@caxri/protocol';
+export { appSettingsFileSchema, defaultAppSettings } from '@caxri/protocol';
+export { settingCategories, settingsSpecByKey } from '@caxri/protocol';
 
 export const keybindingsFileSchema = z.array(keybindingSchema).max(MAX_KEYBINDINGS);
 

@@ -6,7 +6,7 @@ import type {
     SessionState,
     TerminalRecord,
     ThemeTokens,
-} from '@shared/types';
+} from '@caxri/protocol';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useWorkbenchStore } from './workbench';

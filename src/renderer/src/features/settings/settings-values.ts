@@ -1,6 +1,6 @@
-import { defaultAgentProviderSettings } from '@shared/agents';
+import type { AppSettings, ArgvConfig, ArgvConfigChanges } from '@caxri/protocol';
+import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { defaultAppSettings } from '@shared/config';
-import type { AppSettings, ArgvConfig, ArgvConfigChanges } from '@shared/types';
 import { isEqual } from 'es-toolkit';
 
 import type { SettingRowBinding } from './settings-registry';

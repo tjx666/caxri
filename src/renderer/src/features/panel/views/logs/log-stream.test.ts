@@ -1,4 +1,4 @@
-import type { LogQueryRecord, LogQueryResult } from '@shared/types';
+import type { LogQueryRecord, LogQueryResult } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { appendLogPage, clearLogStream, emptyLogStream } from './log-stream';

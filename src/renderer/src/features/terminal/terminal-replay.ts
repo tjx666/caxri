@@ -1,4 +1,4 @@
-import type { TerminalOscLinkSnapshot } from '@shared/types';
+import type { TerminalOscLinkSnapshot } from '@caxri/protocol';
 
 /**
  * Match Runtime's delivery batch ceiling while also bounding many tiny IPC events.

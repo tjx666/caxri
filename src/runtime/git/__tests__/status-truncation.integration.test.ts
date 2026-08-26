@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MAX_GIT_STATUS_FILES } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { MAX_GIT_STATUS_FILES } from '../../../shared/ipc/domain';
 import { execFileAsync } from '../../../shared/node/exec';
 import { StructuredLogger } from '../../../shared/node/logger';
 import { CaxriDatabase } from '../../db/repository';

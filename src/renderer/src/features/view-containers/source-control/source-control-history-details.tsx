@@ -1,4 +1,4 @@
-import type { SourceControlAction, SourceControlHistoryDescriptor } from '@shared/views';
+import type { SourceControlAction, SourceControlHistoryDescriptor } from '@caxri/protocol';
 
 import { describeFailure } from '../../../stores/toasts';
 import { useSourceControlHistoryDetails } from './hooks/use-source-control-history-details';

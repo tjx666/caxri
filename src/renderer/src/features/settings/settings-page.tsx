@@ -7,7 +7,7 @@ import type {
     AppSettings,
     ArgvConfig,
     ArgvConfigChanges,
-} from '@shared/types';
+} from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Search, X } from 'lucide-react';
 

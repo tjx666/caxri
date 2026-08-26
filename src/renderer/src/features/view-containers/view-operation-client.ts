@@ -4,7 +4,7 @@ import type {
     SourceControlHistoryDetails,
     SourceControlHistoryPage,
     SourceControlViewModel,
-} from '@shared/views';
+} from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 

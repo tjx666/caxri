@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, rename, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { RuntimeEvent } from '@caxri/protocol';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeEvent } from '../../shared/ipc';
 import { StructuredLogger } from '../../shared/node/logger';
 import { createRuntime } from '../bootstrap';
 import { createFakePty } from './create-test-runtime';

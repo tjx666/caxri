@@ -1,4 +1,4 @@
-import type { LogQueryRecord } from '@shared/types';
+import type { LogQueryRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { filterLogRecords, isLogFilterMatch, logRecordHaystack, parseLogFilter } from './log-filter';

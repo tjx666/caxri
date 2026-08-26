@@ -1,5 +1,5 @@
+import type { AppSettings, ArgvConfig } from '@caxri/protocol';
 import { defaultAppSettings } from '@shared/config';
-import type { AppSettings, ArgvConfig } from '@shared/types';
 import { describe, expect, it } from 'vitest';
 
 import {

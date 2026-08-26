@@ -1,6 +1,7 @@
+import type { BootstrapState, PaneLayout } from '@caxri/protocol';
+import { MAX_PANE_LAYOUT_PANES } from '@caxri/protocol';
 import type { CommandId } from '@shared/commands';
 import { commandDefinitions as sharedCommandDefinitions } from '@shared/commands';
-import { MAX_PANE_LAYOUT_PANES } from '@shared/ipc/pane-layout';
 import {
     activePane,
     createPaneLayout,
@@ -8,7 +9,6 @@ import {
     openResource,
     splitTabIntoPane,
 } from '@shared/pane-layout';
-import type { BootstrapState, PaneLayout } from '@shared/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isEditableEventTarget } from '../lib/keybindings';

@@ -1,6 +1,3 @@
-import { agentProviderCatalog } from '../shared/agents';
-import { removePaneTerminal } from '../shared/pane-layout';
-import { normalizeTerminalTitle } from '../shared/terminal-title';
 import type {
     AgentActivityState,
     AgentSnapshot,
@@ -10,7 +7,11 @@ import type {
     SessionState,
     TerminalKind,
     TerminalRecord,
-} from '../shared/types';
+} from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
+
+import { removePaneTerminal } from '../shared/pane-layout';
+import { normalizeTerminalTitle } from '../shared/terminal-title';
 import type { AgentLifecyclePhase } from './agents';
 
 /**

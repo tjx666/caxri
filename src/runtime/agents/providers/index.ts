@@ -1,4 +1,5 @@
-import type { AgentProvider } from '../../../shared/agents';
+import type { AgentProvider } from '@caxri/protocol';
+
 import type { AgentProviderDescriptor } from '../contract';
 import { claudeProvider } from './claude';
 import { codexProvider } from './codex';

@@ -13,5 +13,4 @@ export * from './environment.js';
 export * from './host/index.js';
 export * from './output.js';
 export * from './selectors.js';
-export { inspectBundledSkillHealth, type SkillExecutionContext } from './skills/index.js';
 export * from './version.js';

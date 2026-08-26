@@ -1,6 +1,6 @@
+import { themeImportFormatIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { themeImportFormatIds } from '../ipc/domain';
 import { themeImportExtensions, themeImportFormats } from '../theme-import';
 
 describe('themeImportFormats', () => {

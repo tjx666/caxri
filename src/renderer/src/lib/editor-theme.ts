@@ -1,4 +1,4 @@
-import type { ThemeTokens } from '@shared/types';
+import type { ThemeTokens } from '@caxri/protocol';
 
 import { monacoBaseThemeFor } from './editor-theme-base';
 import { monaco } from './monaco';

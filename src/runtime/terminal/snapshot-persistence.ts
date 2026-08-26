@@ -1,8 +1,8 @@
-import { terminalSnapshotSchema } from '../../shared/ipc/domain';
-import { errorMessage } from '../../shared/ipc/errors';
+import type { TerminalSnapshot } from '@caxri/protocol';
+import { errorMessage, terminalSnapshotSchema } from '@caxri/protocol';
+
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
-import type { TerminalSnapshot } from '../../shared/types';
 import type { CaxriDatabase } from '../db';
 import type { LiveTerminal } from './manager-types';
 

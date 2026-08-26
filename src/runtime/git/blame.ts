@@ -1,7 +1,12 @@
 import { relative } from 'node:path';
 
-import type { RuntimeMethodParams as RuntimeMethodParameters } from '../../shared/ipc/methods';
-import type { GitBlame, GitCommit, GitSummary } from '../../shared/types';
+import type {
+    GitBlame,
+    GitCommit,
+    GitSummary,
+    RuntimeMethodParams as RuntimeMethodParameters,
+} from '@caxri/protocol';
+
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';

@@ -1,6 +1,6 @@
+import { agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentProviderIds } from '../../agents';
 import {
     assertE2EAgentInput,
     assertE2EAgentLaunch,

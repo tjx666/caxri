@@ -1,6 +1,6 @@
 import { lstat, realpath } from 'node:fs/promises';
 
-import { CaxriError } from '../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
 
 interface ProjectRootIdentity {
     path: string;

@@ -6,14 +6,13 @@
  * navigate to.
  */
 /* eslint-disable unicorn/prefer-https */
-import { describe, expect, it } from 'vitest';
-
 import {
     externalUrlOrigin,
     isExternalUrlTrusted,
     normalizeTrustedDomainRule,
     parseExternalHttpUrl,
-} from '../trusted-domains';
+} from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
 
 function parsedUrl(input: string): URL {
     const result = parseExternalHttpUrl(input);

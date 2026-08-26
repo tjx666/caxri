@@ -1,4 +1,4 @@
-import type { ExtensionViewActionRole } from '@shared/views';
+import type { ExtensionViewActionRole } from '@caxri/protocol';
 
 const MAX_PENDING_CORE_VIEW_COMMANDS = 64;
 

@@ -1,4 +1,4 @@
-import type { BootstrapState } from '@shared/types';
+import type { BootstrapState } from '@caxri/protocol';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useWorkbenchStore } from '../../../stores/workbench';

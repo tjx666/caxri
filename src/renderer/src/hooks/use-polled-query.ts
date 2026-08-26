@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { CaxriMethod, MethodResult, ParamsArg } from '@shared/ipc';
+import type { CaxriMethod, MethodResult, ParamsArg } from '@caxri/protocol';
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 
 import {

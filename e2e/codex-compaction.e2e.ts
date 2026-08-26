@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { AppSettings, BootstrapState } from '../src/shared/types.ts';
+import type { AppSettings, BootstrapState } from '@caxri/protocol';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {

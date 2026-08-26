@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 
+import type { ProjectIcon, ProjectRecord } from '@caxri/protocol';
+import { projectIconSchema } from '@caxri/protocol';
 import { asc, eq, sql } from 'drizzle-orm';
 
-import type { ProjectIcon } from '../../../shared/project-customization';
-import { projectIconSchema } from '../../../shared/project-customization';
-import type { ProjectRecord } from '../../../shared/types';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { projects } from '../schema';
 

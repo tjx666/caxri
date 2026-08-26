@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
-import type { ViewContainerId } from '@shared/views';
-import { viewContainerIdSchema } from '@shared/views';
+import type { ViewContainerId } from '@caxri/protocol';
+import { viewContainerIdSchema } from '@caxri/protocol';
 import { clamp } from 'es-toolkit';
 import { create } from 'zustand';
 

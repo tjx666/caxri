@@ -1,8 +1,8 @@
+import type { SessionRecord, SessionState, TerminalRecord } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentProviderCatalog, agentProviderIds } from '../../shared/agents';
 import { createPaneLayout, openResource } from '../../shared/pane-layout';
-import type { SessionRecord, SessionState, TerminalRecord } from '../../shared/types';
 import {
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,

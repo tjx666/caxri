@@ -1,9 +1,7 @@
+import type { CommandAdapter, CommandExecutionContext } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, createCommandDispatcher } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { CommandAdapter } from '../../shared/ipc/dispatcher';
-import { createCommandDispatcher } from '../../shared/ipc/dispatcher';
-import type { CommandExecutionContext } from '../../shared/ipc/principal';
-import { CAXRI_PROTOCOL_VERSION } from '../../shared/ipc/version';
 import { createElectronIpcCommandAdapter } from '../ipc-command-adapter';
 
 const desktop = {

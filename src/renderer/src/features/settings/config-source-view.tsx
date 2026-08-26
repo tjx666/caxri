@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 
-import type { ThemeTokens } from '@shared/types';
+import type { ThemeTokens } from '@caxri/protocol';
 
 import { configEditorLoadingClassName } from '../../lib/utilities';
 import type { ConfigKind } from './config-edit';

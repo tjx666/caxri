@@ -1,8 +1,7 @@
 import { useId, useMemo, useRef } from 'react';
 
-import { agentProviderCatalog } from '@shared/agents';
-import type { AgentAction } from '@shared/types';
-import { mergeAgentActions } from '@shared/types';
+import type { AgentAction } from '@caxri/protocol';
+import { agentProviderCatalog, mergeAgentActions } from '@caxri/protocol';
 import { Settings2 } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';

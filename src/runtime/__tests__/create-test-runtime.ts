@@ -1,8 +1,8 @@
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 import type { IPty } from 'node-pty';
 import { vi } from 'vitest';
 
-import type { AgentProvider } from '../../shared/agents';
-import { agentProviderIds } from '../../shared/agents';
 import type { AgentAdapter } from '../agents/service';
 import { AgentService } from '../agents/service';
 

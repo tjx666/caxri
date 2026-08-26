@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import { CaxriError } from '../../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
 
 const requestSignals = new AsyncLocalStorage<AbortSignal | undefined>();
 

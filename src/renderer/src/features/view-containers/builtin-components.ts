@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 
-import type { ViewDescriptor } from '@shared/views';
+import type { ViewDescriptor } from '@caxri/protocol';
 
 import { TerminalInfoPanel } from '../panel/views/info/terminal-info-panel';
 import { LogViewerPanel } from '../panel/views/logs/log-viewer-panel';

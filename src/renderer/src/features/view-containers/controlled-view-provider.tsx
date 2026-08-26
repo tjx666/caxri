@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 
-import type { ControlledViewPresentation, ViewActionDescriptor } from '@shared/views';
+import type { ControlledViewPresentation, ViewActionDescriptor } from '@caxri/protocol';
 
 import { useSelectedSession } from '../../stores/selectors';
 import type { ControlledViewContextValue } from './controlled-view-context';

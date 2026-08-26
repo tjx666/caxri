@@ -1,4 +1,4 @@
-import type { TreeItemDto } from '@shared/views';
+import type { TreeItemDto } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {

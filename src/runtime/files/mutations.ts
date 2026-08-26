@@ -2,11 +2,12 @@ import { Buffer } from 'node:buffer';
 import { lstat, mkdir, open, rename } from 'node:fs/promises';
 import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
 
-import { CaxriError, isCaxriError } from '../../shared/ipc/errors';
 import type {
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
-} from '../../shared/ipc/methods';
+} from '@caxri/protocol';
+import { CaxriError, isCaxriError } from '@caxri/protocol';
+
 import { mapWithConcurrency } from '../../shared/node/concurrency';
 import { isExistingPath } from '../../shared/node/fs';
 import type { StructuredLogger } from '../../shared/node/logger';

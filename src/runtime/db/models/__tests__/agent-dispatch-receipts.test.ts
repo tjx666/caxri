@@ -2,9 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AgentDispatchLaunch } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { AgentDispatchLaunch } from '../../../../shared/ipc/agent-dispatch-contract';
 import { CaxriDatabaseConnection as CaxriDatabase } from '../../index';
 import type { NewAgentDispatchReceipt } from '../agent-dispatch-receipts';
 

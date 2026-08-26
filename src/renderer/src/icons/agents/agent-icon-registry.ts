@@ -1,10 +1,9 @@
+import type { AgentProvider, TerminalKind } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import claudeCode from '@lobehub/icons-static-svg/icons/claudecode-color.svg?no-inline';
 import codex from '@lobehub/icons-static-svg/icons/codex-color.svg?no-inline';
 import grok from '@lobehub/icons-static-svg/icons/grok.svg?no-inline';
 import openCode from '@lobehub/icons-static-svg/icons/opencode.svg?no-inline';
-import type { AgentProvider } from '@shared/agents';
-import { agentProviderCatalog, agentProviderIds } from '@shared/agents';
-import type { TerminalKind } from '@shared/types';
 
 export type AgentIconIdentity = TerminalKind | 'grok' | 'opencode' | 'unknown';
 

@@ -1,4 +1,4 @@
-import type { GitFileStatus } from '@shared/types';
+import type { GitFileStatus } from '@caxri/protocol';
 
 import { cn } from '../lib/utilities';
 

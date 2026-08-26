@@ -1,7 +1,8 @@
 import { stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-import type { RuntimeEvent } from '../../shared/ipc/events';
+import type { RuntimeEvent } from '@caxri/protocol';
+
 import type { WatchHandle, WatchHub } from '../watch-hub';
 import type { AgentTranscriptLocation } from './transcript-security';
 import { resolveSafeAgentTranscriptPath } from './transcript-security';

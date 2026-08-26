@@ -1,10 +1,10 @@
-import { connectDesktopToHost, ensureHost } from '@caxri/cli';
+import { connectDesktopToHost, ensureHost } from '@caxri/client/supervise';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DesktopHostConnection } from '../host-connection';
 import type { HostBuildIdentity } from '../host-staleness';
 
-vi.mock('@caxri/cli', () => ({
+vi.mock('@caxri/client/supervise', () => ({
     connectDesktopToHost: vi.fn(),
     ensureHost: vi.fn(),
 }));

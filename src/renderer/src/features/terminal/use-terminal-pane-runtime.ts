@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { errorMessage } from '@shared/ipc';
-import type { ProcessState, TerminalSnapshot, ThemeTokens } from '@shared/types';
+import type { ProcessState, TerminalSnapshot, ThemeTokens } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
 import { FitAddon } from '@xterm/addon-fit';
 import { ProgressAddon } from '@xterm/addon-progress';

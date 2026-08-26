@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import type { PaneLayout } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -11,7 +12,6 @@ import {
     listPaneTerminalIds,
     openResource,
 } from '../../../shared/pane-layout';
-import type { PaneLayout } from '../../../shared/types';
 import { CaxriDatabase } from '../repository';
 
 const temporaryDirectories: string[] = [];

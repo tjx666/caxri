@@ -1,7 +1,8 @@
 import { Buffer } from 'node:buffer';
 import { lstat } from 'node:fs/promises';
 
-import type { AgentTranscript } from '../../shared/types';
+import type { AgentTranscript } from '@caxri/protocol';
+
 import type { CaxriDatabase } from '../db';
 import type { AgentEnvironment } from './contract';
 import { defaultAgentEnvironment, isOpaqueAgentSessionId } from './contract';

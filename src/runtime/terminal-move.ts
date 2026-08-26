@@ -1,4 +1,5 @@
-import type { RuntimeEvent } from '../shared/ipc/events';
+import type { RuntimeEvent } from '@caxri/protocol';
+
 import type { AgentCoordinator } from './agents';
 import type { CaxriDatabase } from './db';
 import type { RuntimeHandlers } from './dispatch';

@@ -1,7 +1,7 @@
 import type { RefObject } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { TreeItemDto } from '@shared/views';
+import type { TreeItemDto } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import type { ExtensionTreeState } from './extension-tree-state';

@@ -1,8 +1,7 @@
+import { CaxriError, identifierSchema, persistedWindowStateSchema } from '@caxri/protocol';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { identifierSchema, persistedWindowStateSchema } from '../../../shared/ipc/domain';
-import { CaxriError } from '../../../shared/ipc/errors';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { appState } from '../schema';
 

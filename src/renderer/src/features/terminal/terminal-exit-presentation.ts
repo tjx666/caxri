@@ -1,4 +1,4 @@
-import type { ProcessState, TerminalFailureReason } from '@shared/types';
+import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
 
 export interface TerminalExitPresentation {
     /**

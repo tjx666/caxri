@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { SessionRecord } from '@shared/types';
+import type { SessionRecord } from '@caxri/protocol';
 
 import { didRenameSession } from '../../session/session-actions';
 

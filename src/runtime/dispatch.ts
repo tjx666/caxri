@@ -1,11 +1,17 @@
-import { CaxriError, toWireError } from '../shared/ipc/errors';
 import type {
     RuntimeMethod,
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
-} from '../shared/ipc/methods';
-import type { RuntimeResponse, RuntimeWorkbenchContext } from '../shared/ipc/transport';
-import { parseRuntimeRequest, runtimeWorkbenchContextSchema } from '../shared/ipc/transport';
+    RuntimeResponse,
+    RuntimeWorkbenchContext,
+} from '@caxri/protocol';
+import {
+    CaxriError,
+    parseRuntimeRequest,
+    runtimeWorkbenchContextSchema,
+    toWireError,
+} from '@caxri/protocol';
+
 import type { StructuredLogger } from '../shared/node/logger';
 import { logEventCatalog } from '../shared/node/logger';
 

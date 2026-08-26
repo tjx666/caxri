@@ -1,4 +1,4 @@
-import type { AgentAction } from '@shared/types';
+import type { AgentAction } from '@caxri/protocol';
 
 /**
  * Agent input is append-only: insertion leaves a trailing space for arguments, while explicit execution appends one

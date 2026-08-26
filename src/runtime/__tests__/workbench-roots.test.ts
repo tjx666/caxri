@@ -2,12 +2,10 @@ import { mkdir, mkdtemp, realpath, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AgentEndpointSummary, NewWorktreeBehavior, RuntimeEvent } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentEndpointSummary } from '../../shared/ipc/agent-endpoint-contract';
-import type { RuntimeEvent } from '../../shared/ipc/events';
 import { StructuredLogger } from '../../shared/node/logger';
-import type { NewWorktreeBehavior } from '../../shared/types';
 import { CaxriDatabase } from '../db/repository';
 import type { GitService, GitWorktreeTopology } from '../git';
 import { WorkbenchRootService } from '../workbench-roots';

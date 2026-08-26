@@ -1,4 +1,4 @@
-import type { FileEntry } from '@shared/types';
+import type { FileEntry } from '@caxri/protocol';
 import { create } from 'zustand';
 
 export type FileConflictChoice = 'cancel' | 'keep-both' | 'replace';

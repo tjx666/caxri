@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
-import { and, asc, eq, sql } from 'drizzle-orm';
-
 import type {
     AgentProvider,
     ProcessState,
     TerminalFailureReason,
     TerminalKind,
     TerminalRecord,
-} from '../../../shared/types';
+} from '@caxri/protocol';
+import { and, asc, eq, sql } from 'drizzle-orm';
+
 import type { CaxriDrizzleDatabase } from '../connection';
 import { terminals } from '../schema';
 

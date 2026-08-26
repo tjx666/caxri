@@ -1,9 +1,5 @@
-import type { MethodResult } from '../shared/ipc/methods';
-import {
-    externalUrlOrigin,
-    isExternalUrlTrusted,
-    parseExternalHttpUrl,
-} from '../shared/trusted-domains';
+import type { MethodResult } from '@caxri/protocol';
+import { externalUrlOrigin, isExternalUrlTrusted, parseExternalHttpUrl } from '@caxri/protocol';
 
 export type ExternalOpenDecision = 'open_once' | 'trust' | 'cancel';
 

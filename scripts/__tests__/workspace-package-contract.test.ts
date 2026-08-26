@@ -21,7 +21,7 @@ describe('workspace package manifests', () => {
     it('keeps the public extension API version aligned with the Desktop release', async () => {
         const [appManifestText, apiManifestText] = await Promise.all([
             readFile(join(workspaceRoot, 'package.json'), 'utf8'),
-            readFile(join(workspaceRoot, 'packages/api/package.json'), 'utf8'),
+            readFile(join(workspaceRoot, 'packages/extension-api/package.json'), 'utf8'),
         ]);
         const appManifest = JSON.parse(appManifestText) as { version: string };
         const apiManifest = JSON.parse(apiManifestText) as { version: string };
@@ -30,7 +30,7 @@ describe('workspace package manifests', () => {
     });
 
     it('exposes caxri source types before build artifacts exist', async () => {
-        const manifestPath = join(workspaceRoot, 'packages/api/package.json');
+        const manifestPath = join(workspaceRoot, 'packages/extension-api/package.json');
         const manifestText = await readFile(manifestPath, 'utf8');
         const manifest = JSON.parse(manifestText) as {
             exports: { '.': { import: string; types: string } };
@@ -70,7 +70,7 @@ describe('workspace package manifests', () => {
 
     it('keeps the public API and bundled extensions compatible with the Desktop release', async () => {
         const desktopManifest = await readPackageManifest('package.json');
-        const apiManifest = await readPackageManifest('packages', 'api', 'package.json');
+        const apiManifest = await readPackageManifest('packages', 'extension-api', 'package.json');
         const extensionNames = ['fixture', 'git', 'status'];
         const extensionManifests = await Promise.all(
             extensionNames.map((name) => readPackageManifest('extensions', name, 'package.json')),
@@ -136,8 +136,7 @@ describe('workspace package manifests', () => {
 
         await expect(legacyConfig).rejects.toMatchObject({ code: 'ENOENT' });
         await expect(baseConfig).resolves.toBeUndefined();
-        expect(buildScript).not.toContain("from '@caxri/protocol'");
-        expect(buildScript).toContain("from '../packages/protocol/src/index.ts'");
+        expect(buildScript).toContain("from '@caxri/protocol'");
         expect(buildScript).toContain('assertProductExtensionBundleContract');
         expect(buildScript).toContain('manifest.caxri.testOnly');
     });

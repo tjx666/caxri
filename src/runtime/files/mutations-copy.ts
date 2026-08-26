@@ -5,7 +5,7 @@ import { lstat, mkdir, open, readdir } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
-import { CaxriError } from '../../shared/ipc/errors';
+import { CaxriError } from '@caxri/protocol';
 
 export interface FileIdentity {
     device: string;

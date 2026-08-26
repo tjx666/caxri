@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-import type { SessionRecord } from '@shared/types';
+import type { SessionRecord } from '@caxri/protocol';
 
 import { useOnVisible } from '@/hooks/use-on-visible';
 

@@ -4,13 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import type { ExtensionManifest } from '@caxri/protocol';
+import { extensionManifestSchema, MAX_VIEW_CATALOG_CONTAINERS } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { ExtensionManifest } from '../../../../packages/protocol/src/domain/views';
-import {
-    extensionManifestSchema,
-    MAX_VIEW_CATALOG_CONTAINERS,
-} from '../../../../packages/protocol/src/domain/views';
 import { buildViewCatalog } from '../catalog';
 
 const temporaryDirectories: string[] = [];

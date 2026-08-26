@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectDesktopToHost, connectToHost, discoverHostManifest } from '@caxri/cli';
+import { connectDesktopToHost, connectToHost, discoverHostManifest } from '@caxri/client/supervise';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {

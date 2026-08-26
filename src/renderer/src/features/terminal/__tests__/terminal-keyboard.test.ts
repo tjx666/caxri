@@ -1,5 +1,5 @@
-import type { AgentProvider } from '@shared/agents';
-import { agentProviderCatalog } from '@shared/agents';
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

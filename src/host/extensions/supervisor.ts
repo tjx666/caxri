@@ -12,6 +12,7 @@ import {
     extensionViewChangeSchema,
     extensionViewEventContextSchema,
     extensionViewEventIdSchema,
+    isNonExpiringViewOperation,
     MAX_VIEW_TREE_ITEMS,
     MAX_VIEW_TREE_PAYLOAD_BYTES,
     treeItemSchema,
@@ -27,7 +28,6 @@ import {
     extensionWorkspaceOperations,
     MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH,
 } from '../../shared/extension-host-protocol';
-import { isNonExpiringViewOperation } from '../../shared/ipc/request-lifetime';
 import type { StructuredLogger } from '../../shared/node/logger';
 import { logEventCatalog } from '../../shared/node/logger';
 import { safeProcessEnvironment } from '../../shared/node/process-environment';

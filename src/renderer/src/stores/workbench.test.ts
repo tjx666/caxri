@@ -1,5 +1,4 @@
-import type { RuntimeEvent } from '@shared/ipc/events';
-import type { BootstrapState } from '@shared/types';
+import type { BootstrapState, RuntimeEvent } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {

@@ -1,6 +1,6 @@
+import type { Keybinding } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Keybinding } from '../../shared/types';
 import { buildAppMenuTemplate } from '../menu';
 import { createMenuRefreshController } from '../menu-refresh';
 

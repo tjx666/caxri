@@ -1,4 +1,4 @@
-import type { SourceControlViewModel } from '@shared/views';
+import type { SourceControlViewModel } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     FileDiff,
