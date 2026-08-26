@@ -6,9 +6,10 @@ import process from 'node:process';
 
 import type { CaxriErrorCode, TerminalSnapshot } from '@caxri/protocol';
 import { CaxriError, errorCodes } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
+import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import {
     currentObservationContext,
+    e2eAgentPolicyEnvironment,
     logEventCatalog,
     mergeObservationContext,
     safeProcessEnvironment,
@@ -46,6 +47,7 @@ export interface TerminalHostSupervisorOptions {
     bootId: string;
     buildId: string;
     commit: string;
+    e2eAgentPolicy?: E2EAgentPolicy;
     executable?: string;
     forkProcess?: typeof fork;
     logger: StructuredLogger;
@@ -232,6 +234,7 @@ export class TerminalHostSupervisor extends EventTarget {
                 CAXRI_SERVER_BOOT_ID: this.options.bootId,
                 CAXRI_TERMINAL_HOST_CREDENTIAL: credential,
                 CAXRI_USER_DATA_PATH: this.options.userDataPath,
+                ...e2eAgentPolicyEnvironment(this.options.e2eAgentPolicy),
                 ...(this.options.outputFlushMs !== undefined && {
                     CAXRI_E2E: '1',
                     CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS: String(this.options.outputFlushMs),

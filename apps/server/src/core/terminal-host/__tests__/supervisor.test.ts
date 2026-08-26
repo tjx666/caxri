@@ -53,6 +53,7 @@ function createSupervisor(): {
             bootId,
             buildId: 'build-1',
             commit: 'deadbeef',
+            e2eAgentPolicy: { mode: 'real', provider: 'codex' },
             forkProcess,
             logger: new StructuredLogger(join(directory, 'logs'), 'server-core'),
             outputFlushMs: 1_000,
@@ -109,6 +110,8 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         expect(launchOptions.env.CAXRI_TERMINAL_HOST_CREDENTIAL).toMatch(/^[0-9a-f]{64}$/u);
         expect(launchOptions.env.CAXRI_SERVER_BOOT_ID).toBe(bootId);
         expect(launchOptions.env.CAXRI_E2E).toBe('1');
+        expect(launchOptions.env.CAXRI_E2E_AGENT_MODE).toBe('real');
+        expect(launchOptions.env.CAXRI_E2E_AGENT_PROVIDER).toBe('codex');
         expect(launchOptions.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS).toBe('1000');
         expect(child.sent[0]).toMatchObject({
             bootId,

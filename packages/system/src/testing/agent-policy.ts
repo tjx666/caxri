@@ -290,6 +290,16 @@ export function assertE2EAgentInput(
 }
 
 /**
+ * Applies the environment-owned policy at a public Terminal input boundary before asynchronous execution begins.
+ */
+export function assertE2EAgentInputFromEnvironment(
+    provider: AgentProvider | undefined,
+    environment: NodeJS.ProcessEnv = process.env,
+): void {
+    if (provider) assertE2EAgentInput(readE2EAgentPolicy(environment), provider);
+}
+
+/**
  * Real mode has no general-purpose Shell escape hatch; its one Codex process is managed directly.
  */
 export function assertE2EShellLaunch(policy: E2EAgentPolicy | undefined): void {
