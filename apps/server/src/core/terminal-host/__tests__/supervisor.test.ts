@@ -152,6 +152,7 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         const request = runWithObservationContext(
             {
                 clientId: 'client-1',
+                operationId: 'control-operation-1',
                 requestId: 'public-request-1',
                 traceId: 'public-trace-1',
             },
