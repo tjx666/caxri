@@ -141,7 +141,7 @@ afterEach(() => {
     temporaryDirectories.length = 0;
 });
 
-describe('RemoteTerminalExecution', () => {
+describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
     it('replays a pre-launch view reservation and preserves synchronous input acceptance', async () => {
         const { control, execution } = createExecution();
         const output = vi.fn();

@@ -89,6 +89,7 @@ try {
     const restarted = await desktop.request('terminal.restart', { terminalId, mode: 'fresh' });
     if (restarted.lastProcessState !== 'running')
         throw new Error('Standalone Terminal Host did not start the seeded shell');
+    await desktop.request('terminal.resize', { terminalId, cols: 96, rows: 32 });
     const marker = `caxri-terminal-host-smoke-${process.pid}`;
     await desktop.request('terminal.input', { terminalId, data: `printf '${marker}\\n'\r` });
     let terminalSnapshot: TerminalSnapshot | null = null;
@@ -102,10 +103,19 @@ try {
     }
     if (!terminalSnapshot?.payload.includes(marker))
         throw new Error('Standalone Terminal Host did not capture shell output');
+    if (terminalSnapshot.cols !== 96 || terminalSnapshot.rows !== 32)
+        throw new Error('Standalone Terminal Host did not preserve the requested grid');
     const resources = await desktop.request('terminal.resources', { terminalId });
     if (!resources) throw new Error('Standalone Terminal Host did not expose PTY resources');
     if ((await desktop.request('terminal.runningCount', {})) !== 1)
         throw new Error('Standalone Terminal Host running count is inconsistent');
+    const diagnostics = await desktop.request('diagnostics.snapshot');
+    if (
+        diagnostics.terminalHost?.state !== 'ready' ||
+        diagnostics.terminalHost.activeTerminalCount !== 1 ||
+        diagnostics.terminalHost.attachedTerminalCount !== 1
+    )
+        throw new Error('Standalone Terminal Host diagnostics do not match the live PTY');
     await desktop.request('terminal.close', { terminalId });
     if ((await desktop.request('terminal.runningCount', {})) !== 0)
         throw new Error('Standalone Terminal Host did not retire the closed PTY');
@@ -137,7 +147,9 @@ try {
             childProcessCount: resources.childProcessCount,
             memoryMb: Number(resources.memoryMb.toFixed(2)),
             outputObserved: true,
+            resizedGrid: { cols: terminalSnapshot.cols, rows: terminalSnapshot.rows },
             snapshotBytes: terminalSnapshot.byteCount,
+            state: diagnostics.terminalHost.state,
         },
     };
     const receiptDirectory = resolve(root, '.records/server-artifact');

@@ -117,7 +117,7 @@ afterEach(() => {
     temporaryDirectories.length = 0;
 });
 
-describe('TerminalHostRuntime', () => {
+describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
     it('fences a reserved generation and dispatches the authorized execution sequence', async () => {
         const engine = fakeEngine();
         const { messages, runtime } = createRuntime(engine.owner);
