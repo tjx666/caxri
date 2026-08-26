@@ -1,26 +1,26 @@
 # Extension Host and view contributions
 
-Caxri loads native ESM extensions in one Host-owned Extension Host process. Extensions contribute
+Caxri loads native ESM extensions in one Server Core-owned Extension Host process. Extensions contribute
 descriptors before activation and provide data through the public `caxri` workspace package; they
 never contribute React components or import Desktop internals.
 
 ## Process and ownership boundary
 
-The Headless Host discovers manifests, builds the only ViewContainer/View/Command catalog, records
+The Server Core discovers manifests, builds the only ViewContainer/View/Command catalog, records
 actual grants, starts and supervises the artifact's `bundles/extension-host.js`, and validates every child
 message. The Extension Host loads extension code and owns extension objects, providers, commands,
-events, opaque tree handles, and cancellation tokens. Runtime remains the sole owner of SQLite,
+events, opaque tree handles, and cancellation tokens. Server Core domain services own SQLite,
 Projects, Sessions, PTYs, files, Git, settings, and project status.
 
 An Extension Host crash advances every extension generation and temporarily marks contributed
-containers as crashed. Host, Runtime, and PTYs remain alive. The supervisor restarts the child and
-reconfigures it from Host-owned descriptors. Old API bindings, providers, commands, refresh timers,
+containers as crashed. The Server Core and PTYs remain alive. The supervisor restarts the child and
+reconfigures it from Server Core-owned descriptors. Old API bindings, providers, commands, refresh timers,
 handles, pending API calls, and late tree results cannot cross the generation boundary.
 
 This is a process-ownership and capability boundary, not a complete untrusted-code sandbox. Bundled
 product extensions are nevertheless built as browser-like ESM: their emitted bundles cannot retain
 Node, Electron, shell, Desktop-internal, or native Git imports. Native work is available only through
-the reviewed public API and Host grants; the `desktop` principal bypass is never granted.
+the reviewed public API and Server grants; the `desktop` principal bypass is never granted.
 
 ## Public API package
 
@@ -147,24 +147,24 @@ capability, or provider lifecycle.
 
 `registerSourceControlProvider` is the public declarative extension view contract. Snapshot,
 history, details, and action calls carry an opaque request ID, cancellation token, provider revision,
-and Host-owned Session/Workbench Project context. The Extension Host scopes `workspace.git` calls to
-that context, Host rechecks the grant, and Runtime remains the final authorization boundary. Explicit
-cancellation is a typed `CANCELLED` non-fault; superseded provider or Host generations fail with
+and Server-owned Session/Workbench Project context. The Extension Host scopes `workspace.git` calls to
+that context, Server Core rechecks the grant, and the Git domain remains the final authorization boundary. Explicit
+cancellation is a typed `CANCELLED` non-fault; superseded provider or Extension Host generations fail with
 `GENERATION_EXPIRED`. Extensions cannot submit a Session ID, repository path, shell command, or
-native API request. Runtime owns Git execution, repository discovery, approved-repository identity,
+native API request. The Git domain owns Git execution, repository discovery, approved-repository identity,
 and the bounded Desktop bridge used by discard confirmation. A discard request carries only an
-opaque repository ID and either an all-changes intent or a relative file path; Runtime derives the
+opaque repository ID and either an all-changes intent or a relative file path; the Git domain derives the
 repository name, changed-file count, and tracked/untracked semantics from its authorized status
 snapshot before Desktop renders the confirmation.
 
-Runtime `files.changed` and `files.operationChanged` events directly invalidate Core Resource
+Server `files.changed` and `files.operationChanged` events directly invalidate Core Resource
 Explorer reads and operation recovery without an Extension Host echo or path exposure to extensions.
 Completed create/rename/move records are applied to all same-Project Session editor state before
 acknowledgement. Operation IDs coalesce repeated actions, staged cancellation never pretends a
-filesystem mutation rolled back, and unacknowledged records are recovered after Renderer or Runtime
+filesystem mutation rolled back, and unacknowledged records are recovered after Renderer or Server Core
 restart. Different-Project operation records are neither returned nor controllable.
 
-Git provider results carry opaque repository IDs selected by Runtime. The Git extension turns raw
+Git provider results carry opaque repository IDs selected by the Git domain. The Git extension turns raw
 summary, pull-request, commit, history, and remote-host results into the complete Source Control view
 model: modes, repository/group/resource descriptors, copy, counts, disclosure, icons, actions, and
 command bindings. Refresh, Sync, Discard All, single-file discard/delete, diff opening, history, and

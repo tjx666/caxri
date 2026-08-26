@@ -17,7 +17,7 @@ Electron app.
 - **A focused workbench.** A narrow editor, file tree, search, and read-only Source Control view cover
   the "glance at what the agent did" loop without becoming an IDE.
 - **A scriptable CLI.** The standalone `caxri` CLI drives the same authenticated, profile-scoped
-  Host that the desktop app uses — see [docs/cli.md](docs/cli.md).
+  Server that the desktop app uses — see [docs/cli.md](docs/cli.md).
 - **An agent-native repository.** Caxri is developed exclusively by coding agents;
   [AGENTS.md](AGENTS.md) is the contributor guide and the source of truth for workflows and
   guardrails.
@@ -37,13 +37,13 @@ ni
 bun run dev
 ```
 
-Main, Host, and Runtime logs are written beneath the active runtime profile's `<userData>/logs/`
+Desktop, Server Core, Terminal Host, and Extension Host logs are written beneath the active profile's `<userData>/logs/`
 directory. Unsigned development packages are written beneath `release.noindex/`; tagged releases publish
 an unsigned Apple Silicon DMG. Install or upgrade the released app with
 `bun run install:caxri` — terminal downloads skip the Gatekeeper quarantine that makes
 browser-downloaded unsigned apps report as "damaged" (see [RELEASING.md](RELEASING.md)).
 
-Caxri's Host-owned native ESM extension model and ViewContainer contribution contract are described
+Caxri's Server Core-owned native ESM extension model and ViewContainer contribution contract are described
 in [docs/extensions.md](docs/extensions.md).
 
 Caxri does not upload telemetry, terminal output, file content, or agent transcripts.
@@ -55,8 +55,8 @@ bun run build:cli
 node apps/cli/dist/caxri.cjs --help
 ```
 
-The `caxri` CLI is a standalone Node.js 24+ bundle that talks only to the authenticated Headless
-Host — never directly to Caxri's database, settings, or logs. It covers Projects, Sessions,
+The `caxri` CLI is a standalone Node.js 24+ bundle that talks only to the authenticated Server —
+never directly to Caxri's database, settings, or logs. It covers Projects, Sessions,
 Terminals, settings, logs, diagnostics, events, desktop window control, and Agent automation, and
 embeds the version-matched `caxri-cli` Agent skill. The full manual, including output modes,
 mutation safety, and command authority boundaries, is in [docs/cli.md](docs/cli.md).
@@ -77,7 +77,7 @@ bun run build && bun run package
 Git hooks live in the repository-owned `.githooks` directory (`core.hooksPath` is configured on
 install); pre-commit runs `lint-staged`. Startup performance is gated by
 `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/large/repository bun run benchmark:startup`, which requires
-Runtime, Terminal, file tree, and Git to become usable within three seconds. Native compatibility
+Server Core, Terminal, file tree, and Git to become usable within three seconds. Native compatibility
 probes: `bun run spike:native`, `spike:pty`, `spike:agents`.
 
 [AGENTS.md](AGENTS.md) documents the complete contributor workflow: isolated worktrees, CI
