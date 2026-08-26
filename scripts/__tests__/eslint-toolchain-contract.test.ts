@@ -142,6 +142,20 @@ describe('shared ESLint preset toolchain contract', () => {
         );
     });
 
+    it('enforces Server process and Domain layers from the first import', async () => {
+        const results = await lintAll([
+            'scripts/fixtures/eslint/architecture/apps/server/src/domains/bad-terminal-host-import.ts',
+            'scripts/fixtures/eslint/architecture/apps/server/src/terminal-host/bad-domain-import.ts',
+            'scripts/fixtures/eslint/architecture/apps/server/src/extension-host/bad-core-import.ts',
+        ]);
+
+        expect(results).toHaveLength(3);
+        for (const result of results)
+            expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
+                'caxri/architecture-boundaries',
+            );
+    });
+
     it('rejects package-private source imports from consumers', async () => {
         const result = await lint(
             'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/bad-package-private-import.ts',

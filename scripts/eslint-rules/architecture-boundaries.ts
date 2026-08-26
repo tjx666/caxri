@@ -18,6 +18,8 @@ interface ImportOwner {
     root: string;
 }
 
+type ServerLayer = 'core' | 'domains' | 'extension-host' | 'terminal-host';
+
 const fixturePrefix = 'scripts/fixtures/eslint/architecture/';
 const sourceExtensionPattern = /\.[cm]?[jt]sx?$/u;
 
@@ -103,6 +105,24 @@ function isTestSource(path: string): boolean {
     return path.includes('/__tests__/') || /\.(?:spec|test)\.[cm]?[jt]sx?$/u.test(path);
 }
 
+function serverLayerForPath(path: string): ServerLayer | undefined {
+    const prefix = 'apps/server/src/';
+    if (!path.startsWith(prefix)) return;
+    const layer = path.slice(prefix.length).split('/', 1)[0];
+    return ['core', 'domains', 'extension-host', 'terminal-host'].includes(layer)
+        ? (layer as ServerLayer)
+        : undefined;
+}
+
+function isForbiddenServerLayerImport(importer: string, target: string): boolean {
+    if (isTestSource(importer)) return false;
+    const importerLayer = serverLayerForPath(importer);
+    const targetLayer = serverLayerForPath(target);
+    if (!importerLayer || !targetLayer || importerLayer === targetLayer) return false;
+    if (importerLayer === 'core') return false;
+    return true;
+}
+
 function isBrowserSafePackageSource(path: string): boolean {
     const boundary = packageBoundaries.find(
         ({ browserSafe, root }) => browserSafe && isPathInside(root, path),
@@ -179,6 +199,8 @@ const rule: Rule.RuleModule = {
                 "'{{importer}}' must not depend on package '{{target}}' in the target ownership graph.",
             platformClientImport:
                 "Browser code must not import '{{specifier}}'; @caxri/client/supervise is platform-only.",
+            serverLayerImport:
+                "Server layer '{{importer}}' must not import '{{target}}'; Core is the only composition layer allowed to cross Server process and Domain boundaries.",
             testOnlyPackageImport:
                 "Production source must not import test-only package entry '{{specifier}}'.",
         },
@@ -191,6 +213,17 @@ const rule: Rule.RuleModule = {
             if (isAllowedTransition(importer, specifier)) return;
 
             const resolvedTarget = targetPath(importer, specifier);
+            if (resolvedTarget && isForbiddenServerLayerImport(importer, resolvedTarget)) {
+                context.report({
+                    node,
+                    messageId: 'serverLayerImport',
+                    data: {
+                        importer: serverLayerForPath(importer),
+                        target: serverLayerForPath(resolvedTarget),
+                    },
+                });
+                return;
+            }
             if (isBrowserConsumer(importer) && isPlatformClientTarget(specifier, resolvedTarget)) {
                 context.report({ node, messageId: 'platformClientImport', data: { specifier } });
                 return;
