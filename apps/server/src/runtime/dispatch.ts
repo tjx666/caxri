@@ -29,7 +29,7 @@ export type RuntimeHandlers = {
 /**
  * The raw request as it arrives from Main; nothing about it is trusted before validation.
  */
-export interface RuntimeRequestEnvelope {
+interface RuntimeRequestEnvelope {
     context?: unknown;
     id: string;
     method: string;

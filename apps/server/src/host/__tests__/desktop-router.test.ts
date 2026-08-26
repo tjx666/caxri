@@ -2,8 +2,8 @@ import type { DesktopOperation } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ServerDomainService } from '../../core/domain-service';
 import { HostDesktopRouter } from '../desktop-router';
-import type { HostRuntimeSupervisor } from '../runtime-supervisor';
 
 const project = {
     id: 'project-1',
@@ -66,7 +66,7 @@ function runtime(request?: RuntimeRequestStub) {
         requestInWorkbenchContext: implementation,
         requestWithSignal: implementation,
     } as unknown as Pick<
-        HostRuntimeSupervisor,
+        ServerDomainService,
         'request' | 'requestInWorkbenchContext' | 'requestWithSignal'
     >;
 }
@@ -194,7 +194,7 @@ describe('Host Desktop router', () => {
                 requestInWorkbenchContext,
                 requestWithSignal: vi.fn(),
             } as unknown as Pick<
-                HostRuntimeSupervisor,
+                ServerDomainService,
                 'request' | 'requestInWorkbenchContext' | 'requestWithSignal'
             >,
         });

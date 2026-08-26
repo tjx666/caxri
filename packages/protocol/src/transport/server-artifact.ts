@@ -26,7 +26,6 @@ export const serverArtifactFileReceiptSchema = z
 const serverArtifactEntrypointsSchema = z
     .object({
         extensionHost: artifactRelativePathSchema,
-        runtime: artifactRelativePathSchema,
         server: artifactRelativePathSchema,
     })
     .strict();

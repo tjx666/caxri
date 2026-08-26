@@ -39,7 +39,6 @@ export default defineConfig(async () => {
                 input: {
                     'extension-host': resolve(import.meta.dirname, 'src/extension-host/process.ts'),
                     'host': resolve(import.meta.dirname, 'src/host/process.ts'),
-                    'runtime': resolve(import.meta.dirname, 'src/runtime/index.ts'),
                 },
                 output: {
                     /**

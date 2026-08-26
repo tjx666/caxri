@@ -31,7 +31,6 @@ describe('Server artifact discovery', () => {
             commit: '01234567',
             entrypoints: {
                 extensionHost: 'bundles/extension-host.js',
-                runtime: 'bundles/runtime.js',
                 server: 'bundles/host.js',
             },
             extensions: [],
@@ -70,7 +69,6 @@ describe('Server artifact discovery', () => {
                 commit: '01234567',
                 entrypoints: {
                     extensionHost: 'bundles/extension-host.js',
-                    runtime: 'bundles/runtime.js',
                     server: '../host.js',
                 },
                 extensions: [],

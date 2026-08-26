@@ -13,7 +13,6 @@ const HOST = {
         '/Applications/Caxri.app/Contents/Resources/server/runtime/bin/node /Applications/Caxri.app/Contents/Resources/server/bundles/host.js',
     pid: 200,
 };
-const RUNTIME = { command: HOST.command.replace('host.js', 'runtime.js'), pid: 201 };
 
 interface FakeProcess {
     command: string;
@@ -69,19 +68,19 @@ describe('install-caxri', () => {
         expect(findDmgPair(['README.md'])).toBeUndefined();
     });
 
-    it('separates the detached Host and Runtime from the windowed application', () => {
+    it('separates the detached Server from the windowed application', () => {
         expect(isHeadlessCaxriProcess(HOST.command)).toBe(true);
         expect(isHeadlessCaxriProcess(GUI.command)).toBe(false);
         expect(isHeadlessCaxriProcess(`${GUI.command} --enable-features=Foo`)).toBe(false);
     });
 
-    it('signals a Host and Runtime that no Apple event can reach', async () => {
+    it('signals a Server that no Apple event can reach', async () => {
         // The regression: once the last window closes, the bundle still runs its detached background
         // processes. Waiting out an Apple event nothing receives failed every installer run.
-        const harness = quitHarness([HOST, RUNTIME]);
+        const harness = quitHarness([HOST]);
         await quitRunningCaxri(harness.operations);
         expect(harness.quitApplication).not.toHaveBeenCalled();
-        expect(harness.signalled).toEqual([HOST.pid, RUNTIME.pid]);
+        expect(harness.signalled).toEqual([HOST.pid]);
     });
 
     it('lets the windowed application quit on its own before signalling anything', async () => {

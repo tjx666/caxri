@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ServerDomainService } from '../../../core/domain-service';
 import type { HostDesktopRouter } from '../../desktop-router';
-import type { HostRuntimeSupervisor } from '../../runtime-supervisor';
 import { createExtensionWorkspaceRequest, extensionActiveContext } from '../workspace-bridge';
 
 function fixture() {
@@ -15,7 +15,7 @@ function fixture() {
         workspaceRequest: createExtensionWorkspaceRequest({
             desktopRouter: () => desktopRouter,
             runtime: { requestInWorkbenchContext } as unknown as Pick<
-                HostRuntimeSupervisor,
+                ServerDomainService,
                 'requestInWorkbenchContext'
             >,
         }),
@@ -80,7 +80,7 @@ describe('Extension workspace bridge', () => {
         const workspaceRequest = createExtensionWorkspaceRequest({
             desktopRouter: () => {},
             runtime: { requestInWorkbenchContext } as unknown as Pick<
-                HostRuntimeSupervisor,
+                ServerDomainService,
                 'requestInWorkbenchContext'
             >,
         });

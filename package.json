@@ -136,8 +136,7 @@
             "apps/server": {
                 "entry": [
                     "src/extension-host/process.ts",
-                    "src/host/process.ts",
-                    "src/runtime/index.ts"
+                    "src/host/process.ts"
                 ]
             },
             "*/cli": {

@@ -28,7 +28,6 @@ describe('standalone Server artifact', () => {
         const runtimeExecutable = join(sources, 'node');
         await Promise.all([
             fixtureFile(join(sources, 'bundles', 'host.js'), 'host'),
-            fixtureFile(join(sources, 'bundles', 'runtime.js'), 'runtime'),
             fixtureFile(join(sources, 'bundles', 'extension-host.js'), 'extension-host'),
             fixtureFile(runtimeExecutable, '#!/bin/sh\nexit 0\n'),
             fixtureFile(join(sources, 'native', 'better-sqlite3', 'package.json'), '{}'),
@@ -65,7 +64,6 @@ describe('standalone Server artifact', () => {
             commit: '01234567',
             entrypoints: {
                 extensionHost: 'bundles/extension-host.js',
-                runtime: 'bundles/runtime.js',
                 server: 'bundles/host.js',
             },
             platform: 'darwin',
@@ -98,7 +96,6 @@ describe('standalone Server artifact', () => {
         const runtimeExecutable = join(root, 'node');
         await Promise.all([
             fixtureFile(join(bundleSource, 'host.js'), 'host'),
-            fixtureFile(join(bundleSource, 'runtime.js'), 'runtime'),
             fixtureFile(join(bundleSource, 'extension-host.js'), 'extension-host'),
             fixtureFile(runtimeExecutable, 'runtime'),
             fixtureFile(join(root, 'migrations', '0000.sql'), 'SELECT 1;'),
