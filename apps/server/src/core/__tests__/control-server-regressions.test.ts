@@ -4,13 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { HostClient } from '@caxri/client/supervise';
-import type { CommandAdapter, HostControlEndpoint } from '@caxri/protocol';
+import type { CommandAdapter, ServerControlEndpoint } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
-    hostEndpointUrl,
     localServerReplySchema,
     localServerWelcomeSchema,
+    serverEndpointUrl,
 } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
@@ -37,8 +37,8 @@ async function profile() {
     return lease;
 }
 
-async function connect(endpoint: HostControlEndpoint): Promise<WebSocket> {
-    const socket = new WebSocket(hostEndpointUrl(endpoint));
+async function connect(endpoint: ServerControlEndpoint): Promise<WebSocket> {
+    const socket = new WebSocket(serverEndpointUrl(endpoint));
     await new Promise<void>((resolve, reject) => {
         socket.once('open', resolve);
         socket.once('error', reject);

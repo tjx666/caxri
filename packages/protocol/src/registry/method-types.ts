@@ -11,7 +11,7 @@ type DesktopMethod = {
     [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'desktop'> extends never ? never : M;
 }[CaxriMethod];
 
-export type HostMethod = {
+export type ServerMethod = {
     [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'host'> extends never ? never : M;
 }[CaxriMethod];
 
@@ -50,9 +50,9 @@ export type CaxriRequest = {
 }[CaxriMethod];
 
 export type DesktopRequest = Extract<CaxriRequest, { method: DesktopMethod }>;
-export type HostRequest = Extract<CaxriRequest, { method: HostMethod }>;
+export type ServerRequest = Extract<CaxriRequest, { method: ServerMethod }>;
 /**
- * Compatibility name for the Electron Main adapter while ownership moves to the Host protocol.
+ * Compatibility name for the Electron Main adapter; `DesktopRequest` is the architectural term.
  */
 export type MainRequest = DesktopRequest;
 
@@ -72,9 +72,9 @@ export function isDesktopRequest(request: CaxriRequest): request is DesktopReque
 }
 
 /**
- * Narrows a validated public request to the Host-owned portion of the method table.
+ * Narrows a validated public request to the Server-owned portion of the method table.
  */
-export function isHostRequest(request: CaxriRequest): request is HostRequest {
+export function isServerRequest(request: CaxriRequest): request is ServerRequest {
     return methods[request.method].owner === 'host';
 }
 

@@ -1,7 +1,7 @@
 import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 
-import type { HostControlEndpoint, HostManifestIdentity } from '@caxri/protocol';
+import type { ServerControlEndpoint, ServerManifestIdentity } from '@caxri/protocol';
 import { CaxriError, CONTROL_TRANSPORT_MAX_FRAME_BYTES } from '@caxri/protocol';
 import type WebSocket from 'ws';
 import { WebSocketServer } from 'ws';
@@ -9,7 +9,7 @@ import { WebSocketServer } from 'ws';
 import { fileSystemCode } from './control-server-support';
 
 export interface ControlListener {
-    endpoint: HostControlEndpoint;
+    endpoint: ServerControlEndpoint;
     server: Server;
     webSocketServer: WebSocketServer;
 }
@@ -19,7 +19,7 @@ export interface ControlListener {
  * published endpoint, process probe, and authenticated control channel cannot drift to different instances.
  */
 export async function listenForControlConnections(options: {
-    identity: HostManifestIdentity;
+    identity: ServerManifestIdentity;
     onConnection(connection: WebSocket): void;
 }): Promise<ControlListener> {
     const server = createServer((request, response) => {

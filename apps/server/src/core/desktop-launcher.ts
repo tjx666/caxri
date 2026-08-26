@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 
-import type { HostDesktopLaunch } from '@caxri/protocol';
+import type { ServerDesktopLaunch } from '@caxri/protocol';
 import { e2eFakeExecutableEnvironmentKeys, safeProcessEnvironment } from '@caxri/system';
 
 const DESKTOP_E2E_ENVIRONMENT_KEYS = [
@@ -20,7 +20,7 @@ const DESKTOP_E2E_ENVIRONMENT_KEYS = [
  * Launches the application identity directly; no shell or caller-authored command is accepted.
  */
 export function createDesktopLauncher(options: {
-    launch: HostDesktopLaunch;
+    launch: ServerDesktopLaunch;
     sourceEnvironment?: NodeJS.ProcessEnv;
     spawnProcess?: typeof spawn;
     userDataPath: string;

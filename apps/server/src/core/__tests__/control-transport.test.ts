@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { hostEndpointUrl } from '@caxri/protocol';
+import { serverEndpointUrl } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
@@ -74,7 +74,7 @@ describe('WebSocket control transport', () => {
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const connection = await connect(hostEndpointUrl(lease.manifest.endpoint));
+        const connection = await connect(serverEndpointUrl(lease.manifest.endpoint));
         connection.send(
             Buffer.from(
                 JSON.stringify({

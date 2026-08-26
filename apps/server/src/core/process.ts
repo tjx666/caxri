@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY, hostDesktopLaunchSchema } from '@caxri/protocol';
+import { SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY, serverDesktopLaunchSchema } from '@caxri/protocol';
 import {
     computeBuildFingerprint,
     installProcessErrorMonitor,
@@ -29,9 +29,9 @@ const serverBundleDirectory = dirname(fileURLToPath(import.meta.url));
  * rebuild changes the on-disk bundles but not this value, which is exactly what lets the Desktop detect staleness.
  */
 const buildId = await computeBuildFingerprint(serverBundleDirectory);
-const desktopLaunchSource = process.env[HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
+const desktopLaunchSource = process.env[SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
 const desktopLaunch = desktopLaunchSource
-    ? hostDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
+    ? serverDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
     : serverBundleDirectory.includes('.asar') && process.resourcesPath
       ? {
             executable: process.execPath,

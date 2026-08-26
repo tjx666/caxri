@@ -5,13 +5,13 @@ import {
     CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     desktopOperationSchema,
     desktopTargetPayloadSchema,
-    hostControlEndpointSchema,
-    hostCredentialTokenSchema,
-    hostEndpointUrl,
-    hostProcessIdentitySchema,
     localClientHelloSchema,
     localServerEventSchema,
     localServerWelcomeSchema,
+    serverControlEndpointSchema,
+    serverCredentialTokenSchema,
+    serverEndpointUrl,
+    serverProcessIdentitySchema,
 } from '../local-transport';
 
 describe('WebSocket control endpoint', () => {
@@ -27,28 +27,28 @@ describe('WebSocket control endpoint', () => {
             port: 41_337,
             path: '/control',
         } as const;
-        expect(hostControlEndpointSchema.parse(endpoint)).toEqual(endpoint);
-        expect(hostEndpointUrl(endpoint)).toBe('ws://127.0.0.1:41337/control');
-        expect(hostControlEndpointSchema.safeParse({ ...endpoint, host: '0.0.0.0' }).success).toBe(
+        expect(serverControlEndpointSchema.parse(endpoint)).toEqual(endpoint);
+        expect(serverEndpointUrl(endpoint)).toBe('ws://127.0.0.1:41337/control');
+        expect(
+            serverControlEndpointSchema.safeParse({ ...endpoint, host: '0.0.0.0' }).success,
+        ).toBe(false);
+        expect(serverControlEndpointSchema.safeParse({ ...endpoint, path: '/other' }).success).toBe(
             false,
         );
-        expect(hostControlEndpointSchema.safeParse({ ...endpoint, path: '/other' }).success).toBe(
-            false,
-        );
-        expect(hostControlEndpointSchema.safeParse({ ...endpoint, port: 0 }).success).toBe(false);
+        expect(serverControlEndpointSchema.safeParse({ ...endpoint, port: 0 }).success).toBe(false);
     });
 });
 
 describe('local transport credential and identity schemas', () => {
     it('requires exactly 64 lowercase hex characters for a credential token', () => {
-        expect(hostCredentialTokenSchema.safeParse('a'.repeat(64)).success).toBe(true);
-        expect(hostCredentialTokenSchema.safeParse('a'.repeat(63)).success).toBe(false);
-        expect(hostCredentialTokenSchema.safeParse('A'.repeat(64)).success).toBe(false);
+        expect(serverCredentialTokenSchema.safeParse('a'.repeat(64)).success).toBe(true);
+        expect(serverCredentialTokenSchema.safeParse('a'.repeat(63)).success).toBe(false);
+        expect(serverCredentialTokenSchema.safeParse('A'.repeat(64)).success).toBe(false);
     });
 
     it('requires exactly 32 lowercase hex characters for a process identity', () => {
-        expect(hostProcessIdentitySchema.safeParse('b'.repeat(32)).success).toBe(true);
-        expect(hostProcessIdentitySchema.safeParse('b'.repeat(31)).success).toBe(false);
+        expect(serverProcessIdentitySchema.safeParse('b'.repeat(32)).success).toBe(true);
+        expect(serverProcessIdentitySchema.safeParse('b'.repeat(31)).success).toBe(false);
     });
 });
 

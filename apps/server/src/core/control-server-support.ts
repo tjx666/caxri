@@ -7,11 +7,11 @@ import type {
     CommandReplyEnvelope,
     DesktopLease,
     DesktopTargetPayload,
-    HostDesktopCredential,
-    HostManifestIdentity,
     LocalClientCommand,
     LocalServerReply,
     LogEventName,
+    ServerDesktopCredential,
+    ServerManifestIdentity,
     ServerOperationRequest,
 } from '@caxri/protocol';
 import {
@@ -252,7 +252,7 @@ export interface ControlServerOptions {
         token: string;
     }): CommandExecutionContext;
     consumeDesktopTarget?(targetId: string, generation: number): Promise<DesktopTargetPayload>;
-    desktopCredential: HostDesktopCredential;
+    desktopCredential: ServerDesktopCredential;
     /**
      * Test seam for exercising lease expiry without a minute-long integration test.
      */
@@ -268,7 +268,7 @@ export interface ControlServerOptions {
      * stay unlogged, matching the domain operation dispatcher.
      */
     logger?: ControlRequestLogSink;
-    identity: HostManifestIdentity;
+    identity: ServerManifestIdentity;
     onClientCountChanged?(count: number): void;
     onDesktopUnavailable?(): void;
     onReplyFlushed?(

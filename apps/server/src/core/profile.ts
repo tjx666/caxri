@@ -6,20 +6,20 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type {
-    HostControlEndpoint,
-    HostDesktopCredential,
-    HostLock,
-    HostManifest,
-    HostManifestIdentity,
+    ServerControlEndpoint,
+    ServerDesktopCredential,
+    ServerLock,
+    ServerManifest,
+    ServerManifestIdentity,
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
-    HOST_DESKTOP_CREDENTIAL_VERSION,
-    HOST_MANIFEST_VERSION,
-    hostDesktopCredentialSchema,
-    hostLockSchema,
-    hostManifestSchema,
+    SERVER_DESKTOP_CREDENTIAL_VERSION,
+    SERVER_MANIFEST_VERSION,
+    serverDesktopCredentialSchema,
+    serverLockSchema,
+    serverManifestSchema,
 } from '@caxri/protocol';
 import { profileIdForPath } from '@caxri/system';
 
@@ -39,14 +39,14 @@ export interface ServerProfilePaths {
 }
 
 export interface ServerProfileLease {
-    desktopCredential: HostDesktopCredential;
-    identity: HostManifestIdentity;
+    desktopCredential: ServerDesktopCredential;
+    identity: ServerManifestIdentity;
     /**
      * Available only after `publish()` has atomically committed the listening endpoint.
      */
-    readonly manifest: HostManifest;
+    readonly manifest: ServerManifest;
     paths: ServerProfilePaths;
-    publish(endpoint: HostControlEndpoint): Promise<HostManifest>;
+    publish(endpoint: ServerControlEndpoint): Promise<ServerManifest>;
     release(): Promise<void>;
 }
 
@@ -101,8 +101,8 @@ async function readPrivateJson(path: string): Promise<unknown> {
     }
 }
 
-export async function readServerManifest(path: string): Promise<HostManifest> {
-    const parsed = hostManifestSchema.safeParse(await readPrivateJson(path));
+export async function readServerManifest(path: string): Promise<ServerManifest> {
+    const parsed = serverManifestSchema.safeParse(await readPrivateJson(path));
     if (!parsed.success)
         throw new CaxriError(
             'VALIDATION',
@@ -154,7 +154,7 @@ async function acquireProcessLock(path: string) {
 
 async function readLockHandle(
     handle: Awaited<ReturnType<typeof open>>,
-): Promise<HostLock | undefined> {
+): Promise<ServerLock | undefined> {
     const metadata = await handle.stat();
     if (!metadata.isFile() || (metadata.mode & 0o077) !== 0)
         throw new CaxriError('PATH_DENIED', 'Host lock metadata is not private');
@@ -174,7 +174,7 @@ async function readLockHandle(
             'Host lock is malformed; repair it only after verifying no Host is running',
         );
     }
-    const parsed = hostLockSchema.safeParse(source);
+    const parsed = serverLockSchema.safeParse(source);
     if (!parsed.success)
         throw new CaxriError(
             'VALIDATION',
@@ -185,7 +185,7 @@ async function readLockHandle(
 
 async function writeLockHandle(
     handle: Awaited<ReturnType<typeof open>>,
-    value: HostLock | undefined,
+    value: ServerLock | undefined,
 ): Promise<void> {
     const source = value ? Buffer.from(`${JSON.stringify(value)}\n`, 'utf8') : Buffer.alloc(0);
     await handle.truncate(0);
@@ -231,7 +231,7 @@ async function optionalPrivateJson<T>(read: (path: string) => Promise<T>, path: 
     }
 }
 
-function assertSameProfile(paths: ServerProfilePaths, value: HostLock | HostManifest): void {
+function assertSameProfile(paths: ServerProfilePaths, value: ServerLock | ServerManifest): void {
     if (value.profileId !== paths.profileId)
         throw new CaxriError(
             'VALIDATION',
@@ -241,7 +241,7 @@ function assertSameProfile(paths: ServerProfilePaths, value: HostLock | HostMani
 
 async function cleanPreviousOwner(
     paths: ServerProfilePaths,
-    previousLock: HostLock | undefined,
+    previousLock: ServerLock | undefined,
     processState: (pid: number) => ServerProcessState,
 ): Promise<void> {
     const previousManifest = await optionalPrivateJson(readServerManifest, paths.manifest);
@@ -299,14 +299,14 @@ export async function acquireServerProfile(options: {
     const lockHandle = await acquireProcessLock(paths.lock);
     const processIdentity = randomBytes(16).toString('hex');
     const startedAt = options.startedAt ?? Date.now();
-    const lock = hostLockSchema.parse({
+    const lock = serverLockSchema.parse({
         pid: process.pid,
         startedAt,
         processIdentity,
         profileId: paths.profileId,
     });
     const processState = options.processState ?? probeServerProcess;
-    let previousLock: HostLock | undefined;
+    let previousLock: ServerLock | undefined;
     try {
         previousLock = await readLockHandle(lockHandle);
     } catch (error) {
@@ -328,16 +328,16 @@ export async function acquireServerProfile(options: {
         protocolVersion: CAXRI_PROTOCOL_VERSION,
         version: options.version,
         operatorToken: randomBytes(32).toString('hex'),
-    } satisfies HostManifestIdentity;
-    const desktopCredential = hostDesktopCredentialSchema.parse({
-        credentialVersion: HOST_DESKTOP_CREDENTIAL_VERSION,
+    } satisfies ServerManifestIdentity;
+    const desktopCredential = serverDesktopCredentialSchema.parse({
+        credentialVersion: SERVER_DESKTOP_CREDENTIAL_VERSION,
         profileId: paths.profileId,
         processIdentity,
         desktopToken: randomBytes(32).toString('hex'),
     });
     let isPublished = false;
     let isReleased = false;
-    let publishedManifest: HostManifest | undefined;
+    let publishedManifest: ServerManifest | undefined;
     return {
         desktopCredential,
         identity,
@@ -349,9 +349,9 @@ export async function acquireServerProfile(options: {
         paths,
         async publish(endpoint) {
             if (isPublished) return publishedManifest!;
-            const manifest = hostManifestSchema.parse({
+            const manifest = serverManifestSchema.parse({
                 ...identity,
-                manifestVersion: HOST_MANIFEST_VERSION,
+                manifestVersion: SERVER_MANIFEST_VERSION,
                 endpoint,
             });
             await replacePrivateJson(paths.directory, paths.desktopCredential, desktopCredential);

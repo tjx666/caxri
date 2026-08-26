@@ -14,7 +14,7 @@ import type {
     DesktopLeaseRevocationReason,
     DesktopOperation,
     DesktopTargetPayload,
-    HostDesktopLaunch,
+    ServerDesktopLaunch,
     ServerEvent,
     ServerOperation,
     ServerOperationArguments as ServerOperationArguments,
@@ -23,9 +23,9 @@ import type {
 import {
     CaxriError,
     errorMessage,
-    HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
     isCaxriMethod,
     isDesktopServerOperation,
+    SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
 } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import { computeBuildFingerprint, e2eAgentPolicyEnvironment, logEventCatalog } from '@caxri/system';
@@ -64,7 +64,7 @@ export interface DesktopHostConnectionOptions {
     cliPath: string;
     currentDirectory: string;
     desktopId: string;
-    desktopLaunch: HostDesktopLaunch;
+    desktopLaunch: ServerDesktopLaunch;
     e2eAgentPolicy?: E2EAgentPolicy;
     handleCommand: DesktopCommandHandler;
     logger: StructuredLogger;
@@ -96,7 +96,7 @@ export function resolveDesktopLaunch(options: {
     currentDirectory: string;
     executable: string;
     isPackaged: boolean;
-}): HostDesktopLaunch {
+}): ServerDesktopLaunch {
     if (options.isPackaged)
         return { executable: options.executable, args: [], cwd: dirname(options.executable) };
     const projectRoot = resolve(options.currentDirectory, '../..');
@@ -207,7 +207,7 @@ export class DesktopHostConnection extends EventTarget {
         const operator = await ensureHost(this.options.userDataPath, {
             artifactRoot: artifact.rootPath,
             environment: {
-                [HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY]: JSON.stringify(this.options.desktopLaunch),
+                [SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY]: JSON.stringify(this.options.desktopLaunch),
                 ...e2eAgentPolicyEnvironment(this.options.e2eAgentPolicy),
                 ...(process.env.CAXRI_E2E_WINDOW_MODE && {
                     CAXRI_E2E_WINDOW_MODE: process.env.CAXRI_E2E_WINDOW_MODE,

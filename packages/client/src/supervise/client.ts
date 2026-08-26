@@ -14,13 +14,13 @@ import type {
     DesktopServerOperationArguments,
     DesktopServerOperationResult,
     DesktopTargetPayload,
-    HostDesktopCredential,
-    HostManifest,
     LocalServerDesktopCommand,
     LocalServerEvent,
     MethodResult,
     ParametersArgument,
     ProtocolWelcome,
+    ServerDesktopCredential,
+    ServerManifest,
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -28,9 +28,6 @@ import {
     CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     desktopTargetPayloadSchema,
     fromWireError,
-    hostDesktopCredentialSchema,
-    hostEndpointUrl,
-    hostManifestSchema,
     isNonExpiringServerOperation,
     localClientDesktopReadySchema,
     localClientDesktopReplySchema,
@@ -46,6 +43,9 @@ import {
     parseCaxriResult,
     parseServerOperationRequest,
     parseServerOperationResult,
+    serverDesktopCredentialSchema,
+    serverEndpointUrl,
+    serverManifestSchema,
     toWireError,
 } from '@caxri/protocol';
 import type { RawData } from 'ws';
@@ -75,7 +75,7 @@ export type HostClientCredential =
     | {
           kind: 'desktop';
           desktopId: string;
-          credential: HostDesktopCredential;
+          credential: ServerDesktopCredential;
           handleCommand(
               operation: DesktopOperation,
               consumeTarget: () => Promise<DesktopTargetPayload>,
@@ -123,7 +123,7 @@ async function readDiscoveryJson(
 /**
  * Reads only the private discovery record; business state always goes through Host commands.
  */
-export async function discoverHostManifest(userDataPath: string): Promise<HostManifest> {
+export async function discoverHostManifest(userDataPath: string): Promise<ServerManifest> {
     let canonicalPath: string;
     try {
         canonicalPath = await realpath(userDataPath);
@@ -164,7 +164,7 @@ export async function discoverHostManifest(userDataPath: string): Promise<HostMa
         'No Caxri Host is running for this profile',
         'Caxri Host discovery metadata is malformed',
     );
-    const parsed = hostManifestSchema.safeParse(source);
+    const parsed = serverManifestSchema.safeParse(source);
     if (!parsed.success)
         throw new CaxriError('VALIDATION', 'Caxri Host discovery metadata is invalid');
     if (parsed.data.profileId !== profileIdFor(canonicalPath))
@@ -177,8 +177,8 @@ export async function discoverHostManifest(userDataPath: string): Promise<HostMa
  */
 export async function discoverDesktopCredential(
     userDataPath: string,
-    manifest: HostManifest,
-): Promise<HostDesktopCredential> {
+    manifest: ServerManifest,
+): Promise<ServerDesktopCredential> {
     const canonicalPath = await realpath(userDataPath);
     const path = join(canonicalPath, 'host', 'desktop-credential.json');
     let metadata: Stats;
@@ -202,7 +202,7 @@ export async function discoverDesktopCredential(
         'Caxri Desktop credential is unavailable',
         'Caxri Desktop credential is malformed',
     );
-    const parsed = hostDesktopCredentialSchema.safeParse(source);
+    const parsed = serverDesktopCredentialSchema.safeParse(source);
     if (!parsed.success) throw new CaxriError('VALIDATION', 'Caxri Desktop credential is invalid');
     if (
         parsed.data.profileId !== manifest.profileId ||
@@ -217,7 +217,7 @@ export async function discoverDesktopCredential(
  */
 export class HostClient {
     static async connect(
-        manifest: HostManifest,
+        manifest: ServerManifest,
         timeoutMs = DEFAULT_TIMEOUT_MS,
         credential?: HostClientCredential,
     ): Promise<HostClient> {
@@ -227,7 +227,7 @@ export class HostClient {
                 hostProtocolVersion: manifest.protocolVersion,
             });
         const resolvedCredential: HostClientCredential = credential ?? { kind: 'operator' };
-        const socket = new WebSocket(hostEndpointUrl(manifest.endpoint), {
+        const socket = new WebSocket(serverEndpointUrl(manifest.endpoint), {
             maxPayload: CONTROL_TRANSPORT_MAX_FRAME_BYTES,
         });
         const deferredMessages: Array<{ data: RawData; isBinary: boolean }> = [];
@@ -720,7 +720,7 @@ export async function ensureHost(
     const deadline = Date.now() + timeoutMs;
     let isLaunched = false;
     while (Date.now() < deadline) {
-        let manifest: HostManifest | undefined;
+        let manifest: ServerManifest | undefined;
         try {
             // This polling loop must retry discovery/connect/launch sequentially against the same
             // profile lock on each iteration; the awaits cannot be parallelized across iterations.
