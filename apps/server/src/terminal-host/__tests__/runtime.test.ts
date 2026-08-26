@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -82,6 +83,7 @@ function fakeEngine(): {
 }
 
 function createRuntime(engine: TerminalExecutionOwner): {
+    logger: StructuredLogger;
     messages: TerminalHostMessage[];
     runtime: TerminalHostRuntime;
     protocolViolation: ReturnType<typeof vi.fn>;
@@ -90,7 +92,9 @@ function createRuntime(engine: TerminalExecutionOwner): {
     temporaryDirectories.push(directory);
     const messages: TerminalHostMessage[] = [];
     const protocolViolation = vi.fn();
+    const logger = new StructuredLogger(join(directory, 'logs'), 'terminal-host');
     return {
+        logger,
         messages,
         protocolViolation,
         runtime: new TerminalHostRuntime({
@@ -99,7 +103,7 @@ function createRuntime(engine: TerminalExecutionOwner): {
             commit: 'deadbeef',
             credential,
             engine,
-            logger: new StructuredLogger(join(directory, 'logs'), 'terminal-host'),
+            logger,
             onProtocolViolation: protocolViolation,
             send: (message) => messages.push(message),
             serverId,
@@ -233,5 +237,43 @@ describe('TerminalHostRuntime', () => {
         const { protocolViolation, runtime } = createRuntime(fakeEngine().owner);
         await runtime.accept({ type: 'request', credential: 'secret' });
         expect(protocolViolation).toHaveBeenCalledOnce();
+    });
+
+    it('correlates failures without logging private request parameters', async () => {
+        const engine = fakeEngine();
+        engine.start.mockImplementation(() => {
+            throw new Error('private-environment-value');
+        });
+        const { logger, runtime } = createRuntime(engine.owner);
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.start',
+                    params: {
+                        record: terminal,
+                        executable: '/bin/zsh',
+                        args: ['private-argument'],
+                        environment: { PRIVATE_TOKEN: 'private-environment-value' },
+                    },
+                },
+                {
+                    scope: 'terminal',
+                    capability: 'terminal.lifecycle',
+                    sessionId: terminal.sessionId,
+                    terminalId: terminal.id,
+                    ptyGeneration: 1,
+                },
+                'start-failure-1',
+            ),
+        );
+        await logger.flush();
+
+        const log = await readFile(logger.path, 'utf8');
+        expect(log).toContain('"event":"terminal_host.request_failed"');
+        expect(log).toContain('"correlationId":"start-failure-1"');
+        expect(log).toContain('"method":"terminal.start"');
+        expect(log).not.toContain('private-argument');
+        expect(log).not.toContain('private-environment-value');
+        expect(log).not.toContain('PRIVATE_TOKEN');
     });
 });

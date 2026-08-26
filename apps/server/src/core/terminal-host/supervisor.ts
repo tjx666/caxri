@@ -81,11 +81,15 @@ function replyError(error: { code: string; message: string }): Error {
  */
 export class TerminalHostSupervisor extends EventTarget {
     private intentionalStop = false;
+    private lastExit?: { at: number; code: number; signal: NodeJS.Signals | null };
+    private launchCount = 0;
     private owned?: OwnedChild;
     private readonly pending = new Map<string, PendingRequest>();
     private readiness?: Promise<void>;
     private rejectReady?: (error: Error) => void;
     private resolveReady?: () => void;
+    private startedAt?: number;
+    private state: 'idle' | 'starting' | 'ready' | 'failed' | 'stopped' = 'idle';
     private startup?: Promise<void>;
 
     constructor(private readonly options: TerminalHostSupervisorOptions) {
@@ -156,7 +160,10 @@ export class TerminalHostSupervisor extends EventTarget {
             pending.reject(
                 new CaxriError('UNAVAILABLE', 'Terminal Host returned an invalid result'),
             );
-            this.options.logger.write('error', logEventCatalog.terminalHost.invalidMessage);
+            this.options.logger.write('error', logEventCatalog.terminalHost.invalidMessage, {
+                correlationId: message.id,
+                fields: { method: pending.method },
+            });
             owned.child.kill();
         } else if (message.ok) pending.resolve(message.result);
         else pending.reject(replyError(message.error));
@@ -170,6 +177,9 @@ export class TerminalHostSupervisor extends EventTarget {
         this.rejectReady?.(new CaxriError('UNAVAILABLE', 'Terminal Host exited before ready'));
         this.rejectReady = undefined;
         this.resolveReady = undefined;
+        this.lastExit = { at: Date.now(), code, signal };
+        this.startedAt = undefined;
+        this.state = this.intentionalStop ? 'stopped' : 'failed';
         this.rejectPending(`Terminal Host exited with code ${code}`);
         this.options.logger.write(
             this.intentionalStop ? 'info' : 'error',
@@ -182,6 +192,9 @@ export class TerminalHostSupervisor extends EventTarget {
 
     private async startOnce(): Promise<void> {
         if (this.intentionalStop) throw new CaxriError('UNAVAILABLE', 'Terminal Host is stopped');
+        this.state = 'starting';
+        this.startedAt = undefined;
+        this.launchCount += 1;
         const credential = randomBytes(32).toString('hex');
         this.readiness = new Promise((resolve, reject) => {
             const timeout = setTimeout(
@@ -250,6 +263,8 @@ export class TerminalHostSupervisor extends EventTarget {
         this.options.logger.write('info', logEventCatalog.terminalHost.started, {
             fields: { pid: child.pid ?? -1, serverId: this.options.serverId },
         });
+        this.startedAt = Date.now();
+        this.state = 'ready';
         this.dispatchEvent(new Event('start'));
     }
 
@@ -306,6 +321,7 @@ export class TerminalHostSupervisor extends EventTarget {
                 this.pending.delete(id);
                 pending.cleanup?.();
                 this.options.logger.write('warn', logEventCatalog.terminalHost.requestTimeout, {
+                    correlationId: id,
                     fields: { method: request.method },
                 });
                 reject(
@@ -346,9 +362,28 @@ export class TerminalHostSupervisor extends EventTarget {
         try {
             await this.startup;
         } catch (error) {
+            if (!this.intentionalStop) this.state = 'failed';
             if (!this.owned) this.startup = undefined;
             throw error;
         }
+    }
+
+    diagnostics(): {
+        state: 'idle' | 'starting' | 'ready' | 'failed' | 'stopped';
+        pid?: number;
+        startedAt?: number;
+        restartCount: number;
+        pendingRequestCount: number;
+        lastExit?: { at: number; code: number; signal: NodeJS.Signals | null };
+    } {
+        return {
+            state: this.state,
+            ...(this.owned?.child.pid !== undefined && { pid: this.owned.child.pid }),
+            ...(this.startedAt !== undefined && { startedAt: this.startedAt }),
+            restartCount: Math.max(0, this.launchCount - 1),
+            pendingRequestCount: this.pending.size,
+            ...(this.lastExit && { lastExit: this.lastExit }),
+        };
     }
 
     async request(
@@ -400,6 +435,8 @@ export class TerminalHostSupervisor extends EventTarget {
 
     async shutdown(): Promise<TerminalSnapshot[]> {
         this.intentionalStop = true;
+        this.state = 'stopped';
+        this.startedAt = undefined;
         const owned = this.owned;
         if (!owned) return [];
         let snapshots: TerminalSnapshot[] = [];

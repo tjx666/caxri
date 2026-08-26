@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
-import type { AppSettings } from '@caxri/protocol';
+import type { AppSettings, TerminalHostDiagnostics } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, isLogProcess, logProcesses } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, redactLogValue, redactSecrets } from '@caxri/system';
@@ -170,6 +170,7 @@ export class DiagnosticsService {
         private readonly logger: StructuredLogger,
         private readonly getSettings: () => AppSettings,
         private readonly activePtyCount: () => number,
+        private readonly terminalHostSnapshot: () => TerminalHostDiagnostics,
         private readonly startedAt: number,
         /**
          * Content-free watcher/poller census from the Server watch hub (labels and counters only, never paths).
@@ -216,6 +217,7 @@ export class DiagnosticsService {
             recentErrorIds: summarizeRecentErrorIds(logs.join('\n')),
             performance: summarizePerformanceLogs(logs).slice(0, 256),
             ...(this.watchSnapshot && { watchers: this.watchSnapshot() }),
+            terminalHost: this.terminalHostSnapshot(),
         };
     }
 
@@ -300,7 +302,11 @@ export class DiagnosticsService {
                 { name: 'diagnostics/app.json' },
             );
             archive.append(
-                json({ startedAt: this.startedAt, activePtyCount: this.activePtyCount() }),
+                json({
+                    startedAt: this.startedAt,
+                    activePtyCount: this.activePtyCount(),
+                    terminalHost: this.terminalHostSnapshot(),
+                }),
                 {
                     name: 'diagnostics/runtime.json',
                 },

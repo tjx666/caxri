@@ -221,6 +221,32 @@ const watchHubSnapshotSchema = z.object({
     gateTrips: z.number().int().nonnegative(),
     entries: z.array(watchHubSnapshotEntrySchema).max(64),
 });
+const terminalHostLastExitSchema = z
+    .object({
+        at: z.number().int().positive(),
+        code: z.number().int(),
+        signal: z.string().min(1).max(32).nullable(),
+    })
+    .strict();
+/**
+ * Content-free Terminal Host state for operator and agent diagnostics. Only lifecycle, pressure, and ownership counters
+ * cross this boundary; Terminal input, output, snapshots, environment values, and paths are forbidden.
+ */
+export const terminalHostDiagnosticsSchema = z
+    .object({
+        state: z.enum(['idle', 'starting', 'ready', 'failed', 'stopped']),
+        pid: z.number().int().positive().optional(),
+        startedAt: z.number().int().positive().optional(),
+        restartCount: z.number().int().nonnegative(),
+        pendingRequestCount: z.number().int().nonnegative(),
+        activeTerminalCount: z.number().int().nonnegative(),
+        attachedTerminalCount: z.number().int().nonnegative(),
+        inputQueueCount: z.number().int().nonnegative(),
+        queuedInputCharacters: z.number().int().nonnegative(),
+        resizeQueueCount: z.number().int().nonnegative(),
+        lastExit: terminalHostLastExitSchema.optional(),
+    })
+    .strict();
 export const diagnosticsSnapshotSchema = z.object({
     appVersion: z.string().min(1).max(100),
     protocolVersion: protocolVersionSchema,
@@ -233,6 +259,7 @@ export const diagnosticsSnapshotSchema = z.object({
     recentErrorIds: z.array(z.string().min(1).max(200)).max(5),
     performance: z.array(performanceSummarySchema).max(256),
     watchers: watchHubSnapshotSchema.optional(),
+    terminalHost: terminalHostDiagnosticsSchema.optional(),
 });
 
 export const businessMethods = {
@@ -316,3 +343,4 @@ export type LogQueryRecord = z.infer<typeof logQueryRecordSchema>;
 export type LogQueryResult = z.infer<typeof logQueryResultSchema>;
 export type LogLevel = z.infer<typeof logLevelSchema>;
 export type LogProcess = z.infer<typeof logProcessSchema>;
+export type TerminalHostDiagnostics = z.infer<typeof terminalHostDiagnosticsSchema>;

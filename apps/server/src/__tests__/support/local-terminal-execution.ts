@@ -1,4 +1,9 @@
-import type { AgentOutputRecoverySettings, AgentProvider, TerminalSnapshot } from '@caxri/protocol';
+import type {
+    AgentOutputRecoverySettings,
+    AgentProvider,
+    TerminalHostDiagnostics,
+    TerminalSnapshot,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type * as pty from 'node-pty';
 
@@ -23,6 +28,7 @@ export interface LocalTerminalExecutionOptions {
  * In-process adapter retained for focused engine tests. Production Server Core supplies the process-backed port.
  */
 export class LocalTerminalExecution extends EventTarget implements TerminalExecutionPort {
+    private readonly attachedTerminalIds = new Set<string>();
     private readonly engine: TerminalExecutionEngine;
 
     constructor(options: LocalTerminalExecutionOptions) {
@@ -85,11 +91,13 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         return this.engine.resize(terminalId, cols, rows);
     }
 
-    attach(
+    async attach(
         terminalId: string,
         size?: { cols: number; rows: number },
     ): Promise<{ snapshot: TerminalSnapshot | null; wasAttached: boolean }> {
-        return this.engine.attach(terminalId, size);
+        const result = await this.engine.attach(terminalId, size);
+        this.attachedTerminalIds.add(terminalId);
+        return result;
     }
 
     snapshot(terminalId: string): Promise<TerminalSnapshot | null> {
@@ -97,11 +105,26 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
     }
 
     detachView(terminalId: string): void {
+        this.attachedTerminalIds.delete(terminalId);
         this.engine.detachView(terminalId);
     }
 
     detachAllViews(): void {
+        this.attachedTerminalIds.clear();
         this.engine.detachAllViews();
+    }
+
+    diagnostics(): TerminalHostDiagnostics {
+        return {
+            state: 'ready',
+            restartCount: 0,
+            pendingRequestCount: 0,
+            activeTerminalCount: this.engine.runningCount(),
+            attachedTerminalCount: this.attachedTerminalIds.size,
+            inputQueueCount: 0,
+            queuedInputCharacters: 0,
+            resizeQueueCount: 0,
+        };
     }
 
     restartBarrier(terminalId: string): Promise<TerminalSnapshot | null> {
@@ -109,10 +132,12 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
     }
 
     close(terminalId: string): void {
+        this.attachedTerminalIds.delete(terminalId);
         this.engine.close(terminalId);
     }
 
     discard(terminalId: string): void {
+        this.attachedTerminalIds.delete(terminalId);
         this.engine.discard(terminalId);
     }
 
@@ -121,6 +146,7 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
     }
 
     terminateSession(sessionId: string, terminalIds: readonly string[]): string[] {
+        for (const terminalId of terminalIds) this.attachedTerminalIds.delete(terminalId);
         return this.engine.terminateSession(sessionId, terminalIds);
     }
 
@@ -137,6 +163,7 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
     }
 
     shutdown(): Promise<Array<{ terminalId: string; capture: Promise<TerminalSnapshot> }>> {
+        this.attachedTerminalIds.clear();
         return Promise.resolve(this.engine.shutdown());
     }
 

@@ -181,6 +181,7 @@ export const logEventCatalog = {
         exited: 'terminal_host.exited',
         invalidMessage: 'terminal_host.invalid_message',
         ready: 'terminal_host.ready',
+        requestFailed: 'terminal_host.request_failed',
         requestTimeout: 'terminal_host.request_timeout',
         started: 'terminal_host.started',
         stopped: 'terminal_host.stopped',
