@@ -139,9 +139,9 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
         await expect(openedTab).toHaveAttribute('data-terminal-id', /.+/);
         /**
          * A new Terminal's pane attaches its PTY asynchronously (`use-terminal-pane-runtime.ts`). Pressing `Meta+W`
-         * before that round-trip resolves queues `terminal.close` behind it on the Host's ordered command queue
-         * (`apps/server/src/core/local-server.ts`) and the tab is still open when the assertion below runs — a race no
-         * human could hit by hand, but one Playwright's instant keypress does under CI's contended pool. Mirrors the
+         * before that round-trip resolves queues `terminal.close` behind it on the Server's ordered command queue
+         * (`apps/server/src/core/control-server.ts`) and the tab is still open when the assertion below runs — a race
+         * no human could hit by hand, but one Playwright's instant keypress does under CI's contended pool. Mirrors the
          * same wait in `session-title.e2e.ts`.
          */
         const openedTerminalId = await openedTab.getAttribute('data-terminal-id');

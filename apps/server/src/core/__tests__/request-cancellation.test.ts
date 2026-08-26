@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-    principalRequestKey,
-    RuntimeRequestCancellationRegistry,
-} from '../runtime-request-cancellation';
+import { principalRequestKey, RequestCancellationRegistry } from '../request-cancellation';
 
-describe('RuntimeRequestCancellationRegistry', () => {
+describe('RequestCancellationRegistry', () => {
     it('includes the authenticated Desktop generation in request identity', () => {
         expect(
             principalRequestKey(
@@ -27,7 +24,7 @@ describe('RuntimeRequestCancellationRegistry', () => {
     });
 
     it('cancels only the principal-and-generation-scoped request identity', async () => {
-        const registry = new RuntimeRequestCancellationRegistry();
+        const registry = new RequestCancellationRegistry();
         const aborted = Promise.withResolvers<void>();
         const pending = registry.run('desktop:one:g1:request-1', async (signal) => {
             await new Promise<void>((resolve) =>
@@ -45,7 +42,7 @@ describe('RuntimeRequestCancellationRegistry', () => {
     });
 
     it('consumes an early cancellation before starting Runtime work', async () => {
-        const registry = new RuntimeRequestCancellationRegistry();
+        const registry = new RequestCancellationRegistry();
         const task = vi.fn(() => Promise.resolve('unexpected'));
 
         expect(registry.cancel('desktop:one:g1:request-1')).toBe(true);

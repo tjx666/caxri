@@ -11,8 +11,8 @@ import WebSocket from 'ws';
 
 import { AgentEndpointRegistry } from '../agent-endpoints';
 import { AgentInboxRegistry } from '../agent-inbox';
-import { LocalHostServer } from '../local-server';
-import { acquireHostProfile } from '../profile';
+import { ControlServer } from '../control-server';
+import { acquireServerProfile } from '../profile';
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -24,7 +24,7 @@ afterEach(async () => {
 
 async function profile() {
     const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-host-server-'));
-    const lease = await acquireHostProfile({ userDataPath, version: '1.0.0' });
+    const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
     cleanups.push(async () => {
         await lease.release();
         await rm(userDataPath, { recursive: true, force: true });
@@ -79,7 +79,7 @@ describe('local Host transport', () => {
                 changedKeys: ['terminal.fontSize'],
             };
         });
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -125,7 +125,7 @@ describe('local Host transport', () => {
             },
         };
         const counts: number[] = [];
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -204,7 +204,7 @@ describe('local Host transport', () => {
     it('rejects the wrong profile token without invoking an application handler', async () => {
         const lease = await profile();
         const invoke = vi.fn();
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -247,7 +247,7 @@ describe('local Host transport', () => {
             },
         });
         expect(endpoints.activate({ ref: endpoint.ref, launchId: 'launch-1' })).toBe(true);
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: {
                 host: {
                     invoke: (request, context) => {
@@ -361,7 +361,7 @@ describe('local Host transport', () => {
                 return null;
             },
         };
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host },
             authenticateAgent: (credential) => endpoints.authenticate(credential),
             desktopCredential: lease.desktopCredential,
@@ -428,7 +428,7 @@ describe('local Host transport', () => {
 
     it('does not let the operator credential self-assert the Desktop principal', async () => {
         const lease = await profile();
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host: { invoke: vi.fn() } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -454,7 +454,7 @@ describe('local Host transport', () => {
 
     it('fails closed when the client has no compatible protocol version', async () => {
         const lease = await profile();
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host: { invoke: vi.fn() } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -479,7 +479,7 @@ describe('local Host transport', () => {
     it('routes reverse commands and transient PTY output only to the current Desktop generation', async () => {
         const lease = await profile();
         const unavailable = vi.fn();
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: {
                 host: {
                     invoke: (request) =>
@@ -554,7 +554,7 @@ describe('local Host transport', () => {
     it('settles nested Desktop target redemption without deadlocking the command queue', async () => {
         const lease = await profile();
         const revealed = vi.fn();
-        const server: LocalHostServer = new LocalHostServer({
+        const server: ControlServer = new ControlServer({
             adapters: {
                 host: {
                     invoke: async (request) => {
@@ -623,7 +623,7 @@ describe('local Host transport', () => {
                 return null;
             throw new Error(`Unexpected method: ${request.method}`);
         });
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -688,7 +688,7 @@ describe('local Host transport', () => {
             if (request.method === 'terminal.resize') return null;
             throw new Error(`Unexpected method: ${request.method}`);
         });
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -727,7 +727,7 @@ describe('local Host transport', () => {
 
     it('keeps copy and write requests pending until their authoritative result arrives', async () => {
         const lease = await profile();
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: {
                 host: {
                     invoke: async (request) => {

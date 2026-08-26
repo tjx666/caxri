@@ -11,9 +11,10 @@ export function principalRequestKey(context: CommandExecutionContext, requestId:
 
 /**
  * Owns cancellation for authenticated public reads while preserving principal and generation isolation in the key
- * supplied by the Host. Runtime remains the execution authority; aborting sends its existing out-of-band cancel frame.
+ * supplied by Server Core. Domain handlers remain the execution authority; aborting propagates through the shared
+ * request signal.
  */
-export class RuntimeRequestCancellationRegistry {
+export class RequestCancellationRegistry {
     private static readonly maximumTombstones = 256;
     private static readonly tombstoneTtlMs = 30_000;
     private readonly controllers = new Map<string, AbortController>();
@@ -22,7 +23,7 @@ export class RuntimeRequestCancellationRegistry {
     private pruneTombstones(now = Date.now()): void {
         for (const [key, expiresAt] of this.tombstones)
             if (expiresAt <= now) this.tombstones.delete(key);
-        while (this.tombstones.size > RuntimeRequestCancellationRegistry.maximumTombstones)
+        while (this.tombstones.size > RequestCancellationRegistry.maximumTombstones)
             this.tombstones.delete(this.tombstones.keys().next().value!);
     }
 
@@ -46,10 +47,7 @@ export class RuntimeRequestCancellationRegistry {
         if (controller) controller.abort();
         else {
             this.pruneTombstones();
-            this.tombstones.set(
-                key,
-                Date.now() + RuntimeRequestCancellationRegistry.tombstoneTtlMs,
-            );
+            this.tombstones.set(key, Date.now() + RequestCancellationRegistry.tombstoneTtlMs);
             this.pruneTombstones();
         }
         return true;

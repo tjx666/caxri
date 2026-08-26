@@ -1,20 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ServerDomainService } from '../../../core/domain-service';
-import type { HostDesktopRouter } from '../../desktop-router';
+import type { ServerDesktopRouter } from '../../desktop-router';
 import { createExtensionWorkspaceRequest, extensionActiveContext } from '../workspace-bridge';
 
 function fixture() {
     const discard = vi.fn(() => Promise.resolve(null));
     const requestInWorkbenchContext = vi.fn(() => Promise.resolve([]));
-    const desktopRouter = { discard } as unknown as HostDesktopRouter;
+    const desktopRouter = { discard } as unknown as ServerDesktopRouter;
     return {
         desktopRouter,
         discard,
         requestInWorkbenchContext,
         workspaceRequest: createExtensionWorkspaceRequest({
             desktopRouter: () => desktopRouter,
-            runtime: { requestInWorkbenchContext } as unknown as Pick<
+            domainService: { requestInWorkbenchContext } as unknown as Pick<
                 ServerDomainService,
                 'requestInWorkbenchContext'
             >,
@@ -79,7 +79,7 @@ describe('Extension workspace bridge', () => {
         const requestInWorkbenchContext = vi.fn(() => Promise.resolve([]));
         const workspaceRequest = createExtensionWorkspaceRequest({
             desktopRouter: () => {},
-            runtime: { requestInWorkbenchContext } as unknown as Pick<
+            domainService: { requestInWorkbenchContext } as unknown as Pick<
                 ServerDomainService,
                 'requestInWorkbenchContext'
             >,

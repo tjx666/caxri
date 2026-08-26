@@ -49,7 +49,7 @@ const RUNTIME_SCHEDULED_FILE_MUTATIONS = new Set(['files.copy', 'files.write']);
 
 /**
  * Reads do not carry mutation ordering, while non-expiring file mutations already serialize overlapping paths inside
- * the Runtime. Both may settle outside the connection-wide ordered lane once their adapter admission is complete.
+ * domain services. Both may settle outside the connection-wide ordered lane once adapter admission completes.
  */
 export function shouldSettleOutsideOrderedLane(method: string): boolean {
     return isConcurrentRead(method) || RUNTIME_SCHEDULED_FILE_MUTATIONS.has(method);
@@ -69,7 +69,7 @@ const REQUEST_TOTAL_WARN_MS = 5_000;
 /**
  * Structural subset of `StructuredLogger` so tests can observe per-request log writes without touching the filesystem.
  */
-interface HostRequestLogSink {
+interface ControlRequestLogSink {
     write(
         level: LogRecord['level'],
         event: LogEventName,
@@ -78,11 +78,11 @@ interface HostRequestLogSink {
 }
 
 /**
- * Records Host transport latency without retaining request parameters or other user content. The ordered-queue wait is
- * the head-of-line blocking signature this log exists to surface; successful requests stay at `debug` unless slow.
+ * Records control transport latency without retaining request parameters or other user content. The ordered-queue wait
+ * is the head-of-line blocking signature this log exists to surface; successful requests stay at `debug` unless slow.
  */
-export function logHostRequestOutcome(
-    options: Pick<LocalHostServerOptions, 'logger' | 'requestQueueWarnMs' | 'requestTotalWarnMs'>,
+export function logControlRequestOutcome(
+    options: Pick<ControlServerOptions, 'logger' | 'requestQueueWarnMs' | 'requestTotalWarnMs'>,
     request: { id: string; method: string },
     reply: CommandReplyEnvelope,
     context: CommandExecutionContext,
@@ -120,8 +120,8 @@ export function logHostRequestOutcome(
         return;
     }
     /**
-     * `warn`, not `error`: forwarded failures are already error-logged where they fault (Runtime/Desktop); this entry
-     * adds the Host-side relay view (queue wait, principal) without duplicating the error beacon.
+     * `warn`, not `error`: forwarded failures are already error-logged where they fault (domain service/Desktop); this
+     * entry adds the control relay view (queue wait, principal) without duplicating the error beacon.
      */
     logger.write('warn', logEventCatalog.ipc.requestFailed, {
         correlationId: request.id,
@@ -243,7 +243,7 @@ export interface DesktopLeaseWaiter {
     timer: NodeJS.Timeout;
 }
 
-export interface LocalHostServerOptions {
+export interface ControlServerOptions {
     adapters: CommandDispatcherOptions;
     authenticateAgent?(credential: {
         hostId: string;
@@ -265,9 +265,9 @@ export interface LocalHostServerOptions {
     invokeDesktopRuntime?(request: RuntimeRequest): Promise<unknown>;
     /**
      * Per-request outcome log: success at `debug`, failures and slow/queued requests at `warn`. PTY hot-path methods
-     * stay unlogged, matching the Runtime dispatcher.
+     * stay unlogged, matching the domain operation dispatcher.
      */
-    logger?: HostRequestLogSink;
+    logger?: ControlRequestLogSink;
     identity: HostManifestIdentity;
     onClientCountChanged?(count: number): void;
     onDesktopUnavailable?(): void;

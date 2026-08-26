@@ -97,7 +97,7 @@ function capabilitiesFor(record: StoredEndpoint, now: number): Capability[] {
 }
 
 /**
- * Host-memory authority for one directly managed Agent PTY generation.
+ * Server Core in-memory authority for one directly managed Agent PTY generation.
  */
 export class AgentEndpointRegistry {
     private readonly byEndpoint = new Map<string, StoredEndpoint>();
@@ -240,7 +240,7 @@ export class AgentEndpointRegistry {
     }
 
     /**
-     * Makes a prepared credential externally reachable only after Runtime confirms its PTY exists.
+     * Makes a prepared credential externally reachable only after domain services confirm its PTY exists.
      */
     activate(raw: AgentEndpointActivateParameters): boolean {
         const input = agentEndpointActivateParametersSchema.parse(raw);
@@ -265,7 +265,7 @@ export class AgentEndpointRegistry {
     }
 
     /**
-     * Temporary retirement (restart, PTY exit, Runtime crash): the Terminal identity survives, so its generation record
+     * Temporary retirement (restart, PTY exit, domain reset): the Terminal identity survives, so its generation record
      * must survive to keep the next `begin()` monotonic.
      */
     retireTerminal(terminalId: string): void {
@@ -296,7 +296,7 @@ export class AgentEndpointRegistry {
     }
 
     /**
-     * Lets Host-owned generation resources expire at exactly the same endpoint boundary.
+     * Lets Server-owned generation resources expire at exactly the same endpoint boundary.
      */
     onRetired(listener: AgentEndpointRetiredListener): () => void {
         this.retiredListeners.add(listener);

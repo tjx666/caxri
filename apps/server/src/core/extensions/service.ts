@@ -624,9 +624,9 @@ export class ExtensionService extends EventTarget {
             });
         } catch (error) {
             /**
-             * A nested Runtime request can reject before this outer view fence runs. Preserve an Extension Host
+             * A nested domain request can reject before this outer view fence runs. Preserve an Extension Host
              * generation failure when that lifecycle actually changed; otherwise a retired Renderer scope owns the
-             * outcome and must remain a typed cancellation instead of leaking Runtime conflict/generation details.
+             * outcome and must remain a typed cancellation instead of leaking domain conflict/generation details.
              */
             if (this.states.get(extension.extensionId)?.generation === generation)
                 assertActiveViewContext(parameters.context, await this.options.activeContext());

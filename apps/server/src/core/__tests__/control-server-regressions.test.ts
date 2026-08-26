@@ -15,8 +15,8 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
-import { LocalHostServer } from '../local-server';
-import { acquireHostProfile } from '../profile';
+import { ControlServer } from '../control-server';
+import { acquireServerProfile } from '../profile';
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -29,7 +29,7 @@ afterEach(async () => {
 
 async function profile() {
     const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-host-regression-'));
-    const lease = await acquireHostProfile({ userDataPath, version: '1.0.0' });
+    const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
     cleanups.push(async () => {
         await lease.release();
         await rm(userDataPath, { recursive: true, force: true });
@@ -117,7 +117,7 @@ describe('local Host transport regressions', () => {
                     return null;
                 },
             };
-            const server = new LocalHostServer({
+            const server = new ControlServer({
                 adapters: { host },
                 desktopCredential: lease.desktopCredential,
                 identity: lease.identity,
@@ -179,7 +179,7 @@ describe('local Host transport regressions', () => {
                 return { ready: true, pid: 88, startedAt: 1, activePtyCount: 0 };
             },
         };
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -240,7 +240,7 @@ describe('local Host transport regressions', () => {
                 return null;
             },
         };
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -313,7 +313,7 @@ describe('local Host transport regressions', () => {
                 };
             },
         };
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -355,7 +355,7 @@ describe('local Host transport regressions', () => {
                 size: request.method === 'files.read' ? largeRead.length : largeWrite.length,
             }),
         };
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -388,7 +388,7 @@ describe('local Host transport regressions', () => {
 
     it('severs the replaced Desktop socket without accumulating connection state', async () => {
         const lease = await profile();
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host: { invoke: () => null } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -458,7 +458,7 @@ describe('local Host transport regressions', () => {
                 return null;
             },
         };
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             desktopLeaseDurationMs: 500,
@@ -536,7 +536,7 @@ describe('local Host transport regressions', () => {
                 fields?: Record<string, string | number | boolean | null>;
             };
         }> = [];
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host },
             desktopCredential: lease.desktopCredential,
             logger: { write: (level, event, options) => written.push({ level, event, options }) },

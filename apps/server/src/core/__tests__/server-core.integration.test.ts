@@ -18,8 +18,8 @@ import WebSocket from 'ws';
 
 import type { CreateDomainServices } from '../../core/domain-service';
 import type { DomainHandlers } from '../../domains/domain-services';
-import type { HostApp } from '../app';
-import { startHostApp } from '../app';
+import type { ServerCore } from '../server-core';
+import { startServerCore } from '../server-core';
 
 function fixtureHandlers(overrides: Partial<DomainHandlers>): DomainHandlers {
     return overrides as DomainHandlers;
@@ -220,7 +220,7 @@ function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServi
     };
 }
 
-const apps: HostApp[] = [];
+const apps: ServerCore[] = [];
 const directories: string[] = [];
 const sockets: WebSocket[] = [];
 
@@ -322,7 +322,7 @@ describe('Headless Host application', () => {
     it('serves domain operations inside the Server Core process', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-server-core-'));
         directories.push(userDataPath);
-        const app = await startHostApp({
+        const app = await startServerCore({
             commit: 'test',
             userDataPath,
             version: '1.0.0',
@@ -345,7 +345,7 @@ describe('Headless Host application', () => {
         directories.push(userDataPath);
         const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
         const worktreeReportFixturePath = join(userDataPath, 'worktree-report.json');
-        const app = await startHostApp({
+        const app = await startServerCore({
             commit: 'test',
             createDomainServices: createAgentEndpointFixture({
                 endpoint: endpointFixturePath,
@@ -496,7 +496,7 @@ describe('Headless Host application', () => {
         const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
         const waitFixturePath = join(userDataPath, 'dispatch-wait.txt');
         const cancelFixturePath = join(userDataPath, 'dispatch-cancel.txt');
-        const app = await startHostApp({
+        const app = await startServerCore({
             commit: 'test',
             createDomainServices: createAgentEndpointFixture({
                 cancel: cancelFixturePath,
@@ -533,7 +533,7 @@ describe('Headless Host application', () => {
     it('outlives client detach and requires confirmation before stopping a live PTY', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-host-'));
         directories.push(userDataPath);
-        const app = await startHostApp({
+        const app = await startServerCore({
             commit: 'test',
             createDomainServices: createRuntimeFixture(1),
             userDataPath,
@@ -586,7 +586,7 @@ describe('Headless Host application', () => {
     it('closes mutation admission before evaluating an unconfirmed stop', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-stop-race-'));
         directories.push(userDataPath);
-        const app = await startHostApp({
+        const app = await startServerCore({
             commit: 'test',
             createDomainServices: createMutationRaceFixture(),
             userDataPath,
@@ -624,7 +624,7 @@ describe('Headless Host application', () => {
     it('finishes an accepted stop after the requesting client disconnects', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-stop-disconnect-'));
         directories.push(userDataPath);
-        const app = await startHostApp({
+        const app = await startServerCore({
             commit: 'test',
             createDomainServices: createRuntimeFixture(1),
             userDataPath,

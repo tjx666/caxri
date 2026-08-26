@@ -27,32 +27,26 @@ import type { CreateDomainServices } from '../core/domain-service';
 import type { RuntimeAgentEndpointControl } from '../domains/agent-endpoints';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
-import { HostDesktopRouter } from './desktop-router';
-import {
-    readActiveExtensionContext,
-    routeExtensionRuntimeEvent,
-} from './extensions/runtime-events';
+import { ControlServer } from './control-server';
+import type { CoreForwardedMethod } from './core-methods';
+import { ServerDesktopRouter } from './desktop-router';
+import { readActiveExtensionContext, routeExtensionDomainEvent } from './extensions/domain-events';
 import { ExtensionService } from './extensions/service';
 import { publishExtensionViewEvents } from './extensions/view-events';
 import {
     createExtensionWorkspaceRequest,
     extensionActiveContext,
 } from './extensions/workspace-bridge';
-import type { HostForwardedMethod } from './host-methods';
-import { LocalHostServer } from './local-server';
-import type { HostProfileLease } from './profile';
-import { acquireHostProfile } from './profile';
+import type { ServerProfileLease } from './profile';
+import { acquireServerProfile } from './profile';
 import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
-import {
-    principalRequestKey,
-    RuntimeRequestCancellationRegistry,
-} from './runtime-request-cancellation';
+import { principalRequestKey, RequestCancellationRegistry } from './request-cancellation';
 
-export interface HostAppOptions {
+export interface ServerCoreOptions {
     agentHooksPath?: string;
     /**
-     * Unique identifier of the build this Host process was loaded from; version/commit cannot distinguish two dev
-     * builds of the same checkout.
+     * Unique identifier of the build this Server Core was loaded from; version/commit cannot distinguish two dev builds
+     * of the same checkout.
      */
     buildId?: string;
     cliPath?: string;
@@ -70,27 +64,27 @@ export interface HostAppOptions {
     version: string;
 }
 
-export interface HostApp {
-    lease: HostProfileLease;
+export interface ServerCore {
+    lease: ServerProfileLease;
     stop(reason?: string): Promise<void>;
 }
 
 /**
  * Starts the profile owner, authenticated local transport, domain services, and Extension Host supervision.
  */
-export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
+export async function startServerCore(options: ServerCoreOptions): Promise<ServerCore> {
     const startedAt = Date.now();
     const logDirectory = join(options.userDataPath, 'logs');
     const logger = new StructuredLogger(logDirectory, 'host', 'info');
     const stopEventLoopMonitor = startEventLoopMonitor(logger);
-    const lease = await acquireHostProfile({
+    const lease = await acquireServerProfile({
         startedAt,
         userDataPath: options.userDataPath,
         version: options.version,
     });
     const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity);
     const providerMessaging = new ProviderMessagingAdapterRegistry(agentEndpoints);
-    let server: LocalHostServer | undefined;
+    let server: ControlServer | undefined;
     agentEndpoints.onMessagingChanged((endpoint) => {
         const event = { event: 'agent.messaging.changed', payload: endpoint } as const;
         server?.broadcastAgent(endpoint.ref, event);
@@ -109,7 +103,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         messaging: (parameters) => Promise.resolve(agentEndpoints.updateMessaging(parameters)),
         retire: (parameters) => Promise.resolve(agentEndpoints.retire(parameters)),
     };
-    const supervisor = createServerDomainService({
+    const domainService = createServerDomainService({
         agentEndpointControl: endpointControl,
         agentHooksPath: options.agentHooksPath,
         createServices: options.createDomainServices,
@@ -118,7 +112,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         userDataPath: lease.paths.userDataPath,
     });
     let extensionService: ExtensionService | undefined;
-    let desktopRouter: HostDesktopRouter | undefined;
+    let desktopRouter: ServerDesktopRouter | undefined;
     let stopPromise: Promise<void> | undefined;
     let commandStopFallback: NodeJS.Immediate | undefined;
     let isMutationAdmissionClosed = false;
@@ -154,7 +148,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             throw new CaxriError('FORBIDDEN', 'Agent control is outside the granted Project');
     };
 
-    const runtimeRequestCancellations = new RuntimeRequestCancellationRegistry();
+    const requestCancellations = new RequestCancellationRegistry();
 
     /**
      * Keeps public dispatch identity independent while preserving principal-scoped request retry.
@@ -162,14 +156,14 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     const dispatchIdFor = (context: CommandExecutionContext, requestId: string): string =>
         `dispatch-${createHash('sha256').update(principalRequestKey(context, requestId)).digest('hex')}`;
 
-    const forwardRuntime = async (
+    const forwardDomainOperation = async (
         request: RuntimeRequest,
         signal?: AbortSignal,
     ): Promise<unknown> => {
         const spec = getMethodSpec(request.method);
         if (!spec) throw new CaxriError('VALIDATION', 'Unknown Runtime command');
         if (spec.effect === 'read')
-            return supervisor.forward(request.method, request.params, undefined, signal);
+            return domainService.forward(request.method, request.params, undefined, signal);
         if (isMutationAdmissionClosed) throw new CaxriError('UNAVAILABLE', 'Host is stopping');
         switch (request.method) {
             case 'terminal.close': {
@@ -201,7 +195,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         }
         mutationsInFlight += 1;
         try {
-            return await supervisor.forward(request.method, request.params, undefined, signal);
+            return await domainService.forward(request.method, request.params, undefined, signal);
         } finally {
             finishMutation();
         }
@@ -209,7 +203,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
 
     const journal = createEventJournal({
         snapshot: async (cursor) => {
-            const state = await supervisor.request('app.bootstrap');
+            const state = await domainService.request('app.bootstrap');
             return {
                 cursor,
                 projectIds: state.projects.map(({ id }) => id),
@@ -236,8 +230,8 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     },
                 },
             );
-        const extensionRefresh = routeExtensionRuntimeEvent(extensionService, supervisor, event);
-        // The Runtime event callback cannot await the best-effort extension refresh.
+        const extensionRefresh = routeExtensionDomainEvent(extensionService, domainService, event);
+        // The domain event callback cannot await the best-effort extension refresh.
         // eslint-disable-next-line unicorn/prefer-await
         extensionRefresh.catch((error: unknown) =>
             logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
@@ -246,7 +240,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         );
         server?.broadcast(isTransientRuntimeEvent(event) ? event : journal.publish(event));
     };
-    supervisor.onEvent(deliver);
+    domainService.onEvent(deliver);
 
     const stop = (reason = 'requested'): Promise<void> => {
         isMutationAdmissionClosed = true;
@@ -257,7 +251,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             agentInbox.close();
             await providerMessaging.close();
             await extensionService?.shutdown();
-            await supervisor.shutdown();
+            await domainService.shutdown();
             await lease.release();
             logger.write('info', logEventCatalog.host.stopped, { fields: { reason } });
         })();
@@ -294,7 +288,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     if (!extensionService)
                         throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
                     {
-                        const context = await readActiveExtensionContext(supervisor);
+                        const context = await readActiveExtensionContext(domainService);
                         if (context.kind !== 'session')
                             throw new CaxriError(
                                 'FORBIDDEN',
@@ -314,7 +308,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     );
                 case 'requests.cancel':
                     return {
-                        cancelled: runtimeRequestCancellations.cancel(
+                        cancelled: requestCancellations.cancel(
                             principalRequestKey(context, request.params.requestId),
                         ),
                     };
@@ -339,7 +333,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                             'Worktree provenance requires an Agent Endpoint principal',
                         );
                     const endpoint = agentEndpoints.context(context).endpoint;
-                    return forwardRuntime({
+                    return forwardDomainOperation({
                         method: 'session.workbenchRoot.reportCreated',
                         params: { endpoint, rootPath: request.params.rootPath },
                     });
@@ -361,7 +355,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     };
                 case 'agent.dispatch.start': {
                     assertProjectScope(context, request.params.projectId);
-                    return forwardRuntime({
+                    return forwardDomainOperation({
                         method: 'agent.dispatch.startInternal',
                         params: {
                             dispatchId: dispatchIdFor(context, invocation.requestId),
@@ -372,7 +366,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 }
                 case 'agent.dispatch.resume': {
                     assertProjectScope(context, request.params.projectId);
-                    return forwardRuntime({
+                    return forwardDomainOperation({
                         method: 'agent.dispatch.resumeInternal',
                         params: {
                             dispatchId: dispatchIdFor(context, invocation.requestId),
@@ -382,7 +376,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     });
                 }
                 case 'agent.dispatch.status':
-                    return supervisor.request('agent.dispatch.statusInternal', {
+                    return domainService.request('agent.dispatch.statusInternal', {
                         dispatchId: request.params.dispatchId,
                         projectScope: projectScope(context),
                     });
@@ -393,7 +387,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     waitIds.add(waitId);
                     dispatchWaitIds.set(key, waitIds);
                     try {
-                        return await supervisor.request('agent.dispatch.waitInternal', {
+                        return await domainService.request('agent.dispatch.waitInternal', {
                             afterRevision: request.params.afterRevision,
                             dispatchId: request.params.dispatchId,
                             projectScope: projectScope(context),
@@ -409,7 +403,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 case 'agent.control.stop': {
                     const endpoint = agentEndpoints.resolve(request.params.endpoint);
                     assertProjectScope(context, endpoint.projectId);
-                    return forwardRuntime({
+                    return forwardDomainOperation({
                         method:
                             request.method === 'agent.control.interrupt'
                                 ? 'agent.control.interruptInternal'
@@ -426,7 +420,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                             'FORBIDDEN',
                             'Terminal steer requires a human owner principal',
                         );
-                    const result = await forwardRuntime({
+                    const result = await forwardDomainOperation({
                         method: 'terminal.sendInternal',
                         params: request.params,
                     });
@@ -464,15 +458,18 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                         throw new CaxriError('UNAVAILABLE', 'Host is stopping');
                     mutationsInFlight += 1;
                     try {
-                        const dispatch = await supervisor.request('agent.dispatch.wakeInternal', {
-                            dispatchId: dispatchIdFor(context, invocation.requestId),
-                            principal: context.principal,
-                            target: {
-                                projectId: retired.projectId,
-                                sessionId: retired.sessionId,
-                                terminalId: retired.terminalId,
+                        const dispatch = await domainService.request(
+                            'agent.dispatch.wakeInternal',
+                            {
+                                dispatchId: dispatchIdFor(context, invocation.requestId),
+                                principal: context.principal,
+                                target: {
+                                    projectId: retired.projectId,
+                                    sessionId: retired.sessionId,
+                                    terminalId: retired.terminalId,
+                                },
                             },
-                        });
+                        );
                         if (dispatch.status !== 'running' || !dispatch.endpoint)
                             throw new CaxriError('UNAVAILABLE', 'Agent wake dispatch failed', {
                                 dispatchId: dispatch.dispatchId,
@@ -532,7 +529,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 case 'agent.message.deny':
                     return agentInbox.deny(request.params.messageId);
                 case 'host.status': {
-                    const health = await supervisor.request('app.health');
+                    const health = await domainService.request('app.health');
                     return {
                         profileId: lease.identity.profileId,
                         version: options.version,
@@ -588,7 +585,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     let isAccepted = false;
                     try {
                         await waitForMutations();
-                        const health = await supervisor.request('app.health');
+                        const health = await domainService.request('app.health');
                         if (health.activePtyCount > 0 && !request.params.confirmLivePtys)
                             throw new CaxriError(
                                 'CONFLICT',
@@ -621,7 +618,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                         context.principal.kind === 'agent'
                             ? agentEndpoints.context(context).endpoint
                             : undefined;
-                    return supervisor.request('project.queryForPrincipal', {
+                    return domainService.request('project.queryForPrincipal', {
                         principal: context.principal,
                         query:
                             endpoint && request.params.mode === 'current'
@@ -634,7 +631,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                         context.principal.kind === 'agent'
                             ? agentEndpoints.context(context).endpoint
                             : undefined;
-                    return supervisor.request('session.queryForPrincipal', {
+                    return domainService.request('session.queryForPrincipal', {
                         principal: context.principal,
                         query:
                             endpoint && request.params.mode === 'current'
@@ -643,16 +640,16 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                     });
                 }
                 case 'terminal.query':
-                    return supervisor.request('terminal.queryForPrincipal', {
+                    return domainService.request('terminal.queryForPrincipal', {
                         principal: context.principal,
                         query: request.params,
                     });
                 default: {
-                    const forwarded: Extract<HostRequest, { method: HostForwardedMethod }> =
+                    const forwarded: Extract<HostRequest, { method: CoreForwardedMethod }> =
                         request;
-                    return runtimeRequestCancellations.run(
+                    return requestCancellations.run(
                         principalRequestKey(context, invocation.requestId),
-                        (signal) => forwardRuntime(forwarded, signal),
+                        (signal) => forwardDomainOperation(forwarded, signal),
                     );
                 }
             }
@@ -660,7 +657,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
     };
 
     try {
-        await supervisor.start();
+        await domainService.start();
         if (options.extensionHostPath && options.extensionRoots) {
             extensionService = new ExtensionService({
                 appVersion: options.version,
@@ -671,20 +668,20 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 includeTestOnly: options.includeTestExtensions ?? false,
                 logger,
                 activeContext: async () =>
-                    extensionActiveContext(await supervisor.request('app.bootstrap')),
+                    extensionActiveContext(await domainService.request('app.bootstrap')),
                 projectIds: async () => {
-                    const bootstrap = await supervisor.request('app.bootstrap');
+                    const bootstrap = await domainService.request('app.bootstrap');
                     return bootstrap.projects.map(({ id }) => id);
                 },
                 projectStatus: (sessionId, refreshToken) =>
-                    supervisor.request('projectStatus.summary', {
+                    domainService.request('projectStatus.summary', {
                         sessionId,
                         ...(refreshToken && { refreshToken }),
                     }),
-                settings: async () => (await supervisor.request('settings.get')).value,
+                settings: async () => (await domainService.request('settings.get')).value,
                 workspaceRequest: createExtensionWorkspaceRequest({
                     desktopRouter: () => desktopRouter,
-                    runtime: supervisor,
+                    domainService,
                 }),
             });
             extensionService.onCatalogChanged((payload) =>
@@ -693,7 +690,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             publishExtensionViewEvents(extensionService, () => server);
             await extensionService.start();
         }
-        server = new LocalHostServer({
+        server = new ControlServer({
             adapters: { host },
             authenticateAgent: (credential) => agentEndpoints.authenticate(credential),
             consumeDesktopTarget: (targetId, generation) => {
@@ -702,16 +699,16 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 return desktopRouter.consumeTarget(targetId, generation);
             },
             desktopCredential: lease.desktopCredential,
-            invokeDesktopRuntime: (request) => forwardRuntime(request),
+            invokeDesktopRuntime: (request) => forwardDomainOperation(request),
             logger,
             identity: lease.identity,
             onClientCountChanged: (clientCount) =>
                 logger.write('info', logEventCatalog.host.clientCount, { fields: { clientCount } }),
             onDesktopUnavailable: async () => {
                 try {
-                    await supervisor.request('terminal.detachAll');
+                    await domainService.request('terminal.detachAll');
                 } catch {
-                    // Best-effort detach: Runtime is already reporting Desktop as unavailable.
+                    // Best-effort detach: domain services already report Desktop as unavailable.
                 }
             },
             onReplyFlushed: async (request, reply, context) => {
@@ -744,7 +741,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 await Promise.all(
                     [...waitIds].map(async (waitId) => {
                         try {
-                            await supervisor.request('agent.dispatch.cancelWaitInternal', {
+                            await domainService.request('agent.dispatch.cancelWaitInternal', {
                                 waitId,
                             });
                         } catch {
@@ -755,7 +752,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
             },
             refreshContext: (context) => agentEndpoints.refresh(context),
         });
-        desktopRouter = new HostDesktopRouter({
+        desktopRouter = new ServerDesktopRouter({
             bridge: {
                 invoke: (operation, expectedGeneration) =>
                     server!.invokeDesktop(operation, expectedGeneration),
@@ -763,7 +760,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                 ...(options.launchDesktop && { launch: options.launchDesktop }),
                 waitForLease: (timeoutMs) => server!.waitForDesktopLease(timeoutMs),
             },
-            runtime: supervisor,
+            domainService,
         });
         const endpoint = await server.start();
         await lease.publish(endpoint);

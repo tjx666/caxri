@@ -112,8 +112,8 @@ done
         const codexTerminalId = await codexTab.locator('xpath=..').getAttribute('data-terminal-id');
         // Switching back to Codex remounts its Terminal pane, which re-attaches the PTY asynchronously
         // (`use-terminal-pane-runtime.ts`). Pressing `Meta+W` before that attach round-trip resolves races
-        // `workbench.closeActiveTab`'s `terminal.close` request behind it on the Host's ordered command
-        // queue (`apps/server/src/core/local-server.ts`) — a race no human could reproduce by hand, but one Playwright's
+        // `workbench.closeActiveTab`'s `terminal.close` request behind it on the Server's ordered command
+        // queue (`apps/server/src/core/control-server.ts`) — a race no human could reproduce by hand, but one Playwright's
         // instant click-then-keypress can, especially under CI's contended parallel-safe pool. Waiting for
         // the attach flag mirrors the same synchronization already used in `editor-tabs.e2e.ts`.
         await expect(

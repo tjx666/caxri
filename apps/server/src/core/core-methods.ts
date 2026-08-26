@@ -1,11 +1,11 @@
 import type { HostMethod } from '@caxri/protocol';
 
 /**
- * Host-owned methods the Host adapter may forward to Runtime. A new `owner: 'host'` method is `HostHandledMethod` until
- * it is added here, so forgetting a Host-local handler fails compile instead of falling through to Runtime
+ * Server-owned methods that Core forwards to domain services. A new registry method remains `CoreHandledMethod` until
+ * it is explicitly added here, so forgetting a Core-local handler fails compilation instead of falling through to
  * `mainOwned()`.
  */
-export const hostForwardedMethods = [
+export const coreForwardedMethods = [
     'agentActions.list',
     'agentHooks.get',
     'agentSkills.get',
@@ -79,5 +79,5 @@ export const hostForwardedMethods = [
     'theme.update',
 ] as const satisfies readonly HostMethod[];
 
-export type HostForwardedMethod = (typeof hostForwardedMethods)[number];
-export type HostHandledMethod = Exclude<HostMethod, HostForwardedMethod>;
+export type CoreForwardedMethod = (typeof coreForwardedMethods)[number];
+export type CoreHandledMethod = Exclude<HostMethod, CoreForwardedMethod>;

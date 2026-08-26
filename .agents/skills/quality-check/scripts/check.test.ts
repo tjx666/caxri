@@ -98,7 +98,7 @@ describe('dirty layer report', () => {
             dirtyLayerReportForFiles(
                 [
                     'apps/desktop/src/renderer/src/app.tsx',
-                    'apps/server/src/core/app.ts',
+                    'apps/server/src/core/server-core.ts',
                     'apps/cli/src/application.ts',
                     'packages/client/src/index.ts',
                     'packages/system/src/index.ts',
