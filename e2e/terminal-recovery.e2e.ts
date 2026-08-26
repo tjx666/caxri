@@ -193,7 +193,7 @@ test('live Terminal restores the authoritative screen after Renderer output back
             .poll(async () => {
                 try {
                     const records = (
-                        await readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8')
+                        await readFile(join(userData, 'logs', 'terminal-host.jsonl'), 'utf8')
                     )
                         .trim()
                         .split('\n')
