@@ -1,8 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import process from 'node:process';
+import { join, resolve } from 'node:path';
 
 import type { ExtensionManifest } from '@caxri/protocol';
 import { extensionManifestSchema, MAX_VIEW_CATALOG_CONTAINERS } from '@caxri/protocol';
@@ -11,6 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildViewCatalog } from '../catalog';
 
 const temporaryDirectories: string[] = [];
+const bundledExtensionsRoot = resolve(import.meta.dirname, '../../../../../../extensions');
 
 afterEach(async () => {
     const directories = [...temporaryDirectories];
@@ -90,7 +90,7 @@ describe('buildViewCatalog', () => {
     it('catalogs Git and Status as lifecycle-bearing product extensions while Files remains Core', async () => {
         const products = await Promise.all(
             ['git', 'status'].map(async (name) => {
-                const rootPath = join(process.cwd(), 'extensions', name);
+                const rootPath = join(bundledExtensionsRoot, name);
                 const source = await readFile(join(rootPath, 'package.json'), 'utf8');
                 const manifest = extensionManifestSchema.parse(JSON.parse(source));
                 return {
