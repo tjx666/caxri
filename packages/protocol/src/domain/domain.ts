@@ -161,6 +161,11 @@ export const terminalRecordSchema = z.object({
     processId: z.number().optional(),
 });
 
+/**
+ * Current durable screen encoding shared by the Server state store and Terminal Host producer.
+ */
+export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 3;
+
 export const terminalOscLinkSnapshotSchema = z.object({
     buffer: z.enum(['normal', 'alternate']),
     endCellOffset: z.number().int().nonnegative().max(3_000_000),

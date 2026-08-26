@@ -8,8 +8,8 @@ import { StructuredLogger } from '@caxri/system';
 import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { CaxriDatabase } from '../../db/repository';
-import { TerminalManager } from '..';
 
 const temporaryDirectories: string[] = [];
 
@@ -60,7 +60,7 @@ describe('TerminalManager snapshot persistence', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         let snapshotAtExit: TerminalSnapshot | undefined;
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             (event: ServerEvent) => {
                 if (event.event === 'terminal.exit')
@@ -103,7 +103,7 @@ describe('TerminalManager snapshot persistence', () => {
             updatedAt: Date.now(),
         });
         const fake = createFakePty();
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),
@@ -140,7 +140,7 @@ describe('TerminalManager snapshot persistence', () => {
         database.database
             .prepare('UPDATE terminal_snapshots SET cols = 0 WHERE terminal_id = ?')
             .run(created.terminal!.id);
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),
@@ -162,7 +162,7 @@ describe('TerminalManager snapshot persistence', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const first = createFakePty();
         const spawned = [first, createFakePty()];
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),
@@ -198,7 +198,7 @@ describe('TerminalManager snapshot persistence', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         let snapshotAtStateChange: TerminalSnapshot | undefined;
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),

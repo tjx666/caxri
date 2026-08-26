@@ -7,9 +7,9 @@ import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestDomainServices } from '../../../__tests__/support/domain-services';
 import { createPendingAgentAdapters } from '../../__tests__/create-test-domain-services';
 import { AgentEndpointLifecycle } from '../../agent-endpoints';
-import { createDomainServices } from '../../create-domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -80,7 +80,7 @@ describe('Agent dispatch Runtime integration', () => {
             return fake.process;
         });
         const events: string[] = [];
-        const runtime = await createDomainServices({
+        const runtime = await createTestDomainServices({
             agentAdapters: createPendingAgentAdapters(),
             agentEndpoints: endpointLifecycle(),
             logger: new StructuredLogger(join(directory, 'logs')),
@@ -156,7 +156,7 @@ describe('Agent dispatch Runtime integration', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
         const spawned: Array<ReturnType<typeof fakePty>> = [];
-        const runtime = await createDomainServices({
+        const runtime = await createTestDomainServices({
             agentAdapters: createPendingAgentAdapters(),
             agentEndpoints: endpointLifecycle(),
             logger: new StructuredLogger(join(directory, 'logs')),

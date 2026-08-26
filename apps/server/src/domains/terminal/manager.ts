@@ -9,7 +9,6 @@ import { CaxriError, errorMessage, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import { LocalTerminalExecution } from '../../terminal-host/local-execution';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
@@ -49,7 +48,7 @@ export class TerminalManager {
         private readonly database: TerminalStateStore,
         private readonly emit: (event: ServerEvent) => void,
         private readonly logger: StructuredLogger,
-        options: TerminalManagerOptions = {},
+        options: TerminalManagerOptions,
     ) {
         this.launchPlanner = new TerminalLaunchPlanner({
             agentEnvironment: options.agentEnvironment,
@@ -66,17 +65,7 @@ export class TerminalManager {
         this.agentOutputRecoverySettings = options.agentOutputRecoverySettings;
         this.terminalColors = options.terminalColors;
         this.snapshots = new TerminalSnapshotPersistence(database, logger);
-        this.execution =
-            options.execution ??
-            new LocalTerminalExecution({
-                agentOutputRecoverySettings: options.agentOutputRecoverySettings,
-                currentProvider: (terminalId) => this.database.getTerminal(terminalId)?.provider,
-                logger,
-                outputFlushMs: options.outputFlushMs,
-                sampleResources: options.sampleResources,
-                spawn: options.spawn,
-                terminalColors: options.terminalColors,
-            });
+        this.execution = options.execution;
         this.executionListeners = [
             this.execution.onEvent((event) => this.projectExecutionEvent(event)),
             this.execution.onExit((event) => {

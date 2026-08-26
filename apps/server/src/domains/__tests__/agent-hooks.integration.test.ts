@@ -7,7 +7,7 @@ import { execFileAsync, StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createDomainServices } from '../create-domain-services';
+import { createTestDomainServices } from '../../__tests__/support/domain-services';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
@@ -26,7 +26,7 @@ describe('Runtime Agent hook integration', () => {
         const codexHome = join(directory, 'codex');
         await mkdir(projectRoot);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const runtime = await createDomainServices({
+        const runtime = await createTestDomainServices({
             agentAdapters: createPendingAgentAdapters(),
             agentEnvironment: {
                 homeDirectory: directory,

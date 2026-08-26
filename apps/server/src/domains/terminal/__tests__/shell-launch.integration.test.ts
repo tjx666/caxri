@@ -6,8 +6,8 @@ import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { CaxriDatabase } from '../../db/repository';
-import { TerminalManager } from '..';
 
 const temporaryDirectories: string[] = [];
 
@@ -38,7 +38,7 @@ describe('TerminalManager shell integration launch', () => {
             args: ['--controlled'],
             environment: { ...environment, CAXRI_INTEGRATED: executable },
         }));
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),
@@ -70,7 +70,7 @@ describe('TerminalManager shell integration launch', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),

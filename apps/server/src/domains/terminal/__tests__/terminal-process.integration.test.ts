@@ -6,8 +6,8 @@ import type { ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { CaxriDatabase } from '../../db/repository';
-import { TerminalManager } from '..';
 
 const temporaryDirectories: string[] = [];
 
@@ -28,7 +28,7 @@ describe('TerminalManager process integration', () => {
         let resolveExit: (() => void) | undefined;
         const marker = new Promise<void>((resolve) => (resolveMarker = resolve));
         const exited = new Promise<void>((resolve) => (resolveExit = resolve));
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             (event) => {
                 events.push(event);
@@ -83,7 +83,7 @@ describe('TerminalManager process integration', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         let output = '';
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
@@ -109,7 +109,7 @@ describe('TerminalManager process integration', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),

@@ -6,7 +6,6 @@ import type { AgentEndpointControl } from '../domains/agent-endpoints';
 import { AgentEndpointLifecycle } from '../domains/agent-endpoints';
 import { defaultAgentEnvironment } from '../domains/agents';
 import type { TerminalExecutionPort } from '../domains/terminal';
-import { resolveE2ETerminalOutputFlushDelay } from '../domains/terminal';
 import type { CreateDomainServices } from './domain-service';
 import { ServerDomainService } from './domain-service';
 
@@ -26,7 +25,6 @@ export interface ServerDomainServiceOptions {
 export function createServerDomainService(
     options: ServerDomainServiceOptions,
 ): ServerDomainService {
-    const outputFlushMs = resolveE2ETerminalOutputFlushDelay(process.env);
     return new ServerDomainService(
         {
             agentEndpoints: new AgentEndpointLifecycle(
@@ -37,7 +35,6 @@ export function createServerDomainService(
             agentHooksPath: options.agentHooksPath,
             logger: options.logger,
             hookExecutable: options.executable ?? process.execPath,
-            terminal: { ...(outputFlushMs !== undefined && { outputFlushMs }) },
             terminalExecution: options.terminalExecution,
             userDataPath: options.userDataPath,
         },

@@ -4,4 +4,3 @@ export type {
     TerminalExecutionStart,
 } from './engine';
 export { TerminalExecutionEngine } from './engine';
-export { CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from './snapshot';

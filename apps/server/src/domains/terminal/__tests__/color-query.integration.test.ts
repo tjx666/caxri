@@ -6,8 +6,8 @@ import { StructuredLogger } from '@caxri/system';
 import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { CaxriDatabase } from '../../db/repository';
-import { TerminalManager } from '..';
 
 const temporaryDirectories: string[] = [];
 
@@ -55,7 +55,7 @@ describe('TerminalManager color-query replies', () => {
         const created = database.createSession(database.createProject(directory).id, 'codex');
         const fake = createFakePty();
         let output = '';
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;

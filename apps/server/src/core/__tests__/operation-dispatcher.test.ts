@@ -7,7 +7,7 @@ import { CaxriError, internalMethods, methods } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createDomainServices } from '../../domains/create-domain-services';
+import { createTestDomainServices } from '../../__tests__/support/domain-services';
 import type { DomainHandlers } from '../../domains/domain-services';
 import { createOperationDispatcher } from '../operation-dispatcher';
 
@@ -59,7 +59,7 @@ afterEach(async () => {
 describe('domain handler table', () => {
     it('implements every Renderer-callable and internal domain operation', async () => {
         const directory = await temporaryDirectory('caxri-handler-table-');
-        const runtime = await createDomainServices({
+        const runtime = await createTestDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},

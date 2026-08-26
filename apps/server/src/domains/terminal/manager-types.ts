@@ -5,18 +5,12 @@ import type {
     ProcessState,
     TerminalKind,
     TerminalRecord,
-    TerminalResourceUsage,
 } from '@caxri/protocol';
-import type * as pty from 'node-pty';
 
 import type { TerminalExecutionPort } from './execution-port';
 
 export interface TerminalManagerOptions {
-    execution?: TerminalExecutionPort;
-    /**
-     * Test seam for deterministic output-queue backpressure. Production uses the fixed 16 ms coalescing window.
-     */
-    outputFlushMs?: number;
+    execution: TerminalExecutionPort;
     resolveExecutable?: (
         kind: TerminalKind,
         launchSettings?: AgentLaunchSettings,
@@ -47,8 +41,6 @@ export interface TerminalManagerOptions {
      * Signals raw PTY activity even while no Renderer view is attached; consumers receive no content.
      */
     onOutputActivity?: (terminalId: string, processId: number) => void;
-    spawn?: typeof pty.spawn;
-    sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
     shellIntegration?: (
         executable: string,
         environment: NodeJS.ProcessEnv,

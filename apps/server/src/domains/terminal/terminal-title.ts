@@ -2,7 +2,10 @@ import type { ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { normalizeTerminalTitle } from '@caxri/protocol';
 import { throttle } from 'es-toolkit';
 
-import type { TerminalTitleObserver } from '../../terminal-host/engine/screen';
+interface TerminalTitleObserver {
+    (title: string): void;
+    cancel(): void;
+}
 
 /**
  * The narrow persistence surface a title listener needs, kept to one method so the listener stays testable without a
