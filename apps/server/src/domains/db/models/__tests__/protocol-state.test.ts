@@ -149,6 +149,28 @@ describe('ProtocolStateModel command receipts', () => {
 });
 
 describe('ProtocolStateModel changefeed', () => {
+    it('never persists configuration source bytes in the replay window', async () => {
+        const path = await temporaryDatabasePath('caxri-protocol-private-changefeed-');
+        const database = new CaxriDatabase(path);
+        const { stateEpoch } = database.protocolState.identity();
+        const privateSource = '{"apiToken":"must-not-enter-changefeed"}';
+
+        database.protocolState.appendEvent(stateEpoch, {
+            event: 'settings.changed',
+            payload: { source: privateSource },
+        });
+
+        const stored = database.database
+            .prepare('SELECT event_json AS eventJson FROM protocol_changefeed')
+            .get() as { eventJson: string };
+        expect(stored.eventJson).not.toContain('must-not-enter-changefeed');
+        expect(database.protocolState.eventsAfter(stateEpoch, 0)).toEqual({
+            events: [],
+            requiresSnapshot: true,
+        });
+        database.close();
+    });
+
     it('persists only durable events and keeps one bounded replay window', async () => {
         const path = await temporaryDatabasePath('caxri-protocol-changefeed-');
         const database = new CaxriDatabase(path);
@@ -165,9 +187,9 @@ describe('ProtocolStateModel changefeed', () => {
             earliest: 2,
             latest: MAX_PROTOCOL_CHANGEFEED_EVENTS + 1,
         });
-        expect(database.protocolState.eventsAfter(stateEpoch, bounds.earliest - 1)).toHaveLength(
-            MAX_PROTOCOL_CHANGEFEED_EVENTS,
-        );
+        expect(
+            database.protocolState.eventsAfter(stateEpoch, bounds.earliest - 1).events,
+        ).toHaveLength(MAX_PROTOCOL_CHANGEFEED_EVENTS);
         expect(() =>
             database.protocolState.appendEvent(stateEpoch, {
                 event: 'terminal.output',

@@ -77,6 +77,9 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
             options.deliver(isTransientServerEvent(event) ? event : journal.publish(event));
             if (
                 (event.event === 'keybindings.changed' && !event.payload.error) ||
+                (event.event === 'state.changed' &&
+                    event.payload.kind === 'full' &&
+                    event.payload.reason === 'unknown') ||
                 (event.event === 'runtime.status' && event.payload.status === 'ready') ||
                 (event.event === 'host.connectionChanged' && event.payload.status === 'reconnected')
             )

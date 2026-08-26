@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 
 import type {
+    DurableEventStorePage,
     DurableServerEvent,
     NewProtocolCommandReceipt,
     ProtocolEventEnvelope,
@@ -14,6 +15,7 @@ import {
     durableServerEventSchema,
     durableServerIdentitySchema,
     isCaxriMethod,
+    isSnapshotOnlyDurableEventName,
     protocolClientIdentitySchema,
     protocolEventEnvelopeSchema,
     serverStateEpochSchema,
@@ -211,7 +213,9 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
         serverStateEpochSchema.parse(stateEpoch);
         const parsedEvent = durableServerEventSchema.parse(event);
         const eventJson = assertBoundedJson(
-            parsedEvent,
+            isSnapshotOnlyDurableEventName(parsedEvent.event)
+                ? { recovery: 'snapshot-required' }
+                : parsedEvent,
             MAX_PROTOCOL_CHANGEFEED_EVENT_BYTES,
             'Changefeed event',
         );
@@ -235,11 +239,11 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
         });
     }
 
-    eventsAfter(stateEpoch: string, afterSequence: number): ProtocolEventEnvelope[] {
+    eventsAfter(stateEpoch: string, afterSequence: number): DurableEventStorePage {
         serverStateEpochSchema.parse(stateEpoch);
         if (!Number.isSafeInteger(afterSequence) || afterSequence < 0)
             throw new CaxriError('VALIDATION', 'Event cursor is invalid');
-        return this.database
+        const rows = this.database
             .select()
             .from(protocolChangefeed)
             .where(
@@ -250,14 +254,20 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
             )
             .orderBy(asc(protocolChangefeed.sequence))
             .limit(MAX_PROTOCOL_CHANGEFEED_EVENTS)
-            .all()
-            .map((row) =>
-                protocolEventEnvelopeSchema.parse({
-                    protocolVersion: CAXRI_PROTOCOL_VERSION,
-                    cursor: row.sequence,
-                    event: parseJson(row.eventJson, 'changefeed event'),
-                }),
-            );
+            .all();
+        const requiresSnapshot = rows.some((row) => isSnapshotOnlyDurableEventName(row.eventName));
+        return {
+            events: requiresSnapshot
+                ? []
+                : rows.map((row) =>
+                      protocolEventEnvelopeSchema.parse({
+                          protocolVersion: CAXRI_PROTOCOL_VERSION,
+                          cursor: row.sequence,
+                          event: parseJson(row.eventJson, 'changefeed event'),
+                      }),
+                  ),
+            requiresSnapshot,
+        };
     }
 
     changefeedBounds(stateEpoch: string): { count: number; earliest: number; latest: number } {
