@@ -543,4 +543,52 @@ describe('architecture refactor parity comparison', () => {
             compareReceipts(baseline, candidate, normalization, emptyAllowlist).failures,
         ).toContain('protocol-request: performance metric latency regressed beyond ratio budget');
     });
+
+    it('compares A3a consolidated Server resources with the complete legacy Server topology', () => {
+        const baseline = createReceipt();
+        const candidate = createReceipt('candidate');
+        baseline.source = {
+            appVersion: '0.0.18',
+            buildId: 'e6b6b5de0c018db6',
+            commit: 'd370c789eb24185ee6d6d256f540a6aceedae97c',
+            protocolVersion: 2,
+            tree: 'f0e0725dc550c4fba1964216db471182dc684be6',
+        };
+        baseline.scenarios[0].id = 'performance-budgets';
+        candidate.scenarios[0].id = 'performance-budgets';
+        baseline.scenarios[0].metrics = {
+            'runtime-memory': {
+                absoluteCeiling: 512,
+                maxRegressionRatio: 0.2,
+                samples: [130.41, 130.75, 130.53],
+                statistic: 'p95',
+                unit: 'MiB',
+            },
+        };
+        candidate.scenarios[0].metrics = {
+            'runtime-memory': {
+                absoluteCeiling: 512,
+                maxRegressionRatio: 0.2,
+                samples: [165.8, 178.58, 165.44],
+                statistic: 'p95',
+                unit: 'MiB',
+            },
+        };
+
+        expect(
+            compareReceipts(baseline, candidate, normalization, emptyAllowlist, 'A2f').failures,
+        ).toContain(
+            'performance-budgets: performance metric runtime-memory regressed beyond ratio budget',
+        );
+        expect(
+            compareReceipts(baseline, candidate, normalization, emptyAllowlist, 'A3a').status,
+        ).toBe('pass');
+
+        candidate.scenarios[0].metrics['runtime-memory'].samples = [300, 300, 300];
+        expect(
+            compareReceipts(baseline, candidate, normalization, emptyAllowlist, 'A3a').failures,
+        ).toContain(
+            'performance-budgets: performance metric runtime-memory regressed beyond ratio budget',
+        );
+    });
 });

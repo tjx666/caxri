@@ -38,6 +38,67 @@ function expectTimedEvent(record: PerformanceLog | undefined): void {
     expect(record?.durationMs ?? Infinity).toBeLessThan(thresholdMs);
 }
 
+interface ServerOwnerProcess {
+    command: string;
+    pid: number;
+    ppid: number;
+    rssKiB: number;
+}
+
+/**
+ * Measures every general Server owner that replaced the legacy Host + Runtime pair. Extension Host remains excluded
+ * because it was already independent in A0; Terminal Host is included once A3b splits it from Server Core. This keeps
+ * the same memory and descriptor budget meaningful across deliberate process-topology changes.
+ */
+async function measureServerOwnerResources(serverCorePid: number): Promise<{
+    memoryMb: number;
+    openDescriptors: number;
+}> {
+    const { stdout } = await execFileAsync('ps', ['-axo', 'pid=,ppid=,rss=,command=']);
+    const processes = stdout
+        .split('\n')
+        .filter(Boolean)
+        .map((line): ServerOwnerProcess => {
+            const [pid, ppid, rssKiB, ...command] = line.trim().split(/\s+/u);
+            if (!pid || !ppid || !rssKiB || command.length === 0)
+                throw new Error(`Unexpected process resource record: ${line}`);
+            return {
+                command: command.join(' '),
+                pid: Number(pid),
+                ppid: Number(ppid),
+                rssKiB: Number(rssKiB),
+            };
+        });
+    const byPid = new Map(processes.map((entry) => [entry.pid, entry]));
+    const isServerDescendant = (entry: ServerOwnerProcess): boolean => {
+        const visited = new Set<number>();
+        let current: ServerOwnerProcess | undefined = entry;
+        while (current && !visited.has(current.pid)) {
+            if (current.ppid === serverCorePid) return true;
+            visited.add(current.pid);
+            current = byPid.get(current.ppid);
+        }
+        return false;
+    };
+    const owners = processes.filter(
+        (entry) =>
+            entry.pid === serverCorePid ||
+            (isServerDescendant(entry) && /(?:^|\/)terminal-host\.js(?:\s|$)/u.test(entry.command)),
+    );
+    if (owners.every((entry) => entry.pid !== serverCorePid))
+        throw new Error('Server Core process disappeared before resource measurement');
+    const descriptorCounts = await Promise.all(
+        owners.map(async ({ pid }) => {
+            const { stdout: openFiles } = await execFileAsync('lsof', ['-p', String(pid)]);
+            return openFiles.split('\n').filter(Boolean).length - 1;
+        }),
+    );
+    return {
+        memoryMb: owners.reduce((total, entry) => total + entry.rssKiB, 0) / 1024,
+        openDescriptors: descriptorCounts.reduce((total, count) => total + count, 0),
+    };
+}
+
 test('large Project opens Runtime, Terminal, files, and Git within three seconds', async () => {
     // This is a machine-load-sensitive performance assertion, not a functional
     // check, so it only runs when a benchmark Project root is explicitly
@@ -142,12 +203,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             projectListRoundTripMs.push(performance.now() - startedAt);
         }
         server.close();
-        const [{ stdout: openFiles }, { stdout: residentSet }] = await Promise.all([
-            execFileAsync('lsof', ['-p', String(serverPid)]),
-            execFileAsync('ps', ['-o', 'rss=', '-p', String(serverPid)]),
-        ]);
-        const serverCoreOpenDescriptors = openFiles.split('\n').filter(Boolean).length - 1;
-        const serverCoreMemoryMb = Number(residentSet.trim()) / 1024;
+        const serverResources = await measureServerOwnerResources(serverPid);
         // The logger now drains writes asynchronously, so poll the log files instead of reading
         // them once: the final `git.summary`/`window.ready_to_show` records may not be flushed
         // to disk yet. Keep polling until both are present, then read the settled records below.
@@ -262,8 +318,8 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
                 watcherReady?.durationMs === undefined
                     ? undefined
                     : Math.round(watcherReady.durationMs * 100) / 100,
-            serverCoreOpenDescriptors,
-            serverCoreMemoryMb: Math.round(serverCoreMemoryMb * 100) / 100,
+            serverOpenDescriptors: serverResources.openDescriptors,
+            serverMemoryMb: Math.round(serverResources.memoryMb * 100) / 100,
             projectListRoundTripMs: projectListRoundTripMs.map(
                 (duration) => Math.round(duration * 100) / 100,
             ),
@@ -295,8 +351,8 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         expectTimedEvent(windowReady);
         expect(watcherReady?.fields?.backend).toMatch(/^(fs-events|poll)$/);
         expect(inputThroughput?.fields?.inputBytes).toBeGreaterThan(0);
-        expect(serverCoreOpenDescriptors).toBeLessThan(256);
-        expect(serverCoreMemoryMb).toBeLessThan(512);
+        expect(serverResources.openDescriptors).toBeLessThan(256);
+        expect(serverResources.memoryMb).toBeLessThan(512);
         expect(Math.max(...projectListRoundTripMs)).toBeLessThan(100);
         expect(watcherErrors).toBe(0);
         expect(ipcFailures).toBe(0);
