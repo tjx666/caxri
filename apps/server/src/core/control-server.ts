@@ -98,6 +98,7 @@ export class ControlServer {
             dispatch: this.dispatch,
             isDesktopConnectionCurrent: (connectionId) =>
                 this.currentDesktop?.context.connection?.connectionId === connectionId,
+            logger: options.logger,
             refreshContext: (context) => options.refreshContext?.(context) ?? context,
         });
         this.binaryStreams = new BinaryStreamControl({

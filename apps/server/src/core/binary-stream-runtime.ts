@@ -28,6 +28,7 @@ import {
     encodeBinaryStreamFrame,
     toWireError,
 } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
@@ -39,7 +40,12 @@ type TerminalStreamOperation = Extract<BinaryStreamOperation, { terminalId: stri
 interface BinaryStreamRuntimeOptions {
     dispatch: CommandDispatcher;
     isDesktopConnectionCurrent(connectionId: string): boolean;
+    logger?: BinaryStreamMetricSink;
     refreshContext?(context: CommandExecutionContext): CommandExecutionContext;
+}
+
+interface BinaryStreamMetricSink {
+    recordMetric?: StructuredLogger['recordMetric'];
 }
 
 interface BinarySession {
@@ -90,14 +96,31 @@ function commandFailure(id: string, error: unknown): CommandReplyEnvelope {
     };
 }
 
+function recordStreamClosed(logger: BinaryStreamMetricSink | undefined): void {
+    logger?.recordMetric?.('connection.closed', 1, {
+        owner: 'stream',
+        phase: 'shutdown',
+        outcome: 'success',
+    });
+}
+
 class BinarySocketWriter {
-    constructor(private readonly socket: WebSocket) {}
+    constructor(
+        private readonly socket: WebSocket,
+        private readonly logger: BinaryStreamMetricSink | undefined,
+    ) {}
 
     async send(frame: BinaryStreamFrame): Promise<void> {
         const encoded = encodeBinaryStreamFrame(frame);
+        const bufferedBytes = this.socket.bufferedAmount + encoded.byteLength;
+        this.logger?.recordMetric?.('connection.buffered_bytes', bufferedBytes, {
+            owner: 'stream',
+            phase: 'transfer',
+            outcome: bufferedBytes > BINARY_STREAM_MAX_BUFFERED_BYTES ? 'overflow' : 'success',
+        });
         if (
             this.socket.readyState !== WebSocket.OPEN ||
-            this.socket.bufferedAmount + encoded.byteLength > BINARY_STREAM_MAX_BUFFERED_BYTES
+            bufferedBytes > BINARY_STREAM_MAX_BUFFERED_BYTES
         )
             throw new CaxriError('CAPACITY', 'Binary stream output exceeded its high-water mark');
         await new Promise<void>((resolve, reject) => {
@@ -144,13 +167,15 @@ abstract class BaseBinarySession implements BinarySession {
     constructor(
         protected readonly socket: WebSocket,
         protected readonly claim: BinaryStreamClaim,
+        private readonly logger: BinaryStreamMetricSink | undefined,
         private readonly onClosed: () => void,
     ) {
         this.connectionId = claim.connectionId;
-        this.writer = new BinarySocketWriter(socket);
+        this.writer = new BinarySocketWriter(socket, this.logger);
         socket.once('close', () => {
             if (this.closed) return;
             this.closed = true;
+            recordStreamClosed(this.logger);
             this.onClosed();
         });
         socket.on('error', () => {});
@@ -159,6 +184,7 @@ abstract class BaseBinarySession implements BinarySession {
     close(reason: BinaryStreamCloseReason): void {
         if (this.closed) return;
         this.closed = true;
+        recordStreamClosed(this.logger);
         this.writer.close(reason);
         this.onClosed();
     }
@@ -207,9 +233,10 @@ class TerminalBinarySession extends BaseBinarySession {
         socket: WebSocket,
         claim: BinaryStreamClaim,
         private readonly execute: ExecuteStreamCommand,
+        logger: BinaryStreamMetricSink | undefined,
         onClosed: () => void,
     ) {
-        super(socket, claim, onClosed);
+        super(socket, claim, logger, onClosed);
         if (!isTerminalOperation(claim.operation))
             throw new CaxriError('FORBIDDEN', 'File scope cannot open a Terminal stream');
         this.terminalId = claim.operation.terminalId;
@@ -497,9 +524,10 @@ class FileBinarySession extends BaseBinarySession {
         socket: WebSocket,
         claim: BinaryStreamClaim,
         private readonly execute: ExecuteStreamCommand,
+        logger: BinaryStreamMetricSink | undefined,
         onClosed: () => void,
     ) {
-        super(socket, claim, onClosed);
+        super(socket, claim, logger, onClosed);
         socket.on('message', (data, isBinary) => this.receive(data, isBinary));
         if (claim.operation.method === 'files.read') {
             // `startRead` owns transport failure handling and closes the one-shot stream.
@@ -661,14 +689,27 @@ export class BinaryStreamRuntime {
                 this.terminalSessions.delete(this.terminalKey(session));
         };
         if (claim.operation.method.startsWith('terminal.')) {
-            const terminal = new TerminalBinarySession(socket, claim, this.execute, onClosed);
+            const terminal = new TerminalBinarySession(
+                socket,
+                claim,
+                this.execute,
+                this.options.logger,
+                onClosed,
+            );
             session = terminal;
             if (claim.operation.method === 'terminal.attach') {
                 const key = this.terminalKey(terminal);
                 this.terminalSessions.get(key)?.close('completed');
                 this.terminalSessions.set(key, terminal);
             }
-        } else session = new FileBinarySession(socket, claim, this.execute, onClosed);
+        } else
+            session = new FileBinarySession(
+                socket,
+                claim,
+                this.execute,
+                this.options.logger,
+                onClosed,
+            );
         this.sessions.add(session);
     }
 
