@@ -64,6 +64,7 @@ import {
     isConcurrentRead,
     isTokenMatch,
     logControlRequestOutcome,
+    observeControlRequest,
     operatorContext,
     reserveControlRequest,
     shouldSettleOutsideOrderedLane,
@@ -444,12 +445,9 @@ export class ControlServer {
             ) {
                 // This path intentionally bypasses `queue`; the data callback is synchronous, so dispatch is
                 // fire-and-forget and owns its own reply/error handling.
-                const cancellation = this.dispatchCommand(
-                    socket,
-                    state,
-                    immediateRequest,
-                    undefined,
-                    true,
+                const clientState = state;
+                const cancellation = observeControlRequest(clientState, immediateRequest, () =>
+                    this.dispatchCommand(socket, clientState, immediateRequest, undefined, true),
                 );
                 // eslint-disable-next-line unicorn/prefer-await -- the synchronous data callback cannot await
                 cancellation.catch(() => socket.terminate());
@@ -594,11 +592,16 @@ export class ControlServer {
                     const operationCommand =
                         localClientDesktopOperationCommandSchema.safeParse(raw);
                     if (operationCommand.success) {
-                        const dispatch = this.dispatchDesktopOperation(
-                            socket,
+                        const dispatch = observeControlRequest(
                             clientState,
                             operationCommand.data.request,
-                            timing,
+                            () =>
+                                this.dispatchDesktopOperation(
+                                    socket,
+                                    clientState,
+                                    operationCommand.data.request,
+                                    timing,
+                                ),
                         );
                         if (isConcurrentRead(operationCommand.data.request.method)) {
                             // eslint-disable-next-line promise/no-nesting, unicorn/prefer-await -- reads settle outside the ordered lane
@@ -612,12 +615,14 @@ export class ControlServer {
                         return;
                     }
                     const command = localClientCommandSchema.parse(raw);
-                    const dispatch = this.dispatchCommand(
-                        socket,
-                        clientState,
-                        command.request,
-                        timing,
-                        shouldSettleOutsideOrderedLane(command.request.method),
+                    const dispatch = observeControlRequest(clientState, command.request, () =>
+                        this.dispatchCommand(
+                            socket,
+                            clientState,
+                            command.request,
+                            timing,
+                            shouldSettleOutsideOrderedLane(command.request.method),
+                        ),
                     );
                     if (isConcurrentRead(command.request.method)) {
                         // eslint-disable-next-line promise/no-nesting, unicorn/prefer-await -- reads settle outside the ordered lane
