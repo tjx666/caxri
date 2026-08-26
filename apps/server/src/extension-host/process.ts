@@ -8,6 +8,7 @@ import {
     observationProcessManifestDirectory,
     ObservationProcessManifestPublisher,
     runWithObservationContext,
+    startProcessObservationSampler,
     StructuredLogger,
 } from '@caxri/system';
 
@@ -71,6 +72,11 @@ const processManifest = new ObservationProcessManifestPublisher({
     owner: 'extension-host',
 });
 processManifest.publish('starting');
+const processSampler = startProcessObservationSampler({
+    logger,
+    owner: 'extension-host',
+    publisher: processManifest,
+});
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'extension-host' });
 processErrorMonitor.attach(logger);
 
@@ -103,6 +109,7 @@ async function handle(request: ExtensionHostRequest): Promise<unknown> {
         case 'cancel':
             return cancelTreeRequest(request.params.requestId);
         case 'shutdown':
+            processSampler.stop();
             processManifest.publish('stopping');
             disposeAllExtensions();
             setImmediate(() => {
