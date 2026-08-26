@@ -1,0 +1,48 @@
+import type {
+    DurableEventStore,
+    EventRecovery,
+    EventRecoveryRequest,
+    ProtocolEventEnvelope,
+    ProtocolRecoverySnapshot,
+    ServerEvent,
+} from '@caxri/protocol';
+import { CaxriError, createDurableEventJournal, MAX_EVENT_JOURNAL_EVENTS } from '@caxri/protocol';
+
+export interface ServerRecoveryJournal {
+    initialize(identity: { serverId: string; stateEpoch: string }, store: DurableEventStore): void;
+    publish(event: ServerEvent): ProtocolEventEnvelope | undefined;
+    recover(request: EventRecoveryRequest): Promise<EventRecovery>;
+}
+
+/**
+ * Bridges the short startup interval where domain readiness can emit before its persistence port becomes available. The
+ * bounded queue is drained synchronously before the control listener starts, so no Client can observe a gap.
+ */
+export function createServerRecoveryJournal(
+    snapshot: (cursor: number) => Promise<ProtocolRecoverySnapshot> | ProtocolRecoverySnapshot,
+): ServerRecoveryJournal {
+    let journal: ReturnType<typeof createDurableEventJournal> | undefined;
+    const pending: ServerEvent[] = [];
+    return {
+        initialize(identity, store) {
+            if (journal) throw new CaxriError('CONFLICT', 'Server recovery is already initialized');
+            journal = createDurableEventJournal({ identity, snapshot, store });
+            for (const event of pending) journal.publish(event);
+            pending.length = 0;
+        },
+        publish(event) {
+            if (journal) return journal.publish(event);
+            if (pending.length >= MAX_EVENT_JOURNAL_EVENTS)
+                throw new CaxriError('CAPACITY', 'Too many durable startup events');
+            pending.push(event);
+            return;
+        },
+        recover(request) {
+            if (!journal)
+                return Promise.reject(
+                    new CaxriError('UNAVAILABLE', 'Server recovery is not ready'),
+                );
+            return journal.recover(request);
+        },
+    };
+}
