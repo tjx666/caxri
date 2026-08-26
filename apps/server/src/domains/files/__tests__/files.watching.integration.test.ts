@@ -285,4 +285,57 @@ describe('FileService watcher and polling behavior', () => {
         await service.close();
         database.close();
     });
+
+    it('resolves the replacement root while disposing the previous native watcher', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-file-watch-replace-'));
+        temporaryDirectories.push(directory);
+        const firstRoot = join(directory, 'first');
+        const secondRoot = join(directory, 'second');
+        await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const first = database.createSession(database.createProject(firstRoot).id, 'shell').session;
+        const second = database.createSession(
+            database.createProject(secondRoot).id,
+            'shell',
+        ).session;
+        const firstDisposal = Promise.withResolvers<void>();
+        const firstUnsubscribe = vi.fn(() => firstDisposal.promise);
+        const secondUnsubscribe = vi.fn(() => Promise.resolve());
+        const subscribe = vi
+            .fn()
+            .mockResolvedValueOnce({ unsubscribe: firstUnsubscribe })
+            .mockResolvedValueOnce({ unsubscribe: secondUnsubscribe });
+        const service = new FileService(
+            database,
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            () => 1024,
+            { subscribe },
+        );
+        await service.watchSession(first.id);
+        const originalResolve = service.resolveSessionPath.bind(service);
+        const secondResolution = Promise.withResolvers<void>();
+        const secondResolveStarted = vi.fn();
+        vi.spyOn(service, 'resolveSessionPath').mockImplementation(async (sessionId, input) => {
+            if (input === undefined && sessionId === second.id) {
+                secondResolveStarted();
+                await secondResolution.promise;
+            }
+            return originalResolve(sessionId, input);
+        });
+
+        const replacement = service.watchSession(second.id);
+        await vi.waitFor(() => expect(firstUnsubscribe).toHaveBeenCalledOnce());
+        await vi.waitFor(() => expect(secondResolveStarted).toHaveBeenCalledOnce());
+        secondResolution.resolve();
+        await Promise.resolve();
+        expect(subscribe).toHaveBeenCalledOnce();
+        firstDisposal.resolve();
+        await replacement;
+        expect(subscribe).toHaveBeenCalledTimes(2);
+
+        await service.close();
+        expect(secondUnsubscribe).toHaveBeenCalledOnce();
+        database.close();
+    });
 });

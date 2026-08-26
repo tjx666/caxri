@@ -192,10 +192,20 @@ export class WatcherService {
         const startedAt = performance.now();
         const previousHandle = this.watchHandle;
         this.watchHandle = undefined;
-        await previousHandle?.dispose();
-        if (generation !== this.watchGeneration) return;
-        if (!scope) return;
-        const { root } = await this.resolveSessionPath(scope.sessionId);
+        const previousDisposal = previousHandle?.dispose();
+        if (!scope || generation !== this.watchGeneration) {
+            await previousDisposal;
+            return;
+        }
+        /**
+         * Root authorization and old native-subscription disposal are independent. Start both together, but await both
+         * before registering the replacement, so generation fencing is preserved without serializing two filesystem
+         * round trips on the watcher-ready critical path.
+         */
+        const [, { root }] = await Promise.all([
+            previousDisposal,
+            this.resolveSessionPath(scope.sessionId),
+        ]);
         if (generation !== this.watchGeneration) return;
         this.watchedRoot = root;
         rememberPolledDirectory(
