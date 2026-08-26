@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TerminalHostRequestEnvelope } from '../../../terminal-host/protocol';
 import { TerminalHostSupervisor } from '../supervisor';
 
-const serverId = 'b'.repeat(32);
+const bootId = 'b'.repeat(32);
 const temporaryDirectories: string[] = [];
 
 // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes EventEmitter, which this test seam mirrors.
@@ -50,12 +50,12 @@ function createSupervisor(): {
         forkProcess,
         supervisor: new TerminalHostSupervisor({
             appVersion: '0.0.18',
+            bootId,
             buildId: 'build-1',
             commit: 'deadbeef',
             forkProcess,
             logger: new StructuredLogger(join(directory, 'logs'), 'server-core'),
             outputFlushMs: 1_000,
-            serverId,
             terminalHostPath: '/out/main/terminal-host.js',
             userDataPath: directory,
         }),
@@ -67,7 +67,7 @@ async function becomeReady(child: FakeChild, supervisor: TerminalHostSupervisor)
     child.emit('message', {
         type: 'event',
         event: 'host.ready',
-        serverId,
+        bootId,
         protocolVersion: 1,
         appVersion: '0.0.18',
         buildId: 'build-1',
@@ -107,12 +107,12 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         };
         expect(launchOptions.execArgv).toEqual(['--max-semi-space-size=8']);
         expect(launchOptions.env.CAXRI_TERMINAL_HOST_CREDENTIAL).toMatch(/^[0-9a-f]{64}$/u);
-        expect(launchOptions.env.CAXRI_SERVER_ID).toBe(serverId);
+        expect(launchOptions.env.CAXRI_SERVER_BOOT_ID).toBe(bootId);
         expect(launchOptions.env.CAXRI_E2E).toBe('1');
         expect(launchOptions.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS).toBe('1000');
         expect(child.sent[0]).toMatchObject({
+            bootId,
             credential: launchOptions.env.CAXRI_TERMINAL_HOST_CREDENTIAL,
-            serverId,
             request: { method: 'host.initialize' },
         });
         const readyDiagnostics = supervisor.diagnostics();

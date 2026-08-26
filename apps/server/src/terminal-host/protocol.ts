@@ -198,7 +198,7 @@ export const terminalHostRequestEnvelopeSchema = z
         protocolVersion: z.literal(TERMINAL_HOST_PROTOCOL_VERSION),
         id: identifierSchema,
         credential: serverCredentialTokenSchema,
-        serverId: serverProcessIdentitySchema,
+        bootId: serverProcessIdentitySchema,
         observation: observationContextSchema.optional(),
         scope: terminalHostScopeSchema,
         request: terminalHostRequestSchema,
@@ -238,7 +238,7 @@ const terminalHostEventEnvelopeSchema = z.discriminatedUnion('event', [
         .object({
             type: z.literal('event'),
             event: z.literal('host.ready'),
-            serverId: serverProcessIdentitySchema,
+            bootId: serverProcessIdentitySchema,
             protocolVersion: z.literal(TERMINAL_HOST_PROTOCOL_VERSION),
             appVersion: z.string().min(1).max(100),
             buildId: z.string().min(1).max(200),
@@ -357,8 +357,8 @@ const requiredCapabilities = {
 } as const satisfies Record<TerminalHostRequest['method'], TerminalHostCapability>;
 
 export interface TerminalHostAuthority {
+    bootId: string;
     credential: string;
-    serverId: string;
     /**
      * Undefined means this fresh Host has no generation baseline and may accept Core's first positive generation.
      */
@@ -375,7 +375,7 @@ export interface TerminalHostAuthority {
 
 export type TerminalHostAuthorizationFailure =
     | 'credential'
-    | 'server'
+    | 'boot'
     | 'capability'
     | 'scope'
     | 'terminal'
@@ -393,7 +393,7 @@ export function authorizeTerminalHostRequest(
 ): { ok: true } | { ok: false; reason: TerminalHostAuthorizationFailure } {
     if (!isSecretMatch(envelope.credential, authority.credential))
         return { ok: false, reason: 'credential' };
-    if (envelope.serverId !== authority.serverId) return { ok: false, reason: 'server' };
+    if (envelope.bootId !== authority.bootId) return { ok: false, reason: 'boot' };
     const requiredCapability = requiredCapabilities[envelope.request.method];
     if (envelope.scope.capability !== requiredCapability)
         return { ok: false, reason: 'capability' };

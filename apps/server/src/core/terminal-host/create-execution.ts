@@ -10,12 +10,12 @@ import { TerminalHostSupervisor } from './supervisor';
 
 export interface CreateTerminalExecutionOptions {
     appVersion: string;
+    bootId: string;
     buildId: string;
     commit: string;
     executable?: string;
     logger: StructuredLogger;
     override?: TerminalExecutionPort;
-    serverId: string;
     terminalHostPath?: string;
     userDataPath: string;
 }
@@ -29,12 +29,12 @@ export function createTerminalExecution(
     if (options.override) return options.override;
     const supervisor = new TerminalHostSupervisor({
         appVersion: options.appVersion,
+        bootId: options.bootId,
         buildId: options.buildId,
         commit: options.commit,
         executable: options.executable,
         logger: options.logger,
         outputFlushMs: resolveE2ETerminalOutputFlushDelay(process.env),
-        serverId: options.serverId,
         terminalHostPath:
             options.terminalHostPath ?? join(process.cwd(), 'out/main/terminal-host.js'),
         userDataPath: options.userDataPath,

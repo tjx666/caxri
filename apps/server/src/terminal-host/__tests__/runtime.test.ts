@@ -14,7 +14,7 @@ import type { TerminalExecutionOwner } from '../runtime';
 import { TerminalHostRuntime } from '../runtime';
 
 const credential = 'a'.repeat(64);
-const serverId = 'b'.repeat(32);
+const bootId = 'b'.repeat(32);
 const terminal: TerminalRecord = {
     id: 'terminal-1',
     sessionId: 'session-1',
@@ -40,8 +40,8 @@ function privateRequest(
         protocolVersion: 1,
         id,
         ...(observation && { observation }),
+        bootId,
         credential,
-        serverId,
         scope,
         request,
     });
@@ -102,6 +102,7 @@ function createRuntime(engine: TerminalExecutionOwner): {
         protocolViolation,
         runtime: new TerminalHostRuntime({
             appVersion: '0.0.18',
+            bootId,
             buildId: 'build-1',
             commit: 'deadbeef',
             credential,
@@ -109,7 +110,6 @@ function createRuntime(engine: TerminalExecutionOwner): {
             logger,
             onProtocolViolation: protocolViolation,
             send: (message) => messages.push(message),
-            serverId,
         }),
     };
 }

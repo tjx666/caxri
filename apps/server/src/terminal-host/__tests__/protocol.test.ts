@@ -12,7 +12,7 @@ import {
 } from '../protocol';
 
 const credential = 'a'.repeat(64);
-const serverId = 'b'.repeat(32);
+const bootId = 'b'.repeat(32);
 const terminal: TerminalRecord = {
     id: 'terminal-1',
     sessionId: 'session-1',
@@ -31,8 +31,8 @@ function startEnvelope(): TerminalHostRequestEnvelope {
         type: 'request',
         protocolVersion: 1,
         id: 'request-1',
+        bootId,
         credential,
-        serverId,
         scope: {
             scope: 'terminal',
             capability: 'terminal.lifecycle',
@@ -53,8 +53,8 @@ function startEnvelope(): TerminalHostRequestEnvelope {
 }
 
 const liveAuthority = {
+    bootId,
     credential,
-    serverId,
     launchGeneration: () => 1,
     terminal: (terminalId: string) =>
         terminalId === terminal.id
@@ -77,8 +77,8 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         envelope.scope.ptyGeneration = 7;
         expect(
             authorizeTerminalHostRequest(envelope, {
+                bootId,
                 credential,
-                serverId,
                 launchGeneration: () => {},
                 terminal: () => {},
             }),
@@ -87,7 +87,7 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
 
     it.each([
         ['credential', { credential: 'c'.repeat(64) }],
-        ['server', { serverId: 'd'.repeat(32) }],
+        ['boot', { bootId: 'd'.repeat(32) }],
         ['capability', { scope: { capability: 'terminal.view' } }],
         ['terminal', { scope: { terminalId: 'terminal-2' } }],
         ['session', { scope: { sessionId: 'session-2' } }],
@@ -117,8 +117,8 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
             type: 'request',
             protocolVersion: 1,
             id: 'request-2',
+            bootId,
             credential,
-            serverId,
             scope: {
                 scope: 'terminal',
                 capability: 'terminal.input',
@@ -141,8 +141,8 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
             type: 'request',
             protocolVersion: 1,
             id: 'request-3',
+            bootId,
             credential,
-            serverId,
             scope: {
                 scope: 'terminal',
                 capability: 'terminal.view',
@@ -179,7 +179,7 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
             terminalHostMessageSchema.safeParse({
                 type: 'event',
                 event: 'host.ready',
-                serverId,
+                bootId,
                 protocolVersion: 1,
                 appVersion: '0.0.18',
                 buildId: 'build-1',

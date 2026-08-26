@@ -26,9 +26,9 @@ const commit = requiredEnvironment('CAXRI_GIT_COMMIT');
 const credential = serverCredentialTokenSchema.parse(
     requiredEnvironment('CAXRI_TERMINAL_HOST_CREDENTIAL'),
 );
-const serverId = serverProcessIdentitySchema.parse(requiredEnvironment('CAXRI_SERVER_ID'));
+const bootId = serverProcessIdentitySchema.parse(requiredEnvironment('CAXRI_SERVER_BOOT_ID'));
 const logger = new StructuredLogger(join(userDataPath, 'logs'), 'terminal-host', 'info', {
-    bootId: serverId,
+    bootId,
     buildId,
 });
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'terminal-host' });
@@ -40,6 +40,7 @@ const send = (message: TerminalHostMessage): void => {
 };
 const runtime = new TerminalHostRuntime({
     appVersion,
+    bootId,
     buildId,
     commit,
     credential,
@@ -55,7 +56,6 @@ const runtime = new TerminalHostRuntime({
         });
     },
     send,
-    serverId,
 });
 
 async function stop(exitCode: number): Promise<void> {
@@ -89,6 +89,6 @@ process.once('SIGINT', () => {
 });
 
 logger.write('info', logEventCatalog.terminalHost.ready, {
-    fields: { buildId, pid: process.pid, serverId },
+    fields: { bootId, buildId, pid: process.pid },
 });
 runtime.ready();

@@ -62,6 +62,7 @@ interface RuntimeTerminalIdentity {
 
 export interface TerminalHostRuntimeOptions {
     appVersion: string;
+    bootId: string;
     buildId: string;
     commit: string;
     credential: string;
@@ -70,7 +71,6 @@ export interface TerminalHostRuntimeOptions {
     outputFlushMs?: number;
     onProtocolViolation?: () => void;
     send(message: TerminalHostMessage): void;
-    serverId: string;
 }
 
 /**
@@ -120,8 +120,8 @@ export class TerminalHostRuntime {
 
     private authority(): TerminalHostAuthority {
         return {
+            bootId: this.options.bootId,
             credential: this.options.credential,
-            serverId: this.options.serverId,
             launchGeneration: (terminalId) => {
                 const current = this.generations.get(terminalId);
                 return current === undefined ? undefined : current + 1;
@@ -424,7 +424,7 @@ export class TerminalHostRuntime {
         this.options.send({
             type: 'event',
             event: 'host.ready',
-            serverId: this.options.serverId,
+            bootId: this.options.bootId,
             protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
             appVersion: this.options.appVersion,
             buildId: this.options.buildId,
