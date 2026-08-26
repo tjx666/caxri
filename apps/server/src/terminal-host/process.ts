@@ -7,6 +7,7 @@ import {
     logEventCatalog,
     observationProcessManifestDirectory,
     ObservationProcessManifestPublisher,
+    startProcessObservationSampler,
     StructuredLogger,
 } from '@caxri/system';
 
@@ -43,6 +44,11 @@ const processManifest = new ObservationProcessManifestPublisher({
     owner: 'terminal-host',
 });
 processManifest.publish('starting');
+const processSampler = startProcessObservationSampler({
+    logger,
+    owner: 'terminal-host',
+    publisher: processManifest,
+});
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'terminal-host' });
 processErrorMonitor.attach(logger);
 
@@ -73,6 +79,7 @@ const runtime = new TerminalHostRuntime({
 async function stop(exitCode: number): Promise<void> {
     if (lifecycle.isStopping) return;
     lifecycle.isStopping = true;
+    processSampler.stop();
     processManifest.publish('stopping');
     try {
         await runtime.stopAfterParentDisconnect();
