@@ -73,7 +73,7 @@ describe('oxlint type-aware toolchain contract', () => {
         expect(result.stdout).toContain('typescript(no-floating-promises)');
     });
 
-    it('requires async Node APIs (node/no-sync) outside tests in Main/Runtime/shared-node/CLI/tooling', async () => {
+    it('requires async system APIs outside tests in Desktop, Server, shared system, CLI, and tooling', async () => {
         const violation = await lintTypeAware(
             fixtureConfigPath,
             'scripts/fixtures/eslint/no-sync-fixture.ts',
@@ -89,7 +89,8 @@ describe('oxlint type-aware toolchain contract', () => {
         }>;
         const noSyncOverride = overrides.find((override) => override.rules['node/no-sync']);
         expect(noSyncOverride?.files).toContain('apps/desktop/src/main/**/*.ts');
-        expect(noSyncOverride?.files).toContain('src/runtime/**/*.ts');
+        expect(noSyncOverride?.files).toContain('apps/server/src/**/*.ts');
+        expect(noSyncOverride?.files).toContain('packages/system/src/**/*.ts');
         const testExemption = overrides.find(
             (override) => override.rules['node/no-sync'] === 'off',
         );

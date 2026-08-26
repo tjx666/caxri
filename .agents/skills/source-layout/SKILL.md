@@ -22,17 +22,11 @@ importable boundaries under `packages/*`:
 | Shared Client                 | `packages/client/src/`        |
 | Protocol schemas and registry | `packages/protocol/src/`      |
 | Extension API                 | `packages/extension-api/src/` |
+| Shared system primitives      | `packages/system/src/`        |
 | Browser-safe pure utilities   | `packages/utils/src/`         |
 
-Do not create an empty future application. Until an owning A2 migration batch moves a product, edit
-its current root and move the file with its owner:
-
-| Current path                                       | Target owner      | Removal batch |
-| -------------------------------------------------- | ----------------- | ------------- |
-| `src/host/`, `src/runtime/`, `src/extension-host/` | `apps/server/`    | A2e           |
-| remaining `src/shared/` modules                    | package/app owner | A2e           |
-
-The executable source of truth for these allowances is `scripts/architecture-boundaries.ts`.
+Do not create an empty future application. The repository root owns no product `src/` tree.
+The executable source of truth for ownership is `scripts/architecture-boundaries.ts`.
 `caxri/architecture-boundaries` rejects application-to-application source imports, package-private
 imports, and platform dependencies in browser-safe packages; `import-x/no-cycle` protects target
 workspaces. Renderer never imports Node.js, Electron, or native APIs. Playwright support stays in
@@ -91,7 +85,7 @@ a folder for a one- or two-file cluster.
 Locked protocol and CLI domains in `AGENTS.md` stay even when they have only two production
 modules. Do not add or remove one of those domains without updating `AGENTS.md` and
 `scripts/__tests__/workspace-contract.test.ts`. A new Runtime domain with three or more modules
-needs a barrel; `src/runtime/__tests__/structure.test.ts` rejects a missing one and rejects
+needs a barrel; `apps/server/src/runtime/__tests__/structure.test.ts` rejects a missing one and rejects
 production imports that reach past another domain's root.
 
 ## 5. Name files for the job
@@ -126,15 +120,15 @@ When moving, `git mv`, then fix relative imports and `import.meta.url` paths in 
 
 ## 6. Place tests
 
-| Surface                          | Tests                                          |
-| -------------------------------- | ---------------------------------------------- |
-| Renderer feature logic           | Colocated below three files, else `__tests__/` |
-| React components                 | Do not unit-test the `.tsx`; extract logic     |
-| Renderer-wide contracts          | `apps/desktop/src/renderer/__tests__/`         |
-| Main, Host, Runtime, shared, CLI | Domain-local `__tests__/`                      |
-| Skill scripts                    | `scripts/*.test.ts` or `scripts/__tests__/`    |
-| Repo scripts                     | `scripts/__tests__/`                           |
-| Electron workflows               | `e2e/*.e2e.ts`                                 |
+| Surface                        | Tests                                          |
+| ------------------------------ | ---------------------------------------------- |
+| Renderer feature logic         | Colocated below three files, else `__tests__/` |
+| React components               | Do not unit-test the `.tsx`; extract logic     |
+| Renderer-wide contracts        | `apps/desktop/src/renderer/__tests__/`         |
+| Desktop, Server, packages, CLI | Domain-local `__tests__/`                      |
+| Skill scripts                  | `scripts/*.test.ts` or `scripts/__tests__/`    |
+| Repo scripts                   | `scripts/__tests__/`                           |
+| Electron workflows             | `e2e/*.e2e.ts`                                 |
 
 Do not leave `*.test.ts` beside production files outside the Renderer. For test execution guidance,
 Call the Skill tool with "unit-testing" or "e2e-testing" as applicable. Rendering and interaction

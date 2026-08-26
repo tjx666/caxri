@@ -2,10 +2,10 @@ import { join } from 'node:path';
 
 import type { RendererErrorKind, ThemeTokens } from '@caxri/protocol';
 import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 import { BrowserWindow, ipcMain } from 'electron';
 
-import type { StructuredLogger } from '../../../../src/shared/node/logger';
-import { logEventCatalog } from '../../../../src/shared/node/logger';
 import type { ProcessExplorerSnapshot } from '../shared/process-explorer';
 import { processExplorerSnapshotSchema } from '../shared/process-explorer';
 import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';

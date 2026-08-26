@@ -1,5 +1,5 @@
-import type { CommandId } from '@shared/commands';
-import { getCommandDefinition } from '@shared/commands';
+import type { CommandId } from '@caxri/protocol';
+import { getCommandDefinition } from '@caxri/protocol';
 
 import type { CommandContext, CommandDefinition, SessionMruShortcutInvocation } from './registry';
 import { defineCommand, registerCommand } from './registry';

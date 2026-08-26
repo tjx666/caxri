@@ -1,4 +1,4 @@
-/* eslint-disable unicorn/name-replacements -- this file's path ('./configuration-contract.js') and its 'configurationSourceSchema' export are referenced from src/runtime/configuration.ts and other files outside this change's authorized scope; renaming either requires a coordinated cross-package edit. */
+/* eslint-disable unicorn/name-replacements -- this file's path ('./configuration-contract.js') and its 'configurationSourceSchema' export are referenced from apps/server/src/runtime/configuration.ts and other files outside this change's authorized scope; renaming either requires a coordinated cross-package edit. */
 import { z } from 'zod';
 
 /**

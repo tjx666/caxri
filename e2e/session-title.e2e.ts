@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -112,7 +113,7 @@ done
         // Switching back to Codex remounts its Terminal pane, which re-attaches the PTY asynchronously
         // (`use-terminal-pane-runtime.ts`). Pressing `Meta+W` before that attach round-trip resolves races
         // `workbench.closeActiveTab`'s `terminal.close` request behind it on the Host's ordered command
-        // queue (`src/host/local-server.ts`) — a race no human could reproduce by hand, but one Playwright's
+        // queue (`apps/server/src/host/local-server.ts`) — a race no human could reproduce by hand, but one Playwright's
         // instant click-then-keypress can, especially under CI's contended parallel-safe pool. Waiting for
         // the attach flag mirrors the same synchronization already used in `editor-tabs.e2e.ts`.
         await expect(

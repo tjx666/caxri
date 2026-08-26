@@ -1,18 +1,10 @@
 {
     "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
-    "exclude": [
-        // Renderer feature `__tests__/` directories stay in this project (they test Renderer
-        // modules through `@/` aliases); only the node-side shared tests are carved out.
-        "src/shared/**/__tests__/**",
-        "src/shared/node/**",
-        "packages/**/__tests__/**",
-        "packages/**/*.test.ts"
-    ],
+    "exclude": ["packages/**/__tests__/**", "packages/**/*.test.ts"],
     "include": [
         "apps/desktop/src/renderer/src/**/*.ts",
         "apps/desktop/src/renderer/src/**/*.tsx",
         "apps/desktop/src/shared/**/*.ts",
-        "src/shared/**/*.ts",
         "packages/protocol/src/**/*.ts",
         "packages/client/src/index.ts",
         "packages/client/src/connection.ts",
@@ -31,8 +23,7 @@
         "strict": true,
         "paths": {
             "@/*": ["./apps/desktop/src/renderer/src/*"],
-            "@desktop-shared/*": ["./apps/desktop/src/shared/*"],
-            "@shared/*": ["./src/shared/*"]
+            "@desktop-shared/*": ["./apps/desktop/src/shared/*"]
         }
     }
 }

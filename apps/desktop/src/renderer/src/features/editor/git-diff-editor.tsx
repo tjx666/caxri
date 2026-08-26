@@ -1,12 +1,11 @@
 import type { ReactElement, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import type { GitDiffDocument, GitFileStatus } from '@caxri/protocol';
+import type { GitDiffDocument, GitDiffTab, GitFileStatus } from '@caxri/protocol';
+import { gitDiffModelPath } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import type { DiffOnMount, MonacoDiffEditor, OnMount } from '@monaco-editor/react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
-import type { GitDiffTab } from '@shared/git-diff';
-import { gitDiffModelPath } from '@shared/git-diff';
 import { ChevronDown, ChevronRight, FileSymlink } from 'lucide-react';
 
 import { useEditorFontFamily } from '@/hooks/use-editor-font-family';

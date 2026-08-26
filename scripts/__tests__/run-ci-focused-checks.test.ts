@@ -19,11 +19,13 @@ describe('focused CI checks', () => {
     });
 
     it('keeps a full type boundary for draft source changes', () => {
-        expect(focusedCheckArguments(['src/runtime/index.ts'], 'focused-source')).toEqual([
+        expect(
+            focusedCheckArguments(['apps/server/src/runtime/index.ts'], 'focused-source'),
+        ).toEqual([
             'run',
             '--silent',
             'check',
-            'src/runtime/index.ts',
+            'apps/server/src/runtime/index.ts',
             '--lint',
             '--test',
             '--type',
@@ -48,12 +50,14 @@ describe('focused CI checks', () => {
     });
 
     it('fails closed when the checker auto-fixes a tracked input', () => {
-        expect(focusedDiffArguments(['docs/testing.md', 'src/runtime/index.ts'])).toEqual([
+        expect(
+            focusedDiffArguments(['docs/testing.md', 'apps/server/src/runtime/index.ts']),
+        ).toEqual([
             'diff',
             '--exit-code',
             '--',
             'docs/testing.md',
-            'src/runtime/index.ts',
+            'apps/server/src/runtime/index.ts',
         ]);
     });
 

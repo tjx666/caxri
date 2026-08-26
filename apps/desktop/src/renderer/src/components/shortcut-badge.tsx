@@ -1,4 +1,4 @@
-import { formatShortcut, formatShortcutParts } from '@shared/shortcuts';
+import { formatShortcut, formatShortcutParts } from '@caxri/protocol';
 
 import { cn } from '../lib/utilities';
 import { Kbd } from './ui/kbd';

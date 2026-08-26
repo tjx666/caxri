@@ -1,5 +1,5 @@
 import type { Keybinding } from '@caxri/protocol';
-import { formatShortcut, formatShortcutParts } from '@shared/shortcuts';
+import { formatShortcut, formatShortcutParts } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {

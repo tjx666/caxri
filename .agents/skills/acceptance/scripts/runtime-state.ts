@@ -3,9 +3,8 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import process from 'node:process';
 
+import { execFileAsync } from '@caxri/system';
 import { z } from 'zod';
-
-import { execFileAsync } from '../../../../src/shared/node/exec';
 
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
 const ACCEPTANCE_CASE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;

@@ -1,9 +1,8 @@
 import type { MainRequest } from '@caxri/protocol';
-import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError, themeImportExtensions } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { clipboard, dialog, nativeImage, shell } from 'electron';
 
-import { themeImportExtensions } from '../../../../src/shared/theme-import';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
     deleteProjectPrompt,

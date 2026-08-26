@@ -1,5 +1,10 @@
-import type { PaneLayout, PaneResource, PaneTab } from '@caxri/protocol';
-import type { PaneFocusDirection, PaneSplitSide } from '@shared/pane-layout';
+import type {
+    PaneFocusDirection,
+    PaneLayout,
+    PaneResource,
+    PaneSplitSide,
+    PaneTab,
+} from '@caxri/protocol';
 import {
     activePane,
     activeTab,
@@ -10,7 +15,7 @@ import {
     resizeSplit,
     selectTab,
     splitTabIntoPane,
-} from '@shared/pane-layout';
+} from '@caxri/protocol';
 
 import { getSessionState, useSessionState } from '../../stores/selectors';
 import { patchSessionState } from '../../stores/workbench';
@@ -19,7 +24,7 @@ import { focusTerminalById } from '../terminal/terminal-actions';
 
 /**
  * The single write path for every Workbench layout mutation. Callers describe the edit with the pure reducer in
- * `@shared/pane-layout` and hand the result here; nothing else may write `sessionState.paneLayout`.
+ * `@caxri/protocol`'s pane-layout reducer and hand the result here; nothing else may write `sessionState.paneLayout`.
  */
 function applyPaneLayout(next: PaneLayout, failureLabel?: string): void {
     const current = getSessionState();

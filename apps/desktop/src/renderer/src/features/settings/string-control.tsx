@@ -1,4 +1,4 @@
-import type { StringSettingSpec } from '@shared/config';
+import type { StringSettingSpec } from '@caxri/protocol';
 
 import { Input } from '../../components/ui/input';
 import { isMonospaceStringSetting } from './monospace-string-fields';

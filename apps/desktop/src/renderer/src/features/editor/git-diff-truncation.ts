@@ -1,4 +1,4 @@
-import type { GitDiffTab } from '@shared/git-diff';
+import type { GitDiffTab } from '@caxri/protocol';
 
 /**
  * The multi-diff document feeds from the same `changedFileCount`-capped `files[]` the Git panel's sidebar truncation

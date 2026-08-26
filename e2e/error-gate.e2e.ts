@@ -2,7 +2,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import { runWithE2EErrorGate } from './support/error-gate.ts';
 import type { TestInfo } from './support/fixtures.ts';
 import { allowE2EErrors, errorGateSelfTest, expect, test } from './support/fixtures.ts';

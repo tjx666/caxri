@@ -22,9 +22,7 @@ const javaScriptAndTypeScriptFiles = [
 const shellExecutionScopedDirectories = [
     'apps/desktop/src/main/**',
     'apps/desktop/src/preload/**',
-    'src/host/**',
-    'src/runtime/**',
-    'src/shared/**',
+    'apps/server/src/**',
     'scripts/**',
     '.agents/**',
     'e2e/**',
@@ -257,9 +255,9 @@ export default defineConfig(
                 {
                     patterns: [
                         {
-                            group: ['**/shared/node/**', '@shared/node*', '@shared/node/**'],
+                            group: ['@caxri/system', '@caxri/system/*'],
                             message:
-                                'src/shared/node is Node-only (main/runtime); the renderer must never import it.',
+                                '@caxri/system is not browser-safe; the Renderer must use a typed protocol or Desktop bridge.',
                         },
                         {
                             group: ['electron', 'electron/*'],
@@ -313,26 +311,25 @@ export default defineConfig(
         files: [
             'apps/desktop/src/main/**',
             'apps/desktop/src/preload/**',
-            'src/host/**',
-            'src/runtime/**',
-            'src/shared/**',
+            'apps/server/src/**',
+            'packages/system/src/**',
         ],
         rules: {
             /**
-             * `@shared/*` and `@/*` aliases are declared only in `tsconfig.web.json` (the Renderer TypeScript project,
-             * per AGENTS.md "Architecture guardrails"); Main, Preload, Runtime, Host, and shared Node code must use
-             * relative imports so they keep resolving under the Node/Electron module loader. This also bans
-             * `child_process`'s shell-string `exec`/`execSync` (arbitrary command strings) everywhere they are imported
-             * from; structured argv `spawn`/`execFile` (see AGENTS.md "Forbidden") stays allowed.
+             * The `@/*` alias is declared only in the Renderer TypeScript project. Desktop Main/Preload, Server, and
+             * system code must use public package imports or relative imports so they keep resolving under the process
+             * module loader. This also bans `child_process`'s shell-string `exec`/`execSync` (arbitrary command
+             * strings) everywhere they are imported from; structured argv `spawn`/`execFile` (see AGENTS.md
+             * "Forbidden") stays allowed.
              */
             'no-restricted-imports': [
                 'error',
                 {
                     patterns: [
                         {
-                            group: ['@shared', '@shared/*', '@/*'],
+                            group: ['@/*'],
                             message:
-                                '@shared/* and @/* aliases exist only for the Renderer (tsconfig.web.json); use a relative import here.',
+                                '@/* exists only for the Renderer; use a public package or relative import here.',
                         },
                     ],
                     paths: [

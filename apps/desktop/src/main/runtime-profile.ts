@@ -1,9 +1,9 @@
 import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { profileIdForPath } from '@caxri/system';
 import type { App } from 'electron';
 
-import { profileIdForPath } from '../../../../src/shared/node/profile-identity';
 import { readArgvConfigAtBoot } from './argv-config';
 
 type RuntimeProfileKind = 'development-default' | 'explicit' | 'packaged-default';

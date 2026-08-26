@@ -3,9 +3,10 @@
  * one, prefer `es-toolkit` when it already ships the function; add here only what the ecosystem does not provide. React
  * hooks belong in `apps/desktop/src/renderer/src/hooks`.
  */
-export * from './color-contrast';
-export * from './compare-tree-nodes';
-export * from './css-font-family';
-export * from './format-bytes';
-export * from './path-basename';
-export * from './relative-time';
+export * from './color-contrast.js';
+export * from './compare-tree-nodes.js';
+export * from './css-font-family.js';
+export * from './format-bytes.js';
+export * from './path-basename.js';
+export * from './redaction.js';
+export * from './relative-time.js';

@@ -6,7 +6,8 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { assertBuildOutputsFresh } from '../../../../src/shared/node/build-freshness';
+import { assertBuildOutputsFresh } from '@caxri/system';
+
 import type { DesktopLeaseHandle } from '../../switch-worktree/scripts/desktop-lease';
 import {
     acquireDesktopLease,

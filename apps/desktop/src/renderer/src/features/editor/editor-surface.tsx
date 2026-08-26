@@ -1,8 +1,7 @@
 import { createElement, lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
 
+import { parseAgentTranscriptTab, parseGitDiffTab } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
-import { parseAgentTranscriptTab } from '@shared/agent-transcript';
-import { parseGitDiffTab } from '@shared/git-diff';
 
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';

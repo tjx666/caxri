@@ -1,9 +1,6 @@
-import type { Keybinding } from '@caxri/protocol';
+import type { CommandDefinition, CommandId, Keybinding, NativeMenuId } from '@caxri/protocol';
+import { formatShortcut, getNativeMenuCommandGroups, normalizeShortcut } from '@caxri/protocol';
 import type { BaseWindow, KeyboardEvent, MenuItem, MenuItemConstructorOptions } from 'electron';
-
-import type { CommandDefinition, CommandId, NativeMenuId } from '../../../../src/shared/commands';
-import { getNativeMenuCommandGroups } from '../../../../src/shared/commands';
-import { formatShortcut, normalizeShortcut } from '../../../../src/shared/shortcuts';
 
 export interface AppMenuOptions {
     keybindings: Keybinding[];

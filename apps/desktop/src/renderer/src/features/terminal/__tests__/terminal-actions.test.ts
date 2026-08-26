@@ -1,5 +1,5 @@
 import type { BootstrapState, TerminalRecord } from '@caxri/protocol';
-import { createPaneLayout } from '@shared/pane-layout';
+import { createPaneLayout } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

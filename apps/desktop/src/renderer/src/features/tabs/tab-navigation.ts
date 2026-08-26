@@ -1,4 +1,4 @@
-import { activePane } from '@shared/pane-layout';
+import { activePane } from '@caxri/protocol';
 
 import { getSelectedSession } from '../../stores/selectors';
 import { getPaneLayout, selectPaneTab } from '../workbench/pane-actions';

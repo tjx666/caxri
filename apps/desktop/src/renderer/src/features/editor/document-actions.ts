@@ -1,18 +1,17 @@
-import type { PaneLayout, SessionState } from '@caxri/protocol';
-import { pathBasename } from '@caxri/utils';
-import { editorModelPath } from '@desktop-shared/editor-state';
-import type { PaneTabCloseMode } from '@shared/pane-layout';
+import type { PaneLayout, PaneTabCloseMode, SessionState } from '@caxri/protocol';
 import {
     closeTabs,
     findResourceTabs,
     findTab,
+    isVirtualEditorTabPath,
     listPaneTabs,
     openResource,
     paneTabIdsToClose,
     pinPaneTab,
     remapPaneLayoutPaths,
-} from '@shared/pane-layout';
-import { isVirtualEditorTabPath } from '@shared/virtual-tabs';
+} from '@caxri/protocol';
+import { pathBasename } from '@caxri/utils';
+import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { caxri } from '../../lib/caxri';
 import { isPathAtOrBelow, remapPath } from '../../lib/file-path';

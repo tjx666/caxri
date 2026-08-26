@@ -1,7 +1,7 @@
+import { commandDefinitions } from '@caxri/protocol';
 import type { MenuItem, MenuItemConstructorOptions } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
-import { commandDefinitions } from '../../../../../src/shared/commands';
 import { buildAppMenuTemplate } from '../menu';
 
 function submenu(

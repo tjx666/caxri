@@ -1,4 +1,4 @@
-import type { IntegerSettingSpec } from '@shared/config';
+import type { IntegerSettingSpec } from '@caxri/protocol';
 
 import { Input } from '../../components/ui/input';
 

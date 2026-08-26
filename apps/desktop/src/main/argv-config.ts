@@ -4,9 +4,8 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import type { ArgvConfig, ArgvConfigChanges } from '@caxri/protocol';
+import { parseJsonc } from '@caxri/system';
 import { applyEdits, modify } from 'jsonc-parser';
-
-import { parseJsonc } from '../../../../src/shared/node/jsonc';
 
 const defaultArgvConfig: ArgvConfig = {
     remoteDebugging: true,

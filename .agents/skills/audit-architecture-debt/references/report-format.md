@@ -46,7 +46,7 @@ Close the findings section with two fixed lists so the report converts into work
 ```markdown
 | Dimension         | Result         | Evidence or boundary                       |
 | ----------------- | -------------- | ------------------------------------------ |
-| Process ownership | Finding F2     | `src/shared/ipc/...`, Runtime dispatcher   |
+| Process ownership | Finding F2     | `packages/protocol/...`, Server dispatcher |
 | Persistence       | Checked, clean | Schema and migration package path verified |
 ```
 

@@ -1,7 +1,7 @@
 import { CAXRI_PROTOCOL_VERSION, errorMessage, isCaxriError } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
-import type { StructuredLogger } from '../../../../src/shared/node/logger';
-import { logEventCatalog } from '../../../../src/shared/node/logger';
 import type { DesktopHostConnection } from './host-connection';
 
 interface HostStartupDialog {

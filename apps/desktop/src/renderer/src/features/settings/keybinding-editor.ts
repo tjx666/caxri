@@ -1,7 +1,5 @@
-import type { Keybinding } from '@caxri/protocol';
-import type { CommandDefinition } from '@shared/commands';
-import { commandDefinitions, defaultKeybindings } from '@shared/commands';
-import { formatShortcut } from '@shared/shortcuts';
+import type { CommandDefinition, Keybinding } from '@caxri/protocol';
+import { commandDefinitions, defaultKeybindings, formatShortcut } from '@caxri/protocol';
 
 import { applyFormEdit } from './config-edit';
 

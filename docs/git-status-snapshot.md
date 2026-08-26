@@ -4,7 +4,7 @@ Durable record of the incremental Git topology/status pipeline shipped for
 [issue #142](https://github.com/tjx666/caxri/issues/142): a single `RepoTopologyRegistry` and a
 generation-keyed `RepoStatusStore` replace the previous per-`git.summary` discovery/status chain,
 paired with a narrow-scope Git metadata watcher and a repository-identity invalidation event. All
-source lives under `src/runtime/git/`.
+source lives under `apps/server/src/runtime/git/`.
 
 ## Goals
 
@@ -18,7 +18,7 @@ source lives under `src/runtime/git/`.
 
 ## Topology registry
 
-`src/runtime/git/topology.ts` — `RepoTopologyRegistry` is the single owner of linked-worktree
+`apps/server/src/runtime/git/topology.ts` — `RepoTopologyRegistry` is the single owner of linked-worktree
 discovery. `repositoryKey` is the realpath of the shared common Git directory (`--git-common-dir`),
 so every linked worktree of one repository group resolves to the same key regardless of which root
 started the lookup. A `rootIndex` (canonical worktree root → `repositoryKey`) lets a cached lookup
@@ -30,7 +30,7 @@ from any sibling worktree join the same topology entry without spawning Git.
   `worktree list` + `rev-parse --git-common-dir` pair.
 - `force: true` always reloads. Workbench Root flows use this because they must observe an Agent's
   `git worktree add` before any watcher signal can land; `GitService.worktreeTopology` in
-  `src/runtime/git/index.ts:480-486` always forces a fresh read and is the only caller outside
+  `apps/server/src/runtime/git/index.ts:480-486` always forces a fresh read and is the only caller outside
   `git.summary`'s own `refresh` nonce path.
 - `invalidate(repoKey)` bumps the generation counter; the next `topology()` call rediscovers.
   `clear()` drops everything (Project authorization changes).
@@ -38,13 +38,13 @@ from any sibling worktree join the same topology entry without spawning Git.
   on overflow, along with its `rootIndex` mappings.
 - Discovery never implies authorization: unauthorized worktrees are visible here for Workbench
   candidate flows, but `GitRepoService` still filters worktrees against approved Project roots
-  before they enter a summary (`src/runtime/git/repo.ts:479-499`).
+  before they enter a summary (`apps/server/src/runtime/git/repo.ts:479-499`).
 
 ## Status snapshot lifecycle
 
-`src/runtime/git/status.ts` — `RepoStatusStore<Status>` is generation-keyed per canonical worktree
+`apps/server/src/runtime/git/status.ts` — `RepoStatusStore<Status>` is generation-keyed per canonical worktree
 root. `status(rootPath, load)` reports one of three outcomes, all counted per-summary in the
-`SummaryTrace` (`src/runtime/git/repo.ts:69-77`, `statusFresh` / `statusJoined` / `statusCoalesced`)
+`SummaryTrace` (`apps/server/src/runtime/git/repo.ts:69-77`, `statusFresh` / `statusJoined` / `statusCoalesced`)
 and rolled into the `git.summary` log event:
 
 - **fresh** — no entry exists at the current generation; this call becomes the producer.
@@ -67,7 +67,7 @@ from the store on error so the next consumer retries instead of replaying a reje
 
 ## Metadata watcher
 
-`src/runtime/git/metadata-watcher.ts` — `GitMetadataWatcher` opens exactly one `@parcel/watcher`
+`apps/server/src/runtime/git/metadata-watcher.ts` — `GitMetadataWatcher` opens exactly one `@parcel/watcher`
 subscription per repository's common Git directory (`repoKey`), covering the commonDir itself and
 every linked worktree's `worktrees/<name>` entry underneath it. This is the only place `.git`
 content is watched; the general Project file watcher continues to exclude `.git` entirely, and raw
@@ -100,10 +100,10 @@ callbacks. Watched repository groups are bounded to 16 (`MAX_WATCHED_REPOSITORIE
 
 ## Repository-identity invalidation (`git.changed`)
 
-`src/runtime/git/change-tracker.ts` — `GitChangeTracker` owns the Session ↔ repository mapping
+`apps/server/src/runtime/git/change-tracker.ts` — `GitChangeTracker` owns the Session ↔ repository mapping
 behind the `git.changed` Runtime event (`packages/protocol/src/registry/events.ts`). Each summary
 registers, via `registerSession`, the canonical roots it projected for one Session
-(`GitRepoService.registerProjection`, `src/runtime/git/repo.ts:571-584`). A generation bump —
+(`GitRepoService.registerProjection`, `apps/server/src/runtime/git/repo.ts:571-584`). A generation bump —
 `scheduleStatusChanged(roots)` from a working-tree write or `observeMetadataStatus`, or
 `scheduleTopologyChanged(repoKey)` from `observeMetadataTopology` — adds affected roots to a
 pending set and debounces a flush by 150ms (`CHANGE_EMIT_DELAY_MS`), folding a burst of bumps
@@ -122,7 +122,7 @@ only that repository, not its parent.
 
 ## Repository summary production and bounded projection
 
-`src/runtime/git/repo.ts` — `GitRepoService.produceSummary` is the only path that assembles a
+`apps/server/src/runtime/git/repo.ts` — `GitRepoService.produceSummary` is the only path that assembles a
 `GitSummary`: it reads the shared topology (zero Git spawns when cached), filters worktrees to
 approved Project roots, produces/joins/coalesces status snapshots through `RepoStatusStore`, then
 discovers and status-snapshots child repositories (submodules, nested repos) with a
@@ -131,7 +131,7 @@ generation-keyed `childCache` bounded to 256 entries (`MAX_CHILD_CACHE_ENTRIES`)
 Every Git command spawned on behalf of one summary is funneled through `tracedGit`, which
 increments a `SummaryTrace.commandCount`; the trace also tracks `worktreeListed`,
 `worktreeApproved`, `childRepositories`, and the fresh/joined/coalesced status counts. This is what
-the `git.summary` boundary log event (`loadSummary`, `src/runtime/git/repo.ts:361-394`) reports
+the `git.summary` boundary log event (`loadSummary`, `apps/server/src/runtime/git/repo.ts:361-394`) reports
 instead of leaving attribution to individual `git.command` records — fields: `durationMs`,
 `commandCount`, `worktreeListed`, `worktreeApproved`, `childRepositories`, `fileCount`,
 `generation`, `truncated`, `isRepository`, `outcome`, `reason` (`'request' | 'refresh'`), plus the
@@ -144,20 +144,20 @@ truncates the transported `files` array at `MAX_GIT_STATUS_FILES` (2,000,
 `changedFileCount` is authoritative on a truncated snapshot; otherwise it is the post
 child-repository-filtering visible file count, so every consumer of one generation reports the same
 number. The controlled Source Control surface
-(`src/renderer/src/features/view-containers/source-control/git-repo-section-view.tsx`) renders
+(`apps/desktop/src/renderer/src/features/view-containers/source-control/git-repo-section-view.tsx`) renders
 an explicit `Showing the first N of <changedFileCount>` notice when `truncated`; already-listed
 files remain fully diffable.
 
 **`git.summary` vs `git.overview`.** `git.overview` (`GitService.overview`,
-`src/runtime/git/index.ts:448-461`) awaits the same `summary()` producer and strips `files` from
+`apps/server/src/runtime/git/index.ts:448-461`) awaits the same `summary()` producer and strips `files` from
 each repository via a rest-omit projection — it never triggers a second `git status`. The Status
-Bar (`src/renderer/src/features/status-bar/status-bar.tsx`) queries `git.overview` exclusively so
+Bar (`apps/desktop/src/renderer/src/features/status-bar/status-bar.tsx`) queries `git.overview` exclusively so
 branch/count rendering never pulls the full `files[]` IPC payload into the Renderer, while staying
 on the same snapshot generation the Source Control provider reads through `git.summary`.
 
 ## Measurement contract
 
-`src/runtime/git/index.ts` — `GitService.git()` wraps every `execFile('git', …)` call with a
+`apps/server/src/runtime/git/index.ts` — `GitService.git()` wraps every `execFile('git', …)` call with a
 bounded `AsyncSemaphore` (`MAX_CONCURRENT_GIT_COMMANDS = 8`, unchanged) and logs `git.command` with
 `queueMs` (time spent waiting for a semaphore slot) split from `execMs` (actual process wall time),
 plus `operation` (argv[0], or `argv[0].subcommand` for `worktree`/`remote`/`stash`/`submodule` —
@@ -169,11 +169,11 @@ asserts against it rather than the last `git.command` record.
 
 ## Lifecycle and cleanup
 
-- `GitRepoService.evictSessions` (`src/runtime/git/repo.ts:626-637`) drops per-Session projections
+- `GitRepoService.evictSessions` (`apps/server/src/runtime/git/repo.ts:626-637`) drops per-Session projections
   from the tracker, prunes `refreshNonces`, retains only status snapshots and child-cache entries
   for roots still referenced by a live Session, and asks the metadata watcher to `retainOnly` the
   still-referenced repository keys.
-- `GitService.evictSessions` / `GitService.close` (`src/runtime/git/index.ts:538-551`) additionally
+- `GitService.evictSessions` / `GitService.close` (`apps/server/src/runtime/git/index.ts:538-551`) additionally
   clear Pull Request state and, on `close`, stop the change tracker's pending flush timer and
   `unsubscribe` every metadata watcher.
 - Project/Session deletion or authorization changes flow through this same eviction path — never a

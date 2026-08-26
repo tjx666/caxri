@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { resolveRuntimeExecutable } from '../src/runtime/executables.ts';
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
+import { resolveRuntimeExecutable } from '../apps/server/src/runtime/executables.ts';
 import { realCodexSmokeArguments } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';

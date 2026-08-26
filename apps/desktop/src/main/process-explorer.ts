@@ -1,4 +1,5 @@
-import { execFileAsync } from '../../../../src/shared/node/exec';
+import { execFileAsync } from '@caxri/system';
+
 import type { ProcessExplorerEntry, ProcessExplorerSnapshot } from '../shared/process-explorer';
 
 const PROCESS_QUERY_TIMEOUT_MS = 2_000;

@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 
-import type { BootstrapState, CaxriMethod } from '@caxri/protocol';
+import type { BootstrapState, CaxriMethod, CommandId } from '@caxri/protocol';
+import { parseGitDiffTab } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
-import type { CommandId } from '@shared/commands';
-import { parseGitDiffTab } from '@shared/git-diff';
 import { useQueryClient } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import {

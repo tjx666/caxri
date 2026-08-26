@@ -1,7 +1,7 @@
 import './definitions';
 
-import type { CommandId } from '@shared/commands';
-import { listPaneTerminalIds, paneSplitBlockedReason } from '@shared/pane-layout';
+import type { CommandId } from '@caxri/protocol';
+import { listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
 
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
 import { toggleScreencastMode } from '../features/screencast/screencast';

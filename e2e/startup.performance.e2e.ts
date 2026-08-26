@@ -4,8 +4,8 @@ import { join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { connectToHost } from '@caxri/client/supervise';
+import { execFileAsync } from '@caxri/system';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
 import type { E2EApp as ElectronApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxriApp, openAddProjectDialog, waitForRuntimeReady } from './support/helpers.ts';

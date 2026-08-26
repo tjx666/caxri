@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
+import {
+    agentTranscriptTabLabel,
+    gitDiffTabLabel,
+    parseAgentTranscriptTab,
+    parseGitDiffTab,
+    terminalDisplayTitle,
+    terminalTabLabel,
+} from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import { agentTranscriptTabLabel, parseAgentTranscriptTab } from '@shared/agent-transcript';
-import { gitDiffTabLabel, parseGitDiffTab } from '@shared/git-diff';
-import { terminalDisplayTitle, terminalTabLabel } from '@shared/terminal-title';
 import { CircleAlert, Pause, Plus } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 

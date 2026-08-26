@@ -1,5 +1,5 @@
+import type { AgentTranscriptTab } from '@caxri/protocol';
 import Editor from '@monaco-editor/react';
-import type { AgentTranscriptTab } from '@shared/agent-transcript';
 
 import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
 

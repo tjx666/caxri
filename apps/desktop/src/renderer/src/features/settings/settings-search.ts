@@ -1,4 +1,4 @@
-import type { SettingCategoryId } from '@shared/config';
+import type { SettingCategoryId } from '@caxri/protocol';
 
 import type { SettingRowDescriptor, SettingsCategory } from './settings-registry';
 

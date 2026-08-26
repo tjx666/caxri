@@ -6,7 +6,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { execFileAsync } from '../../../../src/shared/node/exec';
+import { execFileAsync } from '@caxri/system';
 
 const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
 const RELEASE_OUTPUT_DIRECTORY = 'release.noindex';

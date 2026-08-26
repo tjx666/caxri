@@ -1,4 +1,4 @@
-import { redactSecretText } from '../../../../src/shared/redaction';
+import { redactSecretText } from '@caxri/utils';
 
 export const MAX_NOTE_TEXT_CHARACTERS = 4_096;
 

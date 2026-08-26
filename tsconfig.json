@@ -4,8 +4,7 @@
         "baseUrl": ".",
         "paths": {
             "@/*": ["./apps/desktop/src/renderer/src/*"],
-            "@desktop-shared/*": ["./apps/desktop/src/shared/*"],
-            "@shared/*": ["./src/shared/*"]
+            "@desktop-shared/*": ["./apps/desktop/src/shared/*"]
         }
     },
     "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }]
