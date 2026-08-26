@@ -1,4 +1,13 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, join, relative, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
@@ -49,10 +58,11 @@ function manifest(path: string): PackageManifest {
     return JSON.parse(readFileSync(path, 'utf8')) as PackageManifest;
 }
 
-function lockfiles(directory: string): string[] {
+function lockfiles(directory: string, scanRoot = directory): string[] {
     const found: string[] = [];
     const entries = readdirSync(directory, { withFileTypes: true });
     for (const entry of entries) {
+        const path = join(directory, entry.name);
         if (
             [
                 '.git',
@@ -65,8 +75,12 @@ function lockfiles(directory: string): string[] {
             ].includes(entry.name)
         )
             continue;
-        const path = join(directory, entry.name);
-        if (entry.isDirectory()) found.push(...lockfiles(path));
+        /**
+         * Claude Code may place ignored task worktrees inside the checkout. They are independent repositories rather
+         * than Caxri workspace members, so scanning them makes one valid root lockfile appear duplicated locally.
+         */
+        if (entry.isDirectory() && relative(scanRoot, path) === '.claude/worktrees') continue;
+        if (entry.isDirectory()) found.push(...lockfiles(path, scanRoot));
         else if (
             /^(?:bun\.lockb?|npm-shrinkwrap\.json|package-lock\.json|pnpm-lock\.(?:json|yaml)|yarn\.lock)$/u.test(
                 entry.name,
@@ -249,6 +263,22 @@ describe('pnpm workspace contract', () => {
         expect(webConfig).not.toContain('"packages/client/src/**/*.ts"');
         expect(webConfig).toContain('"packages/extension-api/src/**/*.ts"');
         expect(webConfig).not.toContain('"packages/agent-skills/src/**/*.ts"');
+    });
+
+    it('ignores Claude Code task worktrees when enforcing the root lockfile contract', () => {
+        const fixture = mkdtempSync(join(tmpdir(), 'caxri-workspace-contract-'));
+        try {
+            const taskWorktree = join(fixture, '.claude', 'worktrees', 'task');
+            mkdirSync(taskWorktree, { recursive: true });
+            writeFileSync(join(fixture, 'pnpm-lock.yaml'), 'root\n');
+            writeFileSync(join(taskWorktree, 'pnpm-lock.yaml'), 'task\n');
+
+            expect(lockfiles(fixture).map((path) => relative(fixture, path))).toEqual([
+                'pnpm-lock.yaml',
+            ]);
+        } finally {
+            rmSync(fixture, { force: true, recursive: true });
+        }
     });
 
     it('keeps tests, Electron support, protocol, and CLI domains in predictable directories', () => {

@@ -82,6 +82,7 @@ describe('TerminalRendererController', () => {
             contextLossCount: 0,
             mode: 'dom',
             reason: 'load-failed',
+            trigger: 'webgl-load-failed',
         });
     });
 
@@ -97,6 +98,7 @@ describe('TerminalRendererController', () => {
             contextLossCount: 1,
             mode: 'dom',
             reason: 'context-loss',
+            trigger: 'webgl-context-loss',
         });
     });
 
@@ -111,6 +113,24 @@ describe('TerminalRendererController', () => {
             mode: 'webgl',
             reason: 'active',
             redrawCount: 1,
+            trigger: 'visibility-restore',
+        });
+    });
+
+    it('identifies an atlas-clear failure separately from an initial WebGL load failure', () => {
+        const harness = createHarness();
+        harness.controller.setPreference('auto');
+        harness.addon.clearTextureAtlas.mockImplementationOnce(() => {
+            throw new Error('GPU atlas unavailable');
+        });
+
+        harness.controller.restoreVisible();
+
+        expect(harness.addon.dispose).toHaveBeenCalledTimes(1);
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'load-failed',
+            trigger: 'atlas-clear-failed',
         });
     });
 });

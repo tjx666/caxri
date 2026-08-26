@@ -34,6 +34,7 @@ import {
 } from './desktop-profile';
 import { createMainEventRelay } from './event-relay';
 import { launchExternalEditor } from './external-editor';
+import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { resolveLogLevel } from './log-level';
 import { createMainMethodHandler } from './main-methods';
@@ -84,6 +85,11 @@ if (ownsProfileInstance) {
     let mainRenderer: WebContents | undefined;
     let supervisor: DesktopServerConnection;
     let mainLogger: StructuredLogger | undefined;
+    const gpuDiagnostics = createGpuDiagnostics({
+        app,
+        logger: () => mainLogger,
+        window: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined),
+    });
     const processErrorMonitor = installProcessErrorMonitor({
         bootstrapWriter: () => (mainLogger ??= createMainLogger()),
         processName: 'desktop',
@@ -325,7 +331,7 @@ if (ownsProfileInstance) {
                     type: 'warning',
                     title: 'Terminals are still running',
                     message: `${count} Terminal${count === 1 ? ' is' : 's are'} still running.`,
-                    detail: 'Keeping them running leaves the Caxri Host active without a window. Quit Desktop disconnects the window but does not stop the Host.',
+                    detail: 'Keeping them running leaves Caxri Server active without a window. Quit Desktop disconnects the window but does not stop the Server.',
                     buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
                     defaultId: 2,
                     cancelId: 2,
@@ -492,6 +498,7 @@ if (ownsProfileInstance) {
         installWorkbenchIpc({
             isQuitting: () => isQuitStarted,
             logger: () => mainLogger,
+            onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             onEventsReady: () => {
                 eventRelay.rendererReady();
                 if (mainRenderer) rendererReadiness.ready(mainRenderer);
@@ -588,6 +595,9 @@ if (ownsProfileInstance) {
                     remoteDebuggingTransport: desktopProfile.remoteDebugging.transport,
                 },
             });
+            // GPU collection is asynchronous and must never delay window startup.
+            // eslint-disable-next-line no-void -- snapshot failures write their own bounded diagnostic
+            void gpuDiagnostics.captureBaseline();
             if (process.env.CAXRI_E2E === '1') {
                 mainLogger.write('info', logEventCatalog.e2e.launch, {
                     fields: {
@@ -705,10 +715,20 @@ if (ownsProfileInstance) {
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .catch(() => {});
-    // GPU/utility-process exits never reach `render-process-gone`; log them so native child-process
-    // crashes remain diagnosable from the Main log.
+    app.on('gpu-info-update', () => {
+        // Electron emits this from a synchronous listener; snapshot failures are logged by the collector.
+        // eslint-disable-next-line no-void -- intentionally asynchronous post-crash evidence collection
+        void gpuDiagnostics.handleGpuInfoUpdate();
+    });
+
+    // GPU/utility-process exits never reach `render-process-gone`; preserve generic utility evidence and route GPU
+    // failures through the correlated collector so Chromium result codes and Renderer state are captured together.
     app.on('child-process-gone', (_event, details) => {
         if (details.reason === 'clean-exit') return;
+        if (details.type === 'GPU') {
+            gpuDiagnostics.recordGpuProcessGone(details);
+            return;
+        }
         mainLogger?.write('error', logEventCatalog.app.childProcessGone, {
             fields: {
                 code: 'CHILD_PROCESS_GONE',

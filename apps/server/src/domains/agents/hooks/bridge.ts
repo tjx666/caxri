@@ -5,6 +5,15 @@ import { atomicWrite } from '../../atomic-file';
 
 const BRIDGE_SCRIPT = `'use strict';
 const net = require('node:net');
+// The shell wrapper maps these private exit codes to fixed diagnostics so runtime paths and arbitrary child stderr
+// never escape the bridge boundary.
+const exitCodes = {
+  launchContextUnavailable: 10,
+  socketTimeout: 11,
+  socketUnavailable: 12,
+  signalRejected: 13,
+  ackUnavailable: 14,
+};
 const args = new Map();
 for (let index = 2; index < process.argv.length - 1; index += 2) {
   if (process.argv[index].startsWith('--')) args.set(process.argv[index].slice(2), process.argv[index + 1]);
@@ -19,7 +28,10 @@ const signal = {
   token: process.env.CAXRI_HOOK_TOKEN,
 };
 const socketPath = process.env.CAXRI_HOOK_SOCKET;
-if (!socketPath || !signal.terminalId || !signal.launchId || !signal.token) process.exit(0);
+const hasAnyLaunchContext = Boolean(
+  process.env.CAXRI_HOOK_RUNTIME || socketPath || signal.terminalId || signal.launchId || signal.token,
+);
+const hasLaunchContext = Boolean(socketPath && signal.terminalId && signal.launchId && signal.token);
 // Providers pipe a JSON payload on stdin. Only the opaque session identifier is extracted so a manual
 // in-terminal resume can rebind the Terminal; prompt and response content never cross this boundary.
 function readSessionId(callback) {
@@ -47,23 +59,76 @@ function readSessionId(callback) {
   process.stdin.on('end', () => { clearTimeout(timer); finish(); });
   process.stdin.on('error', () => { clearTimeout(timer); finish(); });
 }
-readSessionId((sessionId) => {
+if (!hasAnyLaunchContext) {
+  process.exitCode = 0;
+} else if (!hasLaunchContext) {
+  process.exitCode = exitCodes.launchContextUnavailable;
+} else readSessionId((sessionId) => {
   if (sessionId) signal.agentSessionId = sessionId;
   const socket = net.createConnection(socketPath);
-  socket.setTimeout(750, () => socket.destroy());
+  let response = '';
+  let settled = false;
+  const finish = (exitCode) => {
+    if (settled) return;
+    settled = true;
+    process.exitCode = exitCode;
+  };
+  socket.setEncoding('utf8');
+  socket.setTimeout(750, () => {
+    finish(exitCodes.socketTimeout);
+    socket.destroy();
+  });
   socket.on('connect', () => socket.end(JSON.stringify(signal)));
-  socket.on('data', () => {});
-  socket.on('error', () => {});
-  socket.on('close', () => process.exit(0));
+  socket.on('data', (chunk) => {
+    response += chunk;
+    if (response.length > 1024) response = '';
+  });
+  socket.on('end', () => {
+    try {
+      finish(JSON.parse(response).ok === true ? 0 : exitCodes.signalRejected);
+    } catch {
+      finish(exitCodes.ackUnavailable);
+    }
+  });
+  socket.on('error', (error) => {
+    const code = error && typeof error.code === 'string' ? error.code : undefined;
+    finish(code === 'ENOENT' || code === 'ECONNREFUSED' ? 0 : exitCodes.socketUnavailable);
+  });
+  socket.on('close', () => {
+    finish(exitCodes.ackUnavailable);
+    process.stdin.pause();
+  });
 });
 `;
 
-const BRIDGE_VERSION = 2;
+const BRIDGE_VERSION = 7;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-if [ -n "\${CAXRI_HOOK_RUNTIME:-}" ]; then
-  "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" >/dev/null 2>&1
+if [ -z "$CAXRI_HOOK_RUNTIME" ] || [ ! -x "$CAXRI_HOOK_RUNTIME" ]; then
+  if [ -S "$CAXRI_HOOK_SOCKET" ]; then
+    printf 'caxri-hook: runtime_unavailable\n' >&2
+  fi
+elif [ ! -r "$bridge_dir/bridge.cjs" ]; then
+  if [ -S "$CAXRI_HOOK_SOCKET" ]; then
+    printf 'caxri-hook: bridge_unavailable\n' >&2
+  fi
+else
+  ELECTRON_RUN_AS_NODE=1 "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" >/dev/null 2>&1
+  bridge_status=$?
+  case "$bridge_status" in
+    0) ;;
+    10)
+      if [ -S "$CAXRI_HOOK_SOCKET" ]; then
+        printf 'caxri-hook: launch_context_unavailable\n' >&2
+      fi
+      ;;
+    11) printf 'caxri-hook: socket_timeout\n' >&2 ;;
+    12) printf 'caxri-hook: socket_unavailable\n' >&2 ;;
+    13) printf 'caxri-hook: signal_rejected\n' >&2 ;;
+    14) printf 'caxri-hook: ack_unavailable\n' >&2 ;;
+    *) printf 'caxri-hook: bridge_runtime_failed\n' >&2 ;;
+  esac
 fi
 case " $* " in
   *" --reply empty-json "*) printf '{}\n' ;;

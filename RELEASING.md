@@ -18,8 +18,11 @@ or when a bundled extension rejects the new Desktop version:
 ```bash
 pnpm version patch --no-git-tag-version --no-git-checks
 version="$(node -p 'require("./package.json").version')"
+(cd apps/desktop && npm version "${version}" --no-git-tag-version)
+(cd apps/server && npm version "${version}" --no-git-tag-version)
 (cd apps/cli && npm version "${version}" --no-git-tag-version)
 (cd packages/agent-skills && npm version "${version}" --no-git-tag-version)
+(cd packages/client && npm version "${version}" --no-git-tag-version)
 (cd packages/extension-api && npm version "${version}" --no-git-tag-version)
 for extension in fixture git status; do
   (cd "extensions/${extension}" && npm version "${version}" --no-git-tag-version)
@@ -28,7 +31,8 @@ done
 sed -i '' "s/CLI_VERSION = '.*'/CLI_VERSION = '${version}'/" apps/cli/src/version.ts
 sed -i '' "s/SKILL_BUNDLE_VERSION = '.*'/SKILL_BUNDLE_VERSION = '${version}'/" packages/agent-skills/src/version.ts
 git add package.json packages/agent-skills/package.json packages/agent-skills/src/version.ts \
-  packages/extension-api/package.json apps/cli/package.json apps/cli/src/version.ts \
+  packages/client/package.json packages/extension-api/package.json apps/cli/package.json \
+  apps/cli/src/version.ts apps/desktop/package.json apps/server/package.json \
   extensions/{fixture,git,status}/package.json
 git commit -m "release: v${version}"
 git push origin main

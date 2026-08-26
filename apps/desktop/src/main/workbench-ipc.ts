@@ -1,9 +1,11 @@
-import type { CaxriReply } from '@caxri/protocol';
+import type { CaxriReply, RendererDiagnostic } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     isRendererErrorKind,
+    RENDERER_DIAGNOSTIC_CHANNEL,
     RENDERER_ERROR_CHANNELS,
+    rendererDiagnosticSchema,
     requestIdFromEnvelope,
     toWireError,
 } from '@caxri/protocol';
@@ -17,6 +19,7 @@ import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 export interface WorkbenchIpcOptions {
     isQuitting(): boolean;
     logger(): StructuredLogger | undefined;
+    onRendererDiagnostic?(diagnostic: RendererDiagnostic): void;
     onEventsReady?(): void;
     renderer(): WebContents | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
@@ -47,6 +50,11 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     },
                 },
             );
+    });
+    ipcMain.on(RENDERER_DIAGNOSTIC_CHANNEL, (event, rawDiagnostic: unknown) => {
+        if (event.sender !== options.renderer()) return;
+        const parsed = rendererDiagnosticSchema.safeParse(rawDiagnostic);
+        if (parsed.success) options.onRendererDiagnostic?.(parsed.data);
     });
     ipcMain.on('caxri:renderer-events-ready', (event) => {
         assertSender(event.sender);

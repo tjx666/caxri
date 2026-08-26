@@ -8,6 +8,7 @@ export * from './identity.js';
 export * from './local-transport.js';
 export * from './method-spec.js';
 export * from './principal.js';
+export * from './renderer-diagnostic.js';
 export * from './renderer-error.js';
 export * from './request-lifetime.js';
 export * from './server-artifact.js';

@@ -38,6 +38,39 @@ interface HookWireSignal extends AgentLifecycleSignal {
     token: string;
 }
 
+export type AgentHookSignalRejectionReason =
+    | 'downstreamRejected'
+    | 'invalidAgentSessionId'
+    | 'invalidJson'
+    | 'invalidSignal'
+    | 'launchMismatch'
+    | 'payloadTooLarge'
+    | 'providerMismatch'
+    | 'schemaMismatch'
+    | 'terminalMismatch'
+    | 'transportError'
+    | 'transportTimeout'
+    | 'unknownToken';
+
+export type AgentHookSignalDisposition = 'accepted' | 'ignored' | 'rejected';
+
+export type AgentHookSignalDiagnostic =
+    | {
+          hasAgentSessionId: boolean;
+          outcome: 'accepted' | 'ignored';
+          phase: AgentLifecyclePhase;
+          provider: AgentProvider;
+          terminalId: string;
+      }
+    | {
+          hasAgentSessionId?: boolean;
+          outcome: 'rejected';
+          phase?: AgentLifecyclePhase;
+          provider?: AgentProvider;
+          reason: AgentHookSignalRejectionReason;
+          terminalId?: string;
+      };
+
 function isProvider(value: unknown): value is AgentProvider {
     return typeof value === 'string' && agentProviderIds.includes(value as AgentProvider);
 }
@@ -99,14 +132,17 @@ export async function pruneStaleAgentHookSockets(
     }
 }
 
-function parseSignal(source: string): HookWireSignal | undefined {
+function parseSignal(
+    source: string,
+): { signal: HookWireSignal } | { reason: AgentHookSignalRejectionReason } {
     let value: unknown;
     try {
         value = JSON.parse(source);
     } catch {
-        return undefined;
+        return { reason: 'invalidJson' };
     }
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+    if (typeof value !== 'object' || value === null || Array.isArray(value))
+        return { reason: 'invalidSignal' };
     const signal = value as Record<string, unknown>;
     if (
         signal.protocolVersion !== 1 ||
@@ -117,7 +153,7 @@ function parseSignal(source: string): HookWireSignal | undefined {
         !isProvider(signal.provider) ||
         !isPhase(signal.phase)
     ) {
-        return undefined;
+        return { reason: 'invalidSignal' };
     }
     if (
         signal.agentSessionId !== undefined &&
@@ -125,9 +161,18 @@ function parseSignal(source: string): HookWireSignal | undefined {
             signal.agentSessionId.length > MAX_AGENT_SESSION_ID_LENGTH ||
             !isOpaqueAgentSessionId(signal.agentSessionId))
     ) {
-        return undefined;
+        return { reason: 'invalidAgentSessionId' };
     }
-    return signal as unknown as HookWireSignal;
+    return { signal: signal as unknown as HookWireSignal };
+}
+
+function diagnosticFields(signal: HookWireSignal) {
+    return {
+        hasAgentSessionId: signal.agentSessionId !== undefined,
+        phase: signal.phase,
+        provider: signal.provider,
+        terminalId: signal.terminalId,
+    };
 }
 
 /**
@@ -141,41 +186,86 @@ export class AgentHookServer {
     constructor(
         readonly socketPath: string,
         private readonly schemaVersions: Readonly<Record<AgentProvider, number>>,
-        // `onSignal` names a callback property shared with `AgentHookManagerOptions.onSignal`
-        // and `apps/server/src/domains/create-domain-services.ts`; renaming only here would break that shared contract.
-        // eslint-disable-next-line unicorn/consistent-boolean-name
-        private readonly onSignal: (signal: AgentLifecycleSignal) => boolean,
+        /**
+         * Separates an irrelevant authenticated signal from a downstream processing failure.
+         */
+        private readonly onSignal: (signal: AgentLifecycleSignal) => AgentHookSignalDisposition,
+        private readonly onDiagnostic: (diagnostic: AgentHookSignalDiagnostic) => void = () => {},
     ) {}
 
     private accept(socket: Socket): void {
         socket.setEncoding('utf8');
-        socket.setTimeout(1_000, () => socket.destroy());
         let source = '';
+        let isSettled = false;
+        const settle = (diagnostic: AgentHookSignalDiagnostic): void => {
+            if (isSettled) return;
+            isSettled = true;
+            this.onDiagnostic(diagnostic);
+        };
+        socket.setTimeout(1_000, () => {
+            settle({ outcome: 'rejected', reason: 'transportTimeout' });
+            socket.destroy();
+        });
         socket.on('data', (chunk: string) => {
+            if (isSettled) return;
             source += chunk;
-            if (Buffer.byteLength(source, 'utf8') > MAX_SIGNAL_BYTES) socket.destroy();
+            if (Buffer.byteLength(source, 'utf8') > MAX_SIGNAL_BYTES) {
+                settle({ outcome: 'rejected', reason: 'payloadTooLarge' });
+                socket.destroy();
+            }
         });
         socket.on('end', () => {
-            const signal = parseSignal(source);
-            if (!signal || !this.authorize(signal)) {
+            if (isSettled) return;
+            const parsed = parseSignal(source);
+            if ('reason' in parsed) {
+                settle({ outcome: 'rejected', reason: parsed.reason });
                 socket.end('{"ok":false}\n');
                 return;
             }
-            const isAccepted = this.onSignal(signal);
-            socket.end(isAccepted ? '{"ok":true}\n' : '{"ok":false}\n');
+            const { signal } = parsed;
+            const rejectionReason = this.authorizationRejection(signal);
+            if (rejectionReason) {
+                settle({
+                    ...diagnosticFields(signal),
+                    outcome: 'rejected',
+                    reason: rejectionReason,
+                });
+                socket.end('{"ok":false}\n');
+                return;
+            }
+            const disposition = this.onSignal(signal);
+            settle(
+                disposition === 'rejected'
+                    ? {
+                          ...diagnosticFields(signal),
+                          outcome: 'rejected',
+                          reason: 'downstreamRejected',
+                      }
+                    : { ...diagnosticFields(signal), outcome: disposition },
+            );
+            socket.end(
+                disposition === 'accepted'
+                    ? '{"ok":true}\n'
+                    : disposition === 'ignored'
+                      ? '{"ok":true,"ignored":true}\n'
+                      : '{"ok":false}\n',
+            );
         });
-        socket.on('error', () => {});
+        socket.on('error', () => {
+            settle({ outcome: 'rejected', reason: 'transportError' });
+        });
     }
 
-    private authorize(signal: HookWireSignal): boolean {
+    private authorizationRejection(
+        signal: HookWireSignal,
+    ): AgentHookSignalRejectionReason | undefined {
         const launch = this.launchesByToken.get(signal.token);
-        return Boolean(
-            launch &&
-            launch.launchId === signal.launchId &&
-            launch.terminalId === signal.terminalId &&
-            (!launch.provider || launch.provider === signal.provider) &&
-            this.schemaVersions[signal.provider] === signal.schemaVersion,
-        );
+        if (!launch) return 'unknownToken';
+        if (launch.launchId !== signal.launchId) return 'launchMismatch';
+        if (launch.terminalId !== signal.terminalId) return 'terminalMismatch';
+        if (launch.provider && launch.provider !== signal.provider) return 'providerMismatch';
+        if (this.schemaVersions[signal.provider] !== signal.schemaVersion) return 'schemaMismatch';
+        return undefined;
     }
 
     async start(): Promise<void> {
