@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 describe('Server Agent input policy', () => {
-    it('rejects real Agent E2E input at the public request boundary', async () => {
+    it('rejects real Agent E2E input at every Server request boundary', async () => {
         vi.stubEnv('CAXRI_E2E', '1');
         vi.stubEnv('CAXRI_E2E_AGENT_MODE', 'real');
         vi.stubEnv('CAXRI_E2E_AGENT_PROVIDER', 'codex');
@@ -79,6 +79,21 @@ describe('Server Agent input policy', () => {
                 runtime.handlers['terminal.input']({
                     terminalId: created.terminal!.id,
                     data: '\u{3}',
+                }),
+            ).toThrow('Real Agent E2E does not accept interactive Terminal input');
+            expect(() =>
+                runtime.handlers['terminal.sendInternal']({
+                    terminalId: created.terminal!.id,
+                    text: 'continue',
+                    enter: true,
+                }),
+            ).toThrow('Real Agent E2E does not accept interactive Terminal input');
+            expect(() =>
+                runtime.handlers['bugReport.deliver']({
+                    pasteImage: false,
+                    report: '# Bug report',
+                    sessionId: created.session.id,
+                    terminalId: created.terminal!.id,
                 }),
             ).toThrow('Real Agent E2E does not accept interactive Terminal input');
             expect(terminalWrite).not.toHaveBeenCalled();
