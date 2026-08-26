@@ -1,19 +1,51 @@
 # Agent-native observability and diagnostics
 
-- Status: accepted (target; implementation pending)
+- Status: accepted (internal foundation implemented; public operator surfaces pending)
 - Date: 2026-08-25
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 
-Caxri treats observability as a machine-readable product contract across Client, Server Core, Terminal
-Host, Extension Host, and provider processes. Logs and traces carry stable build, Server, boot, Client,
-connection, trace, request, operation, worker, Project, Session, Terminal, and Agent Run identities;
-high-cardinality identities never become metric dimensions. Failures expose stable codes, reasons,
-retryability, and remediation instead of requiring an Agent to infer state from prose logs.
+Caxri treats observability as a machine-readable product contract across Server Core, Terminal Host,
+Extension Host, Clients, and future provider processes. The internal foundation has four deliberately
+separate layers:
 
-Liveness, readiness, `caxri doctor --json`, `caxri capabilities --json`, a redacted changefeed tail, and
-bounded lifecycle and crash capsules remain available independently of the normal UI path. Doctor reads
-the artifact and private manifests and probes the Terminal Host even when the Server Core is unavailable.
-Diagnostics never contain source contents, Draft bodies, Terminal output or snapshots, prompts,
-transcripts, credentials, environment values, or secret-like settings. Local deployments never enable
-an exporter. A platform operator may explicitly configure authenticated, bounded export; export failure
-cannot block Server work or weaken the same content boundary.
+1. Structured logs propagate normalized build, Server, boot, connection, trace, request, operation,
+   process, Project, Session, Terminal, and Agent Run correlation across asynchronous work and private
+   process protocols.
+2. Fixed-name metrics use only owner, phase, and outcome dimensions. Per-request samples and dynamic
+   labels are unrepresentable.
+3. Each Server process publishes its own private, atomic manifest under
+   `<userData>/observability/processes/`. A manifest contains lifecycle state, normalized correlation,
+   bounded metric aggregates, and at most one content-free failure capsule.
+4. The refactor parity tooling combines those manifests with six content-free probe states to classify
+   exactly one root owner: control, Server Core, Terminal Host, Extension Host, persistence, or stream.
+   Classification is read-only; remediation is output data, never an automatic restart or repair.
+
+## Bounds and failure isolation
+
+- an in-memory registry retains at most 256 metric series; a process manifest retains at most 64;
+- a process manifest is at most 32 KiB, is written atomically, and is restricted to the owning user
+  (`0700` directory, `0600` file);
+- a causal chain retains at most 128 fixed-schema capsules and manifests retain only the current capsule;
+- process memory and file-descriptor sampling runs at a low fixed frequency, never overlaps, and uses
+  unreferenced timers;
+- logging, sampling, and publication failures are best-effort and cannot fail a command, recovery,
+  shutdown, or product process;
+- there is no local or remote exporter in the implemented foundation.
+
+Runtime validation occurs again immediately before manifest persistence. This keeps TypeScript escape
+hatches or malformed internal input from writing unknown fields, dynamic metric labels, or unnormalized
+failure context.
+
+## Privacy contract
+
+Diagnostics never contain source contents, Draft bodies, Terminal input, output or snapshots, prompts,
+Agent transcripts, credentials, environment values, or secret-like settings. Correlation accepts only
+bounded opaque identities. Metrics contain fixed labels and numeric aggregates only. The read-only
+classifier consumes fixed probe states and never reads product payloads.
+
+## Deferred public surfaces
+
+Liveness, readiness, `caxri doctor --json`, `caxri capabilities --json`, redacted changefeed inspection,
+and authenticated platform export remain later product capabilities. They must consume the same private
+foundation and preserve its bounds and exclusions, but this decision does not make them part of the A6
+product surface. Export failure must never block Server work or weaken the privacy boundary.

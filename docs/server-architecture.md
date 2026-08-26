@@ -256,7 +256,13 @@ Every request can be followed across Client, Server Core, Terminal Host, Extensi
 processes using stable correlation fields. High-cardinality identities belong in logs and traces; metric
 dimensions stay low-cardinality.
 
-Required machine-readable surfaces are:
+The implemented internal foundation consists of normalized cross-process correlation, fixed-dimension
+metric aggregates, private owner manifests, bounded causal capsules, and a read-only parity classifier.
+It changes no public command, event, UI, CLI, HTTP, or recovery behavior. The classifier reports one of
+control, Server Core, Terminal Host, Extension Host, persistence, or stream with a stable reason and
+remediation category; it never performs the remediation.
+
+Target public machine-readable surfaces are:
 
 - `/healthz` for process liveness;
 - `/readyz` for command readiness;
@@ -265,8 +271,9 @@ Required machine-readable surfaces are:
 - a redacted changefeed tail for synchronization diagnosis;
 - bounded lifecycle history and crash capsules with stable reason codes and remediation.
 
-Doctor reads artifact and owner-readable process manifests directly and probes the Terminal Host private
-endpoint, so it can distinguish a dead control endpoint from a dead Server Core or Terminal Host.
+The future Doctor reads artifacts and owner-readable process manifests directly and probes private
+process boundaries, so it can distinguish a dead control endpoint from a dead Server Core, Terminal Host,
+or Extension Host. A6 intentionally provides only the private manifests and parity classifier.
 
 Metrics cover queue wait and execution, event-loop delay, connection buffered bytes and close reasons,
 changefeed lag and snapshot fallbacks, worker health and restarts, PTY throughput and drops, database
@@ -276,6 +283,10 @@ Diagnostics exclude source content, Draft bodies, Terminal output and snapshots,
 credentials, environment values, and secret-like settings. Local deployments never enable an exporter.
 A platform operator may explicitly configure authenticated, bounded export under the same content
 boundary; exporter failure cannot delay or fail Server work.
+
+Current internal bounds are 256 in-memory metric series, 64 persisted series per process manifest, 32
+KiB per manifest, and 128 entries per in-memory causal chain. Manifests are private atomic files and
+collection is best-effort, non-overlapping, and unable to fail product work.
 
 ## Enforced dependency graph
 
