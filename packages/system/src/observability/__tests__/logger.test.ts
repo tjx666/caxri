@@ -2,9 +2,11 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { describe, expect, it } from 'vitest';
 
+import { runWithObservationContext } from '../context';
 import { logEventCatalog, StructuredLogger } from '../logger';
 
 describe('StructuredLogger', () => {
@@ -27,6 +29,79 @@ describe('StructuredLogger', () => {
 
             expect(await readFile(logger.path, 'utf8')).not.toContain(logEventCatalog.git.command);
             expect(await readFile(logger.path, 'utf8')).toContain(logEventCatalog.serverCore.ready);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('inherits opaque async correlation and emits a content-free failure capsule', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
+        try {
+            const logger = new StructuredLogger(directory, 'server-core', 'info', {
+                buildId: 'build-1',
+                serverId: 'server-1',
+            });
+            runWithObservationContext(
+                {
+                    requestId: '/private/project/source.ts',
+                    traceId: 'trace-1',
+                },
+                () => {
+                    logger.write('error', logEventCatalog.serverCore.stopFailed, {
+                        failure: {
+                            code: 'SERVER_UNAVAILABLE',
+                            owner: 'server-core',
+                            phase: 'shutdown',
+                            reason: 'core-unavailable',
+                            remediation: 'restart-core',
+                            retryable: true,
+                        },
+                    });
+                },
+            );
+
+            const record = JSON.parse(await readFile(logger.path, 'utf8')) as Record<
+                string,
+                unknown
+            >;
+            expect(record.context).toEqual({
+                buildId: 'build-1',
+                processId: process.pid,
+                serverId: 'server-1',
+                traceId: 'trace-1',
+            });
+            expect(record.failure).toMatchObject({
+                code: 'SERVER_UNAVAILABLE',
+                owner: 'server-core',
+                phase: 'shutdown',
+                reason: 'core-unavailable',
+                remediation: 'restart-core',
+            });
+            expect(JSON.stringify(record)).not.toContain('/private/project/source.ts');
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('exposes bounded metric aggregates without writing samples to the log', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
+        try {
+            const logger = new StructuredLogger(directory);
+            logger.recordMetric('queue.wait', 2, { owner: 'control', phase: 'admission' });
+            logger.recordMetric('queue.wait', 6, { owner: 'control', phase: 'admission' });
+
+            expect(logger.metricSnapshot()).toMatchObject({
+                rejectedSeries: 0,
+                series: [
+                    {
+                        average: 4,
+                        count: 2,
+                        maximum: 6,
+                        minimum: 2,
+                        name: 'queue.wait',
+                    },
+                ],
+            });
         } finally {
             await rm(directory, { recursive: true, force: true });
         }

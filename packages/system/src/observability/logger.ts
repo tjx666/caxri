@@ -8,6 +8,20 @@ import type { LogEventName, LogProcess } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/protocol';
 import { once } from 'es-toolkit';
 
+import type { CausalCapsule, CausalCapsuleInput } from './causal-chain.js';
+import { BoundedCausalChain } from './causal-chain.js';
+import type { ObservationContext } from './context.js';
+import {
+    currentObservationContext,
+    mergeObservationContext,
+    normalizeObservationContext,
+} from './context.js';
+import type {
+    ObservationMetricLabels,
+    ObservationMetricName,
+    ObservationMetricSnapshot,
+} from './metrics.js';
+import { BoundedMetricRegistry } from './metrics.js';
 import { isSecretKey, redactLogValue } from './redaction.js';
 
 export { logEventCatalog };
@@ -23,6 +37,14 @@ export interface LogRecord {
     correlationId?: string;
     durationMs?: number;
     /**
+     * Content-free opaque identities only; paths and prose are rejected by `normalizeObservationContext`.
+     */
+    context?: ObservationContext;
+    /**
+     * Stable failure classification; messages, stacks, payloads, paths, and environment values are unrepresentable.
+     */
+    failure?: CausalCapsule;
+    /**
      * Structured detail values. These surface verbatim (minus secret-key/secret-pattern redaction) through
      * `logs.query`, the SecondarySidebar Logs panel, and `caxri logs` under the `diagnostics.read` capability, so the
      * diagnostics content boundary is enforced HERE, at the call site: never log source or file contents, Terminal
@@ -35,6 +57,14 @@ export interface LogRecord {
      */
     appVersion?: string;
     commit?: string;
+}
+
+export interface LogWriteOptions extends Pick<
+    LogRecord,
+    'correlationId' | 'durationMs' | 'fields'
+> {
+    context?: ObservationContext;
+    failure?: Omit<CausalCapsuleInput, 'context' | 'timestamp'>;
 }
 
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
@@ -86,6 +116,8 @@ const installExitHook = once(() => {
  * reaches disk even when the process dies on the next tick.
  */
 export class StructuredLogger {
+    private readonly causalChain = new BoundedCausalChain();
+    private readonly metrics = new BoundedMetricRegistry();
     private bytesWritten: number;
     private pendingLines: string[] = [];
     private pendingBytes = 0;
@@ -99,6 +131,7 @@ export class StructuredLogger {
      * Read once at construction, not per-write, since the build stamp never changes at runtime.
      */
     private readonly appVersion?: string;
+    private readonly baseContext: ObservationContext;
     private readonly commit?: string;
     private readonly directory: string;
     readonly path: string;
@@ -107,11 +140,13 @@ export class StructuredLogger {
         logDirectory: string,
         private readonly processName: LogRecord['process'] = 'server-core',
         private readonly minimumLevel: LogRecord['level'] = 'debug',
+        baseContext: ObservationContext = {},
     ) {
         // oxlint-disable-next-line node/no-sync -- deliberate: must exist before the first flush below.
         mkdirSync(logDirectory, { recursive: true });
         this.directory = logDirectory;
         this.path = join(logDirectory, `${processName}.jsonl`);
+        this.baseContext = normalizeObservationContext({ processId: process.pid, ...baseContext });
         // `||` (not `??`) is deliberate: an env var explicitly set to `''` should also collapse to
         // "unknown" rather than being logged as an empty-string version/commit.
         // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string must also fall through to undefined
@@ -263,12 +298,22 @@ export class StructuredLogger {
         }
     }
 
-    write(
-        level: LogRecord['level'],
-        event: LogEventName,
-        options: Pick<LogRecord, 'correlationId' | 'durationMs' | 'fields'> = {},
-    ): void {
+    write(level: LogRecord['level'], event: LogEventName, options: LogWriteOptions = {}): void {
         if (LOG_LEVELS[level] < LOG_LEVELS[this.minimumLevel]) return;
+        const context = mergeObservationContext(
+            this.baseContext,
+            currentObservationContext(),
+            options.correlationId
+                ? { requestId: options.correlationId, traceId: options.correlationId }
+                : undefined,
+            options.context,
+        );
+        const failure = options.failure
+            ? this.causalChain.record({
+                  ...options.failure,
+                  context,
+              })
+            : undefined;
         const record: LogRecord = {
             timestamp: new Date().toISOString(),
             process: this.processName,
@@ -276,6 +321,8 @@ export class StructuredLogger {
             event,
             correlationId: options.correlationId,
             durationMs: options.durationMs,
+            ...(Object.keys(context).length > 0 && { context }),
+            ...(failure && { failure }),
             fields: safeFields(options.fields),
             appVersion: this.appVersion,
             commit: this.commit,
@@ -288,6 +335,22 @@ export class StructuredLogger {
         // oxlint-disable-next-line node/no-sync -- deliberate: error records must be durable before the next tick.
         if (level === 'error') this.flushSync();
         else this.scheduleDrain();
+    }
+
+    recordMetric(
+        name: ObservationMetricName,
+        value: number,
+        labels: ObservationMetricLabels,
+    ): void {
+        this.metrics.record(name, value, labels);
+    }
+
+    metricSnapshot(): { rejectedSeries: number; series: ObservationMetricSnapshot[] } {
+        return this.metrics.snapshot();
+    }
+
+    causalSnapshot(traceId?: string): CausalCapsule[] {
+        return this.causalChain.snapshot(traceId);
     }
 
     /**
