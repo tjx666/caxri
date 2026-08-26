@@ -1,6 +1,6 @@
 import type { ExtensionViewChange, ViewDescriptor } from '@caxri/protocol';
 
-import type { LocalHostServer } from '../local-server';
+import type { ControlServer } from '../control-server';
 import type { ExtensionService } from './service';
 
 export function isExtensionViewChangeCompatible(
@@ -14,7 +14,7 @@ export function isExtensionViewChangeCompatible(
 
 export function publishExtensionViewEvents(
     service: ExtensionService,
-    server: () => LocalHostServer | undefined,
+    server: () => ControlServer | undefined,
 ): void {
     service.onTreeChanged(({ viewId, eventId, extensionGeneration, context, handles }) =>
         server()?.broadcast({

@@ -92,7 +92,7 @@ async function iconDataUrl(extension: DiscoveredExtension, icon: string): Promis
         const buffer = Buffer.allocUnsafe(maxSourceBytes + 1);
         let bytesRead = 0;
         while (bytesRead < buffer.length) {
-            // The bounded sequential read prevents a file-growth race from allocating an unbounded Host buffer.
+            // The bounded sequential read prevents a file-growth race from allocating an unbounded Core buffer.
             // eslint-disable-next-line no-await-in-loop
             const result = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
             if (result.bytesRead === 0) break;

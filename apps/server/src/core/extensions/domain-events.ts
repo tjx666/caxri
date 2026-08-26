@@ -5,24 +5,24 @@ import type { ExtensionService } from './service';
 import { toExtensionViewEventContext } from './service-events';
 import { extensionActiveContext } from './workspace-bridge';
 
-type RuntimeBootstrapReader = Pick<ServerDomainService, 'request'>;
+type DomainBootstrapReader = Pick<ServerDomainService, 'request'>;
 
 export async function readActiveExtensionContext(
-    supervisor: RuntimeBootstrapReader,
+    domainService: DomainBootstrapReader,
 ): Promise<ExtensionViewEventContext> {
     return toExtensionViewEventContext(
-        extensionActiveContext(await supervisor.request('app.bootstrap')),
+        extensionActiveContext(await domainService.request('app.bootstrap')),
     );
 }
 
 /**
- * Routes Runtime invalidations into the Extension Host with the exact scope that produced them. The Host does not
+ * Routes domain invalidations into the Extension Host with the exact scope that produced them. Server Core does not
  * synthesize an active-root scope for an unrelated Git or Status event, which would make a hidden view refresh the
  * wrong Session after a context switch.
  */
-export async function routeExtensionRuntimeEvent(
+export async function routeExtensionDomainEvent(
     extensionService: ExtensionService | undefined,
-    supervisor: RuntimeBootstrapReader,
+    domainService: DomainBootstrapReader,
     event: RuntimeEvent,
 ): Promise<void> {
     if (!extensionService) return;
@@ -32,7 +32,7 @@ export async function routeExtensionRuntimeEvent(
         event.event !== 'state.changed'
     )
         return;
-    const context = await readActiveExtensionContext(supervisor);
+    const context = await readActiveExtensionContext(domainService);
     if (event.event === 'projectStatus.changed') {
         if (context.kind !== 'session' || context.sessionId !== event.payload.sessionId) return;
         await extensionService.projectStatusChanged(context);

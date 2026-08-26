@@ -51,7 +51,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-lifecycle-stale-desktop-sockets — [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Replacing the authenticated Desktop now actively disconnects the previous socket after rejecting its pending commands and revoking its lease, so repeated replacements keep socket and client accounting bounded.
-- **Evidence:** `apps/server/src/core/local-server.ts:469-476` revokes the replaced Desktop's authority and destroys its socket during lease replacement.
+- **Evidence:** `apps/server/src/core/control-server.ts:469-476` revokes the replaced Desktop's authority and destroys its socket during lease replacement.
 - **First seen:** 2026-08-15 @ 43af4d6 · **Last verified:** 2026-08-16 @ 19474c0
 - **Resolved:** 2026-08-16 @ 19474c0 via [PR caxri#187](https://github.com/tjx666/caxri/pull/187).
 - **Remediation target / Acceptance:** After rejecting pending commands and revoking authority, a replaced Desktop is actively disconnected while the new Desktop retains exclusive authority. Tracked by [issue caxri#173](https://github.com/tjx666/caxri/issues/173).

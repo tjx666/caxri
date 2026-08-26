@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { acquireHostProfile, readHostManifest, resolveHostProfilePaths } from '../profile';
+import { acquireServerProfile, readServerManifest, resolveServerProfilePaths } from '../profile';
 
 const temporaryDirectories: string[] = [];
 const endpoint = { protocol: 'ws', host: '127.0.0.1', port: 41_337, path: '/control' } as const;
@@ -26,13 +26,13 @@ afterEach(async () => {
 describe('Host profile lease', () => {
     it('writes a private atomic manifest only after the loopback endpoint is listening', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-profile-');
-        const lease = await acquireHostProfile({ userDataPath, version: '1.2.3' });
+        const lease = await acquireServerProfile({ userDataPath, version: '1.2.3' });
         await expect(readFile(lease.paths.manifest, 'utf8')).rejects.toMatchObject({
             code: 'ENOENT',
         });
         const manifest = await lease.publish(endpoint);
 
-        expect(await readHostManifest(lease.paths.manifest)).toEqual(manifest);
+        expect(await readServerManifest(lease.paths.manifest)).toEqual(manifest);
         expect((await stat(lease.paths.manifest)).mode & 0o777).toBe(0o600);
         expect((await stat(lease.paths.lock)).mode & 0o777).toBe(0o600);
         expect((await readdir(lease.paths.directory)).some((name) => name.endsWith('.sock'))).toBe(
@@ -46,8 +46,10 @@ describe('Host profile lease', () => {
 
     it('admits only one owner before any Runtime can start', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-single-');
-        const first = await acquireHostProfile({ userDataPath, version: '1.0.0' });
-        await expect(acquireHostProfile({ userDataPath, version: '1.0.0' })).rejects.toMatchObject({
+        const first = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+        await expect(
+            acquireServerProfile({ userDataPath, version: '1.0.0' }),
+        ).rejects.toMatchObject({
             code: 'CONFLICT',
         });
         await first.release();
@@ -56,14 +58,14 @@ describe('Host profile lease', () => {
     it('keeps discovery metadata inside a deeply nested profile', async () => {
         const root = await temporaryDirectory('caxri-host-deep-');
         const userDataPath = join(root, 'a'.repeat(80), 'b'.repeat(80), 'profile');
-        const paths = await resolveHostProfilePaths(userDataPath);
+        const paths = await resolveServerProfilePaths(userDataPath);
         expect(paths.manifest).toBe(join(paths.directory, 'manifest.json'));
         expect(paths.directory).toBe(join(paths.userDataPath, 'host'));
     });
 
     it('reclaims metadata only after the previous process is proven dead', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-stale-');
-        const paths = await resolveHostProfilePaths(userDataPath);
+        const paths = await resolveServerProfilePaths(userDataPath);
         await mkdir(paths.directory, { mode: 0o700 });
         await writeFile(
             paths.lock,
@@ -75,7 +77,7 @@ describe('Host profile lease', () => {
             })}\n`,
             { mode: 0o600 },
         );
-        const recovered = await acquireHostProfile({
+        const recovered = await acquireServerProfile({
             processState: () => 'dead',
             userDataPath,
             version: '1.0.0',
@@ -89,7 +91,7 @@ describe('Host profile lease', () => {
 
     it('admits one owner during concurrent stale takeover', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-stale-race-');
-        const paths = await resolveHostProfilePaths(userDataPath);
+        const paths = await resolveServerProfilePaths(userDataPath);
         await mkdir(paths.directory, { mode: 0o700 });
         await writeFile(
             paths.lock,
@@ -103,7 +105,7 @@ describe('Host profile lease', () => {
         );
         const contenders = await Promise.allSettled(
             Array.from({ length: 16 }, () =>
-                acquireHostProfile({
+                acquireServerProfile({
                     processState: () => 'dead',
                     userDataPath,
                     version: '1.0.0',
@@ -122,12 +124,12 @@ describe('Host profile lease', () => {
 
     it('fails closed on a corrupt stale manifest with a stable repair error', async () => {
         const userDataPath = await temporaryDirectory('caxri-host-corrupt-');
-        const stale = await acquireHostProfile({ userDataPath, version: '1.0.0' });
+        const stale = await acquireServerProfile({ userDataPath, version: '1.0.0' });
         await stale.publish(endpoint);
         await writeFile(stale.paths.manifest, '{not-json}\n', { mode: 0o600 });
         await stale.release();
         await expect(
-            acquireHostProfile({
+            acquireServerProfile({
                 processState: () => 'dead',
                 userDataPath,
                 version: '1.0.0',

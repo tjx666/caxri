@@ -29,7 +29,7 @@ const MAX_PRIVATE_FILE_BYTES = 16 * 1024;
  */
 const DARWIN_OPEN_EXCLUSIVE_LOCK = 0x20;
 
-export interface HostProfilePaths {
+export interface ServerProfilePaths {
     desktopCredential: string;
     directory: string;
     lock: string;
@@ -38,19 +38,19 @@ export interface HostProfilePaths {
     userDataPath: string;
 }
 
-export interface HostProfileLease {
+export interface ServerProfileLease {
     desktopCredential: HostDesktopCredential;
     identity: HostManifestIdentity;
     /**
      * Available only after `publish()` has atomically committed the listening endpoint.
      */
     readonly manifest: HostManifest;
-    paths: HostProfilePaths;
+    paths: ServerProfilePaths;
     publish(endpoint: HostControlEndpoint): Promise<HostManifest>;
     release(): Promise<void>;
 }
 
-export type HostProcessState = 'alive' | 'dead' | 'unknown';
+export type ServerProcessState = 'alive' | 'dead' | 'unknown';
 
 function fileSystemCode(error: unknown): string | undefined {
     return typeof error === 'object' && error !== null && 'code' in error
@@ -68,7 +68,7 @@ async function privateDirectory(path: string): Promise<void> {
     await chmod(path, 0o700);
 }
 
-export async function resolveHostProfilePaths(userDataPath: string): Promise<HostProfilePaths> {
+export async function resolveServerProfilePaths(userDataPath: string): Promise<ServerProfilePaths> {
     await mkdir(userDataPath, { recursive: true });
     const canonicalUserDataPath = await realpath(userDataPath);
     const profileId = profileIdForPath(canonicalUserDataPath);
@@ -101,7 +101,7 @@ async function readPrivateJson(path: string): Promise<unknown> {
     }
 }
 
-export async function readHostManifest(path: string): Promise<HostManifest> {
+export async function readServerManifest(path: string): Promise<HostManifest> {
     const parsed = hostManifestSchema.safeParse(await readPrivateJson(path));
     if (!parsed.success)
         throw new CaxriError(
@@ -210,7 +210,7 @@ async function replacePrivateJson(directory: string, path: string, value: unknow
     }
 }
 
-function probeHostProcess(pid: number): HostProcessState {
+function probeServerProcess(pid: number): ServerProcessState {
     try {
         process.kill(pid, 0);
         return 'alive';
@@ -231,7 +231,7 @@ async function optionalPrivateJson<T>(read: (path: string) => Promise<T>, path: 
     }
 }
 
-function assertSameProfile(paths: HostProfilePaths, value: HostLock | HostManifest): void {
+function assertSameProfile(paths: ServerProfilePaths, value: HostLock | HostManifest): void {
     if (value.profileId !== paths.profileId)
         throw new CaxriError(
             'VALIDATION',
@@ -240,11 +240,11 @@ function assertSameProfile(paths: HostProfilePaths, value: HostLock | HostManife
 }
 
 async function cleanPreviousOwner(
-    paths: HostProfilePaths,
+    paths: ServerProfilePaths,
     previousLock: HostLock | undefined,
-    processState: (pid: number) => HostProcessState,
+    processState: (pid: number) => ServerProcessState,
 ): Promise<void> {
-    const previousManifest = await optionalPrivateJson(readHostManifest, paths.manifest);
+    const previousManifest = await optionalPrivateJson(readServerManifest, paths.manifest);
     if (!previousLock && !previousManifest) return;
     if (previousLock) assertSameProfile(paths, previousLock);
     if (previousManifest) {
@@ -274,7 +274,7 @@ async function cleanPreviousOwner(
 
 async function isManifestOwnedBy(path: string, processIdentity: string) {
     try {
-        const value = await readHostManifest(path);
+        const value = await readServerManifest(path);
         return value.processIdentity === processIdentity;
     } catch (error) {
         if (fileSystemCode(error) === 'ENOENT') return false;
@@ -283,15 +283,15 @@ async function isManifestOwnedBy(path: string, processIdentity: string) {
 }
 
 /**
- * Acquires the profile before Runtime startup, preventing a second SQLite writer from spawning.
+ * Acquires the profile before domain startup, preventing a second SQLite writer from spawning.
  */
-export async function acquireHostProfile(options: {
-    processState?: (pid: number) => HostProcessState;
+export async function acquireServerProfile(options: {
+    processState?: (pid: number) => ServerProcessState;
     startedAt?: number;
     userDataPath: string;
     version: string;
-}): Promise<HostProfileLease> {
-    const paths = await resolveHostProfilePaths(options.userDataPath);
+}): Promise<ServerProfileLease> {
+    const paths = await resolveServerProfilePaths(options.userDataPath);
     await privateDirectory(paths.directory);
     /**
      * The kernel lock makes both ordinary startup and stale takeover one atomic profile CAS.
@@ -305,7 +305,7 @@ export async function acquireHostProfile(options: {
         processIdentity,
         profileId: paths.profileId,
     });
-    const processState = options.processState ?? probeHostProcess;
+    const processState = options.processState ?? probeServerProcess;
     let previousLock: HostLock | undefined;
     try {
         previousLock = await readLockHandle(lockHandle);

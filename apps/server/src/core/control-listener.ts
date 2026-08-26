@@ -6,7 +6,7 @@ import { CaxriError, CONTROL_TRANSPORT_MAX_FRAME_BYTES } from '@caxri/protocol';
 import type WebSocket from 'ws';
 import { WebSocketServer } from 'ws';
 
-import { fileSystemCode } from './local-server-support';
+import { fileSystemCode } from './control-server-support';
 
 export interface ControlListener {
     endpoint: HostControlEndpoint;

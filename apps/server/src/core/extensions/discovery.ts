@@ -366,13 +366,13 @@ export async function discoverExtensions(options: DiscoveryOptions): Promise<{
     return { extensions, rejected };
 }
 
-export function extensionRootsForHost(options: {
-    hostOutputDirectory: string;
+export function extensionRootsForServer(options: {
+    serverBundleDirectory: string;
     userDataPath: string;
     resourcesPath?: string;
 }): string[] {
     const bundled = options.resourcesPath
         ? join(options.resourcesPath, 'extensions')
-        : resolve(options.hostOutputDirectory, '../extensions');
+        : resolve(options.serverBundleDirectory, '../extensions');
     return [bundled, join(options.userDataPath, 'extensions')];
 }

@@ -41,7 +41,7 @@ export interface DesktopRouterOptions {
     bridge: DesktopRouterBridge;
     maximumTargets?: number;
     now?: () => number;
-    runtime: Pick<
+    domainService: Pick<
         ServerDomainService,
         'request' | 'requestInWorkbenchContext' | 'requestWithSignal'
     >;
@@ -89,9 +89,9 @@ function assertNotCancelled(signal?: AbortSignal): void {
 }
 
 /**
- * Resolves raw paths inside Runtime, then exposes only one-use generation-bound targets to Main.
+ * Resolves raw paths inside the domain layer, then exposes only one-use generation-bound targets to Desktop Main.
  */
-export class HostDesktopRouter {
+export class ServerDesktopRouter {
     private readonly maximumTargets: number;
     private readonly now: () => number;
     private readonly targetTtlMs: number;
@@ -157,7 +157,7 @@ export class HostDesktopRouter {
     ): Promise<{ entry: AuthorizedEntry; projectId: string; sessionId: string }> {
         if (context && requestedSessionId !== context.sessionId)
             throw new CaxriError('PATH_DENIED', 'Desktop request context is inconsistent');
-        const state = await this.options.runtime.request('app.bootstrap');
+        const state = await this.options.domainService.request('app.bootstrap');
         if (requestedSessionId)
             return this.resolveRequestedSession(state, requestedSessionId, path, signal, context);
 
@@ -170,10 +170,13 @@ export class HostDesktopRouter {
             await Promise.all(
                 representatives.values().map(async (session) => {
                     try {
-                        const entry = await this.options.runtime.request('files.authorizeOpen', {
-                            sessionId: session.id,
-                            path,
-                        });
+                        const entry = await this.options.domainService.request(
+                            'files.authorizeOpen',
+                            {
+                                sessionId: session.id,
+                                path,
+                            },
+                        );
                         return { entry, projectId: session.projectId };
                     } catch (error) {
                         if (
@@ -197,7 +200,7 @@ export class HostDesktopRouter {
         const session = selected ?? (sessions.length === 1 ? sessions[0] : undefined);
         if (!session)
             throw new CaxriError('CONFLICT', 'Select a Session explicitly for this Project');
-        const entry = await this.options.runtime.request('files.authorizeOpen', {
+        const entry = await this.options.domainService.request('files.authorizeOpen', {
             sessionId: session.id,
             path,
         });
@@ -217,7 +220,7 @@ export class HostDesktopRouter {
             throw new CaxriError('CONFLICT', 'Archived Sessions cannot receive Desktop targets');
         const parameters = { sessionId, path };
         const entry = context
-            ? await this.options.runtime.requestInWorkbenchContext(
+            ? await this.options.domainService.requestInWorkbenchContext(
                   'files.authorizeOpen',
                   parameters,
                   context,
@@ -225,12 +228,12 @@ export class HostDesktopRouter {
                   signal,
               )
             : signal
-              ? await this.options.runtime.requestWithSignal(
+              ? await this.options.domainService.requestWithSignal(
                     'files.authorizeOpen',
                     parameters,
                     signal,
                 )
-              : await this.options.runtime.request('files.authorizeOpen', parameters);
+              : await this.options.domainService.request('files.authorizeOpen', parameters);
         return { entry, projectId: session.projectId, sessionId };
     }
 
@@ -262,7 +265,7 @@ export class HostDesktopRouter {
         assertNotCancelled(signal);
         const lease = await this.requireLease(false);
         const item = context
-            ? await this.options.runtime.requestInWorkbenchContext(
+            ? await this.options.domainService.requestInWorkbenchContext(
                   'files.authorizeTrash',
                   parameters,
                   context,
@@ -270,12 +273,12 @@ export class HostDesktopRouter {
                   signal,
               )
             : signal
-              ? await this.options.runtime.requestWithSignal(
+              ? await this.options.domainService.requestWithSignal(
                     'files.authorizeTrash',
                     parameters,
                     signal,
                 )
-              : await this.options.runtime.request('files.authorizeTrash', parameters);
+              : await this.options.domainService.request('files.authorizeTrash', parameters);
         assertNotCancelled(signal);
         const isConfirmed = isDesktopConfirmationAccepted(
             await this.options.bridge.invoke(
@@ -326,7 +329,7 @@ export class HostDesktopRouter {
             sessionId: parameters.sessionId,
         };
         const preflight = context
-            ? await this.options.runtime.requestInWorkbenchContext(
+            ? await this.options.domainService.requestInWorkbenchContext(
                   'git.discard.preflight',
                   preflightParameters,
                   context,
@@ -334,12 +337,15 @@ export class HostDesktopRouter {
                   signal,
               )
             : signal
-              ? await this.options.runtime.requestWithSignal(
+              ? await this.options.domainService.requestWithSignal(
                     'git.discard.preflight',
                     preflightParameters,
                     signal,
                 )
-              : await this.options.runtime.request('git.discard.preflight', preflightParameters);
+              : await this.options.domainService.request(
+                    'git.discard.preflight',
+                    preflightParameters,
+                );
         assertNotCancelled(signal);
         if (preflight.status === 'noop') return null;
         const isConfirmed = isDesktopConfirmationAccepted(
@@ -357,12 +363,12 @@ export class HostDesktopRouter {
         assertNotCancelled(signal);
         if (!isConfirmed) return { canceled: true };
         return context
-            ? this.options.runtime.requestInWorkbenchContext(
+            ? this.options.domainService.requestInWorkbenchContext(
                   'git.discard.apply',
                   { token: preflight.token },
                   context,
               )
-            : this.options.runtime.request('git.discard.apply', { token: preflight.token });
+            : this.options.domainService.request('git.discard.apply', { token: preflight.token });
     }
 
     async open(
@@ -407,7 +413,7 @@ export class HostDesktopRouter {
                     : 'The requested Desktop target is not a directory',
             );
         /**
-         * Reject a raw target in the headless Host before a CLI open is allowed to launch Desktop.
+         * Reject a raw target in Server Core before a CLI open is allowed to launch Desktop.
          */
         const lease = await this.requireLease(parameters.launchIfNeeded);
         const target = this.issueTarget(operation, lease.generation, resolved, parameters.location);
@@ -444,7 +450,7 @@ export class HostDesktopRouter {
             throw new CaxriError('NOT_FOUND', 'Desktop target expired');
         if (target.generation !== generation)
             throw new CaxriError('CONFLICT', 'Desktop target belongs to a stale generation');
-        const current = await this.options.runtime.request(
+        const current = await this.options.domainService.request(
             target.operation === 'trash' ? 'files.authorizeTrash' : 'files.authorizeOpen',
             { sessionId: target.sessionId, path: target.entry.path },
         );

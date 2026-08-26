@@ -9,9 +9,9 @@ import {
     StructuredLogger,
 } from '@caxri/system';
 
-import { startHostApp } from './app';
 import { createDesktopLauncher } from './desktop-launcher';
-import { extensionRootsForHost } from './extensions/discovery';
+import { extensionRootsForServer } from './extensions/discovery';
+import { startServerCore } from './server-core';
 
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
 if (!userDataPath) throw new Error('CAXRI_USER_DATA_PATH is required');
@@ -41,15 +41,15 @@ const desktopLaunch = desktopLaunchSource
       : undefined;
 const cliPath = process.env.CAXRI_CLI_PATH;
 
-const app = await startHostApp({
+const app = await startServerCore({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
     buildId,
     commit,
     cliPath,
     executable: process.execPath,
     extensionHostPath: join(serverBundleDirectory, 'extension-host.js'),
-    extensionRoots: extensionRootsForHost({
-        hostOutputDirectory: serverBundleDirectory,
+    extensionRoots: extensionRootsForServer({
+        serverBundleDirectory,
         userDataPath,
         ...(serverBundleDirectory.includes('.asar') &&
             process.resourcesPath && { resourcesPath: process.resourcesPath }),

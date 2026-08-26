@@ -22,8 +22,8 @@ export const MAX_RECEIPTS = 4_096;
 export const DUPLICATE_WINDOW_MS = 30_000;
 /**
  * Duplicate fingerprints are bounded by capacity as well as TTL: invalid-target sends bypass `admitPairTraffic`, so
- * throughput alone must not grow Host memory inside one TTL window. Capacity eviction only lowers the dedup hit rate;
- * it never changes delivery semantics.
+ * throughput alone must not grow Server Core memory inside one TTL window. Capacity eviction only lowers the dedup hit
+ * rate; it never changes delivery semantics.
  */
 export const MAX_DUPLICATES = 4_096;
 export const LOOP_WINDOW_MS = 5 * 60 * 1_000;

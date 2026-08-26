@@ -1,33 +1,37 @@
 import { CAXRI_PROTOCOL_VERSION, CaxriError, logEventCatalog } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { LocalHostServerOptions } from '../local-server-support';
+import type { ControlServerOptions } from '../control-server-support';
 import {
     executeReply,
     fileSystemCode,
     isTokenMatch,
-    logHostRequestOutcome,
+    logControlRequestOutcome,
     operatorContext,
-} from '../local-server-support';
+} from '../control-server-support';
 
-type HostRequestLogEvent = Parameters<NonNullable<LocalHostServerOptions['logger']>['write']>[1];
-type HostRequestLogWrite = Parameters<NonNullable<LocalHostServerOptions['logger']>['write']>;
+type ControlRequestLogEvent = Parameters<NonNullable<ControlServerOptions['logger']>['write']>[1];
+type ControlRequestLogWrite = Parameters<NonNullable<ControlServerOptions['logger']>['write']>;
 
 describe('Host request log sink', () => {
     it('accepts only registered event names', () => {
-        const registeredEvent: HostRequestLogEvent = logEventCatalog.ipc.request;
+        const registeredEvent: ControlRequestLogEvent = logEventCatalog.ipc.request;
         // @ts-expect-error -- Host log sinks must reject events outside the canonical registry.
-        const unregisteredEvent: HostRequestLogEvent = 'ipc.request_typo';
+        const unregisteredEvent: ControlRequestLogEvent = 'ipc.request_typo';
 
         expect(registeredEvent).toBe('ipc.request');
         expect(unregisteredEvent).toBe('ipc.request_typo');
     });
 
     it('records request cancellation as non-fault control flow', () => {
-        const writes: HostRequestLogWrite[] = [];
+        const writes: ControlRequestLogWrite[] = [];
 
-        logHostRequestOutcome(
-            { logger: { write: (...arguments_: HostRequestLogWrite) => writes.push(arguments_) } },
+        logControlRequestOutcome(
+            {
+                logger: {
+                    write: (...arguments_: ControlRequestLogWrite) => writes.push(arguments_),
+                },
+            },
             { id: 'cancelled-view', method: 'viewContainers.viewOperation' },
             {
                 protocolVersion: CAXRI_PROTOCOL_VERSION,

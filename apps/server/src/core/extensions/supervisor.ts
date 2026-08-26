@@ -214,7 +214,8 @@ export function isExtensionHostResult(
 }
 
 /**
- * Host-owned lifecycle for the shared ESM Extension Host. Runtime and PTYs remain unaffected by this child.
+ * Server Core-owned lifecycle for the shared ESM Extension Host. Domain services and PTYs remain unaffected by this
+ * child.
  */
 export class ExtensionHostSupervisor extends EventTarget {
     private child?: ChildProcess;

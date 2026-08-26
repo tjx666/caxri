@@ -48,7 +48,7 @@ import type {
 } from './types';
 
 /**
- * Host-memory Peer Inbox. Bodies never cross into persistence, logs, Runtime, or terminal input.
+ * Server Core in-memory Peer Inbox. Bodies never cross into persistence, logs, domain services, or Terminal input.
  */
 export class AgentInboxRegistry {
     private readonly duplicates = new Map<string, DuplicateReceipt>();
@@ -697,7 +697,7 @@ export class AgentInboxRegistry {
     }
 
     /**
-     * Marks a pull delivered only after LocalHostServer confirms its reply crossed the socket.
+     * Marks a pull delivered only after `ControlServer` confirms its reply crossed the socket.
      */
     confirmWait(requestId: string, context: CommandExecutionContext): void {
         const reservation = this.reservations.get(requestId);

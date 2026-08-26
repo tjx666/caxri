@@ -7,8 +7,8 @@ import { hostEndpointUrl } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
-import { LocalHostServer } from '../local-server';
-import { acquireHostProfile } from '../profile';
+import { ControlServer } from '../control-server';
+import { acquireServerProfile } from '../profile';
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -20,7 +20,7 @@ afterEach(async () => {
 
 async function fixture() {
     const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-control-transport-'));
-    const lease = await acquireHostProfile({ userDataPath, version: '1.0.0' });
+    const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
     cleanups.push(async () => {
         await lease.release();
         await rm(userDataPath, { recursive: true, force: true });
@@ -44,7 +44,7 @@ async function connect(url: string): Promise<WebSocket> {
 describe('WebSocket control transport', () => {
     it('serves content-free health on the same loopback listener as control traffic', async () => {
         const lease = await fixture();
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host: { invoke: () => null } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,
@@ -67,7 +67,7 @@ describe('WebSocket control transport', () => {
     it('rejects binary control messages before authentication', async () => {
         const lease = await fixture();
         const invoke = vi.fn();
-        const server = new LocalHostServer({
+        const server = new ControlServer({
             adapters: { host: { invoke } },
             desktopCredential: lease.desktopCredential,
             identity: lease.identity,

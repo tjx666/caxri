@@ -3,7 +3,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../../core/domain-service';
 import type { ExtensionWorkspaceOperation } from '../../extension-host/protocol';
-import type { HostDesktopRouter } from '../desktop-router';
+import type { ServerDesktopRouter } from '../desktop-router';
 
 interface ExtensionBootstrapContext {
     selectedSessionId?: string;
@@ -15,8 +15,8 @@ interface ExtensionBootstrapContext {
 }
 
 interface ExtensionWorkspaceBridgeOptions {
-    desktopRouter(): HostDesktopRouter | undefined;
-    runtime: Pick<ServerDomainService, 'requestInWorkbenchContext'>;
+    desktopRouter(): ServerDesktopRouter | undefined;
+    domainService: Pick<ServerDomainService, 'requestInWorkbenchContext'>;
 }
 
 export function extensionActiveContext(bootstrap: ExtensionBootstrapContext): {
@@ -35,8 +35,8 @@ export function extensionActiveContext(bootstrap: ExtensionBootstrapContext): {
 }
 
 /**
- * Routes only the public Git Extension API allowlist. Runtime remains authoritative for repositories, while native
- * discard confirmation crosses the current Desktop generation through its bounded bridge.
+ * Routes only the public Git Extension API allowlist. Domain services remain authoritative for repositories, while
+ * native discard confirmation crosses the current Desktop generation through its bounded bridge.
  */
 export function createExtensionWorkspaceRequest(options: ExtensionWorkspaceBridgeOptions) {
     return async (
@@ -56,13 +56,17 @@ export function createExtensionWorkspaceRequest(options: ExtensionWorkspaceBridg
             );
         }
         return signal
-            ? options.runtime.requestInWorkbenchContext(
+            ? options.domainService.requestInWorkbenchContext(
                   operation,
                   parameters as never,
                   context,
                   undefined,
                   signal,
               )
-            : options.runtime.requestInWorkbenchContext(operation, parameters as never, context);
+            : options.domainService.requestInWorkbenchContext(
+                  operation,
+                  parameters as never,
+                  context,
+              );
     };
 }

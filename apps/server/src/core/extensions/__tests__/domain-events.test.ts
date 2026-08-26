@@ -1,7 +1,7 @@
 import type { RuntimeEvent } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { routeExtensionRuntimeEvent } from '../runtime-events';
+import { routeExtensionDomainEvent } from '../domain-events';
 import type { ExtensionService } from '../service';
 
 describe('generic extension runtime event routing', () => {
@@ -16,7 +16,7 @@ describe('generic extension runtime event routing', () => {
             payload: { kind: 'full', reason: 'session.select' },
         } satisfies RuntimeEvent;
 
-        await routeExtensionRuntimeEvent(service, { request: activeContext }, event);
+        await routeExtensionDomainEvent(service, { request: activeContext }, event);
 
         expect(activeContextChanged).toHaveBeenCalledWith({ kind: 'no-session' });
     });
@@ -36,7 +36,7 @@ describe('generic extension runtime event routing', () => {
         const projectStatusChanged = vi.fn();
         const service = { gitChanged, projectStatusChanged } as unknown as ExtensionService;
 
-        await routeExtensionRuntimeEvent(
+        await routeExtensionDomainEvent(
             service,
             { request: activeContext },
             {
@@ -44,7 +44,7 @@ describe('generic extension runtime event routing', () => {
                 payload: { sessionIds: ['session-other'], repositoryIds: [], scope: 'status' },
             },
         );
-        await routeExtensionRuntimeEvent(
+        await routeExtensionDomainEvent(
             service,
             { request: activeContext },
             {
@@ -62,7 +62,7 @@ describe('generic extension runtime event routing', () => {
         const activeContext = vi.fn();
         const service = { activeContextChanged: vi.fn() } as unknown as ExtensionService;
 
-        await routeExtensionRuntimeEvent(
+        await routeExtensionDomainEvent(
             service,
             { request: activeContext },
             {

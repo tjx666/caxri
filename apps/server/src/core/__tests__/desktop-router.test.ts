@@ -3,7 +3,7 @@ import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ServerDomainService } from '../../core/domain-service';
-import { HostDesktopRouter } from '../desktop-router';
+import { ServerDesktopRouter } from '../desktop-router';
 
 const project = {
     id: 'project-1',
@@ -53,7 +53,7 @@ type RuntimeRequestStub =
     | ((method: string) => Promise<unknown>)
     | ((method: string, parameters: unknown) => Promise<unknown>);
 
-function runtime(request?: RuntimeRequestStub) {
+function domainService(request?: RuntimeRequestStub) {
     const implementation =
         request ??
         vi.fn((method: string) => {
@@ -79,7 +79,7 @@ describe('Host Desktop router', () => {
             if (method === 'files.authorizeOpen') return Promise.resolve(authorized);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 lease: () => ({
                     desktopId: 'desktop-1',
@@ -91,7 +91,7 @@ describe('Host Desktop router', () => {
                     return Promise.resolve(null);
                 },
             },
-            runtime: runtime(request),
+            domainService: domainService(request),
         });
 
         await expect(
@@ -117,7 +117,7 @@ describe('Host Desktop router', () => {
 
     it('returns only a revalidated target to the matching generation', async () => {
         let operation: DesktopOperation | undefined;
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 lease: () => ({
                     desktopId: 'desktop-1',
@@ -129,7 +129,7 @@ describe('Host Desktop router', () => {
                     return Promise.resolve(null);
                 },
             },
-            runtime: runtime(),
+            domainService: domainService(),
         });
         await router.open('reveal', undefined, {
             launchIfNeeded: false,
@@ -180,7 +180,7 @@ describe('Host Desktop router', () => {
                     : null,
             ),
         );
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke,
                 lease: () => ({
@@ -189,7 +189,7 @@ describe('Host Desktop router', () => {
                     expiresAt: Date.now() + 1_000,
                 }),
             },
-            runtime: {
+            domainService: {
                 request,
                 requestInWorkbenchContext,
                 requestWithSignal: vi.fn(),
@@ -259,7 +259,7 @@ describe('Host Desktop router', () => {
             if (method === 'files.authorizeTrash') return Promise.resolve(authorized);
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
-        const routerReference: { current?: HostDesktopRouter } = {};
+        const routerReference: { current?: ServerDesktopRouter } = {};
         const invoke = vi.fn(async (operation: DesktopOperation) => {
             if (operation.kind === 'confirmFilesTrash') return { confirmed: true };
             if (operation.kind === 'trash') {
@@ -270,7 +270,7 @@ describe('Host Desktop router', () => {
             }
             throw new Error(`Unexpected Desktop operation: ${operation.kind}`);
         });
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke,
                 lease: () => ({
@@ -279,7 +279,7 @@ describe('Host Desktop router', () => {
                     expiresAt: Date.now() + 1_000,
                 }),
             },
-            runtime: runtime(request),
+            domainService: domainService(request),
         });
         routerReference.current = router;
 
@@ -299,7 +299,7 @@ describe('Host Desktop router', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const invoke = vi.fn(() => Promise.resolve({ confirmed: false }));
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke,
                 lease: () => ({
@@ -308,7 +308,7 @@ describe('Host Desktop router', () => {
                     expiresAt: Date.now() + 1_000,
                 }),
             },
-            runtime: runtime(request),
+            domainService: domainService(request),
         });
 
         await expect(
@@ -347,7 +347,7 @@ describe('Host Desktop router', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const invoke = vi.fn(() => Promise.resolve({ confirmed: true }));
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke,
                 lease: () => ({
@@ -356,7 +356,7 @@ describe('Host Desktop router', () => {
                     expiresAt: Date.now() + 1_000,
                 }),
             },
-            runtime: runtime(request),
+            domainService: domainService(request),
         });
 
         await expect(router.discard(parameters)).resolves.toBeNull();
@@ -389,7 +389,7 @@ describe('Host Desktop router', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const invoke = vi.fn(() => Promise.resolve({ confirmed: true }));
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke,
                 lease: () => ({
@@ -398,7 +398,7 @@ describe('Host Desktop router', () => {
                     expiresAt: Date.now() + 1_000,
                 }),
             },
-            runtime: runtime(request),
+            domainService: domainService(request),
         });
 
         await expect(router.discard(parameters)).resolves.toBeNull();
@@ -423,7 +423,7 @@ describe('Host Desktop router', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const invoke = vi.fn(() => Promise.resolve({ confirmed: false }));
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke,
                 lease: () => ({
@@ -432,7 +432,7 @@ describe('Host Desktop router', () => {
                     expiresAt: Date.now() + 1_000,
                 }),
             },
-            runtime: runtime(request),
+            domainService: domainService(request),
         });
 
         await expect(router.discard(parameters)).resolves.toEqual({ canceled: true });
@@ -453,7 +453,7 @@ describe('Host Desktop router', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const invoke = vi.fn(() => confirmation.promise);
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke,
                 lease: () => ({
@@ -462,7 +462,7 @@ describe('Host Desktop router', () => {
                     expiresAt: Date.now() + 1_000,
                 }),
             },
-            runtime: runtime(request),
+            domainService: domainService(request),
         });
         const controller = new AbortController();
         const discarded = router.discard(
@@ -489,7 +489,7 @@ describe('Host Desktop router', () => {
             return Promise.reject(new Error(`Unexpected method: ${method}`));
         });
         const invoke = vi.fn(() => confirmation.promise);
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke,
                 lease: () => ({
@@ -498,7 +498,7 @@ describe('Host Desktop router', () => {
                     expiresAt: Date.now() + 1_000,
                 }),
             },
-            runtime: runtime(request),
+            domainService: domainService(request),
         });
         const controller = new AbortController();
         const trashed = router.trash(
@@ -516,7 +516,7 @@ describe('Host Desktop router', () => {
 
     it('rejects paths outside every Project without routing a Desktop command', async () => {
         const invoke = vi.fn(() => Promise.resolve(null));
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 lease: () => ({
                     desktopId: 'desktop-1',
@@ -525,7 +525,7 @@ describe('Host Desktop router', () => {
                 }),
                 invoke,
             },
-            runtime: runtime(
+            domainService: domainService(
                 vi.fn((method: string) => {
                     if (method === 'app.bootstrap') return Promise.resolve(bootstrap);
                     return Promise.reject(
@@ -555,7 +555,7 @@ describe('Host Desktop router', () => {
         ],
     ])('rejects a replaced %s identity after Terminal-link authorization', async (_, identity) => {
         const invoke = vi.fn(() => Promise.resolve(null));
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 lease: () => ({
                     desktopId: 'desktop-1',
@@ -564,7 +564,7 @@ describe('Host Desktop router', () => {
                 }),
                 invoke,
             },
-            runtime: runtime(),
+            domainService: domainService(),
         });
 
         await expect(
@@ -583,14 +583,14 @@ describe('Host Desktop router', () => {
         const waitForLease = vi.fn(() =>
             Promise.resolve({ desktopId: 'desktop-launched', generation: 9, expiresAt: 10_000 }),
         );
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke: () => Promise.resolve(null),
                 launch,
                 lease: () => {},
                 waitForLease,
             },
-            runtime: runtime(
+            domainService: domainService(
                 vi.fn((method: string) => {
                     if (method === 'app.bootstrap') return Promise.resolve(bootstrap);
                     return Promise.reject(
@@ -615,7 +615,7 @@ describe('Host Desktop router', () => {
         const invoke = vi.fn((operation: DesktopOperation) =>
             Promise.resolve(operation.kind === 'status' ? { state: 'background' } : null),
         );
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 lease: () =>
                     isOnline
@@ -623,7 +623,7 @@ describe('Host Desktop router', () => {
                         : undefined,
                 invoke,
             },
-            runtime: runtime(),
+            domainService: domainService(),
         });
         await expect(router.status()).resolves.toEqual({ state: 'offline' });
         isOnline = true;
@@ -636,14 +636,14 @@ describe('Host Desktop router', () => {
         const waitForLease = vi.fn(() =>
             Promise.resolve({ desktopId: 'desktop-launched', generation: 9, expiresAt: 10_000 }),
         );
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke: () => Promise.resolve(null),
                 launch,
                 lease: () => {},
                 waitForLease,
             },
-            runtime: runtime(),
+            domainService: domainService(),
         });
 
         await expect(Promise.all([router.focus(true), router.focus(true)])).resolves.toEqual([
@@ -662,7 +662,7 @@ describe('Host Desktop router', () => {
                   )
                 : Promise.resolve(null),
         );
-        const router = new HostDesktopRouter({
+        const router = new ServerDesktopRouter({
             bridge: {
                 invoke,
                 lease: () => ({
@@ -671,7 +671,7 @@ describe('Host Desktop router', () => {
                     expiresAt: Date.now() + 1_000,
                 }),
             },
-            runtime: runtime(),
+            domainService: domainService(),
         });
 
         await expect(router.focus(false)).rejects.toMatchObject({ code: 'CONFLICT' });

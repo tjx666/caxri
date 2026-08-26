@@ -44,11 +44,11 @@ import WebSocket from 'ws';
 import { listenForControlConnections } from './control-listener';
 import type {
     ClientState,
+    ControlServerOptions,
     DesktopLeaseWaiter,
-    LocalHostServerOptions,
     OrderedQueueTiming,
     PendingDesktopCommand,
-} from './local-server-support';
+} from './control-server-support';
 import {
     closeReplacedDesktop,
     DESKTOP_COMMAND_TIMEOUT_MS,
@@ -57,14 +57,14 @@ import {
     HANDSHAKE_TIMEOUT_MS,
     isConcurrentRead,
     isTokenMatch,
-    logHostRequestOutcome,
+    logControlRequestOutcome,
     MAX_IN_FLIGHT_REQUESTS,
     MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS,
     operatorContext,
     shouldSettleOutsideOrderedLane,
-} from './local-server-support';
+} from './control-server-support';
 
-export type { LocalHostServerOptions } from './local-server-support';
+export type { ControlServerOptions } from './control-server-support';
 
 function controlMessageText(data: RawData): string {
     if (Buffer.isBuffer(data)) return data.toString('utf8');
@@ -75,7 +75,7 @@ function controlMessageText(data: RawData): string {
 /**
  * Authenticated, profile-scoped WebSocket adapter for Desktop, Agent, and human CLI clients.
  */
-export class LocalHostServer {
+export class ControlServer {
     private readonly clients = new Map<WebSocket, ClientState>();
     private readonly sockets = new Set<WebSocket>();
     private readonly dispatch: CommandDispatcher;
@@ -87,7 +87,7 @@ export class LocalHostServer {
     private server?: Server;
     private webSocketServer?: WebSocketServer;
 
-    constructor(private readonly options: LocalHostServerOptions) {
+    constructor(private readonly options: ControlServerOptions) {
         this.dispatch = createCommandDispatcher(options.adapters);
     }
 
@@ -217,7 +217,14 @@ export class LocalHostServer {
         const release = this.reserveRequest(state, isTerminalHotPath);
         if (!release) {
             const reply = this.capacityReply(request.id);
-            logHostRequestOutcome(this.options, request, reply, state.context, startedAt, timing);
+            logControlRequestOutcome(
+                this.options,
+                request,
+                reply,
+                state.context,
+                startedAt,
+                timing,
+            );
             this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }));
             return;
         }
@@ -232,7 +239,14 @@ export class LocalHostServer {
                 ok: false,
                 error: toWireError(error),
             };
-            logHostRequestOutcome(this.options, request, reply, state.context, startedAt, timing);
+            logControlRequestOutcome(
+                this.options,
+                request,
+                reply,
+                state.context,
+                startedAt,
+                timing,
+            );
             this.writeCommandReply(socket, state, request, reply, state.context, release);
             return;
         }
@@ -252,7 +266,7 @@ export class LocalHostServer {
         const settle = async (): Promise<void> => {
             try {
                 const reply = await admission.reply;
-                logHostRequestOutcome(this.options, request, reply, context, startedAt, timing);
+                logControlRequestOutcome(this.options, request, reply, context, startedAt, timing);
                 this.writeCommandReply(socket, state, request, reply, context, release);
             } catch {
                 socket.terminate();
@@ -284,7 +298,7 @@ export class LocalHostServer {
                   );
               })
             : this.capacityReply(request.id);
-        logHostRequestOutcome(this.options, request, reply, state.context, startedAt, timing);
+        logControlRequestOutcome(this.options, request, reply, state.context, startedAt, timing);
         this.write(
             socket,
             localServerDesktopRuntimeReplySchema.parse({
@@ -364,14 +378,14 @@ export class LocalHostServer {
             }
             /**
              * Reverse replies must settle outside the ordered protocol-control queue to avoid a Desktop request
-             * deadlocking while Host routes a nested window operation back.
+             * deadlocking while Server Core routes a nested window operation back.
              */
             if (state && this.settleDesktopReply(state, raw)) return;
             const nestedTarget = state
                 ? localClientDesktopTargetConsumeSchema.safeParse(raw)
                 : undefined;
             /**
-             * A Host-issued Desktop command redeems its opaque target before it can reply. The redemption must bypass
+             * A Server-issued Desktop command redeems its opaque target before it can reply. The redemption must bypass
              * the command that is awaiting that reply or both sides deadlock; generation checks and the one-use target
              * still bound this lane.
              */
@@ -426,8 +440,8 @@ export class LocalHostServer {
                 return;
             }
             /**
-             * Cancellation is authenticated control traffic. It must reach the Host adapter immediately even when an
-             * earlier request is still waiting on Runtime or Extension Host work.
+             * Cancellation is authenticated control traffic. It must reach the Core adapter immediately even when an
+             * earlier request is still waiting on domain or Extension Host work.
              */
             if (
                 state &&
@@ -707,7 +721,7 @@ export class LocalHostServer {
     broadcast(event: ProtocolEventEnvelope | TransientRuntimeEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
         /**
-         * Raw Runtime payloads are a Desktop-only transport; other principals use projections.
+         * Raw domain payloads are a Desktop-only transport; other principals use projections.
          */
         if (this.currentDesktop?.desktopReady) this.write(this.currentDesktop.socket, message);
     }
@@ -729,7 +743,7 @@ export class LocalHostServer {
     }
 
     /**
-     * Delivers a one-shot Host UI event without placing it in the recoverable Runtime journal.
+     * Delivers a one-shot Server UI event without placing it in the recoverable event journal.
      */
     broadcastDesktop(event: TransientRuntimeEvent): void {
         const message = localServerEventSchema.parse({ type: 'event', event });
