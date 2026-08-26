@@ -18,7 +18,7 @@ interface ImportOwner {
     root: string;
 }
 
-type ServerLayer = 'core' | 'domains' | 'extension-host' | 'terminal-host';
+type ServerLayer = 'core' | 'domains' | 'extension-host' | 'observability' | 'terminal-host';
 
 const fixturePrefix = 'scripts/fixtures/eslint/architecture/';
 const sourceExtensionPattern = /\.[cm]?[jt]sx?$/u;
@@ -109,18 +109,19 @@ function serverLayerForPath(path: string): ServerLayer | undefined {
     const prefix = 'apps/server/src/';
     if (!path.startsWith(prefix)) return;
     const layer = path.slice(prefix.length).split('/', 1)[0];
-    return ['core', 'domains', 'extension-host', 'terminal-host'].includes(layer)
+    return ['core', 'domains', 'extension-host', 'observability', 'terminal-host'].includes(layer)
         ? (layer as ServerLayer)
         : undefined;
 }
 
 function isForbiddenServerLayerImport(importer: string, target: string): boolean {
-    if (isTestSource(importer)) return false;
+    if (importer.includes('/__tests__/')) return false;
     const importerLayer = serverLayerForPath(importer);
     const targetLayer = serverLayerForPath(target);
     if (!importerLayer || !targetLayer || importerLayer === targetLayer) return false;
-    if (importerLayer === 'core') return false;
-    return true;
+    if (targetLayer === 'observability') return false;
+    if (importerLayer === 'observability') return true;
+    return importerLayer !== 'core';
 }
 
 function isBrowserSafePackageSource(path: string): boolean {

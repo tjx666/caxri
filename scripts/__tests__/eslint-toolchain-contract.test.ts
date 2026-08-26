@@ -153,11 +153,13 @@ describe('shared ESLint preset toolchain contract', () => {
     it('enforces Server process and Domain layers from the first import', async () => {
         const results = await lintAll([
             'scripts/fixtures/eslint/architecture/apps/server/src/domains/bad-terminal-host-import.ts',
+            'scripts/fixtures/eslint/architecture/apps/server/src/domains/cross-layer.test.ts',
             'scripts/fixtures/eslint/architecture/apps/server/src/terminal-host/bad-domain-import.ts',
             'scripts/fixtures/eslint/architecture/apps/server/src/extension-host/bad-core-import.ts',
+            'scripts/fixtures/eslint/architecture/apps/server/src/observability/bad-core-import.ts',
         ]);
 
-        expect(results).toHaveLength(3);
+        expect(results).toHaveLength(5);
         for (const result of results)
             expect(result.messages.map(({ ruleId }) => ruleId)).toContain(
                 'caxri/architecture-boundaries',
