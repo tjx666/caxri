@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import process from 'node:process';
 
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export const desktopTestFiles = [
     'apps/desktop/src/**/*.test.ts',
@@ -84,6 +84,7 @@ export function resolveVitestPartition(
 
 const partition = resolveVitestPartition();
 export const serialNativeTests = partition.serialNativeTests;
+export const desktopParallelExcludes = [...configDefaults.exclude, ...serialNativeTests];
 export const parallelMaxWorkers = partition.maxWorkers;
 
 export const workspaceAliases = {
@@ -125,7 +126,7 @@ export default defineConfig({
                 test: {
                     name: 'desktop-parallel',
                     include: desktopTestFiles,
-                    exclude: serialNativeTests,
+                    exclude: desktopParallelExcludes,
                     maxWorkers: parallelMaxWorkers,
                 },
             },
