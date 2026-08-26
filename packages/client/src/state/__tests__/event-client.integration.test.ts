@@ -1,5 +1,9 @@
-import type { ServerEvent } from '@caxri/protocol';
-import { createEventJournal, MAX_EVENT_JOURNAL_EVENTS } from '@caxri/protocol';
+import type { DurableEventStore, DurableServerEvent, ServerEvent } from '@caxri/protocol';
+import {
+    createDurableEventJournal,
+    createEventJournal,
+    MAX_EVENT_JOURNAL_EVENTS,
+} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { createRecoveringEventClient } from '../event-client';
@@ -9,6 +13,32 @@ describe('recoverable event client integration', () => {
         event: 'state.changed',
         payload: { kind: 'full', reason },
     });
+
+    function durableStore(): DurableEventStore {
+        const events: Array<{
+            protocolVersion: 2;
+            cursor: number;
+            event: DurableServerEvent;
+        }> = [];
+        return {
+            appendEvent: (_stateEpoch, event) => {
+                const envelope = {
+                    protocolVersion: 2 as const,
+                    cursor: events.length + 1,
+                    event,
+                };
+                events.push(envelope);
+                return envelope;
+            },
+            changefeedBounds: () => ({
+                count: events.length,
+                earliest: events.at(0)?.cursor ?? 0,
+                latest: events.at(-1)?.cursor ?? 0,
+            }),
+            eventsAfter: (_stateEpoch, afterCursor) =>
+                events.filter(({ cursor }) => cursor > afterCursor),
+        };
+    }
 
     it('converges a reconnect while preserving the direct Terminal output path', async () => {
         const emitted: ServerEvent[] = [];
@@ -128,5 +158,72 @@ describe('recoverable event client integration', () => {
             },
             { event: 'state.changed', payload: { kind: 'full', reason: 'unknown' } },
         ]);
+    });
+
+    it('converges once across disconnects at snapshot, catch-up, and live boundaries', async () => {
+        const identity = {
+            serverId: 'a'.repeat(32),
+            stateEpoch: 'b'.repeat(32),
+        };
+        const journal = createDurableEventJournal({
+            identity,
+            snapshot: (cursor) => ({
+                cursor,
+                projectIds: [],
+                sessionIds: [],
+                terminalIds: [],
+                settingsRevision: cursor,
+                diagnosticsRevision: cursor,
+                agentRevision: cursor,
+            }),
+            store: durableStore(),
+        });
+        const first = journal.publish(changed('project.create'));
+        const firstRecovery = Promise.withResolvers<void>();
+        let recoveryCalls = 0;
+        let isStopDuringCatchUp = false;
+        const emitted: ServerEvent[] = [];
+        const client = createRecoveringEventClient({
+            emit: (event) => {
+                emitted.push(event);
+                if (isStopDuringCatchUp) {
+                    isStopDuringCatchUp = false;
+                    client.stop();
+                }
+            },
+            identity,
+            recover: async (afterCursor) => {
+                const recoveryCall = ++recoveryCalls;
+                if (recoveryCall === 1) await firstRecovery.promise;
+                return journal.recover({
+                    ...identity,
+                    ...(recoveryCall === 1 && { stateEpoch: 'c'.repeat(32) }),
+                    afterCursor,
+                });
+            },
+        });
+
+        const detachedSnapshot = client.start();
+        const second = journal.publish(changed('session.create'));
+        client.receive(second);
+        client.stop();
+        firstRecovery.resolve();
+        await detachedSnapshot;
+        expect(emitted).toEqual([]);
+
+        isStopDuringCatchUp = true;
+        await client.start();
+        expect(emitted).toEqual([first.event]);
+
+        await client.start();
+        expect(emitted).toEqual([first.event, second.event]);
+
+        const live = journal.publish(changed('project.create'));
+        client.receive(live);
+        client.receive(live);
+        client.stop();
+        await client.start();
+
+        expect(emitted).toEqual([first.event, second.event, live.event]);
     });
 });
