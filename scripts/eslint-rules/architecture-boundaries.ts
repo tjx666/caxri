@@ -196,7 +196,7 @@ const rule: Rule.RuleModule = {
             browserUnsafeImport:
                 "Browser-safe package source must not import '{{specifier}}'; move platform code behind an explicit environment-specific boundary.",
             forbiddenPackageDependency:
-                "'{{importer}}' must not depend on package '{{target}}' in the target ownership graph.",
+                "'{{importer}}' must not depend on package '{{target}}' in the current ownership graph.",
             platformClientImport:
                 "Browser code must not import '{{specifier}}'; @caxri/client/supervise is platform-only.",
             serverLayerImport:

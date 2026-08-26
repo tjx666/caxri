@@ -164,7 +164,7 @@ describe('pnpm workspace contract', () => {
         ).toEqual(['pnpm-lock.yaml']);
     });
 
-    it('defines the target ownership graph without empty application workspaces', () => {
+    it('defines the current ownership graph without empty application workspaces', () => {
         expect(appBoundaries.map(({ root }) => root)).toEqual([
             'apps/desktop',
             'apps/server',
@@ -214,7 +214,7 @@ describe('pnpm workspace contract', () => {
         expect(transitionalCycleAllowances).toEqual([]);
     });
 
-    it('pre-registers target source discovery in TypeScript', () => {
+    it('registers current source discovery in TypeScript', () => {
         const nodeConfig = readFileSync(join(root, 'tsconfig.node.json'), 'utf8');
         const webConfig = readFileSync(join(root, 'tsconfig.web.json'), 'utf8');
 
