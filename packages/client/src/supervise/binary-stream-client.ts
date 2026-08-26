@@ -25,19 +25,12 @@ import {
     decodeBinaryStreamFrame,
     encodeBinaryStreamFrame,
     fromWireError,
+    isBinaryStreamMethod,
     parseCaxriRequest,
     parseCaxriResult,
 } from '@caxri/protocol';
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
-
-const STREAM_METHODS = new Set<CaxriMethod>([
-    'terminal.attach',
-    'terminal.input',
-    'terminal.resize',
-    'files.read',
-    'files.write',
-]);
 
 interface BinaryStreamClientOptions {
     emitEvent(event: Extract<ServerEvent, { event: 'terminal.output' }>): void;
@@ -757,7 +750,7 @@ export class BinaryStreamClient {
     }
 
     supports(method: CaxriMethod): boolean {
-        return STREAM_METHODS.has(method);
+        return isBinaryStreamMethod(method);
     }
 
     async request(id: string, method: CaxriMethod, parameters: unknown): Promise<unknown> {

@@ -29,6 +29,20 @@ export const BINARY_STREAM_MAX_REPLY_BYTES = 2 * 1024 * 1024;
 export const BINARY_STREAM_TICKET_TTL_MS = 10_000;
 export const BINARY_STREAM_MAX_PENDING_TICKETS = 128;
 
+export const binaryStreamMethods = [
+    'terminal.attach',
+    'terminal.input',
+    'terminal.resize',
+    'files.read',
+    'files.write',
+] as const;
+export type BinaryStreamMethod = (typeof binaryStreamMethods)[number];
+const binaryStreamMethodSet = new Set<string>(binaryStreamMethods);
+
+export function isBinaryStreamMethod(method: string): method is BinaryStreamMethod {
+    return binaryStreamMethodSet.has(method);
+}
+
 const BINARY_STREAM_MAGIC = 0x4358_5231;
 const BINARY_STREAM_FINAL_FLAG = 1;
 
@@ -172,13 +186,7 @@ export type BinaryStreamReplyResult = z.infer<typeof binaryStreamReplyResultSche
 
 const binaryStreamReplyBaseSchema = z.object({
     id: identifierSchema,
-    method: z.enum([
-        'terminal.attach',
-        'terminal.input',
-        'terminal.resize',
-        'files.read',
-        'files.write',
-    ]),
+    method: z.enum(binaryStreamMethods),
 });
 
 export const binaryStreamReplySchema = z.discriminatedUnion('ok', [

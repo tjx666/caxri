@@ -10,11 +10,18 @@ import {
     binaryStreamReplySchema,
     decodeBinaryStreamFrame,
     encodeBinaryStreamFrame,
+    isBinaryStreamMethod,
     localClientStreamTicketRequestSchema,
     localServerStreamTicketReplySchema,
 } from '../binary-stream';
 
 describe('binary stream ticket contract', () => {
+    it('keeps routing decisions on the canonical method catalog', () => {
+        expect(isBinaryStreamMethod('files.read')).toBe(true);
+        expect(isBinaryStreamMethod('terminal.attach')).toBe(true);
+        expect(isBinaryStreamMethod('settings.get')).toBe(false);
+    });
+
     it('keeps content and long-lived credentials out of ticket requests and grants', () => {
         const request = localClientStreamTicketRequestSchema.parse({
             type: 'stream-ticket.request',
