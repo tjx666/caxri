@@ -18,7 +18,7 @@ import {
     protocolEventEnvelopeSchema,
     serverStateEpochSchema,
 } from '@caxri/protocol';
-import { and, asc, count, eq, gt, inArray } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, max, min } from 'drizzle-orm';
 
 import type {
     DurableProtocolIdentity,
@@ -29,7 +29,7 @@ import type { CaxriDrizzleDatabase } from '../connection';
 import { protocolChangefeed, protocolCommandReceipts, protocolIdentity } from '../schema';
 
 const IDENTITY_SINGLETON = 1;
-const MAX_PROTOCOL_COMMAND_RECEIPTS = 1_024;
+export const MAX_PROTOCOL_COMMAND_RECEIPTS = 1_024;
 export const MAX_PROTOCOL_CHANGEFEED_EVENTS = 256;
 const MAX_PROTOCOL_RECEIPT_BYTES = 512 * 1024;
 const MAX_PROTOCOL_CHANGEFEED_EVENT_BYTES = 256 * 1024;
@@ -64,6 +64,10 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
     ) {}
 
     private pruneReceipts(): void {
+        const overflow =
+            this.database.select({ value: count() }).from(protocolCommandReceipts).get()!.value -
+            MAX_PROTOCOL_COMMAND_RECEIPTS;
+        if (overflow <= 0) return;
         const rows = this.database
             .select({
                 stateEpoch: protocolCommandReceipts.stateEpoch,
@@ -76,10 +80,9 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
                 asc(protocolCommandReceipts.clientId),
                 asc(protocolCommandReceipts.requestId),
             )
+            .limit(overflow)
             .all();
-        const overflow = rows.length - MAX_PROTOCOL_COMMAND_RECEIPTS;
-        const rowsToRemove = rows.slice(0, Math.max(0, overflow));
-        for (const row of rowsToRemove)
+        for (const row of rows)
             this.database
                 .delete(protocolCommandReceipts)
                 .where(
@@ -93,20 +96,29 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
     }
 
     private pruneChangefeed(stateEpoch: string): void {
+        const overflow =
+            this.database
+                .select({ value: count() })
+                .from(protocolChangefeed)
+                .where(eq(protocolChangefeed.stateEpoch, stateEpoch))
+                .get()!.value - MAX_PROTOCOL_CHANGEFEED_EVENTS;
+        if (overflow <= 0) return;
         const sequences = this.database
             .select({ sequence: protocolChangefeed.sequence })
             .from(protocolChangefeed)
             .where(eq(protocolChangefeed.stateEpoch, stateEpoch))
             .orderBy(asc(protocolChangefeed.sequence))
+            .limit(overflow)
             .all();
-        const removable = sequences
-            .slice(0, Math.max(0, sequences.length - MAX_PROTOCOL_CHANGEFEED_EVENTS))
-            .map(({ sequence }) => sequence);
-        if (removable.length > 0)
-            this.database
-                .delete(protocolChangefeed)
-                .where(inArray(protocolChangefeed.sequence, removable))
-                .run();
+        this.database
+            .delete(protocolChangefeed)
+            .where(
+                inArray(
+                    protocolChangefeed.sequence,
+                    sequences.map(({ sequence }) => sequence),
+                ),
+            )
+            .run();
     }
 
     identity(now = Date.now()): DurableProtocolIdentity {
@@ -171,22 +183,24 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
                 'Failed commands do not create durable effect receipts',
             );
         const replyJson = assertBoundedJson(reply, MAX_PROTOCOL_RECEIPT_BYTES, 'Command receipt');
-        this.database
-            .insert(protocolCommandReceipts)
-            .values({ ...input, replyJson })
-            .onConflictDoNothing()
-            .run();
-        const stored = this.getReceipt(input.stateEpoch, input.clientId, input.requestId)!;
-        if (
-            stored.method !== input.method ||
-            stored.requestFingerprint !== input.requestFingerprint
-        )
-            throw new CaxriError(
-                'VALIDATION',
-                'A request ID cannot be reused for different command input',
-            );
-        this.pruneReceipts();
-        return stored;
+        return this.transaction(() => {
+            this.database
+                .insert(protocolCommandReceipts)
+                .values({ ...input, replyJson })
+                .onConflictDoNothing()
+                .run();
+            const stored = this.getReceipt(input.stateEpoch, input.clientId, input.requestId)!;
+            if (
+                stored.method !== input.method ||
+                stored.requestFingerprint !== input.requestFingerprint
+            )
+                throw new CaxriError(
+                    'VALIDATION',
+                    'A request ID cannot be reused for different command input',
+                );
+            this.pruneReceipts();
+            return stored;
+        });
     }
 
     appendEvent(
@@ -201,21 +215,23 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
             MAX_PROTOCOL_CHANGEFEED_EVENT_BYTES,
             'Changefeed event',
         );
-        const inserted = this.database
-            .insert(protocolChangefeed)
-            .values({
-                stateEpoch,
-                eventName: parsedEvent.event,
-                eventJson,
-                createdAt,
-            })
-            .returning({ sequence: protocolChangefeed.sequence })
-            .get();
-        this.pruneChangefeed(stateEpoch);
-        return protocolEventEnvelopeSchema.parse({
-            protocolVersion: CAXRI_PROTOCOL_VERSION,
-            cursor: inserted.sequence,
-            event: parsedEvent,
+        return this.transaction(() => {
+            const inserted = this.database
+                .insert(protocolChangefeed)
+                .values({
+                    stateEpoch,
+                    eventName: parsedEvent.event,
+                    eventJson,
+                    createdAt,
+                })
+                .returning({ sequence: protocolChangefeed.sequence })
+                .get();
+            this.pruneChangefeed(stateEpoch);
+            return protocolEventEnvelopeSchema.parse({
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                cursor: inserted.sequence,
+                event: parsedEvent,
+            });
         });
     }
 
@@ -246,16 +262,19 @@ export class ProtocolStateModel implements ProtocolRecoveryState {
 
     changefeedBounds(stateEpoch: string): { count: number; earliest: number; latest: number } {
         serverStateEpochSchema.parse(stateEpoch);
-        const rows = this.database
-            .select({ sequence: protocolChangefeed.sequence })
+        const bounds = this.database
+            .select({
+                count: count(),
+                earliest: min(protocolChangefeed.sequence),
+                latest: max(protocolChangefeed.sequence),
+            })
             .from(protocolChangefeed)
             .where(eq(protocolChangefeed.stateEpoch, stateEpoch))
-            .orderBy(asc(protocolChangefeed.sequence))
-            .all();
+            .get()!;
         return {
-            count: rows.length,
-            earliest: rows.at(0)?.sequence ?? 0,
-            latest: rows.at(-1)?.sequence ?? 0,
+            count: bounds.count,
+            earliest: bounds.earliest ?? 0,
+            latest: bounds.latest ?? 0,
         };
     }
 

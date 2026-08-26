@@ -6,7 +6,7 @@ import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CaxriDatabaseConnection as CaxriDatabase } from '../../index';
-import { MAX_PROTOCOL_CHANGEFEED_EVENTS } from '../protocol-state';
+import { MAX_PROTOCOL_CHANGEFEED_EVENTS, MAX_PROTOCOL_COMMAND_RECEIPTS } from '../protocol-state';
 
 const temporaryDirectories: string[] = [];
 
@@ -111,6 +111,39 @@ describe('ProtocolStateModel command receipts', () => {
             }),
         ).toThrow(/storage budget/u);
         expect(database.protocolState.inspect().commandReceipts).toBe(0);
+        database.close();
+    });
+
+    it('retains only the newest bounded command receipts', async () => {
+        const path = await temporaryDatabasePath('caxri-protocol-receipt-retention-');
+        const database = new CaxriDatabase(path);
+        const { stateEpoch } = database.protocolState.identity();
+        for (let index = 0; index <= MAX_PROTOCOL_COMMAND_RECEIPTS; index += 1) {
+            const requestId = `request-${index}`;
+            database.protocolState.saveReceipt({
+                stateEpoch,
+                clientId: 'desktop:workbench-1',
+                requestId,
+                requestFingerprint: 'a'.repeat(64),
+                method: 'session.rename',
+                reply: successfulReply(requestId),
+                createdAt: index,
+            });
+        }
+
+        expect(database.protocolState.inspect().commandReceipts).toBe(
+            MAX_PROTOCOL_COMMAND_RECEIPTS,
+        );
+        expect(
+            database.protocolState.getReceipt(stateEpoch, 'desktop:workbench-1', 'request-0'),
+        ).toBeUndefined();
+        expect(
+            database.protocolState.getReceipt(
+                stateEpoch,
+                'desktop:workbench-1',
+                `request-${MAX_PROTOCOL_COMMAND_RECEIPTS}`,
+            ),
+        ).toBeDefined();
         database.close();
     });
 });
