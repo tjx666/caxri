@@ -7,12 +7,10 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { agentProviderCatalog, CaxriError, errorMessage, toWireError } from '@caxri/protocol';
+import { CaxriError, errorMessage, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentInput,
-    assertE2EAgentLaunch,
-    assertE2EShellLaunch,
     clearScheduledTimer,
     logEventCatalog,
     readE2EAgentPolicy,
@@ -37,21 +35,16 @@ import {
     TerminalOutputQueue,
     TerminalScreenState,
 } from '../../terminal-host/engine';
-// Server providers use the public domain barrel by architecture contract.
-// oxlint-disable-next-line react-doctor/no-barrel-import
-import { agentProviders } from '../agents';
 import type { CaxriDatabase } from '../db';
-import { serverProcessEnvironment } from '../executables';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
-import { assertTerminalWorkingDirectory, resolveTerminalExecutable } from './launch';
+import { TerminalLaunchPlanner } from './launch-plan';
 import type { TerminalManagerOptions, TerminalStartOptions } from './manager-types';
 import {
     CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
     TerminalSnapshotPersistence,
 } from './snapshot-persistence';
-import { terminalEnvironment } from './terminal-environment';
 import { createTerminalTitleListener } from './terminal-title';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
@@ -64,19 +57,15 @@ export class TerminalManager {
     private readonly attachedSizeWaiters = new Map<string, Set<AttachedSizeWaiter>>();
     private readonly snapshots: TerminalSnapshotPersistence;
     private readonly starts = new SingleFlight<string, TerminalRecord>();
-    private readonly resolveExecutableOverride?: TerminalManagerOptions['resolveExecutable'];
-    private readonly agentLaunchSettings?: TerminalManagerOptions['agentLaunchSettings'];
+    private readonly launchPlanner: TerminalLaunchPlanner;
     private readonly agentOutputRecoverySettings?: TerminalManagerOptions['agentOutputRecoverySettings'];
     private hasConfiguredOutputRecovery = false;
-    private readonly agentEnvironment: () => Promise<NodeJS.ProcessEnv>;
-    private readonly lifecycleEnvironment?: TerminalManagerOptions['lifecycleEnvironment'];
     private readonly onLifecycleStarted?: TerminalManagerOptions['onLifecycleStarted'];
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
     private readonly spawnProcess: typeof pty.spawn;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
-    private readonly shellIntegration?: TerminalManagerOptions['shellIntegration'];
     private readonly terminalColors?: TerminalManagerOptions['terminalColors'];
     private readonly outputFlushMs: number;
 
@@ -86,12 +75,16 @@ export class TerminalManager {
         private readonly logger: StructuredLogger,
         options: TerminalManagerOptions = {},
     ) {
-        this.resolveExecutableOverride = options.resolveExecutable;
-        this.agentLaunchSettings = options.agentLaunchSettings;
         this.agentOutputRecoverySettings = options.agentOutputRecoverySettings;
         this.refreshOutputRecoveryAvailability();
-        this.agentEnvironment = options.agentEnvironment ?? serverProcessEnvironment;
-        this.lifecycleEnvironment = options.lifecycleEnvironment;
+        this.launchPlanner = new TerminalLaunchPlanner({
+            agentEnvironment: options.agentEnvironment,
+            agentLaunchSettings: options.agentLaunchSettings,
+            lifecycleEnvironment: options.lifecycleEnvironment,
+            logger,
+            resolveExecutable: options.resolveExecutable,
+            shellIntegration: options.shellIntegration,
+        });
         this.onLifecycleStarted = options.onLifecycleStarted;
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onOutputActivity = options.onOutputActivity;
@@ -102,7 +95,6 @@ export class TerminalManager {
         this.snapshots = new TerminalSnapshotPersistence(database, logger);
         this.spawnProcess = options.spawn ?? pty.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
-        this.shellIntegration = options.shellIntegration;
         this.terminalColors = options.terminalColors;
     }
 
@@ -124,33 +116,10 @@ export class TerminalManager {
             if (pendingSnapshot) await pendingSnapshot;
             if (!this.database.getTerminal(record.id))
                 throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
-            const e2eAgentPolicy = readE2EAgentPolicy();
-            const launch =
-                record.kind === 'shell'
-                    ? undefined
-                    : (this.agentLaunchSettings?.(record.kind) ?? {
-                          executable: agentProviderCatalog[record.kind].executableName,
-                          args: [],
-                      });
-            if (record.kind === 'shell') assertE2EShellLaunch(e2eAgentPolicy);
-            else
-                assertE2EAgentLaunch(
-                    e2eAgentPolicy,
-                    record.kind,
-                    launch!,
-                    options?.resumeAgentSessionId,
-                );
-            failureReason = 'executable_not_found';
-            const executable = await resolveTerminalExecutable(
-                record.kind,
-                launch,
-                this.resolveExecutableOverride,
-            );
-            let arguments_ = record.kind === 'shell' ? ['-l'] : [...launch!.args];
-            if (record.kind !== 'shell' && options?.resumeAgentSessionId) {
-                arguments_.push(
-                    ...agentProviders[record.kind].resumeArguments(options.resumeAgentSessionId),
-                );
+            const resolved = await this.launchPlanner.resolve(record, options);
+            if (!resolved.ok) {
+                failureReason = resolved.failureReason;
+                throw resolved.error;
             }
             if (options?.waitForAttachedSizeMs)
                 await this.waitForAttachedSize(
@@ -164,47 +133,23 @@ export class TerminalManager {
                 this.database.updateTerminalState(record.id, 'interrupted');
                 return this.database.getTerminal(record.id)!;
             }
-            failureReason = 'working_directory_unavailable';
-            await assertTerminalWorkingDirectory(record.cwd, options?.expectedWorkingDirectory);
-            failureReason = 'spawn_failed';
-            let environment = {
-                ...(record.kind === 'shell'
-                    ? terminalEnvironment()
-                    : {
-                          ...(await this.agentEnvironment()),
-                          TERM: 'xterm-256color',
-                          COLORTERM: 'truecolor',
-                      }),
-                ...(await this.lifecycleEnvironment?.(record, launch)),
-            };
-            if (record.kind === 'shell') {
-                try {
-                    const integrated = this.shellIntegration?.(executable, environment);
-                    if (integrated) {
-                        arguments_ = integrated.args;
-                        environment = integrated.environment;
-                    }
-                } catch (error) {
-                    /**
-                     * Shell integration is optional decoration metadata; startup must retain the ordinary login-shell
-                     * path if its resolver becomes unavailable.
-                     */
-                    this.logger.write('warn', ptyLogEvents.shellIntegrationUnavailable, {
-                        fields: {
-                            terminalId: record.id,
-                            error: errorMessage(error, 'unknown'),
-                        },
-                    });
-                }
+            const prepared = await this.launchPlanner.prepare(
+                record,
+                resolved.value,
+                options?.expectedWorkingDirectory,
+            );
+            if (!prepared.ok) {
+                failureReason = prepared.failureReason;
+                throw prepared.error;
             }
             const initialSnapshot = this.snapshots.read(record.id)?.payload ?? '';
             const initialSize = this.attachedSizes.get(record.id) ?? { cols: 100, rows: 30 };
-            const child = this.spawnProcess(executable, arguments_, {
+            const child = this.spawnProcess(prepared.value.executable, prepared.value.args, {
                 name: 'xterm-256color',
                 cols: initialSize.cols,
                 rows: initialSize.rows,
                 cwd: record.cwd,
-                env: environment,
+                env: prepared.value.environment,
             });
             spawned = child;
             /**
