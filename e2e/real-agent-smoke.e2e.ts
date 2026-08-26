@@ -5,7 +5,7 @@ import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
 
-import { resolveRuntimeExecutable } from '../apps/server/src/runtime/executables.ts';
+import { resolveRuntimeExecutable } from '../apps/server/src/domains/executables.ts';
 import { realCodexSmokeArguments } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';

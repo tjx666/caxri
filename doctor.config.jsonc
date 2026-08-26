@@ -29,10 +29,10 @@
                     "packages/agent-skills/src/filesystem.ts",
                     "apps/desktop/src/main/menu-refresh.ts",
                     "apps/desktop/src/renderer/src/lib/monaco.ts",
-                    "apps/server/src/runtime/agents/hooks/manager.ts",
-                    "apps/server/src/runtime/files/mutation-journal.ts",
-                    "apps/server/src/runtime/files/mutations-copy.ts",
-                    "apps/server/src/runtime/terminal/screen.ts",
+                    "apps/server/src/domains/agents/hooks/manager.ts",
+                    "apps/server/src/domains/files/mutation-journal.ts",
+                    "apps/server/src/domains/files/mutations-copy.ts",
+                    "apps/server/src/domains/terminal/screen.ts",
                 ],
                 "rules": ["react-doctor/async-await-in-loop"],
             },
@@ -65,7 +65,7 @@
                 // False positive: the lstat -> readdir -> lstat/realpath sequence in
                 // ListingService.loadList is a deliberate TOCTOU revalidation (see the inline
                 // JSDoc); the awaits are ordered on purpose and must not be parallelized.
-                "files": ["apps/server/src/runtime/files/listing.ts"],
+                "files": ["apps/server/src/domains/files/listing.ts"],
                 "rules": ["react-doctor/server-sequential-independent-await"],
             },
             {
@@ -73,9 +73,9 @@
                 // must import those roots instead of reaching into implementation modules; the
                 // structure contract enforces this architecture rule.
                 "files": [
-                    "apps/server/src/runtime/bootstrap-service-handlers.ts",
-                    "apps/server/src/runtime/bootstrap.ts",
-                    "apps/server/src/runtime/terminal/index.ts",
+                    "apps/server/src/domains/bootstrap-service-handlers.ts",
+                    "apps/server/src/domains/bootstrap.ts",
+                    "apps/server/src/domains/terminal/index.ts",
                 ],
                 "rules": ["react-doctor/no-barrel-import"],
             },

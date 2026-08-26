@@ -20,11 +20,11 @@ import {
 } from './check';
 
 describe('dirty layer report', () => {
-    it('keeps Runtime-only tests off Renderer, knip, and E2E recommendations', () => {
+    it('keeps domain-only tests off Renderer, knip, and E2E recommendations', () => {
         expect(
-            dirtyLayerReportForFiles(['apps/server/src/runtime/files/search.test.ts'], true),
+            dirtyLayerReportForFiles(['apps/server/src/domains/files/search.test.ts'], true),
         ).toEqual({
-            layers: ['Runtime'],
+            layers: ['Domains'],
             suggestedGates: [],
         });
     });
@@ -106,7 +106,7 @@ describe('dirty layer report', () => {
                 true,
             ),
         ).toEqual({
-            layers: ['Renderer', 'Server', 'System', 'Shared', 'CLI'],
+            layers: ['Renderer', 'Server Core', 'System', 'Shared', 'CLI'],
             suggestedGates: ['bun run doctor:changed', 'bun run knip'],
         });
     });
@@ -257,17 +257,17 @@ describe('lintBucketsForFiles', () => {
 
 describe('testCandidatesForFile', () => {
     it('runs a changed test directly', () => {
-        expect(testCandidatesForFile('apps/server/src/runtime/foo.test.ts')).toEqual([
-            'apps/server/src/runtime/foo.test.ts',
+        expect(testCandidatesForFile('apps/server/src/domains/foo.test.ts')).toEqual([
+            'apps/server/src/domains/foo.test.ts',
         ]);
     });
 
     it('discovers sibling and __tests__ layouts for source files', () => {
-        expect(testCandidatesForFile('apps/server/src/runtime/foo.ts')).toContain(
-            'apps/server/src/runtime/__tests__/foo.test.ts',
+        expect(testCandidatesForFile('apps/server/src/domains/foo.ts')).toContain(
+            'apps/server/src/domains/__tests__/foo.test.ts',
         );
-        expect(testCandidatesForFile('apps/server/src/runtime/foo.ts')).toContain(
-            'apps/server/src/runtime/foo.test.ts',
+        expect(testCandidatesForFile('apps/server/src/domains/foo.ts')).toContain(
+            'apps/server/src/domains/foo.test.ts',
         );
     });
 
@@ -277,25 +277,25 @@ describe('testCandidatesForFile', () => {
     });
 
     it('discovers domain integration suites from nested index entries', () => {
-        expect(testCandidatesForFile('apps/server/src/runtime/git/index.ts')).toContain(
-            'apps/server/src/runtime/git/__tests__/git.integration.test.ts',
+        expect(testCandidatesForFile('apps/server/src/domains/git/index.ts')).toContain(
+            'apps/server/src/domains/git/__tests__/git.integration.test.ts',
         );
-        expect(testCandidatesForFile('apps/server/src/runtime/terminal/index.ts')).toContain(
-            'apps/server/src/runtime/terminal/__tests__/terminal.integration.test.ts',
+        expect(testCandidatesForFile('apps/server/src/domains/terminal/index.ts')).toContain(
+            'apps/server/src/domains/terminal/__tests__/terminal.integration.test.ts',
         );
     });
 
     it('discovers a domain-named integration suite for a nested subdirectory', () => {
-        expect(testCandidatesForFile('apps/server/src/runtime/db/connection.ts')).toContain(
-            'apps/server/src/runtime/db/__tests__/db.integration.test.ts',
+        expect(testCandidatesForFile('apps/server/src/domains/db/connection.ts')).toContain(
+            'apps/server/src/domains/db/__tests__/db.integration.test.ts',
         );
-        expect(testCandidatesForFile('apps/server/src/runtime/db/repository.ts')).toContain(
-            'apps/server/src/runtime/db/__tests__/repository.integration.test.ts',
+        expect(testCandidatesForFile('apps/server/src/domains/db/repository.ts')).toContain(
+            'apps/server/src/domains/db/__tests__/repository.integration.test.ts',
         );
-        expect(testCandidatesForFile('apps/server/src/runtime/files/search.ts')).toEqual(
+        expect(testCandidatesForFile('apps/server/src/domains/files/search.ts')).toEqual(
             expect.arrayContaining([
-                'apps/server/src/runtime/files/__tests__/search.integration.test.ts',
-                'apps/server/src/runtime/files/__tests__/files.integration.test.ts',
+                'apps/server/src/domains/files/__tests__/search.integration.test.ts',
+                'apps/server/src/domains/files/__tests__/files.integration.test.ts',
             ]),
         );
         expect(testCandidatesForFile('packages/agent-skills/src/execute.ts')).toContain(
@@ -307,8 +307,8 @@ describe('testCandidatesForFile', () => {
     });
 
     it('does not treat a top-level runtime file as a domain integration suite', () => {
-        expect(testCandidatesForFile('apps/server/src/runtime/bootstrap.ts')).not.toContain(
-            'apps/server/src/runtime/__tests__/runtime.integration.test.ts',
+        expect(testCandidatesForFile('apps/server/src/domains/bootstrap.ts')).not.toContain(
+            'apps/server/src/domains/__tests__/runtime.integration.test.ts',
         );
     });
 });
@@ -317,23 +317,23 @@ describe('direct import test selection', () => {
     it('recognizes direct relative static imports and re-exports without following dynamic imports', () => {
         expect(
             hasDirectSourceImport(
-                'apps/server/src/runtime/files/__tests__/service.test.ts',
+                'apps/server/src/domains/files/__tests__/service.test.ts',
                 `import { FileService } from '../service';\nexport type { FileServiceOptions } from '../service';`,
-                'apps/server/src/runtime/files/service.ts',
+                'apps/server/src/domains/files/service.ts',
             ),
         ).toBe(true);
         expect(
             hasDirectSourceImport(
-                'apps/server/src/runtime/files/__tests__/service.test.ts',
+                'apps/server/src/domains/files/__tests__/service.test.ts',
                 `await import('../service');`,
-                'apps/server/src/runtime/files/service.ts',
+                'apps/server/src/domains/files/service.ts',
             ),
         ).toBe(false);
         expect(
             hasDirectSourceImport(
-                'apps/server/src/runtime/files/__tests__/other.test.ts',
+                'apps/server/src/domains/files/__tests__/other.test.ts',
                 `import './other';\nconst note = "import '../service'";`,
-                'apps/server/src/runtime/files/service.ts',
+                'apps/server/src/domains/files/service.ts',
             ),
         ).toBe(false);
     });
@@ -409,36 +409,36 @@ describe('direct import test selection', () => {
     });
 
     it('selects only direct FileService suites with the existing narrow heuristic', async () => {
-        const source = 'apps/server/src/runtime/files/service.ts';
+        const source = 'apps/server/src/domains/files/service.ts';
         const direct = await directImportTestCandidates(process.cwd(), [source]);
         const selected = await selectedTestCandidates(process.cwd(), [source]);
 
         expect(direct).toEqual([
-            'apps/server/src/runtime/files/__tests__/files.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/files.watching.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/git-ignore.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/mutations-move-replace.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/mutations.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/search.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/watcher.scope.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/workbench-mutations.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/files.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/files.watching.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/git-ignore.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/mutations-move-replace.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/mutations.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/search.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/workbench-mutations.integration.test.ts',
         ]);
         expect(selected).toEqual([
-            'apps/server/src/runtime/files/__tests__/files.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/files.watching.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/git-ignore.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/mutations-move-replace.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/mutations.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/search.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/watcher.scope.integration.test.ts',
-            'apps/server/src/runtime/files/__tests__/workbench-mutations.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/files.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/files.watching.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/git-ignore.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/mutations-move-replace.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/mutations.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/search.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/workbench-mutations.integration.test.ts',
         ]);
         expect(selected).not.toContain(
-            'apps/server/src/runtime/__tests__/runtime.integration.test.ts',
+            'apps/server/src/domains/__tests__/runtime.integration.test.ts',
         );
         expect(selected).not.toContain(
-            'apps/server/src/runtime/__tests__/agent-hooks.integration.test.ts',
+            'apps/server/src/domains/__tests__/agent-hooks.integration.test.ts',
         );
-        expect(selected).not.toContain('apps/server/src/runtime/__tests__/bug-report.test.ts');
+        expect(selected).not.toContain('apps/server/src/domains/__tests__/bug-report.test.ts');
     });
 });

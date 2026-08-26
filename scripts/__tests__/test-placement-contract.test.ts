@@ -56,8 +56,8 @@ describe('test placement contract', () => {
         for (const domain of [
             'apps/desktop/src/main',
             'apps/desktop/src/shared',
-            'apps/server/src/host',
-            'apps/server/src/runtime',
+            'apps/server/src/core',
+            'apps/server/src/domains',
             'packages/system/src',
         ]) {
             expect(looseTestFiles(join(root, domain)), `${domain} loose *.test.ts files`).toEqual(

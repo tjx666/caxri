@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
 import type { CreateDomainServices } from '../../core/domain-service';
-import type { RuntimeHandlers } from '../../runtime/dispatch';
+import type { RuntimeHandlers } from '../../domains/dispatch';
 import type { HostApp } from '../app';
 import { startHostApp } from '../app';
 

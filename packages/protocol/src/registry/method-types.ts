@@ -27,7 +27,7 @@ type MethodParameters<M extends CaxriMethod> = z.infer<(typeof methods)[M]['para
 type MethodInput<M extends CaxriMethod> = z.input<(typeof methods)[M]['params']>;
 export type MethodResult<M extends CaxriMethod> = z.infer<(typeof methods)[M]['result']>;
 
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/server/src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/server/src/domains, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type RuntimeMethodParams<M extends RuntimeMethod> = z.infer<AllMethods[M]['params']>;
 type RuntimeMethodInput<M extends RuntimeMethod> = z.input<AllMethods[M]['params']>;
 export type RuntimeMethodResult<M extends RuntimeMethod> = z.infer<AllMethods[M]['result']>;

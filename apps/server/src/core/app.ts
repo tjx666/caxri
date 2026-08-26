@@ -24,7 +24,7 @@ import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri
 
 import { createServerDomainService } from '../core/create-domain-service';
 import type { CreateDomainServices } from '../core/domain-service';
-import type { RuntimeAgentEndpointControl } from '../runtime/agent-endpoints';
+import type { RuntimeAgentEndpointControl } from '../domains/agent-endpoints';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
 import { HostDesktopRouter } from './desktop-router';

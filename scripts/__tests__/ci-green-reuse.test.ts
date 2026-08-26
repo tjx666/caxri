@@ -54,7 +54,7 @@ describe('CI ancestor green reuse', () => {
 
     it('rejects product, E2E, workflow, dependency, and unrelated skill deltas', () => {
         for (const path of [
-            'apps/server/src/runtime/index.ts',
+            'apps/server/src/domains/index.ts',
             'e2e/support/helpers.ts',
             '.github/workflows/ci.yml',
             'pnpm-lock.yaml',

@@ -32,9 +32,9 @@ export const testProjectNames = [
     'cli',
 ];
 const serialNativeTestPrefix = [
-    'apps/server/src/runtime/__tests__/agent-hooks.integration.test.ts',
-    'apps/server/src/runtime/__tests__/configuration.test.ts',
-    'apps/server/src/runtime/agents/hooks/__tests__/manager.integration.test.ts',
+    'apps/server/src/domains/__tests__/agent-hooks.integration.test.ts',
+    'apps/server/src/domains/__tests__/configuration.test.ts',
+    'apps/server/src/domains/agents/hooks/__tests__/manager.integration.test.ts',
 ];
 
 export type VitestPartition = 'legacy' | 'optimized';
@@ -67,9 +67,9 @@ export function resolveVitestPartition(
         serialNativeTests: [
             ...serialNativeTestPrefix,
             partition === 'legacy'
-                ? 'apps/server/src/runtime/files/__tests__/*.test.ts'
-                : 'apps/server/src/runtime/files/__tests__/files.integration.test.ts',
-            'apps/server/src/runtime/git/__tests__/git.integration.test.ts',
+                ? 'apps/server/src/domains/files/__tests__/*.test.ts'
+                : 'apps/server/src/domains/files/__tests__/files.integration.test.ts',
+            'apps/server/src/domains/git/__tests__/git.integration.test.ts',
         ],
     };
 }

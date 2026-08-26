@@ -3,8 +3,8 @@ import { CaxriError, internalMethods, methods } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Runtime } from '../../runtime/bootstrap-types';
-import type { RuntimeHandlers } from '../../runtime/dispatch';
+import type { Runtime } from '../../domains/bootstrap-types';
+import type { RuntimeHandlers } from '../../domains/dispatch';
 import { ServerDomainService } from '../domain-service';
 
 const runtimeMethodNames = [

@@ -108,7 +108,7 @@ describe('shared ESLint preset toolchain contract', () => {
     });
 
     it('bans the Renderer alias outside the Renderer', async () => {
-        const config = await effectiveConfigFor('apps/server/src/runtime/index.ts');
+        const config = await effectiveConfigFor('apps/server/src/domains/index.ts');
         const noRestrictedImports = config.rules?.['no-restricted-imports'] as [
             number,
             { patterns?: Array<{ group?: string[] }> },
@@ -217,7 +217,7 @@ describe('shared ESLint preset toolchain contract', () => {
 
     it('leaves the async-Node-API ban to oxlint (n/no-sync requires typed linting)', async () => {
         // See scripts/__tests__/oxlint-toolchain-contract.test.ts for the node/no-sync coverage.
-        const config = await effectiveConfigFor('apps/server/src/runtime/index.ts');
+        const config = await effectiveConfigFor('apps/server/src/domains/index.ts');
 
         expect(config.rules?.['n/no-sync']).toBeUndefined();
     });

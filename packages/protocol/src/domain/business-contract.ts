@@ -306,7 +306,7 @@ export type SessionQueryResult = z.infer<typeof sessionQueryResultSchema>;
 export type TerminalQueryResult = z.infer<typeof terminalQueryResultSchema>;
 export type SettingsPatchChange = z.infer<typeof settingsPatchChangeSchema>;
 export type SettingsPatchResult = z.infer<typeof settingsPatchResultSchema>;
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by apps/server/src/runtime/introspection/logs.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by apps/server/src/domains/introspection/logs.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type LogQueryParams = z.infer<typeof logQueryParametersSchema>;
 export type LogQueryRecord = z.infer<typeof logQueryRecordSchema>;
 export type LogQueryResult = z.infer<typeof logQueryResultSchema>;

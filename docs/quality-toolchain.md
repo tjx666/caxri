@@ -14,7 +14,7 @@ negative-fixture contract tests keep the wiring from silently rotting.
 | Markdown lint semantics (headings, links, lists)                          | markdownlint-cli2 (`.markdownlint-cli2.jsonc`)                                                                                                                                                  | `bun run lint:markdown`                 |
 | Syntactic JS/TS rules, import boundaries, local custom rules              | ESLint (`eslint.config.ts`) — deliberately runs without typed linting (`projectService`)                                                                                                        | `bun run lint`                          |
 | Type-aware JS/TS rules (`typescript/*`, plus `node/no-sync`)              | oxlint + tsgolint (`.oxlintrc.json`)                                                                                                                                                            | `bun run lint:type-aware`               |
-| Directory/domain/naming contracts too structural for a single ESLint rule | Vitest repository-contract tests (`scripts/__tests__/*.test.ts`, `apps/server/src/runtime/__tests__/structure.test.ts`, `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`) | `bun run test`                          |
+| Directory/domain/naming contracts too structural for a single ESLint rule | Vitest repository-contract tests (`scripts/__tests__/*.test.ts`, `apps/server/src/domains/__tests__/structure.test.ts`, `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`) | `bun run test`                          |
 | Type correctness                                                          | `tsc --noEmit` (`tsconfig.node.json` / `tsconfig.web.json`) plus workspace `typecheck`                                                                                                          | `bun run typecheck`                     |
 
 ESLint owns anything expressible as a syntactic rule over a single file; every rule that needs
@@ -37,7 +37,7 @@ Runtime `structure`, and Renderer `design-contract` tests already used.
 | `packages/protocol` stays browser-safe; `apps/cli` production graph excludes Desktop native deps | `scripts/__tests__/workspace-contract.test.ts`                                      |
 | protocol/CLI locked domain lists and barrels                                                     | `scripts/__tests__/workspace-contract.test.ts`                                      |
 | CLI tests live in `__tests__/`, not loose beside production files                                | `scripts/__tests__/workspace-contract.test.ts`                                      |
-| Runtime domains with 3+ modules need a barrel; no cross-domain deep import                       | `apps/server/src/runtime/__tests__/structure.test.ts`                               |
+| Runtime domains with 3+ modules need a barrel; no cross-domain deep import                       | `apps/server/src/domains/__tests__/structure.test.ts`                               |
 | Tailwind utilities are token-only, no literal colors, guarded arbitrary-value allowlist          | `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`              |
 
 ### New in this stage (issue #177 stage 5)

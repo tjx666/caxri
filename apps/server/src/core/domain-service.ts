@@ -11,10 +11,10 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, isNonExpiringRuntimeMethod } from '@caxri/protocol';
 
-import { createRuntime } from '../runtime/bootstrap';
-import type { Runtime, RuntimeDependencies } from '../runtime/bootstrap-types';
-import type { RuntimeOperationDispatcher } from '../runtime/dispatch';
-import { createOperationDispatcher } from '../runtime/dispatch';
+import { createRuntime } from '../domains/bootstrap';
+import type { Runtime, RuntimeDependencies } from '../domains/bootstrap-types';
+import type { RuntimeOperationDispatcher } from '../domains/dispatch';
+import { createOperationDispatcher } from '../domains/dispatch';
 
 interface PendingOperation {
     abortCleanup?: () => void;
