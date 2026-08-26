@@ -144,10 +144,10 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
   only. Domain types, protocol schemas, and React code never move there.
 - Keep `packages/protocol/src` grouped by its `agent`, `configuration`, `desktop`, `domain`,
   `registry`, and `transport` boundaries. External consumers use the package root.
-- Keep `apps/cli/src` grouped by its `commands`, `host`, and `skills` boundaries. The package root
-  remains the composition root (`application`, `environment`, `output`, `selectors`) and the only
-  public package entrypoint. Domain barrels stay thin; tests live in domain-local `__tests__/`
-  directories.
+- Keep `apps/cli/src/commands` as the CLI's only domain directory. The package root remains the
+  composition root (`application`, `environment`, `output`, `selectors`) and the only public
+  package entrypoint. The command barrel stays thin; tests live in the nearest `__tests__/`
+  directory.
 
 ## Compatibility policy
 
