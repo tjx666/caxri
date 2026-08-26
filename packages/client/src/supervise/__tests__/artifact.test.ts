@@ -39,7 +39,7 @@ describe('Server artifact discovery', () => {
             nativeDependencies: [],
             platform: process.platform,
             protocolVersion: 2,
-            runtime: { executable: 'runtime/bin/node', version: '24.19.0' },
+            runtime: { executable: 'runtime/bin/node', version: '24.0.0-fixture' },
             schemaVersion: 1,
             version: '0.0.18',
         };
@@ -78,7 +78,7 @@ describe('Server artifact discovery', () => {
                 nativeDependencies: [],
                 platform: process.platform,
                 protocolVersion: 2,
-                runtime: { executable: 'runtime/bin/node', version: '24.19.0' },
+                runtime: { executable: 'runtime/bin/node', version: '24.0.0-fixture' },
                 schemaVersion: 1,
                 version: '0.0.18',
             }),
