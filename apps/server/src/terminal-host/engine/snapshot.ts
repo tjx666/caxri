@@ -1,7 +1,12 @@
 import { Buffer } from 'node:buffer';
 
+import type { TerminalSnapshot } from '@caxri/protocol';
+
+import type { LiveTerminal } from './types';
+
 export const MAX_SNAPSHOT_LINES = 2_000;
 export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
+export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 3;
 
 function countLines(payload: string): number {
     let lineCount = 1;
@@ -40,4 +45,21 @@ export function boundSnapshot(payload: string): {
         lineCount: Math.min(countLines(bounded), MAX_SNAPSHOT_LINES),
         byteCount,
     };
+}
+
+/**
+ * Captures and disposes one retired live screen. Persistence deliberately remains outside the execution owner, so the
+ * same parser barrier can cross the private Terminal Host boundary as an ordinary typed snapshot.
+ */
+export async function captureTerminalSnapshot(live: LiveTerminal): Promise<TerminalSnapshot> {
+    try {
+        return {
+            terminalId: live.record.id,
+            encodingVersion: CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
+            ...(await live.screen.snapshot({ excludeModes: true })),
+            updatedAt: Date.now(),
+        };
+    } finally {
+        live.screen.dispose();
+    }
 }
