@@ -1,7 +1,7 @@
 import type { ServerEvent } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { TerminalScreenState } from '../screen';
+import { TerminalScreenState } from '../../../terminal-host/engine/screen';
 import { createTerminalTitleListener, TERMINAL_TITLE_THROTTLE_MS } from '../terminal-title';
 
 /**

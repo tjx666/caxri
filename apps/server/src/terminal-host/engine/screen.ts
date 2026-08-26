@@ -5,8 +5,8 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import type { Terminal as HeadlessTerminal } from '@xterm/headless';
 import { Terminal } from '@xterm/headless';
 
-import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from '../snapshot';
 import { TerminalOscLinkSnapshots } from './osc-link-snapshots';
+import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from './snapshot';
 
 type ScreenOperation =
     | { chunks: string[]; type: 'write' }

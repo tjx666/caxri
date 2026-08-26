@@ -19,6 +19,24 @@ import {
 } from '@caxri/system';
 import * as pty from 'node-pty';
 
+import type {
+    AgentOutputRecovery,
+    AttachedSizeWaiter,
+    LiveTerminal,
+    TerminalGridSize,
+} from '../../terminal-host/engine';
+import {
+    attachLogFields,
+    ensureLiveOutputRecovery,
+    hasConfiguredOutputRecovery,
+    oscColorReply,
+    sampleTerminalResources,
+    TerminalColorQueryResponder,
+    TerminalImageOutputFilter,
+    TerminalImageRecoveryFilter,
+    TerminalOutputQueue,
+    TerminalScreenState,
+} from '../../terminal-host/engine';
 // Server providers use the public domain barrel by architecture contract.
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders } from '../agents';
@@ -27,22 +45,8 @@ import { serverProcessEnvironment } from '../executables';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
-import { attachLogFields } from './attach-log';
-import { TerminalOutputQueue } from './buffer';
-import { oscColorReply, TerminalColorQueryResponder } from './color-query';
-import { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
 import { assertTerminalWorkingDirectory, resolveTerminalExecutable } from './launch';
-import type {
-    AttachedSizeWaiter,
-    LiveTerminal,
-    TerminalGridSize,
-    TerminalManagerOptions,
-    TerminalStartOptions,
-} from './manager-types';
-import type { AgentOutputRecovery } from './output-recovery';
-import { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from './output-recovery-manager';
-import { sampleTerminalResources } from './resources';
-import { TerminalScreenState } from './screen';
+import type { TerminalManagerOptions, TerminalStartOptions } from './manager-types';
 import {
     CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
     TerminalSnapshotPersistence,
