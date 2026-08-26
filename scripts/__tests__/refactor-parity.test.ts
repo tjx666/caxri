@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,7 +13,12 @@ import type {
     ScenarioCatalog,
 } from '../refactor-parity/contracts';
 import { intentionalDifferenceSchema, parityReceiptSchema } from '../refactor-parity/contracts';
-import { compareCandidate, recordBaseline, verifyBaseline } from '../refactor-parity/core';
+import {
+    compareCandidate,
+    hasEmbeddedSourceCommit,
+    recordBaseline,
+    verifyBaseline,
+} from '../refactor-parity/core';
 import { hashArtifact } from '../refactor-parity/io';
 
 const temporaryDirectories: string[] = [];
@@ -108,6 +114,14 @@ afterEach(async () => {
 });
 
 describe('architecture refactor parity baseline', () => {
+    it.each(['var commit = "11111111";', 'process$1.env.CAXRI_GIT_COMMIT = "11111111";'])(
+        'recognizes the source commit after bundler output changes: %s',
+        (marker) => {
+            expect(hasEmbeddedSourceCommit(Buffer.from(marker), '1'.repeat(40))).toBe(true);
+            expect(hasEmbeddedSourceCommit(Buffer.from(marker), '2'.repeat(40))).toBe(false);
+        },
+    );
+
     it('archives an immutable artifact and detects later artifact tampering', async () => {
         const directory = await createTemporaryDirectory();
         const artifact = join(directory, 'Caxri.app');
