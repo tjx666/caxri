@@ -215,10 +215,11 @@ describe('Git ignored file decorations', () => {
             .fn<GitIgnoreDecorator>()
             .mockRejectedValue(new Error('not a Git repository'));
         const options = { decorateGitIgnored };
+        const logger = new StructuredLogger(join(directory, 'logs'));
         const service = new FileService(
             database,
             () => {},
-            new StructuredLogger(join(directory, 'logs')),
+            logger,
             () => 1024,
             options,
         );
@@ -233,6 +234,7 @@ describe('Git ignored file decorations', () => {
                 },
             ]),
         );
+        await logger.flush();
         database.close();
     });
 });
