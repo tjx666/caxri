@@ -9,6 +9,7 @@ import type {
     PerformanceMetric,
     ScenarioReceipt,
 } from './contracts';
+import { topologyBaselineMetric } from './topology-baselines';
 
 const prohibitedEvidenceKeys = new Set([
     'authorization',
@@ -196,7 +197,12 @@ function metricStatistic(metric: PerformanceMetric): number {
  */
 const LATENCY_REGRESSION_NOISE_FLOOR_MS = 5;
 
-function compareMetrics(before: ScenarioReceipt, after: ScenarioReceipt): string[] {
+function compareMetrics(
+    before: ScenarioReceipt,
+    after: ScenarioReceipt,
+    baselineSource: ParityReceipt['source'],
+    currentBatch?: string,
+): string[] {
     const failures: string[] = [];
     const baselineMetrics = Object.entries(before.metrics ?? {});
     for (const [name, baselineMetric] of baselineMetrics) {
@@ -213,18 +219,20 @@ function compareMetrics(before: ScenarioReceipt, after: ScenarioReceipt): string
             failures.push(`${before.id}: performance metric ${name} changed contract`);
             continue;
         }
-        const baseline = metricStatistic(baselineMetric);
+        const comparisonBaseline =
+            topologyBaselineMetric(baselineSource, currentBatch, before.id, name) ?? baselineMetric;
+        const baseline = metricStatistic(comparisonBaseline);
         const candidate = metricStatistic(candidateMetric);
-        const ratioCeiling = baseline * (1 + baselineMetric.maxRegressionRatio);
+        const ratioCeiling = baseline * (1 + comparisonBaseline.maxRegressionRatio);
         const isExceedsNoiseFloor =
-            baselineMetric.unit !== 'ms' ||
+            comparisonBaseline.unit !== 'ms' ||
             candidate - baseline >= LATENCY_REGRESSION_NOISE_FLOOR_MS;
         if (isExceedsNoiseFloor && candidate > ratioCeiling) {
             failures.push(`${before.id}: performance metric ${name} regressed beyond ratio budget`);
         }
         if (
-            baselineMetric.absoluteCeiling !== undefined &&
-            candidate > baselineMetric.absoluteCeiling
+            comparisonBaseline.absoluteCeiling !== undefined &&
+            candidate > comparisonBaseline.absoluteCeiling
         ) {
             failures.push(`${before.id}: performance metric ${name} exceeded absolute ceiling`);
         }
@@ -340,7 +348,7 @@ export function compareReceipts(
             return false;
         });
         failures.push(...unknown.map((difference) => `${scenarioId}: changed ${difference.path}`));
-        const metricFailures = compareMetrics(before, after);
+        const metricFailures = compareMetrics(before, after, baseline.source, currentBatch);
         failures.push(...metricFailures);
         if (unknown.length === 0 && metricFailures.length === 0) {
             passedScenarios.push(scenarioId);
