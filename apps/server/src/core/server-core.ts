@@ -31,13 +31,9 @@ import { isAtomicStructuralMethod } from './atomic-structural-methods';
 import { ControlServer } from './control-server';
 import type { CoreForwardedMethod } from './core-methods';
 import { ServerDesktopRouter } from './desktop-router';
+import { createExtensionService } from './extensions/create-service';
 import { readActiveExtensionContext, routeExtensionDomainEvent } from './extensions/domain-events';
-import { ExtensionService } from './extensions/service';
-import { publishExtensionViewEvents } from './extensions/view-events';
-import {
-    createExtensionWorkspaceRequest,
-    extensionActiveContext,
-} from './extensions/workspace-bridge';
+import type { ExtensionService } from './extensions/service';
 import { acquireServerProfile } from './profile';
 import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
 import { createServerRecoveryJournal } from './recovery-journal';
@@ -670,38 +666,18 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         logger.write('info', logEventCatalog.serverCore.recoveryReady, {
             fields: { ...protocolRecovery.inspect() },
         });
-        if (options.extensionHostPath && options.extensionRoots) {
-            extensionService = new ExtensionService({
-                appVersion: options.version,
-                commit: options.commit,
-                executable: options.executable,
-                extensionHostPath: options.extensionHostPath,
-                extensionRoots: options.extensionRoots,
-                includeTestOnly: options.includeTestExtensions ?? false,
-                logger,
-                activeContext: async () =>
-                    extensionActiveContext(await domainService.request('app.bootstrap')),
-                projectIds: async () => {
-                    const bootstrap = await domainService.request('app.bootstrap');
-                    return bootstrap.projects.map(({ id }) => id);
-                },
-                projectStatus: (sessionId, refreshToken) =>
-                    domainService.request('projectStatus.summary', {
-                        sessionId,
-                        ...(refreshToken && { refreshToken }),
-                    }),
-                settings: async () => (await domainService.request('settings.get')).value,
-                workspaceRequest: createExtensionWorkspaceRequest({
-                    desktopRouter: () => desktopRouter,
-                    domainService,
-                }),
-            });
-            extensionService.onCatalogChanged((payload) =>
-                server?.broadcast({ event: 'viewContainers.catalogChanged', payload }),
-            );
-            publishExtensionViewEvents(extensionService, () => server);
-            await extensionService.start();
-        }
+        extensionService = await createExtensionService({
+            appVersion: options.version,
+            commit: options.commit,
+            desktopRouter: () => desktopRouter,
+            domainService,
+            executable: options.executable,
+            extensionHostPath: options.extensionHostPath,
+            extensionRoots: options.extensionRoots,
+            includeTestExtensions: options.includeTestExtensions,
+            logger,
+            server: () => server,
+        });
         server = new ControlServer({
             adapters: {
                 durableReceipts: protocolRecovery,

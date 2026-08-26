@@ -1,0 +1,62 @@
+import type { StructuredLogger } from '@caxri/system';
+
+import type { ControlServer } from '../control-server';
+import type { ServerDesktopRouter } from '../desktop-router';
+import type { ServerDomainService } from '../domain-service';
+import { ExtensionService } from './service';
+import { publishExtensionViewEvents } from './view-events';
+import { createExtensionWorkspaceRequest, extensionActiveContext } from './workspace-bridge';
+
+export interface CreateExtensionServiceOptions {
+    appVersion: string;
+    commit: string;
+    desktopRouter(): ServerDesktopRouter | undefined;
+    domainService: ServerDomainService;
+    executable?: string;
+    extensionHostPath?: string;
+    extensionRoots?: string[];
+    includeTestExtensions?: boolean;
+    logger: StructuredLogger;
+    server(): ControlServer | undefined;
+}
+
+/**
+ * Composes the shared Extension Host and its Core-owned bridges without making the Server Core entrypoint own Extension
+ * discovery, workspace projection, or view-event wiring details.
+ */
+export async function createExtensionService(
+    options: CreateExtensionServiceOptions,
+): Promise<ExtensionService | undefined> {
+    if (!options.extensionHostPath || !options.extensionRoots) return;
+    const service = new ExtensionService({
+        appVersion: options.appVersion,
+        commit: options.commit,
+        executable: options.executable,
+        extensionHostPath: options.extensionHostPath,
+        extensionRoots: options.extensionRoots,
+        includeTestOnly: options.includeTestExtensions ?? false,
+        logger: options.logger,
+        activeContext: async () =>
+            extensionActiveContext(await options.domainService.request('app.bootstrap')),
+        projectIds: async () => {
+            const bootstrap = await options.domainService.request('app.bootstrap');
+            return bootstrap.projects.map(({ id }) => id);
+        },
+        projectStatus: (sessionId, refreshToken) =>
+            options.domainService.request('projectStatus.summary', {
+                sessionId,
+                ...(refreshToken && { refreshToken }),
+            }),
+        settings: async () => (await options.domainService.request('settings.get')).value,
+        workspaceRequest: createExtensionWorkspaceRequest({
+            desktopRouter: () => options.desktopRouter(),
+            domainService: options.domainService,
+        }),
+    });
+    service.onCatalogChanged((payload) =>
+        options.server()?.broadcast({ event: 'viewContainers.catalogChanged', payload }),
+    );
+    publishExtensionViewEvents(service, () => options.server());
+    await service.start();
+    return service;
+}
