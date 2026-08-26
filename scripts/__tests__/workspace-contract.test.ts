@@ -286,6 +286,17 @@ describe('pnpm workspace contract', () => {
         expect(looseTestFiles(cliRoot), 'CLI tests must live in __tests__/').toEqual([]);
     });
 
+    it('keeps every executable CLI path on the application workspace', () => {
+        expect(existsSync(join(root, 'packages/cli'))).toBe(false);
+        const legacySegmentedPath = /['"]packages['"]\s*,\s*['"]cli['"]/u;
+        const violations = ['src', 'e2e', '.agents/skills/acceptance/scripts']
+            .flatMap((directory) => productionTypeScriptFiles(join(root, directory)))
+            .filter((file) => legacySegmentedPath.test(readFileSync(file, 'utf8')))
+            .map((file) => relative(root, file));
+
+        expect(violations).toEqual([]);
+    });
+
     it('routes workspace tests through named Vitest projects', () => {
         expect(protocolManifest.scripts?.test).toContain('--project protocol');
         expect(agentSkillsManifest.scripts?.test).toContain('--project agent-skills');

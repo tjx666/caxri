@@ -27,7 +27,7 @@ import {
 } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');
+const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');
 const electronPath = join(
     projectRoot,
     'node_modules',
