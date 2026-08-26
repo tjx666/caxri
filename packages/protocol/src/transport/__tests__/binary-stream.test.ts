@@ -60,6 +60,16 @@ describe('binary stream ticket contract', () => {
             localClientStreamTicketRequestSchema.safeParse({
                 ...base,
                 operation: {
+                    method: 'terminal.input',
+                    terminalId: 'terminal-1',
+                    byteLength: 0,
+                },
+            }).success,
+        ).toBe(true);
+        expect(
+            localClientStreamTicketRequestSchema.safeParse({
+                ...base,
+                operation: {
                     method: 'files.write',
                     sessionId: 'session-1',
                     path: '/project/file.txt',

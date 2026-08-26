@@ -50,7 +50,7 @@ export const binaryStreamOperationSchema = z.discriminatedUnion('method', [
         .object({
             method: z.literal('terminal.input'),
             terminalId: identifierSchema,
-            byteLength: z.number().int().positive().max(BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES),
+            byteLength: z.number().int().nonnegative().max(BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES),
         })
         .strict(),
     z
