@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,7 +23,7 @@ describe('TerminalManager process integration', () => {
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         let resolveMarker: (() => void) | undefined;
         let resolveExit: (() => void) | undefined;
         const marker = new Promise<void>((resolve) => (resolveMarker = resolve));

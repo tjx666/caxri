@@ -7,7 +7,7 @@ import type {
     AppSettings,
     Keybinding,
     KeybindingConflict,
-    RuntimeEvent,
+    ServerEvent,
     SettingsPatchChange,
     SettingsPatchResult,
     ThemeTokens,
@@ -149,7 +149,7 @@ export class ConfigService {
 
     constructor(
         userDataPath: string,
-        private readonly emit: (event: RuntimeEvent) => void,
+        private readonly emit: (event: ServerEvent) => void,
         private readonly logger?: StructuredLogger,
         options: ConfigServiceOptions = {},
     ) {

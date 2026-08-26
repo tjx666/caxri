@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -181,7 +181,7 @@ describe('GitService', () => {
                 await releaseResolution.promise;
             },
         });
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const logger = new StructuredLogger(join(directory, '.logs'));
         const service = new GitService(paths, logger, {
             emit: (event) => events.push(event),

@@ -10,16 +10,16 @@ import type {
     DesktopLease,
     DesktopLeaseRevocationReason,
     DesktopOperation,
-    DesktopRuntimeMethod,
-    DesktopRuntimeMethodResult,
-    DesktopRuntimeParametersArgument,
+    DesktopServerOperation,
+    DesktopServerOperationArguments,
+    DesktopServerOperationResult,
     DesktopTargetPayload,
     HostDesktopCredential,
     HostManifest,
     LocalServerDesktopCommand,
     LocalServerEvent,
     MethodResult,
-    ParamsArg,
+    ParametersArgument,
     ProtocolWelcome,
 } from '@caxri/protocol';
 import {
@@ -31,12 +31,12 @@ import {
     hostDesktopCredentialSchema,
     hostEndpointUrl,
     hostManifestSchema,
-    isNonExpiringRuntimeMethod,
+    isNonExpiringServerOperation,
     localClientDesktopReadySchema,
     localClientDesktopReplySchema,
     localServerDesktopCommandSchema,
     localServerDesktopLeaseRevokedSchema,
-    localServerDesktopRuntimeReplySchema,
+    localServerDesktopOperationReplySchema,
     localServerDesktopTargetReplySchema,
     localServerEventSchema,
     localServerLeaseRenewedSchema,
@@ -44,8 +44,8 @@ import {
     localServerWelcomeSchema,
     parseCaxriRequest,
     parseCaxriResult,
-    parseRuntimeRequest,
-    parseRuntimeResult,
+    parseServerOperationRequest,
+    parseServerOperationResult,
     toWireError,
 } from '@caxri/protocol';
 import type { RawData } from 'ws';
@@ -397,7 +397,7 @@ export class HostClient {
                     void this.handleDesktopCommand(desktopCommand.data);
                     return;
                 }
-                const runtimeReply = localServerDesktopRuntimeReplySchema.safeParse(raw);
+                const runtimeReply = localServerDesktopOperationReplySchema.safeParse(raw);
                 const targetReply = localServerDesktopTargetReplySchema.safeParse(raw);
                 const { reply } = runtimeReply.success
                     ? runtimeReply.data
@@ -534,7 +534,7 @@ export class HostClient {
             return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
         const request = parseCaxriRequest(method, parameters);
         return new Promise<unknown>((resolve, reject) => {
-            const timer = isNonExpiringRuntimeMethod(method)
+            const timer = isNonExpiringServerOperation(method)
                 ? undefined
                 : setTimeout(() => {
                       this.pending.delete(id);
@@ -558,19 +558,19 @@ export class HostClient {
         });
     }
 
-    requestRuntime<M extends DesktopRuntimeMethod>(
+    requestRuntime<M extends DesktopServerOperation>(
         method: M,
-        ...arguments_: DesktopRuntimeParametersArgument<M>
-    ): Promise<DesktopRuntimeMethodResult<M>> {
+        ...arguments_: DesktopServerOperationArguments<M>
+    ): Promise<DesktopServerOperationResult<M>> {
         if (this.closed)
             return Promise.reject(new CaxriError('UNAVAILABLE', 'Caxri Host connection is closed'));
         if (!this.desktopLease)
             return Promise.reject(new CaxriError('FORBIDDEN', 'Desktop lease is required'));
         const [parameters, timeoutOverride] = arguments_;
-        const request = parseRuntimeRequest(method, parameters);
+        const request = parseServerOperationRequest(method, parameters);
         const id = randomUUID();
         return new Promise((resolve, reject) => {
-            const timer = isNonExpiringRuntimeMethod(method)
+            const timer = isNonExpiringServerOperation(method)
                 ? undefined
                 : setTimeout(() => {
                       this.pending.delete(id);
@@ -579,8 +579,8 @@ export class HostClient {
                       );
                   }, timeoutOverride ?? this.timeoutMs);
             this.pending.set(id, {
-                parse: (value) => parseRuntimeResult(method, value),
-                resolve: (value) => resolve(value as DesktopRuntimeMethodResult<M>),
+                parse: (value) => parseServerOperationResult(method, value),
+                resolve: (value) => resolve(value as DesktopServerOperationResult<M>),
                 reject,
                 timer,
             });
@@ -598,7 +598,7 @@ export class HostClient {
 
     request<M extends CaxriMethod>(
         method: M,
-        ...arguments_: ParamsArg<M>
+        ...arguments_: ParametersArgument<M>
     ): Promise<MethodResult<M>>;
     request(method: CaxriMethod, parameters: unknown): Promise<unknown>;
     request(method: CaxriMethod, parameters?: unknown): Promise<unknown> {
@@ -611,7 +611,7 @@ export class HostClient {
     requestWithId<M extends CaxriMethod>(
         id: string,
         method: M,
-        ...arguments_: ParamsArg<M>
+        ...arguments_: ParametersArgument<M>
     ): Promise<MethodResult<M>>;
     requestWithId(id: string, method: CaxriMethod, parameters: unknown): Promise<unknown>;
     requestWithId(id: string, method: CaxriMethod, parameters?: unknown): Promise<unknown> {

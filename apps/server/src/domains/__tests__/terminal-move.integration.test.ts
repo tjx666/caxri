@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { listPaneTerminalIds } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
@@ -33,7 +33,7 @@ describe('terminal.moveToNewSession', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),

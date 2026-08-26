@@ -1,0 +1,47 @@
+import type {
+    ServerOperation,
+    ServerOperationArguments as ServerOperationArguments,
+    ServerOperationResult,
+} from '../registry/methods.js';
+
+/**
+ * Server operations available only to authenticated Desktop Main after it completes the native dialog, grant, or
+ * confirmation step. Desktop disconnection never stops Server Core.
+ */
+export const desktopServerOperationIds = [
+    'app.windowState.get',
+    'app.windowState.update',
+    'bugReport.deliver',
+    'config.paths',
+    'settings.trustDomain',
+    'diagnostics.exportPath',
+    'git.discard.preflight',
+    'git.discard.apply',
+    'files.authorizeTrash',
+    'files.authorizeOpen',
+    'terminal.fileLink.resolve',
+    'terminal.detachAll',
+    'terminal.terminateAll',
+    'theme.importPath',
+    'project.create',
+    'project.delete',
+    'session.delete',
+    'session.selectWorkbenchRoot',
+    'session.workbenchCandidate.claim',
+    'session.workbenchCandidate.authorize',
+    'session.workbenchCandidate.cancel',
+    'session.workbenchRoot.authorizeSelection',
+    'session.validateWorkbenchRoots',
+] as const satisfies readonly ServerOperation[];
+
+export type DesktopServerOperation = (typeof desktopServerOperationIds)[number];
+export type DesktopServerOperationArguments<M extends DesktopServerOperation> =
+    ServerOperationArguments<M>;
+export type DesktopServerOperationResult<M extends DesktopServerOperation> =
+    ServerOperationResult<M>;
+
+const desktopServerOperationSet = new Set<ServerOperation>(desktopServerOperationIds);
+
+export function isDesktopServerOperation(value: string): value is DesktopServerOperation {
+    return desktopServerOperationSet.has(value as ServerOperation);
+}

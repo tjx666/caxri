@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { defaultAgentOutputRecoverySettings } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
@@ -130,7 +130,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const activation = Promise.withResolvers<void>();
         const onLifecycleStarted = vi.fn(() => activation.promise);
         const fake = createFakePty();
-        const emitted: RuntimeEvent[] = [];
+        const emitted: ServerEvent[] = [];
         const manager = new TerminalManager(
             database,
             (event) => {

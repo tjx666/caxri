@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rename, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -245,7 +245,7 @@ describe('Runtime Terminal cwd authorization', () => {
         await runtimeA.handlers['terminal.close']({ terminalId: created.terminal!.id });
         await runtimeA.close();
 
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const runtimeB = await createDomainServices({
             userDataPath,
             terminalRestoreGridWaitMs: 0,

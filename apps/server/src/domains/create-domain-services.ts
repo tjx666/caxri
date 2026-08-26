@@ -780,10 +780,6 @@ export async function createDomainServices(
             transcripts,
             userDataPath,
         }),
-        'runtime.shutdown': async () => {
-            await close();
-            return null;
-        },
     };
     watchSessionInBackground(selectedSessionId());
     // Background Terminal restore preserves the three-second startup gate.

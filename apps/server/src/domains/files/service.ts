@@ -5,9 +5,9 @@ import type {
     AppSettings,
     FileDocument,
     FileEntry,
-    RuntimeEvent,
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
+    ServerEvent,
+    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationResult,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
@@ -60,7 +60,7 @@ export class FileService {
 
     constructor(
         database: CaxriDatabase,
-        emit: (event: RuntimeEvent) => void,
+        emit: (event: ServerEvent) => void,
         logger: StructuredLogger,
         maxFileBytes: () => number,
         options: FileServiceOptions = {},
@@ -130,21 +130,21 @@ export class FileService {
         sessionId: string,
         directory?: string,
         signal?: AbortSignal,
-    ): Promise<RuntimeMethodResult<'files.list'>> {
+    ): Promise<ServerOperationResult<'files.list'>> {
         return this.listing.listDirectory(sessionId, directory, signal);
     }
 
     browse(
-        parameters: RuntimeMethodParameters<'files.browse'>,
-    ): Promise<RuntimeMethodResult<'files.browse'>> {
+        parameters: ServerOperationParameters<'files.browse'>,
+    ): Promise<ServerOperationResult<'files.browse'>> {
         return this.listing.browse(parameters);
     }
 
     async create(
-        parameters: Omit<RuntimeMethodParameters<'files.create'>, 'operationId'> & {
+        parameters: Omit<ServerOperationParameters<'files.create'>, 'operationId'> & {
             operationId?: string;
         },
-    ): Promise<RuntimeMethodResult<'files.create'>> {
+    ): Promise<ServerOperationResult<'files.create'>> {
         const now = Date.now();
         const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(
             parameters.sessionId,
@@ -177,8 +177,8 @@ export class FileService {
     }
 
     async copy(
-        parameters: RuntimeMethodParameters<'files.copy'>,
-    ): Promise<RuntimeMethodResult<'files.copy'>> {
+        parameters: ServerOperationParameters<'files.copy'>,
+    ): Promise<ServerOperationResult<'files.copy'>> {
         const [source, directory] = await Promise.all([
             this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.path),
             this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.directory),
@@ -190,10 +190,10 @@ export class FileService {
     }
 
     async rename(
-        parameters: Omit<RuntimeMethodParameters<'files.rename'>, 'operationId'> & {
+        parameters: Omit<ServerOperationParameters<'files.rename'>, 'operationId'> & {
             operationId?: string;
         },
-    ): Promise<RuntimeMethodResult<'files.rename'>> {
+    ): Promise<ServerOperationResult<'files.rename'>> {
         const now = Date.now();
         const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(
             parameters.sessionId,
@@ -222,10 +222,10 @@ export class FileService {
     }
 
     async move(
-        parameters: Omit<RuntimeMethodParameters<'files.move'>, 'operationId'> & {
+        parameters: Omit<ServerOperationParameters<'files.move'>, 'operationId'> & {
             operationId?: string;
         },
-    ): Promise<RuntimeMethodResult<'files.move'>> {
+    ): Promise<ServerOperationResult<'files.move'>> {
         const now = Date.now();
         const workbenchProjectId = this.projectRoots.getSessionWorkbenchProjectId(
             parameters.sessionId,
@@ -291,8 +291,8 @@ export class FileService {
     }
 
     async authorizeTrash(
-        parameters: RuntimeMethodParameters<'files.authorizeTrash'>,
-    ): Promise<RuntimeMethodResult<'files.authorizeTrash'>> {
+        parameters: ServerOperationParameters<'files.authorizeTrash'>,
+    ): Promise<ServerOperationResult<'files.authorizeTrash'>> {
         const { path } = await this.projectRoots.resolveSessionPath(
             parameters.sessionId,
             parameters.path,
@@ -303,8 +303,8 @@ export class FileService {
     }
 
     async authorizeOpen(
-        parameters: RuntimeMethodParameters<'files.authorizeOpen'>,
-    ): Promise<RuntimeMethodResult<'files.authorizeOpen'>> {
+        parameters: ServerOperationParameters<'files.authorizeOpen'>,
+    ): Promise<ServerOperationResult<'files.authorizeOpen'>> {
         const { path } = await this.projectRoots.resolveSessionPath(
             parameters.sessionId,
             parameters.path,
@@ -332,9 +332,9 @@ export class FileService {
     }
 
     search(
-        parameters: RuntimeMethodParameters<'files.search'>,
+        parameters: ServerOperationParameters<'files.search'>,
         signal?: AbortSignal,
-    ): Promise<RuntimeMethodResult<'files.search'>> {
+    ): Promise<ServerOperationResult<'files.search'>> {
         return this.searcher.search(parameters, signal);
     }
 

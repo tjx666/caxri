@@ -4,7 +4,7 @@ import type {
     GitBlame,
     GitCommit,
     GitSummary,
-    RuntimeMethodParams as RuntimeMethodParameters,
+    ServerOperationParameters as ServerOperationParameters,
 } from '@caxri/protocol';
 
 import { isOutsideRoot } from '../path-security';
@@ -82,7 +82,7 @@ export class GitBlameService {
         return { relativePath, rootPath: repo.rootPath };
     }
 
-    blame(parameters: RuntimeMethodParameters<'git.blame'>): Promise<GitBlame | null> {
+    blame(parameters: ServerOperationParameters<'git.blame'>): Promise<GitBlame | null> {
         return this.requests.run(JSON.stringify(parameters), async () => {
             const target = await this.resolveTrackedPath(parameters.sessionId, parameters.path);
             if (!target) return null;
@@ -105,7 +105,7 @@ export class GitBlameService {
     /**
      * Latest commit touching one file — the file-level "who changed this last" annotation shown above the editor.
      */
-    fileHead(parameters: RuntimeMethodParameters<'git.fileHead'>): Promise<GitCommit | null> {
+    fileHead(parameters: ServerOperationParameters<'git.fileHead'>): Promise<GitCommit | null> {
         return this.fileHeads.run(JSON.stringify(parameters), async () => {
             const target = await this.resolveTrackedPath(parameters.sessionId, parameters.path);
             if (!target) return null;

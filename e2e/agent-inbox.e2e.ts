@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { discoverHostManifest, HostClient } from '@caxri/client/supervise';
-import type { AppSettings, RuntimeEvent } from '@caxri/protocol';
+import type { AppSettings, ServerEvent } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -262,7 +262,7 @@ process.stdin.resume();
             outcome: 'timed_out',
         });
 
-        const messagingEvents: RuntimeEvent[] = [];
+        const messagingEvents: ServerEvent[] = [];
         receiver.onEvent((event) => {
             if (!('cursor' in event)) messagingEvents.push(event);
         });

@@ -1,4 +1,4 @@
-const nonExpiringRuntimeMethods = new Set([
+const nonExpiringServerOperations = new Set([
     'agent.dispatch.waitInternal',
     'agent.message.wait',
     'files.create',
@@ -19,8 +19,8 @@ const nonExpiringViewOperations = new Set(['source.action', 'git.sync', 'git.dis
  * Agent Inbox and dispatch waits carry their own validated long-poll deadlines. Their transports must wait for the
  * authoritative result instead of racing a second generic timer.
  */
-export function isNonExpiringRuntimeMethod(method: string): boolean {
-    return nonExpiringRuntimeMethods.has(method);
+export function isNonExpiringServerOperation(method: string): boolean {
+    return nonExpiringServerOperations.has(method);
 }
 
 /**

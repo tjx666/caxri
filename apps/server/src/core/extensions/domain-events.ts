@@ -1,4 +1,4 @@
-import type { ExtensionViewEventContext, RuntimeEvent } from '@caxri/protocol';
+import type { ExtensionViewEventContext, ServerEvent } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../../core/domain-service';
 import type { ExtensionService } from './service';
@@ -23,7 +23,7 @@ export async function readActiveExtensionContext(
 export async function routeExtensionDomainEvent(
     extensionService: ExtensionService | undefined,
     domainService: DomainBootstrapReader,
-    event: RuntimeEvent,
+    event: ServerEvent,
 ): Promise<void> {
     if (!extensionService) return;
     if (

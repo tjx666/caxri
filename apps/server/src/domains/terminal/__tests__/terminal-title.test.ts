@@ -1,4 +1,4 @@
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TerminalScreenState } from '../screen';
@@ -56,7 +56,7 @@ describe('createTerminalTitleListener', () => {
 
     it('persists the first title immediately and broadcasts the Terminal record', () => {
         const store = createStore();
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const listen = createTerminalTitleListener('t1', store, (event) => events.push(event));
         listen('zsh caxri');
         expect(store.titles.get('t1')).toBe('zsh caxri');
@@ -70,7 +70,7 @@ describe('createTerminalTitleListener', () => {
 
     it('collapses a burst to its leading and final title', () => {
         const store = createStore();
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const listen = createTerminalTitleListener('t1', store, (event) => events.push(event));
         listen('first');
         listen('middle');
@@ -83,7 +83,7 @@ describe('createTerminalTitleListener', () => {
 
     it('does not rewrite or rebroadcast an unchanged title', () => {
         const store = createStore();
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const listen = createTerminalTitleListener('t1', store, (event) => events.push(event));
         listen('zsh');
         vi.advanceTimersByTime(TERMINAL_TITLE_THROTTLE_MS);
@@ -95,7 +95,7 @@ describe('createTerminalTitleListener', () => {
     it('skips persistence and broadcast for a bound Agent Terminal', () => {
         const store = createStore();
         store.providers.set('t1', 'codex');
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const setTerminalPtyTitle = vi.spyOn(store, 'setTerminalPtyTitle');
         const listen = createTerminalTitleListener('t1', store, (event) => events.push(event));
 
@@ -109,7 +109,7 @@ describe('createTerminalTitleListener', () => {
 
     it('drops a queued Shell title after the Terminal binds an Agent', () => {
         const store = createStore();
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const listen = createTerminalTitleListener('t1', store, (event) => events.push(event));
 
         listen('shell-leading');
@@ -135,7 +135,7 @@ describe('createTerminalTitleListener', () => {
 
     it('ignores a payload that normalizes to nothing', () => {
         const store = createStore();
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const listen = createTerminalTitleListener('t1', store, (event) => events.push(event));
         listen(`${NUL}${ESCAPE}`);
         vi.advanceTimersByTime(TERMINAL_TITLE_THROTTLE_MS);

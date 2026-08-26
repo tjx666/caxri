@@ -1,13 +1,13 @@
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-    listeners: [] as Array<(event: RuntimeEvent) => void>,
+    listeners: [] as Array<(event: ServerEvent) => void>,
 }));
 
 vi.mock('../../../lib/caxri', () => ({
     caxri: {
-        onEvent: (listener: (event: RuntimeEvent) => void) => {
+        onEvent: (listener: (event: ServerEvent) => void) => {
             mocks.listeners.push(listener);
             return () => {
                 const index = mocks.listeners.indexOf(listener);
@@ -39,7 +39,7 @@ function event(
     eventId: string,
     context = defaultContext,
     extensionGeneration = 3,
-): Extract<RuntimeEvent, { event: 'viewContainers.viewChanged' }> {
+): Extract<ServerEvent, { event: 'viewContainers.viewChanged' }> {
     return {
         event: 'viewContainers.viewChanged',
         payload: {
@@ -62,19 +62,19 @@ describe('view event bridge', () => {
         startViewEventBridge();
         const viewEvent = event('event-1');
         for (const listener of mocks.listeners) listener(viewEvent);
-        const received: RuntimeEvent[] = [];
+        const received: ServerEvent[] = [];
         const unsubscribe = subscribeViewEvents(scope, (next) => received.push(next));
 
         expect(received).toEqual([viewEvent]);
         unsubscribe();
-        const remountReceived: RuntimeEvent[] = [];
+        const remountReceived: ServerEvent[] = [];
         subscribeViewEvents(scope, (next) => remountReceived.push(next));
         expect(remountReceived).toEqual([]);
     });
 
     it('drops duplicate ids and stale generation or context events', () => {
         startViewEventBridge();
-        const received: RuntimeEvent[] = [];
+        const received: ServerEvent[] = [];
         subscribeViewEvents(scope, (next) => received.push(next));
         const first = event('event-1');
         for (const listener of mocks.listeners) listener(first);
@@ -94,7 +94,7 @@ describe('view event bridge', () => {
 
     it('does not retain content invalidations as action replay', () => {
         startViewEventBridge();
-        const received: RuntimeEvent[] = [];
+        const received: ServerEvent[] = [];
         subscribeViewEvents(scope, (next) => received.push(next));
         const content = event('event-content');
         content.payload.change = { kind: 'content' };

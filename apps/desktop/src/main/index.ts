@@ -8,7 +8,7 @@ import type {
     CommandAdapter,
     Keybinding,
     PersistedWindowState,
-    RuntimeEvent,
+    ServerEvent,
 } from '@caxri/protocol';
 import { CaxriError, errorMessage, isMainRequest } from '@caxri/protocol';
 import {
@@ -128,7 +128,7 @@ if (ownsProfileInstance) {
             resolveLogLevel({ isPackaged: app.isPackaged }),
         );
     }
-    function sendEvent(event: RuntimeEvent): void {
+    function sendEvent(event: ServerEvent): void {
         eventRelay.send(event);
     }
     function createWindow(initialState: PersistedWindowState): BrowserWindow {

@@ -5,8 +5,8 @@ import { relative, resolve, sep } from 'node:path';
 
 import type {
     FileEntry,
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
+    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationResult,
 } from '@caxri/protocol';
 import {
     CaxriError,
@@ -75,10 +75,10 @@ export type GitIgnoreRulesListedListener = (
  * Lists directories under a Session's Project root, tolerating entries that vanish mid-listing.
  */
 export class ListingService {
-    private readonly listRequests = new SingleFlight<string, RuntimeMethodResult<'files.list'>>();
+    private readonly listRequests = new SingleFlight<string, ServerOperationResult<'files.list'>>();
     private readonly browseRequests = new SingleFlight<
         string,
-        RuntimeMethodResult<'files.browse'>
+        ServerOperationResult<'files.browse'>
     >();
     private readonly browseConcurrency = new AsyncSemaphore(MAX_CONCURRENT_FILE_BROWSES);
     /**
@@ -97,10 +97,10 @@ export class ListingService {
     ) {}
 
     private async loadBrowse(
-        { sessionId, directory, query }: RuntimeMethodParameters<'files.browse'>,
+        { sessionId, directory, query }: ServerOperationParameters<'files.browse'>,
         excludes: FileTreeExcludes,
         isCurrent: () => boolean,
-    ): Promise<RuntimeMethodResult<'files.browse'>> {
+    ): Promise<ServerOperationResult<'files.browse'>> {
         const startedAt = performance.now();
         const { root, path } = await this.resolveSessionPath(sessionId, directory);
         if (!isCurrent()) return { entries: [], truncated: true };
@@ -190,7 +190,7 @@ export class ListingService {
         directory: string | undefined,
         excludes: FileTreeExcludes,
         signal?: AbortSignal,
-    ): Promise<RuntimeMethodResult<'files.list'>> {
+    ): Promise<ServerOperationResult<'files.list'>> {
         const startedAt = performance.now();
         signal?.throwIfAborted();
         const { root, path } = await this.resolveSessionPath(sessionId, directory);
@@ -344,7 +344,7 @@ export class ListingService {
         sessionId: string,
         directory?: string,
         signal?: AbortSignal,
-    ): Promise<RuntimeMethodResult<'files.list'>> {
+    ): Promise<ServerOperationResult<'files.list'>> {
         const excludes = this.fileTreeExcludes();
         return this.listRequests.run(JSON.stringify([sessionId, directory ?? null, excludes]), () =>
             this.loadList(sessionId, directory, excludes, signal),
@@ -356,8 +356,8 @@ export class ListingService {
     }
 
     browse(
-        parameters: RuntimeMethodParameters<'files.browse'>,
-    ): Promise<RuntimeMethodResult<'files.browse'>> {
+        parameters: ServerOperationParameters<'files.browse'>,
+    ): Promise<ServerOperationResult<'files.browse'>> {
         const excludes = this.fileTreeExcludes();
         return this.browseRequests.run(JSON.stringify([parameters, excludes]), async () => {
             const token = Symbol('file-browse');

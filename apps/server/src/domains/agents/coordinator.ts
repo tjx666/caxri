@@ -1,4 +1,4 @@
-import type { AgentOperation, AgentProvider, RuntimeEvent, TerminalRecord } from '@caxri/protocol';
+import type { AgentOperation, AgentProvider, ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { agentProviderCatalog, agentProviderIds, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -100,7 +100,7 @@ export class AgentCoordinator {
     constructor(
         private readonly database: CaxriDatabase,
         private readonly agents: AgentService,
-        private readonly emit: (event: RuntimeEvent) => void,
+        private readonly emit: (event: ServerEvent) => void,
         private readonly logger: StructuredLogger,
         options: AgentCoordinatorOptions = {},
     ) {

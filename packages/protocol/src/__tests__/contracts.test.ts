@@ -13,11 +13,11 @@ import {
     MAX_KEYBINDINGS,
     methods,
     parseCaxriResult,
-    parseRuntimeRequest,
-    parseRuntimeResult,
+    parseServerOperationRequest,
+    parseServerOperationResult,
     requestEnvelopeSchema,
-    runtimeEventPayloads,
-    runtimeEventSchema,
+    serverEventPayloads,
+    serverEventSchema,
     toWireError,
 } from '../index';
 
@@ -121,10 +121,10 @@ describe('method table', () => {
         expect(() => parseCaxriResult('terminal.runningCount', '2')).toThrow(
             expect.objectContaining({ code: 'INTERNAL' }) as Error,
         );
-        expect(() => parseRuntimeResult('app.health', { ready: true })).toThrow(
+        expect(() => parseServerOperationResult('app.health', { ready: true })).toThrow(
             expect.objectContaining({ code: 'INTERNAL' }) as Error,
         );
-        expect(parseRuntimeResult('terminal.runningCount', 2)).toBe(2);
+        expect(parseServerOperationResult('terminal.runningCount', 2)).toBe(2);
     });
 });
 
@@ -207,8 +207,8 @@ describe('error taxonomy', () => {
 
     it('reports rejected Runtime parameters as VALIDATION with a readable message', () => {
         try {
-            parseRuntimeRequest('files.read', { sessionId: 'session-1' });
-            expect.unreachable('parseRuntimeRequest should reject incomplete params');
+            parseServerOperationRequest('files.read', { sessionId: 'session-1' });
+            expect.unreachable('parseServerOperationRequest should reject incomplete params');
         } catch (error) {
             const wire = toWireError(error);
             expect(wire.code).toBe('VALIDATION');
@@ -217,7 +217,9 @@ describe('error taxonomy', () => {
     });
 
     it('rejects an unknown Runtime method before it reaches a handler', () => {
-        expect(() => parseRuntimeRequest('nope.method', {})).toThrow('Unknown Runtime method');
+        expect(() => parseServerOperationRequest('nope.method', {})).toThrow(
+            'Unknown Runtime method',
+        );
     });
 });
 
@@ -278,23 +280,23 @@ describe('Renderer client', () => {
 
 describe('runtime events', () => {
     it('parses every declared event through the discriminated union', () => {
-        expect(Object.keys(runtimeEventPayloads)).toContain('terminal.output');
+        expect(Object.keys(serverEventPayloads)).toContain('terminal.output');
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'terminal.output',
                 payload: { terminalId: 'terminal-1', data: 'hi' },
             }).success,
         ).toBe(true);
         expect(
-            runtimeEventSchema.safeParse({ event: 'terminal.output', payload: { data: 'hi' } })
+            serverEventSchema.safeParse({ event: 'terminal.output', payload: { data: 'hi' } })
                 .success,
         ).toBe(false);
-        expect(runtimeEventSchema.safeParse({ event: 'nope', payload: {} }).success).toBe(false);
+        expect(serverEventSchema.safeParse({ event: 'nope', payload: {} }).success).toBe(false);
     });
 
     it('normalizes an unknown state-change scope to the full convergence path', () => {
         expect(
-            runtimeEventSchema.parse({
+            serverEventSchema.parse({
                 event: 'state.changed',
                 payload: { kind: 'future-scope', resourceId: 'future-1' },
             }),
@@ -324,7 +326,7 @@ describe('configuration contracts', () => {
                     .success,
             ).toBe(false);
             expect(
-                runtimeEventPayloads[`${kind}.changed`].shape.source.safeParse(
+                serverEventPayloads[`${kind}.changed`].shape.source.safeParse(
                     oversizedMultibyteSource,
                 ).success,
             ).toBe(false);

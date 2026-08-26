@@ -5,7 +5,7 @@ import type {
     MethodResult,
     MovedFileEntry,
     MutableFileEntry,
-    ParamsArg,
+    ParametersArgument,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
@@ -88,10 +88,10 @@ type ResourceExplorerMethod = Extract<
 
 function request<M extends ResourceExplorerMethod>(
     method: M,
-    parameters: ParamsArg<M>[0],
+    parameters: ParametersArgument<M>[0],
     signal?: AbortSignal,
 ): Promise<MethodResult<M>> {
-    const arguments_ = [parameters] as ParamsArg<M>;
+    const arguments_ = [parameters] as ParametersArgument<M>;
     return signal
         ? caxri.requestWithSignal(method, signal, ...arguments_)
         : caxri.request(method, ...arguments_);

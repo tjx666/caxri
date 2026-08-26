@@ -1,11 +1,11 @@
-import type { BootstrapState, RuntimeEvent } from '@caxri/protocol';
+import type { BootstrapState, ServerEvent } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
-    let listener: ((event: RuntimeEvent) => void) | undefined;
+    let listener: ((event: ServerEvent) => void) | undefined;
     return {
-        emit: (event: RuntimeEvent) => listener?.(event),
-        onEvent: vi.fn((next: (event: RuntimeEvent) => void) => {
+        emit: (event: ServerEvent) => listener?.(event),
+        onEvent: vi.fn((next: (event: ServerEvent) => void) => {
             listener = next;
             return () => {
                 listener = undefined;

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import { isDesktopRuntimeMethod } from '../desktop/desktop-runtime.js';
+import { isDesktopServerOperation } from '../desktop/desktop-server-operations.js';
 import { identifierSchema, pathSchema } from '../domain/domain.js';
-import { protocolEventEnvelopeSchema, transientRuntimeEventSchema } from './event-journal.js';
+import { protocolEventEnvelopeSchema, transientServerEventSchema } from './event-journal.js';
 import { commandReplyEnvelopeSchema, requestEnvelopeSchema } from './transport.js';
 import { protocolHelloSchema, protocolVersionSchema, protocolWelcomeSchema } from './version.js';
 
@@ -157,17 +157,17 @@ export const localServerReplySchema = z.object({
     reply: commandReplyEnvelopeSchema,
 });
 
-export const localClientDesktopRuntimeCommandSchema = z.object({
+export const localClientDesktopOperationCommandSchema = z.object({
     type: z.literal('desktop-runtime-command'),
     request: z.object({
         protocolVersion: protocolVersionSchema,
         id: identifierSchema,
-        method: z.string().refine(isDesktopRuntimeMethod),
+        method: z.string().refine(isDesktopServerOperation),
         params: z.unknown(),
     }),
 });
 
-export const localServerDesktopRuntimeReplySchema = z.object({
+export const localServerDesktopOperationReplySchema = z.object({
     type: z.literal('desktop-runtime-reply'),
     reply: commandReplyEnvelopeSchema,
 });
@@ -259,15 +259,15 @@ export const localServerDesktopTargetReplySchema = z.object({
 
 export const localServerEventSchema = z.object({
     type: z.literal('event'),
-    event: z.union([protocolEventEnvelopeSchema, transientRuntimeEventSchema]),
+    event: z.union([protocolEventEnvelopeSchema, transientServerEventSchema]),
 });
 
 export type LocalClientHello = z.infer<typeof localClientHelloSchema>;
 export type LocalServerWelcome = z.infer<typeof localServerWelcomeSchema>;
 export type LocalClientCommand = z.infer<typeof localClientCommandSchema>;
 export type LocalClientDesktopReply = z.infer<typeof localClientDesktopReplySchema>;
-export type LocalClientDesktopRuntimeCommand = z.infer<
-    typeof localClientDesktopRuntimeCommandSchema
+export type LocalClientDesktopOperationCommand = z.infer<
+    typeof localClientDesktopOperationCommandSchema
 >;
 export type LocalClientDesktopTargetConsume = z.infer<typeof localClientDesktopTargetConsumeSchema>;
 export type LocalClientDesktopReady = z.infer<typeof localClientDesktopReadySchema>;

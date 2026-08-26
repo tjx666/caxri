@@ -1,4 +1,4 @@
-import type { CaxriMethod, ParamsArg } from '@caxri/protocol';
+import type { CaxriMethod, ParametersArgument } from '@caxri/protocol';
 import { createCaxriClient } from '@caxri/protocol';
 
 /**
@@ -11,12 +11,12 @@ import { createCaxriClient } from '@caxri/protocol';
  */
 export const caxri = createCaxriClient({
     negotiate: () => globalThis.caxri.negotiate(),
-    request: <M extends CaxriMethod>(method: M, ...arguments_: ParamsArg<M>) =>
+    request: <M extends CaxriMethod>(method: M, ...arguments_: ParametersArgument<M>) =>
         globalThis.caxri.request(method, ...arguments_),
     requestWithId: <M extends CaxriMethod>(
         requestId: string,
         method: M,
-        ...arguments_: ParamsArg<M>
+        ...arguments_: ParametersArgument<M>
     ) => globalThis.caxri.requestWithId(requestId, method, ...arguments_),
     onEvent: (listener) => globalThis.caxri.onEvent(listener),
 });

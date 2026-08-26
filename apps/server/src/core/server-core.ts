@@ -7,8 +7,8 @@ import type {
     CommandAdapter,
     CommandExecutionContext,
     HostRequest,
-    RuntimeEvent,
-    RuntimeRequest,
+    ServerEvent,
+    ServerOperationRequest,
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -17,7 +17,7 @@ import {
     getMethodSpec,
     hasRequiredCapabilities,
     isHostRequest,
-    isTransientRuntimeEvent,
+    isTransientServerEvent,
     projectObservableEventRecovery,
 } from '@caxri/protocol';
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
@@ -157,7 +157,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         `dispatch-${createHash('sha256').update(principalRequestKey(context, requestId)).digest('hex')}`;
 
     const forwardDomainOperation = async (
-        request: RuntimeRequest,
+        request: ServerOperationRequest,
         signal?: AbortSignal,
     ): Promise<unknown> => {
         const spec = getMethodSpec(request.method);
@@ -184,8 +184,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 agentEndpoints.forgetProject(request.params.projectId);
                 break;
             }
-            case 'terminal.terminateAll':
-            case 'runtime.shutdown': {
+            case 'terminal.terminateAll': {
                 agentEndpoints.clear();
                 break;
             }
@@ -216,7 +215,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         },
     });
 
-    const deliver = (event: RuntimeEvent): void => {
+    const deliver = (event: ServerEvent): void => {
         if (event.event === 'terminal.exit')
             agentEndpoints.retireTerminal(event.payload.terminalId);
         else if (event.event === 'runtime.status')
@@ -238,7 +237,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 fields: { message: error instanceof Error ? error.message : String(error) },
             }),
         );
-        server?.broadcast(isTransientRuntimeEvent(event) ? event : journal.publish(event));
+        server?.broadcast(isTransientServerEvent(event) ? event : journal.publish(event));
     };
     domainService.onEvent(deliver);
 
@@ -699,7 +698,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 return desktopRouter.consumeTarget(targetId, generation);
             },
             desktopCredential: lease.desktopCredential,
-            invokeDesktopRuntime: (request) => forwardDomainOperation(request),
+            invokeDesktopOperation: (request) => forwardDomainOperation(request),
             logger,
             identity: lease.identity,
             onClientCountChanged: (clientCount) =>

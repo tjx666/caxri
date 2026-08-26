@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { RuntimeEvent, TerminalSnapshot } from '@caxri/protocol';
+import type { ServerEvent, TerminalSnapshot } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import type { IPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -62,7 +62,7 @@ describe('TerminalManager snapshot persistence', () => {
         let snapshotAtExit: TerminalSnapshot | undefined;
         const manager = new TerminalManager(
             database,
-            (event: RuntimeEvent) => {
+            (event: ServerEvent) => {
                 if (event.event === 'terminal.exit')
                     snapshotAtExit = database.getSnapshot(created.terminal!.id);
             },

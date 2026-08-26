@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import type { RuntimeEvent } from '../registry/events.js';
-import { runtimeEventSchema } from '../registry/events.js';
+import type { ServerEvent } from '../registry/events.js';
+import { serverEventSchema } from '../registry/events.js';
 import { CaxriError } from './errors.js';
 import { CAXRI_PROTOCOL_VERSION, protocolVersionSchema } from './version.js';
 
@@ -11,8 +11,8 @@ const cursorSchema = z.number().int().nonnegative();
  * One bounded replay window also caps pending durable events during client recovery.
  */
 export const MAX_EVENT_JOURNAL_EVENTS = 256;
-export type TransientRuntimeEvent = Extract<
-    RuntimeEvent,
+export type TransientServerEvent = Extract<
+    ServerEvent,
     {
         event:
             | 'agent.message.held'
@@ -31,9 +31,9 @@ export type TransientRuntimeEvent = Extract<
             | 'workbench.changed';
     }
 >;
-export type DurableRuntimeEvent = Exclude<RuntimeEvent, TransientRuntimeEvent>;
+export type DurableServerEvent = Exclude<ServerEvent, TransientServerEvent>;
 
-const TRANSIENT_RUNTIME_EVENT_NAMES = new Set<RuntimeEvent['event']>([
+const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'terminal.output',
     'terminal.outputRecovery',
     'agent.messaging.changed',
@@ -54,27 +54,27 @@ const TRANSIENT_RUNTIME_EVENT_NAMES = new Set<RuntimeEvent['event']>([
     'workbench.changed',
 ]);
 
-export function isTransientRuntimeEvent(event: RuntimeEvent): event is TransientRuntimeEvent {
-    return TRANSIENT_RUNTIME_EVENT_NAMES.has(event.event);
+export function isTransientServerEvent(event: ServerEvent): event is TransientServerEvent {
+    return TRANSIENT_SERVER_EVENT_NAMES.has(event.event);
 }
 
-export const transientRuntimeEventSchema = runtimeEventSchema.refine(
-    isTransientRuntimeEvent,
+export const transientServerEventSchema = serverEventSchema.refine(
+    isTransientServerEvent,
     'Only transient events can use direct delivery',
-) as z.ZodType<TransientRuntimeEvent>;
+) as z.ZodType<TransientServerEvent>;
 
 /**
  * PTY bytes and one-shot UI commands retain direct delivery and never enter durable replay.
  */
-export const durableRuntimeEventSchema = runtimeEventSchema.refine(
-    (event) => !isTransientRuntimeEvent(event),
+export const durableServerEventSchema = serverEventSchema.refine(
+    (event) => !isTransientServerEvent(event),
     'Transient events cannot enter durable protocol replay',
-) as z.ZodType<DurableRuntimeEvent>;
+) as z.ZodType<DurableServerEvent>;
 
 export const protocolEventEnvelopeSchema = z.object({
     protocolVersion: protocolVersionSchema,
     cursor: cursorSchema,
-    event: durableRuntimeEventSchema,
+    event: durableServerEventSchema,
 });
 
 export type ProtocolEventEnvelope = z.infer<typeof protocolEventEnvelopeSchema>;
@@ -124,11 +124,11 @@ const OBSERVABLE_EVENT_NAMES = {
     'theme.changed': true,
     'updates.state': true,
     'window.fullScreen': true,
-} as const satisfies Record<DurableRuntimeEvent['event'], true>;
+} as const satisfies Record<DurableServerEvent['event'], true>;
 export const observableEventNameSchema = z.enum(
     Object.keys(OBSERVABLE_EVENT_NAMES) as [
-        DurableRuntimeEvent['event'],
-        ...Array<DurableRuntimeEvent['event']>,
+        DurableServerEvent['event'],
+        ...Array<DurableServerEvent['event']>,
     ],
 );
 const observableEventEnvelopeSchema = z.object({
@@ -169,7 +169,7 @@ export function projectObservableEventRecovery(recovery: EventRecovery): Observa
 }
 
 export interface EventJournal {
-    publish(event: RuntimeEvent): ProtocolEventEnvelope;
+    publish(event: ServerEvent): ProtocolEventEnvelope;
     recover(afterCursor: number): Promise<EventRecovery>;
 }
 
@@ -238,10 +238,10 @@ export function acceptEventSequence(
     currentCursor: number,
     incoming: readonly ProtocolEventEnvelope[],
 ):
-    | { kind: 'accepted'; cursor: number; events: RuntimeEvent[] }
+    | { kind: 'accepted'; cursor: number; events: ServerEvent[] }
     | { kind: 'gap'; cursor: number; expectedCursor: number; receivedCursor: number } {
     cursorSchema.parse(currentCursor);
-    const events: RuntimeEvent[] = [];
+    const events: ServerEvent[] = [];
     let cursor = currentCursor;
     for (const value of incoming) {
         const envelope = protocolEventEnvelopeSchema.parse(value);

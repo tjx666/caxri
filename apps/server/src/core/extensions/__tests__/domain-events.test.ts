@@ -1,4 +1,4 @@
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { routeExtensionDomainEvent } from '../domain-events';
@@ -14,7 +14,7 @@ describe('generic extension runtime event routing', () => {
         const event = {
             event: 'state.changed',
             payload: { kind: 'full', reason: 'session.select' },
-        } satisfies RuntimeEvent;
+        } satisfies ServerEvent;
 
         await routeExtensionDomainEvent(service, { request: activeContext }, event);
 

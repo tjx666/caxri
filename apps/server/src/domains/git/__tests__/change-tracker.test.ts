@@ -1,6 +1,6 @@
 import { sep } from 'node:path';
 
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { GitChangeTracker } from '../change-tracker';
@@ -8,7 +8,7 @@ import { GitChangeTracker } from '../change-tracker';
 const REPO_KEY = '/repo/.git';
 
 function createTracker(delayMs = 5) {
-    const events: RuntimeEvent[] = [];
+    const events: ServerEvent[] = [];
     const tracker = new GitChangeTracker({
         delayMs,
         emit: (event) => {

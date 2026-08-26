@@ -1,12 +1,12 @@
-import type { BootstrapState, RuntimeEvent } from '@caxri/protocol';
+import type { BootstrapState, ServerEvent } from '@caxri/protocol';
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
-    const state: { handler?: (event: RuntimeEvent) => void } = {};
+    const state: { handler?: (event: ServerEvent) => void } = {};
     return {
         state,
-        onEvent: vi.fn((handler: (event: RuntimeEvent) => void) => {
+        onEvent: vi.fn((handler: (event: ServerEvent) => void) => {
             state.handler = handler;
             return () => {};
         }),

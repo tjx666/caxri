@@ -684,7 +684,7 @@ export const methods = {
 } as const satisfies Record<string, MethodSpec>;
 
 /**
- * Main-to-Runtime methods that are never reachable from the Renderer request allowlist.
+ * Internal Server operations that are never reachable from the Renderer request allowlist.
  */
 export const internalMethods = {
     ...agentDispatchInternalMethods,
@@ -785,7 +785,6 @@ export const internalMethods = {
             }),
         ]),
     },
-    'runtime.shutdown': { ...hostControl, params: noParameters, result: z.null() },
     'terminal.detachAll': { ...hostControl, params: noParameters, result: z.null() },
     'terminal.terminateAll': { ...hostControl, params: noParameters, result: z.null() },
     'theme.importPath': {

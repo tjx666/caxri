@@ -12,7 +12,7 @@ import type {
     LocalClientCommand,
     LocalServerReply,
     LogEventName,
-    RuntimeRequest,
+    ServerOperationRequest,
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -262,7 +262,7 @@ export interface ControlServerOptions {
      */
     requestQueueWarnMs?: number;
     requestTotalWarnMs?: number;
-    invokeDesktopRuntime?(request: RuntimeRequest): Promise<unknown>;
+    invokeDesktopOperation?(request: ServerOperationRequest): Promise<unknown>;
     /**
      * Per-request outcome log: success at `debug`, failures and slow/queued requests at `warn`. PTY hot-path methods
      * stay unlogged, matching the domain operation dispatcher.

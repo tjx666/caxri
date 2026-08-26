@@ -49,11 +49,11 @@ const authorized = {
     root: { path: '/project', device: '1', inode: '1' },
 } as const;
 
-type RuntimeRequestStub =
+type ServerOperationRequestStub =
     | ((method: string) => Promise<unknown>)
     | ((method: string, parameters: unknown) => Promise<unknown>);
 
-function domainService(request?: RuntimeRequestStub) {
+function domainService(request?: ServerOperationRequestStub) {
     const implementation =
         request ??
         vi.fn((method: string) => {

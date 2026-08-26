@@ -4,19 +4,19 @@ import type {
     DesktopLease,
     DesktopOperation,
     DesktopTargetPayload,
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
-    RuntimeWorkbenchContext,
+    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationResult,
+    WorkbenchRequestContext,
 } from '@caxri/protocol';
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../core/domain-service';
 
-type AuthorizedEntry = RuntimeMethodResult<'files.authorizeOpen'>;
+type AuthorizedEntry = ServerOperationResult<'files.authorizeOpen'>;
 type ExpectedIdentity = NonNullable<
-    RuntimeMethodParameters<'desktop.openFile'>['expectedIdentity']
+    ServerOperationParameters<'desktop.openFile'>['expectedIdentity']
 >;
-type BootstrapState = RuntimeMethodResult<'app.bootstrap'>;
+type BootstrapState = ServerOperationResult<'app.bootstrap'>;
 type DesktopStatus = { state: 'offline' } | { state: 'background' | 'window'; generation: number };
 
 interface StoredTarget {
@@ -153,7 +153,7 @@ export class ServerDesktopRouter {
         path: string,
         requestedSessionId?: string,
         signal?: AbortSignal,
-        context?: RuntimeWorkbenchContext,
+        context?: WorkbenchRequestContext,
     ): Promise<{ entry: AuthorizedEntry; projectId: string; sessionId: string }> {
         if (context && requestedSessionId !== context.sessionId)
             throw new CaxriError('PATH_DENIED', 'Desktop request context is inconsistent');
@@ -212,7 +212,7 @@ export class ServerDesktopRouter {
         sessionId: string,
         path: string,
         signal?: AbortSignal,
-        context?: RuntimeWorkbenchContext,
+        context?: WorkbenchRequestContext,
     ): Promise<{ entry: AuthorizedEntry; projectId: string; sessionId: string }> {
         const session = state.sessions.find((candidate) => candidate.id === sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
@@ -258,10 +258,10 @@ export class ServerDesktopRouter {
     }
 
     async trash(
-        parameters: RuntimeMethodParameters<'files.trash'>,
+        parameters: ServerOperationParameters<'files.trash'>,
         signal?: AbortSignal,
-        context?: RuntimeWorkbenchContext,
-    ): Promise<RuntimeMethodResult<'files.trash'>> {
+        context?: WorkbenchRequestContext,
+    ): Promise<ServerOperationResult<'files.trash'>> {
         assertNotCancelled(signal);
         const lease = await this.requireLease(false);
         const item = context
@@ -314,13 +314,13 @@ export class ServerDesktopRouter {
     }
 
     async discard(
-        parameters: RuntimeMethodParameters<'git.discard'>,
+        parameters: ServerOperationParameters<'git.discard'>,
         signal?: AbortSignal,
-        context?: RuntimeWorkbenchContext,
-    ): Promise<RuntimeMethodResult<'git.discard'>> {
+        context?: WorkbenchRequestContext,
+    ): Promise<ServerOperationResult<'git.discard'>> {
         assertNotCancelled(signal);
         const lease = await this.requireLease(false);
-        const preflightParameters: RuntimeMethodParameters<'git.discard.preflight'> = {
+        const preflightParameters: ServerOperationParameters<'git.discard.preflight'> = {
             repositoryId: parameters.repositoryId,
             scope:
                 parameters.scope.kind === 'all'
@@ -382,7 +382,7 @@ export class ServerDesktopRouter {
             location?: { column: number; line: number };
         },
         signal?: AbortSignal,
-        context?: RuntimeWorkbenchContext,
+        context?: WorkbenchRequestContext,
     ): Promise<{
         state: 'opened' | 'requested' | 'revealed';
         generation: number;

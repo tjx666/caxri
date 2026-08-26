@@ -1,11 +1,11 @@
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 
 const MAX_PENDING_VIEW_EVENTS = 64;
 const MAX_SEEN_VIEW_EVENT_IDS = 512;
 
-type ViewChangedEvent = Extract<RuntimeEvent, { event: 'viewContainers.viewChanged' }>;
+type ViewChangedEvent = Extract<ServerEvent, { event: 'viewContainers.viewChanged' }>;
 export interface ViewEventScope {
     viewId: string;
     sessionId: string;

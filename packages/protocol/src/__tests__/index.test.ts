@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CommandAdapter, CommandExecutionContext, RuntimeEvent } from '../index';
+import type { CommandAdapter, CommandExecutionContext, ServerEvent } from '../index';
 import {
     acceptEventSequence,
     agentSkillHealthSchema,
@@ -11,15 +11,15 @@ import {
     createProtocolWelcome,
     errorCodes,
     hostManifestSchema,
-    isNonExpiringRuntimeMethod,
+    isNonExpiringServerOperation,
     methods,
     negotiateProtocolVersion,
-    parseRuntimeRequest,
+    parseServerOperationRequest,
     principalProjectionSchemas,
     projectObservableEventRecovery,
     protocolWelcomeSchema,
     requestEnvelopeSchema,
-    runtimeEventSchema,
+    serverEventSchema,
 } from '../index';
 
 const desktop = {
@@ -89,13 +89,13 @@ describe('@caxri/protocol contract', () => {
             principalProjectionSchemas.project.safeParse({ id: 'p1', displayTitle: 'P' }).success,
         ).toBe(true);
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'files.changed',
                 payload: { changes: [], overflow: false, sessionId: 'session-1' },
             }).success,
         ).toBe(false);
         expect(
-            runtimeEventSchema.safeParse({
+            serverEventSchema.safeParse({
                 event: 'files.changed',
                 payload: {
                     changes: [],
@@ -171,10 +171,10 @@ describe('@caxri/protocol contract', () => {
     });
 
     it('keeps bounded authoritative Runtime operations alive until their own result', () => {
-        expect(isNonExpiringRuntimeMethod('files.copy')).toBe(true);
-        expect(isNonExpiringRuntimeMethod('files.write')).toBe(true);
-        expect(isNonExpiringRuntimeMethod('agent.dispatch.waitInternal')).toBe(true);
-        expect(isNonExpiringRuntimeMethod('files.read')).toBe(false);
+        expect(isNonExpiringServerOperation('files.copy')).toBe(true);
+        expect(isNonExpiringServerOperation('files.write')).toBe(true);
+        expect(isNonExpiringServerOperation('agent.dispatch.waitInternal')).toBe(true);
+        expect(isNonExpiringServerOperation('files.read')).toBe(false);
     });
 
     it('keeps human steer bounded and distinct from peer text', () => {
@@ -238,7 +238,7 @@ describe('@caxri/protocol contract', () => {
             }).success,
         ).toBe(false);
         expect(() =>
-            parseRuntimeRequest('git.diff', {
+            parseServerOperationRequest('git.diff', {
                 sessionId: 'session-1',
                 repositoryId: 'repository-1',
                 path: 'README.md',
@@ -517,7 +517,7 @@ describe('transport-neutral dispatcher', () => {
 });
 
 describe('recoverable event cursor', () => {
-    const changed = (reason: 'project.create' | 'session.create'): RuntimeEvent => ({
+    const changed = (reason: 'project.create' | 'session.create'): ServerEvent => ({
         event: 'state.changed',
         payload: { kind: 'full', reason },
     });

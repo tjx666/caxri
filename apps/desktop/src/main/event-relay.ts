@@ -1,5 +1,5 @@
-import type { BootstrapState, EventRecovery, LogEventName, RuntimeEvent } from '@caxri/protocol';
-import { createEventJournal, isTransientRuntimeEvent, logEventCatalog } from '@caxri/protocol';
+import type { BootstrapState, EventRecovery, LogEventName, ServerEvent } from '@caxri/protocol';
+import { createEventJournal, isTransientServerEvent, logEventCatalog } from '@caxri/protocol';
 
 interface EventLogger {
     write(
@@ -21,7 +21,7 @@ export interface MainEventRelayOptions {
  */
 export function createMainEventRelay(options: MainEventRelayOptions) {
     let isRendererReady = false;
-    let retainedDesktopLeaseReplacement: RuntimeEvent | undefined;
+    let retainedDesktopLeaseReplacement: ServerEvent | undefined;
     const journal = createEventJournal({
         snapshot: async (cursor) => {
             const state = await options.loadState();
@@ -52,7 +52,7 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
             isRendererReady = true;
             if (retainedDesktopLeaseReplacement) options.deliver(retainedDesktopLeaseReplacement);
         },
-        send(event: RuntimeEvent): void {
+        send(event: ServerEvent): void {
             if (event.event === 'host.connectionChanged' && event.payload.status === 'replaced') {
                 /**
                  * Replacement permanently stops this Main instance from reconnecting. Retain the notice across the
@@ -74,7 +74,7 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
                             },
                         },
                     );
-            options.deliver(isTransientRuntimeEvent(event) ? event : journal.publish(event));
+            options.deliver(isTransientServerEvent(event) ? event : journal.publish(event));
             if (
                 (event.event === 'keybindings.changed' && !event.payload.error) ||
                 (event.event === 'runtime.status' && event.payload.status === 'ready') ||

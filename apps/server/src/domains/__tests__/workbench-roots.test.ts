@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentEndpointSummary, NewWorktreeBehavior, RuntimeEvent } from '@caxri/protocol';
+import type { AgentEndpointSummary, NewWorktreeBehavior, ServerEvent } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -37,7 +37,7 @@ async function fixture(
     const sessions = Array.from({ length: sessionCount }, () =>
         database.createSession(owner.id, 'codex'),
     );
-    const events: RuntimeEvent[] = [];
+    const events: ServerEvent[] = [];
     let behavior: NewWorktreeBehavior = 'ask';
     let topology: GitWorktreeTopology = {
         repositoryKey: join(directory, '.git'),

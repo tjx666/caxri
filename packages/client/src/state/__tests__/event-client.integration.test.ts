@@ -1,17 +1,17 @@
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { createEventJournal, MAX_EVENT_JOURNAL_EVENTS } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { createRecoveringEventClient } from '../event-client';
 
 describe('recoverable event client integration', () => {
-    const changed = (reason: 'project.create' | 'session.create'): RuntimeEvent => ({
+    const changed = (reason: 'project.create' | 'session.create'): ServerEvent => ({
         event: 'state.changed',
         payload: { kind: 'full', reason },
     });
 
     it('converges a reconnect while preserving the direct Terminal output path', async () => {
-        const emitted: RuntimeEvent[] = [];
+        const emitted: ServerEvent[] = [];
         const journal = createEventJournal({
             maximumEvents: 2,
             snapshot: (cursor) => ({
@@ -51,7 +51,7 @@ describe('recoverable event client integration', () => {
 
         journal.publish(changed('session.create'));
         journal.publish(changed('project.create'));
-        const snapshotClientEvents: RuntimeEvent[] = [];
+        const snapshotClientEvents: ServerEvent[] = [];
         const snapshotClient = createRecoveringEventClient({
             emit: (event) => {
                 snapshotClientEvents.push(event);
@@ -82,7 +82,7 @@ describe('recoverable event client integration', () => {
                 agentRevision: cursor,
             }),
         });
-        const emitted: RuntimeEvent[] = [];
+        const emitted: ServerEvent[] = [];
         let recoveryCalls = 0;
         const client = createRecoveringEventClient({
             emit: (event) => {

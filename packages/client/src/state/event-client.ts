@@ -1,8 +1,8 @@
 import type {
     EventRecovery,
     ProtocolEventEnvelope,
-    RuntimeEvent,
-    TransientRuntimeEvent,
+    ServerEvent,
+    TransientServerEvent,
 } from '@caxri/protocol';
 import { CaxriError, MAX_EVENT_JOURNAL_EVENTS } from '@caxri/protocol';
 
@@ -18,7 +18,7 @@ export interface RecoveringEventClient {
     /**
      * Accepts Host-pushed envelopes; terminal output remains on its non-durable direct path.
      */
-    receive(message: ProtocolEventEnvelope | TransientRuntimeEvent): void;
+    receive(message: ProtocolEventEnvelope | TransientServerEvent): void;
 }
 
 /**
@@ -26,7 +26,7 @@ export interface RecoveringEventClient {
  * already validates recovery results; this layer only orders their cursors.
  */
 export function createRecoveringEventClient(options: {
-    emit(event: RuntimeEvent): void;
+    emit(event: ServerEvent): void;
     onError?(error: unknown): void;
     recover(afterCursor: number): Promise<EventRecovery>;
 }): RecoveringEventClient {

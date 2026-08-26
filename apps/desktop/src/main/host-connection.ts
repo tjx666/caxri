@@ -15,17 +15,17 @@ import type {
     DesktopOperation,
     DesktopTargetPayload,
     HostDesktopLaunch,
-    RuntimeEvent,
-    RuntimeMethod,
-    RuntimeMethodResult,
-    RuntimeParamsArg as RuntimeParametersArgument,
+    ServerEvent,
+    ServerOperation,
+    ServerOperationArguments as ServerOperationArguments,
+    ServerOperationResult,
 } from '@caxri/protocol';
 import {
     CaxriError,
     errorMessage,
     HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
     isCaxriMethod,
-    isDesktopRuntimeMethod,
+    isDesktopServerOperation,
 } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import { computeBuildFingerprint, e2eAgentPolicyEnvironment, logEventCatalog } from '@caxri/system';
@@ -41,7 +41,7 @@ type DesktopCommandHandler = (
 interface UntypedHostClient {
     request(method: CaxriMethod, parameters?: unknown): Promise<unknown>;
     requestRuntime(
-        method: RuntimeMethod,
+        method: ServerOperation,
         parameters?: unknown,
         timeoutMs?: number,
     ): Promise<unknown>;
@@ -146,7 +146,7 @@ export class DesktopHostConnection extends EventTarget {
         if (!this.events || this.eventsHostIdentity !== hostIdentity) {
             this.events = createRecoveringEventClient({
                 emit: (event) => {
-                    this.dispatchEvent(new CustomEvent<RuntimeEvent>('event', { detail: event }));
+                    this.dispatchEvent(new CustomEvent<ServerEvent>('event', { detail: event }));
                 },
                 onError: (error) =>
                     this.options.logger.write('error', logEventCatalog.host.eventRecoveryFailed, {
@@ -284,7 +284,7 @@ export class DesktopHostConnection extends EventTarget {
         if (reason === 'replaced') {
             this.options.logger.write('warn', logEventCatalog.host.desktopLeaseReplaced, {});
             this.dispatchEvent(
-                new CustomEvent<RuntimeEvent>('event', {
+                new CustomEvent<ServerEvent>('event', {
                     detail: {
                         event: 'host.connectionChanged',
                         payload: { status: 'replaced' },
@@ -371,7 +371,7 @@ export class DesktopHostConnection extends EventTarget {
              * Renderer must re-attach mounted Terminal panes; durable-event recovery alone cannot restore them.
              */
             this.dispatchEvent(
-                new CustomEvent<RuntimeEvent>('event', {
+                new CustomEvent<ServerEvent>('event', {
                     detail: {
                         event: 'host.connectionChanged',
                         payload: {
@@ -426,28 +426,28 @@ export class DesktopHostConnection extends EventTarget {
     /**
      * Subscribes to Runtime protocol events; returns an unsubscribe function.
      */
-    onEvent(listener: (event: RuntimeEvent) => void): () => void {
+    onEvent(listener: (event: ServerEvent) => void): () => void {
         const handler = (event: Event): void =>
-            listener((event as CustomEvent<RuntimeEvent>).detail);
+            listener((event as CustomEvent<ServerEvent>).detail);
         this.addEventListener('event', handler);
         return () => this.removeEventListener('event', handler);
     }
 
-    request<M extends RuntimeMethod>(
+    request<M extends ServerOperation>(
         method: M,
-        ...arguments_: RuntimeParametersArgument<M>
-    ): Promise<RuntimeMethodResult<M>> {
+        ...arguments_: ServerOperationArguments<M>
+    ): Promise<ServerOperationResult<M>> {
         const attached = this.client;
         if (!attached) return Promise.reject(this.disconnectedRequestError());
         const client = attached as unknown as UntypedHostClient;
         const [parameters, timeoutMs] = arguments_;
-        if (isDesktopRuntimeMethod(method))
+        if (isDesktopServerOperation(method))
             return client.requestRuntime(method, parameters, timeoutMs) as Promise<
-                RuntimeMethodResult<M>
+                ServerOperationResult<M>
             >;
         if (!isCaxriMethod(method))
             return Promise.reject(new Error(`Unsupported Desktop Host method: ${method}`));
-        return client.request(method, parameters) as Promise<RuntimeMethodResult<M>>;
+        return client.request(method, parameters) as Promise<ServerOperationResult<M>>;
     }
 
     forward(method: CaxriMethod, parameters: unknown, requestId: string): Promise<unknown> {

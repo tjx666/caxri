@@ -3,8 +3,8 @@ import { dirname } from 'node:path';
 
 import type {
     MainRequest,
-    RuntimeMethodParams as RuntimeMethodParameters,
-    RuntimeMethodResult,
+    ServerOperationParameters as ServerOperationParameters,
+    ServerOperationResult,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
@@ -89,7 +89,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         const host = options.getHost();
         const initial = await host.request('terminal.fileLink.resolve', parameters);
         let expectedIdentity: NonNullable<
-            RuntimeMethodParameters<'desktop.openFile'>['expectedIdentity']
+            ServerOperationParameters<'desktop.openFile'>['expectedIdentity']
         >;
         let path: string;
         let projectId: string;
@@ -130,7 +130,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 throw new CaxriError('INTERNAL', 'Terminal link selection was not authorized');
             expectedIdentity = selected.identity;
             options.grants.grant(selected.rootPath);
-            let project: RuntimeMethodResult<'project.create'>;
+            let project: ServerOperationResult<'project.create'>;
             /**
              * A failed autonomous flow cannot leave a reusable directory grant behind.
              */

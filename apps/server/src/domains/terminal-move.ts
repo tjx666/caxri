@@ -1,4 +1,4 @@
-import type { RuntimeEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 
 import type { AgentCoordinator } from './agents';
 import type { CaxriDatabase } from './db';
@@ -12,7 +12,7 @@ import type { TerminalManager } from './terminal';
 export function createTerminalMoveHandler(dependencies: {
     coordinator: AgentCoordinator;
     database: CaxriDatabase;
-    send: (event: RuntimeEvent) => void;
+    send: (event: ServerEvent) => void;
     terminals: TerminalManager;
     watchSessionInBackground: (sessionId: string | undefined) => void;
 }): Pick<DomainHandlers, 'terminal.moveToNewSession'> {

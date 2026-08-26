@@ -2,7 +2,7 @@ import { appendFile, mkdtemp, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
-import type { CommandAdapter, RuntimeEvent } from '@caxri/protocol';
+import type { CommandAdapter, ServerEvent } from '@caxri/protocol';
 import { createCommandDispatcher } from '@caxri/protocol';
 import { logEventCatalog, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -23,7 +23,7 @@ describe('Runtime business introspection', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-business-'));
         const homeDirectory = await mkdtemp(join(homedir(), '.caxri-runtime-business-'));
         temporaryDirectories.push(directory, homeDirectory);
-        const events: RuntimeEvent[] = [];
+        const events: ServerEvent[] = [];
         const logger = new StructuredLogger(join(directory, 'logs'));
         const runtime = await createDomainServices({
             userDataPath: join(directory, 'user-data'),
