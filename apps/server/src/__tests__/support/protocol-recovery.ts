@@ -1,14 +1,11 @@
-import type { ProtocolEventEnvelope } from '@caxri/protocol';
+import type { ProtocolEventEnvelope, StoredProtocolCommandReceipt } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     durableServerEventSchema,
     protocolEventEnvelopeSchema,
 } from '@caxri/protocol';
 
-import type {
-    ProtocolRecoveryState,
-    StoredProtocolCommandReceipt,
-} from '../../domains/protocol-recovery';
+import type { ProtocolRecoveryState } from '../../domains/protocol-recovery';
 
 export function createTestProtocolRecoveryState(): ProtocolRecoveryState {
     const identity = {
