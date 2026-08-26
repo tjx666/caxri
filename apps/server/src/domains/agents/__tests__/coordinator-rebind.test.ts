@@ -30,6 +30,50 @@ afterEach(async () => {
  * only rebind path (issue #199).
  */
 describe('AgentCoordinator session rebinding', () => {
+    it('refreshes the title when SessionStart identifies an already-bound resumed thread', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-session-start-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        database.rebindAgentSession(created.terminal!.id, 'codex', 'session-resumed');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'codex',
+                status: 'running',
+                observedAt: Date.now(),
+                available: true,
+                sessionId: 'session-resumed',
+                title: 'Resumed Codex thread',
+            }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(snapshot),
+            () => {},
+            new StructuredLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-1');
+            coordinator.observeLifecycleSignal({
+                agentSessionId: 'session-resumed',
+                launchId: 'launch-1',
+                phase: 'sessionIdentified',
+                provider: 'codex',
+                terminalId: created.terminal!.id,
+            });
+
+            await expect
+                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .toBe('Resumed Codex thread');
+            expect(database.getTerminal(created.terminal!.id)?.title).toBe('Resumed Codex thread');
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('rebinds a Terminal and republishes the title when a hook signal names a manually resumed session', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-rebind-'));
         temporaryDirectories.push(directory);
@@ -143,19 +187,23 @@ describe('AgentCoordinator session rebinding', () => {
         }
     });
 
-    it('does not rebind to an Agent session another Terminal of the same provider owns', async () => {
+    it('rebinds from an exact hook identity even when another Terminal shows the same Agent session', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-rebind-claimed-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const projectId = database.createProject(directory).id;
         const created = database.createSession(projectId, 'claude');
         const sibling = database.createSession(projectId, 'claude');
-        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+        const snapshot = vi.fn<AgentAdapter['snapshot']>((context) =>
             Promise.resolve({
                 provider: 'claude',
                 status: 'running',
                 observedAt: Date.now(),
                 available: true,
+                ...(context.agentSessionId === 'session-claimed' && {
+                    sessionId: 'session-claimed',
+                    title: 'Shared resumed session',
+                }),
             }),
         );
         const coordinator = new AgentCoordinator(
@@ -177,10 +225,15 @@ describe('AgentCoordinator session rebinding', () => {
                 terminalId: created.terminal!.id,
             });
 
-            expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBeUndefined();
+            expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe(
+                'session-claimed',
+            );
             expect(database.getTerminal(sibling.terminal!.id)?.agentSessionId).toBe(
                 'session-claimed',
             );
+            await expect
+                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .toBe('Shared resumed session');
         } finally {
             coordinator.close();
             database.close();

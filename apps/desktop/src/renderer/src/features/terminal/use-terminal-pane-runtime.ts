@@ -47,6 +47,7 @@ import { clearTerminalProgress, updateTerminalProgress } from './terminal-progre
 import { shouldReconcileTerminalRecovery } from './terminal-recovery';
 import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
 import { TerminalRendererController } from './terminal-renderer';
+import { createTerminalRendererDiagnostic } from './terminal-renderer-diagnostics';
 import { TerminalBackpressureRecovery, TerminalReplayCoordinator } from './terminal-replay';
 import type { TerminalSearchOptions, TerminalSearchResults } from './terminal-search';
 import { TERMINAL_SEARCH_HIGHLIGHT_LIMIT } from './terminal-search';
@@ -336,6 +337,20 @@ export function useTerminalPaneRuntime({
             container.dataset.terminalRendererReason = status.reason;
             container.dataset.terminalWebglContextLosses = String(status.contextLossCount);
             container.dataset.terminalRendererRedraws = String(status.redrawCount);
+            const current = latestReference.current;
+            const diagnostic = createTerminalRendererDiagnostic({
+                agentTerminal: current.isAgent,
+                diagnosticId: crypto.randomUUID(),
+                documentFocused: document.hasFocus(),
+                documentVisible: document.visibilityState === 'visible',
+                paneActive: current.active,
+                preference: current.gpuAcceleration,
+                status,
+                terminalFocused: container.contains(document.activeElement),
+                terminalId,
+                terminalProcessRunning: current.processState === 'running',
+            });
+            if (diagnostic) globalThis.caxri.reportDiagnostic(diagnostic);
             /**
              * A dropped GPU context can recur many times; only the first fallback for this pane's lifetime is worth a
              * toast; repeats would just be noise about the same known state.

@@ -1,7 +1,11 @@
+import { once } from 'node:events';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
+import { execFileAsync } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { stageAgentHookBridge } from '../bridge';
@@ -35,7 +39,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 2 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 7 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -107,8 +111,107 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 2 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 7 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
+    });
+
+    it('stays silent outside a Caxri-launched Terminal', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+
+        const result = await execFileAsync(bridgePath, ['--provider', 'codex'], {
+            env: { PATH: process.env.PATH },
+        });
+
+        expect(result.stderr).toBe('');
+    });
+
+    it('stays silent when inherited Caxri context no longer has a launch runtime', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+
+        const result = await execFileAsync(bridgePath, ['--provider', 'codex'], {
+            env: { CAXRI_HOOK_TOKEN: 'launch-context', PATH: process.env.PATH },
+        });
+
+        expect(result.stderr).toBe('');
+    });
+
+    it('stays silent when inherited Caxri context points to a retired socket', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+
+        const result = await execFileAsync(
+            bridgePath,
+            ['--provider', 'codex', '--phase', 'sessionIdentified', '--schema', '5'],
+            {
+                env: {
+                    CAXRI_HOOK_LAUNCH_ID: 'retired-launch',
+                    CAXRI_HOOK_RUNTIME: process.execPath,
+                    CAXRI_HOOK_SOCKET: join(sharedPath, 'retired.sock'),
+                    CAXRI_HOOK_TERMINAL_ID: 'retired-terminal',
+                    CAXRI_HOOK_TOKEN: 'retired-token',
+                    PATH: process.env.PATH,
+                },
+            },
+        );
+
+        expect(result.stderr).toBe('');
+    });
+
+    it('stays silent when partial inherited context has no live Caxri socket', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+
+        const result = await execFileAsync(bridgePath, ['--provider', 'codex'], {
+            env: { CAXRI_HOOK_RUNTIME: process.execPath, PATH: process.env.PATH },
+        });
+
+        expect(result.stderr).toBe('');
+    });
+
+    it('reports incomplete launch context when a live Caxri socket exists', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+        const socketPath = join(sharedPath, 'live.sock');
+        const server = createServer();
+        server.listen(socketPath);
+        await once(server, 'listening');
+
+        try {
+            const result = await execFileAsync(bridgePath, ['--provider', 'codex'], {
+                env: {
+                    CAXRI_HOOK_LAUNCH_ID: 'launch-without-token',
+                    CAXRI_HOOK_RUNTIME: process.execPath,
+                    CAXRI_HOOK_SOCKET: socketPath,
+                    CAXRI_HOOK_TERMINAL_ID: 'terminal-1',
+                    PATH: process.env.PATH,
+                },
+            });
+
+            expect(result.stderr).toBe('caxri-hook: launch_context_unavailable\n');
+        } finally {
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
+
+    it('scrubs arbitrary runtime stderr behind a fixed bridge failure diagnostic', async () => {
+        const sharedPath = await sharedDirectory();
+        const bridgePath = await stageAgentHookBridge(sharedPath);
+        const failingRuntime = join(sharedPath, 'failing-runtime');
+        await writeFile(
+            failingRuntime,
+            "#!/bin/sh\nprintf 'private stdout detail'\nprintf 'private runtime detail' >&2\nexit 99\n",
+            { mode: 0o700 },
+        );
+
+        const result = await execFileAsync(bridgePath, ['--provider', 'codex'], {
+            env: { CAXRI_HOOK_RUNTIME: failingRuntime, PATH: process.env.PATH },
+        });
+
+        expect(result.stdout).toBe('');
+        expect(result.stderr).toBe('caxri-hook: bridge_runtime_failed\n');
+        expect(result.stderr).not.toContain('private runtime detail');
     });
 });

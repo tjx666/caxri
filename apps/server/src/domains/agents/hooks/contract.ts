@@ -3,6 +3,7 @@ import type { AgentProvider } from '@caxri/protocol';
 import type { AgentEnvironment } from '../contract';
 
 export const agentLifecyclePhases = [
+    'sessionIdentified',
     'turnStarted',
     'attentionRequested',
     'turnFinished',

@@ -1,3 +1,4 @@
+import { RENDERER_DIAGNOSTIC_CHANNEL } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => {
@@ -33,6 +34,7 @@ describe('workbench IPC sender boundary', () => {
         commands: ['app.health'],
     }));
     const onEventsReady = vi.fn();
+    const onRendererDiagnostic = vi.fn();
 
     beforeEach(() => {
         electronMock.handles.clear();
@@ -40,10 +42,12 @@ describe('workbench IPC sender boundary', () => {
         dispatch.mockClear();
         negotiate.mockClear();
         onEventsReady.mockClear();
+        onRendererDiagnostic.mockClear();
         installWorkbenchIpc({
             isQuitting: () => false,
             logger: () => {},
             onEventsReady,
+            onRendererDiagnostic,
             renderer: () => renderer as never,
             transport: { dispatch, negotiate },
         });
@@ -75,6 +79,33 @@ describe('workbench IPC sender boundary', () => {
         expect(onEventsReady).not.toHaveBeenCalled();
         ready({ sender: renderer });
         expect(onEventsReady).toHaveBeenCalledOnce();
+    });
+
+    it('accepts only strict content-free diagnostics from the trusted workbench', () => {
+        const report = electronMock.listeners.get(RENDERER_DIAGNOSTIC_CHANNEL)!;
+        const diagnostic = {
+            kind: 'terminal-renderer',
+            diagnosticId: '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae',
+            terminalId: 'terminal-1',
+            mode: 'dom',
+            reason: 'context-loss',
+            trigger: 'webgl-context-loss',
+            preference: 'auto',
+            contextLossCount: 1,
+            redrawCount: 1,
+            paneActive: true,
+            terminalProcessRunning: true,
+            agentTerminal: true,
+            documentVisible: true,
+            documentFocused: true,
+            terminalFocused: false,
+        };
+
+        report({ sender: {} }, diagnostic);
+        report({ sender: renderer }, { ...diagnostic, terminalOutput: 'private' });
+        expect(onRendererDiagnostic).not.toHaveBeenCalled();
+        report({ sender: renderer }, diagnostic);
+        expect(onRendererDiagnostic).toHaveBeenCalledWith(diagnostic);
     });
 
     it('does not report an in-flight request failure after application shutdown begins', async () => {

@@ -18,7 +18,10 @@ export const logEventCatalog = {
         initializeFailed: 'agent_hooks.initialize_failed',
         lockFailed: 'agent_hooks.lock_failed',
         reconcileFailed: 'agent_hooks.reconcile_failed',
+        signalAccepted: 'agent_hooks.signal_accepted',
         signalFailed: 'agent_hooks.signal_failed',
+        signalIgnored: 'agent_hooks.signal_ignored',
+        signalRejected: 'agent_hooks.signal_rejected',
     },
     app: {
         childProcessGone: 'app.child_process_gone',
@@ -97,6 +100,11 @@ export const logEventCatalog = {
         uncaughtException: 'desktop.uncaught_exception',
         unhandledRejection: 'desktop.unhandled_rejection',
     },
+    gpu: {
+        processGone: 'gpu.process_gone',
+        snapshot: 'gpu.snapshot',
+        snapshotFailed: 'gpu.snapshot_failed',
+    },
     ipc: {
         request: 'ipc.request',
         requestFailed: 'ipc.request_failed',
@@ -146,6 +154,7 @@ export const logEventCatalog = {
         consoleError: 'renderer.console_error',
         pageException: 'renderer.page_exception',
         preloadError: 'renderer.preload_error',
+        terminalRendererStatus: 'renderer.terminal_renderer_status',
         unhandledRejection: 'renderer.unhandled_rejection',
     },
     serverConnection: {

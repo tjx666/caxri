@@ -36,7 +36,7 @@ afterEach(async () => {
 });
 
 describe('AgentHookManager', () => {
-    it('removes a stale hook socket left by a crashed Runtime for the same profile', async () => {
+    it('removes a stale hook socket left by a crashed Server Core for the same profile', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-stale-socket-'));
         temporaryDirectories.push(directory);
         const userDataPath = join(directory, 'profile');
@@ -271,12 +271,13 @@ describe('AgentHookManager', () => {
         const events: ServerEvent[] = [];
         const signals = vi.fn<(signal: AgentLifecycleSignal) => boolean>(() => true);
         const launches = vi.fn();
+        const logger = new StructuredLogger(join(directory, 'logs'), 'server-core', 'info');
         const manager = new AgentHookManager({
             environment: {
                 homeDirectory: directory,
                 variables: { CODEX_HOME: codexHome },
             },
-            logger: new StructuredLogger(join(directory, 'logs')),
+            logger,
             onAuthorityLost: vi.fn(),
             onLaunchEnded: vi.fn(),
             onLaunchStarted: launches,
@@ -294,6 +295,7 @@ describe('AgentHookManager', () => {
             expect(manager.getHealth().codex.kind).toBe('installedPending');
             const hooks = parseHooks(await readFile(join(codexHome, 'hooks.json'), 'utf8'));
             expect(hooks.UserPromptSubmit).toHaveLength(1);
+            expect(hooks.SessionStart).toHaveLength(1);
             expect(hooks.PermissionRequest).toHaveLength(1);
             expect(hooks.Stop).toHaveLength(1);
             expect(hooks.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
@@ -303,7 +305,7 @@ describe('AgentHookManager', () => {
             const environment = manager.terminalEnvironment('terminal-1', 'codex');
             expect(launches).toHaveBeenCalledWith('terminal-1', environment.CAXRI_HOOK_LAUNCH_ID);
             const bridge = join(directory, 'shared', 'bin', 'caxri-agent-hook-bridge');
-            await execFileAsync(
+            const rejected = await execFileAsync(
                 bridge,
                 [
                     '--source',
@@ -313,10 +315,17 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '4',
+                    '5',
                 ],
-                { env: { ...process.env, ...environment, CAXRI_HOOK_TOKEN: 'invalid' } },
+                {
+                    env: {
+                        ...process.env,
+                        ...environment,
+                        CAXRI_HOOK_TOKEN: 'test-token-never-log',
+                    },
+                },
             );
+            expect(rejected.stderr).toBe('caxri-hook: signal_rejected\n');
             expect(signals).not.toHaveBeenCalled();
             const result = await execFileAsync(
                 bridge,
@@ -328,7 +337,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '4',
+                    '5',
                     '--reply',
                     'empty-json',
                 ],
@@ -351,7 +360,7 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnStarted',
                     '--schema',
-                    '4',
+                    '5',
                 ],
                 { env: { ...process.env, ...environment } },
             );
@@ -364,6 +373,74 @@ describe('AgentHookManager', () => {
                 expect.objectContaining({ agentSessionId: 'codex-session-123' }),
             );
             expect(signals.mock.calls.at(-1)?.[0]).not.toHaveProperty('prompt');
+
+            await execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'codex',
+                    '--phase',
+                    'turnStarted',
+                    '--schema',
+                    '5',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(3));
+
+            signals.mockReturnValueOnce(false);
+            const ignored = await execFileAsync(
+                bridge,
+                [
+                    '--source',
+                    'caxri',
+                    '--provider',
+                    'codex',
+                    '--phase',
+                    'sessionIdentified',
+                    '--schema',
+                    '5',
+                ],
+                { env: { ...process.env, ...environment } },
+            );
+            expect(ignored.stderr).toBe('');
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledTimes(4));
+
+            await logger.flush();
+            const logSource = await readFile(join(directory, 'logs', 'server-core.jsonl'), 'utf8');
+            const logRecords = logSource
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as Record<string, unknown>);
+            const rejectedLog = logRecords.find(
+                (record) => record.event === 'agent_hooks.signal_rejected',
+            );
+            const acceptedLogs = logRecords.filter(
+                (record) => record.event === 'agent_hooks.signal_accepted',
+            );
+            const acceptedIdentityLog = acceptedLogs.find(
+                (record) =>
+                    (record.fields as Record<string, unknown> | undefined)?.hasAgentSessionId ===
+                    true,
+            );
+            const ignoredLog = logRecords.find(
+                (record) => record.event === 'agent_hooks.signal_ignored',
+            );
+            expect(rejectedLog).toMatchObject({
+                fields: { reason: 'unknownToken', stage: 'serverCore' },
+            });
+            expect(acceptedIdentityLog).toMatchObject({
+                fields: { hasAgentSessionId: true, stage: 'serverCore' },
+            });
+            expect(acceptedLogs).toHaveLength(3);
+            expect(ignoredLog).toMatchObject({
+                fields: { phase: 'sessionIdentified', stage: 'serverCore' },
+            });
+            expect(logSource).not.toContain('test-token-never-log');
+            expect(logSource).not.toContain('codex-session-123');
+            expect(logSource).not.toContain('never forwarded');
 
             await writeFile(join(codexHome, 'hooks.json'), '{}\n', 'utf8');
             await manager.reconcile(settings);
@@ -386,11 +463,11 @@ describe('AgentHookManager', () => {
                     '--phase',
                     'turnFinished',
                     '--schema',
-                    '4',
+                    '5',
                 ],
                 { env: { ...process.env, ...environment } },
             );
-            expect(signals).toHaveBeenCalledTimes(2);
+            expect(signals).toHaveBeenCalledTimes(4);
             expect(events.some((event) => event.event === 'agentHooks.changed')).toBe(true);
         } finally {
             await manager.close();
@@ -528,7 +605,7 @@ describe('AgentHookManager', () => {
                                 {
                                     type: 'command',
                                     command:
-                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 5",
+                                        "'/newer/bridge' --source caxri --provider codex --phase turnFinished --schema 6",
                                     timeout: 1,
                                 },
                             ],

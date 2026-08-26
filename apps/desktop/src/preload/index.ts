@@ -18,6 +18,11 @@ import { contextBridge, ipcRenderer } from 'electron';
  */
 const rendererErrorChannel = 'caxri:renderer-error';
 /**
+ * Kept entry-local for the same sandboxed-preload chunking reason as `rendererErrorChannel`; the browser-safe protocol
+ * owns the matching payload schema and Main validates every report before logging it.
+ */
+const rendererDiagnosticChannel = 'caxri:renderer-diagnostic';
+/**
  * Electron's sandbox exposes its limited `process` global but cannot load `node:process`; importing that module makes
  * the entire CommonJS preload fail before the bridge is installed.
  */
@@ -77,6 +82,7 @@ const bridge: CaxriBridge = {
         })) as ProtocolWelcome,
     request,
     requestWithId,
+    reportDiagnostic: (diagnostic) => ipcRenderer.send(rendererDiagnosticChannel, diagnostic),
     reportError: (kind) => ipcRenderer.send(rendererErrorChannel, kind),
     onEvent: (listener: (event: ServerEvent) => void): (() => void) => {
         eventListeners.add(listener);

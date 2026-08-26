@@ -18,6 +18,22 @@ async function readPackageManifest(...segments: string[]): Promise<ReleaseManife
 }
 
 describe('workspace package manifests', () => {
+    it('keeps product-coupled workspace versions aligned with the Desktop release', async () => {
+        const productManifest = await readPackageManifest('package.json');
+        const coupledManifests = await Promise.all(
+            [
+                ['apps', 'cli', 'package.json'],
+                ['apps', 'desktop', 'package.json'],
+                ['apps', 'server', 'package.json'],
+                ['packages', 'agent-skills', 'package.json'],
+                ['packages', 'client', 'package.json'],
+            ].map((segments) => readPackageManifest(...segments)),
+        );
+
+        for (const manifest of coupledManifests)
+            expect(manifest.version).toBe(productManifest.version);
+    });
+
     it('keeps the public extension API version aligned with the Desktop release', async () => {
         const [appManifestText, apiManifestText] = await Promise.all([
             readFile(join(workspaceRoot, 'package.json'), 'utf8'),
@@ -91,9 +107,21 @@ describe('workspace package manifests', () => {
         }
     });
 
+    it('keeps release version preparation aligned with current extension workspaces', async () => {
+        const instructions = await readFile(join(workspaceRoot, 'RELEASING.md'), 'utf8');
+
+        expect(instructions).toContain('for extension in fixture git status; do');
+        expect(instructions).toContain('extensions/{fixture,git,status}/package.json');
+        expect(instructions).not.toContain('extensions/{files,');
+    });
+
     it('keeps Files in Workbench Core instead of an extension workspace', async () => {
-        const filesExtensionRoot = join(workspaceRoot, 'extensions', 'files');
-        await expect(access(filesExtensionRoot)).rejects.toMatchObject({
+        /**
+         * Workspace identity comes from the manifest. Ignored build output may outlive the removed Files extension on a
+         * developer machine and must not make the current source tree look like it still declares that workspace.
+         */
+        const filesExtensionManifest = join(workspaceRoot, 'extensions', 'files', 'package.json');
+        await expect(access(filesExtensionManifest)).rejects.toMatchObject({
             code: 'ENOENT',
         });
     });

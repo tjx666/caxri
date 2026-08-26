@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import type { AppSettings, BootstrapState } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
@@ -16,6 +17,122 @@ import {
     pressNewTerminal,
     typeTerminal,
 } from './support/helpers.ts';
+
+function sqliteString(value: string): string {
+    return `'${value.replaceAll("'", "''")}'`;
+}
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
+test('Codex SessionStart binds a resumed thread before the first ordinary prompt', async ({}, testInfo) => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-resume-title-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const state = join(userData, 'e2e-agents', 'codex');
+    const database = join(state, 'state_9.sqlite');
+    await Promise.all([mkdir(root, { recursive: true }), mkdir(state, { recursive: true })]);
+    const canonicalRoot = await realpath(root);
+    const resumedTitle = 'Resume hook restores this title';
+    await execFileAsync('sqlite3', [
+        database,
+        `CREATE TABLE threads (
+            id TEXT PRIMARY KEY,
+            cwd TEXT,
+            title TEXT,
+            created_at_ms INTEGER,
+            updated_at_ms INTEGER,
+            tokens_used INTEGER,
+            archived INTEGER
+        );
+        INSERT INTO threads VALUES (
+            'resumed-codex-session',
+            ${sqliteString(canonicalRoot)},
+            ${sqliteString(resumedTitle)},
+            ${Date.now() - 60_000},
+            ${Date.now() - 60_000},
+            0,
+            0
+        );`,
+    ]);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            codex: {
+                executableSource: String.raw`#!${process.execPath}
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+if (process.argv.includes('--version')) {
+  process.stdout.write('codex 0.149.1\n');
+  process.exit(0);
+}
+const hooks = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));
+const group = hooks.hooks.SessionStart[0];
+childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
+  env: process.env,
+  input: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'resumed-codex-session', source: 'resume' }),
+  stdio: ['pipe', 'pipe', 'inherit'],
+});
+process.stdout.write('Resume hook invoked\r\n');
+process.stdin.resume();
+`,
+            },
+        },
+    });
+    const running = await launchCaxri({
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+        env: { CAXRI_E2E_AGENT_HOOKS: '1' },
+    });
+
+    try {
+        const currentSettings = await pageRequest<{ value: AppSettings }>(
+            running.page,
+            'settings.get',
+        );
+        const settings = structuredClone(currentSettings.value);
+        settings['agents.providers'].codex.hooks.enabled = true;
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify(settings, null, 2),
+        });
+        await expect
+            .poll(async () => readFile(join(state, 'hooks.json'), 'utf8'))
+            .toContain('SessionStart');
+
+        await openAddProjectDialog(running.page);
+        await running.page.getByRole('dialog').getByRole('button', { name: 'Codex' }).click();
+        await expect(running.page.locator('.xterm-rows')).toContainText('Resume hook invoked');
+        await expect(running.page.locator('.xterm-rows')).not.toContainText('caxri-hook:');
+        await expect(running.page.locator('.session-card strong')).toHaveText(resumedTitle);
+        await expect(
+            running.page.getByRole('tab', { name: resumedTitle, exact: true }),
+        ).toBeVisible();
+
+        const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+        expect(bootstrap.terminals.at(0)).toMatchObject({
+            agentSessionId: 'resumed-codex-session',
+            title: resumedTitle,
+        });
+        const serverCoreLogPath = join(userData, 'logs', 'server-core.jsonl');
+        await expect
+            .poll(async () => readFile(serverCoreLogPath, 'utf8'))
+            .toContain('agent_hooks.signal_accepted');
+        const serverCoreLog = await readFile(serverCoreLogPath, 'utf8');
+        expect(serverCoreLog).toContain('agent_hooks.signal_accepted');
+        expect(serverCoreLog).toContain('sessionIdentified');
+        expect(serverCoreLog).not.toContain('resumed-codex-session');
+        await running.page.screenshot({
+            path: testInfo.outputPath('codex-resume-titles.png'),
+        });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
 
 test('Agent output refreshes the Session title without opening Info', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-title-e2e-'));
