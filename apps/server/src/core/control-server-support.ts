@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import type {
     CommandDispatcherOptions,
     CommandExecutionContext,
@@ -7,6 +9,7 @@ import type {
     LocalClientCommand,
     LocalServerReply,
     LogEventName,
+    ProtocolFeature,
     ServerDesktopCredential,
     ServerManifestIdentity,
     ServerOperationRequest,
@@ -20,7 +23,10 @@ import {
 } from '@caxri/protocol';
 import type { LogRecord } from '@caxri/system';
 import { isSecretMatch, logEventCatalog } from '@caxri/system';
+import type { RawData } from 'ws';
 import WebSocket from 'ws';
+
+import type { BinaryStreamControlOptions } from './binary-stream-control';
 
 export const MAX_IN_FLIGHT_REQUESTS = 64;
 /**
@@ -30,6 +36,31 @@ export const MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS = 48;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
 export const DESKTOP_LEASE_MS = 60_000;
 export const DESKTOP_COMMAND_TIMEOUT_MS = 15_000;
+
+export function controlMessageText(data: RawData): string {
+    if (Buffer.isBuffer(data)) return data.toString('utf8');
+    if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
+    return Buffer.concat(data).toString('utf8');
+}
+
+export function trackControlRequest(state: ClientState, id: string): void {
+    state.inFlightRequestIds.set(id, (state.inFlightRequestIds.get(id) ?? 0) + 1);
+}
+
+export function untrackControlRequest(state: ClientState, id: string): void {
+    const count = state.inFlightRequestIds.get(id);
+    if (!count || count === 1) state.inFlightRequestIds.delete(id);
+    else state.inFlightRequestIds.set(id, count - 1);
+}
+
+export function controlCapacityReply(id: string): CommandReplyEnvelope {
+    return {
+        protocolVersion: CAXRI_PROTOCOL_VERSION,
+        id,
+        ok: false,
+        error: toWireError(new CaxriError('CAPACITY', 'Too many requests are in flight')),
+    };
+}
 
 /**
  * Queue metadata captured before an authenticated frame enters the ordered admission lane.
@@ -187,12 +218,14 @@ export async function executeReply(
 
 export interface ClientState {
     closed: boolean;
+    commands: readonly string[];
     context: CommandExecutionContext;
     desktopLease?: DesktopLease;
     desktopReady: boolean;
     inFlightRequestIds: Map<string, number>;
     inFlightRequests: number;
     inFlightTerminalRequests: number;
+    features: readonly ProtocolFeature[];
     leaseTimer?: NodeJS.Timeout;
     socket: WebSocket;
 }
@@ -265,6 +298,7 @@ export interface ControlServerOptions {
      */
     logger?: ControlRequestLogSink;
     identity: ServerManifestIdentity;
+    handleBinaryStream?: BinaryStreamControlOptions['handleClaim'];
     /**
      * Durable identity loaded from the domain persistence port. Legacy transport tests that negotiate no A4 feature may
      * omit it; production must provide it before advertising durable recovery.

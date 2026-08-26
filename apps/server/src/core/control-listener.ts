@@ -1,8 +1,12 @@
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import { createServer } from 'node:http';
 
 import type { ServerControlEndpoint, ServerManifestIdentity } from '@caxri/protocol';
-import { CaxriError, CONTROL_TRANSPORT_MAX_FRAME_BYTES } from '@caxri/protocol';
+import {
+    BINARY_STREAM_MAX_FRAME_BYTES,
+    CaxriError,
+    CONTROL_TRANSPORT_MAX_FRAME_BYTES,
+} from '@caxri/protocol';
 import type WebSocket from 'ws';
 import { WebSocketServer } from 'ws';
 
@@ -11,7 +15,7 @@ import { fileSystemCode } from './control-server-support';
 export interface ControlListener {
     endpoint: ServerControlEndpoint;
     server: Server;
-    webSocketServer: WebSocketServer;
+    webSocketServers: readonly WebSocketServer[];
 }
 
 /**
@@ -21,6 +25,7 @@ export interface ControlListener {
 export async function listenForControlConnections(options: {
     identity: ServerManifestIdentity;
     onConnection(connection: WebSocket): void;
+    onStreamConnection(connection: WebSocket, request: IncomingMessage): void;
 }): Promise<ControlListener> {
     const server = createServer((request, response) => {
         if (request.method === 'GET' && request.url === '/healthz') {
@@ -37,12 +42,22 @@ export async function listenForControlConnections(options: {
         response.writeHead(404);
         response.end();
     });
-    const webSocketServer = new WebSocketServer({
+    const controlWebSocketServer = new WebSocketServer({
         maxPayload: CONTROL_TRANSPORT_MAX_FRAME_BYTES,
         noServer: true,
     });
+    const streamWebSocketServer = new WebSocketServer({
+        maxPayload: BINARY_STREAM_MAX_FRAME_BYTES,
+        noServer: true,
+    });
     server.on('upgrade', (request, socket, head) => {
-        if (request.url !== '/control') {
+        const webSocketServer =
+            request.url === '/control'
+                ? controlWebSocketServer
+                : request.url === '/stream'
+                  ? streamWebSocketServer
+                  : undefined;
+        if (!webSocketServer) {
             socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
             return;
         }
@@ -50,7 +65,10 @@ export async function listenForControlConnections(options: {
             webSocketServer.emit('connection', connection, request);
         });
     });
-    webSocketServer.on('connection', (connection) => options.onConnection(connection));
+    controlWebSocketServer.on('connection', (connection) => options.onConnection(connection));
+    streamWebSocketServer.on('connection', (connection, request) =>
+        options.onStreamConnection(connection, request),
+    );
     try {
         await new Promise<void>((resolve, reject) => {
             const onError = (error: Error): void => reject(error);
@@ -71,10 +89,11 @@ export async function listenForControlConnections(options: {
                 path: '/control',
             },
             server,
-            webSocketServer,
+            webSocketServers: [controlWebSocketServer, streamWebSocketServer],
         };
     } catch (error) {
-        webSocketServer.close();
+        controlWebSocketServer.close();
+        streamWebSocketServer.close();
         if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
         if (error instanceof CaxriError) throw error;
         if (fileSystemCode(error) === 'EADDRINUSE')

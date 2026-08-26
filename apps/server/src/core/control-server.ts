@@ -38,9 +38,10 @@ import {
     parseServerOperationRequest,
     toWireError,
 } from '@caxri/protocol';
-import type { RawData, WebSocketServer } from 'ws';
+import type { WebSocketServer } from 'ws';
 import WebSocket from 'ws';
 
+import { BinaryStreamControl } from './binary-stream-control';
 import { listenForControlConnections } from './control-listener';
 import type {
     ClientState,
@@ -52,6 +53,8 @@ import type {
 import {
     assertDurableRecoveryIdentity,
     closeReplacedDesktop,
+    controlCapacityReply,
+    controlMessageText,
     DESKTOP_COMMAND_TIMEOUT_MS,
     DESKTOP_LEASE_MS,
     executeReply,
@@ -63,20 +66,17 @@ import {
     MAX_NON_TERMINAL_IN_FLIGHT_REQUESTS,
     operatorContext,
     shouldSettleOutsideOrderedLane,
+    trackControlRequest,
+    untrackControlRequest,
 } from './control-server-support';
 
 export type { ControlServerOptions } from './control-server-support';
-
-function controlMessageText(data: RawData): string {
-    if (Buffer.isBuffer(data)) return data.toString('utf8');
-    if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
-    return Buffer.concat(data).toString('utf8');
-}
 
 /**
  * Authenticated, profile-scoped WebSocket adapter for Desktop, Agent, and human CLI clients.
  */
 export class ControlServer {
+    private readonly binaryStreams: BinaryStreamControl;
     private readonly clients = new Map<WebSocket, ClientState>();
     private readonly sockets = new Set<WebSocket>();
     private readonly dispatch: CommandDispatcher;
@@ -86,11 +86,12 @@ export class ControlServer {
     private desktopGeneration = 0;
     private endpoint?: ServerControlEndpoint;
     private server?: Server;
-    private webSocketServer?: WebSocketServer;
+    private webSocketServers: readonly WebSocketServer[] = [];
 
     constructor(private readonly options: ControlServerOptions) {
         assertDurableRecoveryIdentity(options);
         this.dispatch = createCommandDispatcher(options.adapters);
+        this.binaryStreams = new BinaryStreamControl({ handleClaim: options.handleBinaryStream });
     }
 
     private settleDesktopReply(state: ClientState, raw: unknown): boolean {
@@ -125,6 +126,8 @@ export class ControlServer {
     private revokeDesktop(state: ClientState, shouldNotifyUnavailable = true): void {
         if (state.leaseTimer) clearTimeout(state.leaseTimer);
         state.leaseTimer = undefined;
+        const connectionId = state.context.connection?.connectionId;
+        if (connectionId) this.binaryStreams.revokeConnection(connectionId, 'stale-generation');
         this.rejectDesktopCommands(state);
         this.clients.delete(state.socket);
         const wasCurrent = this.currentDesktop === state;
@@ -172,25 +175,6 @@ export class ControlServer {
         };
     }
 
-    private trackRequest(state: ClientState, id: string): void {
-        state.inFlightRequestIds.set(id, (state.inFlightRequestIds.get(id) ?? 0) + 1);
-    }
-
-    private untrackRequest(state: ClientState, id: string): void {
-        const count = state.inFlightRequestIds.get(id);
-        if (!count || count === 1) state.inFlightRequestIds.delete(id);
-        else state.inFlightRequestIds.set(id, count - 1);
-    }
-
-    private capacityReply(id: string): CommandReplyEnvelope {
-        return {
-            protocolVersion: CAXRI_PROTOCOL_VERSION,
-            id,
-            ok: false,
-            error: toWireError(new CaxriError('CAPACITY', 'Too many requests are in flight')),
-        };
-    }
-
     private writeCommandReply(
         socket: WebSocket,
         state: ClientState,
@@ -201,13 +185,13 @@ export class ControlServer {
     ): void {
         if (this.options.shouldDropCommandReply?.(request, reply, context)) {
             release();
-            this.untrackRequest(state, request.id);
+            untrackControlRequest(state, request.id);
             socket.terminate();
             return;
         }
         this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }), () => {
             release();
-            this.untrackRequest(state, request.id);
+            untrackControlRequest(state, request.id);
             this.options.onReplyFlushed?.(request, reply, context);
         });
     }
@@ -224,7 +208,7 @@ export class ControlServer {
             request.method === 'terminal.input' || request.method === 'terminal.resize';
         const release = this.reserveRequest(state, isTerminalHotPath);
         if (!release) {
-            const reply = this.capacityReply(request.id);
+            const reply = controlCapacityReply(request.id);
             logControlRequestOutcome(
                 this.options,
                 request,
@@ -236,7 +220,7 @@ export class ControlServer {
             this.write(socket, localServerReplySchema.parse({ type: 'reply', reply }));
             return;
         }
-        this.trackRequest(state, request.id);
+        trackControlRequest(state, request.id);
         let context: CommandExecutionContext;
         try {
             const refreshed = this.options.refreshContext?.(state.context) ?? state.context;
@@ -306,7 +290,7 @@ export class ControlServer {
                       parseServerOperationRequest(request.method, request.params),
                   );
               })
-            : this.capacityReply(request.id);
+            : controlCapacityReply(request.id);
         logControlRequestOutcome(this.options, request, reply, state.context, startedAt, timing);
         this.write(
             socket,
@@ -336,7 +320,7 @@ export class ControlServer {
                       throw new CaxriError('UNAVAILABLE', 'Desktop target bridge is unavailable');
                   return this.options.consumeDesktopTarget(request.targetId, request.generation);
               })
-            : this.capacityReply(request.id);
+            : controlCapacityReply(request.id);
         this.write(
             socket,
             localServerDesktopTargetReplySchema.parse({
@@ -358,6 +342,9 @@ export class ControlServer {
             clearTimeout(handshakeTimer);
             this.sockets.delete(socket);
             if (!state) return;
+            const connectionId = state.context.connection?.connectionId;
+            if (connectionId)
+                this.binaryStreams.revokeConnection(connectionId, 'server-unavailable');
             for (const requestId of state.inFlightRequestIds.keys())
                 this.options.onRequestDisconnected?.(requestId, state.context);
             state.inFlightRequestIds.clear();
@@ -427,6 +414,11 @@ export class ControlServer {
                 } catch {
                     socket.terminate();
                 }
+                return;
+            }
+            const streamTicket = state ? this.binaryStreams.issue(state, raw) : undefined;
+            if (streamTicket) {
+                this.write(socket, streamTicket);
                 return;
             }
             /**
@@ -550,21 +542,29 @@ export class ControlServer {
                             connectionId: randomUUID().replaceAll('-', ''),
                         };
                         context = { ...context, connection };
-                        state = {
+                        const welcome = createProtocolWelcome(
+                            this.options.adapters,
+                            hello,
+                            context,
+                        );
+                        const nextState: ClientState = {
                             closed: false,
+                            commands: welcome.commands,
                             context,
                             desktopLease,
                             desktopReady: false,
                             inFlightRequestIds: new Map(),
                             inFlightRequests: 0,
                             inFlightTerminalRequests: 0,
+                            features: welcome.features ?? [],
                             socket,
                         };
+                        state = nextState;
                         clearTimeout(handshakeTimer);
-                        this.clients.set(socket, state);
+                        this.clients.set(socket, nextState);
                         if (desktopLease) {
-                            this.currentDesktop = state;
-                            this.renewDesktop(state);
+                            this.currentDesktop = nextState;
+                            this.renewDesktop(nextState);
                         }
                         this.options.onClientCountChanged?.(this.clients.size);
                         this.write(
@@ -573,12 +573,8 @@ export class ControlServer {
                                 type: 'welcome',
                                 profileId: identity.profileId,
                                 processIdentity: identity.processIdentity,
-                                ...(desktopLease && { desktopLease: state.desktopLease }),
-                                ...createProtocolWelcome(
-                                    this.options.adapters,
-                                    hello,
-                                    state.context,
-                                ),
+                                ...(desktopLease && { desktopLease: nextState.desktopLease }),
+                                ...welcome,
                             }),
                         );
                         return;
@@ -733,9 +729,11 @@ export class ControlServer {
         const listener = await listenForControlConnections({
             identity: this.options.identity,
             onConnection: (connection) => this.accept(connection),
+            onStreamConnection: (connection, request) =>
+                this.binaryStreams.accept(connection, request),
         });
         this.server = listener.server;
-        this.webSocketServer = listener.webSocketServer;
+        this.webSocketServers = listener.webSocketServers;
         this.endpoint = listener.endpoint;
         return listener.endpoint;
     }
@@ -783,6 +781,7 @@ export class ControlServer {
             waiter.reject(new CaxriError('UNAVAILABLE', 'Host transport is closing'));
         }
         this.desktopLeaseWaiters.clear();
+        this.binaryStreams.close();
         for (const socket of this.sockets) socket.terminate();
         this.sockets.clear();
         this.clients.clear();
@@ -792,8 +791,8 @@ export class ControlServer {
         const server = this.server;
         this.server = undefined;
         if (server?.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
-        this.webSocketServer?.close();
-        this.webSocketServer = undefined;
+        for (const webSocketServer of this.webSocketServers) webSocketServer.close();
+        this.webSocketServers = [];
         this.endpoint = undefined;
     }
 }
