@@ -18,7 +18,12 @@ const nativeDesktopDependencies = ['@parcel/watcher', 'better-sqlite3', 'electro
 
 interface PackageManifest {
     bin?: unknown;
-    build?: { extraMetadata?: { main?: string; name?: string }; files?: string[] };
+    build?: {
+        asarUnpack?: string[];
+        extraMetadata?: { main?: string; name?: string };
+        extraResources?: Array<{ from?: string; to?: string }>;
+        files?: string[];
+    };
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
     files?: string[];
@@ -305,7 +310,7 @@ describe('pnpm workspace contract', () => {
             "pnpm --recursive --filter './apps/*' --filter './packages/*' run test",
         );
         expect(rootManifest.scripts?.['build:workspaces']).toBe(
-            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --if-present run build",
+            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build && pnpm --filter @caxri/server run build",
         );
         expect(rootManifest.scripts?.['link:cli']).toBe(
             'bun run build:cli && bun run apps/cli/scripts/link-global.ts',
@@ -328,7 +333,7 @@ describe('pnpm workspace contract', () => {
             version: rootManifest.version,
         });
         expect(serverManifest).toMatchObject({
-            main: '../../out/main/host.js',
+            main: 'dist/server/bundles/host.js',
             name: '@caxri/server',
             private: true,
             version: rootManifest.version,
@@ -414,17 +419,19 @@ const requiredProtocol = require('@caxri/protocol');
         expect(violations).toEqual([]);
     });
 
-    it('keeps root production dependencies limited to packaged Desktop runtime modules', () => {
-        /**
-         * Electron-builder copies the production dependency tree into the asar. Native modules must remain external,
-         * while `ws` is intentionally externalized by electron-vite for both Main and the standalone Host entry.
-         * Workspace links and all other pure-JS dependencies stay bundled. See docs/bundle-size.md.
-         */
-        expect(
-            Object.keys(rootManifest.dependencies ?? {}).toSorted((left, right) =>
-                left.localeCompare(right),
-            ),
-        ).toEqual(['@parcel/watcher', 'better-sqlite3', 'node-pty', 'ws']);
+    it('keeps the root private orchestrator free of product runtime dependencies', () => {
+        expect(rootManifest.dependencies).toBeUndefined();
+        expect(rootManifest.build?.asarUnpack).toBeUndefined();
+        expect(rootManifest.build?.extraResources).toContainEqual({
+            from: 'apps/server/dist/server',
+            to: 'server',
+        });
+        expect(rootManifest.devDependencies).toMatchObject({
+            '@parcel/watcher': '2.5.6',
+            'better-sqlite3': '13.0.2',
+            'node-pty': '1.1.0',
+            'ws': 'catalog:',
+        });
     });
 
     it('keeps generated workspace distributions outside source linting', async () => {

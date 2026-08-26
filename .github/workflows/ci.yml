@@ -160,7 +160,6 @@ jobs:
           setup-toolchain: 'true'
           install-dependencies: 'true'
           install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}
-          rebuild-native: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}
       - name: Run focused changed-file checks
         if: needs.retry-policy.outputs.checks_scope != 'full'
         env:
@@ -278,7 +277,6 @@ jobs:
           setup-toolchain: 'true'
           install-dependencies: 'true'
           install-electron: 'true'
-          rebuild-native: 'true'
       - name: Report E2E runner route
         run: |
           {
@@ -363,12 +361,6 @@ jobs:
           needs.retry-policy.outputs.checks_scope == 'full' &&
           needs.retry-policy.outputs.e2e_profile == 'optimized'
         run: bun run scripts/ci-concurrent-validation.ts verify desktop-exclusive
-      - name: Verify Electron native modules
-        if: >-
-          needs.retry-policy.outputs.mode != 'full' ||
-          needs.retry-policy.outputs.checks_scope != 'full' ||
-          needs.retry-policy.outputs.e2e_profile != 'optimized'
-        run: bun run scripts/ci-metrics.ts --label "Electron native compatibility" -- bun run spike:native
       - name: Build Electron bundles
         id: e2e-build
         if: >-
@@ -376,6 +368,9 @@ jobs:
           needs.retry-policy.outputs.checks_scope != 'full' ||
           needs.retry-policy.outputs.e2e_profile != 'optimized'
         run: bun run scripts/ci-metrics.ts --label "Electron Vite build" -- bun run build
+      - name: Verify Server artifact native modules
+        if: always() && steps.e2e-build.outcome == 'success'
+        run: bun run scripts/ci-metrics.ts --label "Server artifact native compatibility" -- bun run spike:native
       - name: Run focused repair specs
         id: focused-repair
         if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.mode == 'e2e-repair'

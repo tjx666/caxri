@@ -1,4 +1,4 @@
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 
 import type { HostConnectionState, RecoveringEventClient } from '@caxri/client';
@@ -8,7 +8,7 @@ import {
     transitionHostConnection,
 } from '@caxri/client';
 import type { HostClient } from '@caxri/client/supervise';
-import { connectDesktopToHost, ensureHost } from '@caxri/client/supervise';
+import { connectDesktopToHost, ensureHost, resolveServerArtifact } from '@caxri/client/supervise';
 import type {
     CaxriMethod,
     DesktopLeaseRevocationReason,
@@ -52,9 +52,9 @@ export interface DesktopHostConnectionOptions {
     agentHooksPath?: string;
     /**
      * This Desktop build's commit/version identity, compared against `host.status` to replace a detached Host still
-     * running an older build. The `buildId` half is never passed in: it is a content fingerprint of the on-disk
-     * `host.js`/`runtime.js` bundles computed per connection attempt (see `computeBuildFingerprint`), because a
-     * build-time identifier baked into the window bundle diverges from the Host bundle under electron-vite dev.
+     * running an older build. The `buildId` half is never passed in: it is a content fingerprint of the on-disk Server
+     * artifact bundles computed per connection attempt (see `computeBuildFingerprint`), because a build-time identifier
+     * baked into the window bundle diverges from the Server artifact during development.
      */
     buildIdentity: HostBuildIdentity;
     /**
@@ -68,6 +68,7 @@ export interface DesktopHostConnectionOptions {
     e2eAgentPolicy?: E2EAgentPolicy;
     handleCommand: DesktopCommandHandler;
     logger: StructuredLogger;
+    serverArtifactRoot: string;
     userDataPath: string;
 }
 
@@ -196,16 +197,16 @@ export class DesktopHostConnection extends EventTarget {
     private async attachToCurrentHost(isFinalAttempt = false): Promise<string | undefined> {
         // Recomputed per attempt: a watch rebuild may have replaced the bundles since the last connect, and the
         // freshly spawned replacement Host reads the same bytes, so both sides agree by construction.
+        const artifact = await resolveServerArtifact(this.options.serverArtifactRoot);
         const desktopBuildId = await (this.options.computeBuildId ?? computeBuildFingerprint)(
-            this.options.currentDirectory,
+            artifact.bundleDirectory,
         );
         const buildIdentity: HostBuildIdentity = {
             ...this.options.buildIdentity,
             buildId: desktopBuildId,
         };
         const operator = await ensureHost(this.options.userDataPath, {
-            executable: process.execPath,
-            entryPath: join(this.options.currentDirectory, 'host.js'),
+            artifactRoot: artifact.rootPath,
             environment: {
                 [HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY]: JSON.stringify(this.options.desktopLaunch),
                 ...e2eAgentPolicyEnvironment(this.options.e2eAgentPolicy),

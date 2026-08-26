@@ -31,6 +31,7 @@
         "test:api": "pnpm --filter caxri run test",
         "test:protocol": "pnpm --filter @caxri/protocol run test",
         "test:cli": "pnpm --filter @caxri/cli run test",
+        "test:server-artifact": "bun run scripts/smoke-server-artifact.ts",
         "test:watch": "vitest",
         "refactor:parity": "bun run scripts/refactor-parity.ts",
         "test:e2e": "bun run build && playwright test",
@@ -39,7 +40,7 @@
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
         "build": "bun run build:workspaces && bun run build:desktop",
-        "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --if-present run build",
+        "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build && pnpm --filter @caxri/server run build",
         "build:api": "pnpm --filter caxri run build",
         "build:protocol": "pnpm --filter @caxri/protocol run build",
         "build:cli": "pnpm --filter @caxri/cli run build",
@@ -52,9 +53,7 @@
         "package": "bun run build && electron-builder --mac dir",
         "package:e2e": "bun run build && bun run scripts/package-extension-test-app.ts",
         "package:dmg": "bun run build && electron-builder --mac dmg --publish never",
-        "postinstall": "electron-rebuild --only better-sqlite3,node-pty --parallel",
         "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
-        "rebuild": "electron-rebuild --only better-sqlite3,node-pty --parallel",
         "spike:native": "bun run scripts/native-spike.ts",
         "spike:pty": "bun run scripts/pty-spike.ts",
         "spike:agents": "bun run scripts/agent-discovery-spike.ts"
@@ -172,19 +171,13 @@
             }
         }
     },
-    "dependencies": {
-        "@parcel/watcher": "2.5.6",
-        "better-sqlite3": "13.0.2",
-        "node-pty": "1.1.0",
-        "ws": "catalog:"
-    },
     "devDependencies": {
         "@caxri/client": "workspace:*",
         "@caxri/protocol": "workspace:*",
         "@caxri/system": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",
-        "@electron/rebuild": "4.2.0",
+        "@parcel/watcher": "2.5.6",
         "@playwright/test": "1.62.1",
         "@rolldown/plugin-babel": "0.2.3",
         "@tailwindcss/vite": "4.3.3",
@@ -199,6 +192,7 @@
         "@yutengjing/eslint-config-typescript": "catalog:",
         "@yutengjing/prettier-config": "catalog:",
         "babel-plugin-react-compiler": "1.0.0",
+        "better-sqlite3": "13.0.2",
         "caxri": "workspace:*",
         "class-variance-authority": "0.7.1",
         "clsx": "2.1.1",
@@ -218,6 +212,7 @@
         "markdownlint": "catalog:",
         "markdownlint-cli2": "catalog:",
         "motion": "13.0.0",
+        "node-pty": "1.1.0",
         "oxlint": "catalog:",
         "oxlint-tsgolint": "catalog:",
         "playwright": "1.62.1",
@@ -235,6 +230,7 @@
         "typescript": "npm:@typescript/typescript6@6.0.2",
         "vite": "8.2.0",
         "vitest": "4.1.10",
+        "ws": "catalog:",
         "yaml": "2.9.0",
         "zod": "catalog:",
         "zustand": "5.0.14"
@@ -253,12 +249,6 @@
             "output": "release.noindex"
         },
         "asar": true,
-        "asarUnpack": [
-            "node_modules/@parcel/watcher/**",
-            "node_modules/@parcel/watcher-*/**",
-            "node_modules/better-sqlite3/**",
-            "node_modules/node-pty/**"
-        ],
         "extraResources": [
             {
                 "from": "apps/cli/dist/caxri.cjs",
@@ -269,22 +259,8 @@
                 "to": "bin/caxri"
             },
             {
-                "from": "extensions/git",
-                "to": "extensions/git",
-                "filter": [
-                    "package.json",
-                    "dist/**",
-                    "media/**"
-                ]
-            },
-            {
-                "from": "extensions/status",
-                "to": "extensions/status",
-                "filter": [
-                    "package.json",
-                    "dist/**",
-                    "media/**"
-                ]
+                "from": "apps/server/dist/server",
+                "to": "server"
             }
         ],
         "files": [
@@ -292,11 +268,7 @@
             "package.json",
             "THIRD_PARTY_NOTICES.md",
             "licenses/**",
-            "!**/*.map",
-            "!node_modules/better-sqlite3/{deps,src}{,/**}",
-            "!node_modules/better-sqlite3/prebuilds/{linux,linuxmusl,win32}-*.node",
-            "!node_modules/node-pty/{deps,src,scripts,third_party}{,/**}",
-            "!node_modules/node-pty/prebuilds/win32-*{,/**}"
+            "!**/*.map"
         ],
         "electronLanguages": [
             "en",

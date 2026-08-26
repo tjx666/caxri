@@ -14,10 +14,6 @@ inputs:
     description: Install the Electron binary after dependency installation.
     required: false
     default: 'false'
-  rebuild-native:
-    description: Rebuild Electron native modules after dependency installation.
-    required: false
-    default: 'false'
 
 outputs:
   prepared:
@@ -162,8 +158,3 @@ runs:
       if: inputs.install-electron == 'true'
       shell: bash
       run: bun run scripts/ci-metrics.ts --label "Electron download" -- pnpm rebuild electron
-
-    - name: Rebuild Electron native modules
-      if: inputs.rebuild-native == 'true'
-      shell: bash
-      run: bun run scripts/ci-metrics.ts --label "Electron native rebuild" -- bun run rebuild

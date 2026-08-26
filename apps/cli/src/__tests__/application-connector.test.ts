@@ -31,7 +31,7 @@ describe('CLI Host connector', () => {
             const connect = createCliHostConnector({
                 automation,
                 connectExisting,
-                hostLaunch: { executable: '/Applications/Caxri', entryPath: '/app/host.js' },
+                serverLaunch: { artifactRoot: '/Applications/Caxri/server' },
                 startHost,
             });
 
@@ -51,7 +51,7 @@ describe('CLI Host connector', () => {
         const connect = createCliHostConnector({
             automation: 'human',
             connectExisting,
-            hostLaunch: { executable: '/Applications/Caxri', entryPath: '/app/host.js' },
+            serverLaunch: { artifactRoot: '/Applications/Caxri/server' },
             startHost,
         });
 

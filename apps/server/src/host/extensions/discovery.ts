@@ -373,6 +373,6 @@ export function extensionRootsForHost(options: {
 }): string[] {
     const bundled = options.resourcesPath
         ? join(options.resourcesPath, 'extensions')
-        : resolve(options.hostOutputDirectory, '../../extensions');
+        : resolve(options.hostOutputDirectory, '../extensions');
     return [bundled, join(options.userDataPath, 'extensions')];
 }

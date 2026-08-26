@@ -7,6 +7,15 @@ import type { HostBuildIdentity } from '../host-staleness';
 vi.mock('@caxri/client/supervise', () => ({
     connectDesktopToHost: vi.fn(),
     ensureHost: vi.fn(),
+    resolveServerArtifact: vi.fn(() =>
+        Promise.resolve({
+            bundleDirectory: '/app/server/bundles',
+            entryPath: '/app/server/bundles/host.js',
+            executablePath: '/app/server/runtime/bin/node',
+            manifest: {},
+            rootPath: '/app/server',
+        }),
+    ),
 }));
 
 interface FakeHostClient {
@@ -58,6 +67,7 @@ function createConnection(identity: HostBuildIdentity = {}) {
         desktopLaunch: { executable: '/app/Caxri', args: [], cwd: '/app' },
         handleCommand: () => Promise.resolve(null),
         logger: logger as never,
+        serverArtifactRoot: '/app/server',
         userDataPath: '/profile',
     });
     return { connection, logger };

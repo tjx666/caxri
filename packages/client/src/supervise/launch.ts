@@ -5,6 +5,8 @@ import process from 'node:process';
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderIds, CaxriError } from '@caxri/protocol';
 
+import { resolveServerArtifact } from './artifact.js';
+
 const AGENT_LAUNCH_ENVIRONMENT_KEYS: Record<AgentProvider, readonly string[]> = {
     claude: ['CLAUDE_CONFIG_DIR'],
     codex: ['CODEX_HOME', 'CODEX_SQLITE_HOME'],
@@ -27,15 +29,11 @@ const LAUNCH_ENVIRONMENT_KEYS = [
     ...agentProviderIds.flatMap((provider) => AGENT_LAUNCH_ENVIRONMENT_KEYS[provider]),
 ] as const;
 
-export interface HostLaunchOptions {
+export interface ServerLaunchOptions {
     /**
-     * Electron binary, or the packaged Caxri executable with the RunAsNode fuse enabled.
+     * Root of the immutable standalone Server directory artifact.
      */
-    executable: string;
-    /**
-     * Built `host.js`, including an app.asar path for the packaged Desktop shim.
-     */
-    entryPath: string;
+    artifactRoot: string;
     environment?: NodeJS.ProcessEnv;
 }
 
@@ -46,15 +44,18 @@ function safeLaunchEnvironment(overrides: NodeJS.ProcessEnv | undefined): NodeJS
     return { ...environment, ...overrides };
 }
 
-export async function launchHost(userDataPath: string, options: HostLaunchOptions): Promise<void> {
+export async function launchServer(
+    userDataPath: string,
+    options: ServerLaunchOptions,
+): Promise<void> {
     await mkdir(userDataPath, { recursive: true });
+    const artifact = await resolveServerArtifact(options.artifactRoot);
     await new Promise<void>((resolve, reject) => {
-        const child = spawn(options.executable, [options.entryPath], {
+        const child = spawn(artifact.executablePath, [artifact.entryPath], {
             detached: true,
             env: {
                 ...safeLaunchEnvironment(options.environment),
                 CAXRI_USER_DATA_PATH: userDataPath,
-                ELECTRON_RUN_AS_NODE: '1',
             },
             stdio: 'ignore',
         });

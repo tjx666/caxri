@@ -4,8 +4,9 @@
     "private": true,
     "description": "Caxri Server application.",
     "type": "module",
-    "main": "../../out/main/host.js",
+    "main": "dist/server/bundles/host.js",
     "scripts": {
+        "build": "vite build --config vite.config.ts && bun run scripts/build-artifact.ts",
         "test": "vitest run --root ../.. --project server-parallel --project server-serial-native",
         "typecheck": "tsc --noEmit -p tsconfig.json"
     },
@@ -40,5 +41,8 @@
     },
     "engines": {
         "node": ">=24.0.0"
-    }
+    },
+    "files": [
+        "dist/server"
+    ]
 }

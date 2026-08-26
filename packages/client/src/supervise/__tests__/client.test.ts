@@ -268,14 +268,10 @@ describe('Host discovery', () => {
         });
 
         await expect(
-            ensureHost(
-                userDataPath,
-                { executable: join(directory, 'missing-electron'), entryPath: '/app/host.js' },
-                100,
-            ),
+            ensureHost(userDataPath, { artifactRoot: join(directory, 'missing-server') }, 100),
         ).rejects.toMatchObject({
             code: 'UNAVAILABLE',
-            message: 'Caxri Host process failed to launch',
+            message: 'Server artifact manifest is invalid',
         });
     });
 });

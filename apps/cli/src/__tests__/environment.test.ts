@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     resolveAgentEndpointCredential,
     resolveCliProfile,
-    resolvePackagedHostLaunch,
+    resolvePackagedServerLaunch,
 } from '../environment';
 
 describe('CLI profile resolution', () => {
@@ -58,21 +58,20 @@ describe('CLI profile resolution', () => {
         ).toThrow('must be an absolute path');
     });
 
-    it('derives Host launch only from the executing packaged application layout', () => {
+    it('derives Server launch only from the executing packaged application layout', () => {
         const resourcesPath = '/Applications/Caxri.app/Contents/Resources';
         expect(
-            resolvePackagedHostLaunch({
+            resolvePackagedServerLaunch({
                 executable: '/Applications/Caxri.app/Contents/MacOS/Caxri',
                 resourcesPath,
                 runAsNode: '1',
                 scriptPath: `${resourcesPath}/cli/caxri.cjs`,
             }),
         ).toEqual({
-            executable: '/Applications/Caxri.app/Contents/MacOS/Caxri',
-            entryPath: '/Applications/Caxri.app/Contents/Resources/app.asar/out/main/host.js',
+            artifactRoot: '/Applications/Caxri.app/Contents/Resources/server',
         });
         expect(
-            resolvePackagedHostLaunch({
+            resolvePackagedServerLaunch({
                 executable: '/bin/sh',
                 resourcesPath,
                 runAsNode: '1',
@@ -80,7 +79,7 @@ describe('CLI profile resolution', () => {
             }),
         ).toBeUndefined();
         expect(
-            resolvePackagedHostLaunch({
+            resolvePackagedServerLaunch({
                 executable: '/Applications/Caxri.app/Contents/MacOS/Caxri',
                 resourcesPath,
                 runAsNode: '1',

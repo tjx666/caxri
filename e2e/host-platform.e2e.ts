@@ -21,7 +21,7 @@ const electronPath = join(
     'MacOS',
     'Electron',
 );
-const hostEntryPath = join(projectRoot, 'out', 'main', 'host.js');
+const serverArtifactRoot = join(projectRoot, 'apps', 'server', 'dist', 'server');
 
 interface CliResult {
     code: number;
@@ -135,7 +135,7 @@ test('shares settings across an app-managed headless Host and Desktop', async ()
     try {
         const headless = await ensureHost(
             userData,
-            { executable: electronPath, entryPath: hostEntryPath, environment: hostEnvironment },
+            { artifactRoot: serverArtifactRoot, environment: hostEnvironment },
             15_000,
         );
         headless.close();

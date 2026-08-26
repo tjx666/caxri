@@ -638,6 +638,9 @@ if (ownsProfileInstance) {
                 e2eAgentPolicy,
                 handleCommand: handleHostDesktopOperation,
                 logger: mainLogger,
+                serverArtifactRoot: app.isPackaged
+                    ? join(process.resourcesPath, 'server')
+                    : resolve(currentDirectory, '../../apps/server/dist/server'),
                 userDataPath,
             });
             processExplorer = new ProcessExplorerWindowController({

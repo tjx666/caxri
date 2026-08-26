@@ -162,10 +162,10 @@ describe('workspace package manifests', () => {
 
         const extraResourceSources = manifest.build.extraResources.map(({ from }) => from);
 
-        expect(extraResourceSources.filter((source) => source.startsWith('extensions/'))).toEqual([
-            'extensions/git',
-            'extensions/status',
-        ]);
+        expect(extraResourceSources.filter((source) => source.startsWith('extensions/'))).toEqual(
+            [],
+        );
+        expect(extraResourceSources).toContain('apps/server/dist/server');
         expect(manifest.scripts['package:e2e']).toBe(
             'bun run build && bun run scripts/package-extension-test-app.ts',
         );

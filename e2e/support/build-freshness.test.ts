@@ -27,7 +27,8 @@ describe('E2E build freshness inputs', () => {
         expect(createE2EBuildFreshnessOptions(root).outputPaths).toEqual(
             expect.arrayContaining([
                 join(root, 'extensions', 'git', 'dist', 'extension.js'),
-                join(root, 'out', 'main', 'extension-host.js'),
+                join(root, 'apps', 'server', 'dist', 'server', 'bundles', 'extension-host.js'),
+                join(root, 'apps', 'server', 'dist', 'server', 'metadata', 'manifest.json'),
                 join(root, 'apps', 'cli', 'dist', 'caxri.cjs'),
             ]),
         );

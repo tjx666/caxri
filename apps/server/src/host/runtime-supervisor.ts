@@ -64,7 +64,7 @@ function requestTimeout(method: RuntimeMethod): number | undefined {
 }
 
 /**
- * Host-owned Runtime lifecycle. The child is Electron's Node mode, preserving native ABI parity.
+ * Host-owned Runtime lifecycle. The child uses the artifact's pinned runtime and native ABI.
  */
 export class HostRuntimeSupervisor extends EventTarget {
     private child?: ChildProcess;

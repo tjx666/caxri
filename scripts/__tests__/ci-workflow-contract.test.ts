@@ -76,9 +76,9 @@ describe('CI workflow contract', () => {
             'pnpm install --frozen-lockfile --ignore-scripts --prefer-offline --no-runtime',
         );
         expect(setupAction).toContain('pnpm rebuild electron');
-        expect(setupAction).toContain('bun run rebuild');
+        expect(setupAction).not.toContain('bun run rebuild');
         expect(bunVersion).toBe('1.4.0');
-        expect(workflow).toContain('Electron native compatibility');
+        expect(workflow).toContain('Server artifact native compatibility');
         expect(workflow).toContain('bun run spike:native');
         expect(workflow).toContain(
             "CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}",
@@ -102,10 +102,10 @@ describe('CI workflow contract', () => {
                 /--label "Bundle budget gate" -- bun run scripts\/ci-bundle-budget\.ts/gu,
             ),
         ).toHaveLength(1);
-        expect(packageManifest.scripts.rebuild).toContain('--only better-sqlite3,node-pty');
-        expect(packageManifest.scripts.rebuild).not.toContain('@parcel/watcher');
+        expect(packageManifest.scripts.rebuild).toBeUndefined();
         expect(workflow.match(/install-electron:/gu)).toHaveLength(2);
-        expect(workflow.match(/rebuild-native:/gu)).toHaveLength(2);
+        expect(workflow).not.toContain('rebuild-native:');
+        expect(setupAction).not.toContain('Electron native rebuild');
     });
 
     it('always tears down the self-hosted boundary, including a partial setup failure', () => {

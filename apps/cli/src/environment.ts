@@ -42,30 +42,26 @@ export interface AgentEndpointCredential {
     token: string;
 }
 
-export interface PackagedHostLaunch {
-    entryPath: string;
-    executable: string;
+export interface PackagedServerLaunch {
+    artifactRoot: string;
 }
 
 /**
  * Derives launch authority only from the currently executing packaged Caxri application layout.
  */
-export function resolvePackagedHostLaunch(input: {
+export function resolvePackagedServerLaunch(input: {
     executable: string;
     resourcesPath?: string;
     runAsNode?: string;
     scriptPath?: string;
-}): PackagedHostLaunch | undefined {
+}): PackagedServerLaunch | undefined {
     if (input.runAsNode !== '1' || !input.resourcesPath || !input.scriptPath) return undefined;
     const resourcesPath = resolve(input.resourcesPath);
     const executable = resolve(resourcesPath, '..', 'MacOS', 'Caxri');
     const cliBundle = resolve(resourcesPath, 'cli', 'caxri.cjs');
     if (resolve(input.executable) !== executable || resolve(input.scriptPath) !== cliBundle)
         return undefined;
-    return {
-        executable,
-        entryPath: resolve(resourcesPath, 'app.asar', 'out', 'main', 'host.js'),
-    };
+    return { artifactRoot: resolve(resourcesPath, 'server') };
 }
 
 /**
