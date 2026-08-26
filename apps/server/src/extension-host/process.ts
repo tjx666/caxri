@@ -87,6 +87,7 @@ const processLifecycle = createExtensionHostProcessLifecycle({
         // eslint-disable-next-line unicorn/no-process-exit -- The owned Extension Host must exit after shutdown or parent loss.
         process.exit(exitCode);
     },
+    flushManifest: () => processManifest.flush(),
     publish: (state) => processManifest.publish(state),
     schedule: setImmediate,
     stopSampler: () => processSampler.stop(),
@@ -138,7 +139,8 @@ process.on('message', (value: unknown) => {
     const parsed = extensionHostParentMessageSchema.safeParse(value);
     if (!parsed.success) {
         logger.write('error', logEventCatalog.extensionHost.invalidMessage);
-        processLifecycle.stopAfterProtocolViolation();
+        // eslint-disable-next-line no-void -- The lifecycle flushes diagnostics and exits the owned process.
+        void processLifecycle.stopAfterProtocolViolation();
         return;
     }
     const message: ExtensionHostParentMessage = parsed.data;
@@ -150,7 +152,10 @@ process.on('message', (value: unknown) => {
     // eslint-disable-next-line no-void -- Message handling is intentionally fire-and-forget; processRequest catches and replies.
     void processRequest(request);
 });
-process.once('disconnect', () => processLifecycle.stopAfterParentDisconnect());
+process.once('disconnect', () => {
+    // eslint-disable-next-line no-void -- The lifecycle flushes diagnostics and exits the owned process.
+    void processLifecycle.stopAfterParentDisconnect();
+});
 
 async function processRequest(request: ExtensionHostRequest): Promise<void> {
     await runWithObservationContext(

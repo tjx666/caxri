@@ -75,6 +75,25 @@ async function waitForObservationManifests(profile: string) {
     throw new Error('Standalone Server did not publish bounded ready process manifests');
 }
 
+async function waitForStoppedObservationManifests(profile: string) {
+    const deadline = Date.now() + 5_000;
+    let states = 'missing';
+    while (Date.now() < deadline) {
+        // eslint-disable-next-line no-await-in-loop -- waits for three independently flushed shutdown receipts.
+        const manifests = await readObservationProcessManifests(
+            observationProcessManifestDirectory(profile),
+        );
+        states = observationProcessOwners
+            .map((owner) => `${owner}:${manifests[owner]?.state ?? 'missing'}`)
+            .join(',');
+        if (observationProcessOwners.every((owner) => manifests[owner]?.state === 'stopped'))
+            return manifests;
+        // eslint-disable-next-line no-await-in-loop -- bounded receipt publication polling.
+        await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(`Standalone Server did not flush stopped process manifests (${states})`);
+}
+
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'caxri-standalone-server-'));
 const copiedArtifact = join(temporaryRoot, 'server');
 const profile = join(temporaryRoot, 'profile');
@@ -148,6 +167,7 @@ try {
     operator = undefined;
     const shutdownStartedAt = performance.now();
     await waitForCleanShutdown(status.pid, manifestPath);
+    const stoppedObservationManifests = await waitForStoppedObservationManifests(profile);
     const shutdownMs = performance.now() - shutdownStartedAt;
 
     const receipt = {
@@ -168,7 +188,7 @@ try {
                     owner,
                     {
                         metricSeries: observationManifests[owner]!.metrics!.series.length,
-                        state: observationManifests[owner]!.state,
+                        state: stoppedObservationManifests[owner]!.state,
                     },
                 ]),
             ),
@@ -183,7 +203,7 @@ try {
             outputObserved: true,
             resizedGrid: { cols: terminalSnapshot.cols, rows: terminalSnapshot.rows },
             snapshotBytes: terminalSnapshot.byteCount,
-            state: observationManifests['terminal-host']!.state,
+            state: stoppedObservationManifests['terminal-host']!.state,
         },
     };
     const receiptDirectory = resolve(root, '.records/server-artifact');

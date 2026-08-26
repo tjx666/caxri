@@ -1,6 +1,7 @@
 export interface ExtensionHostProcessLifecycleOptions {
     disposeExtensions(): void;
     exit(exitCode: number): void;
+    flushManifest(): Promise<void>;
     publish(state: 'stopped' | 'stopping'): void;
     schedule(callback: () => void): void;
     stopSampler(): void;
@@ -14,8 +15,8 @@ export function createExtensionHostProcessLifecycle(
     options: ExtensionHostProcessLifecycleOptions,
 ): {
     scheduleRequestedShutdown(): void;
-    stopAfterParentDisconnect(): void;
-    stopAfterProtocolViolation(): void;
+    stopAfterParentDisconnect(): Promise<void>;
+    stopAfterProtocolViolation(): Promise<void>;
 } {
     let state: 'active' | 'prepared' | 'stopped' = 'active';
 
@@ -26,18 +27,26 @@ export function createExtensionHostProcessLifecycle(
         options.publish('stopping');
         options.disposeExtensions();
     };
-    const exit = (exitCode: number): void => {
+    const exit = async (exitCode: number): Promise<void> => {
         if (state === 'stopped') return;
         prepare();
         state = 'stopped';
         options.publish('stopped');
+        /**
+         * The process entrypoint exits explicitly, so pending filesystem work would otherwise be abandoned. Flush the
+         * final manifest after fencing duplicate shutdown paths and before delegating to the real process exit.
+         */
+        await options.flushManifest();
         options.exit(exitCode);
     };
 
     return {
         scheduleRequestedShutdown() {
             prepare();
-            options.schedule(() => exit(0));
+            options.schedule(() => {
+                // eslint-disable-next-line no-void -- The scheduled lifecycle owns its terminal process exit.
+                void exit(0);
+            });
         },
         stopAfterParentDisconnect: () => exit(0),
         stopAfterProtocolViolation: () => exit(1),

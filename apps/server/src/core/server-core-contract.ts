@@ -34,5 +34,13 @@ export interface ServerCoreOptions {
 export interface ServerCore {
     lease: ServerProfileLease;
     protocolIdentity: { serverId: string; stateEpoch: string };
+    /**
+     * Resolves when the Core has closed mutation admission and started graceful shutdown.
+     */
+    stopping: Promise<void>;
+    /**
+     * Resolves after every Core-owned service and profile resource has stopped cleanly.
+     */
+    stopped: Promise<void>;
     stop(reason?: string): Promise<void>;
 }
