@@ -71,6 +71,20 @@ describe('Terminal Host private protocol', () => {
         expect(authorizeTerminalHostRequest(startEnvelope(), liveAuthority)).toEqual({ ok: true });
     });
 
+    it("accepts Core's first positive generation when a replacement Host has no baseline", () => {
+        const envelope = startEnvelope();
+        if (envelope.scope.scope !== 'terminal') throw new Error('Expected Terminal scope');
+        envelope.scope.ptyGeneration = 7;
+        expect(
+            authorizeTerminalHostRequest(envelope, {
+                credential,
+                serverId,
+                launchGeneration: () => {},
+                terminal: () => {},
+            }),
+        ).toEqual({ ok: true });
+    });
+
     it.each([
         ['credential', { credential: 'c'.repeat(64) }],
         ['server', { serverId: 'd'.repeat(32) }],

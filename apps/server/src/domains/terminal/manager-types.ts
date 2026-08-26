@@ -9,7 +9,10 @@ import type {
 } from '@caxri/protocol';
 import type * as pty from 'node-pty';
 
+import type { TerminalExecutionPort } from './execution-port';
+
 export interface TerminalManagerOptions {
+    execution?: TerminalExecutionPort;
     /**
      * Test seam for deterministic output-queue backpressure. Production uses the fixed 16 ms coalescing window.
      */

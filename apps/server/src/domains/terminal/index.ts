@@ -1,4 +1,10 @@
 export { resolveE2ETerminalOutputFlushDelay } from './e2e-options';
+export type {
+    TerminalExecutionEvent,
+    TerminalExecutionExit,
+    TerminalExecutionLaunch,
+    TerminalExecutionPort,
+} from './execution-port';
 export { resolveTerminalFileLink } from './file-links';
 export { TerminalManager } from './manager';
 export type { TerminalManagerOptions, TerminalWorkingDirectoryIdentity } from './manager-types';

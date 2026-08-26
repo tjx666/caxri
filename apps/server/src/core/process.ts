@@ -48,6 +48,7 @@ const app = await startServerCore({
     cliPath,
     executable: process.execPath,
     extensionHostPath: join(serverBundleDirectory, 'extension-host.js'),
+    terminalHostPath: join(serverBundleDirectory, 'terminal-host.js'),
     extensionRoots: extensionRootsForServer({
         serverBundleDirectory,
         userDataPath,

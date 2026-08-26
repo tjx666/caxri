@@ -133,6 +133,7 @@ export async function createDomainServices(
     const agentDispatchState: { service?: AgentDispatchService } = {};
     const terminals = new TerminalManager(database, send, logger, {
         ...dependencies.terminal,
+        execution: dependencies.terminalExecution ?? dependencies.terminal?.execution,
         agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
         agentOutputRecoverySettings:
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,

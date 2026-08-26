@@ -356,12 +356,16 @@ const requiredCapabilities = {
 export interface TerminalHostAuthority {
     credential: string;
     serverId: string;
-    launchGeneration(terminalId: string): number;
+    /**
+     * Undefined means this fresh Host has no generation baseline and may accept Core's first positive generation.
+     */
+    launchGeneration(terminalId: string): number | undefined;
     terminal(terminalId: string):
         | {
               sessionId: string;
               ptyGeneration: number;
               attachmentId?: string;
+              running?: boolean;
           }
         | undefined;
 }
@@ -408,7 +412,18 @@ export function authorizeTerminalHostRequest(
                 : envelope.request.params;
         if (record.id !== envelope.scope.terminalId) return { ok: false, reason: 'terminal' };
         if (record.sessionId !== envelope.scope.sessionId) return { ok: false, reason: 'session' };
-        if (envelope.scope.ptyGeneration !== authority.launchGeneration(record.id))
+        const current = authority.terminal(record.id);
+        const isReservedStart =
+            envelope.request.method === 'terminal.start' &&
+            current?.running === false &&
+            current.sessionId === record.sessionId &&
+            current.ptyGeneration === envelope.scope.ptyGeneration;
+        const expectedGeneration = authority.launchGeneration(record.id);
+        if (
+            !isReservedStart &&
+            expectedGeneration !== undefined &&
+            envelope.scope.ptyGeneration !== expectedGeneration
+        )
             return { ok: false, reason: 'generation' };
         if (envelope.scope.attachmentId !== undefined) return { ok: false, reason: 'attachment' };
         return { ok: true };
