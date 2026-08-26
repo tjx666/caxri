@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
     BINARY_STREAM_FRAME_HEADER_BYTES,
     BINARY_STREAM_MAX_CHUNK_BYTES,
+    BINARY_STREAM_MAX_FILE_CONTENT_BYTES,
+    BINARY_STREAM_MAX_FILE_UPLOAD_BYTES,
     binaryStreamAuthorization,
     binaryStreamCloseCodes,
+    binaryStreamReplySchema,
     decodeBinaryStreamFrame,
     encodeBinaryStreamFrame,
     localClientStreamTicketRequestSchema,
@@ -60,10 +63,28 @@ describe('binary stream ticket contract', () => {
                     method: 'files.write',
                     sessionId: 'session-1',
                     path: '/project/file.txt',
-                    byteLength: 16 * 1024 * 1024 + 1,
+                    byteLength: BINARY_STREAM_MAX_FILE_UPLOAD_BYTES + 1,
                 },
             }).success,
         ).toBe(false);
+    });
+
+    it('separates the file upload budget from worst-case UTF-8 download expansion', () => {
+        expect(BINARY_STREAM_MAX_FILE_CONTENT_BYTES).toBe(3 * BINARY_STREAM_MAX_FILE_UPLOAD_BYTES);
+        expect(
+            binaryStreamReplySchema.safeParse({
+                id: 'request-1',
+                method: 'files.read',
+                ok: true,
+                result: {
+                    kind: 'file-document',
+                    path: '/project/file.txt',
+                    mtimeMs: 1,
+                    size: BINARY_STREAM_MAX_FILE_UPLOAD_BYTES,
+                    contentBytes: BINARY_STREAM_MAX_FILE_CONTENT_BYTES,
+                },
+            }).success,
+        ).toBe(true);
     });
 });
 
