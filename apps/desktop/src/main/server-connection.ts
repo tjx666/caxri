@@ -7,11 +7,15 @@ import {
     initialServerConnectionState,
     transitionServerConnection,
 } from '@caxri/client';
-import type { ServerClient } from '@caxri/client/supervise';
+import type {
+    ServerClient,
+    ServerLaunchOptions,
+    ServerSupervisionEvent,
+} from '@caxri/client/supervise';
 import {
     connectDesktopToServer,
-    ensureServer,
     resolveServerArtifact,
+    ServerArtifactSupervisor,
 } from '@caxri/client/supervise';
 import type {
     CaxriMethod,
@@ -42,6 +46,14 @@ type DesktopCommandHandler = (
     consumeTarget: () => Promise<DesktopTargetPayload>,
 ) => Promise<unknown>;
 
+export interface DesktopServerSupervisor {
+    ensure(timeoutMs?: number): Promise<ServerClient>;
+    isFailed(): boolean;
+    onLifecycle(listener: (event: ServerSupervisionEvent) => void): () => void;
+    releaseProcess(pid: number): void;
+    reportProcessLoss(pid: number): boolean;
+}
+
 interface UntypedServerClient {
     request(method: CaxriMethod, parameters?: unknown): Promise<unknown>;
     requestServerOperation(
@@ -65,6 +77,13 @@ export interface DesktopServerConnectionOptions {
      * Test seam for the on-disk bundle fingerprint; production uses `computeBuildFingerprint`.
      */
     computeBuildId?: (outputDirectory: string) => Promise<string | undefined>;
+    /**
+     * Test seam for the shared artifact supervision contract.
+     */
+    createServerSupervisor?: (
+        userDataPath: string,
+        launchOptions: ServerLaunchOptions,
+    ) => DesktopServerSupervisor;
     cliPath: string;
     currentDirectory: string;
     desktopId: string;
@@ -125,9 +144,64 @@ export class DesktopServerConnection extends EventTarget {
      * storm.
      */
     private hasReplacedStaleServer = false;
+    private isCoreRecoveryPending = false;
+    private readonly serverSupervisor: DesktopServerSupervisor;
+    private readonly unsubscribeServerLifecycle: () => void;
 
     constructor(private readonly options: DesktopServerConnectionOptions) {
         super();
+        const launchOptions = this.serverLaunchOptions();
+        this.serverSupervisor = options.createServerSupervisor
+            ? options.createServerSupervisor(options.userDataPath, launchOptions)
+            : new ServerArtifactSupervisor(options.userDataPath, launchOptions);
+        this.unsubscribeServerLifecycle = this.serverSupervisor.onLifecycle((event) =>
+            this.handleServerLifecycle(event),
+        );
+    }
+
+    private serverLaunchOptions(): ServerLaunchOptions {
+        return {
+            artifactRoot: this.options.serverArtifactRoot,
+            environment: {
+                [SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY]: JSON.stringify(this.options.desktopLaunch),
+                ...e2eAgentPolicyEnvironment(this.options.e2eAgentPolicy),
+                ...(process.env.CAXRI_E2E_WINDOW_MODE && {
+                    CAXRI_E2E_WINDOW_MODE: process.env.CAXRI_E2E_WINDOW_MODE,
+                }),
+                ...(process.env.CAXRI_E2E_WORKER_NAMESPACE && {
+                    CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE,
+                }),
+                ...(process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS && {
+                    CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS:
+                        process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS,
+                }),
+                ...(process.env.CAXRI_TEST_ROOT_PATH && {
+                    CAXRI_TEST_ROOT_PATH: process.env.CAXRI_TEST_ROOT_PATH,
+                }),
+                ...(process.env.CAXRI_TEST_ROOT_PATHS && {
+                    CAXRI_TEST_ROOT_PATHS: process.env.CAXRI_TEST_ROOT_PATHS,
+                }),
+                ...(this.options.agentHooksPath && {
+                    CAXRI_AGENT_HOOKS_PATH: this.options.agentHooksPath,
+                }),
+                CAXRI_CLI_PATH: this.options.cliPath,
+            },
+        };
+    }
+
+    private handleServerLifecycle(event: ServerSupervisionEvent): void {
+        this.isCoreRecoveryPending = event.status === 'restarting';
+        this.dispatchEvent(
+            new CustomEvent<ServerEvent>('event', {
+                detail: {
+                    event: 'runtime.status',
+                    payload: {
+                        status: event.status,
+                        restartCount: event.restartCount,
+                    },
+                },
+            }),
+        );
     }
 
     private async connect(): Promise<'same' | 'replaced'> {
@@ -179,6 +253,7 @@ export class DesktopServerConnection extends EventTarget {
         const events = this.events;
         client.onEvent((event) => events.receive(event));
         await events.start();
+        if (this.client === client) this.isCoreRecoveryPending = false;
         return isServerContinuity ? 'replaced' : 'same';
     }
 
@@ -215,33 +290,7 @@ export class DesktopServerConnection extends EventTarget {
             ...this.options.buildIdentity,
             buildId: desktopBuildId,
         };
-        const operator = await ensureServer(this.options.userDataPath, {
-            artifactRoot: artifact.rootPath,
-            environment: {
-                [SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY]: JSON.stringify(this.options.desktopLaunch),
-                ...e2eAgentPolicyEnvironment(this.options.e2eAgentPolicy),
-                ...(process.env.CAXRI_E2E_WINDOW_MODE && {
-                    CAXRI_E2E_WINDOW_MODE: process.env.CAXRI_E2E_WINDOW_MODE,
-                }),
-                ...(process.env.CAXRI_E2E_WORKER_NAMESPACE && {
-                    CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE,
-                }),
-                ...(process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS && {
-                    CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS:
-                        process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS,
-                }),
-                ...(process.env.CAXRI_TEST_ROOT_PATH && {
-                    CAXRI_TEST_ROOT_PATH: process.env.CAXRI_TEST_ROOT_PATH,
-                }),
-                ...(process.env.CAXRI_TEST_ROOT_PATHS && {
-                    CAXRI_TEST_ROOT_PATHS: process.env.CAXRI_TEST_ROOT_PATHS,
-                }),
-                ...(this.options.agentHooksPath && {
-                    CAXRI_AGENT_HOOKS_PATH: this.options.agentHooksPath,
-                }),
-                CAXRI_CLI_PATH: this.options.cliPath,
-            },
-        });
+        const operator = await this.serverSupervisor.ensure();
         try {
             const status = await operator.request('host.status');
             const skewFields = {
@@ -276,6 +325,7 @@ export class DesktopServerConnection extends EventTarget {
                     );
                     this.hasReplacedStaleServer = true;
                     await operator.request('host.stop', { confirmLivePtys: true });
+                    this.serverSupervisor.releaseProcess(status.pid);
                     await waitForProcessExit(status.pid, SERVER_REPLACEMENT_EXIT_TIMEOUT_MS);
                     return undefined;
                 }
@@ -317,6 +367,8 @@ export class DesktopServerConnection extends EventTarget {
             return;
         }
         this.options.logger.write('warn', logEventCatalog.serverConnection.connectionLost, {});
+        if (this.serverPid !== undefined) this.serverSupervisor.reportProcessLoss(this.serverPid);
+        if (this.serverSupervisor.isFailed()) return;
         this.ensureReconnectLoop();
     }
 
@@ -339,7 +391,9 @@ export class DesktopServerConnection extends EventTarget {
         while (this.lifecycle.status === 'backoff') {
             const waiting = this.lifecycle;
             const { attempt, outageStartedAtMs } = waiting;
-            const backoffMs = Math.min(500 * 2 ** (attempt - 1), 10_000);
+            const backoffMs = this.isCoreRecoveryPending
+                ? 0
+                : Math.min(500 * 2 ** (attempt - 1), 10_000);
             // eslint-disable-next-line no-await-in-loop -- sequential backoff between retries.
             await new Promise((resolve) => setTimeout(resolve, backoffMs));
             if (this.lifecycle !== waiting) continue;
@@ -357,6 +411,7 @@ export class DesktopServerConnection extends EventTarget {
                         fields: { attempt, error: errorMessage(error, 'unknown') },
                     },
                 );
+                if (this.serverSupervisor.isFailed()) return;
                 continue;
             }
             if (this.lifecycle.status !== 'recovering') {
@@ -497,6 +552,7 @@ export class DesktopServerConnection extends EventTarget {
 
     close(): void {
         this.lifecycle = transitionServerConnection(this.lifecycle, { type: 'dispose' });
+        this.unsubscribeServerLifecycle();
         /**
          * Main disposal is terminal for Renderer work, unlike a recoverable transport loss.
          */

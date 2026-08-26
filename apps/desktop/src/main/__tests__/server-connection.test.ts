@@ -1,12 +1,17 @@
+import type { ServerSupervisionEvent } from '@caxri/client/supervise';
 import { connectDesktopToServer, ensureServer } from '@caxri/client/supervise';
+import { CaxriError } from '@caxri/protocol';
+import type { Mock } from 'vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { DesktopServerSupervisor } from '../server-connection';
 import { DesktopServerConnection } from '../server-connection';
 import type { ServerBuildIdentity } from '../server-staleness';
 
 vi.mock('@caxri/client/supervise', () => ({
     connectDesktopToServer: vi.fn(),
     ensureServer: vi.fn(),
+    ServerArtifactSupervisor: vi.fn(),
     resolveServerArtifact: vi.fn(() =>
         Promise.resolve({
             bundleDirectory: '/app/server/bundles',
@@ -54,13 +59,46 @@ function createFakeServerClient(): FakeServerClient {
     };
 }
 
+interface FakeDesktopServerSupervisor extends DesktopServerSupervisor {
+    emit(event: ServerSupervisionEvent): void;
+    lossEvent?: ServerSupervisionEvent;
+    releaseProcess: Mock<(pid: number) => void>;
+    reportProcessLoss: Mock<(pid: number) => boolean>;
+}
+
 function createConnection(identity: ServerBuildIdentity = {}) {
     const logger = { write: vi.fn() };
+    let serverSupervisor!: FakeDesktopServerSupervisor;
     // Production computes `buildId` by fingerprinting the on-disk bundles; the test seam returns it directly.
     const { buildId, ...buildIdentity } = identity;
     const connection = new DesktopServerConnection({
         buildIdentity,
         computeBuildId: () => Promise.resolve(buildId),
+        createServerSupervisor: (userDataPath, launchOptions) => {
+            let isFailed = false;
+            let listener: ((event: ServerSupervisionEvent) => void) | undefined;
+            serverSupervisor = {
+                emit(event) {
+                    isFailed = event.status === 'failed';
+                    listener?.(event);
+                },
+                ensure: (timeoutMs) => ensureServer(userDataPath, launchOptions, timeoutMs),
+                isFailed: () => isFailed,
+                onLifecycle: (nextListener) => {
+                    listener = nextListener;
+                    return () => {
+                        if (listener === nextListener) listener = undefined;
+                    };
+                },
+                releaseProcess: vi.fn<(pid: number) => void>(),
+                reportProcessLoss: vi.fn<(pid: number) => boolean>(() => {
+                    if (!serverSupervisor.lossEvent) return false;
+                    serverSupervisor.emit(serverSupervisor.lossEvent);
+                    return true;
+                }),
+            };
+            return serverSupervisor;
+        },
         currentDirectory: '/app/out/main',
         cliPath: '/app/cli/caxri.cjs',
         desktopId: 'desktop-1',
@@ -70,7 +108,7 @@ function createConnection(identity: ServerBuildIdentity = {}) {
         serverArtifactRoot: '/app/server',
         userDataPath: '/profile',
     });
-    return { connection, logger };
+    return { connection, logger, serverSupervisor };
 }
 
 interface ServerRoundOptions {
@@ -201,7 +239,7 @@ describe('Desktop Server connection facade', () => {
             .mockResolvedValueOnce(staleOperator as never)
             .mockResolvedValueOnce(freshOperator as never);
         vi.mocked(connectDesktopToServer).mockResolvedValue(createFakeServerClient() as never);
-        const { connection, logger } = createConnection({
+        const { connection, logger, serverSupervisor } = createConnection({
             buildId: 'build-new',
             commit: 'aaaaaaa',
             version: '0.0.9',
@@ -212,6 +250,7 @@ describe('Desktop Server connection facade', () => {
         expect(staleOperator.request).toHaveBeenCalledWith('host.stop', {
             confirmLivePtys: true,
         });
+        expect(serverSupervisor.releaseProcess).toHaveBeenCalledWith(999_999);
         expect(logger.write).toHaveBeenCalledWith(
             'warn',
             'server_connection.stale_build_replaced',
@@ -331,6 +370,91 @@ describe('Desktop Server connection facade', () => {
         });
         expect(replacement.markDesktopReady).toHaveBeenCalledTimes(1);
         await expect(connection.request('app.health')).resolves.toBeDefined();
+    });
+
+    it('projects a Core crash through the preserved restarting and ready status flow', async () => {
+        vi.useFakeTimers();
+        const first = mockServerRound();
+        const { connection, serverSupervisor } = createConnection();
+        const received: unknown[] = [];
+        connection.onEvent((event) => received.push(event));
+        await connection.start();
+
+        serverSupervisor.lossEvent = {
+            backoffMs: 250,
+            restartCount: 1,
+            status: 'restarting',
+        };
+        const replacement = mockServerRound({ pid: 77, startedAt: 2000 });
+        replacement.request.mockResolvedValueOnce({
+            cursor: 1,
+            events: [
+                {
+                    cursor: 1,
+                    event: {
+                        event: 'runtime.status',
+                        payload: { restartCount: 0, status: 'ready' },
+                    },
+                },
+            ],
+            kind: 'events',
+        });
+
+        first.triggerClose();
+        expect(received).toEqual([
+            {
+                event: 'runtime.status',
+                payload: { restartCount: 1, status: 'restarting' },
+            },
+        ]);
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(serverSupervisor.reportProcessLoss).toHaveBeenCalledWith(999_999);
+        expect(received).toEqual([
+            {
+                event: 'runtime.status',
+                payload: { restartCount: 1, status: 'restarting' },
+            },
+            {
+                event: 'runtime.status',
+                payload: { restartCount: 0, status: 'ready' },
+            },
+            {
+                event: 'host.connectionChanged',
+                payload: {
+                    status: 'reconnected',
+                    downtimeMs: 0,
+                    attempt: 1,
+                    isHostReplaced: true,
+                },
+            },
+        ]);
+    });
+
+    it('projects an exhausted Core restart budget and stops reconnecting', async () => {
+        vi.useFakeTimers();
+        const first = mockServerRound();
+        const { connection, serverSupervisor } = createConnection();
+        const received: unknown[] = [];
+        connection.onEvent((event) => received.push(event));
+        await connection.start();
+        const attachmentCount = vi.mocked(ensureServer).mock.calls.length;
+        serverSupervisor.lossEvent = {
+            error: new CaxriError('UNAVAILABLE', 'restart budget exhausted'),
+            restartCount: 3,
+            status: 'failed',
+        };
+
+        first.triggerClose();
+        await vi.advanceTimersByTimeAsync(30_000);
+
+        expect(received).toEqual([
+            {
+                event: 'runtime.status',
+                payload: { restartCount: 3, status: 'failed' },
+            },
+        ]);
+        expect(ensureServer).toHaveBeenCalledTimes(attachmentCount);
     });
 
     it('stops reconnecting and reports when another Desktop replaces its lease', async () => {
