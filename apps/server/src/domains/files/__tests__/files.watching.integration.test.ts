@@ -122,6 +122,7 @@ describe('FileService watcher and polling behavior', () => {
         temporaryDirectories.push(directory);
         const root = join(directory, 'project');
         await mkdir(root);
+        const canonicalRoot = await realpath(root);
         const watchedPath = join(root, 'watched.txt');
         await writeFile(watchedPath, 'before', 'utf8');
         const canonicalWatchedPath = await realpath(watchedPath);
@@ -146,7 +147,18 @@ describe('FileService watcher and polling behavior', () => {
          * Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change.
          */
         await new Promise((resolve) => setTimeout(resolve, 150));
-        expect(events).toEqual([canonicalWatchedPath]);
+        /**
+         * MacOS may report both the changed file and its parent directory in one native batch, especially under
+         * parallel filesystem load. Coalescing guarantees one event per canonical path; it does not suppress a valid
+         * parent-directory invalidation.
+         */
+        expect(events.filter((path) => path === canonicalWatchedPath)).toEqual([
+            canonicalWatchedPath,
+        ]);
+        expect(new Set(events).size).toBe(events.length);
+        expect(
+            events.every((path) => path === canonicalRoot || path.startsWith(`${canonicalRoot}/`)),
+        ).toBe(true);
         await service.close();
         database.close();
     });
