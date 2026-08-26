@@ -316,8 +316,8 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                     ? []
                     : ['--disable-gpu']
                 : gpuMode === 'enabled'
-                  ? ['.']
-                  : ['.', '--disable-gpu'],
+                  ? ['apps/desktop']
+                  : ['apps/desktop', '--disable-gpu'],
             cwd: projectRoot,
             env: launchEnvironment,
         });
