@@ -51,9 +51,6 @@ import {
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
-import type { ServerLaunchOptions } from './launch.js';
-import { launchServer } from './launch.js';
-
 const MAX_MANIFEST_BYTES = 16 * 1024;
 const DEFAULT_TIMEOUT_MS = 15_000;
 interface PendingRequest {
@@ -698,70 +695,4 @@ export async function connectDesktopToServer(
         credential,
         handleCommand,
     });
-}
-
-function isProcessAlive(pid: number): boolean {
-    try {
-        process.kill(pid, 0);
-        return true;
-    } catch (error) {
-        return fileSystemCode(error) !== 'ESRCH';
-    }
-}
-
-/**
- * Reuses a healthy owner or launches exactly one contender and waits for authenticated readiness.
- */
-export async function ensureServer(
-    userDataPath: string,
-    launch: ServerLaunchOptions,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-): Promise<ServerClient> {
-    const deadline = Date.now() + timeoutMs;
-    let isLaunched = false;
-    while (Date.now() < deadline) {
-        let manifest: ServerManifest | undefined;
-        try {
-            // This polling loop must retry discovery/connect/launch sequentially against the same
-            // profile lock on each iteration; the awaits cannot be parallelized across iterations.
-            // eslint-disable-next-line no-await-in-loop
-            manifest = await discoverServerManifest(userDataPath);
-        } catch (error) {
-            if (!(error instanceof CaxriError) || error.code !== 'NOT_FOUND') throw error;
-        }
-        /**
-         * An incompatible live Server fails closed and requires the explicit pre-release reset tool. If its recorded
-         * process is already gone, no PTY owner remains to protect and the stale discovery record must not permanently
-         * block launching the current Server. The profile lock arbitrates the replacement; this path never signals or
-         * removes another process.
-         */
-        if (
-            manifest &&
-            manifest.protocolVersion !== CAXRI_PROTOCOL_VERSION &&
-            !isProcessAlive(manifest.pid)
-        )
-            manifest = undefined;
-        if (manifest) {
-            const connectTimeoutMs = Math.min(2_000, deadline - Date.now());
-            try {
-                // eslint-disable-next-line no-await-in-loop -- see the discovery-call justification above.
-                return await ServerClient.connect(manifest, Math.max(1, connectTimeoutMs));
-            } catch (error) {
-                if (!(error instanceof CaxriError) || error.code !== 'UNAVAILABLE') throw error;
-                if (isProcessAlive(manifest.pid))
-                    throw new CaxriError(
-                        'CONFLICT',
-                        'Caxri Host process is alive but its authenticated endpoint is unavailable',
-                    );
-            }
-        }
-        if (!isLaunched) {
-            // eslint-disable-next-line no-await-in-loop -- see the discovery-call justification above.
-            await launchServer(userDataPath, launch);
-            isLaunched = true;
-        }
-        // eslint-disable-next-line no-await-in-loop -- see the discovery-call justification above.
-        await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    throw new CaxriError('TIMEOUT', 'Caxri Host did not become ready before the deadline');
 }

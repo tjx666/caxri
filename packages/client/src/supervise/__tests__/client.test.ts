@@ -16,7 +16,8 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
     readFile: readFileMock,
 }));
 
-import { discoverServerManifest, ensureServer, ServerClient } from '../client';
+import { discoverServerManifest, ServerClient } from '../client';
+import { ensureServer } from '../server-supervisor';
 
 const temporaryDirectories: string[] = [];
 

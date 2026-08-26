@@ -37,6 +37,10 @@ export interface ServerLaunchOptions {
     environment?: NodeJS.ProcessEnv;
 }
 
+export interface ServerLaunchReceipt {
+    pid: number;
+}
+
 function safeLaunchEnvironment(overrides: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
     const environment: NodeJS.ProcessEnv = {};
     for (const key of LAUNCH_ENVIRONMENT_KEYS)
@@ -47,10 +51,10 @@ function safeLaunchEnvironment(overrides: NodeJS.ProcessEnv | undefined): NodeJS
 export async function launchServer(
     userDataPath: string,
     options: ServerLaunchOptions,
-): Promise<void> {
+): Promise<ServerLaunchReceipt> {
     await mkdir(userDataPath, { recursive: true });
     const artifact = await resolveServerArtifact(options.artifactRoot);
-    await new Promise<void>((resolve, reject) => {
+    return new Promise<ServerLaunchReceipt>((resolve, reject) => {
         const child = spawn(artifact.executablePath, [artifact.entryPath], {
             detached: true,
             env: {
@@ -63,8 +67,12 @@ export async function launchServer(
             reject(new CaxriError('UNAVAILABLE', 'Caxri Host process failed to launch')),
         );
         child.once('spawn', () => {
+            if (child.pid === undefined) {
+                reject(new CaxriError('UNAVAILABLE', 'Caxri Host process failed to launch'));
+                return;
+            }
             child.unref();
-            resolve();
+            resolve({ pid: child.pid });
         });
     });
 }
