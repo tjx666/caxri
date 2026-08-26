@@ -7,6 +7,11 @@ import process from 'node:process';
 
 import { connectDesktopToServer, ensureServer } from '@caxri/client/supervise';
 import type { TerminalSnapshot } from '@caxri/protocol';
+import {
+    observationProcessManifestDirectory,
+    observationProcessOwners,
+    readObservationProcessManifests,
+} from '@caxri/system';
 
 import { verifyServerArtifact } from '../apps/server/scripts/artifact';
 
@@ -45,6 +50,29 @@ async function printFailureLogTail(profile: string, source: string): Promise<voi
     if (!(await hasPath(path))) return;
     const lines = (await readFile(path, 'utf8')).trimEnd().split('\n').slice(-40);
     process.stderr.write(`\n[${source} log tail]\n${lines.join('\n')}\n`);
+}
+
+async function waitForObservationManifests(profile: string) {
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+        // eslint-disable-next-line no-await-in-loop -- waits for three independently published process receipts.
+        const manifests = await readObservationProcessManifests(
+            observationProcessManifestDirectory(profile),
+        );
+        if (
+            observationProcessOwners.every(
+                (owner) =>
+                    manifests[owner]?.state === 'ready' &&
+                    ['process.memory', 'process.open_fds'].every((name) =>
+                        manifests[owner]?.metrics?.series.some((series) => series.name === name),
+                    ),
+            )
+        )
+            return manifests;
+        // eslint-disable-next-line no-await-in-loop -- bounded receipt publication polling.
+        await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error('Standalone Server did not publish bounded ready process manifests');
 }
 
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'caxri-standalone-server-'));
@@ -116,6 +144,7 @@ try {
         diagnostics.terminalHost.attachedTerminalCount !== 1
     )
         throw new Error('Standalone Terminal Host diagnostics do not match the live PTY');
+    const observationManifests = await waitForObservationManifests(profile);
     await desktop.request('terminal.close', { terminalId });
     if ((await desktop.request('terminal.runningCount', {})) !== 0)
         throw new Error('Standalone Terminal Host did not retire the closed PTY');
@@ -139,6 +168,18 @@ try {
             version: status.version,
         },
         readyMs: Number(readyMs.toFixed(2)),
+        observability: {
+            checkId: 'architecture-a6-agent-observability',
+            owners: Object.fromEntries(
+                observationProcessOwners.map((owner) => [
+                    owner,
+                    {
+                        metricSeries: observationManifests[owner]!.metrics!.series.length,
+                        state: observationManifests[owner]!.state,
+                    },
+                ]),
+            ),
+        },
         runtimeVersion: sourceManifest.runtime.version,
         schemaVersion: 2,
         shutdown: { clean: true, shutdownMs: Number(shutdownMs.toFixed(2)) },
