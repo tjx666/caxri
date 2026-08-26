@@ -25,10 +25,3 @@ export interface LiveTerminal {
     outputTimer?: NodeJS.Timeout;
     metricTimer?: NodeJS.Timeout;
 }
-
-export interface TerminalGridSize {
-    cols: number;
-    rows: number;
-}
-
-export type AttachedSizeWaiter = () => void;
