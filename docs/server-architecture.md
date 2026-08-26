@@ -1,6 +1,6 @@
 # Server architecture
 
-- Status: current implementation contract for the A7 cutover candidate
+- Status: current implementation contract
 - Date: 2026-08-25
 - Scope: current repository, artifact, process, dependency, security, and observability boundaries;
   sections explicitly labeled future describe post-cutover product work
