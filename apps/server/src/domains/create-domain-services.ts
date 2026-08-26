@@ -188,7 +188,6 @@ export async function createDomainServices(
         logger,
         () => configuration.getSettings().value,
         () => terminals.runningCount(),
-        () => terminals.executionDiagnostics(),
         startedAt,
         () => watchHub.snapshot(),
     );

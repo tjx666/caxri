@@ -1,7 +1,6 @@
 import type {
     ServerEvent,
     TerminalFailureReason,
-    TerminalHostDiagnostics,
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
@@ -367,10 +366,6 @@ export class TerminalManager {
 
     detachAllViews(): void {
         this.execution.detachAllViews();
-    }
-
-    executionDiagnostics(): TerminalHostDiagnostics {
-        return this.execution.diagnostics();
     }
 
     async restart(terminalId: string, options?: TerminalStartOptions): Promise<TerminalRecord> {

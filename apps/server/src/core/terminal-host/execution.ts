@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import type {
     AgentOutputRecoverySettings,
-    TerminalHostDiagnostics,
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
@@ -64,10 +63,6 @@ type TerminalHostEvent = Exclude<
 const MAX_QUEUED_TERMINAL_INPUT_CHARACTERS = MAX_TERMINAL_INPUT_LENGTH * 4;
 
 export interface TerminalHostControl {
-    diagnostics(): Pick<
-        TerminalHostDiagnostics,
-        'state' | 'pid' | 'startedAt' | 'restartCount' | 'pendingRequestCount' | 'lastExit'
-    >;
     onEvent(listener: (event: TerminalHostEvent) => void): () => void;
     onExit(listener: (event: { code: number; signal: NodeJS.Signals | null }) => void): () => void;
     request(
@@ -549,23 +544,6 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             })(),
             'terminal.detachAll',
         );
-    }
-
-    diagnostics(): TerminalHostDiagnostics {
-        let queuedInputCharacters = 0;
-        for (const queue of this.inputQueues.values())
-            queuedInputCharacters += queue.queuedCharacters;
-        return {
-            ...this.supervisor.diagnostics(),
-            activeTerminalCount: this.runningCount(),
-            attachedTerminalCount: this.identities
-                .values()
-                .filter(({ attachmentId }) => attachmentId !== undefined)
-                .toArray().length,
-            inputQueueCount: this.inputQueues.size,
-            queuedInputCharacters,
-            resizeQueueCount: this.resizeQueues.size,
-        };
     }
 
     async restartBarrier(terminalId: string): Promise<TerminalSnapshot | null> {
