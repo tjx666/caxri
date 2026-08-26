@@ -27,6 +27,7 @@ import {
 } from './api-factory';
 import { extensionErrorShape } from './extension-error';
 import { installExtensionModuleHooks, replaceExtensionModuleRegistrations } from './module-loader';
+import { createExtensionHostProcessLifecycle } from './process-lifecycle';
 import type {
     ExtensionHostMessage,
     ExtensionHostParentMessage,
@@ -79,6 +80,16 @@ const processSampler = startProcessObservationSampler({
 });
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'extension-host' });
 processErrorMonitor.attach(logger);
+const processLifecycle = createExtensionHostProcessLifecycle({
+    disposeExtensions: disposeAllExtensions,
+    exit: (exitCode) => {
+        // eslint-disable-next-line unicorn/no-process-exit -- The owned Extension Host must exit after shutdown or parent loss.
+        process.exit(exitCode);
+    },
+    publish: (state) => processManifest.publish(state),
+    schedule: setImmediate,
+    stopSampler: () => processSampler.stop(),
+});
 
 function send(message: ExtensionHostMessage): void {
     if (process.connected) process.send?.(message);
@@ -109,14 +120,7 @@ async function handle(request: ExtensionHostRequest): Promise<unknown> {
         case 'cancel':
             return cancelTreeRequest(request.params.requestId);
         case 'shutdown':
-            processSampler.stop();
-            processManifest.publish('stopping');
-            disposeAllExtensions();
-            setImmediate(() => {
-                processManifest.publish('stopped');
-                // eslint-disable-next-line unicorn/no-process-exit -- The Extension Host must exit after completing the shutdown request.
-                process.exit(0);
-            });
+            processLifecycle.scheduleRequestedShutdown();
             return { stopped: true };
     }
 }
@@ -138,6 +142,7 @@ process.on('message', (message: ExtensionHostParentMessage) => {
     // eslint-disable-next-line no-void -- Message handling is intentionally fire-and-forget; processRequest catches and replies.
     void processRequest(request);
 });
+process.once('disconnect', () => processLifecycle.stopAfterParentDisconnect());
 
 async function processRequest(request: ExtensionHostRequest): Promise<void> {
     await runWithObservationContext(
