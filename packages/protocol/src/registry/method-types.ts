@@ -1,9 +1,12 @@
 import type { z } from 'zod';
 
-import type { MethodSpec } from '../transport/method-spec.js';
+import type { CommandRecovery, MethodSpec } from '../transport/method-spec.js';
 import { internalMethods, methods } from './method-registry.js';
 
 export type CaxriMethod = keyof typeof methods;
+export type EffectfulCaxriMethod = {
+    [M in CaxriMethod]: (typeof methods)[M]['effect'] extends 'read' ? never : M;
+}[CaxriMethod];
 type InternalMethod = keyof typeof internalMethods;
 export type ServerOperation = CaxriMethod | InternalMethod;
 
@@ -62,6 +65,97 @@ export type ServerOperationRequest = {
 
 export function isCaxriMethod(value: string): value is CaxriMethod {
     return Object.hasOwn(methods, value);
+}
+
+/**
+ * Exhaustive recovery/privacy review for every public effect. New write/control methods fail type checking until their
+ * reply is classified. Durable replies must be content-free; memory-only entries intentionally include editor bodies,
+ * configuration sources, Terminal screens, arbitrary extension results, or lifecycle semantics tied to one boot.
+ */
+export const effectfulCommandRecovery = {
+    'agent.dispatch.start': 'durable',
+    'agent.dispatch.resume': 'durable',
+    'agent.control.interrupt': 'durable',
+    'agent.control.stop': 'durable',
+    'terminal.send': 'durable',
+    'agent.worktree.created': 'durable',
+    'agent.grant': 'durable',
+    'agent.revoke': 'durable',
+    'agent.message.send': 'durable',
+    'agent.message.reply': 'durable',
+    'agent.message.policy.set': 'durable',
+    'agent.message.approve': 'durable',
+    'agent.message.deny': 'durable',
+    'settings.patch': 'memory',
+    'session.selectWorkbenchRoot': 'durable',
+    'session.authorizeWorkbenchRoot': 'durable',
+    'session.dismissWorkbenchCandidate': 'durable',
+    'session.continueInWorktree': 'durable',
+    'viewContainers.viewOperation': 'memory',
+    'viewContainers.executeCommand': 'durable',
+    'viewContainers.cancelRequest': 'durable',
+    'requests.cancel': 'durable',
+    'extensions.retry': 'durable',
+    'host.stop': 'memory',
+    'desktop.focus': 'durable',
+    'desktop.openPath': 'durable',
+    'desktop.openProject': 'durable',
+    'desktop.openFile': 'durable',
+    'files.reveal': 'durable',
+    'project.openInEditor': 'durable',
+    'argv.update': 'memory',
+    'external.open': 'durable',
+    'editor.confirmDiscard': 'durable',
+    'processExplorer.open': 'durable',
+    'dialog.selectDirectory': 'durable',
+    'diagnostics.export': 'durable',
+    'bugReport.captureScreenshot': 'memory',
+    'bugReport.send': 'durable',
+    'updates.download': 'durable',
+    'updates.cancel': 'durable',
+    'updates.open': 'durable',
+    'project.create': 'durable',
+    'project.cancelCreate': 'durable',
+    'project.delete': 'memory',
+    'project.reorder': 'durable',
+    'project.setIcon': 'durable',
+    'session.create': 'durable',
+    'session.delete': 'memory',
+    'session.select': 'durable',
+    'session.markRead': 'durable',
+    'session.rename': 'durable',
+    'session.archive': 'durable',
+    'session.unarchive': 'durable',
+    'session.updateState': 'memory',
+    'terminal.create': 'durable',
+    'terminal.input': 'none',
+    'terminal.resize': 'none',
+    'terminal.close': 'durable',
+    'terminal.attach': 'memory',
+    'terminal.detach': 'durable',
+    'terminal.moveToNewSession': 'durable',
+    'terminal.restart': 'durable',
+    'terminal.openFileLink': 'durable',
+    'files.create': 'durable',
+    'files.copy': 'durable',
+    'files.rename': 'durable',
+    'files.move': 'durable',
+    'files.operation.cancel': 'durable',
+    'files.operation.acknowledge': 'durable',
+    'files.trash': 'durable',
+    'files.write': 'memory',
+    'git.switchBranch': 'durable',
+    'git.sync': 'durable',
+    'git.discard': 'durable',
+    'settings.update': 'memory',
+    'keybindings.update': 'memory',
+    'theme.update': 'memory',
+    'theme.import': 'memory',
+} as const satisfies Record<EffectfulCaxriMethod, CommandRecovery>;
+
+export function commandRecoveryFor(method: CaxriMethod): CommandRecovery {
+    if (methods[method].effect === 'read') return 'none';
+    return effectfulCommandRecovery[method as EffectfulCaxriMethod];
 }
 
 /**

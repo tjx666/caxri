@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import type { CaxriRequest } from '../../index';
 import {
+    commandRecoveryFor,
+    effectfulCommandRecovery,
     getMethodSpec,
     isCaxriMethod,
     isDesktopRequest,
     isMainRequest,
     isServerRequest,
+    methods,
 } from '../../index';
 
 describe('isCaxriMethod', () => {
@@ -38,5 +41,30 @@ describe('getMethodSpec', () => {
         expect(getMethodSpec('project.list')?.owner).toBe('server');
         expect(getMethodSpec('app.windowState.get')?.owner).toBe('server');
         expect(getMethodSpec('not.a.method')).toBeUndefined();
+    });
+});
+
+describe('command recovery policy', () => {
+    it('classifies every effectful public method explicitly', () => {
+        const effectfulMethods = Object.entries(methods)
+            .filter(([, specification]) => specification.effect !== 'read')
+            .map(([method]) => method)
+            .toSorted((left, right) => left.localeCompare(right));
+
+        expect(
+            Object.keys(effectfulCommandRecovery).toSorted((left, right) =>
+                left.localeCompare(right),
+            ),
+        ).toEqual(effectfulMethods);
+    });
+
+    it('keeps content-bearing replies in memory while allowing reviewed structural receipts', () => {
+        expect(commandRecoveryFor('project.list')).toBe('none');
+        expect(commandRecoveryFor('terminal.input')).toBe('none');
+        expect(commandRecoveryFor('session.updateState')).toBe('memory');
+        expect(commandRecoveryFor('files.write')).toBe('memory');
+        expect(commandRecoveryFor('terminal.attach')).toBe('memory');
+        expect(commandRecoveryFor('session.rename')).toBe('durable');
+        expect(commandRecoveryFor('terminal.create')).toBe('durable');
     });
 });
