@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { CaxriRequest } from '../registry/methods.js';
 import { methods } from '../registry/methods.js';
 import { CaxriError, toWireError } from './errors.js';
+import type { ProtocolFeature } from './identity.js';
 import type { CommandOwner, MethodSpec } from './method-spec.js';
 import type { CommandExecutionContext } from './principal.js';
 import { capabilitySchema, hasRequiredCapabilities, principalSchema } from './principal.js';
@@ -31,6 +32,7 @@ export interface CommandAdapter {
 
 export interface CommandDispatcherOptions {
     desktop?: CommandAdapter;
+    features?: readonly ProtocolFeature[];
     server: CommandAdapter;
     maximumReceipts?: number;
 }
@@ -101,11 +103,13 @@ export function createProtocolWelcome(
             hasRequiredCapabilities(context, spec.requiredCapabilities)
         );
     });
+    const supportedFeatures = new Set(options.features);
     return protocolWelcomeSchema.parse({
         protocolVersion: negotiateProtocolVersion(hello.supportedVersions),
         principal: context.principal,
         capabilities: context.capabilities,
         commands,
+        features: hello.features.filter((feature) => supportedFeatures.has(feature)),
     });
 }
 

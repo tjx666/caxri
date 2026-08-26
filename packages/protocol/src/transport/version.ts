@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { CaxriError } from './errors.js';
+import { protocolFeatureSchema } from './identity.js';
 import { capabilitySchema, principalSchema } from './principal.js';
 
 /**
@@ -14,6 +15,7 @@ export type CaxriProtocolVersion = typeof CAXRI_PROTOCOL_VERSION;
 
 export const protocolHelloSchema = z.object({
     supportedVersions: z.array(z.number().int().positive()).min(1).max(16),
+    features: z.array(protocolFeatureSchema).max(protocolFeatureSchema.options.length).default([]),
 });
 
 export const protocolWelcomeSchema = z.object({
@@ -21,6 +23,11 @@ export const protocolWelcomeSchema = z.object({
     principal: principalSchema,
     capabilities: z.array(capabilitySchema).max(64),
     commands: z.array(z.string().min(1).max(120)).max(256),
+    /**
+     * Optional on the v2 welcome so a client can feature-gate A4 behavior while connecting to an older same-version
+     * development build. Current Servers always send the negotiated list.
+     */
+    features: z.array(protocolFeatureSchema).max(protocolFeatureSchema.options.length).optional(),
 });
 
 export type ProtocolHello = z.infer<typeof protocolHelloSchema>;

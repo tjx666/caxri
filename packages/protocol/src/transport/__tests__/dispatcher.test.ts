@@ -133,4 +133,18 @@ describe('createCommandDispatcher adapter availability', () => {
         const welcome = createProtocolWelcome({ server }, { supportedVersions: [2] }, desktop);
         expect(welcome.commands).not.toContain('app.health');
     });
+
+    it('negotiates only durable recovery features supported by both peers', () => {
+        const server: CommandAdapter = { invoke: () => null };
+        const welcome = createProtocolWelcome(
+            { server, features: ['durable-command-receipts-v1'] },
+            {
+                supportedVersions: [2],
+                features: ['durable-command-receipts-v1', 'durable-changefeed-v1'],
+            },
+            desktop,
+        );
+
+        expect(welcome.features).toEqual(['durable-command-receipts-v1']);
+    });
 });

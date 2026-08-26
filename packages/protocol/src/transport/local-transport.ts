@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { isDesktopServerOperation } from '../desktop/desktop-server-operations.js';
 import { identifierSchema, pathSchema } from '../domain/domain.js';
 import { protocolEventEnvelopeSchema, transientServerEventSchema } from './event-journal.js';
+import { protocolClientIdentitySchema } from './identity.js';
 import { commandReplyEnvelopeSchema, requestEnvelopeSchema } from './transport.js';
 import { protocolHelloSchema, protocolVersionSchema, protocolWelcomeSchema } from './version.js';
 
@@ -105,6 +106,7 @@ const localClientDesktopCredentialSchema = z.object({
 export const localClientHelloSchema = protocolHelloSchema.extend({
     type: z.literal('hello'),
     profileId: identifierSchema,
+    clientId: protocolClientIdentitySchema,
     credential: z.discriminatedUnion('kind', [
         localClientOperatorCredentialSchema,
         localClientAgentCredentialSchema,

@@ -79,6 +79,7 @@ describe('WebSocket control transport', () => {
             Buffer.from(
                 JSON.stringify({
                     type: 'hello',
+                    clientId: 'client-test',
                     supportedVersions: [2],
                     profileId: lease.manifest.profileId,
                     credential: {
