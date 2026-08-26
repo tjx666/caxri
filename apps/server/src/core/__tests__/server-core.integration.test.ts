@@ -91,14 +91,19 @@ function createMutationRaceFixture(): CreateDomainServices {
                     startedAt: Date.now(),
                     activePtyCount,
                 }),
-                'terminal.input': async () => {
+                'terminal.sendInternal': async ({ enter, terminalId, text }) => {
                     dependencies.send({
                         event: 'state.changed',
                         payload: { kind: 'full', reason: 'session.select' },
                     });
                     await new Promise((resolve) => setTimeout(resolve, 50));
                     activePtyCount = 1;
-                    return null;
+                    return {
+                        terminalId,
+                        accepted: true,
+                        byteLength: Buffer.byteLength(text, 'utf8'),
+                        enter,
+                    };
                 },
             }),
             protocolRecovery: createTestProtocolRecoveryState(),
@@ -673,8 +678,8 @@ describe('Server Core application', () => {
                 request: {
                     protocolVersion: CAXRI_PROTOCOL_VERSION,
                     id: 'mutation-1',
-                    method: 'terminal.input',
-                    params: { terminalId: 'terminal-1', data: 'x' },
+                    method: 'terminal.send',
+                    params: { terminalId: 'terminal-1', text: 'x', enter: false },
                 },
             })}\n`,
         );
