@@ -8,6 +8,7 @@ import {
     installProcessErrorMonitor,
     observationProcessManifestDirectory,
     ObservationProcessManifestPublisher,
+    startProcessObservationSampler,
     StructuredLogger,
 } from '@caxri/system';
 
@@ -38,6 +39,11 @@ const processManifest = new ObservationProcessManifestPublisher({
     owner: 'server-core',
 });
 processManifest.publish('starting');
+const processSampler = startProcessObservationSampler({
+    logger,
+    owner: 'server-core',
+    publisher: processManifest,
+});
 const desktopLaunchSource = process.env[SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
 const desktopLaunch = desktopLaunchSource
     ? serverDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
@@ -88,6 +94,7 @@ processManifest.publish('ready', { context: processContext });
     const stopForSignal = async (signal: NodeJS.Signals): Promise<void> => {
         if (isSignalReceived) return;
         isSignalReceived = true;
+        processSampler.stop();
         processManifest.publish('stopping');
         try {
             await app.stop(signal);
