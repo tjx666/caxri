@@ -7,6 +7,7 @@ import type {
 } from '@caxri/protocol';
 import {
     CaxriError,
+    fromWireError,
     parseRuntimeRequest,
     runtimeWorkbenchContextSchema,
     toWireError,
@@ -40,6 +41,11 @@ export interface RuntimeDispatcher {
     cancel(requestId: string): boolean;
 }
 
+export interface RuntimeOperationDispatcher {
+    (envelope: RuntimeRequestEnvelope): Promise<unknown>;
+    cancel(requestId: string): boolean;
+}
+
 /**
  * PTY input and resize are measured by aggregated throughput metrics, never per-request log writes.
  */
@@ -55,17 +61,16 @@ function pruneCancelTombstones(tombstones: Map<string, number>, now = Date.now()
 }
 
 /**
- * Validates one request against the shared method table, runs its handler, and encodes the outcome as a wire response.
- * This is the only place that classifies Runtime faults for the wire.
+ * Validates and executes one internal operation without imposing a process or serialization boundary.
  */
-export function createDispatcher(
+export function createOperationDispatcher(
     handlers: RuntimeHandlers,
     logger: StructuredLogger,
     validateContext?: (context: RuntimeWorkbenchContext) => void,
-): RuntimeDispatcher {
+): RuntimeOperationDispatcher {
     const active = new Map<string, AbortController>();
     const cancelTombstones = new Map<string, number>();
-    const dispatch = async (envelope: RuntimeRequestEnvelope): Promise<RuntimeResponse> => {
+    const dispatch = async (envelope: RuntimeRequestEnvelope): Promise<unknown> => {
         const started = performance.now();
         let cancellation: AbortController | undefined;
         try {
@@ -97,7 +102,7 @@ export function createDispatcher(
                     fields: { method: envelope.method },
                 });
             }
-            return { id: envelope.id, ok: true, result };
+            return result;
         } catch (error) {
             /**
              * Zod failures become VALIDATION, CaxriError keeps its code, everything else is INTERNAL.
@@ -130,7 +135,7 @@ export function createDispatcher(
                     },
                 });
             }
-            return { id: envelope.id, ok: false, error: wire };
+            throw fromWireError(wire);
         } finally {
             if (cancellation && active.get(envelope.id) === cancellation)
                 active.delete(envelope.id);
@@ -147,5 +152,26 @@ export function createDispatcher(
         pruneCancelTombstones(cancelTombstones);
         return true;
     };
+    return dispatch;
+}
+
+/**
+ * Transitional private-process adapter. Server Core callers use `createOperationDispatcher` directly; only the legacy
+ * utility-process entrypoint still converts outcomes to wire responses.
+ */
+export function createDispatcher(
+    handlers: RuntimeHandlers,
+    logger: StructuredLogger,
+    validateContext?: (context: RuntimeWorkbenchContext) => void,
+): RuntimeDispatcher {
+    const invoke = createOperationDispatcher(handlers, logger, validateContext);
+    const dispatch = async (envelope: RuntimeRequestEnvelope): Promise<RuntimeResponse> => {
+        try {
+            return { id: envelope.id, ok: true, result: await invoke(envelope) };
+        } catch (error) {
+            return { id: envelope.id, ok: false, error: toWireError(error) };
+        }
+    };
+    dispatch.cancel = (requestId: string) => invoke.cancel(requestId);
     return dispatch;
 }
