@@ -257,7 +257,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                         initialSize: this.views.get(input.record.id)!.size,
                     }),
                     ...(input.outputRecovery && { outputRecovery: input.outputRecovery }),
-                    ...(input.colors && { colors: input.colors }),
+                    ...(input.colors && {
+                        colors: {
+                            background: input.colors.background,
+                            foreground: input.colors.foreground,
+                        },
+                    }),
                 },
             },
             this.terminalScope(identity, 'terminal.lifecycle'),

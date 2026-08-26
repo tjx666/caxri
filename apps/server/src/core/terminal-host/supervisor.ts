@@ -20,6 +20,7 @@ import {
     isTerminalHostResult,
     TERMINAL_HOST_PROTOCOL_VERSION,
     terminalHostMessageSchema,
+    terminalHostRequestEnvelopeSchema,
 } from '../../terminal-host/protocol';
 
 interface PendingRequest {
@@ -267,6 +268,18 @@ export class TerminalHostSupervisor extends EventTarget {
             scope,
             request,
         };
+        const parsedEnvelope = terminalHostRequestEnvelopeSchema.safeParse(envelope);
+        if (!parsedEnvelope.success) {
+            this.options.logger.write('error', logEventCatalog.terminalHost.invalidMessage, {
+                fields: {
+                    method: request.method,
+                    issues: parsedEnvelope.error.issues
+                        .map((issue) => `${issue.path.join('.')}:${issue.code}`)
+                        .join(','),
+                },
+            });
+            throw new CaxriError('INTERNAL', 'Terminal Host request failed local validation');
+        }
         return new Promise((resolve, reject) => {
             let removeAbortListener: (() => void) | undefined;
             const settleAbort = (): void => {
