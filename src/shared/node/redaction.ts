@@ -3,8 +3,8 @@ import { homedir } from 'node:os';
 import { isSecretKey, redactSecretText } from '../redaction';
 
 /**
- * Node-only because it depends on `homedir()`; never import from src/renderer. Shared by the structured logger and
- * diagnostics export so credential-shaped text is redacted identically wherever it is written to disk.
+ * Node-only because it depends on `homedir()`; never import from apps/desktop/src/renderer. Shared by the structured
+ * logger and diagnostics export so credential-shaped text is redacted identically wherever it is written to disk.
  */
 export { isSecretKey } from '../redaction';
 

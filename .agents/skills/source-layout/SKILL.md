@@ -29,9 +29,8 @@ its current root and move the file with its owner:
 
 | Current path                                       | Target owner      | Removal batch |
 | -------------------------------------------------- | ----------------- | ------------- |
-| `src/main/`, `src/preload/`, `src/renderer/`       | `apps/desktop/`   | A2d           |
 | `src/host/`, `src/runtime/`, `src/extension-host/` | `apps/server/`    | A2e           |
-| other `src/shared/` modules                        | package/app owner | A2d/A2e       |
+| remaining `src/shared/` modules                    | package/app owner | A2e           |
 
 The executable source of truth for these allowances is `scripts/architecture-boundaries.ts`.
 `caxri/architecture-boundaries` rejects application-to-application source imports, package-private
@@ -41,16 +40,16 @@ workspaces. Renderer never imports Node.js, Electron, or native APIs. Playwright
 
 ## 2. Place React components
 
-| Kind                                        | Live here                              |
-| ------------------------------------------- | -------------------------------------- |
-| Feature screen, panel, or dialog            | `src/renderer/src/features/<feature>/` |
-| Shared chrome used by more than one feature | `src/renderer/src/components/`         |
-| shadcn primitives                           | `src/renderer/src/components/ui/`      |
-| Shared hooks                                | `src/renderer/src/hooks/`              |
-| Icons                                       | `src/renderer/src/icons/`              |
+| Kind                                        | Live here                                           |
+| ------------------------------------------- | --------------------------------------------------- |
+| Feature screen, panel, or dialog            | `apps/desktop/src/renderer/src/features/<feature>/` |
+| Shared chrome used by more than one feature | `apps/desktop/src/renderer/src/components/`         |
+| shadcn primitives                           | `apps/desktop/src/renderer/src/components/ui/`      |
+| Shared hooks                                | `apps/desktop/src/renderer/src/hooks/`              |
+| Icons                                       | `apps/desktop/src/renderer/src/icons/`              |
 
 Do not put product UI in `components/ui/`. Do not invent a second hooks directory; `@/hooks` is
-`src/renderer/src/hooks/`. Process Explorer UI stays under `features/process-explorer/` with its
+`apps/desktop/src/renderer/src/hooks/`. Process Explorer UI stays under `features/process-explorer/` with its
 own entry.
 
 A component file is kebab-case `.tsx`; its primary named export is the PascalCase mapping of the
@@ -60,7 +59,7 @@ follows `DESIGN.md` token utilities only.
 
 ## 3. Shape a Renderer feature directory
 
-A feature directory under `src/renderer/src/features/<feature>/` starts flat and earns a kind
+A feature directory under `apps/desktop/src/renderer/src/features/<feature>/` starts flat and earns a kind
 folder only when files of that kind accumulate. The `caxri/feature-directory-structure` ESLint
 rule enforces the thresholds and the no-coexistence contract.
 
@@ -131,7 +130,7 @@ When moving, `git mv`, then fix relative imports and `import.meta.url` paths in 
 | -------------------------------- | ---------------------------------------------- |
 | Renderer feature logic           | Colocated below three files, else `__tests__/` |
 | React components                 | Do not unit-test the `.tsx`; extract logic     |
-| Renderer-wide contracts          | `src/renderer/__tests__/`                      |
+| Renderer-wide contracts          | `apps/desktop/src/renderer/__tests__/`         |
 | Main, Host, Runtime, shared, CLI | Domain-local `__tests__/`                      |
 | Skill scripts                    | `scripts/*.test.ts` or `scripts/__tests__/`    |
 | Repo scripts                     | `scripts/__tests__/`                           |

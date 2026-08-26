@@ -24,7 +24,7 @@ by connecting to the running installed app on 9224 directly; whether that suffic
 relaunch is still needed depends on the problem. The
 `remoteDebugging` field in the Main-owned boot config `<userData>/config/argv.jsonc`
 (Settings → "Remote debugging") turns the endpoint off on the next launch
-(`src/main/runtime-profile.ts`).
+(`apps/desktop/src/main/runtime-profile.ts`).
 
 Connect with `agent-browser`, always stripping proxy environment variables:
 

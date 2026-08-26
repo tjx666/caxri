@@ -3,7 +3,8 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
-            "@/*": ["./src/renderer/src/*"],
+            "@/*": ["./apps/desktop/src/renderer/src/*"],
+            "@desktop-shared/*": ["./apps/desktop/src/shared/*"],
             "@shared/*": ["./src/shared/*"]
         }
     },

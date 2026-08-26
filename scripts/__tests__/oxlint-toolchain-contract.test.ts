@@ -88,7 +88,7 @@ describe('oxlint type-aware toolchain contract', () => {
             rules: Record<string, unknown>;
         }>;
         const noSyncOverride = overrides.find((override) => override.rules['node/no-sync']);
-        expect(noSyncOverride?.files).toContain('src/main/**/*.ts');
+        expect(noSyncOverride?.files).toContain('apps/desktop/src/main/**/*.ts');
         expect(noSyncOverride?.files).toContain('src/runtime/**/*.ts');
         const testExemption = overrides.find(
             (override) => override.rules['node/no-sync'] === 'off',

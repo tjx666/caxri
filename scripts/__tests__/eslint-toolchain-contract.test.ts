@@ -49,7 +49,7 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(ruleIds).not.toContain('@typescript-eslint/no-floating-promises');
         expect(ruleIds).not.toContain('@typescript-eslint/no-unsafe-assignment');
 
-        const config = await effectiveConfigFor('src/main/index.ts');
+        const config = await effectiveConfigFor('apps/desktop/src/main/index.ts');
         expect(config.rules?.['@typescript-eslint/no-floating-promises']).toBeUndefined();
         expect(config.rules?.['@typescript-eslint/no-misused-promises']).toBeUndefined();
     });
@@ -62,7 +62,7 @@ describe('shared ESLint preset toolchain contract', () => {
     });
 
     it('keeps Caxri-specific boundary rules active on a representative renderer file', async () => {
-        const config = await effectiveConfigFor('src/renderer/src/app.tsx');
+        const config = await effectiveConfigFor('apps/desktop/src/renderer/src/app.tsx');
 
         // Caxri-specific overrides layered on top of the shared preset.
         expect(config.rules?.['max-lines']?.[1]).toMatchObject({ max: 800 });
@@ -87,8 +87,8 @@ describe('shared ESLint preset toolchain contract', () => {
         expect(config.rules?.['import-x/order']).toBeDefined();
     });
 
-    it('bans default exports on .tsx files under src/', async () => {
-        const config = await effectiveConfigFor('src/renderer/src/app.tsx');
+    it('bans default exports on Desktop .tsx files', async () => {
+        const config = await effectiveConfigFor('apps/desktop/src/renderer/src/app.tsx');
         const noRestrictedSyntax = config.rules?.['no-restricted-syntax'] as [
             number,
             { selector?: string; message?: string },

@@ -122,27 +122,6 @@ export const packageBoundaries: readonly PackageBoundary[] = [
  */
 export const legacyOwnershipRoots: readonly LegacyOwnershipRoot[] = [
     {
-        root: 'src/main',
-        kind: 'application',
-        owner: 'desktop',
-        removeInBatch: 'A2d',
-        target: 'apps/desktop/src/main',
-    },
-    {
-        root: 'src/preload',
-        kind: 'application',
-        owner: 'desktop',
-        removeInBatch: 'A2d',
-        target: 'apps/desktop/src/preload',
-    },
-    {
-        root: 'src/renderer',
-        kind: 'application',
-        owner: 'desktop',
-        removeInBatch: 'A2d',
-        target: 'apps/desktop/src/renderer',
-    },
-    {
         root: 'src/host',
         kind: 'application',
         owner: 'server',

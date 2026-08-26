@@ -31,7 +31,7 @@ describe('dirty layer report', () => {
         expect(
             dirtyLayerReportForFiles(
                 [
-                    'src/renderer/src/features/files/file-tree-panel.tsx',
+                    'apps/desktop/src/renderer/src/features/files/file-tree-panel.tsx',
                     'packages/protocol/src/domain/session.ts',
                 ],
                 true,
@@ -111,10 +111,10 @@ describe('dirty layer report', () => {
 
 describe('parseCheckArguments', () => {
     it('defaults to lint and related tests', () => {
-        expect(parseCheckArguments(['src/main/index.ts'])).toEqual({
+        expect(parseCheckArguments(['apps/desktop/src/main/index.ts'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
-            files: ['src/main/index.ts'],
+            files: ['apps/desktop/src/main/index.ts'],
             isStaged: false,
             knip: false,
             lint: true,
@@ -179,7 +179,10 @@ describe('parseCheckArguments', () => {
 describe('selectE2ESpecs', () => {
     it('keeps only explicit Playwright specs', () => {
         expect(
-            selectE2ESpecs(['src/main/index.ts', 'e2e/smoke.e2e.ts', 'e2e/settings.e2e.ts'], true),
+            selectE2ESpecs(
+                ['apps/desktop/src/main/index.ts', 'e2e/smoke.e2e.ts', 'e2e/settings.e2e.ts'],
+                true,
+            ),
         ).toEqual(['e2e/smoke.e2e.ts', 'e2e/settings.e2e.ts']);
     });
 
@@ -190,7 +193,7 @@ describe('selectE2ESpecs', () => {
     });
 
     it('fails closed when explicit files contain no Playwright spec', () => {
-        expect(() => selectE2ESpecs(['src/main/index.ts'], true)).toThrow(
+        expect(() => selectE2ESpecs(['apps/desktop/src/main/index.ts'], true)).toThrow(
             '--e2e requires an explicit e2e/*.e2e.ts file',
         );
     });
@@ -222,7 +225,7 @@ describe('playwrightArguments', () => {
 
 describe('lintPipelineForFile', () => {
     it('matches the repository lint-staged pipelines', () => {
-        expect(lintPipelineForFile('src/main/index.ts')).toBe('code');
+        expect(lintPipelineForFile('apps/desktop/src/main/index.ts')).toBe('code');
         expect(lintPipelineForFile('DESIGN.md')).toBe('format');
         expect(lintPipelineForFile('assets/font.woff2')).toBeUndefined();
     });
@@ -232,13 +235,13 @@ describe('lintBucketsForFiles', () => {
     it('separates Markdown into its own bucket so it can run markdownlint before Prettier', () => {
         expect(
             lintBucketsForFiles([
-                'src/main/index.ts',
+                'apps/desktop/src/main/index.ts',
                 'DESIGN.md',
                 'package.json',
                 'assets/font.woff2',
             ]),
         ).toEqual({
-            codeFiles: ['src/main/index.ts'],
+            codeFiles: ['apps/desktop/src/main/index.ts'],
             markdownFiles: ['DESIGN.md'],
             otherFormatFiles: ['package.json'],
         });
@@ -333,21 +336,21 @@ describe('direct import test selection', () => {
     it('recognizes tsconfig path-alias static imports', () => {
         expect(
             hasDirectSourceImport(
-                'src/renderer/src/stores/workbench.test.ts',
+                'apps/desktop/src/renderer/src/stores/workbench.test.ts',
                 `import type { RuntimeEvent } from '@shared/ipc/events';`,
                 'src/shared/ipc/events.ts',
             ),
         ).toBe(true);
         expect(
             hasDirectSourceImport(
-                'src/renderer/src/stores/workbench.test.ts',
+                'apps/desktop/src/renderer/src/stores/workbench.test.ts',
                 `import { useSessionViewStore } from '@/stores/session-view';`,
-                'src/renderer/src/stores/session-view.ts',
+                'apps/desktop/src/renderer/src/stores/session-view.ts',
             ),
         ).toBe(true);
         expect(
             hasDirectSourceImport(
-                'src/renderer/src/stores/workbench.test.ts',
+                'apps/desktop/src/renderer/src/stores/workbench.test.ts',
                 `import { z } from 'zod';`,
                 'src/shared/ipc/events.ts',
             ),
@@ -364,11 +367,7 @@ describe('direct import test selection', () => {
                 target: targets[0].replace(/^\.\//, '').replace(/\*$/, ''),
             }),
         );
-        expect([...IMPORT_PATH_ALIASES]).toEqual([
-            expected[0],
-            { prefix: '@/', target: 'apps/desktop/src/renderer/src/' },
-            expected[1],
-        ]);
+        expect([...IMPORT_PATH_ALIASES]).toEqual(expected);
     });
 
     it('resolves Renderer aliases before and after the Desktop source move', () => {
@@ -386,7 +385,7 @@ describe('direct import test selection', () => {
         const selected = await directImportTestCandidates(process.cwd(), [
             'src/shared/commands.ts',
         ]);
-        expect(selected).toContain('src/renderer/src/commands/execute.test.ts');
+        expect(selected).toContain('apps/desktop/src/renderer/src/commands/execute.test.ts');
     });
 
     it('discovers direct-import tests inside workspace packages', async () => {

@@ -53,7 +53,13 @@ function testTsxFiles(directory: string): string[] {
 
 describe('test placement contract', () => {
     it('keeps Main, Host, Runtime, and shared Node tests inside __tests__/ (Renderer stays colocated)', () => {
-        for (const domain of ['src/main', 'src/host', 'src/runtime', 'src/shared']) {
+        for (const domain of [
+            'apps/desktop/src/main',
+            'apps/desktop/src/shared',
+            'src/host',
+            'src/runtime',
+            'src/shared',
+        ]) {
             expect(looseTestFiles(join(root, domain)), `${domain} loose *.test.ts files`).toEqual(
                 [],
             );

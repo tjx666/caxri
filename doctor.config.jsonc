@@ -12,10 +12,10 @@
                 // forms), so the static monaco imports stay inside the lazily loaded chunk
                 // and never run at startup. The rule only inspects import syntax per file.
                 "files": [
-                    "src/renderer/src/features/editor/code-editor.tsx",
-                    "src/renderer/src/features/editor/git-diff-editor.tsx",
-                    "src/renderer/src/features/settings/config-editor.tsx",
-                    "src/renderer/src/lib/monaco.ts",
+                    "apps/desktop/src/renderer/src/features/editor/code-editor.tsx",
+                    "apps/desktop/src/renderer/src/features/editor/git-diff-editor.tsx",
+                    "apps/desktop/src/renderer/src/features/settings/config-editor.tsx",
+                    "apps/desktop/src/renderer/src/lib/monaco.ts",
                 ],
                 "rules": ["react-doctor/prefer-dynamic-import"],
             },
@@ -27,8 +27,8 @@
                 "files": [
                     "packages/agent-skills/src/execute.ts",
                     "packages/agent-skills/src/filesystem.ts",
-                    "src/main/menu-refresh.ts",
-                    "src/renderer/src/lib/monaco.ts",
+                    "apps/desktop/src/main/menu-refresh.ts",
+                    "apps/desktop/src/renderer/src/lib/monaco.ts",
                     "src/runtime/agents/hooks/manager.ts",
                     "src/runtime/files/mutation-journal.ts",
                     "src/runtime/files/mutations-copy.ts",
@@ -39,14 +39,14 @@
             {
                 // The chrome-layout key is intentionally versioned because its fields define one
                 // device-local layout schema shared by all three chrome regions.
-                "files": ["src/renderer/src/stores/chrome-layout.ts"],
+                "files": ["apps/desktop/src/renderer/src/stores/chrome-layout.ts"],
                 "rules": ["react-doctor/client-localstorage-no-version"],
             },
             {
                 // Keybinding rows have no stable identity: both the key and the command are
                 // editable in place and rows are addressed by index (onFieldChange(index, ...)),
                 // so an index-derived key is the correct choice here.
-                "files": ["src/renderer/src/features/settings/keybindings-form.tsx"],
+                "files": ["apps/desktop/src/renderer/src/features/settings/keybindings-form.tsx"],
                 "rules": ["react-doctor/no-array-index-as-key"],
             },
             {
@@ -83,7 +83,7 @@
                 // Vendored VS Code codicon paths keep the upstream repository's exact coordinates
                 // (CC BY 4.0, licenses/VSCODE_CODICONS_LICENSE.txt) so the assets stay auditable
                 // against their source instead of being re-rounded per icon.
-                "files": ["src/renderer/src/icons/codicons/**"],
+                "files": ["apps/desktop/src/renderer/src/icons/codicons/**"],
                 "rules": ["react-doctor/rendering-svg-precision"],
             },
         ],

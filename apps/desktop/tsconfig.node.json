@@ -1,0 +1,10 @@
+{
+    "extends": "../../tsconfig.node.json",
+    "include": [
+        "src/main/**/*.ts",
+        "src/preload/**/*.ts",
+        "src/renderer/__tests__/**/*.ts",
+        "src/shared/**/*.ts",
+        "../../src/shared/**/*.ts"
+    ]
+}

@@ -83,7 +83,7 @@
             // in Main, Runtime, and tooling code; test code is exempt. Owned by oxlint because
             // eslint-plugin-n v18's no-sync requires typed linting (see the file header comment).
             "files": [
-                "src/main/**/*.ts",
+                "apps/desktop/src/main/**/*.ts",
                 "src/runtime/**/*.ts",
                 "src/shared/node/**/*.ts",
                 "apps/cli/src/**/*.ts",

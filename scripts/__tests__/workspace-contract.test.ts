@@ -18,7 +18,7 @@ const nativeDesktopDependencies = ['@parcel/watcher', 'better-sqlite3', 'electro
 
 interface PackageManifest {
     bin?: unknown;
-    build?: { files?: string[] };
+    build?: { extraMetadata?: { main?: string; name?: string }; files?: string[] };
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
     main?: string;
@@ -26,6 +26,7 @@ interface PackageManifest {
     packageManager?: string;
     private?: boolean;
     scripts?: Record<string, string>;
+    version?: string;
     exports?: Record<string, unknown>;
     devEngines?: { packageManager?: unknown };
     workspaces?: unknown;
@@ -110,6 +111,7 @@ describe('pnpm workspace contract', () => {
     const clientManifest = manifest(join(root, 'packages/client/package.json'));
     const protocolManifest = manifest(join(root, 'packages/protocol/package.json'));
     const cliManifest = manifest(join(root, 'apps/cli/package.json'));
+    const desktopManifest = manifest(join(root, 'apps/desktop/package.json'));
     const workspace = parse(
         readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'),
     ) as PnpmWorkspace;
@@ -228,7 +230,7 @@ describe('pnpm workspace contract', () => {
         expect(nodeConfig).toContain('"apps/desktop/src/main/**/*.ts"');
         expect(nodeConfig).toContain('"apps/server/**/*.ts"');
         expect(nodeConfig).not.toContain('"apps/**/*.tsx"');
-        expect(webConfig).toContain('"apps/desktop/src/renderer/**/*.tsx"');
+        expect(webConfig).toContain('"apps/desktop/src/renderer/src/**/*.tsx"');
         expect(webConfig).toContain('"packages/client/src/connection/**/*.ts"');
         expect(webConfig).toContain('"packages/client/src/state/**/*.ts"');
         expect(webConfig).not.toContain('"packages/client/src/**/*.ts"');
@@ -302,6 +304,7 @@ describe('pnpm workspace contract', () => {
         expect(agentSkillsManifest.scripts?.test).toContain('--project agent-skills');
         expect(clientManifest.scripts?.test).toContain('--project client');
         expect(cliManifest.scripts?.test).toContain('--project cli');
+        expect(desktopManifest.scripts?.test).toContain('--project desktop-parallel');
         expect(rootManifest.scripts?.['typecheck:api']).toBe('pnpm --filter caxri run typecheck');
         expect(rootManifest.scripts?.['test:protocol']).toBe(
             'pnpm --filter @caxri/protocol run test',
@@ -314,7 +317,7 @@ describe('pnpm workspace contract', () => {
             "pnpm --recursive --filter './apps/*' --filter './packages/*' run test",
         );
         expect(rootManifest.scripts?.['build:workspaces']).toBe(
-            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --if-present run build",
+            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --if-present run build",
         );
         expect(rootManifest.scripts?.['link:cli']).toBe(
             'bun run build:cli && bun run apps/cli/scripts/link-global.ts',
@@ -323,10 +326,23 @@ describe('pnpm workspace contract', () => {
     });
 
     it('builds workspace distributions before Desktop development and production builds', () => {
-        expect(rootManifest.scripts?.dev).toBe('bun run build:workspaces && electron-vite dev');
+        expect(rootManifest.name).toBe('@caxri/workspace');
+        expect(rootManifest.main).toBeUndefined();
+        expect(rootManifest.scripts?.dev).toBe('bun run build:workspaces && bun run dev:desktop');
+        expect(rootManifest.scripts?.['dev:desktop']).toBe('electron-vite dev');
         expect(rootManifest.scripts?.build).toBe(
             'bun run build:workspaces && bun run build:desktop',
         );
+        expect(desktopManifest).toMatchObject({
+            main: '../../out/main/index.js',
+            name: '@caxri/desktop',
+            private: true,
+            version: rootManifest.version,
+        });
+        expect(rootManifest.build?.extraMetadata).toEqual({
+            main: 'out/main/index.js',
+            name: '@caxri/desktop',
+        });
     });
 
     it('keeps the CLI production graph free of Desktop native modules', () => {

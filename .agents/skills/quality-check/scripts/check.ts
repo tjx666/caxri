@@ -81,9 +81,6 @@ function dirtyLayerForFile(file: string): DirtyLayer {
     if (normalized.startsWith('apps/desktop/src/preload/')) return 'Preload';
     if (normalized.startsWith('apps/server/')) return 'Server';
     if (normalized.startsWith('apps/cli/')) return 'CLI';
-    if (normalized.startsWith('src/renderer/')) return 'Renderer';
-    if (normalized.startsWith('src/main/')) return 'Main';
-    if (normalized.startsWith('src/preload/')) return 'Preload';
     if (normalized.startsWith('src/host/')) return 'Host';
     if (normalized.startsWith('src/runtime/')) return 'Runtime';
     if (normalized.startsWith('packages/protocol/') || normalized.startsWith('src/shared/ipc/'))
@@ -351,8 +348,8 @@ export function testCandidatesForFile(file: string): string[] {
  * import discovery. The colocated contract test asserts this map stays in sync with `tsconfig.json`.
  */
 export const IMPORT_PATH_ALIASES: ReadonlyArray<{ prefix: string; target: string }> = [
-    { prefix: '@/', target: 'src/renderer/src/' },
     { prefix: '@/', target: 'apps/desktop/src/renderer/src/' },
+    { prefix: '@desktop-shared/', target: 'apps/desktop/src/shared/' },
     { prefix: '@shared/', target: 'src/shared/' },
 ];
 

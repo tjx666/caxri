@@ -125,11 +125,7 @@ function isAllowedTransition(importer: string, specifier: string): boolean {
 }
 
 function isBrowserConsumer(path: string): boolean {
-    return (
-        isBrowserSafePackageSource(path) ||
-        isPathInside('src/renderer', path) ||
-        isPathInside('apps/desktop/src/renderer', path)
-    );
+    return isBrowserSafePackageSource(path) || isPathInside('apps/desktop/src/renderer', path);
 }
 
 function isPlatformClientTarget(specifier: string, resolvedTarget: string | undefined): boolean {

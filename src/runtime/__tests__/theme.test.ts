@@ -318,7 +318,7 @@ describe('built-in theme contrast', () => {
      */
     it('mirrors the built-in palette in the Renderer stylesheet fallback', async () => {
         const stylesheet = await readFile(
-            new URL('../../renderer/src/styles/theme.css', import.meta.url),
+            new URL('../../../apps/desktop/src/renderer/src/styles/theme.css', import.meta.url),
             'utf8',
         );
         for (const [token, value] of Object.entries(draculaTheme.colors)) {

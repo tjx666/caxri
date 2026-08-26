@@ -49,6 +49,10 @@ const ELECTRON_APP_PATH = join(PROJECT_ROOT, 'node_modules', 'electron', 'dist',
 const BUILT_MAIN_PATH = join(PROJECT_ROOT, 'out', 'main', 'index.js');
 const STALE_BUILD_MESSAGE = 'Build output is stale; run `bun run build` before Acceptance';
 const BUILD_INPUT_PATHS = [
+    join(PROJECT_ROOT, 'apps', 'desktop', 'package.json'),
+    join(PROJECT_ROOT, 'apps', 'desktop', 'src'),
+    join(PROJECT_ROOT, 'apps', 'desktop', 'tsconfig.node.json'),
+    join(PROJECT_ROOT, 'apps', 'desktop', 'tsconfig.web.json'),
     join(PROJECT_ROOT, 'src'),
     join(PROJECT_ROOT, 'electron.vite.config.ts'),
     join(PROJECT_ROOT, 'package.json'),

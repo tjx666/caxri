@@ -1,13 +1,13 @@
 {
-    "name": "@caxri/desktop",
+    "name": "@caxri/workspace",
     "version": "0.0.18",
     "private": true,
     "author": "Caxri contributors",
     "description": "A project-first, terminal-native local development workbench for macOS.",
-    "main": "./out/main/index.js",
     "type": "module",
     "scripts": {
-        "dev": "bun run build:workspaces && electron-vite dev",
+        "dev": "bun run build:workspaces && bun run dev:desktop",
+        "dev:desktop": "electron-vite dev",
         "format": "prettier --write .",
         "format:check": "prettier --check . --cache --cache-strategy content --cache-location .cache/prettier",
         "format:md": "prettier --write \"**/*.md\"",
@@ -39,7 +39,7 @@
         "benchmark:startup": "bun run build && playwright test e2e/startup.performance.e2e.ts --reporter=line",
         "benchmark:editor": "bun run build && playwright test e2e/editor.performance.e2e.ts --reporter=line",
         "build": "bun run build:workspaces && bun run build:desktop",
-        "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --if-present run build",
+        "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --if-present run build",
         "build:api": "pnpm --filter caxri run build",
         "build:protocol": "pnpm --filter @caxri/protocol run build",
         "build:cli": "pnpm --filter @caxri/cli run build",
@@ -86,6 +86,7 @@
                     ".agents/skills/acceptance/scripts/report.ts",
                     ".agents/skills/acceptance/scripts/start-electron.ts",
                     ".agents/skills/acceptance/scripts/stop-electron.ts",
+                    ".agents/skills/design-prototype/assets/entry.mjs",
                     ".agents/skills/design-prototype/scripts/build-runtime.ts",
                     ".agents/skills/design-prototype/scripts/verify-prototype.ts",
                     ".agents/skills/go/scripts/start.ts",
@@ -118,8 +119,18 @@
                     "scripts/run-e2e-pools.ts"
                 ],
                 "ignore": [
-                    ".agents/skills/deep-review/scripts/vitest.config.ts",
-                    ".agents/skills/design-prototype/assets/**"
+                    ".agents/skills/deep-review/scripts/vitest.config.ts"
+                ],
+                "ignoreDependencies": [
+                    "tailwindcss",
+                    "tw-animate-css"
+                ]
+            },
+            "apps/desktop": {
+                "entry": [
+                    "src/preload/process-explorer.ts",
+                    "src/renderer/src/main.tsx",
+                    "src/renderer/src/process-explorer-main.tsx"
                 ]
             },
             "*/cli": {
@@ -160,20 +171,15 @@
         "ws": "catalog:"
     },
     "devDependencies": {
-        "@base-ui/react": "1.6.0",
         "@caxri/agent-skills": "workspace:*",
         "@caxri/client": "workspace:*",
         "@caxri/protocol": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",
         "@electron/rebuild": "4.2.0",
-        "@lobehub/icons-static-svg": "^1.94.0",
-        "@monaco-editor/react": "4.7.0",
         "@playwright/test": "1.62.1",
         "@rolldown/plugin-babel": "0.2.3",
         "@tailwindcss/vite": "4.3.3",
-        "@tanstack/react-query": "5.101.4",
-        "@tanstack/react-virtual": "3.14.9",
         "@types/archiver": "8.0.0",
         "@types/better-sqlite3": "9.6.0",
         "@types/estree": "1.0.9",
@@ -184,19 +190,12 @@
         "@types/ws": "catalog:",
         "@typescript/native": "npm:typescript@7.0.2",
         "@vitejs/plugin-react": "6.0.5",
-        "@xterm/addon-clipboard": "0.3.0-beta.301",
-        "@xterm/addon-fit": "0.12.0-beta.299",
-        "@xterm/addon-image": "0.10.0-beta.299",
-        "@xterm/addon-progress": "0.3.0-beta.299",
-        "@xterm/addon-search": "0.17.0-beta.299",
         "@xterm/addon-serialize": "0.15.0-beta.299",
         "@xterm/addon-unicode11": "0.10.0-beta.299",
-        "@xterm/addon-webgl": "0.20.0-beta.298",
         "@xterm/headless": "6.1.0-beta.301",
         "@xterm/xterm": "6.1.0-beta.301",
         "@yutengjing/eslint-config-typescript": "catalog:",
         "@yutengjing/prettier-config": "catalog:",
-        "@yutengjing/vscode-icons": "^0.1.1",
         "archiver": "8.0.0",
         "babel-plugin-react-compiler": "1.0.0",
         "caxri": "workspace:*",
@@ -219,7 +218,6 @@
         "lucide-react": "1.28.0",
         "markdownlint": "catalog:",
         "markdownlint-cli2": "catalog:",
-        "monaco-editor": "0.56.0",
         "motion": "13.0.0",
         "oxlint": "catalog:",
         "oxlint-tsgolint": "catalog:",
@@ -246,6 +244,10 @@
     "build": {
         "appId": "com.caxri.app",
         "productName": "Caxri",
+        "extraMetadata": {
+            "main": "out/main/index.js",
+            "name": "@caxri/desktop"
+        },
         "electronFuses": {
             "runAsNode": true
         },

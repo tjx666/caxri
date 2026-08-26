@@ -72,9 +72,6 @@ importers:
         specifier: 'catalog:'
         version: 8.21.3
     devDependencies:
-      '@base-ui/react':
-        specifier: 1.6.0
-        version: 1.6.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@caxri/agent-skills':
         specifier: workspace:*
         version: link:packages/agent-skills
@@ -93,12 +90,6 @@ importers:
       '@electron/rebuild':
         specifier: 4.2.0
         version: 4.2.0(supports-color@7.2.0)
-      '@lobehub/icons-static-svg':
-        specifier: ^1.94.0
-        version: 1.94.0
-      '@monaco-editor/react':
-        specifier: 4.7.0
-        version: 4.7.0(monaco-editor@0.56.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@playwright/test':
         specifier: 1.62.1
         version: 1.62.1
@@ -108,12 +99,6 @@ importers:
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
-      '@tanstack/react-query':
-        specifier: 5.101.4
-        version: 5.101.4(react@19.2.8)
-      '@tanstack/react-virtual':
-        specifier: 3.14.9
-        version: 3.14.9(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@types/archiver':
         specifier: 8.0.0
         version: 8.0.0
@@ -144,30 +129,12 @@ importers:
       '@vitejs/plugin-react':
         specifier: 6.0.5
         version: 6.0.5(@rolldown/plugin-babel@0.2.3(@babel/core@7.29.7(supports-color@7.2.0))(@babel/runtime@7.29.7)(rolldown@1.2.4)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(babel-plugin-react-compiler@1.0.0)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
-      '@xterm/addon-clipboard':
-        specifier: 0.3.0-beta.301
-        version: 0.3.0-beta.301(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-fit':
-        specifier: 0.12.0-beta.299
-        version: 0.12.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-image':
-        specifier: 0.10.0-beta.299
-        version: 0.10.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-progress':
-        specifier: 0.3.0-beta.299
-        version: 0.3.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-search':
-        specifier: 0.17.0-beta.299
-        version: 0.17.0-beta.299(@xterm/xterm@6.1.0-beta.301)
       '@xterm/addon-serialize':
         specifier: 0.15.0-beta.299
         version: 0.15.0-beta.299(@xterm/xterm@6.1.0-beta.301)
       '@xterm/addon-unicode11':
         specifier: 0.10.0-beta.299
         version: 0.10.0-beta.299(@xterm/xterm@6.1.0-beta.301)
-      '@xterm/addon-webgl':
-        specifier: 0.20.0-beta.298
-        version: 0.20.0-beta.298(@xterm/xterm@6.1.0-beta.301)
       '@xterm/headless':
         specifier: 6.1.0-beta.301
         version: 6.1.0-beta.301
@@ -180,9 +147,6 @@ importers:
       '@yutengjing/prettier-config':
         specifier: 'catalog:'
         version: 2.0.0(prettier@3.9.6)(supports-color@7.2.0)
-      '@yutengjing/vscode-icons':
-        specifier: ^0.1.1
-        version: 0.1.1
       archiver:
         specifier: 8.0.0
         version: 8.0.0
@@ -249,9 +213,6 @@ importers:
       markdownlint-cli2:
         specifier: 'catalog:'
         version: 0.23.2(supports-color@7.2.0)
-      monaco-editor:
-        specifier: 0.56.0
-        version: 0.56.0
       motion:
         specifier: 13.0.0
         version: 13.0.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -333,6 +294,124 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.4.3
+
+  apps/desktop:
+    dependencies:
+      '@base-ui/react':
+        specifier: 1.6.0
+        version: 1.6.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@caxri/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@caxri/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
+      '@lobehub/icons-static-svg':
+        specifier: ^1.94.0
+        version: 1.94.0
+      '@monaco-editor/react':
+        specifier: 4.7.0
+        version: 4.7.0(monaco-editor@0.56.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@tanstack/react-query':
+        specifier: 5.101.4
+        version: 5.101.4(react@19.2.8)
+      '@tanstack/react-virtual':
+        specifier: 3.14.9
+        version: 3.14.9(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@xterm/addon-clipboard':
+        specifier: 0.3.0-beta.301
+        version: 0.3.0-beta.301(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-fit':
+        specifier: 0.12.0-beta.299
+        version: 0.12.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-image':
+        specifier: 0.10.0-beta.299
+        version: 0.10.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-progress':
+        specifier: 0.3.0-beta.299
+        version: 0.3.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-search':
+        specifier: 0.17.0-beta.299
+        version: 0.17.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-unicode11':
+        specifier: 0.10.0-beta.299
+        version: 0.10.0-beta.299(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/addon-webgl':
+        specifier: 0.20.0-beta.298
+        version: 0.20.0-beta.298(@xterm/xterm@6.1.0-beta.301)
+      '@xterm/xterm':
+        specifier: 6.1.0-beta.301
+        version: 6.1.0-beta.301
+      '@yutengjing/vscode-icons':
+        specifier: ^0.1.1
+        version: 0.1.1
+      class-variance-authority:
+        specifier: 0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      cmdk:
+        specifier: 1.1.1
+        version: 1.1.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      es-toolkit:
+        specifier: 1.50.0
+        version: 1.50.0
+      jsonc-parser:
+        specifier: 3.3.1
+        version: 3.3.1
+      lucide-react:
+        specifier: 1.28.0
+        version: 1.28.0(react@19.2.8)
+      monaco-editor:
+        specifier: 0.56.0
+        version: 0.56.0
+      motion:
+        specifier: 13.0.0
+        version: 13.0.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+      tailwind-merge:
+        specifier: 3.6.0
+        version: 3.6.0
+      tailwindcss:
+        specifier: 4.3.3
+        version: 4.3.3
+      tw-animate-css:
+        specifier: 1.4.0
+        version: 1.4.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+      zustand:
+        specifier: 5.0.14
+        version: 5.0.14(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
+    devDependencies:
+      '@types/node':
+        specifier: 26.1.2
+        version: 26.1.2
+      '@types/react':
+        specifier: 19.2.18
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: 19.2.4
+        version: 19.2.4(@types/react@19.2.18)
+      electron:
+        specifier: 43.2.0
+        version: 43.2.0(supports-color@7.2.0)
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
 
   extensions/fixture:
     devDependencies:

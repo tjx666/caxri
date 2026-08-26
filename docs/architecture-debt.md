@@ -67,7 +67,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-lifecycle-mutation-remap-origin-delete — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Deleting the Session that started a completed rename/move no longer lets the durable journal disappear before sibling same-Project state is remapped.
-- **Evidence:** `src/renderer/src/features/view-containers/resource-explorer/file-operation-reconciliation.ts` resolves the operation by `workbenchProjectId`, durably remaps every surviving same-Project Session, and acknowledges through the controlled extension provider only after apply succeeds. `src/renderer/src/stores/selectors.ts` discovers those Sessions by Project identity.
+- **Evidence:** `apps/desktop/src/renderer/src/features/view-containers/resource-explorer/file-operation-reconciliation.ts` resolves the operation by `workbenchProjectId`, durably remaps every surviving same-Project Session, and acknowledges through the controlled extension provider only after apply succeeds. `apps/desktop/src/renderer/src/stores/selectors.ts` discovers those Sessions by Project identity.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-14 @ 2b8da83.
 - **Remediation target / Acceptance:** A and B open the same file; move it from A; delete A before ack; B's tab, dirty buffer, and later reload show the new path; the operation is not acked while B still needs the remap.
@@ -75,7 +75,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-sec-packaged-renderer-url — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Packaged workbench and Process Explorer windows cannot load an environment-supplied Renderer origin.
-- **Evidence:** `src/main/renderer-entry.ts:20-34` honors `ELECTRON_RENDERER_URL` only when unpackaged and otherwise resolves an application-bundle file URL. `src/main/__tests__/renderer-entry.test.ts:9-77` covers both windows and both modes.
+- **Evidence:** `apps/desktop/src/main/renderer-entry.ts:20-34` honors `ELECTRON_RENDERER_URL` only when unpackaged and otherwise resolves an application-bundle file URL. `apps/desktop/src/main/__tests__/renderer-entry.test.ts:9-77` covers both windows and both modes.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ 3903e7e via [issue caxri#166](https://github.com/tjx666/caxri/issues/166).
 - **Remediation target / Acceptance:** Packaged mode ignores `ELECTRON_RENDERER_URL`; unpackaged development mode retains it.
@@ -99,7 +99,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-state-sibling-session-invalidation — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Project-shared filesystem and Git facts now invalidate every same-Project Session, including a sibling selected during a queued watcher batch.
-- **Evidence:** Runtime emits scope-bound `files.changed` events; `src/renderer/src/queries/invalidation.ts` invalidates Core Resource Explorer reads for every same-Project Session without an Extension Host echo. `src/runtime/files/__tests__/watcher.scope.integration.test.ts` covers queued rebind and cross-Project fencing.
+- **Evidence:** Runtime emits scope-bound `files.changed` events; `apps/desktop/src/renderer/src/queries/invalidation.ts` invalidates Core Resource Explorer reads for every same-Project Session without an Extension Host echo. `src/runtime/files/__tests__/watcher.scope.integration.test.ts` covers queued rebind and cross-Project fencing.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ 660ef29 via [issue caxri#168](https://github.com/tjx666/caxri/issues/168).
 - **Remediation target / Acceptance:** Two Sessions sharing one Project observe matching `files.list` and `git.summary` after an external write and immediate Session switch; another Project remains untouched.
@@ -107,7 +107,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-ui-secondarySidebar-show-reveal — [RESOLVED · Contract drift · S]
 
 - **Summary:** Catalogued SecondarySidebar Show commands and Search Files now reveal a hidden SecondarySidebar before selecting their target mode.
-- **Evidence:** `src/renderer/src/commands/execute.ts:49-57` owns the reveal-and-activate boundary; command registrations use it at `src/renderer/src/commands/execute.ts:135-147`. `src/renderer/src/commands/execute.test.ts` covers all registered Show commands and Search Files.
+- **Evidence:** `apps/desktop/src/renderer/src/commands/execute.ts:49-57` owns the reveal-and-activate boundary; command registrations use it at `apps/desktop/src/renderer/src/commands/execute.ts:135-147`. `apps/desktop/src/renderer/src/commands/execute.test.ts` covers all registered Show commands and Search Files.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ b6826f5 via [issue caxri#169](https://github.com/tjx666/caxri/issues/169).
 - **Remediation target / Acceptance:** With the SecondarySidebar hidden, each Show command and its default binding makes the requested panel visible without rewriting an already-visible layout.
@@ -139,7 +139,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-ui-work-tab-tablist — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Open Work now implements automatic keyboard activation, roving focus, an actual active tabpanel association, and text alternatives for dirty and process state.
-- **Evidence:** `src/renderer/src/features/tabs/work-tab-strip.tsx:298-318` implements Arrow, Home, and End navigation. `src/renderer/src/features/tabs/work-tab.tsx:127-173` owns tab semantics and descriptions. `e2e/editor-tabs.e2e.ts:275-354` covers mixed Terminal/editor keyboard and accessibility behavior, including preserving roving focus after Terminal attachment.
+- **Evidence:** `apps/desktop/src/renderer/src/features/tabs/work-tab-strip.tsx:298-318` implements Arrow, Home, and End navigation. `apps/desktop/src/renderer/src/features/tabs/work-tab.tsx:127-173` owns tab semantics and descriptions. `e2e/editor-tabs.e2e.ts:275-354` covers mixed Terminal/editor keyboard and accessibility behavior, including preserving roving focus after Terminal attachment.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ 43af4d6 via [issue caxri#171](https://github.com/tjx666/caxri/issues/171).
 - **Remediation target / Acceptance:** Arrow/Home/End changes and focuses the active work target, one tab participates in sequential focus, the active surface is associated, and color-only state has a screen-reader description.
@@ -163,7 +163,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-state-dual-editor-dirty — [RESOLVED · Architecture debt · M]
 
 - **Summary:** Editor dirtiness is dual-written to Renderer document cache and durable `openTabs[].dirty` without content, so after crash/relaunch a tab can stay durable-dirty while content is clean disk and preview rules still treat it as dirty.
-- **Evidence:** `src/shared/editor-state.ts:34-51` normalizes durable tabs clean and rehydrates transient dirtiness only from live documents. `src/runtime/db/models/sessions.ts:149-151` removes legacy/persisted dirty flags, while `src/renderer/src/stores/workbench.ts:63-64,206` reconciles live cache state but persists clean metadata. Regression coverage lives at `src/runtime/db/__tests__/db.integration.test.ts:413-458`, `src/renderer/src/stores/workbench.test.ts:148-218`, and `src/renderer/src/features/editor/document-actions.test.ts:105-184`.
+- **Evidence:** `apps/desktop/src/shared/editor-state.ts:34-51` normalizes durable tabs clean and rehydrates transient dirtiness only from live documents. `src/runtime/db/models/sessions.ts:149-151` removes legacy/persisted dirty flags, while `apps/desktop/src/renderer/src/stores/workbench.ts:63-64,206` reconciles live cache state but persists clean metadata. Regression coverage lives at `src/runtime/db/__tests__/db.integration.test.ts:413-458`, `apps/desktop/src/renderer/src/stores/workbench.test.ts:148-218`, and `apps/desktop/src/renderer/src/features/editor/document-actions.test.ts:105-184`.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ d2b3502 via [issue caxri#77](https://github.com/tjx666/caxri/issues/77).
 - **Remediation target / Acceptance:** Single dirty source of truth, or clear durable `openTabs.dirty` on bootstrap/open when no recoverable draft content exists. Acceptance: no path leaves `openTabs.dirty=true` without live dirty content or a recoverable draft; UI dots and preview rules agree.
@@ -179,7 +179,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-ext-agent-display-single-source — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Adding a hosted Agent provider is not one catalog+adapter path: default Terminal titles and hosted icon labels re-declare display strings outside `agentProviderCatalog`.
-- **Evidence:** `src/runtime/session-policy.ts:24-25` and `src/renderer/src/icons/agents/agent-icon-registry.ts:26-28` derive managed-provider titles and labels from `src/shared/agents.ts:46-56`. Exhaustive catalog coverage lives at `src/runtime/__tests__/session-policy.test.ts:57-66` and `src/renderer/src/icons/agents/agent-icon-registry.test.ts:8-21`.
+- **Evidence:** `src/runtime/session-policy.ts:24-25` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.ts:26-28` derive managed-provider titles and labels from `src/shared/agents.ts:46-56`. Exhaustive catalog coverage lives at `src/runtime/__tests__/session-policy.test.ts:57-66` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.test.ts:8-21`.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 58ebede via [issue caxri#79](https://github.com/tjx666/caxri/issues/79).
 - **Remediation target / Acceptance:** Derive default agent Terminal titles (shell remains local) and hosted icon labels from the catalog, or add bi-directional exhaustiveness tests. Acceptance: catalog id + providers registry is enough for default title and displayName consumers; extra icon assets stay the only optional UI step.
@@ -203,7 +203,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-ui-design-redline-drift — [RESOLVED · Contract drift · M]
 
 - **Summary:** Authoritative DESIGN type/spacing/radius redlines are already violated in chrome primitives and are not lint-enforced, so interaction density drifts by ad-hoc Tailwind literals.
-- **Evidence:** `DESIGN.md:25-78` now defines dense type, optical spacing, control-height, radius, platform exceptions, and the closed arbitrary-value policy. `src/renderer/__tests__/renderer-design-contract.test.ts:10-142` recognizes typography, control-height, positive/negative spacing, and radius classes before enforcing the explicit allowlist; it still passes on `main@8037720`.
+- **Evidence:** `DESIGN.md:25-78` now defines dense type, optical spacing, control-height, radius, platform exceptions, and the closed arbitrary-value policy. `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts:10-142` recognizes typography, control-height, positive/negative spacing, and radius classes before enforcing the explicit allowlist; it still passes on `main@8037720`.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 1e77c5c via [issue caxri#82](https://github.com/tjx666/caxri/issues/82).
 - **Remediation target / Acceptance:** Normalize chrome to meta/base and the 4px grid, or revise DESIGN to admit the dense set; optional ESLint/Tailwind ban for off-contract classes. Acceptance: no Renderer class uses banned sizes/spacings/radii without an explicit DESIGN exception.
@@ -211,7 +211,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-ui-dual-theme-css-bootstrap — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Main workbench and Process Explorer each own a full Tailwind `@theme` bootstrap, so semantic token additions must be dual-edited and already diverge.
-- **Evidence:** `src/renderer/src/styles/theme.css:9-75` is the only semantic Tailwind/default-theme bootstrap. Both `src/renderer/src/styles/styles.css:1` and `src/renderer/src/styles/process-explorer.css:1` import it. `src/renderer/__tests__/renderer-theme-contract.test.ts:29-52` rejects another `@theme` source or an entry that stops importing the shared file.
+- **Evidence:** `apps/desktop/src/renderer/src/styles/theme.css:9-75` is the only semantic Tailwind/default-theme bootstrap. Both `apps/desktop/src/renderer/src/styles/styles.css:1` and `apps/desktop/src/renderer/src/styles/process-explorer.css:1` import it. `apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts:29-52` rejects another `@theme` source or an entry that stops importing the shared file.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ fba7662 via [issue caxri#83](https://github.com/tjx666/caxri/issues/83).
 - **Remediation target / Acceptance:** Extract shared theme-bootstrap CSS (unregister + `@theme` + defaults); keep PE-only rules separate. Acceptance: adding a semantic token is a single edit consumed by both entries.
@@ -219,7 +219,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-ui-input-primitive-bypass — [RESOLVED · Architecture debt · M]
 
 - **Summary:** Shared Input encodes the field redline, but dense workbench surfaces reimplement raw `<input>` with different heights and focus treatment, fragmenting interaction chrome.
-- **Evidence:** `src/renderer/src/components/ui/input.tsx` owns `standard`, `dense`, `compact`, and `palette` sizes plus shared appearances and `InputGroup`. Resource Explorer, Project Search, Commit History, Project/Session rename, and Path Browser consume those variants. `src/renderer/__tests__/renderer-design-contract.test.ts` rejects feature-local raw text inputs.
+- **Evidence:** `apps/desktop/src/renderer/src/components/ui/input.tsx` owns `standard`, `dense`, `compact`, and `palette` sizes plus shared appearances and `InputGroup`. Resource Explorer, Project Search, Commit History, Project/Session rename, and Path Browser consume those variants. `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` rejects feature-local raw text inputs.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 1e77c5c via [issue caxri#82](https://github.com/tjx666/caxri/issues/82).
 - **Remediation target / Acceptance:** Dense size (and optional adornment) variants on Input; migrate secondarySidebar/search/rename fields. Acceptance: feature-local text fields do not reinvent border/focus/radius; density is a prop on the shared primitive.
@@ -227,7 +227,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-toolchain-shadcn-components-json — [RESOLVED · Contract drift · S]
 
 - **Summary:** `components.json` still declares `baseColor: zinc` and a single CSS path, conflicting with the unregistered-default-palette guarantee and dual renderer CSS entries.
-- **Evidence:** `components.json:8-9` now points shadcn at the shared `src/renderer/src/styles/theme.css`; `DESIGN.md:25-29` documents why immutable `baseColor: zinc` metadata does not re-enable the unregistered default palette. `src/renderer/__tests__/renderer-theme-contract.test.ts:55-67` locks both properties to the intentional contract.
+- **Evidence:** `components.json:8-9` now points shadcn at the shared `apps/desktop/src/renderer/src/styles/theme.css`; `DESIGN.md:25-29` documents why immutable `baseColor: zinc` metadata does not re-enable the unregistered default palette. `apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts:55-67` locks both properties to the intentional contract.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ fba7662 via [issue caxri#83](https://github.com/tjx666/caxri/issues/83).
 - **Remediation target / Acceptance:** Align `components.json` with semantic tokens and shared theme CSS; document PE dual-entry handling. Acceptance: project-guided shadcn add does not reintroduce palette utilities or leave PE bootstrap stale.
@@ -235,7 +235,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-lifecycle-pe-render-recovery — [RESOLVED · Coverage or observability gap · S]
 
 - **Summary:** Process Explorer has no React ErrorBoundary and no Main `render-process-gone` crash-policy, so a PE render throw or renderer crash blanks the diagnostic window without workbench-style recovery.
-- **Evidence:** `src/renderer/src/process-explorer-main.tsx:6-18` wraps the diagnostic app in the shared recoverable `ErrorBoundary`. `src/main/process-explorer-window.ts:97-124` applies bounded crash-policy reloads and stops a crash loop cleanly. `src/main/__tests__/crash-policy.test.ts:5-44` covers the backoff budget; `e2e/process-explorer-recovery.e2e.ts:93-151` covers render reload and repeated renderer crashes on real Electron.
+- **Evidence:** `apps/desktop/src/renderer/src/process-explorer-main.tsx:6-18` wraps the diagnostic app in the shared recoverable `ErrorBoundary`. `apps/desktop/src/main/process-explorer-window.ts:97-124` applies bounded crash-policy reloads and stops a crash loop cleanly. `apps/desktop/src/main/__tests__/crash-policy.test.ts:5-44` covers the backoff budget; `e2e/process-explorer-recovery.e2e.ts:93-151` covers render reload and repeated renderer crashes on real Electron.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ bd4f813 via [issue caxri#84](https://github.com/tjx666/caxri/issues/84).
 - **Remediation target / Acceptance:** Reuse ErrorBoundary (or PE fallback) on the PE entry; optionally register Main crash recovery for the PE window. Acceptance: forced PE render throw shows recovery UI; process-gone does not leave an unrecovered blank PE indefinitely.

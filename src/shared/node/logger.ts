@@ -13,7 +13,7 @@ import { isSecretKey, redactLogValue } from './redaction';
 export { logEventCatalog };
 
 /**
- * Node-only structured JSONL logger; never import from src/renderer.
+ * Node-only structured JSONL logger; never import from apps/desktop/src/renderer.
  */
 export interface LogRecord {
     timestamp: string;
