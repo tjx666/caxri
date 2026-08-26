@@ -19,7 +19,7 @@ import {
 import type {
     ObservationMetricLabels,
     ObservationMetricName,
-    ObservationMetricSnapshot,
+    ObservationMetricRegistrySnapshot,
 } from './metrics.js';
 import { BoundedMetricRegistry } from './metrics.js';
 import { isSecretKey, redactLogValue } from './redaction.js';
@@ -355,7 +355,7 @@ export class StructuredLogger {
         this.metrics.record(name, value, labels);
     }
 
-    metricSnapshot(): { rejectedSeries: number; series: ObservationMetricSnapshot[] } {
+    metricSnapshot(): ObservationMetricRegistrySnapshot {
         return this.metrics.snapshot();
     }
 

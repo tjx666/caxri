@@ -48,6 +48,21 @@ describe('observation process manifests', () => {
 
         publisher.publish('starting');
         publisher.publish('ready', { context: { requestId: 'request-1' } });
+        publisher.publishMetrics({
+            rejectedSeries: 0,
+            series: [
+                {
+                    average: 2,
+                    count: 1,
+                    labels: { owner: 'control', phase: 'admission' },
+                    last: 2,
+                    maximum: 2,
+                    minimum: 2,
+                    name: 'queue.wait',
+                    total: 2,
+                },
+            ],
+        });
         await publisher.flush();
 
         const path = observationProcessManifestPath(directory, 'server-core');
@@ -58,6 +73,21 @@ describe('observation process manifests', () => {
                 processId: 4242,
                 requestId: 'request-1',
                 serverId: 'server-1',
+            },
+            metrics: {
+                rejectedSeries: 0,
+                series: [
+                    {
+                        average: 2,
+                        count: 1,
+                        labels: { owner: 'control', phase: 'admission' },
+                        last: 2,
+                        maximum: 2,
+                        minimum: 2,
+                        name: 'queue.wait',
+                        total: 2,
+                    },
+                ],
             },
             owner: 'server-core',
             pid: 4242,
@@ -88,6 +118,26 @@ describe('observation process manifests', () => {
             parseObservationProcessManifest({
                 ...base,
                 context: { processId: 42, traceId: '/private/project' },
+            }),
+        ).toBeUndefined();
+        expect(
+            parseObservationProcessManifest({
+                ...base,
+                metrics: {
+                    rejectedSeries: 0,
+                    series: [
+                        {
+                            average: 1,
+                            count: 1,
+                            labels: { owner: 'control', path: '/private/project' },
+                            last: 1,
+                            maximum: 1,
+                            minimum: 1,
+                            name: 'queue.wait',
+                            total: 1,
+                        },
+                    ],
+                },
             }),
         ).toBeUndefined();
     });
