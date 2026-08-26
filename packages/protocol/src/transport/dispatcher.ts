@@ -26,11 +26,20 @@ import {
     protocolWelcomeSchema,
 } from './version.js';
 
+export interface CommandInvocation {
+    /**
+     * Persists a successful result inside an adapter-owned structural transaction. Adapters must call this only after
+     * their effect and content-free changefeed records are ready to commit.
+     */
+    persistDurableResult?(result: unknown): void;
+    requestId: string;
+}
+
 export interface CommandAdapter {
     invoke(
         request: CaxriRequest,
         context: CommandExecutionContext,
-        invocation: { requestId: string },
+        invocation: CommandInvocation,
     ): unknown;
     isAvailable?(): boolean;
 }
@@ -105,6 +114,22 @@ function adapterFor(owner: CommandOwner, options: CommandDispatcherOptions): Com
 function isAdapterAvailable(owner: CommandOwner, options: CommandDispatcherOptions): boolean {
     const adapter = owner === 'server' ? options.server : options.desktop;
     return Boolean(adapter && adapter.isAvailable?.() !== false);
+}
+
+function successfulReply(
+    id: string,
+    request: CaxriRequest,
+    context: CommandExecutionContext,
+    result: unknown,
+): CommandReplyEnvelope {
+    const spec: MethodSpec = methods[request.method];
+    const projected = spec.projectResult ? spec.projectResult(result, context.principal) : result;
+    return reply(id, parseCaxriResult(request.method, projected));
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+    if (typeof value !== 'object' || value === null || !('then' in value)) return false;
+    return typeof value.then === 'function';
 }
 
 /**
@@ -197,25 +222,27 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
         id: string,
         request: CaxriRequest,
         context: CommandExecutionContext,
+        persistDurableResult?: (result: unknown) => void,
     ): Promise<CommandReplyEnvelope> {
         const spec: MethodSpec = methods[request.method];
         if (!hasRequiredCapabilities(context, spec.requiredCapabilities))
             throw new CaxriError('FORBIDDEN', `Missing capability for ${request.method}`);
         const adapter = adapterFor(spec.owner, options);
-        const result = await adapter.invoke(request, context, { requestId: id });
-        const projected = spec.projectResult
-            ? spec.projectResult(result, context.principal)
-            : result;
-        return reply(id, parseCaxriResult(request.method, projected));
+        const result = await adapter.invoke(request, context, {
+            ...(persistDurableResult && { persistDurableResult }),
+            requestId: id,
+        });
+        return successfulReply(id, request, context, result);
     }
 
     async function executeSafely(
         id: string,
         request: CaxriRequest,
         context: CommandExecutionContext,
+        persistDurableResult?: (result: unknown) => void,
     ): Promise<CommandReplyEnvelope> {
         try {
-            return await execute(id, request, context);
+            return await execute(id, request, context, persistDurableResult);
         } catch (error) {
             return errorReply(id, error);
         }
@@ -299,8 +326,61 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
                             return storedReply;
                         }
                     }
-                    const commandReply = await executeSafely(envelope.id, request, context);
-                    if (isDurable && commandReply.ok) {
+                    const durablePersistence: {
+                        reply?: CommandReplyEnvelope;
+                        storedDuringExecution: boolean;
+                    } = { storedDuringExecution: false };
+                    const persistDurableResult = isDurable
+                        ? (result: unknown): void => {
+                              const connection = context.connection!;
+                              const commandReply = successfulReply(
+                                  envelope.id,
+                                  request,
+                                  context,
+                                  result,
+                              );
+                              const storeStartedAt = performance.now();
+                              try {
+                                  const stored = options.durableReceipts!.saveReceipt({
+                                      stateEpoch: connection.stateEpoch,
+                                      clientId: connection.clientId,
+                                      requestId: envelope.id,
+                                      requestFingerprint: fingerprint,
+                                      method: request.method,
+                                      reply: commandReply,
+                                      createdAt: Date.now(),
+                                  });
+                                  if (isPromiseLike(stored))
+                                      throw new CaxriError(
+                                          'INTERNAL',
+                                          'Atomic command receipts require synchronous persistence',
+                                      );
+                                  durablePersistence.storedDuringExecution = true;
+                                  durablePersistence.reply = commandReply;
+                                  observeDurableReceipt({
+                                      durationMs: performance.now() - storeStartedAt,
+                                      method: request.method,
+                                      outcome: 'stored',
+                                      phase: 'store',
+                                  });
+                              } catch (error) {
+                                  observeDurableReceipt({
+                                      durationMs: performance.now() - storeStartedAt,
+                                      method: request.method,
+                                      outcome: 'failed',
+                                      phase: 'store',
+                                  });
+                                  throw error;
+                              }
+                          }
+                        : undefined;
+                    const commandReply = await executeSafely(
+                        envelope.id,
+                        request,
+                        context,
+                        persistDurableResult,
+                    );
+                    if (isDurable && !durablePersistence.storedDuringExecution && commandReply.ok) {
                         const connection = context.connection!;
                         const storeStartedAt = performance.now();
                         try {
@@ -329,7 +409,7 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
                             throw error;
                         }
                     }
-                    return commandReply;
+                    return durablePersistence.reply ?? commandReply;
                 } catch (error) {
                     return errorReply(envelope.id, error);
                 } finally {

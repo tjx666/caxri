@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DurableCommandReceiptStore, StoredProtocolCommandReceipt } from '../command-receipts';
-import type { CommandAdapter, DurableReceiptObservation } from '../dispatcher';
+import type { CommandAdapter, CommandInvocation, DurableReceiptObservation } from '../dispatcher';
 import {
     createCommandDispatcher,
     createProtocolWelcome,
@@ -115,7 +115,7 @@ describe('createCommandDispatcher durable receipts', () => {
         };
     }
 
-    it('replays a successful effect after dispatcher replacement without invoking it twice', async () => {
+    it('lets an adapter store an atomic receipt and replays it after replacement', async () => {
         const observeDurableReceipt = vi.fn<(observation: DurableReceiptObservation) => void>();
         const stored = new Map<string, StoredProtocolCommandReceipt>();
         const durableReceipts: DurableCommandReceiptStore = {
@@ -125,10 +125,19 @@ describe('createCommandDispatcher durable receipts', () => {
                 return input;
             },
         };
-        const firstInvoke = vi.fn((command: { method: string; params: unknown }) =>
-            command.method === 'session.rename'
-                ? session((command.params as { displayTitle: string }).displayTitle)
-                : null,
+        const firstInvoke = vi.fn(
+            (
+                command: { method: string; params: unknown },
+                _context: unknown,
+                invocation: CommandInvocation,
+            ) => {
+                const result =
+                    command.method === 'session.rename'
+                        ? session((command.params as { displayTitle: string }).displayTitle)
+                        : null;
+                invocation.persistDurableResult?.(result);
+                return result;
+            },
         );
         const command = request('durable-1', 'session.rename', {
             sessionId: 'session-1',

@@ -50,5 +50,6 @@ export function createTestProtocolRecoveryState(): ProtocolRecoveryState {
             receipts.set(receiptKey(input.clientId, input.requestId), receipt);
             return receipt;
         },
+        transaction: (work) => work(),
     };
 }
