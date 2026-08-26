@@ -6,6 +6,8 @@ import { SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY, serverDesktopLaunchSchema } from
 import {
     computeBuildFingerprint,
     installProcessErrorMonitor,
+    observationProcessManifestDirectory,
+    ObservationProcessManifestPublisher,
     StructuredLogger,
 } from '@caxri/system';
 
@@ -29,6 +31,13 @@ const serverBundleDirectory = dirname(fileURLToPath(import.meta.url));
  * rebuild changes the on-disk bundles but not this value, which is exactly what lets the Desktop detect staleness.
  */
 const buildId = await computeBuildFingerprint(serverBundleDirectory);
+logger.updateBaseContext({ buildId });
+const processManifest = new ObservationProcessManifestPublisher({
+    context: { buildId },
+    directory: observationProcessManifestDirectory(userDataPath),
+    owner: 'server-core',
+});
+processManifest.publish('starting');
 const desktopLaunchSource = process.env[SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY];
 const desktopLaunch = desktopLaunchSource
     ? serverDesktopLaunchSchema.parse(JSON.parse(desktopLaunchSource) as unknown)
@@ -66,14 +75,23 @@ const app = await startServerCore({
     userDataPath,
     version,
 });
+const processContext = {
+    bootId: app.lease.identity.processIdentity,
+    buildId,
+    serverId: app.protocolIdentity.serverId,
+};
+logger.updateBaseContext(processContext);
+processManifest.publish('ready', { context: processContext });
 
 {
     let isSignalReceived = false;
     const stopForSignal = async (signal: NodeJS.Signals): Promise<void> => {
         if (isSignalReceived) return;
         isSignalReceived = true;
+        processManifest.publish('stopping');
         try {
             await app.stop(signal);
+            processManifest.publish('stopped');
         } finally {
             // This file is the Server Core process entrypoint supervised by a client or platform;
             // an explicit exit after graceful async shutdown is the correct terminal action here,

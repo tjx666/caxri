@@ -47,7 +47,6 @@ import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import { createTerminalExecution } from './terminal-host/create-execution';
 
 export type { ServerCore, ServerCoreOptions } from './server-core-contract';
-
 /**
  * Starts the profile owner, authenticated local transport, domain services, and Extension Host supervision.
  */
@@ -62,6 +61,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         userDataPath: options.userDataPath,
         version: options.version,
     });
+    logger.updateBaseContext({ bootId: lease.identity.processIdentity, buildId: options.buildId });
     const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity);
     const providerMessaging = new ProviderMessagingAdapterRegistry(agentEndpoints);
     let server: ControlServer | undefined;
@@ -665,6 +665,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         await domainService.start();
         const protocolRecovery = await domainService.recoveryState();
         const protocolIdentity = protocolRecovery.identity();
+        logger.updateBaseContext({ serverId: protocolIdentity.serverId });
         recoveryJournal.initialize(protocolIdentity, protocolRecovery);
         logger.write('info', logEventCatalog.serverCore.recoveryReady, {
             fields: { ...protocolRecovery.inspect() },
@@ -787,7 +788,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             durationMs: Date.now() - startedAt,
             fields: { pid: process.pid, profileId: lease.identity.profileId },
         });
-        return { lease, stop };
+        return { lease, protocolIdentity, stop };
     } catch (error) {
         try {
             await stop('startup-failed');
