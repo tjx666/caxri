@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createRuntime } from '../bootstrap';
 import type { RuntimeHandlers } from '../dispatch';
-import { createDispatcher } from '../dispatch';
+import { createDispatcher, createOperationDispatcher } from '../dispatch';
 
 const temporaryDirectories: string[] = [];
 
@@ -78,6 +78,36 @@ describe('Runtime handler table', () => {
 });
 
 describe('createDispatcher', () => {
+    it('exposes stable direct-call results without a wire response envelope', async () => {
+        const directory = await temporaryDirectory('caxri-operation-dispatch-');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const dispatch = createOperationDispatcher(
+            stubHandlers({
+                'app.health': () => ({
+                    ready: true,
+                    pid: 123,
+                    startedAt: 1,
+                    activePtyCount: 0,
+                }),
+                'terminal.attach': () => {
+                    throw new CaxriError('NOT_FOUND', 'Terminal not found');
+                },
+            }),
+            logger,
+        );
+
+        await expect(
+            dispatch({ id: 'direct-1', method: 'app.health', params: {} }),
+        ).resolves.toEqual({ ready: true, pid: 123, startedAt: 1, activePtyCount: 0 });
+        await expect(
+            dispatch({
+                id: 'direct-2',
+                method: 'terminal.attach',
+                params: { terminalId: 'terminal-1' },
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'Terminal not found' });
+    });
+
     it('revalidates a typed Workbench Root context before invoking a handler', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-context-');
         const logger = new StructuredLogger(join(directory, 'logs'));
