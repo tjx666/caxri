@@ -169,12 +169,10 @@ test('shares settings across an app-managed headless Host and Desktop', async ()
         const initialHost = JSON.parse(initialStatus.stdout) as {
             desktop: { state: string };
             pid: number;
-            runtimePid: number;
         };
         expect(initialHost).toMatchObject({
             desktop: { state: 'offline' },
             pid: expect.any(Number),
-            runtimePid: expect.any(Number),
         });
 
         running = await launchCaxri({
@@ -231,7 +229,6 @@ test('shares settings across an app-managed headless Host and Desktop', async ()
         expect(JSON.parse(commands[5].stdout)).toMatchObject({
             desktop: { state: 'offline' },
             pid: initialHost.pid,
-            runtimePid: initialHost.runtimePid,
         });
         expect(commands.map(({ stdout }) => stdout).join('\n')).not.toContain(unscopedSecret);
     } finally {

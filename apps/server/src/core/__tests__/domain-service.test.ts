@@ -1,5 +1,3 @@
-import process from 'node:process';
-
 import type { RuntimeMethod } from '@caxri/protocol';
 import { CaxriError, internalMethods, methods } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -62,8 +60,6 @@ describe('ServerDomainService', () => {
         expect(events).toEqual([
             { event: 'runtime.status', payload: { status: 'ready', restartCount: 0 } },
         ]);
-        expect(service.processId()).toBe(process.pid);
-
         await service.shutdown();
         expect(close).toHaveBeenCalledOnce();
     });

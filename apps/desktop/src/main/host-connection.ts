@@ -110,8 +110,7 @@ export class DesktopHostConnection extends EventTarget {
     private client?: HostClient;
     private events?: RecoveringEventClient;
     private eventsHostIdentity?: string;
-    private hostPid?: number;
-    private runtimePid?: number;
+    private serverPid?: number;
     private starting?: Promise<void>;
     private reconnectTask?: Promise<void>;
     private lifecycle: HostConnectionState = initialHostConnectionState;
@@ -240,7 +239,7 @@ export class DesktopHostConnection extends EventTarget {
                 desktopVersion: buildIdentity.version ?? 'unknown',
                 hostBuildId: status.buildId ?? 'unknown',
                 hostCommit: status.commit ?? 'unknown',
-                hostPid: status.pid,
+                serverPid: status.pid,
                 hostVersion: status.version,
             };
             if (isHostBuildStale(buildIdentity, status)) {
@@ -262,8 +261,7 @@ export class DesktopHostConnection extends EventTarget {
                     return undefined;
                 }
             }
-            this.hostPid = status.pid;
-            this.runtimePid = status.runtimePid;
+            this.serverPid = status.pid;
             return `${status.pid}:${status.startedAt}`;
         } finally {
             operator.close();
@@ -399,12 +397,8 @@ export class DesktopHostConnection extends EventTarget {
             : new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host');
     }
 
-    processId(): number | undefined {
-        return this.runtimePid;
-    }
-
-    hostProcessId(): number | undefined {
-        return this.hostPid;
+    serverProcessId(): number | undefined {
+        return this.serverPid;
     }
 
     start(): Promise<void> {

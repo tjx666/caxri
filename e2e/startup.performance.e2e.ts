@@ -132,7 +132,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
         const restoredFilesReadyMs = performance.now() - restoredFilesStartedAt;
 
         const host = await connectToHost(userData, 2_000);
-        const runtimePid = (await host.request('host.status')).runtimePid;
+        const serverPid = (await host.request('host.status')).pid;
         const projectListRoundTripMs: number[] = [];
         for (let index = 0; index < 10; index += 1) {
             const startedAt = performance.now();
@@ -142,10 +142,9 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             projectListRoundTripMs.push(performance.now() - startedAt);
         }
         host.close();
-        if (!runtimePid) throw new Error('Caxri Runtime process was not found');
         const [{ stdout: openFiles }, { stdout: residentSet }] = await Promise.all([
-            execFileAsync('lsof', ['-p', String(runtimePid)]),
-            execFileAsync('ps', ['-o', 'rss=', '-p', String(runtimePid)]),
+            execFileAsync('lsof', ['-p', String(serverPid)]),
+            execFileAsync('ps', ['-o', 'rss=', '-p', String(serverPid)]),
         ]);
         const runtimeOpenDescriptors = openFiles.split('\n').filter(Boolean).length - 1;
         const runtimeMemoryMb = Number(residentSet.trim()) / 1024;

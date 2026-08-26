@@ -400,7 +400,6 @@ describe('CLI application', () => {
             profileId: 'profile-1',
             version: '0.0.6',
             pid: 10,
-            runtimePid: 11,
             startedAt: 1,
             clientCount: 1,
             activePtyCount: 0,

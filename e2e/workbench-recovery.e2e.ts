@@ -144,18 +144,17 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
 
         await typeTerminal(running.page, String.raw`printf 'STALE_RENDERER_ONLY\n'`);
         await expect(running.page.locator('.xterm-rows')).toContainText('STALE_RENDERER_ONLY');
-        const hostStatus = await pageRequest<{ runtimePid?: number }>(running.page, 'host.status');
-        if (!hostStatus.runtimePid) throw new Error('Host-owned Runtime process not found');
-        process.kill(hostStatus.runtimePid, 'SIGKILL');
+        const serverStatus = await pageRequest<{ pid: number }>(running.page, 'host.status');
+        process.kill(serverStatus.pid, 'SIGKILL');
         await expect(runtimeStatus(running.page)).toHaveAttribute(
             'data-runtime-status',
             'restarting',
         );
         await waitForRuntimeReady(running.page);
-        // Terminals killed with the Runtime are marked interrupted and auto-restored for the
+        // Terminals killed with Server Core are marked interrupted and auto-restored for the
         // selected Session without a manual Restart click (GitHub issue #18). The mounted xterm is
-        // replaced from Runtime's durable snapshot, so output that existed only in the dead
-        // Renderer/Runtime generation cannot linger on screen (GitHub issue #67).
+        // replaced from the durable snapshot, so output that existed only in the dead
+        // Renderer/Core generation cannot linger on screen (GitHub issue #67).
         await expect(running.page.locator('.process-running').first()).toBeVisible();
         await expect(running.page.locator('.xterm-rows').first()).not.toContainText(
             'STALE_RENDERER_ONLY',

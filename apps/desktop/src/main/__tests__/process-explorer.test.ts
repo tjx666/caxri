@@ -41,15 +41,15 @@ describe('Process Explorer sampling', () => {
         expect(selectProcessTree(processes, 100).map(({ pid }) => pid)).toEqual([100, 101, 102]);
     });
 
-    it('coalesces samples and labels Electron plus Runtime processes', async () => {
+    it('coalesces samples and labels Desktop plus Server Core processes', async () => {
         const processList = vi.fn(() =>
             Promise.resolve(
-                '100 1 1 1024 raw-main\n101 100 1 1024 raw-window\n102 100 1 1024 raw-runtime\n103 102 1 1024 /bin/zsh -il\n900 1 1 1024 unrelated\n',
+                '100 1 1 1024 raw-main\n101 100 1 1024 raw-window\n200 1 1 1024 raw-server\n203 200 1 1024 /bin/zsh -il\n900 1 1 1024 unrelated\n',
             ),
         );
         const sampler = new ProcessExplorerSampler({
             rootPid: 100,
-            runtimePid: () => 102,
+            serverPid: () => 200,
             processList,
             electronProcesses: () => [
                 { pid: 100, type: 'Browser', cpuPercent: 3, memoryMb: 40 },
@@ -64,8 +64,8 @@ describe('Process Explorer sampling', () => {
         expect(snapshot.processes).toEqual([
             expect.objectContaining({ pid: 100, name: 'caxri', cpuPercent: 3, memoryMb: 40 }),
             expect.objectContaining({ pid: 101, name: 'window (Caxri)' }),
-            expect.objectContaining({ pid: 102, name: 'runtime' }),
-            expect.objectContaining({ pid: 103, name: '/bin/zsh -il' }),
+            expect.objectContaining({ pid: 200, name: 'server-core' }),
+            expect.objectContaining({ pid: 203, name: '/bin/zsh -il' }),
         ]);
     });
 
@@ -76,7 +76,6 @@ describe('Process Explorer sampling', () => {
     it('labels each renderer window by role instead of listing two anonymous windows', async () => {
         const sampler = new ProcessExplorerSampler({
             rootPid: 100,
-            runtimePid: () => 102,
             processList: () =>
                 Promise.resolve(
                     '100 1 1 1024 raw-main\n101 100 1 1024 raw-window\n104 100 1 1024 raw-window\n',
@@ -105,7 +104,6 @@ describe('Process Explorer sampling', () => {
     it('falls back to the anonymous renderer label while a window has no known role', async () => {
         const sampler = new ProcessExplorerSampler({
             rootPid: 100,
-            runtimePid: () => {},
             processList: () =>
                 Promise.resolve('100 1 1 1024 raw-main\n101 100 1 1024 raw-window\n'),
             electronProcesses: () => [{ pid: 101, type: 'Tab', cpuPercent: 2, memoryMb: 30 }],

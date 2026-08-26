@@ -174,10 +174,6 @@ export class ServerDomainService extends EventTarget {
         return true;
     }
 
-    processId(): number | undefined {
-        return this.services ? process.pid : undefined;
-    }
-
     onEvent(listener: (event: RuntimeEvent) => void): () => void {
         const handler = (event: Event): void =>
             listener((event as CustomEvent<RuntimeEvent>).detail);
