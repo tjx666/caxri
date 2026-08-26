@@ -55,7 +55,7 @@ describe('isTraversalExcludedPath', () => {
     });
 
     it('keeps a path with only ordinary segments included', () => {
-        expect(isTraversalExcludedPath('apps/server/src/runtime/files/ignore-rules.ts')).toBe(
+        expect(isTraversalExcludedPath('apps/server/src/domains/files/ignore-rules.ts')).toBe(
             false,
         );
         expect(isTraversalExcludedPath('packages/app/src/index.ts')).toBe(false);

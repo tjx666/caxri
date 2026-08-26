@@ -26,8 +26,8 @@ const eligible: RetryPolicyInput = {
         repository: 'tjx666/caxri',
         workflowPath: '.github/workflows/ci.yml',
     },
-    baseRunChangedFiles: ['apps/server/src/runtime/base.ts'],
-    changedFiles: ['apps/server/src/runtime/index.ts'],
+    baseRunChangedFiles: ['apps/server/src/domains/base.ts'],
+    changedFiles: ['apps/server/src/domains/index.ts'],
     currentTree: tree,
     eventName: 'pull_request',
     hint: { baseRunId: 123, mode: 'e2e-only', validatedTree: tree },
@@ -322,7 +322,7 @@ describe('CI retry policy', () => {
         ]) {
             expect(isProtectedRetryPath(path), path).toBe(true);
         }
-        expect(isProtectedRetryPath('apps/server/src/runtime/index.ts')).toBe(false);
+        expect(isProtectedRetryPath('apps/server/src/domains/index.ts')).toBe(false);
     });
 
     it('protects every scripts/*.ts entrypoint the CI workflow actually executes', async () => {

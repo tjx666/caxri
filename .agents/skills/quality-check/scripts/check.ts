@@ -35,8 +35,8 @@ export type DirtyLayer =
     | 'Renderer'
     | 'Main'
     | 'Preload'
-    | 'Host'
-    | 'Runtime'
+    | 'Server Core'
+    | 'Domains'
     | 'Server'
     | 'System'
     | 'IPC'
@@ -62,8 +62,8 @@ const DIRTY_LAYER_ORDER: DirtyLayer[] = [
     'Renderer',
     'Main',
     'Preload',
-    'Host',
-    'Runtime',
+    'Server Core',
+    'Domains',
     'Server',
     'System',
     'IPC',
@@ -81,8 +81,8 @@ function dirtyLayerForFile(file: string): DirtyLayer {
     if (normalized.startsWith('apps/desktop/src/renderer/')) return 'Renderer';
     if (normalized.startsWith('apps/desktop/src/main/')) return 'Main';
     if (normalized.startsWith('apps/desktop/src/preload/')) return 'Preload';
-    if (normalized.startsWith('apps/server/src/host/')) return 'Host';
-    if (normalized.startsWith('apps/server/src/runtime/')) return 'Runtime';
+    if (normalized.startsWith('apps/server/src/core/')) return 'Server Core';
+    if (normalized.startsWith('apps/server/src/domains/')) return 'Domains';
     if (normalized.startsWith('apps/server/')) return 'Server';
     if (normalized.startsWith('apps/cli/')) return 'CLI';
     if (normalized.startsWith('packages/system/')) return 'System';
@@ -332,7 +332,7 @@ export function testCandidatesForFile(file: string): string[] {
 
     /**
      * Domain-level integration suites are named after their owning subdirectory rather than an individual source stem
-     * (e.g. `apps/server/src/runtime/db/*.ts` -> `db.integration.test.ts`). Applying this at the top level would match
+     * (e.g. `apps/server/src/domains/db/*.ts` -> `db.integration.test.ts`). Applying this at the top level would match
      * broad, expensive suites for nearly every source file.
      */
     const directorySegments = directory.split('/').filter(Boolean);

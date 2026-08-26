@@ -2,10 +2,10 @@ import process from 'node:process';
 
 import { StructuredLogger } from '@caxri/system';
 
-import type { RuntimeAgentEndpointControl } from '../runtime/agent-endpoints';
-import { RuntimeAgentEndpointLifecycle } from '../runtime/agent-endpoints';
-import { defaultAgentEnvironment } from '../runtime/agents';
-import { resolveE2ETerminalOutputFlushDelay } from '../runtime/terminal';
+import type { RuntimeAgentEndpointControl } from '../domains/agent-endpoints';
+import { RuntimeAgentEndpointLifecycle } from '../domains/agent-endpoints';
+import { defaultAgentEnvironment } from '../domains/agents';
+import { resolveE2ETerminalOutputFlushDelay } from '../domains/terminal';
 import type { CreateDomainServices } from './domain-service';
 import { ServerDomainService } from './domain-service';
 

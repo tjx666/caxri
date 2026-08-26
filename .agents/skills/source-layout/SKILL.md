@@ -85,7 +85,7 @@ a folder for a one- or two-file cluster.
 Locked protocol and CLI domains in `AGENTS.md` stay even when they have only two production
 modules. Do not add or remove one of those domains without updating `AGENTS.md` and
 `scripts/__tests__/workspace-contract.test.ts`. A new Runtime domain with three or more modules
-needs a barrel; `apps/server/src/runtime/__tests__/structure.test.ts` rejects a missing one and rejects
+needs a barrel; `apps/server/src/domains/__tests__/structure.test.ts` rejects a missing one and rejects
 production imports that reach past another domain's root.
 
 ## 5. Name files for the job

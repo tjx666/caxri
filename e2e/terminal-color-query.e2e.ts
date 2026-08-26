@@ -10,7 +10,7 @@ import { createShellSession, launchCaxri, typeTerminal } from './support/helpers
 /**
  * Agent CLIs (Codex) probe the terminal's default colors with OSC 10/11 right after spawn and give up within ~100ms.
  * The Runtime must answer at the PTY boundary because the Renderer's xterm.js attaches too late to make that deadline
- * (`apps/server/src/runtime/terminal/color-query.ts`). This regression test replays the probe from inside a real shell
+ * (`apps/server/src/domains/terminal/color-query.ts`). This regression test replays the probe from inside a real shell
  * Terminal and requires an `rgb:` reply to come back through the PTY within the probe-scale timeout.
  */
 test('Runtime answers OSC 10/11 color queries at the PTY boundary', async () => {

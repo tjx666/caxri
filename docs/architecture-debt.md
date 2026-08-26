@@ -43,7 +43,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-lifecycle-agent-endpoint-generation-map — [RESOLVED · Architecture debt · S]
 
 - **Summary:** `AgentEndpointRegistry` no longer retains a generation counter for permanently deleted Terminals; restart retirement still preserves the monotonic generation for a live Terminal.
-- **Evidence:** `apps/server/src/host/agent-endpoints/registry.ts:281` deletes the generation entry on permanent retirement, and the `forgetGenerationsWhere` pass at `apps/server/src/host/agent-endpoints/registry.ts:176-178` reclaims matching entries when a Session or Project is forgotten.
+- **Evidence:** `apps/server/src/core/agent-endpoints/registry.ts:281` deletes the generation entry on permanent retirement, and the `forgetGenerationsWhere` pass at `apps/server/src/core/agent-endpoints/registry.ts:176-178` reclaims matching entries when a Session or Project is forgotten.
 - **First seen:** 2026-08-15 @ 43af4d6 · **Last verified:** 2026-08-16 @ 19474c0
 - **Resolved:** 2026-08-16 @ 19474c0 via [PR caxri#187](https://github.com/tjx666/caxri/pull/187).
 - **Remediation target / Acceptance:** Permanent Terminal/Session/Project deletion reclaims generation state while a live Terminal restart keeps its monotonic generation. Tracked by [issue caxri#172](https://github.com/tjx666/caxri/issues/172).
@@ -51,7 +51,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-lifecycle-stale-desktop-sockets — [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Replacing the authenticated Desktop now actively disconnects the previous socket after rejecting its pending commands and revoking its lease, so repeated replacements keep socket and client accounting bounded.
-- **Evidence:** `apps/server/src/host/local-server.ts:469-476` revokes the replaced Desktop's authority and destroys its socket during lease replacement.
+- **Evidence:** `apps/server/src/core/local-server.ts:469-476` revokes the replaced Desktop's authority and destroys its socket during lease replacement.
 - **First seen:** 2026-08-15 @ 43af4d6 · **Last verified:** 2026-08-16 @ 19474c0
 - **Resolved:** 2026-08-16 @ 19474c0 via [PR caxri#187](https://github.com/tjx666/caxri/pull/187).
 - **Remediation target / Acceptance:** After rejecting pending commands and revoking authority, a replaced Desktop is actively disconnected while the new Desktop retains exclusive authority. Tracked by [issue caxri#173](https://github.com/tjx666/caxri/issues/173).
@@ -59,7 +59,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-perf-agent-inbox-duplicate-window — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Peer Inbox duplicate fingerprints are now bounded by a fixed capacity in addition to the 30-second TTL, so distinct invalid targets can no longer grow duplicate state without limit.
-- **Evidence:** `apps/server/src/host/agent-inbox/registry.ts:373-376` evicts the oldest duplicate records at `MAX_DUPLICATES` capacity while the TTL sweep continues to prune expired entries.
+- **Evidence:** `apps/server/src/core/agent-inbox/registry.ts:373-376` evicts the oldest duplicate records at `MAX_DUPLICATES` capacity while the TTL sweep continues to prune expired entries.
 - **First seen:** 2026-08-15 @ 43af4d6 · **Last verified:** 2026-08-16 @ 19474c0
 - **Resolved:** 2026-08-16 @ 19474c0 via [PR caxri#187](https://github.com/tjx666/caxri/pull/187).
 - **Remediation target / Acceptance:** A fixed duplicate-window capacity preserves in-window retry behavior without changing authorization or delivery semantics. Tracked by [issue caxri#174](https://github.com/tjx666/caxri/issues/174).
@@ -83,7 +83,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-sec-hook-config-size-cap — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Provider-owned Agent lifecycle-hook configuration is bounded before any adapter receives or parses it.
-- **Evidence:** `apps/server/src/runtime/agents/hooks/manager.ts:175-184` reads provider targets through the shared bounded regular-file reader with a 1 MiB limit. `apps/server/src/runtime/agents/hooks/__tests__/manager.integration.test.ts:440-486` proves an oversized file is neither parsed nor rewritten.
+- **Evidence:** `apps/server/src/domains/agents/hooks/manager.ts:175-184` reads provider targets through the shared bounded regular-file reader with a 1 MiB limit. `apps/server/src/domains/agents/hooks/__tests__/manager.integration.test.ts:440-486` proves an oversized file is neither parsed nor rewritten.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ b6fe27c and bdd1806 via [issue caxri#167](https://github.com/tjx666/caxri/issues/167).
 - **Remediation target / Acceptance:** Oversized provider configuration fails closed without parsing or rewriting the file; supported bounded files continue to reconcile.
@@ -91,7 +91,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-sec-theme-import-bounded-read — [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Theme import now reads through one regular-file handle into a fixed-size buffer and rejects growth before format sniffing or parsing, while preserving final-symlink compatibility for user-owned theme and provider configuration files.
-- **Evidence:** `apps/server/src/runtime/bounded-file-reader.ts:15-50` reads at most `maxBytes + 1` through one handle and rejects non-regular or overflowing sources. `apps/server/src/runtime/theme.ts:312-328` uses that boundary; `apps/server/src/runtime/__tests__/theme.test.ts:95-180` covers final symlinks, post-open growth, and FIFO rejection.
+- **Evidence:** `apps/server/src/domains/bounded-file-reader.ts:15-50` reads at most `maxBytes + 1` through one handle and rejects non-regular or overflowing sources. `apps/server/src/domains/theme.ts:312-328` uses that boundary; `apps/server/src/domains/__tests__/theme.test.ts:95-180` covers final symlinks, post-open growth, and FIFO rejection.
 - **First seen:** 2026-08-13 @ 63a7ccc · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ b6fe27c and bdd1806 via [issue caxri#167](https://github.com/tjx666/caxri/issues/167).
 - **Remediation target / Acceptance:** No parser receives more than 1 MiB; post-open growth returns `CAPACITY`, pathname replacement cannot redirect the opened handle, and normal supported imports continue to succeed.
@@ -99,7 +99,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-state-sibling-session-invalidation — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Project-shared filesystem and Git facts now invalidate every same-Project Session, including a sibling selected during a queued watcher batch.
-- **Evidence:** Runtime emits scope-bound `files.changed` events; `apps/desktop/src/renderer/src/queries/invalidation.ts` invalidates Core Resource Explorer reads for every same-Project Session without an Extension Host echo. `apps/server/src/runtime/files/__tests__/watcher.scope.integration.test.ts` covers queued rebind and cross-Project fencing.
+- **Evidence:** Runtime emits scope-bound `files.changed` events; `apps/desktop/src/renderer/src/queries/invalidation.ts` invalidates Core Resource Explorer reads for every same-Project Session without an Extension Host echo. `apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts` covers queued rebind and cross-Project fencing.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ 660ef29 via [issue caxri#168](https://github.com/tjx666/caxri/issues/168).
 - **Remediation target / Acceptance:** Two Sessions sharing one Project observe matching `files.list` and `git.summary` after an external write and immediate Session switch; another Project remains untouched.
@@ -131,7 +131,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-perf-pr-cache-unbounded — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Pull Request metadata caching now has TTL pruning, a fixed LRU capacity, deletion eviction, and shutdown cleanup.
-- **Evidence:** `apps/server/src/runtime/git/pull-request.ts:161-188` implements Session eviction, clear, expiry pruning, and a 128-entry LRU. `apps/server/src/runtime/bootstrap.ts:535-548,628-633` evicts Project and Session keys. `apps/server/src/runtime/git/__tests__/pull-request.test.ts:73-202` covers expiry, capacity, deletion, collision, and in-flight invalidation.
+- **Evidence:** `apps/server/src/domains/git/pull-request.ts:161-188` implements Session eviction, clear, expiry pruning, and a 128-entry LRU. `apps/server/src/domains/bootstrap.ts:535-548,628-633` evicts Project and Session keys. `apps/server/src/domains/git/__tests__/pull-request.test.ts:73-202` covers expiry, capacity, deletion, collision, and in-flight invalidation.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified:** 2026-08-15 @ 43af4d6
 - **Resolved:** 2026-08-15 @ e7489de via [issue caxri#170](https://github.com/tjx666/caxri/issues/170).
 - **Remediation target / Acceptance:** Historical Session/repository entries stay bounded, deleted Sessions cannot repopulate the cache, and unrelated identifiers cannot collide.
@@ -147,7 +147,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-persist-non-atomic-document-save — [RESOLVED · Confirmed defect · M]
 
 - **Summary:** Editor save truncates then overwrites in place with no atomic rename or mutation journal, so a crash mid-save can permanently empty or truncate the user's file.
-- **Evidence:** `apps/server/src/runtime/files/documents.ts:122-203` writes and syncs a same-directory `O_NOFOLLOW` replacement, revalidates its identity and containment, atomically renames it, syncs the directory, and cleans up only the trusted inode. `apps/server/src/runtime/files/__tests__/documents.test.ts:53-203` covers complete replacement, interrupted writes, swapped parents, and safe cleanup.
+- **Evidence:** `apps/server/src/domains/files/documents.ts:122-203` writes and syncs a same-directory `O_NOFOLLOW` replacement, revalidates its identity and containment, atomically renames it, syncs the directory, and cleans up only the trusted inode. `apps/server/src/domains/files/__tests__/documents.test.ts:53-203` covers complete replacement, interrupted writes, swapped parents, and safe cleanup.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 85cbbd1 via [issue caxri#75](https://github.com/tjx666/caxri/issues/75) (initial implementation 99f533a; containment hardening d3e4540 and 85cbbd1).
 - **Remediation target / Acceptance:** Atomic replace for `files.write` (same-dir temp write + fsync + rename) or journaled save. Acceptance: kill Runtime mid-save never leaves a permanently empty file that previously had content; user gets old full bytes or new full bytes. Regression covers crash-between-truncate-and-write.
@@ -155,7 +155,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-sec-config-disk-size-cap — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Settings/keybindings/theme disk load and hot-reload read and parse without a pre-parse size cap, while IPC update and theme import already bound sources—so an oversized userData config can inflate Runtime memory and cross-process event/get payloads.
-- **Evidence:** `packages/protocol/src/configuration/configuration-contract.ts` owns the bounded source and keybinding limits. `apps/server/src/runtime/config.ts` performs bounded reads before parsing; protocol registry and event schemas reuse the same contracts. `apps/server/src/runtime/__tests__/configuration.test.ts` and `packages/protocol/src/__tests__/contracts.test.ts` cover startup, hot reload, and protocol rejection.
+- **Evidence:** `packages/protocol/src/configuration/configuration-contract.ts` owns the bounded source and keybinding limits. `apps/server/src/domains/config.ts` performs bounded reads before parsing; protocol registry and event schemas reuse the same contracts. `apps/server/src/domains/__tests__/configuration.test.ts` and `packages/protocol/src/__tests__/contracts.test.ts` cover startup, hot reload, and protocol rejection.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 40d6d13 via [issue caxri#76](https://github.com/tjx666/caxri/issues/76).
 - **Remediation target / Acceptance:** Shared max for settings/keybindings/theme sources enforced on disk load, hot-reload, and IPC; bound event/result `source` (and keybindings array growth) to the same ceiling. Acceptance: oversized userData config keeps prior valid state, does not emit/get multi-cap sources; focused unit test fails if the size gate is removed.
@@ -163,7 +163,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-state-dual-editor-dirty — [RESOLVED · Architecture debt · M]
 
 - **Summary:** Editor dirtiness is dual-written to Renderer document cache and durable `openTabs[].dirty` without content, so after crash/relaunch a tab can stay durable-dirty while content is clean disk and preview rules still treat it as dirty.
-- **Evidence:** `apps/desktop/src/shared/editor-state.ts:34-51` normalizes durable tabs clean and rehydrates transient dirtiness only from live documents. `apps/server/src/runtime/db/models/sessions.ts:149-151` removes legacy/persisted dirty flags, while `apps/desktop/src/renderer/src/stores/workbench.ts:63-64,206` reconciles live cache state but persists clean metadata. Regression coverage lives at `apps/server/src/runtime/db/__tests__/database.integration.test.ts`, `apps/desktop/src/renderer/src/stores/workbench.test.ts:148-218`, and `apps/desktop/src/renderer/src/features/editor/document-actions.test.ts:105-184`.
+- **Evidence:** `apps/desktop/src/shared/editor-state.ts:34-51` normalizes durable tabs clean and rehydrates transient dirtiness only from live documents. `apps/server/src/domains/db/models/sessions.ts:149-151` removes legacy/persisted dirty flags, while `apps/desktop/src/renderer/src/stores/workbench.ts:63-64,206` reconciles live cache state but persists clean metadata. Regression coverage lives at `apps/server/src/domains/db/__tests__/database.integration.test.ts`, `apps/desktop/src/renderer/src/stores/workbench.test.ts:148-218`, and `apps/desktop/src/renderer/src/features/editor/document-actions.test.ts:105-184`.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ d2b3502 via [issue caxri#77](https://github.com/tjx666/caxri/issues/77).
 - **Remediation target / Acceptance:** Single dirty source of truth, or clear durable `openTabs.dirty` on bootstrap/open when no recoverable draft content exists. Acceptance: no path leaves `openTabs.dirty=true` without live dirty content or a recoverable draft; UI dots and preview rules agree.
@@ -171,7 +171,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-domain-runtime-index-boundary — [RESOLVED · Architecture debt · M]
 
 - **Summary:** Nested Runtime domains `files/` and `agents/` lack `index.ts` public surfaces while production and cross-domain code deep-import internals, so Agents cannot predict import boundaries.
-- **Evidence:** `apps/server/src/runtime/agents/index.ts` and `apps/server/src/runtime/files/index.ts` expose the public surfaces; current production consumers import their domain roots. `apps/server/src/runtime/__tests__/structure.test.ts:54-92` independently requires barrels for domains with at least three modules and rejects cross-domain deep imports.
+- **Evidence:** `apps/server/src/domains/agents/index.ts` and `apps/server/src/domains/files/index.ts` expose the public surfaces; current production consumers import their domain roots. `apps/server/src/domains/__tests__/structure.test.ts:54-92` independently requires barrels for domains with at least three modules and rejects cross-domain deep imports.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 310f068 via [issue caxri#78](https://github.com/tjx666/caxri/issues/78).
 - **Remediation target / Acceptance:** Domain `index.ts` barrels for files and agents; production imports only through those surfaces; Terminal launch resolve via public Agents (or executables) export. Acceptance: production Runtime imports of nested domains resolve only through each domain's `index.ts`.
@@ -179,7 +179,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-ext-agent-display-single-source — [RESOLVED · Architecture debt · S]
 
 - **Summary:** Adding a hosted Agent provider is not one catalog+adapter path: default Terminal titles and hosted icon labels re-declare display strings outside `agentProviderCatalog`.
-- **Evidence:** `apps/server/src/runtime/session-policy.ts:24-25` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.ts:26-28` derive managed-provider titles and labels from `packages/protocol/src/agent/agents.ts`. Exhaustive catalog coverage lives at `apps/server/src/runtime/__tests__/session-policy.test.ts:57-66` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.test.ts:8-21`.
+- **Evidence:** `apps/server/src/domains/session-policy.ts:24-25` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.ts:26-28` derive managed-provider titles and labels from `packages/protocol/src/agent/agents.ts`. Exhaustive catalog coverage lives at `apps/server/src/domains/__tests__/session-policy.test.ts:57-66` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.test.ts:8-21`.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 58ebede via [issue caxri#79](https://github.com/tjx666/caxri/issues/79).
 - **Remediation target / Acceptance:** Derive default agent Terminal titles (shell remains local) and hosted icon labels from the catalog, or add bi-directional exhaustiveness tests. Acceptance: catalog id + providers registry is enough for default title and displayName consumers; extra icon assets stay the only optional UI step.
@@ -187,7 +187,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-test-runtime-scale-rule-gate — [RESOLVED · Coverage or observability gap · S]
 
 - **Summary:** The Runtime domain scale / `index.ts` boundary is documented but has no test, lint, or knip gate, so boundary drift stays green under typecheck.
-- **Evidence:** `apps/server/src/runtime/__tests__/structure.test.ts:54-92` scans direct Runtime domains, requires `index.ts` at the scale threshold, parses production imports, and rejects cross-domain paths below a domain root. The focused structure test still passes on `main@8037720`.
+- **Evidence:** `apps/server/src/domains/__tests__/structure.test.ts:54-92` scans direct Runtime domains, requires `index.ts` at the scale threshold, parses production imports, and rejects cross-domain paths below a domain root. The focused structure test still passes on `main@8037720`.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 310f068 via [issue caxri#78](https://github.com/tjx666/caxri/issues/78).
 - **Remediation target / Acceptance:** Cheap structure test or eslint/knip boundary rule requiring nested-domain `index.ts` and forbidding production deep cross-domain imports. Acceptance: introducing missing domain `index.ts` or illegal deep imports fails a focused automated check.
@@ -195,7 +195,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-persist-schema-version-hand-sync — [RESOLVED · Architecture debt · M]
 
 - **Summary:** Schema evolution requires hand-keeping Drizzle SQL `?raw` imports, `preservingMigrations`, `CURRENT_SCHEMA_VERSION`, and `app_state.schemaVersion` in sync (drizzle journal meta numbering also diverges), so a missed edit can split fresh vs upgraded DBs.
-- **Evidence:** `apps/server/src/runtime/db/migrations/manifest.ts:20-85` validates the bundled SQL list against Drizzle's journal and derives preservation/current versions. `apps/server/src/runtime/db/database-connection.ts` owns the matching `app_state.schemaVersion` write. `apps/server/src/runtime/db/__tests__/migration-manifest.test.ts:13-41` rejects missing, reordered, or duplicate entries; `apps/server/src/runtime/db/__tests__/database.integration.test.ts` covers fresh, floor, and N-1 upgrades.
+- **Evidence:** `apps/server/src/domains/db/migrations/manifest.ts:20-85` validates the bundled SQL list against Drizzle's journal and derives preservation/current versions. `apps/server/src/domains/db/database-connection.ts` owns the matching `app_state.schemaVersion` write. `apps/server/src/domains/db/__tests__/migration-manifest.test.ts:13-41` rejects missing, reordered, or duplicate entries; `apps/server/src/domains/db/__tests__/database.integration.test.ts` covers fresh, floor, and N-1 upgrades.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 8301a1a via [issue caxri#81](https://github.com/tjx666/caxri/issues/81).
 - **Remediation target / Acceptance:** Derive version and preserving list from migrations meta/journal; one writer for `user_version` and app-state; CI equality gate. Acceptance: new drizzle migration cannot ship without version advancement; upgrade-from-floor coverage remains.
@@ -247,7 +247,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-test-hyphenated-sibling-discovery — [STALE · Coverage or observability gap · S]
 
 - **Summary:** The original claim that `check --test` silently misses `project-status-runner.test.ts` is no longer true because static direct-import discovery includes that suite.
-- **Evidence:** `.agents/skills/quality-check/scripts/check.ts` resolves Renderer aliases and scans static direct imports across applications, skills, scripts, and packages; `apps/server/src/runtime/__tests__/project-status-runner.test.ts:3-4` directly imports `../project-status-external`. Exact-stem candidate generation remains intentionally narrower.
+- **Evidence:** `.agents/skills/quality-check/scripts/check.ts` resolves Renderer aliases and scans static direct imports across applications, skills, scripts, and packages; `apps/server/src/domains/__tests__/project-status-runner.test.ts:3-4` directly imports `../project-status-external`. Exact-stem candidate generation remains intentionally narrower.
 - **First seen:** 2026-08-13 @ 940d949 · **Last verified stale:** 2026-08-24 @ 87b613a
 - **Disposition:** Do not add broad hyphenated-sibling inference. The distinct alias-import and `apps/cli` discovery gaps remain tracked by [issue caxri#159](https://github.com/tjx666/caxri/issues/159).
 
@@ -261,7 +261,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | IT-disk-wins-dirty-buffer           | External disk changes replace dirty editor buffers without a conflict dialog                                                                                                         | architecture / `external-sync`                                                                  |
 | IT-unsaved-buffers-not-durable      | Document bodies stay Renderer-local; SQLite holds tab metadata only                                                                                                                  | `session_state` / session-view                                                                  |
-| IT-terminal-snapshot-finalization   | Parsed snapshot encoding 3 persists its source grid; unclean Runtime loss may drop latest visual state                                                                               | `apps/server/src/runtime/terminal/snapshot-persistence.ts`, TerminalManager                     |
+| IT-terminal-snapshot-finalization   | Parsed snapshot encoding 3 persists its source grid; unclean Runtime loss may drop latest visual state                                                                               | `apps/server/src/domains/terminal/snapshot-persistence.ts`, TerminalManager                     |
 | IT-copy-not-journaled               | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled                                                                       | `supervisor.ts`, `mutation-journal`, partial-copy tests                                         |
 | IT-project-status-fixed-allowlist   | Project Status CLIs fixed to gh / linear / vc; not a plugin adapter surface                                                                                                          | architecture, `project-status.ts`                                                               |
 | IT-pe-flag-redaction-only           | Process Explorer redacts common credential **flag** argv shapes only (best-effort); not full `redactSecretText`                                                                      | `process-explorer.ts` `redactProcessName`                                                       |
@@ -269,7 +269,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-cli-global-wrapper               | Global CLI linking registers a dependency-free wrapper around the verified standalone bundle                                                                                         | `apps/cli/scripts/link-global.ts`                                                               |
 | IT-typescript-6-eslint-plus-7-tsc   | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                                                                                     | electron-toolchain / stack-baseline                                                             |
 | IT-electron-vite-beta               | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                                                                                            | package.json, electron-toolchain.md                                                             |
-| IT-runtime-integration-not-inferred | `check` does not map every `apps/server/src/runtime/*.ts` edit onto `runtime.integration.test.ts`                                                                                    | `check.ts`, `check.test.ts`                                                                     |
+| IT-runtime-integration-not-inferred | `check` does not map every `apps/server/src/domains/*.ts` edit onto `runtime.integration.test.ts`                                                                                    | `check.ts`, `check.test.ts`                                                                     |
 | IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload, not nested feature boundaries                                                                                | `error-boundary.tsx`, both Renderer entries                                                     |
 | IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk                                                                               | `eslint.config.ts`, `BrowserWindow` webPreferences                                              |
 | IT-go-cooperative-ledger            | Go receipts validate cooperative exact-head state and lineage; they do not execute commands, derive findings, or form an adversarial security boundary                               | `.agents/skills/go/SKILL.md`                                                                    |

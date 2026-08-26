@@ -200,7 +200,7 @@ const manifest = await assembleServerArtifact({
     bundleSource: resolve(serverRoot, 'dist/bundles'),
     commit,
     extensions,
-    migrationsSource: resolve(serverRoot, 'src/runtime/db/migrations'),
+    migrationsSource: resolve(serverRoot, 'src/domains/db/migrations'),
     nativePackages,
     platform: process.platform,
     protocolVersion: CAXRI_PROTOCOL_VERSION,

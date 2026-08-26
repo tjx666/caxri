@@ -23,7 +23,7 @@ async function seedProjects(databasePath: string, roots: string[]): Promise<void
         // loop is intentionally sequential rather than parallelized.
         // eslint-disable-next-line no-await-in-loop
         const source = await readFile(
-            join(projectRoot, 'apps/server/src/runtime/db/migrations', migrationName),
+            join(projectRoot, 'apps/server/src/domains/db/migrations', migrationName),
             'utf8',
         );
         database.exec(source.replaceAll('--> statement-breakpoint', ''));

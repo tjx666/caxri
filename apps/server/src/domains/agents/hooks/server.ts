@@ -142,7 +142,7 @@ export class AgentHookServer {
         readonly socketPath: string,
         private readonly schemaVersions: Readonly<Record<AgentProvider, number>>,
         // `onSignal` names a callback property shared with `AgentHookManagerOptions.onSignal`
-        // and `apps/server/src/runtime/bootstrap.ts`; renaming only here would break that shared contract.
+        // and `apps/server/src/domains/bootstrap.ts`; renaming only here would break that shared contract.
         // eslint-disable-next-line unicorn/consistent-boolean-name
         private readonly onSignal: (signal: AgentLifecycleSignal) => boolean,
     ) {}

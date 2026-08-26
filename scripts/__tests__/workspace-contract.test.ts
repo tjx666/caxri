@@ -409,7 +409,7 @@ const dynamicProtocol = import('@caxri/protocol/src/index');
 const requiredProtocol = require('@caxri/protocol');
 `),
         ).toEqual(['@caxri/protocol/domain/views', '@caxri/protocol/src/index']);
-        const violations = ['apps/server/src/host', 'apps/server/src/extension-host']
+        const violations = ['apps/server/src/core', 'apps/server/src/extension-host']
             .flatMap((directory) => productionTypeScriptFiles(join(root, directory)))
             .flatMap((file) => {
                 const filePath = relative(root, file);
