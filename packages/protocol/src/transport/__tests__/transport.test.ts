@@ -8,7 +8,6 @@ import {
     createCaxriClient,
     parseCaxriRequest,
     parseCaxriResult,
-    parseRuntimeMessage,
     parseRuntimeRequest,
     parseRuntimeResult,
     wireErrorSchema,
@@ -87,41 +86,6 @@ describe('parseCaxriResult / parseRuntimeResult', () => {
             caught = error;
         }
         expect((caught as CaxriError).message).toContain('Unknown Runtime result method');
-    });
-});
-
-describe('parseRuntimeMessage', () => {
-    it('recognizes a declared Runtime event ahead of the response shape', () => {
-        const message = parseRuntimeMessage({
-            event: 'runtime.status',
-            payload: { status: 'ready', restartCount: 0 },
-        });
-        expect(message).toEqual({
-            event: 'runtime.status',
-            payload: { status: 'ready', restartCount: 0 },
-        });
-    });
-
-    it('parses a successful and a failed Runtime response', () => {
-        expect(parseRuntimeMessage({ id: 'r1', ok: true, result: { anything: 1 } })).toEqual({
-            id: 'r1',
-            ok: true,
-            result: { anything: 1 },
-        });
-        const failure = parseRuntimeMessage({
-            id: 'r2',
-            ok: false,
-            error: { code: 'NOT_FOUND', message: 'missing' },
-        });
-        expect(failure).toEqual({
-            id: 'r2',
-            ok: false,
-            error: { code: 'NOT_FOUND', message: 'missing' },
-        });
-    });
-
-    it('throws when a payload matches neither the event nor the response shape', () => {
-        expect(() => parseRuntimeMessage({ unrelated: true })).toThrow();
     });
 });
 

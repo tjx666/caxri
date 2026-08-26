@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
 import { hostCredentialTokenSchema } from '../transport/local-transport.js';
-import { wireErrorSchema } from '../transport/transport.js';
 import {
     agentEndpointRefSchema as agentEndpointReferenceSchema,
     agentMessagingCapabilitySchema,
@@ -55,48 +54,6 @@ export const agentEndpointMessagingParamsSchema = z.object({
 
 export const agentEndpointMessagingResultSchema = z.object({ updated: z.boolean() });
 
-export const runtimeHostControlRequestSchema = z.discriminatedUnion('operation', [
-    z.object({
-        type: z.literal('host-control.request'),
-        id: identifierSchema,
-        operation: z.literal('agent-endpoint.begin'),
-        params: agentEndpointBeginParamsSchema,
-    }),
-    z.object({
-        type: z.literal('host-control.request'),
-        id: identifierSchema,
-        operation: z.literal('agent-endpoint.activate'),
-        params: agentEndpointActivateParamsSchema,
-    }),
-    z.object({
-        type: z.literal('host-control.request'),
-        id: identifierSchema,
-        operation: z.literal('agent-endpoint.retire'),
-        params: agentEndpointRetireParamsSchema,
-    }),
-    z.object({
-        type: z.literal('host-control.request'),
-        id: identifierSchema,
-        operation: z.literal('agent-endpoint.messaging'),
-        params: agentEndpointMessagingParamsSchema,
-    }),
-]);
-
-export const runtimeHostControlReplySchema = z.discriminatedUnion('ok', [
-    z.object({
-        type: z.literal('host-control.reply'),
-        id: identifierSchema,
-        ok: z.literal(true),
-        result: z.unknown(),
-    }),
-    z.object({
-        type: z.literal('host-control.reply'),
-        id: identifierSchema,
-        ok: z.literal(false),
-        error: wireErrorSchema,
-    }),
-]);
-
 // eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by apps/server/src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type AgentEndpointBeginParams = z.infer<typeof agentEndpointBeginParamsSchema>;
 export type AgentEndpointBeginResult = z.infer<typeof agentEndpointBeginResultSchema>;
@@ -106,4 +63,3 @@ export type AgentEndpointActivateParams = z.infer<typeof agentEndpointActivatePa
 export type AgentEndpointRetireParams = z.infer<typeof agentEndpointRetireParamsSchema>;
 // eslint-disable-next-line unicorn/name-replacements -- exported symbol is imported by apps/server/src/host/agent-endpoints/registry.ts, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type AgentEndpointMessagingParams = z.infer<typeof agentEndpointMessagingParamsSchema>;
-export type RuntimeHostControlRequest = z.infer<typeof runtimeHostControlRequestSchema>;

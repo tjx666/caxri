@@ -13,7 +13,6 @@ import {
     MAX_KEYBINDINGS,
     methods,
     parseCaxriResult,
-    parseRuntimeMessage,
     parseRuntimeRequest,
     parseRuntimeResult,
     requestEnvelopeSchema,
@@ -302,26 +301,6 @@ describe('runtime events', () => {
         ).toEqual({
             event: 'state.changed',
             payload: { kind: 'full', reason: 'unknown' },
-        });
-    });
-
-    it('rejects malformed utility-process messages before they reach Main listeners', () => {
-        expect(() =>
-            parseRuntimeMessage({
-                event: 'terminal.output',
-                payload: { data: 'missing terminal id' },
-            }),
-        ).toThrow();
-        expect(
-            parseRuntimeMessage({
-                id: 'request-1',
-                ok: false,
-                error: { code: 'FUTURE_CODE', message: 'future failure' },
-            }),
-        ).toEqual({
-            id: 'request-1',
-            ok: false,
-            error: { code: 'INTERNAL', message: 'future failure' },
         });
     });
 });

@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
 import type { RuntimeEvent } from '../registry/events.js';
-import { runtimeEventSchema } from '../registry/events.js';
 import type {
     CaxriMethod,
     CaxriRequest,
@@ -93,15 +92,6 @@ export const wireErrorSchema = z
         ...(details && { details }),
     }));
 
-const runtimeResponseSchema = z.discriminatedUnion('ok', [
-    z.object({ id: identifierSchema, ok: z.literal(true), result: z.unknown() }),
-    z.object({ id: identifierSchema, ok: z.literal(false), error: wireErrorSchema }),
-]);
-
-export type RuntimeResponse = z.infer<typeof runtimeResponseSchema>;
-
-export type RuntimeMessage = RuntimeResponse | RuntimeEvent;
-
 /**
  * Host-attested context attached only to Extension workspace requests. It binds a request to the Workbench Root that
  * was selected when the public API call began; the Runtime rechecks the binding immediately before invoking a domain
@@ -113,25 +103,6 @@ export const runtimeWorkbenchContextSchema = z.object({
 });
 
 export type RuntimeWorkbenchContext = z.infer<typeof runtimeWorkbenchContextSchema>;
-
-/**
- * Internal Host-to-Runtime cancellation frame; it never enters the public command registry.
- */
-export const runtimeCancelRequestSchema = z.object({
-    type: z.literal('cancel'),
-    id: identifierSchema,
-});
-
-export type RuntimeCancelRequest = z.infer<typeof runtimeCancelRequestSchema>;
-
-/**
- * Parses an untrusted utility-process message as either a response or a declared Runtime event.
- */
-export function parseRuntimeMessage(message: unknown): RuntimeMessage {
-    const event = runtimeEventSchema.safeParse(message);
-    if (event.success) return event.data;
-    return runtimeResponseSchema.parse(message);
-}
 
 /**
  * Main answers `caxri:request` with this envelope so the error code survives the Electron hop.

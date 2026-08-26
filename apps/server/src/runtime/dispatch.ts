@@ -2,7 +2,6 @@ import type {
     RuntimeMethod,
     RuntimeMethodParams as RuntimeMethodParameters,
     RuntimeMethodResult,
-    RuntimeResponse,
     RuntimeWorkbenchContext,
 } from '@caxri/protocol';
 import {
@@ -34,11 +33,6 @@ interface RuntimeRequestEnvelope {
     id: string;
     method: string;
     params: unknown;
-}
-
-export interface RuntimeDispatcher {
-    (envelope: RuntimeRequestEnvelope): Promise<RuntimeResponse>;
-    cancel(requestId: string): boolean;
 }
 
 export interface RuntimeOperationDispatcher {
@@ -152,26 +146,5 @@ export function createOperationDispatcher(
         pruneCancelTombstones(cancelTombstones);
         return true;
     };
-    return dispatch;
-}
-
-/**
- * Transitional private-process adapter. Server Core callers use `createOperationDispatcher` directly; only the legacy
- * utility-process entrypoint still converts outcomes to wire responses.
- */
-export function createDispatcher(
-    handlers: RuntimeHandlers,
-    logger: StructuredLogger,
-    validateContext?: (context: RuntimeWorkbenchContext) => void,
-): RuntimeDispatcher {
-    const invoke = createOperationDispatcher(handlers, logger, validateContext);
-    const dispatch = async (envelope: RuntimeRequestEnvelope): Promise<RuntimeResponse> => {
-        try {
-            return { id: envelope.id, ok: true, result: await invoke(envelope) };
-        } catch (error) {
-            return { id: envelope.id, ok: false, error: toWireError(error) };
-        }
-    };
-    dispatch.cancel = (requestId: string) => invoke.cancel(requestId);
     return dispatch;
 }
