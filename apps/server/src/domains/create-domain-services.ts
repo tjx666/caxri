@@ -793,6 +793,7 @@ export async function createDomainServices(
     return {
         handlers,
         close,
+        protocolRecovery: database.protocolState,
         validateRequestContext: (context) => validateWorkbenchRequestContext(database, context),
     };
 }
