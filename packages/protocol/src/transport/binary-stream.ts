@@ -1,7 +1,12 @@
 import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import { identifierSchema, MAX_TERMINAL_INPUT_LENGTH, pathSchema } from '../domain/domain.js';
+import {
+    identifierSchema,
+    MAX_TERMINAL_INPUT_LENGTH,
+    pathSchema,
+    terminalSnapshotSchema,
+} from '../domain/domain.js';
 import { CaxriError, errorCodes } from './errors.js';
 import { protocolVersionSchema } from './version.js';
 
@@ -20,7 +25,7 @@ export const BINARY_STREAM_MAX_FILE_UPLOAD_BYTES = MAX_CONFIGURABLE_FILE_BYTES;
 export const BINARY_STREAM_MAX_FILE_CONTENT_BYTES = 3 * MAX_CONFIGURABLE_FILE_BYTES;
 export const BINARY_STREAM_MAX_TERMINAL_INPUT_BYTES = 4 * MAX_TERMINAL_INPUT_LENGTH;
 export const BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES = 4 * 1024 * 1024;
-export const BINARY_STREAM_MAX_REPLY_BYTES = 256 * 1024;
+export const BINARY_STREAM_MAX_REPLY_BYTES = 2 * 1024 * 1024;
 export const BINARY_STREAM_TICKET_TTL_MS = 10_000;
 export const BINARY_STREAM_MAX_PENDING_TICKETS = 128;
 
@@ -130,10 +135,21 @@ export const localServerStreamTicketReplySchema = z.discriminatedUnion('ok', [
 export type LocalServerStreamTicketReply = z.infer<typeof localServerStreamTicketReplySchema>;
 
 const binaryStreamEmptyResultSchema = z.object({ kind: z.literal('empty') }).strict();
+export const binaryStreamTerminalSnapshotMetadataSchema = terminalSnapshotSchema
+    .omit({ payload: true })
+    .extend({
+        payloadBytes: z.number().int().nonnegative().max(BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES),
+    })
+    .strict();
+
+export type BinaryStreamTerminalSnapshotMetadata = z.infer<
+    typeof binaryStreamTerminalSnapshotMetadataSchema
+>;
+
 const binaryStreamTerminalAttachmentResultSchema = z
     .object({
         kind: z.literal('terminal-attachment'),
-        snapshotBytes: z.number().int().nonnegative().max(BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES),
+        snapshot: binaryStreamTerminalSnapshotMetadataSchema.nullable(),
     })
     .strict();
 const binaryStreamFileDocumentResultSchema = z

@@ -96,6 +96,31 @@ describe('binary stream ticket contract', () => {
             }).success,
         ).toBe(true);
     });
+
+    it('keeps the Terminal screen payload out of JSON reply metadata', () => {
+        const parsed = binaryStreamReplySchema.parse({
+            id: 'request-1',
+            method: 'terminal.attach',
+            ok: true,
+            result: {
+                kind: 'terminal-attachment',
+                snapshot: {
+                    terminalId: 'terminal-1',
+                    encodingVersion: 3,
+                    cols: 80,
+                    rows: 24,
+                    lineCount: 1,
+                    byteCount: 4,
+                    payloadBytes: 4,
+                    updatedAt: 1,
+                },
+            },
+        });
+
+        if (!parsed.ok || parsed.result.kind !== 'terminal-attachment' || !parsed.result.snapshot)
+            throw new Error('Expected Terminal attachment metadata');
+        expect(parsed.result.snapshot).not.toHaveProperty('payload');
+    });
 });
 
 describe('binary stream framing', () => {
