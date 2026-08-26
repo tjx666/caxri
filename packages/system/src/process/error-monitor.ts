@@ -1,6 +1,6 @@
 import process from 'node:process';
 
-import type { LogEventName } from '@caxri/protocol';
+import type { LogEventName, LogProcess } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/protocol';
 
 import type { StructuredLogger } from '../observability/logger.js';
@@ -20,7 +20,7 @@ export interface ProcessErrorTarget {
 
 interface ProcessErrorMonitorOptions {
     bootstrapWriter?: () => ProcessErrorWriter | undefined;
-    processName: 'host' | 'main' | 'runtime';
+    processName: LogProcess;
     target?: ProcessErrorTarget;
 }
 
@@ -35,17 +35,21 @@ interface BufferedProcessError {
 
 const MAX_BUFFERED_PROCESS_ERRORS = 8;
 const processErrorEvents = {
-    host: {
-        uncaughtException: logEventCatalog.host.uncaughtException,
-        unhandledRejection: logEventCatalog.host.unhandledRejection,
+    'desktop': {
+        uncaughtException: logEventCatalog.desktop.uncaughtException,
+        unhandledRejection: logEventCatalog.desktop.unhandledRejection,
     },
-    main: {
-        uncaughtException: logEventCatalog.main.uncaughtException,
-        unhandledRejection: logEventCatalog.main.unhandledRejection,
+    'extension-host': {
+        uncaughtException: logEventCatalog.extensionHost.uncaughtException,
+        unhandledRejection: logEventCatalog.extensionHost.unhandledRejection,
     },
-    runtime: {
-        uncaughtException: logEventCatalog.runtime.uncaughtException,
-        unhandledRejection: logEventCatalog.runtime.unhandledRejection,
+    'server-core': {
+        uncaughtException: logEventCatalog.serverCore.uncaughtException,
+        unhandledRejection: logEventCatalog.serverCore.unhandledRejection,
+    },
+    'terminal-host': {
+        uncaughtException: logEventCatalog.terminalHost.uncaughtException,
+        unhandledRejection: logEventCatalog.terminalHost.unhandledRejection,
     },
 } as const satisfies Record<
     ProcessErrorMonitorOptions['processName'],

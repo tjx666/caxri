@@ -8,27 +8,34 @@ import { parseE2ELogErrors, readE2ELogSnapshots } from '../error-log';
 import { assertE2EErrorPolicy } from '../error-policy';
 
 const record = (
-    process: 'host' | 'main' | 'runtime',
+    process: 'desktop' | 'extension-host' | 'server-core' | 'terminal-host',
     level: 'error' | 'info',
     event: string,
     code?: string,
 ) => `${JSON.stringify({ process, level, event, fields: code ? { code } : undefined })}\n`;
 
 describe('E2E structured log collection', () => {
-    it('collects rotated and active Main and Runtime logs in chronological order', async () => {
+    it('collects rotated and active Desktop and Server Core logs in chronological order', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-e2e-error-log-'));
         const logDirectory = join(userDataDirectory, 'logs');
         await mkdir(logDirectory);
         await Promise.all([
             writeFile(
-                join(logDirectory, 'main.jsonl.1'),
-                record('main', 'error', 'main.early_failure', 'MAIN_EARLY_FAILURE'),
+                join(logDirectory, 'desktop.jsonl.1'),
+                record('desktop', 'error', 'desktop.early_failure', 'DESKTOP_EARLY_FAILURE'),
             ),
-            writeFile(join(logDirectory, 'main.jsonl'), record('main', 'info', 'main.ready')),
-            writeFile(join(logDirectory, 'host.jsonl'), record('host', 'info', 'host.ready')),
             writeFile(
-                join(logDirectory, 'runtime.jsonl'),
-                record('runtime', 'error', 'runtime.late_failure', 'RUNTIME_LATE_FAILURE'),
+                join(logDirectory, 'desktop.jsonl'),
+                record('desktop', 'info', 'desktop.ready'),
+            ),
+            writeFile(
+                join(logDirectory, 'server-core.jsonl'),
+                record(
+                    'server-core',
+                    'error',
+                    'server_core.late_failure',
+                    'SERVER_CORE_LATE_FAILURE',
+                ),
             ),
         ]);
 
@@ -36,41 +43,40 @@ describe('E2E structured log collection', () => {
             const snapshots = readE2ELogSnapshots(userDataDirectory);
 
             expect(snapshots.map(({ path }) => path.slice(logDirectory.length + 1))).toEqual([
-                'host.jsonl',
-                'main.jsonl.1',
-                'main.jsonl',
-                'runtime.jsonl',
+                'desktop.jsonl.1',
+                'desktop.jsonl',
+                'server-core.jsonl',
             ]);
             const errors = parseE2ELogErrors(snapshots);
             expect(errors).toEqual([
                 {
-                    source: 'main',
-                    event: 'main.early_failure',
-                    code: 'MAIN_EARLY_FAILURE',
+                    source: 'desktop',
+                    event: 'desktop.early_failure',
+                    code: 'DESKTOP_EARLY_FAILURE',
                 },
                 {
-                    source: 'runtime',
-                    event: 'runtime.late_failure',
-                    code: 'RUNTIME_LATE_FAILURE',
+                    source: 'server-core',
+                    event: 'server_core.late_failure',
+                    code: 'SERVER_CORE_LATE_FAILURE',
                 },
             ]);
             expect(() => assertE2EErrorPolicy(errors, [])).toThrow(
-                'Unexpected E2E errors: main/main.early_failure/MAIN_EARLY_FAILURE x1, runtime/runtime.late_failure/RUNTIME_LATE_FAILURE x1',
+                'Unexpected E2E errors: desktop/desktop.early_failure/DESKTOP_EARLY_FAILURE x1, server-core/server_core.late_failure/SERVER_CORE_LATE_FAILURE x1',
             );
         } finally {
             await rm(userDataDirectory, { recursive: true, force: true });
         }
     });
 
-    it('classifies malformed Runtime JSONL as an exact Runtime gate error', async () => {
+    it('classifies malformed Server Core JSONL as an exact Server Core gate error', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-e2e-error-log-'));
         const logDirectory = join(userDataDirectory, 'logs');
         await mkdir(logDirectory);
-        await writeFile(join(logDirectory, 'runtime.jsonl'), '{not-json}\n');
+        await writeFile(join(logDirectory, 'server-core.jsonl'), '{not-json}\n');
 
         try {
             expect(parseE2ELogErrors(readE2ELogSnapshots(userDataDirectory))).toEqual([
-                { source: 'runtime', event: 'e2e.log_invalid', code: 'INVALID_JSONL' },
+                { source: 'server-core', event: 'e2e.log_invalid', code: 'INVALID_JSONL' },
             ]);
         } finally {
             await rm(userDataDirectory, { recursive: true, force: true });

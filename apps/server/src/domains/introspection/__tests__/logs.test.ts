@@ -11,20 +11,20 @@ describe('bounded structured log queries', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-log-query-'));
         await mkdir(directory, { recursive: true });
         await writeFile(
-            join(directory, 'runtime.jsonl'),
+            join(directory, 'server-core.jsonl'),
             [
                 JSON.stringify({
                     timestamp: '2026-08-14T00:00:00.000Z',
-                    process: 'runtime',
+                    process: 'server-core',
                     level: 'info',
-                    event: 'runtime.ready',
+                    event: 'server_core.ready',
                     durationMs: 12,
                     fields: { source: 'private.ts', token: 'secret-sentinel' },
                 }),
                 'truncated-json',
                 JSON.stringify({
                     timestamp: '2026-08-14T00:00:01.000Z',
-                    process: 'runtime',
+                    process: 'server-core',
                     level: 'error',
                     event: 'ipc.request_failed',
                     correlationId: 'request-1',
@@ -40,7 +40,7 @@ describe('bounded structured log queries', () => {
         expect(result.records).toEqual([
             expect.objectContaining({
                 timestamp: '2026-08-14T00:00:01.000Z',
-                process: 'runtime',
+                process: 'server-core',
                 level: 'error',
                 event: 'ipc.request_failed',
                 correlationId: 'request-1',
@@ -64,12 +64,14 @@ describe('bounded structured log queries', () => {
         const lines = Array.from({ length: 150 }, (_, index) =>
             JSON.stringify({
                 timestamp: new Date(Date.UTC(2026, 7, 14, 0, 0, index)).toISOString(),
-                process: 'host',
+                process: 'server-core',
                 level: 'info',
                 event: `host.event.${index}`,
             }),
         );
-        await writeFile(join(directory, 'host.jsonl'), `${lines.join('\n')}\n`, { mode: 0o600 });
+        await writeFile(join(directory, 'server-core.jsonl'), `${lines.join('\n')}\n`, {
+            mode: 0o600,
+        });
         const service = new LogQueryService(directory, { maximumRecords: 32 });
 
         const result = await service.query({
@@ -84,14 +86,14 @@ describe('bounded structured log queries', () => {
 
     it('keeps cursor identities stable when the structured logger rotates a file', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-log-rotation-'));
-        const path = join(directory, 'runtime.jsonl');
+        const path = join(directory, 'server-core.jsonl');
         await writeFile(
             path,
             `${JSON.stringify({
                 timestamp: '2026-08-14T00:00:00.000Z',
-                process: 'runtime',
+                process: 'server-core',
                 level: 'info',
-                event: 'runtime.ready',
+                event: 'server_core.ready',
             })}\n`,
             { mode: 0o600 },
         );

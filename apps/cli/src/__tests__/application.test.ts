@@ -698,9 +698,9 @@ describe('CLI application', () => {
                     {
                         id: 'record-1',
                         timestamp: '2026-08-14T00:00:00.000Z',
-                        process: 'runtime',
+                        process: 'server-core',
                         level: 'info',
-                        event: 'runtime.ready',
+                        event: 'server_core.ready',
                     },
                 ],
                 nextCursor: 'cursor-3',
@@ -734,7 +734,7 @@ describe('CLI application', () => {
         ).resolves.toBe(130);
 
         expect(output.stdout()).toBe(
-            '{"event":"runtime.ready","id":"record-1","level":"info","process":"runtime","timestamp":"2026-08-14T00:00:00.000Z"}\n',
+            '{"event":"server_core.ready","id":"record-1","level":"info","process":"server-core","timestamp":"2026-08-14T00:00:00.000Z"}\n',
         );
         expect(waits).toEqual([250, 500, 250, 250]);
         expect(output.stdout()).not.toContain('fields');

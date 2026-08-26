@@ -307,10 +307,9 @@ process.stdin.resume();
                 ?.lastProcessState,
         ).toBe('running');
 
-        const [database, hostLog, runtimeLog, diagnostics, snapshot] = await Promise.all([
+        const [database, serverCoreLog, diagnostics, snapshot] = await Promise.all([
             readFile(join(userData, 'caxri.db')),
-            readFile(join(userData, 'logs', 'host.jsonl'), 'utf8'),
-            readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8'),
+            readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8'),
             pageRequest(running.page, 'diagnostics.snapshot'),
             pageRequest<{ payload: string }>(running.page, 'terminal.snapshot', {
                 terminalId: receiverCapture.context.endpoint.terminalId,
@@ -324,8 +323,7 @@ process.stdin.resume();
         }
         for (const body of [directBody, checkBody, heldBody, racedBody, staleBody]) {
             expect(database.includes(Buffer.from(body))).toBe(false);
-            expect(hostLog).not.toContain(body);
-            expect(runtimeLog).not.toContain(body);
+            expect(serverCoreLog).not.toContain(body);
             expect(JSON.stringify(diagnostics)).not.toContain(body);
             expect(snapshot.payload).not.toContain(body);
             expect(terminalInput.includes(Buffer.from(body))).toBe(false);

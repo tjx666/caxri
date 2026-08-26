@@ -136,18 +136,16 @@ process.stdin.resume();
         await expect(agent.request('agent.context')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         agent.close();
 
-        const [database, hostLog, runtimeLog, snapshot] = await Promise.all([
+        const [database, serverCoreLog, snapshot] = await Promise.all([
             readFile(join(userData, 'caxri.db')),
-            readFile(join(userData, 'logs', 'host.jsonl'), 'utf8'),
-            readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8'),
+            readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8'),
             pageRequest<{ payload: string }>(running.page, 'terminal.snapshot', {
                 terminalId: second.context.endpoint.terminalId,
             }),
         ]);
         for (const token of [first.credential.token, second.credential.token]) {
             expect(database.includes(Buffer.from(token))).toBe(false);
-            expect(hostLog).not.toContain(token);
-            expect(runtimeLog).not.toContain(token);
+            expect(serverCoreLog).not.toContain(token);
             expect(snapshot.payload).not.toContain(token);
         }
     } finally {

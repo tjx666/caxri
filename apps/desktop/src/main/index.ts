@@ -85,7 +85,7 @@ if (ownsProfileInstance) {
     let mainLogger: StructuredLogger | undefined;
     const processErrorMonitor = installProcessErrorMonitor({
         bootstrapWriter: () => (mainLogger ??= createMainLogger()),
-        processName: 'main',
+        processName: 'desktop',
     });
     let processExplorer: ProcessExplorerWindowController;
     let updateService: UpdateService;
@@ -124,7 +124,7 @@ if (ownsProfileInstance) {
     function createMainLogger(): StructuredLogger {
         return new StructuredLogger(
             desktopProfile.logDirectory,
-            'main',
+            'desktop',
             resolveLogLevel({ isPackaged: app.isPackaged }),
         );
     }
@@ -498,9 +498,13 @@ if (ownsProfileInstance) {
                 // logged, so this is deliberately fire-and-forget rather than awaited.
                 // eslint-disable-next-line unicorn/prefer-await -- see comment above
                 supervisor.markDesktopReady().catch((error: unknown) =>
-                    mainLogger?.write('error', logEventCatalog.host.desktopReadyFailed, {
-                        fields: { error: errorMessage(error, 'unknown') },
-                    }),
+                    mainLogger?.write(
+                        'error',
+                        logEventCatalog.serverConnection.desktopReadyFailed,
+                        {
+                            fields: { error: errorMessage(error, 'unknown') },
+                        },
+                    ),
                 );
             },
             renderer: () => mainRenderer,
@@ -569,7 +573,7 @@ if (ownsProfileInstance) {
             if (developmentDockIconPath && app.dock) app.dock.setIcon(developmentDockIconPath);
             const { userDataPath, logDirectory } = desktopProfile;
             const logLevel = resolveLogLevel({ isPackaged: app.isPackaged });
-            mainLogger ??= new StructuredLogger(logDirectory, 'main', logLevel);
+            mainLogger ??= new StructuredLogger(logDirectory, 'desktop', logLevel);
             processErrorMonitor.attach(mainLogger);
             mainLogger.write('info', logEventCatalog.app.ready, {
                 durationMs: performance.now() - bootStartedAt,

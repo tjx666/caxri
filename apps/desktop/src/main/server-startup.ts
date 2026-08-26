@@ -42,12 +42,12 @@ export async function shouldContinueStartup(options: ServerStartupOptions): Prom
     const startedAt = performance.now();
     try {
         await options.supervisor.start();
-        options.logger?.write('info', logEventCatalog.host.attached, {
+        options.logger?.write('info', logEventCatalog.serverConnection.attached, {
             durationMs: performance.now() - startedAt,
         });
         return true;
     } catch (error) {
-        options.logger?.write('error', logEventCatalog.host.attachFailed, {
+        options.logger?.write('error', logEventCatalog.serverConnection.attachFailed, {
             durationMs: performance.now() - startedAt,
             fields: { error: errorMessage(error, 'unknown') },
         });

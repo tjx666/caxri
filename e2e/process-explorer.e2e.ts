@@ -73,7 +73,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             )
             .toBeGreaterThan(sampledAt);
 
-        const mainLogPath = join(userData, 'logs', 'main.jsonl');
+        const mainLogPath = join(userData, 'logs', 'desktop.jsonl');
         await expect
             .poll(async () => {
                 const log = await readFile(mainLogPath, 'utf8');

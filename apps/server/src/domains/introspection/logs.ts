@@ -9,10 +9,10 @@ import type {
     LogQueryRecord,
     LogQueryResult,
 } from '@caxri/protocol';
-import { CaxriError, logQueryRecordSchema } from '@caxri/protocol';
+import { CaxriError, logProcesses, logQueryRecordSchema } from '@caxri/protocol';
 import { isSecretKey, redactLogValue } from '@caxri/system';
 
-const LOG_NAME = /^(?:host|main|runtime)\.jsonl(?:\.1)?$/u;
+const LOG_NAME = new RegExp(String.raw`^(?:${logProcesses.join('|')})\.jsonl(?:\.1)?$`, 'u');
 const DEFAULT_MAXIMUM_RECORDS = 4_096;
 const DEFAULT_MAXIMUM_BYTES_PER_FILE = 512 * 1024;
 

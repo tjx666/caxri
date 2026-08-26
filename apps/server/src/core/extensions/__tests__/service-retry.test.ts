@@ -108,7 +108,7 @@ function service(): ExtensionService {
         extensionHostPath: '/out/main/extension-host.js',
         extensionRoots: ['/extensions'],
         includeTestOnly: true,
-        logger: new StructuredLogger('/tmp/caxri-extension-retry-test', 'host', 'error'),
+        logger: new StructuredLogger('/tmp/caxri-extension-retry-test', 'server-core', 'error'),
         activeContext: () => Promise.resolve({}),
         projectIds: () => Promise.resolve([]),
         projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),

@@ -193,7 +193,7 @@ test('live Terminal restores the authoritative screen after Renderer output back
             .poll(async () => {
                 try {
                     const records = (
-                        await readFile(join(userData, 'logs', 'runtime.jsonl'), 'utf8')
+                        await readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8')
                     )
                         .trim()
                         .split('\n')
@@ -378,7 +378,7 @@ printf '\033[4;5HCURSOR_MARK_界'
 test('startup failure uses a compact danger status without covering output', async () => {
     allowE2EErrors([
         {
-            source: 'runtime',
+            source: 'server-core',
             event: 'pty.spawn_failed',
             code: 'UNAVAILABLE',
             count: 1,

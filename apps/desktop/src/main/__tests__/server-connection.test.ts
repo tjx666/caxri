@@ -214,7 +214,7 @@ describe('Desktop Server connection facade', () => {
         });
         expect(logger.write).toHaveBeenCalledWith(
             'warn',
-            'host.stale_build_replaced',
+            'server_connection.stale_build_replaced',
             expect.anything(),
         );
         expect(freshOperator.request).not.toHaveBeenCalledWith('host.stop', expect.anything());
@@ -249,7 +249,7 @@ describe('Desktop Server connection facade', () => {
 
         expect(logger.write).toHaveBeenCalledWith(
             'warn',
-            'host.version_mismatch',
+            'server_connection.version_mismatch',
             expect.anything(),
         );
         expect(connection.serverProcessId()).toBe(999_999);
@@ -277,14 +277,18 @@ describe('Desktop Server connection facade', () => {
         expect(stopCallCount()).toBe(1);
         expect(logger.write).toHaveBeenCalledWith(
             'warn',
-            'host.version_mismatch',
+            'server_connection.version_mismatch',
             expect.anything(),
         );
 
         vi.mocked(connectDesktopToServer).mockResolvedValue(createFakeServerClient() as never);
         first.triggerClose();
         await vi.advanceTimersByTimeAsync(500);
-        expect(logger.write).toHaveBeenCalledWith('info', 'host.reconnected', expect.anything());
+        expect(logger.write).toHaveBeenCalledWith(
+            'info',
+            'server_connection.reconnected',
+            expect.anything(),
+        );
         expect(stopCallCount()).toBe(1);
     });
 
@@ -296,12 +300,12 @@ describe('Desktop Server connection facade', () => {
 
         expect(logger.write).not.toHaveBeenCalledWith(
             'warn',
-            'host.version_mismatch',
+            'server_connection.version_mismatch',
             expect.anything(),
         );
         expect(logger.write).not.toHaveBeenCalledWith(
             'warn',
-            'host.stale_build_replaced',
+            'server_connection.stale_build_replaced',
             expect.anything(),
         );
     });
@@ -319,10 +323,10 @@ describe('Desktop Server connection facade', () => {
         await expect(connection.request('app.health')).rejects.toMatchObject({
             code: 'UNAVAILABLE',
         });
-        expect(logger.write).toHaveBeenCalledWith('warn', 'host.connection_lost', {});
+        expect(logger.write).toHaveBeenCalledWith('warn', 'server_connection.lost', {});
 
         await vi.advanceTimersByTimeAsync(500);
-        expect(logger.write).toHaveBeenCalledWith('info', 'host.reconnected', {
+        expect(logger.write).toHaveBeenCalledWith('info', 'server_connection.reconnected', {
             fields: { attempt: 1, downtimeMs: 500, isHostReplaced: false },
         });
         expect(replacement.markDesktopReady).toHaveBeenCalledTimes(1);
@@ -342,7 +346,11 @@ describe('Desktop Server connection facade', () => {
         await vi.advanceTimersByTimeAsync(30_000);
 
         expect(ensureServer).toHaveBeenCalledTimes(attachmentCount);
-        expect(logger.write).toHaveBeenCalledWith('warn', 'host.desktop_lease_replaced', {});
+        expect(logger.write).toHaveBeenCalledWith(
+            'warn',
+            'server_connection.desktop_lease_replaced',
+            {},
+        );
         expect(received).toEqual([
             {
                 event: 'host.connectionChanged',
@@ -390,13 +398,13 @@ describe('Desktop Server connection facade', () => {
         first.triggerClose();
 
         await vi.advanceTimersByTimeAsync(500);
-        expect(logger.write).toHaveBeenCalledWith('warn', 'host.reconnect_failed', {
+        expect(logger.write).toHaveBeenCalledWith('warn', 'server_connection.reconnect_failed', {
             fields: { attempt: 1, error: 'host is still down' },
         });
 
         const replacement = mockServerRound();
         await vi.advanceTimersByTimeAsync(1000);
-        expect(logger.write).toHaveBeenCalledWith('info', 'host.reconnected', {
+        expect(logger.write).toHaveBeenCalledWith('info', 'server_connection.reconnected', {
             fields: { attempt: 2, downtimeMs: 1500, isHostReplaced: false },
         });
         expect(replacement.onClose).toHaveBeenCalledTimes(1);
@@ -420,7 +428,7 @@ describe('Desktop Server connection facade', () => {
 
         const stable = mockServerRound();
         await vi.advanceTimersByTimeAsync(1000);
-        expect(logger.write).toHaveBeenCalledWith('info', 'host.reconnected', {
+        expect(logger.write).toHaveBeenCalledWith('info', 'server_connection.reconnected', {
             fields: { attempt: 2, downtimeMs: 1500, isHostReplaced: false },
         });
         expect(stable.markDesktopReady).toHaveBeenCalledTimes(1);
@@ -525,10 +533,10 @@ describe('Desktop Server connection facade', () => {
         client.triggerClose();
         await vi.advanceTimersByTimeAsync(30_000);
 
-        expect(logger.write).not.toHaveBeenCalledWith('warn', 'host.connection_lost', {});
+        expect(logger.write).not.toHaveBeenCalledWith('warn', 'server_connection.lost', {});
         expect(logger.write).not.toHaveBeenCalledWith(
             'info',
-            'host.reconnected',
+            'server_connection.reconnected',
             expect.anything(),
         );
     });

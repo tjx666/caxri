@@ -96,7 +96,7 @@ describe('Runtime business introspection', () => {
                 'terminal.fontSize': 18,
             });
 
-            logger.write('error', logEventCatalog.runtime.uncaughtException, {
+            logger.write('error', logEventCatalog.serverCore.uncaughtException, {
                 correlationId: 'safe-error-id',
                 fields: {
                     error: 'operation failed',
@@ -109,7 +109,7 @@ describe('Runtime business introspection', () => {
                 logger.path,
                 `${JSON.stringify({
                     timestamp: new Date().toISOString(),
-                    process: 'runtime',
+                    process: 'server-core',
                     level: 'warn',
                     event: externalEvent,
                     correlationId: 'external-error-id',
@@ -121,7 +121,7 @@ describe('Runtime business introspection', () => {
             // substituted end to end.
             expect(logs.records).toContainEqual(
                 expect.objectContaining({
-                    event: logEventCatalog.runtime.uncaughtException,
+                    event: logEventCatalog.serverCore.uncaughtException,
                     correlationId: 'safe-error-id',
                     fields: {
                         error: 'operation failed',
@@ -141,7 +141,7 @@ describe('Runtime business introspection', () => {
                 projectCount: 1,
                 sessionCount: 1,
                 terminalCount: 1,
-                recentErrorIds: ['runtime:safe-error-id'],
+                recentErrorIds: ['server-core:safe-error-id'],
             });
             expect(JSON.stringify({ logs, snapshot })).not.toContain('secret-sentinel');
             expect(JSON.stringify({ logs, snapshot })).not.toContain(homeDirectory);

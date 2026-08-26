@@ -1,6 +1,6 @@
 import process from 'node:process';
 
-import { StructuredLogger } from '@caxri/system';
+import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentEndpointControl } from '../domains/agent-endpoints';
 import { AgentEndpointLifecycle } from '../domains/agent-endpoints';
@@ -14,7 +14,7 @@ export interface ServerDomainServiceOptions {
     agentHooksPath?: string;
     executable?: string;
     createServices?: CreateDomainServices;
-    logDirectory: string;
+    logger: StructuredLogger;
     userDataPath: string;
 }
 
@@ -33,7 +33,7 @@ export function createServerDomainService(
             ),
             agentEnvironment: defaultAgentEnvironment(process.env),
             agentHooksPath: options.agentHooksPath,
-            logger: new StructuredLogger(options.logDirectory, 'runtime', 'info'),
+            logger: options.logger,
             hookExecutable: options.executable ?? process.execPath,
             terminal: { ...(outputFlushMs !== undefined && { outputFlushMs }) },
             userDataPath: options.userDataPath,

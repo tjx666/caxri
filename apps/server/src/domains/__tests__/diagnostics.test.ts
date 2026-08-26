@@ -67,14 +67,14 @@ describe('diagnostics performance summary', () => {
                 [
                     JSON.stringify({ event: 'files.list', durationMs: 8 }),
                     JSON.stringify({ event: 'files.list', durationMs: 4 }),
-                    JSON.stringify({ event: 'runtime.ready', durationMs: 12 }),
+                    JSON.stringify({ event: 'server_core.ready', durationMs: 12 }),
                     JSON.stringify({ event: 'ignored' }),
                     'not-json',
                 ].join('\n'),
             ]),
         ).toEqual([
             { event: 'files.list', count: 2, averageMs: 6, minimumMs: 4, maximumMs: 8 },
-            { event: 'runtime.ready', count: 1, averageMs: 12, minimumMs: 12, maximumMs: 12 },
+            { event: 'server_core.ready', count: 1, averageMs: 12, minimumMs: 12, maximumMs: 12 },
         ]);
     });
 });
@@ -86,7 +86,7 @@ describe('bug report diagnostics summary', () => {
                 [
                     JSON.stringify({
                         timestamp: '2026-08-11T00:00:00.000Z',
-                        process: 'runtime',
+                        process: 'server-core',
                         level: 'error',
                         event: 'ipc.request_failed',
                         correlationId: 'correlation-1',
@@ -94,26 +94,26 @@ describe('bug report diagnostics summary', () => {
                     }),
                     JSON.stringify({
                         timestamp: '2026-08-11T00:00:01.000Z',
-                        process: 'main',
+                        process: 'desktop',
                         level: 'error',
                         event: 'window.close_failed',
                         fields: { error: 'private output' },
                     }),
                     JSON.stringify({
                         timestamp: '2026-08-11T00:00:02.000Z',
-                        process: 'host',
+                        process: 'server-core',
                         level: 'error',
-                        event: 'runtime_child_error',
-                        correlationId: 'host-safe-error-id',
+                        event: 'server_core.uncaught_exception',
+                        correlationId: 'server-core-safe-error-id',
                         fields: { error: 'token=private', source: 'secret.ts' },
                     }),
                 ].join('\n'),
                 3,
             ),
         ).toEqual([
-            'runtime:correlation-1',
-            'main:window.close_failed:2026-08-11T00:00:01.000Z',
-            'host:host-safe-error-id',
+            'server-core:correlation-1',
+            'desktop:window.close_failed:2026-08-11T00:00:01.000Z',
+            'server-core:server-core-safe-error-id',
         ]);
     });
 
@@ -122,7 +122,7 @@ describe('bug report diagnostics summary', () => {
             summarizeRecentErrorIds(
                 JSON.stringify({
                     timestamp: '2026-08-11T00:00:00.000Z',
-                    process: 'runtime',
+                    process: 'server-core',
                     level: 'error',
                     event: 'ipc.request_failed',
                 }),

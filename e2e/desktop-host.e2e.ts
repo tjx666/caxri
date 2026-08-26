@@ -64,7 +64,7 @@ function runCli(
 
 test('routes bounded Desktop open, focus, and reveal operations through the existing Host', async () => {
     allowE2EErrors([
-        { source: 'runtime', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 2 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 2 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-desktop-host-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -341,11 +341,11 @@ test('keeps one focused Desktop and one process profile for a repeated same-prof
         const manifest = await discoverServerManifest(userData);
         expect(manifest.profileId).toBe(after.profileId);
         await Promise.all(
-            ['caxri.db', 'logs/main.jsonl', 'logs/host.jsonl', 'logs/runtime.jsonl'].map((path) =>
+            ['caxri.db', 'logs/desktop.jsonl', 'logs/server-core.jsonl'].map((path) =>
                 access(join(userData, path)),
             ),
         );
-        const appReady = (await readFile(join(userData, 'logs', 'main.jsonl'), 'utf8'))
+        const appReady = (await readFile(join(userData, 'logs', 'desktop.jsonl'), 'utf8'))
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line) as { event?: string; fields?: Record<string, unknown> })
@@ -358,7 +358,7 @@ test('keeps one focused Desktop and one process profile for a repeated same-prof
         });
         await expect
             .poll(async () =>
-                (await readFile(join(userData, 'logs', 'main.jsonl'), 'utf8')).includes(
+                (await readFile(join(userData, 'logs', 'desktop.jsonl'), 'utf8')).includes(
                     '"event":"app.second_instance_focused"',
                 ),
             )

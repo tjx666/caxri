@@ -6,7 +6,7 @@ import { filterLogRecords, isLogFilterMatch, logRecordHaystack, parseLogFilter }
 const record: LogQueryRecord = {
     id: 'a'.repeat(24),
     timestamp: '2026-08-19T02:31:40.000Z',
-    process: 'runtime',
+    process: 'server-core',
     level: 'warn',
     event: 'ipc.request',
     correlationId: 'request-7',

@@ -60,6 +60,7 @@ export interface ServerCoreOptions {
     extensionRoots?: string[];
     includeTestExtensions?: boolean;
     launchDesktop?: () => Promise<void>;
+    logger?: StructuredLogger;
     userDataPath: string;
     version: string;
 }
@@ -74,8 +75,9 @@ export interface ServerCore {
  */
 export async function startServerCore(options: ServerCoreOptions): Promise<ServerCore> {
     const startedAt = Date.now();
-    const logDirectory = join(options.userDataPath, 'logs');
-    const logger = new StructuredLogger(logDirectory, 'host', 'info');
+    const logger =
+        options.logger ??
+        new StructuredLogger(join(options.userDataPath, 'logs'), 'server-core', 'info');
     const stopEventLoopMonitor = startEventLoopMonitor(logger);
     const lease = await acquireServerProfile({
         startedAt,
@@ -108,7 +110,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         agentHooksPath: options.agentHooksPath,
         createServices: options.createDomainServices,
         executable: options.executable,
-        logDirectory,
+        logger,
         userDataPath: lease.paths.userDataPath,
     });
     let extensionService: ExtensionService | undefined;
@@ -221,7 +223,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         else if (event.event === 'runtime.status')
             logger.write(
                 event.payload.status === 'failed' ? 'error' : 'info',
-                logEventCatalog.runtime.status,
+                logEventCatalog.serverCore.status,
                 {
                     fields: {
                         status: event.payload.status,
@@ -244,7 +246,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const stop = (reason = 'requested'): Promise<void> => {
         isMutationAdmissionClosed = true;
         stopPromise ??= (async () => {
-            logger.write('info', logEventCatalog.host.stopping, { fields: { reason } });
+            logger.write('info', logEventCatalog.serverCore.stopping, { fields: { reason } });
             stopEventLoopMonitor();
             await server?.close();
             agentInbox.close();
@@ -252,7 +254,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             await extensionService?.shutdown();
             await domainService.shutdown();
             await lease.release();
-            logger.write('info', logEventCatalog.host.stopped, { fields: { reason } });
+            logger.write('info', logEventCatalog.serverCore.stopped, { fields: { reason } });
         })();
         return stopPromise;
     };
@@ -598,7 +600,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                             try {
                                 await stop('command');
                             } catch (error) {
-                                logger.write('error', logEventCatalog.host.stopFailed, {
+                                logger.write('error', logEventCatalog.serverCore.stopFailed, {
                                     fields: {
                                         message:
                                             error instanceof Error ? error.message : String(error),
@@ -702,7 +704,9 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             logger,
             identity: lease.identity,
             onClientCountChanged: (clientCount) =>
-                logger.write('info', logEventCatalog.host.clientCount, { fields: { clientCount } }),
+                logger.write('info', logEventCatalog.serverCore.clientCount, {
+                    fields: { clientCount },
+                }),
             onDesktopUnavailable: async () => {
                 try {
                     await domainService.request('terminal.detachAll');
@@ -724,7 +728,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     try {
                         await stop('command');
                     } catch (error) {
-                        logger.write('error', logEventCatalog.host.stopFailed, {
+                        logger.write('error', logEventCatalog.serverCore.stopFailed, {
                             fields: {
                                 message: error instanceof Error ? error.message : String(error),
                             },
@@ -763,7 +767,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         });
         const endpoint = await server.start();
         await lease.publish(endpoint);
-        logger.write('info', logEventCatalog.host.ready, {
+        logger.write('info', logEventCatalog.serverCore.ready, {
             durationMs: Date.now() - startedAt,
             fields: { pid: process.pid, profileId: lease.identity.profileId },
         });

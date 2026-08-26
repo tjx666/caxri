@@ -40,7 +40,7 @@ describe('bug report content', () => {
                 commit: 'abcdef1',
                 platform: 'darwin',
                 project: { id: 'project-1' },
-                recentErrorIds: ['runtime:ipc.request_failed:2026-08-11T00:00:00.000Z'],
+                recentErrorIds: ['server-core:ipc.request_failed:2026-08-11T00:00:00.000Z'],
                 session: { id: 'session-1' },
                 visibleWork: {
                     kind: 'terminal',

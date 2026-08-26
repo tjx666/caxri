@@ -348,7 +348,7 @@ process.stdin.resume();
 
         const [inputs, hostLog] = await Promise.all([
             jsonLines<InputCapture>(inputPath),
-            readFile(join(userData, 'logs', 'host.jsonl'), 'utf8'),
+            readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8'),
         ]);
         expect(inputs.some(({ text }) => text.includes(`${humanText}\r`))).toBe(true);
         expect(inputs.some(({ text }) => text.includes(deniedText))).toBe(false);

@@ -154,12 +154,18 @@ export class DesktopServerConnection extends EventTarget {
                     this.dispatchEvent(new CustomEvent<ServerEvent>('event', { detail: event }));
                 },
                 onError: (error) =>
-                    this.options.logger.write('error', logEventCatalog.host.eventRecoveryFailed, {
-                        fields: {
-                            error:
-                                error instanceof Error ? error.message : 'Unknown recovery error',
+                    this.options.logger.write(
+                        'error',
+                        logEventCatalog.serverConnection.eventRecoveryFailed,
+                        {
+                            fields: {
+                                error:
+                                    error instanceof Error
+                                        ? error.message
+                                        : 'Unknown recovery error',
+                            },
                         },
-                    }),
+                    ),
                 // Resolved per call so recovery always targets the currently attached client
                 // instead of a connection that has since been lost.
                 recover: (afterCursor) => {
@@ -249,17 +255,25 @@ export class DesktopServerConnection extends EventTarget {
             };
             if (isServerBuildStale(buildIdentity, status)) {
                 if (isFinalAttempt || this.hasReplacedStaleServer) {
-                    this.options.logger.write('warn', logEventCatalog.host.versionMismatch, {
-                        fields: skewFields,
-                    });
+                    this.options.logger.write(
+                        'warn',
+                        logEventCatalog.serverConnection.versionMismatch,
+                        {
+                            fields: skewFields,
+                        },
+                    );
                 } else {
                     /**
                      * Live PTYs die with the stale Server, which is the intended trade: silently serving Terminals from
                      * an older build is the failure mode this replaces.
                      */
-                    this.options.logger.write('warn', logEventCatalog.host.staleBuildReplaced, {
-                        fields: skewFields,
-                    });
+                    this.options.logger.write(
+                        'warn',
+                        logEventCatalog.serverConnection.staleBuildReplaced,
+                        {
+                            fields: skewFields,
+                        },
+                    );
                     this.hasReplacedStaleServer = true;
                     await operator.request('host.stop', { confirmLivePtys: true });
                     await waitForProcessExit(status.pid, SERVER_REPLACEMENT_EXIT_TIMEOUT_MS);
@@ -287,7 +301,11 @@ export class DesktopServerConnection extends EventTarget {
             reason: reason === 'replaced' ? 'replaced' : 'transport',
         });
         if (reason === 'replaced') {
-            this.options.logger.write('warn', logEventCatalog.host.desktopLeaseReplaced, {});
+            this.options.logger.write(
+                'warn',
+                logEventCatalog.serverConnection.desktopLeaseReplaced,
+                {},
+            );
             this.dispatchEvent(
                 new CustomEvent<ServerEvent>('event', {
                     detail: {
@@ -298,7 +316,7 @@ export class DesktopServerConnection extends EventTarget {
             );
             return;
         }
-        this.options.logger.write('warn', logEventCatalog.host.connectionLost, {});
+        this.options.logger.write('warn', logEventCatalog.serverConnection.connectionLost, {});
         this.ensureReconnectLoop();
     }
 
@@ -332,9 +350,13 @@ export class DesktopServerConnection extends EventTarget {
                 // eslint-disable-next-line no-await-in-loop -- each attempt must settle before the next backoff.
                 await this.start();
             } catch (error) {
-                this.options.logger.write('warn', logEventCatalog.host.reconnectFailed, {
-                    fields: { attempt, error: errorMessage(error, 'unknown') },
-                });
+                this.options.logger.write(
+                    'warn',
+                    logEventCatalog.serverConnection.reconnectFailed,
+                    {
+                        fields: { attempt, error: errorMessage(error, 'unknown') },
+                    },
+                );
                 continue;
             }
             if (this.lifecycle.status !== 'recovering') {
@@ -344,7 +366,7 @@ export class DesktopServerConnection extends EventTarget {
             const recovering = this.lifecycle;
             const downtimeMs = Date.now() - outageStartedAtMs;
             const isServerReplaced = recovering.serverContinuity === 'replaced';
-            this.options.logger.write('info', logEventCatalog.host.reconnected, {
+            this.options.logger.write('info', logEventCatalog.serverConnection.reconnected, {
                 fields: { attempt, downtimeMs, isHostReplaced: isServerReplaced },
             });
             // Re-announce Renderer readiness so the replacement Server resumes delivering
@@ -361,9 +383,13 @@ export class DesktopServerConnection extends EventTarget {
                     // eslint-disable-next-line no-await-in-loop -- ordered readiness barrier for this attempt.
                     await this.events?.start();
                 } catch (error) {
-                    this.options.logger.write('error', logEventCatalog.host.desktopReadyFailed, {
-                        fields: { error: errorMessage(error, 'unknown') },
-                    });
+                    this.options.logger.write(
+                        'error',
+                        logEventCatalog.serverConnection.desktopReadyFailed,
+                        {
+                            fields: { error: errorMessage(error, 'unknown') },
+                        },
+                    );
                 }
             // The replacement connection can be lost again while this loop is still finishing,
             // so a backoff state here means "keep retrying", not success.

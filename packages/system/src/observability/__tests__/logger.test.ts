@@ -20,13 +20,13 @@ describe('StructuredLogger', () => {
     it('skips verbose records below the configured production threshold', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
         try {
-            const logger = new StructuredLogger(directory, 'runtime', 'info');
+            const logger = new StructuredLogger(directory, 'server-core', 'info');
             logger.write('debug', logEventCatalog.git.command);
-            logger.write('info', logEventCatalog.runtime.ready);
+            logger.write('info', logEventCatalog.serverCore.ready);
             await logger.flush();
 
             expect(await readFile(logger.path, 'utf8')).not.toContain(logEventCatalog.git.command);
-            expect(await readFile(logger.path, 'utf8')).toContain(logEventCatalog.runtime.ready);
+            expect(await readFile(logger.path, 'utf8')).toContain(logEventCatalog.serverCore.ready);
         } finally {
             await rm(directory, { recursive: true, force: true });
         }
@@ -57,14 +57,14 @@ describe('StructuredLogger', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
         try {
             const logger = new StructuredLogger(directory);
-            logger.write('info', logEventCatalog.runtime.ready);
+            logger.write('info', logEventCatalog.serverCore.ready);
             // Regression for issue #237: the sync logger's appendFileSync per record froze the
             // event loop whenever the disk stalled; write() must now enqueue without touching fs.
             // Checked synchronously — awaiting a read would race the async drain, which may land
             // the record before the read resolves.
             expect(existsSync(logger.path)).toBe(false);
             await logger.flush();
-            expect(await readFile(logger.path, 'utf8')).toContain(logEventCatalog.runtime.ready);
+            expect(await readFile(logger.path, 'utf8')).toContain(logEventCatalog.serverCore.ready);
         } finally {
             await rm(directory, { recursive: true, force: true });
         }
@@ -74,13 +74,13 @@ describe('StructuredLogger', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
         try {
             const logger = new StructuredLogger(directory);
-            logger.write('info', logEventCatalog.runtime.ready);
-            logger.write('error', logEventCatalog.runtime.uncaughtException);
+            logger.write('info', logEventCatalog.serverCore.ready);
+            logger.write('error', logEventCatalog.serverCore.uncaughtException);
 
             // No flush(): both records must already be durable the instant write('error') returns.
             const content = await readFile(logger.path, 'utf8');
-            expect(content).toContain(logEventCatalog.runtime.ready);
-            expect(content).toContain(logEventCatalog.runtime.uncaughtException);
+            expect(content).toContain(logEventCatalog.serverCore.ready);
+            expect(content).toContain(logEventCatalog.serverCore.uncaughtException);
         } finally {
             await rm(directory, { recursive: true, force: true });
         }

@@ -26,9 +26,10 @@ const ALL_PROCESSES = '__all__';
 
 const PROCESS_OPTIONS: Array<{ value: string; label: string }> = [
     { value: ALL_PROCESSES, label: 'All processes' },
-    { value: 'host', label: 'Host' },
-    { value: 'main', label: 'Main' },
-    { value: 'runtime', label: 'Runtime' },
+    { value: 'desktop', label: 'Desktop' },
+    { value: 'extension-host', label: 'Extension Host' },
+    { value: 'server-core', label: 'Server Core' },
+    { value: 'terminal-host', label: 'Terminal Host' },
 ];
 
 const LEVELS: LogLevel[] = ['error', 'warn', 'info', 'debug'];

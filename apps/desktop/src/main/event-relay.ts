@@ -66,7 +66,7 @@ export function createMainEventRelay(options: MainEventRelayOptions) {
                     .logger()
                     ?.write(
                         event.payload.status === 'failed' ? 'error' : 'info',
-                        logEventCatalog.runtime.status,
+                        logEventCatalog.serverCore.status,
                         {
                             fields: {
                                 status: event.payload.status,

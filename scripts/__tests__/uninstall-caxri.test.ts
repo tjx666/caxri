@@ -291,7 +291,7 @@ describe('Caxri uninstaller', () => {
             '0c96f205-681d-40c4-b54e-205cc275129d',
         );
         await mkdir(join(developmentProfile, 'logs'), { recursive: true });
-        await writeFile(join(developmentProfile, 'logs', 'host.jsonl'), 'dev log', 'utf8');
+        await writeFile(join(developmentProfile, 'logs', 'server-core.jsonl'), 'dev log', 'utf8');
 
         const result = await uninstallCaxri(
             {
@@ -318,7 +318,7 @@ describe('Caxri uninstaller', () => {
         });
         expect(
             await readFile(
-                join(archivedDevelopmentProfile!.archivedPath, 'logs', 'host.jsonl'),
+                join(archivedDevelopmentProfile!.archivedPath, 'logs', 'server-core.jsonl'),
                 'utf8',
             ),
         ).toBe('dev log');

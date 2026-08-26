@@ -60,7 +60,7 @@ describe('CLI business command catalog', () => {
             'logs',
             'query',
             '--process',
-            'runtime',
+            'server-core',
             '--level',
             'error',
             '--limit',
@@ -76,9 +76,16 @@ describe('CLI business command catalog', () => {
         expect(logs?.kind).toBe('remote');
         expect(
             logs?.kind === 'remote'
-                ? logs.parseParams(['--process', 'runtime', '--level', 'error', '--limit', '25'])
+                ? logs.parseParams([
+                      '--process',
+                      'server-core',
+                      '--level',
+                      'error',
+                      '--limit',
+                      '25',
+                  ])
                 : null,
-        ).toEqual({ process: 'runtime', level: 'error', limit: 25 });
+        ).toEqual({ process: 'server-core', level: 'error', limit: 25 });
 
         const grant = findCliCommand(['agent', 'grant']);
         expect(

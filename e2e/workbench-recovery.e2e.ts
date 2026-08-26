@@ -5,7 +5,7 @@ import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
 
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createShellSession,
@@ -20,14 +20,6 @@ import {
 } from './support/helpers.ts';
 
 test('complete local workbench workflow, recovery, privacy, and persistence', async () => {
-    allowE2EErrors([
-        {
-            source: 'host',
-            event: 'host.runtime_exit',
-            code: 'RUNTIME_EXIT',
-            count: 1,
-        },
-    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const sessionRoot = join(testDirectory, 'project');

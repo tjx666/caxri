@@ -160,7 +160,11 @@ describe('ExtensionService Git workspace API authority', () => {
             extensionHostPath: '/out/main/extension-host.js',
             extensionRoots: ['/extensions'],
             includeTestOnly: true,
-            logger: new StructuredLogger('/tmp/caxri-extension-workspace-test', 'host', 'error'),
+            logger: new StructuredLogger(
+                '/tmp/caxri-extension-workspace-test',
+                'server-core',
+                'error',
+            ),
             activeContext: () => Promise.resolve(active),
             projectIds: () => Promise.resolve(['project-1']),
             projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),

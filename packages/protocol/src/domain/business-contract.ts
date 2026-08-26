@@ -158,7 +158,11 @@ export const settingsPatchResultSchema = settingsInspectionSchema.extend({
 });
 
 export const logLevelSchema = z.enum(['debug', 'info', 'warn', 'error']);
-export const logProcessSchema = z.enum(['host', 'main', 'runtime']);
+export const logProcesses = ['desktop', 'extension-host', 'server-core', 'terminal-host'] as const;
+export const logProcessSchema = z.enum(logProcesses);
+export function isLogProcess(value: unknown): value is LogProcess {
+    return typeof value === 'string' && logProcesses.includes(value as LogProcess);
+}
 export const logQueryParametersSchema = z
     .object({
         afterCursor: z.string().min(1).max(512).optional(),
