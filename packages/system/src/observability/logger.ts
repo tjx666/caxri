@@ -131,7 +131,7 @@ export class StructuredLogger {
      * Read once at construction, not per-write, since the build stamp never changes at runtime.
      */
     private readonly appVersion?: string;
-    private readonly baseContext: ObservationContext;
+    private baseContext: ObservationContext;
     private readonly commit?: string;
     private readonly directory: string;
     readonly path: string;
@@ -296,6 +296,16 @@ export class StructuredLogger {
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         }
+    }
+
+    /**
+     * Adds process identities discovered after logger construction, such as the build fingerprint and durable Server
+     * identity. The same content-free normalizer applies, and the real process id cannot be replaced by callers.
+     */
+    updateBaseContext(context: ObservationContext): void {
+        this.baseContext = mergeObservationContext(this.baseContext, context, {
+            processId: process.pid,
+        });
     }
 
     write(level: LogRecord['level'], event: LogEventName, options: LogWriteOptions = {}): void {
