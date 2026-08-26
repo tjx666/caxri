@@ -3,7 +3,11 @@ import { fork } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 import { toWireError } from '@caxri/protocol';
-import { StructuredLogger } from '@caxri/system';
+import {
+    currentObservationContext,
+    runWithObservationContext,
+    StructuredLogger,
+} from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExtensionHostRequest } from '../../../extension-host/protocol';
@@ -38,6 +42,16 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 generation: 1,
                 apiToken: 'fixture-token-1',
                 method: 'unknown',
+            },
+            {
+                type: 'api-request',
+                id: 'api',
+                extensionId: 'publisher.fixture',
+                generation: 1,
+                apiToken: 'fixture-token-1',
+                method: 'workspace.getProjectStatus',
+                observation: { traceId: '/private/project' },
+                params: {},
             },
             {
                 type: 'event',
@@ -86,6 +100,11 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 generation: 1,
                 apiToken: 'fixture-token-1',
                 method: 'workspace.getProjectStatus',
+                observation: {
+                    operationId: 'extension-operation',
+                    requestId: 'control-request',
+                    traceId: 'control-trace',
+                },
                 params: { refreshToken: 'refresh-1' },
             }),
         ).toBe(true);
@@ -229,6 +248,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
 
     it('waits for registration configure before admitting requests during startup', async () => {
         const sent: ExtensionHostRequest[] = [];
+        const apiObservations: unknown[] = [];
         // ChildProcess uses Node's EventEmitter contract; EventTarget cannot represent its message/exit events.
         // eslint-disable-next-line unicorn/prefer-event-target
         const child = Object.assign(new EventEmitter(), {
@@ -264,15 +284,26 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 'error',
             ),
             registrations: () => [],
-            requestApi: () => Promise.resolve({ repositories: [], refreshedAt: Date.now() }),
+            requestApi: () => {
+                apiObservations.push(currentObservationContext());
+                return Promise.resolve({ repositories: [], refreshedAt: Date.now() });
+            },
         });
 
         const started = supervisor.start();
-        const activated = supervisor.request('activate', {
-            extensionId: 'publisher.fixture',
-            generation: 1,
-            reason: 'onView:publisher.fixture.tree',
-        });
+        const activated = runWithObservationContext(
+            {
+                operationId: 'control-operation',
+                requestId: 'control-request',
+                traceId: 'control-trace',
+            },
+            () =>
+                supervisor.request('activate', {
+                    extensionId: 'publisher.fixture',
+                    generation: 1,
+                    reason: 'onView:publisher.fixture.tree',
+                }),
+        );
         child.emit('message', { type: 'ready' });
 
         await expect(Promise.all([started, activated])).resolves.toEqual([
@@ -280,6 +311,32 @@ describe('ExtensionHostSupervisor message boundary', () => {
             { activated: true },
         ]);
         expect(sent.map(({ method }) => method)).toEqual(['configure', 'activate']);
+        expect(sent[1].observation).toEqual({
+            operationId: sent[1].id,
+            requestId: 'control-request',
+            traceId: 'control-trace',
+        });
+
+        child.emit('message', {
+            type: 'api-request',
+            id: 'extension-api-request',
+            extensionId: 'publisher.fixture',
+            generation: 1,
+            apiToken: 'fixture-token-1',
+            method: 'workspace.getProjectStatus',
+            observation: {
+                operationId: 'extension-api-request',
+                requestId: 'control-request',
+                traceId: 'control-trace',
+            },
+            params: {},
+        });
+        await vi.waitFor(() => expect(apiObservations).toHaveLength(1));
+        expect(apiObservations[0]).toEqual({
+            operationId: 'extension-api-request',
+            requestId: 'control-request',
+            traceId: 'control-trace',
+        });
     });
 
     it('opens a circuit after bounded consecutive crash restarts', async () => {

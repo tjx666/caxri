@@ -5,6 +5,7 @@ import type {
     ExtensionViewEventContext,
     ProjectStatusSummary,
 } from '@caxri/protocol';
+import type { ObservationContext } from '@caxri/system';
 
 export type ExtensionProjectStatusSummary = Omit<ProjectStatusSummary, 'repositories'> & {
     repositories: Array<Omit<ProjectStatusSummary['repositories'][number], 'rootPath'>>;
@@ -40,7 +41,7 @@ export interface ExtensionHostRegistration {
 
 export type ExtensionViewEventScope = ExtensionViewEventContext;
 
-export type ExtensionHostRequest =
+export type ExtensionHostRequest = (
     | {
           id: string;
           method: 'configure';
@@ -103,7 +104,8 @@ export type ExtensionHostRequest =
           params: { context: ExtensionViewEventScope };
       }
     | { id: string; method: 'cancel'; params: { requestId: string } }
-    | { id: string; method: 'shutdown'; params: Record<string, never> };
+    | { id: string; method: 'shutdown'; params: Record<string, never> }
+) & { observation?: ObservationContext };
 
 interface ExtensionHostApiRequestBase {
     type: 'api-request';
@@ -111,6 +113,7 @@ interface ExtensionHostApiRequestBase {
     extensionId: string;
     generation: number;
     apiToken: string;
+    observation?: ObservationContext;
 }
 
 export type ExtensionHostApiRequest = ExtensionHostApiRequestBase &

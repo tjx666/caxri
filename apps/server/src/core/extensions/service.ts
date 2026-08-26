@@ -501,10 +501,7 @@ export class ExtensionService extends EventTarget {
                     new CustomEvent(projected.eventName, { detail: projected.detail }),
                 );
         });
-        this.supervisor.onExit((code) => {
-            this.options.logger.write('error', logEventCatalog.extensionHost.exit, {
-                fields: { code },
-            });
+        this.supervisor.onExit(() => {
             for (const [extensionId, state] of this.states)
                 this.states.set(extensionId, {
                     generation: state.generation + 1,
