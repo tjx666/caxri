@@ -8,10 +8,12 @@ import {
     terminalRecordSchema,
     terminalSnapshotSchema,
 } from '@caxri/protocol';
+import { isSecretMatch } from '@caxri/system';
 import { z } from 'zod';
 
 const TERMINAL_HOST_PROTOCOL_VERSION = 1 as const;
 export const MAX_TERMINAL_HOST_MESSAGE_BYTES = 32 * 1024 * 1024;
+const MAX_TERMINAL_HOST_OUTPUT_CHARACTERS = 256 * 1024;
 
 const ptyGenerationSchema = z.number().int().positive();
 const attachmentIdSchema = identifierSchema;
@@ -221,7 +223,7 @@ const terminalHostEventEnvelopeSchema = z.discriminatedUnion('event', [
             type: z.literal('event'),
             event: z.literal('terminal.output'),
             identity: terminalEventIdentitySchema.extend({ attachmentId: attachmentIdSchema }),
-            data: z.string().max(16 * 1024 * 1024),
+            data: z.string().max(MAX_TERMINAL_HOST_OUTPUT_CHARACTERS),
             droppedBytes: z.number().int().nonnegative().optional(),
         })
         .strict(),
@@ -290,6 +292,7 @@ const requiredCapabilities = {
 export interface TerminalHostAuthority {
     credential: string;
     serverId: string;
+    launchGeneration(terminalId: string): number;
     terminal(terminalId: string):
         | {
               sessionId: string;
@@ -317,7 +320,8 @@ export function authorizeTerminalHostRequest(
     envelope: TerminalHostRequestEnvelope,
     authority: TerminalHostAuthority,
 ): { ok: true } | { ok: false; reason: TerminalHostAuthorizationFailure } {
-    if (envelope.credential !== authority.credential) return { ok: false, reason: 'credential' };
+    if (!isSecretMatch(envelope.credential, authority.credential))
+        return { ok: false, reason: 'credential' };
     if (envelope.serverId !== authority.serverId) return { ok: false, reason: 'server' };
     const requiredCapability = requiredCapabilities[envelope.request.method];
     if (envelope.scope.capability !== requiredCapability)
@@ -334,6 +338,8 @@ export function authorizeTerminalHostRequest(
         const record = envelope.request.params.record;
         if (record.id !== envelope.scope.terminalId) return { ok: false, reason: 'terminal' };
         if (record.sessionId !== envelope.scope.sessionId) return { ok: false, reason: 'session' };
+        if (envelope.scope.ptyGeneration !== authority.launchGeneration(record.id))
+            return { ok: false, reason: 'generation' };
         if (envelope.scope.attachmentId !== undefined) return { ok: false, reason: 'attachment' };
         return { ok: true };
     }

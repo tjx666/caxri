@@ -1,5 +1,3 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
-
 import type {
     CaxriError,
     CommandDispatcherOptions,
@@ -21,7 +19,7 @@ import {
     toWireError,
 } from '@caxri/protocol';
 import type { LogRecord } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { isSecretMatch, logEventCatalog } from '@caxri/system';
 import WebSocket from 'ws';
 
 export const MAX_IN_FLIGHT_REQUESTS = 64;
@@ -137,9 +135,7 @@ export function fileSystemCode(error: unknown): string | undefined {
 }
 
 export function isTokenMatch(candidate: string, expected: string): boolean {
-    const candidateDigest = createHash('sha256').update(candidate).digest();
-    const expectedDigest = createHash('sha256').update(expected).digest();
-    return timingSafeEqual(candidateDigest, expectedDigest);
+    return isSecretMatch(candidate, expected);
 }
 
 export function operatorContext(profileId: string): CommandExecutionContext {

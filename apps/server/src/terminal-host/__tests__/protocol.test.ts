@@ -54,6 +54,7 @@ function startEnvelope(): TerminalHostRequestEnvelope {
 const liveAuthority = {
     credential,
     serverId,
+    launchGeneration: () => 1,
     terminal: (terminalId: string) =>
         terminalId === terminal.id
             ? {
@@ -75,6 +76,7 @@ describe('Terminal Host private protocol', () => {
         ['capability', { scope: { capability: 'terminal.view' } }],
         ['terminal', { scope: { terminalId: 'terminal-2' } }],
         ['session', { scope: { sessionId: 'session-2' } }],
+        ['generation', { scope: { ptyGeneration: 2 } }],
         ['attachment', { scope: { attachmentId: 'attachment-1' } }],
     ] as const)('rejects a start with the wrong %s identity', (reason, patch) => {
         const envelope = startEnvelope();
