@@ -120,6 +120,7 @@ export default defineConfig(
         },
     },
     {
+        files: javaScriptAndTypeScriptFiles,
         plugins: {
             'react-refresh': reactRefresh,
         },

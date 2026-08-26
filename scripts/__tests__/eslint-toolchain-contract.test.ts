@@ -107,6 +107,14 @@ describe('shared ESLint preset toolchain contract', () => {
         ).resolves.toBe(true);
     });
 
+    it('does not apply source line limits to generated migration metadata', async () => {
+        const config = await effectiveConfigFor(
+            'apps/server/src/domains/db/migrations/meta/0016_snapshot.json',
+        );
+
+        expect(config.rules?.['max-lines']).toBeUndefined();
+    });
+
     it('bans the Renderer alias outside the Renderer', async () => {
         const config = await effectiveConfigFor('apps/server/src/domains/index.ts');
         const noRestrictedImports = config.rules?.['no-restricted-imports'] as [
