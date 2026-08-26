@@ -7,7 +7,12 @@ import process from 'node:process';
 import type { CaxriErrorCode, TerminalSnapshot } from '@caxri/protocol';
 import { CaxriError, errorCodes } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, safeProcessEnvironment } from '@caxri/system';
+import {
+    currentObservationContext,
+    logEventCatalog,
+    mergeObservationContext,
+    safeProcessEnvironment,
+} from '@caxri/system';
 
 import type {
     TerminalHostMessage,
@@ -286,10 +291,23 @@ export class TerminalHostSupervisor extends EventTarget {
         if (this.owned !== owned || !owned.child.connected)
             throw new CaxriError('UNAVAILABLE', 'Terminal Host is unavailable');
         const id = randomUUID();
+        const parentObservation = currentObservationContext();
+        const observation = mergeObservationContext(
+            {
+                operationId: id,
+                requestId: parentObservation.requestId ?? id,
+                traceId: parentObservation.traceId ?? id,
+            },
+            parentObservation,
+            scope.scope === 'terminal'
+                ? { sessionId: scope.sessionId, terminalId: scope.terminalId }
+                : undefined,
+        );
         const envelope: TerminalHostRequestEnvelope = {
             type: 'request',
             protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
             id,
+            observation,
             credential: owned.credential,
             serverId: this.options.serverId,
             scope,
@@ -329,7 +347,16 @@ export class TerminalHostSupervisor extends EventTarget {
                 pending.cleanup?.();
                 this.options.logger.write('warn', logEventCatalog.terminalHost.requestTimeout, {
                     correlationId: id,
+                    context: observation,
                     fields: { method: request.method },
+                    failure: {
+                        code: 'TIMEOUT',
+                        owner: 'terminal-host',
+                        phase: 'execute',
+                        reason: 'timeout',
+                        remediation: 'restart-terminal-host',
+                        retryable: true,
+                    },
                 });
                 reject(
                     new CaxriError('TIMEOUT', `Terminal Host request timed out: ${request.method}`),

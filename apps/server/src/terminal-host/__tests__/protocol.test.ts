@@ -193,6 +193,28 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         ).toBe(false);
     });
 
+    it('accepts only content-free bounded observation context', () => {
+        expect(
+            terminalHostRequestEnvelopeSchema.safeParse({
+                ...startEnvelope(),
+                observation: {
+                    operationId: 'terminal-operation-1',
+                    requestId: 'request-1',
+                    traceId: 'trace-1',
+                },
+            }).success,
+        ).toBe(true);
+        expect(
+            terminalHostRequestEnvelopeSchema.safeParse({
+                ...startEnvelope(),
+                observation: {
+                    requestId: '/private/project/source.ts',
+                    credential: 'secret-token',
+                },
+            }).success,
+        ).toBe(false);
+    });
+
     it('validates every method result at the private process boundary', () => {
         expect(isTerminalHostResult('terminal.start', { processId: 42 })).toBe(true);
         expect(isTerminalHostResult('terminal.start', { processId: 0 })).toBe(false);

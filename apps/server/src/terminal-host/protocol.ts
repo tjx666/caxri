@@ -13,6 +13,8 @@ import {
 import { isSecretMatch } from '@caxri/system';
 import { z } from 'zod';
 
+import { observationContextSchema } from '../observability/context-schema';
+
 export const TERMINAL_HOST_PROTOCOL_VERSION = 1 as const;
 export const MAX_TERMINAL_HOST_MESSAGE_BYTES = 32 * 1024 * 1024;
 const MAX_TERMINAL_HOST_OUTPUT_CHARACTERS = 256 * 1024;
@@ -197,6 +199,7 @@ export const terminalHostRequestEnvelopeSchema = z
         id: identifierSchema,
         credential: serverCredentialTokenSchema,
         serverId: serverProcessIdentitySchema,
+        observation: observationContextSchema.optional(),
         scope: terminalHostScopeSchema,
         request: terminalHostRequestSchema,
     })

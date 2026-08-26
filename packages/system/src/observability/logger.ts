@@ -302,10 +302,10 @@ export class StructuredLogger {
         if (LOG_LEVELS[level] < LOG_LEVELS[this.minimumLevel]) return;
         const context = mergeObservationContext(
             this.baseContext,
-            currentObservationContext(),
             options.correlationId
                 ? { requestId: options.correlationId, traceId: options.correlationId }
                 : undefined,
+            currentObservationContext(),
             options.context,
         );
         const failure = options.failure
