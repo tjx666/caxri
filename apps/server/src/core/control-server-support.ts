@@ -28,7 +28,7 @@ import WebSocket from 'ws';
 
 import type { BinaryStreamControlOptions } from './binary-stream-control';
 
-export const MAX_IN_FLIGHT_REQUESTS = 64;
+const MAX_IN_FLIGHT_REQUESTS = 64;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
 export const DESKTOP_LEASE_MS = 60_000;
 export const DESKTOP_COMMAND_TIMEOUT_MS = 15_000;
