@@ -393,7 +393,6 @@ export class ExtensionHostSupervisor extends EventTarget {
             execPath: this.options.executable ?? process.execPath,
             env: {
                 ...safeProcessEnvironment(),
-                ELECTRON_RUN_AS_NODE: '1',
                 CAXRI_APP_VERSION: this.options.appVersion,
                 CAXRI_GIT_COMMIT: this.options.commit,
             },
