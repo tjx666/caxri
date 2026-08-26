@@ -6,8 +6,8 @@
     "description": "A project-first, terminal-native local development workbench for macOS.",
     "type": "module",
     "scripts": {
-        "dev": "bun run build:workspaces && bun run dev:desktop",
-        "dev:desktop": "electron-vite dev",
+        "dev": "bun run build:workspaces && bun run scripts/development.ts",
+        "dev:desktop": "bun run scripts/development.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check . --cache --cache-strategy content --cache-location .cache/prettier",
         "format:md": "prettier --write \"**/*.md\"",
@@ -177,7 +177,6 @@
         "@caxri/system": "workspace:*",
         "@caxri/utils": "workspace:*",
         "@electron-toolkit/tsconfig": "2.0.0",
-        "@parcel/watcher": "2.5.6",
         "@playwright/test": "1.62.1",
         "@rolldown/plugin-babel": "0.2.3",
         "@tailwindcss/vite": "4.3.3",

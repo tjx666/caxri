@@ -181,7 +181,7 @@ const nativePackages: Array<{ name: string; source: string; version: string }> =
         const destination = join(nativeStageRoot, ...name.split('/'));
         return {
             name,
-            ...(await stagePackageTree(name, root, destination)),
+            ...(await stagePackageTree(name, serverRoot, destination)),
         };
     }),
 );
