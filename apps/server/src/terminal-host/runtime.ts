@@ -9,7 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, defaultAgentOutputRecoverySettings, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { logEventCatalog, mergeObservationContext, runWithObservationContext } from '@caxri/system';
 
 import type {
     TerminalExecutionEvent,
@@ -106,6 +106,7 @@ export class TerminalHostRuntime {
     private logRequestFailure(envelope: TerminalHostRequestEnvelope, code: string): void {
         this.options.logger.write('warn', logEventCatalog.terminalHost.requestFailed, {
             correlationId: envelope.id,
+            context: envelope.observation,
             fields: {
                 method: envelope.request.method,
                 capability: envelope.scope.capability,
@@ -371,6 +372,54 @@ export class TerminalHostRuntime {
         }
     }
 
+    private async acceptEnvelope(envelope: TerminalHostRequestEnvelope): Promise<void> {
+        const authorization = authorizeTerminalHostRequest(envelope, this.authority());
+        if (!authorization.ok) {
+            this.logRequestFailure(envelope, 'CAPABILITY_DENIED');
+            this.options.send({
+                type: 'reply',
+                id: envelope.id,
+                ok: false,
+                error: {
+                    code: 'CAPABILITY_DENIED',
+                    message: 'Terminal Host request was not authorized',
+                },
+            });
+            return;
+        }
+        try {
+            const result = await this.dispatch(envelope);
+            this.options.send({ type: 'reply', id: envelope.id, ok: true, result });
+        } catch (error) {
+            const wire = toWireError(error);
+            this.logRequestFailure(envelope, wire.code);
+            if (['INTERNAL', 'TIMEOUT', 'UNAVAILABLE'].includes(wire.code))
+                this.options.logger.write('warn', logEventCatalog.terminalHost.requestFailed, {
+                    correlationId: envelope.id,
+                    context: envelope.observation,
+                    failure: {
+                        code: wire.code,
+                        owner: 'terminal-host',
+                        phase: 'execute',
+                        reason:
+                            wire.code === 'TIMEOUT'
+                                ? 'timeout'
+                                : wire.code === 'UNAVAILABLE'
+                                  ? 'terminal-host-exited'
+                                  : 'unknown',
+                        remediation: 'restart-terminal-host',
+                        retryable: wire.code !== 'INTERNAL',
+                    },
+                });
+            this.options.send({
+                type: 'reply',
+                id: envelope.id,
+                ok: false,
+                error: { code: wire.code, message: wire.message },
+            });
+        }
+    }
+
     ready(): void {
         this.options.send({
             type: 'event',
@@ -395,33 +444,17 @@ export class TerminalHostRuntime {
             return;
         }
         const envelope = parsed.data;
-        const authorization = authorizeTerminalHostRequest(envelope, this.authority());
-        if (!authorization.ok) {
-            this.logRequestFailure(envelope, 'CAPABILITY_DENIED');
-            this.options.send({
-                type: 'reply',
-                id: envelope.id,
-                ok: false,
-                error: {
-                    code: 'CAPABILITY_DENIED',
-                    message: 'Terminal Host request was not authorized',
-                },
-            });
-            return;
-        }
-        try {
-            const result = await this.dispatch(envelope);
-            this.options.send({ type: 'reply', id: envelope.id, ok: true, result });
-        } catch (error) {
-            const wire = toWireError(error);
-            this.logRequestFailure(envelope, wire.code);
-            this.options.send({
-                type: 'reply',
-                id: envelope.id,
-                ok: false,
-                error: { code: wire.code, message: wire.message },
-            });
-        }
+        const scopeContext =
+            envelope.scope.scope === 'terminal'
+                ? {
+                      sessionId: envelope.scope.sessionId,
+                      terminalId: envelope.scope.terminalId,
+                  }
+                : undefined;
+        await runWithObservationContext(
+            mergeObservationContext(envelope.observation, scopeContext),
+            () => this.acceptEnvelope(envelope),
+        );
     }
 
     async stopAfterParentDisconnect(): Promise<void> {

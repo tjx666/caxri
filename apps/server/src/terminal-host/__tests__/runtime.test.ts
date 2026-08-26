@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { TerminalRecord } from '@caxri/protocol';
+import type { ObservationContext } from '@caxri/system';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,11 +33,13 @@ function privateRequest(
     request: TerminalHostRequestEnvelope['request'],
     scope: TerminalHostRequestEnvelope['scope'],
     id: string,
+    observation?: ObservationContext,
 ): TerminalHostRequestEnvelope {
     return terminalHostRequestEnvelopeSchema.parse({
         type: 'request',
         protocolVersion: 1,
         id,
+        ...(observation && { observation }),
         credential,
         serverId,
         scope,
@@ -264,6 +267,10 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
                     ptyGeneration: 1,
                 },
                 'start-failure-1',
+                {
+                    requestId: 'public-request-1',
+                    traceId: 'public-trace-1',
+                },
             ),
         );
         await logger.flush();
@@ -272,6 +279,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
         expect(log).toContain('"event":"terminal_host.request_failed"');
         expect(log).toContain('"correlationId":"start-failure-1"');
         expect(log).toContain('"method":"terminal.start"');
+        expect(log).toContain('"traceId":"public-trace-1"');
         expect(log).not.toContain('private-argument');
         expect(log).not.toContain('private-environment-value');
         expect(log).not.toContain('PRIVATE_TOKEN');

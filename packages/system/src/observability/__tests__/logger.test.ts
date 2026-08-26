@@ -48,6 +48,7 @@ describe('StructuredLogger', () => {
                 },
                 () => {
                     logger.write('error', logEventCatalog.serverCore.stopFailed, {
+                        correlationId: 'internal-operation-1',
                         failure: {
                             code: 'SERVER_UNAVAILABLE',
                             owner: 'server-core',
@@ -67,6 +68,7 @@ describe('StructuredLogger', () => {
             expect(record.context).toEqual({
                 buildId: 'build-1',
                 processId: process.pid,
+                requestId: 'internal-operation-1',
                 serverId: 'server-1',
                 traceId: 'trace-1',
             });

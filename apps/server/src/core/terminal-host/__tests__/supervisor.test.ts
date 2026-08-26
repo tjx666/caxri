@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { StructuredLogger } from '@caxri/system';
+import { runWithObservationContext, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalHostRequestEnvelope } from '../../../terminal-host/protocol';
@@ -144,6 +144,38 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
 
         await expect(request).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         expect(child.connected).toBe(false);
+    });
+
+    it('forwards the root trace while keeping the private request identity local', async () => {
+        const { child, supervisor } = createSupervisor();
+        await becomeReady(child, supervisor);
+        const request = runWithObservationContext(
+            {
+                clientId: 'client-1',
+                requestId: 'public-request-1',
+                traceId: 'public-trace-1',
+            },
+            () =>
+                supervisor.request(
+                    { method: 'terminal.runningCount', params: { sessionId: 'session-1' } },
+                    { scope: 'server', capability: 'terminal.inspect' },
+                ),
+        );
+        await vi.waitFor(() => expect(child.sent).toHaveLength(2));
+
+        expect(child.sent[1].observation).toEqual({
+            clientId: 'client-1',
+            operationId: child.sent[1].id,
+            requestId: 'public-request-1',
+            traceId: 'public-trace-1',
+        });
+        child.emit('message', {
+            type: 'reply',
+            id: child.sent[1].id,
+            ok: true,
+            result: { count: 0 },
+        });
+        await expect(request).resolves.toEqual({ count: 0 });
     });
 
     it('fences pending requests when the owned child exits', async () => {

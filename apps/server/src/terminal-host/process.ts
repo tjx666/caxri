@@ -27,7 +27,10 @@ const credential = serverCredentialTokenSchema.parse(
     requiredEnvironment('CAXRI_TERMINAL_HOST_CREDENTIAL'),
 );
 const serverId = serverProcessIdentitySchema.parse(requiredEnvironment('CAXRI_SERVER_ID'));
-const logger = new StructuredLogger(join(userDataPath, 'logs'), 'terminal-host', 'info');
+const logger = new StructuredLogger(join(userDataPath, 'logs'), 'terminal-host', 'info', {
+    bootId: serverId,
+    buildId,
+});
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'terminal-host' });
 processErrorMonitor.attach(logger);
 
