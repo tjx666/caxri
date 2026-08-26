@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { ServerClient } from '@caxri/client/supervise';
 import type { CommandAdapter } from '@caxri/protocol';
@@ -25,11 +26,11 @@ function controlSource(data: RawData): string {
     return Buffer.concat(data).toString('utf8');
 }
 
-describe('ServerClient binary stream integration', () => {
-    it('preserves the canonical API without carrying Terminal or file bodies on control', async () => {
+describe('architecture-a5-binary-streams: ServerClient integration', () => {
+    it('preserves the canonical API and control latency without carrying bulk bodies on control', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-binary-client-'));
         const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
-        const download = 'download-private-sentinel';
+        const download = `download-private-sentinel-${'d'.repeat(8 * 1024 * 1024)}`;
         const upload = 'upload-private-sentinel';
         const snapshotPayload = 'snapshot-private-sentinel';
         const outputPayload = 'output-private-sentinel';
@@ -55,6 +56,8 @@ describe('ServerClient binary stream integration', () => {
                             mtimeMs: 20,
                             size: Buffer.byteLength(request.params.content, 'utf8'),
                         };
+                    case 'app.health':
+                        return { ready: true, pid: 88, startedAt: 1, activePtyCount: 0 };
                     case 'terminal.attach':
                         return {
                             terminalId: request.params.terminalId,
@@ -105,12 +108,26 @@ describe('ServerClient binary stream integration', () => {
                 if (!isBinary) received.push(controlSource(data));
             });
 
-            await expect(
-                client.request('files.read', {
-                    sessionId: 'session-1',
-                    path: '/project/read.txt',
-                }),
-            ).resolves.toMatchObject({ content: download });
+            const transferStartedAt = performance.now();
+            const transfer = client.request('files.read', {
+                sessionId: 'session-1',
+                path: '/project/read.txt',
+            });
+            const controlStartedAt = performance.now();
+            await expect(client.request('app.health', {})).resolves.toMatchObject({ ready: true });
+            const controlRoundTripMs = performance.now() - controlStartedAt;
+            await expect(transfer).resolves.toMatchObject({ content: download });
+            const transferMs = performance.now() - transferStartedAt;
+            expect(controlRoundTripMs).toBeLessThan(500);
+            expect(transferMs).toBeLessThan(5_000);
+            process.stdout.write(
+                `CAXRI_BINARY_STREAM_BENCHMARK ${JSON.stringify({
+                    checkId: 'architecture-a5-binary-streams',
+                    transferBytes: Buffer.byteLength(download, 'utf8'),
+                    transferMs: Math.round(transferMs * 100) / 100,
+                    controlRoundTripMs: Math.round(controlRoundTripMs * 100) / 100,
+                })}\n`,
+            );
             await expect(
                 client.request('files.write', {
                     sessionId: 'session-1',
@@ -171,40 +188,44 @@ describe('ServerClient binary stream integration', () => {
                 messages
                     .filter((message) => message.type === 'command')
                     .map((message) => message.request?.method),
-            ).toEqual(['terminal.detach']);
+            ).toEqual(['app.health', 'terminal.detach']);
             expect([...sentControl, ...received].join('\n')).not.toMatch(
                 /(?:download|upload|snapshot|output)-private-sentinel/u,
             );
-            expect(requests).toEqual([
-                {
-                    method: 'files.read',
-                    params: { sessionId: 'session-1', path: '/project/read.txt' },
-                },
-                {
-                    method: 'files.write',
-                    params: {
-                        sessionId: 'session-1',
-                        path: '/project/write.txt',
-                        content: upload,
+            expect(requests).toHaveLength(7);
+            expect(requests).toEqual(
+                expect.arrayContaining([
+                    {
+                        method: 'files.read',
+                        params: { sessionId: 'session-1', path: '/project/read.txt' },
                     },
-                },
-                {
-                    method: 'terminal.attach',
-                    params: { terminalId: 'terminal-1', cols: 80, rows: 24 },
-                },
-                {
-                    method: 'terminal.input',
-                    params: { terminalId: 'terminal-1', data: 'ls\r' },
-                },
-                {
-                    method: 'terminal.resize',
-                    params: { terminalId: 'terminal-1', cols: 120, rows: 40 },
-                },
-                {
-                    method: 'terminal.detach',
-                    params: { terminalId: 'terminal-1' },
-                },
-            ]);
+                    { method: 'app.health', params: {} },
+                    {
+                        method: 'files.write',
+                        params: {
+                            sessionId: 'session-1',
+                            path: '/project/write.txt',
+                            content: upload,
+                        },
+                    },
+                    {
+                        method: 'terminal.attach',
+                        params: { terminalId: 'terminal-1', cols: 80, rows: 24 },
+                    },
+                    {
+                        method: 'terminal.input',
+                        params: { terminalId: 'terminal-1', data: 'ls\r' },
+                    },
+                    {
+                        method: 'terminal.resize',
+                        params: { terminalId: 'terminal-1', cols: 120, rows: 40 },
+                    },
+                    {
+                        method: 'terminal.detach',
+                        params: { terminalId: 'terminal-1' },
+                    },
+                ]),
+            );
 
             const pending = client.request('files.read', {
                 sessionId: 'session-1',
@@ -230,5 +251,5 @@ describe('ServerClient binary stream integration', () => {
             await lease.release();
             await rm(userDataPath, { recursive: true, force: true });
         }
-    });
+    }, 10_000);
 });
