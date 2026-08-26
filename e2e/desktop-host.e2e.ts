@@ -94,7 +94,6 @@ test('routes bounded Desktop open, focus, and reveal operations through the exis
         expect(status).toMatchObject({
             desktop: { state: 'window' },
             pid: expect.any(Number),
-            runtimePid: expect.any(Number),
         });
 
         const openFile = await runCli([
@@ -334,7 +333,7 @@ test('keeps one focused Desktop and one process profile for a repeated same-prof
         ).toHaveCount(0);
 
         const after = await client.request('host.status');
-        expect(after).toMatchObject({ pid: before.pid, runtimePid: before.runtimePid });
+        expect(after).toMatchObject({ pid: before.pid });
         const manifest = await discoverHostManifest(userData);
         expect(manifest.profileId).toBe(after.profileId);
         await Promise.all(
@@ -454,10 +453,7 @@ test('recovers requests, events, and Desktop commands after the Host process is 
             });
         });
 
-        const before = await pageRequest<{ pid: number; runtimePid?: number }>(
-            running.page,
-            'host.status',
-        );
+        const before = await pageRequest<{ pid: number }>(running.page, 'host.status');
         process.kill(before.pid, 'SIGKILL');
         await expect
             .poll(() => {
@@ -470,7 +466,7 @@ test('recovers requests, events, and Desktop commands after the Host process is 
             })
             .toBe(false);
 
-        let after: { pid: number; runtimePid?: number } | undefined;
+        let after: { pid: number } | undefined;
         await expect
             .poll(async () => {
                 let candidate: Awaited<ReturnType<typeof connectToHost>> | undefined;
@@ -489,7 +485,7 @@ test('recovers requests, events, and Desktop commands after the Host process is 
                 }
             })
             .not.toBe(before.pid);
-        expect(after).toMatchObject({ pid: expect.any(Number), runtimePid: expect.any(Number) });
+        expect(after).toMatchObject({ pid: expect.any(Number) });
         if (!recoveredClient) throw new Error('Expected the relaunched Host client to connect');
         const recoveredHost = recoveredClient;
 
@@ -577,7 +573,6 @@ test('reconnects a new Desktop generation to the same live PTY', async () => {
         const hostAfter = await client.request('host.status');
         expect(after.terminals).toEqual(before.terminals);
         expect(hostAfter.pid).toBe(hostBefore.pid);
-        expect(hostAfter.runtimePid).toBe(hostBefore.runtimePid);
         expect(hostAfter.desktop).toMatchObject({ state: 'window' });
     } finally {
         client.close();

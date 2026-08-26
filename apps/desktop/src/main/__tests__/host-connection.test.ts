@@ -93,7 +93,6 @@ function createFakeOperator(options: HostRoundOptions = {}) {
                        * probing a real process.
                        */
                       pid: options.pid ?? 999_999,
-                      runtimePid: 43,
                       startedAt: options.startedAt ?? 1000,
                       version: options.hostVersion ?? '0.0.9',
                       ...(options.hostCommit && { commit: options.hostCommit }),
@@ -219,7 +218,7 @@ describe('Desktop Host connection facade', () => {
             expect.anything(),
         );
         expect(freshOperator.request).not.toHaveBeenCalledWith('host.stop', expect.anything());
-        expect(connection.hostProcessId()).toBe(100);
+        expect(connection.serverProcessId()).toBe(100);
     });
 
     it('replaces an adopted Host on version skew when it predates the buildId stamp', async () => {
@@ -236,7 +235,7 @@ describe('Desktop Host connection facade', () => {
         expect(staleOperator.request).toHaveBeenCalledWith('host.stop', {
             confirmLivePtys: true,
         });
-        expect(connection.hostProcessId()).toBe(100);
+        expect(connection.serverProcessId()).toBe(100);
     });
 
     it('downgrades a still-stale replacement to a warning instead of stopping Hosts forever', async () => {
@@ -253,7 +252,7 @@ describe('Desktop Host connection facade', () => {
             'host.version_mismatch',
             expect.anything(),
         );
-        expect(connection.hostProcessId()).toBe(999_999);
+        expect(connection.serverProcessId()).toBe(999_999);
     });
 
     /**

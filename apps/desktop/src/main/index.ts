@@ -653,8 +653,7 @@ if (ownsProfileInstance) {
                 rendererUrl: process.env.ELECTRON_RENDERER_URL,
                 sampler: new ProcessExplorerSampler({
                     rootPid: process.pid,
-                    hostPid: () => supervisor.hostProcessId(),
-                    runtimePid: () => supervisor.processId(),
+                    serverPid: () => supervisor.serverProcessId(),
                     /**
                      * Resolved lazily at sample time: the diagnostics window is created on demand, so its renderer
                      * process does not exist yet while this controller is being constructed.

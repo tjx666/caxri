@@ -541,7 +541,6 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
                             commit: process.env.CAXRI_GIT_COMMIT,
                         }),
                         pid: process.pid,
-                        ...(supervisor.processId() && { runtimePid: supervisor.processId() }),
                         startedAt,
                         clientCount: server?.clientCount() ?? 0,
                         activePtyCount: health.activePtyCount,

@@ -59,9 +59,8 @@ test('native menu preserves its keybinding hint across a failed read and Runtime
             )
             .toBe('1');
 
-        const hostStatus = await pageRequest<{ runtimePid?: number }>(running.page, 'host.status');
-        if (!hostStatus.runtimePid) throw new Error('Host-owned Runtime process not found');
-        process.kill(hostStatus.runtimePid, 'SIGKILL');
+        const serverStatus = await pageRequest<{ pid: number }>(running.page, 'host.status');
+        process.kill(serverStatus.pid, 'SIGKILL');
         await expect(runtimeStatus(running.page)).toHaveAttribute(
             'data-runtime-status',
             'restarting',

@@ -223,7 +223,6 @@ export const methods = {
              */
             buildId: z.string().min(1).max(100).optional(),
             pid: z.number().int().positive(),
-            runtimePid: z.number().int().positive().optional(),
             startedAt: z.number().int().positive(),
             clientCount: z.number().int().nonnegative(),
             activePtyCount: z.number().int().nonnegative(),
