@@ -33,5 +33,6 @@ export interface ServerCoreOptions {
 
 export interface ServerCore {
     lease: ServerProfileLease;
+    protocolIdentity: { serverId: string; stateEpoch: string };
     stop(reason?: string): Promise<void>;
 }

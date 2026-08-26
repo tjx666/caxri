@@ -364,6 +364,10 @@ describe('Server Core application', () => {
         apps.push(firstApp);
         const firstClient = await connectToServer(userDataPath, 2_000);
         const firstIdentity = firstClient.welcome.connection!;
+        expect(firstApp.protocolIdentity).toEqual({
+            serverId: firstIdentity.serverId,
+            stateEpoch: firstIdentity.stateEpoch,
+        });
         const firstRecovery = await firstClient.request('events.query', {
             afterCursor: 0,
             serverId: firstIdentity.serverId,
