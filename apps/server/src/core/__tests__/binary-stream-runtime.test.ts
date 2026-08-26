@@ -13,7 +13,8 @@ import {
     decodeBinaryStreamFrame,
     encodeBinaryStreamFrame,
 } from '@caxri/protocol';
-import { afterEach, describe, expect, it } from 'vitest';
+import type { StructuredLogger } from '@caxri/system';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket, { WebSocketServer } from 'ws';
 
 import type { BinaryStreamClaim as ServerBinaryStreamClaim } from '../binary-stream-control';
@@ -94,6 +95,7 @@ function closeEvent(socket: WebSocket): Promise<{ code: number; reason: string }
 async function connectRuntime(
     claim: ServerBinaryStreamClaim,
     adapter: CommandAdapter,
+    logger?: { recordMetric: StructuredLogger['recordMetric'] },
 ): Promise<{ client: WebSocket; reader: FrameReader; runtime: BinaryStreamRuntime }> {
     const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
     await new Promise<void>((resolve) => server.once('listening', () => resolve()));
@@ -103,6 +105,7 @@ async function connectRuntime(
     const runtime = new BinaryStreamRuntime({
         dispatch: createCommandDispatcher({ server: adapter }),
         isDesktopConnectionCurrent: () => true,
+        logger,
     });
     server.once('connection', (socket) => runtime.accept(socket, claim));
     const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
@@ -135,12 +138,14 @@ function reply(bytes: Uint8Array): BinaryStreamReply {
 describe('BinaryStreamRuntime file transfer', () => {
     it('downloads file content only through bounded binary data frames', async () => {
         const content = `private-sentinel-${'界'.repeat(BINARY_STREAM_MAX_CHUNK_BYTES)}`;
+        const recordMetric = vi.fn<StructuredLogger['recordMetric']>();
         const adapter: CommandAdapter = {
             invoke: () => ({ path: '/project/file.txt', content, mtimeMs: 12, size: 34 }),
         };
         const { client, reader } = await connectRuntime(
             claim({ method: 'files.read', sessionId: 'session-1', path: '/project/file.txt' }),
             adapter,
+            { recordMetric },
         );
         const closed = closeEvent(client);
 
@@ -158,6 +163,17 @@ describe('BinaryStreamRuntime file transfer', () => {
         });
         expect(new TextDecoder().decode(await reader.group('file-data'))).toBe(content);
         expect(await closed).toEqual({ code: 4000, reason: 'completed' });
+        expect(recordMetric).toHaveBeenCalledWith('connection.buffered_bytes', expect.any(Number), {
+            owner: 'stream',
+            phase: 'transfer',
+            outcome: 'success',
+        });
+        expect(recordMetric).toHaveBeenCalledWith('connection.closed', 1, {
+            owner: 'stream',
+            phase: 'shutdown',
+            outcome: 'success',
+        });
+        expect(JSON.stringify(recordMetric.mock.calls)).not.toContain('private-sentinel');
     });
 
     it('uploads exact UTF-8 bytes and returns the canonical saved document', async () => {
