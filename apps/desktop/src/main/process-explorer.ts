@@ -5,6 +5,10 @@ import type { ProcessExplorerEntry, ProcessExplorerSnapshot } from '../shared/pr
 const PROCESS_QUERY_TIMEOUT_MS = 2_000;
 const PROCESS_QUERY_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const MAX_PROCESS_NAME_LENGTH = 4_096;
+const SERVER_CHILD_PROCESS_MARKERS = [
+    { marker: '/bundles/extension-host.js', name: 'extension-host' },
+    { marker: '/bundles/terminal-host.js', name: 'terminal-host' },
+] as const;
 
 interface ElectronProcessSample {
     cpuPercent: number;
@@ -133,6 +137,15 @@ async function runProcessList(): Promise<string> {
     return result.stdout;
 }
 
+function serverProcessName(
+    process: ProcessExplorerEntry,
+    serverPid: number | undefined,
+): string | undefined {
+    if (process.pid === serverPid) return 'server-core';
+    if (process.parentPid !== serverPid) return;
+    return SERVER_CHILD_PROCESS_MARKERS.find(({ marker }) => process.name.includes(marker))?.name;
+}
+
 /**
  * Coalesces overlapping refreshes so a manual refresh cannot duplicate the periodic OS sample.
  */
@@ -162,7 +175,8 @@ export class ProcessExplorerSampler {
         return {
             processes: selected.map((process) => {
                 const sample = electron.get(process.pid);
-                if (process.pid === serverPid) return { ...process, name: 'server-core' };
+                const ownedName = serverProcessName(process, serverPid);
+                if (ownedName) return { ...process, name: ownedName };
                 if (!sample) return process;
                 return {
                     ...process,

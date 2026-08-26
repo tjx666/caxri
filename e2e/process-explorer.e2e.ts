@@ -50,7 +50,11 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         const grid = processPage.getByRole('treegrid', { name: 'Caxri processes' });
         await expect(grid.getByRole('columnheader')).toHaveCount(4);
         await expect(grid).toContainText('caxri');
-        await expect(grid).toContainText('runtime');
+        await expect(grid.locator('button.process-name[title="server-core"]')).toHaveCount(1);
+        await expect(grid.locator('button.process-name[title="extension-host"]')).toHaveCount(1);
+        await expect(grid.locator('button.process-name[title="terminal-host"]')).toHaveCount(1);
+        await expect(grid).not.toContainText('/bundles/extension-host.js');
+        await expect(grid).not.toContainText('/bundles/terminal-host.js');
         await expect(grid).toContainText(/\/(?:bin\/)?(?:zsh|bash|sh)/);
         const expandedRowCount = await processPage.locator('.process-row').count();
         expect(expandedRowCount).toBeGreaterThan(3);
