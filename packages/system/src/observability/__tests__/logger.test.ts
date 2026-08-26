@@ -41,6 +41,11 @@ describe('StructuredLogger', () => {
                 buildId: 'build-1',
                 serverId: 'server-1',
             });
+            logger.updateBaseContext({
+                bootId: 'boot-1',
+                processId: 42,
+                requestId: '/private/project/source.ts',
+            });
             runWithObservationContext(
                 {
                     requestId: '/private/project/source.ts',
@@ -66,6 +71,7 @@ describe('StructuredLogger', () => {
                 unknown
             >;
             expect(record.context).toEqual({
+                bootId: 'boot-1',
                 buildId: 'build-1',
                 processId: process.pid,
                 requestId: 'internal-operation-1',
