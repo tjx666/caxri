@@ -10,7 +10,9 @@ import { HostRuntimeSupervisor } from '../runtime-supervisor';
 // eslint-disable-next-line unicorn/prefer-event-target -- interoperates with Node's EventEmitter-based ChildProcess API
 class FakeChild extends EventEmitter {
     connected = true;
+    exitCode: number | null = null;
     pid = 42;
+    signalCode: NodeJS.Signals | null = null;
     kill = vi.fn(() => true);
     send = vi.fn<(message: unknown, callback?: (error: Error | null) => void) => boolean>(
         () => true,
@@ -188,5 +190,42 @@ describe('Host Runtime supervisor', () => {
         controller.abort();
         await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
         expect(child.send).toHaveBeenLastCalledWith({ type: 'cancel', id: request.id });
+    });
+
+    it('waits for the Runtime child to exit before resolving shutdown', async () => {
+        const child = new FakeChild();
+        const supervisor = new HostRuntimeSupervisor(
+            options(),
+            vi.fn(() => child as never),
+        );
+        const starting = supervisor.start();
+        child.emit('message', {
+            event: 'runtime.status',
+            payload: { status: 'ready', restartCount: 0 },
+        });
+        await starting;
+        child.send.mockImplementation((message: unknown) => {
+            const request = message as { id?: string; method?: string };
+            if (request.method === 'runtime.shutdown') {
+                queueMicrotask(() =>
+                    child.emit('message', { id: request.id, ok: true, result: null }),
+                );
+            }
+            return true;
+        });
+
+        let isSettled = false;
+        const stop = async (): Promise<void> => {
+            await supervisor.shutdown();
+            isSettled = true;
+        };
+        const stopping = stop();
+        await vi.waitFor(() => expect(child.kill).toHaveBeenCalledOnce());
+
+        expect(isSettled).toBe(false);
+        child.exitCode = 0;
+        child.emit('exit', 0);
+        await stopping;
+        expect(isSettled).toBe(true);
     });
 });

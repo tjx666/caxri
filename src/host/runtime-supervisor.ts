@@ -1,6 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { fork } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
 import process from 'node:process';
 
 import type { RuntimeHostControlRequest } from '../../packages/protocol/src/agent/agent-endpoint-control';
@@ -254,6 +255,20 @@ export class HostRuntimeSupervisor extends EventTarget {
         );
     }
 
+    /**
+     * Waits for the owned Runtime to stop writing profile state before Host shutdown can release the profile manifest.
+     * Accepting a signal is not proof of exit; a bounded SIGKILL fallback prevents a stuck child from hanging Host
+     * teardown indefinitely.
+     */
+    private async terminateChild(child: ChildProcess): Promise<void> {
+        if (child.exitCode !== null || child.signalCode !== null) return;
+        child.kill();
+        const forceTimer = setTimeout(() => child.kill('SIGKILL'), 5_000);
+        forceTimer.unref();
+        await once(child, 'exit');
+        clearTimeout(forceTimer);
+    }
+
     private async send(
         method: RuntimeMethod,
         parameters: unknown = {},
@@ -470,8 +485,8 @@ export class HostRuntimeSupervisor extends EventTarget {
         } catch {
             // The child may exit after completing shutdown before its reply is delivered.
         } finally {
-            child.kill();
             this.child = undefined;
+            await this.terminateChild(child);
         }
     }
 }
