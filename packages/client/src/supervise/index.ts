@@ -1,2 +1,3 @@
+export * from './artifact.js';
 export * from './client.js';
-export type { HostLaunchOptions } from './launch.js';
+export type { ServerLaunchOptions } from './launch.js';

@@ -51,8 +51,8 @@ import {
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
-import type { HostLaunchOptions } from './launch.js';
-import { launchHost } from './launch.js';
+import type { ServerLaunchOptions } from './launch.js';
+import { launchServer } from './launch.js';
 
 const MAX_MANIFEST_BYTES = 16 * 1024;
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -714,7 +714,7 @@ function isProcessAlive(pid: number): boolean {
  */
 export async function ensureHost(
     userDataPath: string,
-    launch: HostLaunchOptions,
+    launch: ServerLaunchOptions,
     timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<HostClient> {
     const deadline = Date.now() + timeoutMs;
@@ -757,7 +757,7 @@ export async function ensureHost(
         }
         if (!isLaunched) {
             // eslint-disable-next-line no-await-in-loop -- see the discovery-call justification above.
-            await launchHost(userDataPath, launch);
+            await launchServer(userDataPath, launch);
             isLaunched = true;
         }
         // eslint-disable-next-line no-await-in-loop -- see the discovery-call justification above.

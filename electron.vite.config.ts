@@ -86,10 +86,7 @@ export default defineConfig(async ({ command }) => {
                 // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
                     input: {
-                        'extension-host': resolve('apps/server/src/extension-host/process.ts'),
-                        'host': resolve('apps/server/src/host/process.ts'),
-                        'index': resolve('apps/desktop/src/main/index.ts'),
-                        'runtime': resolve('apps/server/src/runtime/index.ts'),
+                        index: resolve('apps/desktop/src/main/index.ts'),
                     },
                 },
             },

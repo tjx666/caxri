@@ -1,27 +1,26 @@
 import type { Configuration, FileSet } from 'electron-builder';
 
-export const testOnlyExtensionResource = {
-    from: 'extensions/fixture',
-    to: 'extensions/fixture',
-    filter: ['package.json', 'dist/**', 'media/**'],
-} as const satisfies FileSet;
-
 function resourceSource(resource: FileSet | string): string | undefined {
     return typeof resource === 'string' ? resource : resource.from;
 }
 
 /**
- * Produces a separate packaged E2E artifact without mutating the production app. Runtime filtering remains defense in
- * depth; the production artifact boundary is the absence of this test-only resource.
+ * Produces a separate packaged E2E destination. The packaging runner first rebuilds the Server artifact with the
+ * fixture so its immutable manifest covers the test-only extension, then restores the production artifact.
  */
 export function extensionTestPackagingConfig(build: Configuration): Configuration {
     if (!Array.isArray(build.extraResources))
         throw new Error('Production extraResources must be an explicit array');
-    if (build.extraResources.some((resource) => resourceSource(resource) === 'extensions/fixture'))
-        throw new Error('Production extraResources already contain the test-only extension');
+    if (
+        build.extraResources.filter(
+            (resource) => resourceSource(resource) === 'apps/server/dist/server',
+        ).length !== 1
+    ) {
+        throw new Error('Production extraResources must contain one standalone Server artifact');
+    }
 
     return {
         directories: { output: 'release.noindex/e2e' },
-        extraResources: [...build.extraResources, testOnlyExtensionResource],
+        extraResources: build.extraResources,
     };
 }

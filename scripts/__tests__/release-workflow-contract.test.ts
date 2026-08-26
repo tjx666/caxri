@@ -27,7 +27,7 @@ describe('Release workflow contract', () => {
         expect(workflow).toContain("setup-toolchain: 'true'");
         expect(workflow).toContain("install-dependencies: 'true'");
         expect(workflow).toContain("install-electron: 'true'");
-        expect(workflow).toContain("rebuild-native: 'true'");
+        expect(workflow).not.toContain('rebuild-native:');
         expect(workflow).not.toContain('npm ci');
         expect(workflow.indexOf('name: Validate release commit')).toBeLessThan(
             workflow.indexOf('uses: ./.github/actions/setup-caxri-job'),

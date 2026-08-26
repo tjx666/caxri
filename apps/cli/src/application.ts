@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import process from 'node:process';
 
 import { executeSkillCommand } from '@caxri/agent-skills';
-import type { HostLaunchOptions } from '@caxri/client/supervise';
+import type { ServerLaunchOptions } from '@caxri/client/supervise';
 import { connectToHost, ensureHost } from '@caxri/client/supervise';
 import type {
     AgentContextResult,
@@ -28,7 +28,7 @@ import {
     detectAutomation,
     resolveAgentEndpointCredential,
     resolveCliProfile,
-    resolvePackagedHostLaunch,
+    resolvePackagedServerLaunch,
 } from './environment';
 import type { CliOutputMode } from './output';
 import { exitCodeFor, normalizeCliError, quietLines, renderHumanValue, stableJson } from './output';
@@ -72,8 +72,8 @@ export interface RunCliOptions {
 export interface CliHostConnectorOptions {
     automation: CliAutomation;
     connectExisting?: (options: CliConnectOptions) => Promise<CliHostClient>;
-    hostLaunch?: HostLaunchOptions;
-    startHost?: (options: CliConnectOptions, launch: HostLaunchOptions) => Promise<CliHostClient>;
+    serverLaunch?: ServerLaunchOptions;
+    startHost?: (options: CliConnectOptions, launch: ServerLaunchOptions) => Promise<CliHostClient>;
 }
 
 /**
@@ -90,15 +90,15 @@ export function createCliHostConnector(options: CliHostConnectorOptions) {
             ));
     const startHost =
         options.startHost ??
-        ((connection: CliConnectOptions, launch: HostLaunchOptions) =>
+        ((connection: CliConnectOptions, launch: ServerLaunchOptions) =>
             ensureHost(connection.profilePath, launch, connection.timeoutMs));
     return async (connection: CliConnectOptions): Promise<CliHostClient> => {
         if (
             options.automation === 'human' &&
-            options.hostLaunch &&
+            options.serverLaunch &&
             connection.credential === undefined
         ) {
-            return startHost(connection, options.hostLaunch);
+            return startHost(connection, options.serverLaunch);
         }
         try {
             return await connectExisting(connection);
@@ -500,7 +500,7 @@ export async function runCli(
         });
         const endpointCredential = resolveAgentEndpointCredential(environment);
         const resourcesPath = (process as unknown as { resourcesPath?: unknown }).resourcesPath;
-        const hostLaunch = resolvePackagedHostLaunch({
+        const serverLaunch = resolvePackagedServerLaunch({
             executable: process.execPath,
             resourcesPath: typeof resourcesPath === 'string' ? resourcesPath : undefined,
             runAsNode: environment.ELECTRON_RUN_AS_NODE,
@@ -510,7 +510,7 @@ export async function runCli(
             options.connect ??
             createCliHostConnector({
                 automation,
-                ...(hostLaunch && { hostLaunch }),
+                ...(serverLaunch && { serverLaunch }),
             });
         if (selected.kind === 'local') {
             const parameters = selected.parseParams(parsed.tokens.slice(selected.path.length));
