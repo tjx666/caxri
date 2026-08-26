@@ -2,7 +2,7 @@ import type { ProtocolWelcome } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CliHostClient, CliIo } from '../../application';
+import type { CliIo, CliServerClient } from '../../application';
 import { runCli } from '../../application';
 import { CLI_VERSION } from '../../version';
 
@@ -24,7 +24,7 @@ function io(options: Partial<CliIo> = {}) {
     return { io: value, stderr: () => stderr, stdout: () => stdout };
 }
 
-function host(result: unknown, commands: string[]): CliHostClient {
+function server(result: unknown, commands: string[]): CliServerClient {
     return {
         close: vi.fn(),
         serverVersion: CLI_VERSION,
@@ -48,7 +48,7 @@ describe('CLI Agent commands', () => {
             CAXRI_AGENT_ENDPOINT_TOKEN: 'ab'.repeat(32),
             CAXRI_USER_DATA_DIR: '/profiles/agent',
         };
-        const client = host({ status: 'accepted', action: 'candidate' }, [
+        const client = server({ status: 'accepted', action: 'candidate' }, [
             'agent.worktree.created',
         ]);
         client.welcome = {
@@ -128,7 +128,7 @@ describe('CLI Agent commands', () => {
             createdAt: 1,
             updatedAt: 2,
         };
-        const client = host({ receipt, outcome: 'timed_out' }, ['agent.dispatch.wait']);
+        const client = server({ receipt, outcome: 'timed_out' }, ['agent.dispatch.wait']);
         client.welcome = {
             protocolVersion: CAXRI_PROTOCOL_VERSION,
             principal: {
@@ -182,7 +182,7 @@ describe('CLI Agent commands', () => {
 
     it('sends explicit owner dispatch and human Terminal steer commands without echoing text', async () => {
         const dispatchOutput = io({ stdinIsTTY: false, stdoutIsTTY: false });
-        const dispatchClient = host({ dispatchId: 'dispatch-1' }, ['agent.dispatch.start']);
+        const dispatchClient = server({ dispatchId: 'dispatch-1' }, ['agent.dispatch.start']);
         await expect(
             runCli(
                 [
@@ -212,7 +212,7 @@ describe('CLI Agent commands', () => {
         );
 
         const steerOutput = io({ stdinIsTTY: false, stdoutIsTTY: false });
-        const steerClient = host(
+        const steerClient = server(
             { terminalId: 'terminal-1', accepted: true, byteLength: 14, enter: true },
             ['terminal.send'],
         );

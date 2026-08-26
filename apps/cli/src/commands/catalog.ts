@@ -493,7 +493,7 @@ export const CLI_COMMANDS = [
         usage: '<canonical-absolute-path>',
         parseParams: createdWorktree,
         requiresAgentEndpoint: true,
-        requiresHostVersionMatch: true,
+        requiresServerVersionMatch: true,
     },
     {
         kind: 'remote',
