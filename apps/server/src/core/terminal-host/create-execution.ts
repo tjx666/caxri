@@ -4,6 +4,7 @@ import process from 'node:process';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { TerminalExecutionPort } from '../../domains/terminal';
+import { resolveE2ETerminalOutputFlushDelay } from '../../terminal-host/e2e-options';
 import { RemoteTerminalExecution } from './execution';
 import { TerminalHostSupervisor } from './supervisor';
 
@@ -32,6 +33,7 @@ export function createTerminalExecution(
         commit: options.commit,
         executable: options.executable,
         logger: options.logger,
+        outputFlushMs: resolveE2ETerminalOutputFlushDelay(process.env),
         serverId: options.serverId,
         terminalHostPath:
             options.terminalHostPath ?? join(process.cwd(), 'out/main/terminal-host.js'),
