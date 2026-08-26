@@ -14,6 +14,7 @@ export const serverConnectionIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u
 export const protocolClientIdentitySchema = identifierSchema;
 
 export const protocolFeatureSchema = z.enum([
+    'binary-streams-v1',
     'durable-command-receipts-v1',
     'durable-changefeed-v1',
 ]);
