@@ -163,7 +163,7 @@ describe('Acceptance Electron launcher seams', () => {
         });
 
         expect(launch).toEqual({
-            args: ['.', '--remote-debugging-port=9333'],
+            args: ['apps/desktop', '--remote-debugging-port=9333'],
             command: '/repo/node_modules/.bin/electron',
             options: {
                 cwd: '/repo',

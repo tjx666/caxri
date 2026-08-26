@@ -223,7 +223,7 @@ export function createElectronLaunchSpec({
 }: ElectronLaunchSpecInput) {
     if (!useTestRootFixture) assertNativeDialogAuthorization(environment);
     return {
-        args: ['.', `--remote-debugging-port=${port}`],
+        args: ['apps/desktop', `--remote-debugging-port=${port}`],
         command: electronPath,
         options: {
             cwd: projectRoot,
