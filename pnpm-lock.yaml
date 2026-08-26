@@ -321,18 +321,27 @@ importers:
 
   extensions/fixture:
     devDependencies:
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       caxri:
         specifier: workspace:*
         version: link:../../packages/extension-api
 
   extensions/git:
     devDependencies:
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       caxri:
         specifier: workspace:*
         version: link:../../packages/extension-api
 
   extensions/status:
     devDependencies:
+      '@caxri/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       caxri:
         specifier: workspace:*
         version: link:../../packages/extension-api

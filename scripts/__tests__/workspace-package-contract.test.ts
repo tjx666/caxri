@@ -57,7 +57,10 @@ describe('workspace package manifests', () => {
                 version?: string;
             };
 
-            expect(manifest.devDependencies).toEqual({ caxri: 'workspace:*' });
+            expect(manifest.devDependencies).toEqual({
+                '@caxri/protocol': 'workspace:*',
+                'caxri': 'workspace:*',
+            });
             expect(manifest.version).toBe(appManifest.version);
             expect(manifest.engines?.caxri).toBe(`^${appManifest.version}`);
             expect(manifest.scripts).toEqual({
@@ -118,7 +121,12 @@ describe('workspace package manifests', () => {
 
     it('keeps extension typecheck and build orchestration package-local', async () => {
         const manifestText = await readFile(join(process.cwd(), 'package.json'), 'utf8');
-        const manifest = JSON.parse(manifestText) as { scripts: Record<string, string> };
+        const manifest = JSON.parse(manifestText) as {
+            knip: {
+                workspaces: Record<string, { ignoreDependencies?: string[] }>;
+            };
+            scripts: Record<string, string>;
+        };
         const buildScript = await readFile(
             join(process.cwd(), 'scripts', 'build-extension.ts'),
             'utf8',
@@ -130,6 +138,10 @@ describe('workspace package manifests', () => {
         expect(manifest.scripts['build:extensions']).toBe(
             "pnpm --recursive --filter './extensions/*' run build",
         );
+        for (const name of ['fixture', 'git', 'status'])
+            expect(manifest.knip.workspaces[`extensions/${name}`]?.ignoreDependencies).toEqual([
+                '@caxri/protocol',
+            ]);
         const sharedRoot = join(process.cwd(), 'extensions');
         const legacyConfig = access(join(sharedRoot, 'tsconfig.json'));
         const baseConfig = access(join(sharedRoot, 'tsconfig.base.json'));

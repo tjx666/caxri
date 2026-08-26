@@ -11,8 +11,8 @@ import type {
 } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
 
-import { CAXRI_SKILL_FILES } from './caxri-skill.generated';
-import type { ManagedSkillBundle, ManagedSkillLayout } from './filesystem';
+import { CAXRI_SKILL_FILES } from './caxri-skill.generated.js';
+import type { ManagedSkillBundle, ManagedSkillLayout } from './filesystem.js';
 import {
     assertManagedLayoutUnchanged,
     assertSafeLocalTarget,
@@ -22,9 +22,9 @@ import {
     removeManagedSkillTree,
     updateManagedSkill,
     withSkillMutationLock,
-} from './filesystem';
-import { agentSkillProviderIds, requireAgentSkillProviderIntegration } from './provider-policy';
-import { SKILL_BUNDLE_VERSION } from './version';
+} from './filesystem.js';
+import { agentSkillProviderIds, requireAgentSkillProviderIntegration } from './provider-policy.js';
+import { SKILL_BUNDLE_VERSION } from './version.js';
 
 const CURRENT_MARKER_SCHEMA = 1;
 const MANAGED_BY = 'caxri';
