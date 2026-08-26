@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ServerEvent } from '../registry/events.js';
 import { serverEventSchema } from '../registry/events.js';
 import { CaxriError } from './errors.js';
+import { durableServerIdentitySchema, serverStateEpochSchema } from './identity.js';
 import { CAXRI_PROTOCOL_VERSION, protocolVersionSchema } from './version.js';
 
 const cursorSchema = z.number().int().nonnegative();
@@ -74,6 +75,8 @@ export const durableServerEventSchema = serverEventSchema.refine(
 export const protocolEventEnvelopeSchema = z.object({
     protocolVersion: protocolVersionSchema,
     cursor: cursorSchema,
+    serverId: durableServerIdentitySchema.optional(),
+    stateEpoch: serverStateEpochSchema.optional(),
     event: durableServerEventSchema,
 });
 
@@ -94,16 +97,37 @@ export const protocolRecoverySnapshotSchema = z.object({
 
 export type ProtocolRecoverySnapshot = z.infer<typeof protocolRecoverySnapshotSchema>;
 
+const liveRecoveryBarrierSchema = z.object({
+    kind: z.literal('live'),
+    cursor: cursorSchema,
+});
+
+const durableRecoveryIdentityShape = {
+    serverId: durableServerIdentitySchema.optional(),
+    stateEpoch: serverStateEpochSchema.optional(),
+    barrier: liveRecoveryBarrierSchema.optional(),
+};
+
+export const eventRecoveryRequestSchema = z.object({
+    afterCursor: cursorSchema,
+    serverId: durableServerIdentitySchema.optional(),
+    stateEpoch: serverStateEpochSchema.optional(),
+});
+
+export type EventRecoveryRequest = z.infer<typeof eventRecoveryRequestSchema>;
+
 export const eventRecoverySchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('events'),
         cursor: cursorSchema,
         events: z.array(protocolEventEnvelopeSchema).max(MAX_EVENT_JOURNAL_EVENTS),
+        ...durableRecoveryIdentityShape,
     }),
     z.object({
         kind: z.literal('snapshot'),
         cursor: cursorSchema,
         snapshot: protocolRecoverySnapshotSchema,
+        ...durableRecoveryIdentityShape,
     }),
 ]);
 
@@ -134,6 +158,8 @@ export const observableEventNameSchema = z.enum(
 const observableEventEnvelopeSchema = z.object({
     cursor: cursorSchema,
     event: observableEventNameSchema,
+    serverId: durableServerIdentitySchema.optional(),
+    stateEpoch: serverStateEpochSchema.optional(),
 });
 
 export const observableEventRecoverySchema = z.discriminatedUnion('kind', [
@@ -141,11 +167,13 @@ export const observableEventRecoverySchema = z.discriminatedUnion('kind', [
         kind: z.literal('events'),
         cursor: cursorSchema,
         events: z.array(observableEventEnvelopeSchema).max(MAX_EVENT_JOURNAL_EVENTS),
+        ...durableRecoveryIdentityShape,
     }),
     z.object({
         kind: z.literal('snapshot'),
         cursor: cursorSchema,
         gap: z.literal(true),
+        ...durableRecoveryIdentityShape,
     }),
 ]);
 export type ObservableEventRecovery = z.infer<typeof observableEventRecoverySchema>;
@@ -154,6 +182,11 @@ export type ObservableEventRecovery = z.infer<typeof observableEventRecoverySche
  * Removes every event payload and snapshot identity before recovery reaches a non-Desktop client.
  */
 export function projectObservableEventRecovery(recovery: EventRecovery): ObservableEventRecovery {
+    const recoveryIdentity = {
+        ...(recovery.serverId && { serverId: recovery.serverId }),
+        ...(recovery.stateEpoch && { stateEpoch: recovery.stateEpoch }),
+        ...(recovery.barrier && { barrier: recovery.barrier }),
+    };
     return observableEventRecoverySchema.parse(
         recovery.kind === 'events'
             ? {
@@ -162,10 +195,101 @@ export function projectObservableEventRecovery(recovery: EventRecovery): Observa
                   events: recovery.events.map(({ cursor, event }) => ({
                       cursor,
                       event: event.event,
+                      ...(recovery.serverId && { serverId: recovery.serverId }),
+                      ...(recovery.stateEpoch && { stateEpoch: recovery.stateEpoch }),
                   })),
+                  ...recoveryIdentity,
               }
-            : { kind: 'snapshot', cursor: recovery.cursor, gap: true },
+            : { kind: 'snapshot', cursor: recovery.cursor, gap: true, ...recoveryIdentity },
     );
+}
+
+export interface DurableEventStore {
+    appendEvent(
+        stateEpoch: string,
+        event: DurableServerEvent,
+        createdAt?: number,
+    ): ProtocolEventEnvelope;
+    changefeedBounds(stateEpoch: string): { count: number; earliest: number; latest: number };
+    eventsAfter(stateEpoch: string, afterSequence: number): ProtocolEventEnvelope[];
+}
+
+export interface DurableEventJournal {
+    publish(event: ServerEvent): ProtocolEventEnvelope;
+    recover(request: EventRecoveryRequest): Promise<EventRecovery>;
+}
+
+/**
+ * Persists content-free invalidations and freezes a sequence barrier before an asynchronous snapshot. Events appended
+ * after that barrier remain on the live lane, so snapshot/catch-up and live delivery cannot overlap or leave a gap.
+ */
+export function createDurableEventJournal(options: {
+    identity: { serverId: string; stateEpoch: string };
+    snapshot(cursor: number): Promise<ProtocolRecoverySnapshot> | ProtocolRecoverySnapshot;
+    store: DurableEventStore;
+}): DurableEventJournal {
+    const serverId = durableServerIdentitySchema.parse(options.identity.serverId);
+    const stateEpoch = serverStateEpochSchema.parse(options.identity.stateEpoch);
+    const attachIdentity = (envelope: ProtocolEventEnvelope): ProtocolEventEnvelope =>
+        protocolEventEnvelopeSchema.parse({ ...envelope, serverId, stateEpoch });
+    return {
+        publish(event) {
+            const durableEvent = durableServerEventSchema.parse(event);
+            return attachIdentity(options.store.appendEvent(stateEpoch, durableEvent));
+        },
+        async recover(rawRequest) {
+            const request = eventRecoveryRequestSchema.parse(rawRequest);
+            const bounds = options.store.changefeedBounds(stateEpoch);
+            const recoveryCursor = bounds.latest;
+            const isIdentityMismatch =
+                (request.serverId !== undefined && request.serverId !== serverId) ||
+                (request.stateEpoch !== undefined && request.stateEpoch !== stateEpoch);
+            const isCursorExpired =
+                request.afterCursor > recoveryCursor ||
+                (bounds.count === 0
+                    ? request.afterCursor !== 0
+                    : request.afterCursor < bounds.earliest - 1);
+            const barrier = { kind: 'live' as const, cursor: recoveryCursor };
+            if (isIdentityMismatch || isCursorExpired) {
+                const snapshot = protocolRecoverySnapshotSchema.parse(
+                    await options.snapshot(recoveryCursor),
+                );
+                if (snapshot.cursor !== recoveryCursor)
+                    throw new CaxriError('INTERNAL', 'Recovery snapshot cursor does not match');
+                return eventRecoverySchema.parse({
+                    kind: 'snapshot',
+                    cursor: recoveryCursor,
+                    serverId,
+                    stateEpoch,
+                    barrier,
+                    snapshot,
+                });
+            }
+            const events = options.store
+                .eventsAfter(stateEpoch, request.afterCursor)
+                .filter(({ cursor }) => cursor <= recoveryCursor)
+                .map(attachIdentity);
+            let expectedCursor = request.afterCursor + 1;
+            for (const event of events) {
+                if (event.cursor !== expectedCursor)
+                    throw new CaxriError('INTERNAL', 'Durable changefeed suffix is not contiguous');
+                expectedCursor += 1;
+            }
+            if (expectedCursor - 1 !== recoveryCursor)
+                throw new CaxriError(
+                    'INTERNAL',
+                    'Durable changefeed suffix ended before its barrier',
+                );
+            return eventRecoverySchema.parse({
+                kind: 'events',
+                cursor: recoveryCursor,
+                serverId,
+                stateEpoch,
+                barrier,
+                events,
+            });
+        },
+    };
 }
 
 export interface EventJournal {

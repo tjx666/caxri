@@ -66,7 +66,7 @@ import {
     viewIdSchema,
 } from '../domain/views.js';
 import { workbenchInternalMethods, workbenchMethods } from '../domain/workbench-contract.js';
-import { eventRecoverySchema } from '../transport/event-journal.js';
+import { eventRecoveryRequestSchema, eventRecoverySchema } from '../transport/event-journal.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { extensionViewMethods } from './view-methods.js';
@@ -243,7 +243,7 @@ export const methods = {
     },
     'events.recover': {
         ...desktopEventRead,
-        params: z.object({ afterCursor: z.number().int().nonnegative() }),
+        params: eventRecoveryRequestSchema,
         result: eventRecoverySchema,
     },
     ...desktopHostMethods,
