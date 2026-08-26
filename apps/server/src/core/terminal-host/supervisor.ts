@@ -293,12 +293,12 @@ export class TerminalHostSupervisor extends EventTarget {
         const id = randomUUID();
         const parentObservation = currentObservationContext();
         const observation = mergeObservationContext(
+            parentObservation,
             {
                 operationId: id,
                 requestId: parentObservation.requestId ?? id,
                 traceId: parentObservation.traceId ?? id,
             },
-            parentObservation,
             scope.scope === 'terminal'
                 ? { sessionId: scope.sessionId, terminalId: scope.terminalId }
                 : undefined,
