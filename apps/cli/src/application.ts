@@ -4,7 +4,7 @@ import process from 'node:process';
 
 import { executeSkillCommand } from '@caxri/agent-skills';
 import type { ServerLaunchOptions } from '@caxri/client/supervise';
-import { connectToHost, ensureHost } from '@caxri/client/supervise';
+import { connectToServer, ensureServer } from '@caxri/client/supervise';
 import type {
     AgentContextResult,
     AgentEndpointSummary,
@@ -44,7 +44,7 @@ export interface CliIo {
 
 export interface CliHostClient {
     close: () => void;
-    hostVersion?: string;
+    serverVersion?: string;
     request: (method: CaxriMethod, parameters: unknown) => Promise<unknown>;
     requestWithId: (id: string, method: CaxriMethod, parameters: unknown) => Promise<unknown>;
     welcome: ProtocolWelcome;
@@ -83,7 +83,7 @@ export function createCliHostConnector(options: CliHostConnectorOptions) {
     const connectExisting =
         options.connectExisting ??
         ((connection: CliConnectOptions) =>
-            connectToHost(
+            connectToServer(
                 connection.profilePath,
                 connection.timeoutMs,
                 connection.credential ?? { kind: 'operator' },
@@ -91,7 +91,7 @@ export function createCliHostConnector(options: CliHostConnectorOptions) {
     const startHost =
         options.startHost ??
         ((connection: CliConnectOptions, launch: ServerLaunchOptions) =>
-            ensureHost(connection.profilePath, launch, connection.timeoutMs));
+            ensureServer(connection.profilePath, launch, connection.timeoutMs));
     return async (connection: CliConnectOptions): Promise<CliHostClient> => {
         if (
             options.automation === 'human' &&
@@ -615,11 +615,11 @@ export async function runCli(
             timeoutMs: parsed.connectTimeoutMs,
         });
         if (options.signal?.aborted) return 130;
-        if (command.requiresHostVersionMatch && client.hostVersion !== CLI_VERSION)
+        if (command.requiresHostVersionMatch && client.serverVersion !== CLI_VERSION)
             throw new CaxriError(
                 'CONFLICT',
                 'This command requires the CLI version bundled with the active Caxri Host',
-                { cliVersion: CLI_VERSION, hostVersion: client.hostVersion ?? 'unknown' },
+                { cliVersion: CLI_VERSION, hostVersion: client.serverVersion ?? 'unknown' },
             );
         if (!client.welcome.commands.includes(command.method))
             throw new CaxriError(

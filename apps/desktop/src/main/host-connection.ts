@@ -1,14 +1,18 @@
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 
-import type { HostConnectionState, RecoveringEventClient } from '@caxri/client';
+import type { RecoveringEventClient, ServerConnectionState } from '@caxri/client';
 import {
     createRecoveringEventClient,
-    initialHostConnectionState,
-    transitionHostConnection,
+    initialServerConnectionState,
+    transitionServerConnection,
 } from '@caxri/client';
-import type { HostClient } from '@caxri/client/supervise';
-import { connectDesktopToHost, ensureHost, resolveServerArtifact } from '@caxri/client/supervise';
+import type { ServerClient } from '@caxri/client/supervise';
+import {
+    connectDesktopToServer,
+    ensureServer,
+    resolveServerArtifact,
+} from '@caxri/client/supervise';
 import type {
     CaxriMethod,
     DesktopLeaseRevocationReason,
@@ -75,7 +79,7 @@ export interface DesktopHostConnectionOptions {
 const HOST_REPLACEMENT_EXIT_TIMEOUT_MS = 10_000;
 
 /**
- * Waits for a stopped Host process to disappear so `ensureHost` re-discovery cannot race the old manifest. Signal 0
+ * Waits for a stopped Host process to disappear so `ensureServer` re-discovery cannot race the old manifest. Signal 0
  * only probes liveness; an `ESRCH` throw means the process is gone. On timeout the caller simply proceeds — the final
  * attempt downgrades a still-stale Host to a warning.
  */
@@ -107,13 +111,13 @@ export function resolveDesktopLaunch(options: {
  * Desktop-side client facade preserving Main's typed Runtime request call sites during migration.
  */
 export class DesktopHostConnection extends EventTarget {
-    private client?: HostClient;
+    private client?: ServerClient;
     private events?: RecoveringEventClient;
     private eventsHostIdentity?: string;
     private serverPid?: number;
     private starting?: Promise<void>;
     private reconnectTask?: Promise<void>;
-    private lifecycle: HostConnectionState = initialHostConnectionState;
+    private lifecycle: ServerConnectionState = initialServerConnectionState;
     /**
      * Once this connection has replaced one stale Host, further mismatches only warn. Without this instance-level
      * guard, every background reconnect (`reconnectUntilAttached` → `connect`) restarts the replacement from scratch,
@@ -130,7 +134,7 @@ export class DesktopHostConnection extends EventTarget {
         hostIdentity ??= await this.attachToCurrentHost(true);
         if (hostIdentity === undefined)
             throw new CaxriError('UNAVAILABLE', 'Replacement Caxri Host still reports stale code');
-        const client = await connectDesktopToHost(
+        const client = await connectDesktopToServer(
             this.options.userDataPath,
             this.options.desktopId,
             this.options.handleCommand,
@@ -173,13 +177,13 @@ export class DesktopHostConnection extends EventTarget {
 
     private async attach(): Promise<void> {
         try {
-            const hostContinuity = await this.connect();
-            this.lifecycle = transitionHostConnection(this.lifecycle, {
+            const serverContinuity = await this.connect();
+            this.lifecycle = transitionServerConnection(this.lifecycle, {
                 type: 'attachment-succeeded',
-                hostContinuity,
+                serverContinuity,
             });
         } catch (error) {
-            this.lifecycle = transitionHostConnection(this.lifecycle, {
+            this.lifecycle = transitionServerConnection(this.lifecycle, {
                 type: 'attachment-failed',
             });
             throw error;
@@ -204,7 +208,7 @@ export class DesktopHostConnection extends EventTarget {
             ...this.options.buildIdentity,
             buildId: desktopBuildId,
         };
-        const operator = await ensureHost(this.options.userDataPath, {
+        const operator = await ensureServer(this.options.userDataPath, {
             artifactRoot: artifact.rootPath,
             environment: {
                 [SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY]: JSON.stringify(this.options.desktopLaunch),
@@ -272,11 +276,11 @@ export class DesktopHostConnection extends EventTarget {
      * Drops a lost attachment and keeps retrying recoverable outages in the background. An orderly same-profile Desktop
      * takeover is terminal for this Main instance so it cannot evict the replacement in return.
      */
-    private handleConnectionLoss(lost: HostClient, reason?: DesktopLeaseRevocationReason): void {
+    private handleConnectionLoss(lost: ServerClient, reason?: DesktopLeaseRevocationReason): void {
         if (this.lifecycle.status === 'disposed' || this.client !== lost) return;
         this.client = undefined;
         this.starting = undefined;
-        this.lifecycle = transitionHostConnection(this.lifecycle, {
+        this.lifecycle = transitionServerConnection(this.lifecycle, {
             type: 'connection-lost',
             atMs: Date.now(),
             reason: reason === 'replaced' ? 'replaced' : 'transport',
@@ -320,7 +324,7 @@ export class DesktopHostConnection extends EventTarget {
             // eslint-disable-next-line no-await-in-loop -- sequential backoff between retries.
             await new Promise((resolve) => setTimeout(resolve, backoffMs));
             if (this.lifecycle !== waiting) continue;
-            this.lifecycle = transitionHostConnection(this.lifecycle, {
+            this.lifecycle = transitionServerConnection(this.lifecycle, {
                 type: 'backoff-elapsed',
             });
             try {
@@ -338,7 +342,7 @@ export class DesktopHostConnection extends EventTarget {
             }
             const recovering = this.lifecycle;
             const downtimeMs = Date.now() - outageStartedAtMs;
-            const isHostReplaced = recovering.hostContinuity === 'replaced';
+            const isHostReplaced = recovering.serverContinuity === 'replaced';
             this.options.logger.write('info', logEventCatalog.host.reconnected, {
                 fields: { attempt, downtimeMs, isHostReplaced },
             });
@@ -363,7 +367,7 @@ export class DesktopHostConnection extends EventTarget {
             // The replacement connection can be lost again while this loop is still finishing,
             // so a backoff state here means "keep retrying", not success.
             if (!this.client) continue;
-            this.lifecycle = transitionHostConnection(this.lifecycle, {
+            this.lifecycle = transitionServerConnection(this.lifecycle, {
                 type: 'recovery-completed',
             });
             /**
@@ -410,7 +414,7 @@ export class DesktopHostConnection extends EventTarget {
                 ),
             );
         if (this.lifecycle.status === 'disposed') return Promise.resolve();
-        this.lifecycle = transitionHostConnection(this.lifecycle, { type: 'start' });
+        this.lifecycle = transitionServerConnection(this.lifecycle, { type: 'start' });
         const starting = this.starting ?? this.attach();
         this.starting = starting;
         // `start()` returns the in-flight connection promise synchronously; resetting
@@ -460,12 +464,12 @@ export class DesktopHostConnection extends EventTarget {
     markDesktopReady(): Promise<void> {
         const client = this.client;
         if (!client) return Promise.reject(this.disconnectedRequestError());
-        this.lifecycle = transitionHostConnection(this.lifecycle, { type: 'desktop-ready' });
+        this.lifecycle = transitionServerConnection(this.lifecycle, { type: 'desktop-ready' });
         return client.markDesktopReady();
     }
 
     close(): void {
-        this.lifecycle = transitionHostConnection(this.lifecycle, { type: 'dispose' });
+        this.lifecycle = transitionServerConnection(this.lifecycle, { type: 'dispose' });
         /**
          * Main disposal is terminal for Renderer work, unlike a recoverable transport loss.
          */

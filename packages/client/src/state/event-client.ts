@@ -16,13 +16,13 @@ export interface RecoveringEventClient {
      */
     stop(): void;
     /**
-     * Accepts Host-pushed envelopes; terminal output remains on its non-durable direct path.
+     * Accepts Server-pushed envelopes; terminal output remains on its non-durable direct path.
      */
     receive(message: ProtocolEventEnvelope | TransientServerEvent): void;
 }
 
 /**
- * Zero-dependency reconnect state machine for sandboxed preloads and other constrained clients. The Host dispatcher
+ * Zero-dependency reconnect state machine for sandboxed preloads and other constrained clients. The Server dispatcher
  * already validates recovery results; this layer only orders their cursors.
  */
 export function createRecoveringEventClient(options: {

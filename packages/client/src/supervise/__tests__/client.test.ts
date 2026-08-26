@@ -16,7 +16,7 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
     readFile: readFileMock,
 }));
 
-import { discoverHostManifest, ensureHost, HostClient } from '../client';
+import { discoverServerManifest, ensureServer, ServerClient } from '../client';
 
 const temporaryDirectories: string[] = [];
 
@@ -28,9 +28,9 @@ afterEach(async () => {
     await Promise.all(pending.map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe('HostClient close notification', () => {
+describe('ServerClient close notification', () => {
     /**
-     * The constructor is TypeScript-private (real attachments go through `HostClient.connect`), so this narrow
+     * The constructor is TypeScript-private (real attachments go through `ServerClient.connect`), so this narrow
      * lifecycle test instantiates it directly with a socket stand-in.
      */
     function createAttachedClient(options: { desktopLease?: unknown } = {}) {
@@ -50,12 +50,12 @@ describe('HostClient close notification', () => {
             send: vi.fn((_source: string, callback?: (error?: Error) => void) => callback?.()),
             terminate: vi.fn(() => socket.emit('close')),
         };
-        const construct = HostClient as unknown as new (
+        const construct = ServerClient as unknown as new (
             socket: unknown,
             welcome: unknown,
             timeoutMs: number,
             desktopLease?: unknown,
-        ) => HostClient;
+        ) => ServerClient;
         return {
             client: new construct(socket, { protocolVersion: 1 }, 1000, options.desktopLease),
             socket,
@@ -136,7 +136,7 @@ describe('HostClient close notification', () => {
     });
 });
 
-describe('HostClient WebSocket handshake', () => {
+describe('ServerClient WebSocket handshake', () => {
     it('preserves a control message delivered immediately after welcome', async () => {
         const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
         await new Promise<void>((resolve, reject) => {
@@ -189,9 +189,9 @@ describe('HostClient WebSocket handshake', () => {
             });
         });
 
-        let client: HostClient | undefined;
+        let client: ServerClient | undefined;
         try {
-            client = await HostClient.connect(manifest, 2_000, {
+            client = await ServerClient.connect(manifest, 2_000, {
                 kind: 'desktop',
                 desktopId: 'desktop-1',
                 credential: {
@@ -214,7 +214,7 @@ describe('HostClient WebSocket handshake', () => {
     });
 });
 
-describe('Host discovery', () => {
+describe('Server discovery', () => {
     it('classifies a manifest removed between metadata and content reads as absent', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-cli-host-discovery-'));
         temporaryDirectories.push(directory);
@@ -227,7 +227,7 @@ describe('Host discovery', () => {
         const removed = Object.assign(new Error('manifest removed'), { code: 'ENOENT' });
         readFileMock.mockRejectedValueOnce(removed);
 
-        await expect(discoverHostManifest(userDataPath)).rejects.toMatchObject({
+        await expect(discoverServerManifest(userDataPath)).rejects.toMatchObject({
             code: 'NOT_FOUND',
         });
     });
@@ -268,7 +268,7 @@ describe('Host discovery', () => {
         });
 
         await expect(
-            ensureHost(userDataPath, { artifactRoot: join(directory, 'missing-server') }, 100),
+            ensureServer(userDataPath, { artifactRoot: join(directory, 'missing-server') }, 100),
         ).rejects.toMatchObject({
             code: 'UNAVAILABLE',
             message: 'Server artifact manifest is invalid',

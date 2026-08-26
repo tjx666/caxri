@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { discoverHostManifest, HostClient } from '@caxri/client/supervise';
+import { discoverServerManifest, ServerClient } from '@caxri/client/supervise';
 import type { AppSettings, ServerEvent } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
@@ -85,8 +85,8 @@ process.stdin.resume();
         },
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
-    let sender: HostClient | undefined;
-    let receiver: HostClient | undefined;
+    let sender: ServerClient | undefined;
+    let receiver: ServerClient | undefined;
     try {
         const sessionId = await createProjectSession(running.page, 'codex');
         await pageRequest(running.page, 'terminal.create', { sessionId, kind: 'codex' });
@@ -108,12 +108,12 @@ process.stdin.resume();
             health: 'ready',
             reason: 'fixture_pull_ready',
         });
-        const manifest = await discoverHostManifest(userData);
-        sender = await HostClient.connect(manifest, 2_000, {
+        const manifest = await discoverServerManifest(userData);
+        sender = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...senderCapture.credential,
         });
-        receiver = await HostClient.connect(manifest, 2_000, {
+        receiver = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...receiverCapture.credential,
         });
@@ -253,7 +253,7 @@ process.stdin.resume();
         const restarted = (await captures(capturePath)).at(2);
         if (!restarted) throw new Error('Restarted Agent Endpoint capture missing');
         receiver.close();
-        receiver = await HostClient.connect(manifest, 2_000, {
+        receiver = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...restarted.credential,
         });

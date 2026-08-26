@@ -2,7 +2,7 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToHost, discoverHostManifest } from '@caxri/client/supervise';
+import { connectToServer, discoverServerManifest } from '@caxri/client/supervise';
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 import {
@@ -181,9 +181,9 @@ function errorCode(error: unknown): string | undefined {
 }
 
 async function stopE2EHost(userDataDirectory: string): Promise<void> {
-    let client: Awaited<ReturnType<typeof connectToHost>> | undefined;
+    let client: Awaited<ReturnType<typeof connectToServer>> | undefined;
     try {
-        client = await connectToHost(userDataDirectory, 2_000);
+        client = await connectToServer(userDataDirectory, 2_000);
         await client.request('host.stop', { confirmLivePtys: true });
     } catch (error) {
         if (errorCode(error) !== 'NOT_FOUND' && errorCode(error) !== 'UNAVAILABLE') throw error;
@@ -195,7 +195,7 @@ async function stopE2EHost(userDataDirectory: string): Promise<void> {
         try {
             // Sequential polling by design: each attempt depends on the previous one finishing.
             // eslint-disable-next-line no-await-in-loop
-            await discoverHostManifest(userDataDirectory);
+            await discoverServerManifest(userDataDirectory);
         } catch (error) {
             if (errorCode(error) === 'NOT_FOUND') return;
             throw error;

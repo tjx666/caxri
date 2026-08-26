@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { HostClient } from '@caxri/client/supervise';
+import { ServerClient } from '@caxri/client/supervise';
 import type { CaxriError, CommandAdapter, ServerControlEndpoint } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -91,13 +91,13 @@ describe('local Host transport', () => {
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
 
-        const first = await HostClient.connect(lease.manifest);
+        const first = await ServerClient.connect(lease.manifest);
         await first.requestWithId('settings-retry', 'settings.patch', {
             changes: [{ key: 'terminal.fontSize', value: 18 }],
             dryRun: false,
         });
         first.close();
-        const second = await HostClient.connect(lease.manifest);
+        const second = await ServerClient.connect(lease.manifest);
         await second.requestWithId('settings-retry', 'settings.patch', {
             changes: [{ key: 'terminal.fontSize', value: 18 }],
             dryRun: false,
@@ -280,7 +280,7 @@ describe('local Host transport', () => {
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const client = await HostClient.connect(lease.manifest, 2_000, {
+        const client = await ServerClient.connect(lease.manifest, 2_000, {
             kind: 'agent',
             hostId: endpoint.ref.hostId,
             endpointId: endpoint.ref.endpointId,
@@ -383,7 +383,7 @@ describe('local Host transport', () => {
             inbox.close();
             await server.close();
         });
-        const sender = await HostClient.connect(lease.manifest, 2_000, {
+        const sender = await ServerClient.connect(lease.manifest, 2_000, {
             kind: 'agent',
             ...senderEndpoint.ref,
             token: 'ab'.repeat(32),
@@ -393,7 +393,7 @@ describe('local Host transport', () => {
             ...receiverEndpoint.ref,
             token: 'cd'.repeat(32),
         };
-        let receiver = await HostClient.connect(lease.manifest, 2_000, receiverCredential);
+        let receiver = await ServerClient.connect(lease.manifest, 2_000, receiverCredential);
 
         const first = await sender.request('agent.message.send', {
             to: receiverEndpoint.ref,
@@ -421,7 +421,7 @@ describe('local Host transport', () => {
             to: receiverEndpoint.ref,
             body: 'requeued after disconnect',
         });
-        receiver = await HostClient.connect(lease.manifest, 2_000, receiverCredential);
+        receiver = await ServerClient.connect(lease.manifest, 2_000, receiverCredential);
         await expect(
             receiver.request('agent.message.wait', { timeoutMs: 1_000 }),
         ).resolves.toMatchObject({ message: { id: second.messageId } });
@@ -501,7 +501,7 @@ describe('local Host transport', () => {
         const credential = lease.desktopCredential;
         const firstHandler = vi.fn(() => Promise.resolve(null));
         const secondHandler = vi.fn(() => Promise.resolve(null));
-        const first = await HostClient.connect(lease.manifest, 2_000, {
+        const first = await ServerClient.connect(lease.manifest, 2_000, {
             kind: 'desktop',
             desktopId: 'desktop-first',
             credential,
@@ -515,7 +515,7 @@ describe('local Host transport', () => {
             first.close();
             return Promise.resolve();
         });
-        const second = await HostClient.connect(lease.manifest, 2_000, {
+        const second = await ServerClient.connect(lease.manifest, 2_000, {
             kind: 'desktop',
             desktopId: 'desktop-second',
             credential,
@@ -591,7 +591,7 @@ describe('local Host transport', () => {
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const client = await HostClient.connect(lease.manifest, 250, {
+        const client = await ServerClient.connect(lease.manifest, 250, {
             kind: 'desktop',
             desktopId: 'desktop-nested-target',
             credential: lease.desktopCredential,
@@ -634,7 +634,7 @@ describe('local Host transport', () => {
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const client = await HostClient.connect(lease.manifest, 2_000, {
+        const client = await ServerClient.connect(lease.manifest, 2_000, {
             kind: 'desktop',
             desktopId: 'desktop-terminal-priority',
             credential: lease.desktopCredential,
@@ -699,7 +699,7 @@ describe('local Host transport', () => {
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const client = await HostClient.connect(lease.manifest, 2_000, {
+        const client = await ServerClient.connect(lease.manifest, 2_000, {
             kind: 'desktop',
             desktopId: 'desktop-terminal-capacity',
             credential: lease.desktopCredential,
@@ -751,7 +751,7 @@ describe('local Host transport', () => {
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const client = await HostClient.connect(lease.manifest, 40, {
+        const client = await ServerClient.connect(lease.manifest, 40, {
             kind: 'desktop',
             desktopId: 'desktop-long-write',
             credential: lease.desktopCredential,

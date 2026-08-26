@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { HostClient } from '@caxri/client/supervise';
+import { ServerClient } from '@caxri/client/supervise';
 import type { CommandAdapter, ServerControlEndpoint } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -247,7 +247,7 @@ describe('local Host transport regressions', () => {
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const client = await HostClient.connect(lease.manifest, 5_000, {
+        const client = await ServerClient.connect(lease.manifest, 5_000, {
             kind: 'desktop',
             desktopId: 'desktop-file-write',
             credential: lease.desktopCredential,
@@ -320,7 +320,7 @@ describe('local Host transport regressions', () => {
         });
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
-        const client = await HostClient.connect(lease.manifest);
+        const client = await ServerClient.connect(lease.manifest);
         cleanups.push(() => {
             client.close();
             return Promise.resolve();
@@ -363,7 +363,7 @@ describe('local Host transport regressions', () => {
         await lease.publish(await server.start());
         cleanups.push(() => server.close());
 
-        const client = await HostClient.connect(lease.manifest, 5_000, {
+        const client = await ServerClient.connect(lease.manifest, 5_000, {
             kind: 'desktop',
             desktopId: 'desktop-regression',
             credential: lease.desktopCredential,
@@ -421,7 +421,7 @@ describe('local Host transport regressions', () => {
             server.invokeDesktop({ kind: 'focus' }, generation),
         ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
 
-        const replacement = await HostClient.connect(lease.manifest, 2_000, {
+        const replacement = await ServerClient.connect(lease.manifest, 2_000, {
             kind: 'desktop',
             desktopId: 'desktop-replacement',
             credential: lease.desktopCredential,

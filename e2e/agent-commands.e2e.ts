@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { discoverHostManifest, HostClient } from '@caxri/client/supervise';
+import { discoverServerManifest, ServerClient } from '@caxri/client/supervise';
 import { agentMessageReceiptSchema } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
@@ -141,8 +141,8 @@ process.stdin.resume();
         },
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
-    let controller: HostClient | undefined;
-    let awakened: HostClient | undefined;
+    let controller: ServerClient | undefined;
+    let awakened: ServerClient | undefined;
     try {
         const sessionId = await createProjectSession(running.page, 'claude');
         await expect
@@ -150,8 +150,8 @@ process.stdin.resume();
             .toBe(1);
         const controllerCapture = (await jsonLines<EndpointCapture>(capturePath)).at(0);
         if (!controllerCapture) throw new Error('Controller Endpoint capture missing');
-        const manifest = await discoverHostManifest(userData);
-        controller = await HostClient.connect(manifest, 2_000, {
+        const manifest = await discoverServerManifest(userData);
+        controller = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...controllerCapture.credential,
         });
@@ -332,7 +332,7 @@ process.stdin.resume();
             .toBe(4);
         const awakenedTarget = (await jsonLines<EndpointCapture>(capturePath)).at(3);
         if (!awakenedTarget) throw new Error('Awakened Endpoint capture missing');
-        awakened = await HostClient.connect(manifest, 2_000, {
+        awakened = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...awakenedTarget.credential,
         });

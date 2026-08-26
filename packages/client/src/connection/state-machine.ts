@@ -6,20 +6,20 @@ interface ReconnectContext {
     readiness: DesktopReadiness;
 }
 
-export type HostConnectionState =
+export type ServerConnectionState =
     | { status: 'idle' }
     | { status: 'attaching'; mode: 'initial' }
     | ({ status: 'backoff' } & ReconnectContext)
     | ({ status: 'attaching'; mode: 'reconnect' } & ReconnectContext)
-    | ({ status: 'recovering'; hostContinuity: 'same' | 'replaced' } & ReconnectContext)
+    | ({ status: 'recovering'; serverContinuity: 'same' | 'replaced' } & ReconnectContext)
     | { status: 'attached' }
     | { status: 'ready' }
     | { status: 'replaced' }
     | { status: 'disposed' };
 
-export type HostConnectionTransition =
+export type ServerConnectionTransition =
     | { type: 'start' }
-    | { type: 'attachment-succeeded'; hostContinuity: 'same' | 'replaced' }
+    | { type: 'attachment-succeeded'; serverContinuity: 'same' | 'replaced' }
     | { type: 'attachment-failed' }
     | { type: 'desktop-ready' }
     | { type: 'connection-lost'; atMs: number; reason: 'replaced' | 'transport' }
@@ -27,9 +27,9 @@ export type HostConnectionTransition =
     | { type: 'recovery-completed' }
     | { type: 'dispose' };
 
-export const initialHostConnectionState: HostConnectionState = { status: 'idle' };
+export const initialServerConnectionState: ServerConnectionState = { status: 'idle' };
 
-function reconnectContext(state: HostConnectionState): ReconnectContext | undefined {
+function reconnectContext(state: ServerConnectionState): ReconnectContext | undefined {
     switch (state.status) {
         case 'backoff':
         case 'recovering':
@@ -42,13 +42,13 @@ function reconnectContext(state: HostConnectionState): ReconnectContext | undefi
 }
 
 /**
- * Pure Desktop↔Host lifecycle transition table. Socket, timer, readiness, and event-recovery I/O stay in
- * `DesktopHostConnection`; this model only makes mutually exclusive phases and terminal states explicit.
+ * Pure Desktop↔Server lifecycle transition table. Socket, timer, readiness, and event-recovery I/O stay in the Desktop
+ * connection facade; this model only makes mutually exclusive phases and terminal states explicit.
  */
-export function transitionHostConnection(
-    state: HostConnectionState,
-    transition: HostConnectionTransition,
-): HostConnectionState {
+export function transitionServerConnection(
+    state: ServerConnectionState,
+    transition: ServerConnectionTransition,
+): ServerConnectionState {
     if (transition.type === 'dispose') return { status: 'disposed' };
     if (state.status === 'disposed' || state.status === 'replaced') return state;
 
@@ -62,7 +62,7 @@ export function transitionHostConnection(
             return {
                 status: 'recovering',
                 attempt: state.attempt,
-                hostContinuity: transition.hostContinuity,
+                serverContinuity: transition.serverContinuity,
                 outageStartedAtMs: state.outageStartedAtMs,
                 readiness: state.readiness,
             };
