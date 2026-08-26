@@ -402,7 +402,7 @@ export interface ControlServerOptions {
      * omit it; production must provide it before advertising durable recovery.
      */
     protocolIdentity?: { serverId: string; stateEpoch: string };
-    onClientCountChanged?(count: number): void;
+    onClientCountChanged?(count: number, event: 'connected' | 'disconnected' | 'reset'): void;
     onDesktopUnavailable?(): void;
     /**
      * Test-only fault injector called after command execution and durable receipt storage, but before the transport can

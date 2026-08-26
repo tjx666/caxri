@@ -700,10 +700,22 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             logger,
             identity: lease.identity,
             protocolIdentity,
-            onClientCountChanged: (clientCount) =>
+            onClientCountChanged: (clientCount, event) => {
+                logger.recordMetric('connection.count', clientCount, {
+                    owner: 'control',
+                    phase: 'runtime',
+                    outcome: 'success',
+                });
+                if (event === 'disconnected')
+                    logger.recordMetric('connection.closed', 1, {
+                        owner: 'control',
+                        phase: 'shutdown',
+                        outcome: 'success',
+                    });
                 logger.write('info', logEventCatalog.serverCore.clientCount, {
                     fields: { clientCount },
-                }),
+                });
+            },
             onDesktopUnavailable: async () => {
                 try {
                     await domainService.request('terminal.detachAll');
@@ -764,6 +776,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         });
         const endpoint = await server.start();
         await lease.publish(endpoint);
+        logger.recordMetric('startup.phase', Date.now() - startedAt, {
+            owner: 'server-core',
+            phase: 'startup',
+            outcome: 'success',
+        });
         logger.write('info', logEventCatalog.serverCore.ready, {
             durationMs: Date.now() - startedAt,
             fields: { pid: process.pid, profileId: lease.identity.profileId },

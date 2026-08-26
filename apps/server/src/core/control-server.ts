@@ -148,7 +148,7 @@ export class ControlServer {
         this.clients.delete(state.socket);
         const wasCurrent = this.currentDesktop === state;
         if (wasCurrent) this.currentDesktop = undefined;
-        this.options.onClientCountChanged?.(this.clients.size);
+        this.options.onClientCountChanged?.(this.clients.size, 'disconnected');
         if (wasCurrent && shouldNotifyUnavailable) this.options.onDesktopUnavailable?.();
     }
 
@@ -364,7 +364,7 @@ export class ControlServer {
             if (state.desktopLease) this.revokeDesktop(state);
             else {
                 this.clients.delete(socket);
-                this.options.onClientCountChanged?.(this.clients.size);
+                this.options.onClientCountChanged?.(this.clients.size, 'disconnected');
             }
         };
         socket.on('close', remove);
@@ -556,7 +556,7 @@ export class ControlServer {
                             this.currentDesktop = nextState;
                             this.renewDesktop(nextState);
                         }
-                        this.options.onClientCountChanged?.(this.clients.size);
+                        this.options.onClientCountChanged?.(this.clients.size, 'connected');
                         this.write(
                             socket,
                             localServerWelcomeSchema.parse({
@@ -787,7 +787,7 @@ export class ControlServer {
         this.clients.clear();
         if (this.currentDesktop?.leaseTimer) clearTimeout(this.currentDesktop.leaseTimer);
         this.currentDesktop = undefined;
-        this.options.onClientCountChanged?.(0);
+        this.options.onClientCountChanged?.(0, 'reset');
         const server = this.server;
         this.server = undefined;
         if (server?.listening) await new Promise<void>((resolve) => server.close(() => resolve()));

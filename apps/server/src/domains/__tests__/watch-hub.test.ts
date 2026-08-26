@@ -4,6 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WatchHub } from '../watch-hub';
 
+function metricLogger() {
+    const recordMetric = vi.fn();
+    return { logger: { recordMetric } as never, recordMetric };
+}
+
 type SubscribeCallback = Parameters<typeof parcelWatcher.subscribe>[1];
 
 function nativeSubscribe(unsubscribe = vi.fn(() => Promise.resolve())) {
@@ -23,6 +28,30 @@ const failingSubscribe = (() =>
 describe('WatchHub', () => {
     beforeEach(() => {
         vi.useFakeTimers();
+    });
+
+    it('records a bounded watcher census without labels or paths', async () => {
+        const { logger, recordMetric } = metricLogger();
+        const hub = new WatchHub({ logger, subscribe: nativeSubscribe().subscribe });
+        const handle = await hub.register({
+            label: 'safe-label',
+            root: '/secret/project',
+            onEvents: () => {},
+        });
+
+        expect(recordMetric).toHaveBeenLastCalledWith('watcher.count', 1, {
+            owner: 'server-core',
+            phase: 'runtime',
+            outcome: 'success',
+        });
+        expect(JSON.stringify(recordMetric.mock.calls)).not.toContain('/secret/project');
+        await handle.dispose();
+        expect(recordMetric).toHaveBeenLastCalledWith('watcher.count', 0, {
+            owner: 'server-core',
+            phase: 'runtime',
+            outcome: 'success',
+        });
+        await hub.close();
     });
 
     afterEach(() => {

@@ -18,6 +18,21 @@ import { TerminalsModel } from './models/terminals';
 
 export interface CaxriDatabaseConnectionOptions {
     onSessionStateRepair?: (repair: SessionStateRepair) => void;
+    onTransaction?: (observation: DatabaseTransactionObservation) => void;
+}
+
+export interface DatabaseTransactionObservation {
+    durationMs: number;
+    outcome: 'contention' | 'failure' | 'success';
+}
+
+function transactionOutcome(error: unknown): DatabaseTransactionObservation['outcome'] {
+    return typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'SQLITE_BUSY'
+        ? 'contention'
+        : 'failure';
 }
 
 /**
@@ -26,6 +41,7 @@ export interface CaxriDatabaseConnectionOptions {
  * edits.
  */
 export class CaxriDatabaseConnection {
+    private readonly onTransaction?: CaxriDatabaseConnectionOptions['onTransaction'];
     /**
      * Raw better-sqlite3 handle; only pragmas, transactions, and integration tests that inspect
      * `table_info`/`user_version` touch this directly. Every query goes through {@link CaxriDatabaseConnection.db}.
@@ -54,11 +70,34 @@ export class CaxriDatabaseConnection {
         this.appState = new AppStateModel(this.db);
         this.agentDispatchReceipts = new AgentDispatchReceiptsModel(this.db);
         this.protocolState = new ProtocolStateModel(this.db, (work) => this.transaction(work));
+        this.onTransaction = options.onTransaction;
         this.appState.set('schemaVersion', CURRENT_SCHEMA_VERSION);
     }
 
+    private observeTransaction(observation: DatabaseTransactionObservation): void {
+        try {
+            this.onTransaction?.(observation);
+        } catch {
+            // Observability is best-effort and must never alter persistence semantics.
+        }
+    }
+
     transaction<T>(work: () => T): T {
-        return this.database.transaction(work)();
+        const startedAt = performance.now();
+        try {
+            const result = this.database.transaction(work)();
+            this.observeTransaction({
+                durationMs: performance.now() - startedAt,
+                outcome: 'success',
+            });
+            return result;
+        } catch (error) {
+            this.observeTransaction({
+                durationMs: performance.now() - startedAt,
+                outcome: transactionOutcome(error),
+            });
+            throw error;
+        }
     }
 
     markShutdown(reason: ShutdownReason): void {
