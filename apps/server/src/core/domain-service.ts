@@ -23,7 +23,7 @@ interface PendingOperation {
 }
 
 export type ServerDomainDependencies = Omit<RuntimeDependencies, 'send'>;
-type CreateDomainServices = (dependencies: RuntimeDependencies) => Promise<Runtime>;
+export type CreateDomainServices = (dependencies: RuntimeDependencies) => Promise<Runtime>;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 

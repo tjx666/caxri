@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { connectToHost, HostClient } from '@caxri/client/supervise';
-import type { HostManifest } from '@caxri/protocol';
+import type { HostManifest, RuntimeMethodResult, TerminalRecord } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
+    defaultAgentProviderSettings,
     hostEndpointUrl,
     localServerEventSchema,
     localServerWelcomeSchema,
@@ -15,106 +16,23 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
+import type { CreateDomainServices } from '../../core/domain-service';
+import type { RuntimeHandlers } from '../../runtime/dispatch';
 import type { HostApp } from '../app';
 import { startHostApp } from '../app';
 
-const runtimeFixture = `
-const activePtyCount = 1;
-const startedAt = Date.now();
-process.on('message', (request) => {
-    if (!request || typeof request !== 'object' || typeof request.id !== 'string') return;
-    if (request.method === 'app.health') {
-        process.send?.({
-            id: request.id,
-            ok: true,
-            result: { ready: true, pid: process.pid, startedAt, activePtyCount },
-        });
-        return;
-    }
-    if (request.method === 'project.queryForPrincipal') {
-        process.send?.({
-            id: request.id,
-            ok: true,
-            result: {
-                view: request.params.principal.kind,
-                projects: [{ id: 'project-1', displayTitle: 'Caxri', rootPath: '$HOME/code/caxri' }],
-            },
-        });
-        return;
-    }
-    if (request.method === 'runtime.shutdown') {
-        process.send?.({ id: request.id, ok: true, result: null });
-        setTimeout(() => process.exit(0), 10);
-        return;
-    }
-    process.send?.({
-        id: request.id,
-        ok: false,
-        error: { code: 'NOT_FOUND', message: 'Unsupported fixture method' },
-    });
-});
-process.send?.({
-    event: 'runtime.status',
-    payload: { status: 'ready', restartCount: 0 },
-});
-`;
+function fixtureHandlers(overrides: Partial<RuntimeHandlers>): RuntimeHandlers {
+    return overrides as RuntimeHandlers;
+}
 
-const mutationRaceRuntimeFixture = `
-let activePtyCount = 0;
-const startedAt = Date.now();
-process.on('message', (request) => {
-    if (!request || typeof request !== 'object' || typeof request.id !== 'string') return;
-    if (request.method === 'app.health') {
-        process.send?.({
-            id: request.id,
-            ok: true,
-            result: { ready: true, pid: process.pid, startedAt, activePtyCount },
-        });
-        return;
-    }
-    if (request.method === 'terminal.input') {
-        process.send?.({
-            event: 'state.changed',
-            payload: { kind: 'full', reason: 'session.select' },
-        });
-        setTimeout(() => {
-            activePtyCount = 1;
-            process.send?.({ id: request.id, ok: true, result: null });
-        }, 50);
-        return;
-    }
-    if (request.method === 'runtime.shutdown') {
-        process.send?.({ id: request.id, ok: true, result: null });
-        setTimeout(() => process.exit(0), 10);
-        return;
-    }
-    process.send?.({
-        id: request.id,
-        ok: false,
-        error: { code: 'NOT_FOUND', message: 'Unsupported fixture method' },
-    });
-});
-process.send?.({
-    event: 'runtime.status',
-    payload: { status: 'ready', restartCount: 0 },
-});
-`;
-
-const agentEndpointRuntimeFixture = `
-import { writeFile } from 'node:fs/promises';
-const startedAt = Date.now();
-const launchId = 'launch-1';
-let endpointRef;
-let endpointCredential;
-const pendingDispatchWaits = new Map();
-function dispatchReceipt(dispatchId) {
+function dispatchReceipt(dispatchId: string): RuntimeMethodResult<'agent.dispatch.startInternal'> {
     const launch = {
         provider: 'codex',
         mode: 'fresh',
         executable: 'codex',
         argumentCount: 0,
         fingerprint: 'a'.repeat(64),
-    };
+    } as const;
     return {
         dispatchId,
         operation: 'start',
@@ -130,162 +48,177 @@ function dispatchReceipt(dispatchId) {
         updatedAt: 2,
     };
 }
-process.on('message', async (message) => {
-    if (!message || typeof message !== 'object') return;
-    if (message.type === 'host-control.reply' && message.id === 'endpoint-begin') {
-        endpointRef = message.result.ref;
-        endpointCredential = message.result;
-        process.send?.({
-            type: 'host-control.request',
-            id: 'endpoint-activate',
-            operation: 'agent-endpoint.activate',
-            params: { ref: endpointRef, launchId },
+
+function createRuntimeFixture(activePtyCount: number): CreateDomainServices {
+    return (dependencies) =>
+        Promise.resolve({
+            close: async () => dependencies.agentEndpoints?.close(),
+            handlers: fixtureHandlers({
+                'app.health': () => ({
+                    ready: true,
+                    pid: process.pid,
+                    startedAt: Date.now(),
+                    activePtyCount,
+                }),
+                'project.queryForPrincipal': ({ principal }) => ({
+                    view: principal.kind,
+                    projects: [
+                        {
+                            id: 'project-1',
+                            displayTitle: 'Caxri',
+                            rootPath: '$HOME/code/caxri',
+                        },
+                    ],
+                }),
+                'runtime.shutdown': () => null,
+            }),
+            validateRequestContext: () => {},
         });
-        return;
-    }
-    if (message.type === 'host-control.reply' && message.id === 'endpoint-activate') {
-        if (!message.result.activated) throw new Error('Endpoint activation failed');
-        await writeFile(process.env.CAXRI_ENDPOINT_FIXTURE_PATH, JSON.stringify(endpointCredential));
-        process.send?.({ event: 'runtime.status', payload: { status: 'ready', restartCount: 0 } });
-        return;
-    }
-    if (typeof message.id !== 'string') return;
-    if (message.method === 'app.health') {
-        process.send?.({
-            id: message.id,
-            ok: true,
-            result: { ready: true, pid: process.pid, startedAt, activePtyCount: 1 },
+}
+
+function createMutationRaceFixture(): CreateDomainServices {
+    return (dependencies) => {
+        let activePtyCount = 0;
+        return Promise.resolve({
+            close: async () => dependencies.agentEndpoints?.close(),
+            handlers: fixtureHandlers({
+                'app.health': () => ({
+                    ready: true,
+                    pid: process.pid,
+                    startedAt: Date.now(),
+                    activePtyCount,
+                }),
+                'terminal.input': async () => {
+                    dependencies.send({
+                        event: 'state.changed',
+                        payload: { kind: 'full', reason: 'session.select' },
+                    });
+                    await new Promise((resolve) => setTimeout(resolve, 50));
+                    activePtyCount = 1;
+                    return null;
+                },
+                'runtime.shutdown': () => null,
+            }),
+            validateRequestContext: () => {},
         });
-        return;
-    }
-    if (message.method === 'project.queryForPrincipal') {
-        process.send?.({
-            id: message.id,
-            ok: true,
-            result: {
-                view: message.params.principal.kind,
-                projects: [{ id: 'project-1', displayTitle: 'Project' }],
-            },
+    };
+}
+
+interface AgentFixturePaths {
+    cancel?: string;
+    endpoint: string;
+    wait?: string;
+    worktreeReport?: string;
+}
+
+function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServices {
+    return async (dependencies) => {
+        const endpoints = dependencies.agentEndpoints;
+        if (!endpoints) throw new Error('Agent Endpoint lifecycle is required');
+        const terminal: TerminalRecord = {
+            id: 'terminal-1',
+            sessionId: 'session-1',
+            kind: 'codex',
+            provider: 'codex',
+            cwd: '/projects/fixture',
+            title: 'Codex',
+            icon: '',
+            orderIndex: 0,
+            lastProcessState: 'running',
+            createdAt: 1,
+            updatedAt: 1,
+        };
+        const environment = await endpoints.environment(terminal, 'project-1', {
+            ...defaultAgentProviderSettings.codex,
+            messaging: { enabled: false },
         });
-        return;
-    }
-    if (message.method === 'terminal.close') {
-        process.send?.({ id: message.id, ok: true, result: null });
-        return;
-    }
-    if (message.method === 'session.workbenchRoot.reportCreated') {
+        await endpoints.activate(terminal.id);
+        const endpointReference = {
+            hostId: environment.CAXRI_AGENT_ENDPOINT_HOST_ID!,
+            endpointId: environment.CAXRI_AGENT_ENDPOINT_ID!,
+            generation: Number(environment.CAXRI_AGENT_ENDPOINT_GENERATION),
+        };
         await writeFile(
-            process.env.CAXRI_WORKTREE_REPORT_FIXTURE_PATH,
-            JSON.stringify(message.params),
+            paths.endpoint,
+            JSON.stringify({
+                ref: endpointReference,
+                token: environment.CAXRI_AGENT_ENDPOINT_TOKEN,
+            }),
         );
-        process.send?.({
-            id: message.id,
-            ok: true,
-            result: { status: 'accepted', action: 'candidate' },
-        });
-        return;
-    }
-    if (message.method === 'agent.dispatch.startInternal') {
-        process.send?.({
-            id: message.id,
-            ok: true,
-            result: dispatchReceipt(message.params.dispatchId),
-        });
-        return;
-    }
-    if (message.method === 'agent.dispatch.statusInternal') {
-        process.send?.({
-            id: message.id,
-            ok: true,
-            result: dispatchReceipt(message.params.dispatchId),
-        });
-        return;
-    }
-    if (message.method === 'agent.dispatch.waitInternal') {
-        pendingDispatchWaits.set(message.params.waitId, message.id);
-        if (process.env.CAXRI_DISPATCH_WAIT_FIXTURE_PATH)
-            await writeFile(process.env.CAXRI_DISPATCH_WAIT_FIXTURE_PATH, message.params.waitId);
-        return;
-    }
-    if (message.method === 'agent.dispatch.cancelWaitInternal') {
-        const pendingId = pendingDispatchWaits.get(message.params.waitId);
-        if (pendingId) {
-            pendingDispatchWaits.delete(message.params.waitId);
-            process.send?.({
-                id: pendingId,
-                ok: true,
-                result: {
+        type WaitResult = RuntimeMethodResult<'agent.dispatch.waitInternal'>;
+        const pendingDispatchWaits = new Map<string, PromiseWithResolvers<WaitResult>>();
+        const handlers = {
+            'app.health': () => ({
+                ready: true,
+                pid: process.pid,
+                startedAt: Date.now(),
+                activePtyCount: 1,
+            }),
+            'project.queryForPrincipal': ({ principal }) =>
+                principal.kind === 'desktop' || principal.kind === 'human-cli'
+                    ? {
+                          view: principal.kind,
+                          projects: [
+                              {
+                                  id: 'project-1',
+                                  displayTitle: 'Project',
+                                  rootPath: '/projects/fixture',
+                              },
+                          ],
+                      }
+                    : {
+                          view: principal.kind,
+                          projects: [{ id: 'project-1', displayTitle: 'Project' }],
+                      },
+            'terminal.close': () => null,
+            'session.workbenchRoot.reportCreated': async (parameters) => {
+                if (paths.worktreeReport)
+                    await writeFile(paths.worktreeReport, JSON.stringify(parameters));
+                return { status: 'accepted', action: 'candidate' } as const;
+            },
+            'agent.dispatch.startInternal': ({ dispatchId }) => dispatchReceipt(dispatchId),
+            'agent.dispatch.statusInternal': ({ dispatchId }) => dispatchReceipt(dispatchId),
+            'agent.dispatch.waitInternal': async ({ waitId }) => {
+                const pending = Promise.withResolvers<WaitResult>();
+                pendingDispatchWaits.set(waitId, pending);
+                if (paths.wait) await writeFile(paths.wait, waitId);
+                return pending.promise;
+            },
+            'agent.dispatch.cancelWaitInternal': async ({ waitId }) => {
+                const pending = pendingDispatchWaits.get(waitId);
+                pendingDispatchWaits.delete(waitId);
+                pending?.resolve({
                     receipt: dispatchReceipt('dispatch-wait'),
                     outcome: 'canceled',
-                },
-            });
-        }
-        if (process.env.CAXRI_DISPATCH_CANCEL_FIXTURE_PATH)
-            await writeFile(process.env.CAXRI_DISPATCH_CANCEL_FIXTURE_PATH, message.params.waitId);
-        process.send?.({ id: message.id, ok: true, result: { canceled: Boolean(pendingId) } });
-        return;
-    }
-    if (
-        message.method === 'agent.control.interruptInternal' ||
-        message.method === 'agent.control.stopInternal'
-    ) {
-        process.send?.({
-            id: message.id,
-            ok: true,
-            result: {
-                endpoint: endpointRef,
+                });
+                if (paths.cancel) await writeFile(paths.cancel, waitId);
+                return { canceled: Boolean(pending) };
+            },
+            'agent.control.interruptInternal': () => ({
+                endpoint: endpointReference,
                 terminalId: 'terminal-1',
                 outcome: 'signaled',
-            },
-        });
-        return;
-    }
-    if (message.method === 'terminal.sendInternal') {
-        process.send?.({
-            id: message.id,
-            ok: true,
-            result: {
-                terminalId: message.params.terminalId,
+            }),
+            'agent.control.stopInternal': () => ({
+                endpoint: endpointReference,
+                terminalId: 'terminal-1',
+                outcome: 'signaled',
+            }),
+            'terminal.sendInternal': ({ terminalId, text, enter }) => ({
+                terminalId,
                 accepted: true,
-                byteLength: Buffer.byteLength(message.params.text),
-                enter: message.params.enter,
-            },
-        });
-        return;
-    }
-    if (message.method === 'runtime.shutdown') {
-        process.send?.({ id: message.id, ok: true, result: null });
-        setTimeout(() => process.exit(0), 10);
-        return;
-    }
-    process.send?.({
-        id: message.id,
-        ok: false,
-        error: { code: 'NOT_FOUND', message: 'Unsupported fixture method' },
-    });
-});
-process.send?.({
-    type: 'host-control.request',
-    id: 'endpoint-begin',
-    operation: 'agent-endpoint.begin',
-    params: {
-        terminalId: 'terminal-1',
-        sessionId: 'session-1',
-        projectId: 'project-1',
-        provider: 'codex',
-        launchId,
-        name: 'Codex',
-        permissionClass: 'standard',
-        messaging: {
-            deliveryMode: 'unavailable',
-            health: 'unsupported',
-            reason: 'adapter_unavailable',
-            checkedAt: 1,
-            nextAction: 'restart_terminal',
-        },
-    },
-});
-`;
+                byteLength: Buffer.byteLength(text),
+                enter,
+            }),
+            'runtime.shutdown': () => null,
+        } satisfies Partial<RuntimeHandlers>;
+        return {
+            close: () => endpoints.close(),
+            handlers: fixtureHandlers(handlers),
+            validateRequestContext: () => {},
+        };
+    };
+}
 
 const apps: HostApp[] = [];
 const directories: string[] = [];
@@ -413,18 +346,14 @@ describe('Headless Host application', () => {
     it('binds an Agent principal to one Runtime-owned PTY generation and retires it before close', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-agent-endpoint-'));
         directories.push(userDataPath);
-        const runtimePath = join(userDataPath, 'runtime-child.mjs');
         const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
         const worktreeReportFixturePath = join(userDataPath, 'worktree-report.json');
-        await writeFile(runtimePath, agentEndpointRuntimeFixture);
         const app = await startHostApp({
             commit: 'test',
-            executable: process.execPath,
-            runtimeEnvironment: {
-                CAXRI_ENDPOINT_FIXTURE_PATH: endpointFixturePath,
-                CAXRI_WORKTREE_REPORT_FIXTURE_PATH: worktreeReportFixturePath,
-            },
-            runtimePath,
+            createDomainServices: createAgentEndpointFixture({
+                endpoint: endpointFixturePath,
+                worktreeReport: worktreeReportFixturePath,
+            }),
             userDataPath,
             version: '1.0.0',
         });
@@ -567,20 +496,16 @@ describe('Headless Host application', () => {
     it('cancels a typed dispatch wait when its local Host client disconnects', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-dispatch-wait-'));
         directories.push(userDataPath);
-        const runtimePath = join(userDataPath, 'runtime-child.mjs');
         const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
         const waitFixturePath = join(userDataPath, 'dispatch-wait.txt');
         const cancelFixturePath = join(userDataPath, 'dispatch-cancel.txt');
-        await writeFile(runtimePath, agentEndpointRuntimeFixture);
         const app = await startHostApp({
             commit: 'test',
-            executable: process.execPath,
-            runtimeEnvironment: {
-                CAXRI_ENDPOINT_FIXTURE_PATH: endpointFixturePath,
-                CAXRI_DISPATCH_WAIT_FIXTURE_PATH: waitFixturePath,
-                CAXRI_DISPATCH_CANCEL_FIXTURE_PATH: cancelFixturePath,
-            },
-            runtimePath,
+            createDomainServices: createAgentEndpointFixture({
+                cancel: cancelFixturePath,
+                endpoint: endpointFixturePath,
+                wait: waitFixturePath,
+            }),
             userDataPath,
             version: '1.0.0',
         });
@@ -611,12 +536,9 @@ describe('Headless Host application', () => {
     it('outlives client detach and requires confirmation before stopping a live PTY', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-host-'));
         directories.push(userDataPath);
-        const runtimePath = join(userDataPath, 'runtime-child.mjs');
-        await writeFile(runtimePath, runtimeFixture);
         const app = await startHostApp({
             commit: 'test',
-            executable: process.execPath,
-            runtimePath,
+            createDomainServices: createRuntimeFixture(1),
             userDataPath,
             version: '1.0.0',
         });
@@ -667,12 +589,9 @@ describe('Headless Host application', () => {
     it('closes mutation admission before evaluating an unconfirmed stop', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-stop-race-'));
         directories.push(userDataPath);
-        const runtimePath = join(userDataPath, 'runtime-child.mjs');
-        await writeFile(runtimePath, mutationRaceRuntimeFixture);
         const app = await startHostApp({
             commit: 'test',
-            executable: process.execPath,
-            runtimePath,
+            createDomainServices: createMutationRaceFixture(),
             userDataPath,
             version: '1.0.0',
         });
@@ -708,12 +627,9 @@ describe('Headless Host application', () => {
     it('finishes an accepted stop after the requesting client disconnects', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-stop-disconnect-'));
         directories.push(userDataPath);
-        const runtimePath = join(userDataPath, 'runtime-child.mjs');
-        await writeFile(runtimePath, runtimeFixture);
         const app = await startHostApp({
             commit: 'test',
-            executable: process.execPath,
-            runtimePath,
+            createDomainServices: createRuntimeFixture(1),
             userDataPath,
             version: '1.0.0',
         });

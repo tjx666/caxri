@@ -23,6 +23,7 @@ import {
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
 
 import { createServerDomainService } from '../core/create-domain-service';
+import type { CreateDomainServices } from '../core/domain-service';
 import type { RuntimeAgentEndpointControl } from '../runtime/agent-endpoints';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
@@ -58,14 +59,15 @@ export interface HostAppOptions {
     buildId?: string;
     cliPath?: string;
     commit: string;
+    /**
+     * Test seam for fault injection below the public Server transport.
+     */
+    createDomainServices?: CreateDomainServices;
     executable?: string;
     extensionHostPath?: string;
     extensionRoots?: string[];
     includeTestExtensions?: boolean;
     launchDesktop?: () => Promise<void>;
-    /**
-     * Transitional test-only path for the former utility-process fixtures. Production Server Core never sets it.
-     */
     runtimePath?: string;
     runtimeEnvironment?: NodeJS.ProcessEnv;
     userDataPath: string;
@@ -123,6 +125,7 @@ export async function startHostApp(options: HostAppOptions): Promise<HostApp> {
         : createServerDomainService({
               agentEndpointControl: endpointControl,
               agentHooksPath: options.agentHooksPath,
+              createServices: options.createDomainServices,
               executable: options.executable,
               logDirectory,
               userDataPath: lease.paths.userDataPath,
