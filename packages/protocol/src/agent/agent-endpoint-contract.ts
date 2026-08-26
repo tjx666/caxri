@@ -7,7 +7,7 @@ import { capabilitySchema } from '../transport/principal.js';
 
 const noParameters = z.object({}).default({});
 
-// eslint-disable-next-line unicorn/name-replacements -- exported schema is imported across the Host/Runtime process boundary (e.g. apps/server/src/domains/db/models/agent-dispatch-receipts.ts), which is outside this change's authorized file scope.
+// eslint-disable-next-line unicorn/name-replacements -- exported schema crosses the public Server protocol boundary; renaming it requires a separately versioned schema change.
 export const agentEndpointRefSchema = z.object({
     hostId: identifierSchema,
     endpointId: identifierSchema,

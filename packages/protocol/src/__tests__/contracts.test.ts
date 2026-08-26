@@ -117,7 +117,7 @@ describe('method table', () => {
         ).toBe(true);
     });
 
-    it('rejects invalid Main and Runtime results as internal contract failures', () => {
+    it('rejects invalid Desktop and Server results as internal contract failures', () => {
         expect(() => parseCaxriResult('terminal.runningCount', '2')).toThrow(
             expect.objectContaining({ code: 'INTERNAL' }) as Error,
         );

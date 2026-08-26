@@ -317,7 +317,7 @@ async function waitForFile(path: string): Promise<void> {
     throw new Error(`Timed out waiting for fixture output: ${path}`);
 }
 
-describe('Headless Host application', () => {
+describe('Server Core application', () => {
     it('serves domain operations inside the Server Core process', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-server-core-'));
         directories.push(userDataPath);

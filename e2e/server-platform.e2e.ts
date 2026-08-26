@@ -97,7 +97,7 @@ async function stopHost(userDataPath: string): Promise<void> {
         .toEqual({ manifestExists: false, processExists: false });
 }
 
-test('shares settings across an app-managed headless Host and Desktop', async () => {
+test('shares settings across an app-managed Server and Desktop', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-host-platform-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const isolatedHome = join(testDirectory, 'home');

@@ -153,7 +153,7 @@ errorGateSelfTest(
 );
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to be an object destructuring pattern
-test('issue-104-error-gate: consumes exact Main and Runtime errors after usable UI', async ({}, testInfo) => {
+test('issue-104-error-gate: consumes exact Desktop and Server errors after usable UI', async ({}, testInfo) => {
     allowE2EErrors([
         { source: 'desktop', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
