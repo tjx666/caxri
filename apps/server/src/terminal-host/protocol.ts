@@ -1,17 +1,19 @@
 import { Buffer } from 'node:buffer';
 
 import {
+    agentProviderSchema,
     identifierSchema,
     pathSchema,
     serverCredentialTokenSchema,
     serverProcessIdentitySchema,
     terminalRecordSchema,
+    terminalResourceUsageSchema,
     terminalSnapshotSchema,
 } from '@caxri/protocol';
 import { isSecretMatch } from '@caxri/system';
 import { z } from 'zod';
 
-const TERMINAL_HOST_PROTOCOL_VERSION = 1 as const;
+export const TERMINAL_HOST_PROTOCOL_VERSION = 1 as const;
 export const MAX_TERMINAL_HOST_MESSAGE_BYTES = 32 * 1024 * 1024;
 const MAX_TERMINAL_HOST_OUTPUT_CHARACTERS = 256 * 1024;
 
@@ -90,6 +92,7 @@ const terminalLaunchPlanSchema = z
     .strict();
 
 const terminalRequestSchemas = [
+    z.object({ method: z.literal('terminal.reserve'), params: terminalRecordSchema }).strict(),
     z.object({ method: z.literal('terminal.start'), params: terminalLaunchPlanSchema }).strict(),
     z
         .object({
@@ -118,6 +121,23 @@ const terminalRequestSchemas = [
     z.object({ method: z.literal('terminal.snapshot'), params: z.object({}).strict() }).strict(),
     z
         .object({
+            method: z.literal('terminal.waitForAttachedSize'),
+            params: z.object({ timeoutMs: z.number().int().positive().max(60_000) }).strict(),
+        })
+        .strict(),
+    z
+        .object({
+            method: z.literal('terminal.signal'),
+            params: z
+                .object({
+                    expectedProcessId: z.number().int().positive(),
+                    signal: z.enum(['SIGINT', 'SIGHUP']),
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
             method: z.literal('terminal.stop'),
             params: z.object({ persistSnapshot: z.boolean() }).strict(),
         })
@@ -132,7 +152,12 @@ const terminalRequestSchemas = [
     z
         .object({
             method: z.literal('terminal.recovery.configure'),
-            params: z.object({ settings: outputRecoverySettingsSchema.optional() }).strict(),
+            params: z
+                .object({
+                    provider: agentProviderSchema.optional(),
+                    settings: outputRecoverySettingsSchema.optional(),
+                })
+                .strict(),
         })
         .strict(),
 ] as const;
@@ -258,6 +283,7 @@ const terminalHostEventEnvelopeSchema = z.discriminatedUnion('event', [
             type: z.literal('event'),
             event: z.literal('terminal.outputRecovery'),
             identity: terminalEventIdentitySchema,
+            provider: agentProviderSchema,
             status: z.enum(['recovered', 'rate-limited']),
         })
         .strict(),
@@ -269,18 +295,55 @@ export const terminalHostMessageSchema = z.union([
 ]);
 
 type TerminalHostCapability = z.infer<typeof terminalHostCapabilitySchema>;
-type TerminalHostRequest = z.infer<typeof terminalHostRequestSchema>;
+export type TerminalHostRequest = z.infer<typeof terminalHostRequestSchema>;
 export type TerminalHostRequestEnvelope = z.infer<typeof terminalHostRequestEnvelopeSchema>;
+export type TerminalHostMessage = z.infer<typeof terminalHostMessageSchema>;
+
+const terminalHostResultSchemas = {
+    'host.initialize': z.object({ initialized: z.literal(true) }).strict(),
+    'host.shutdown': z
+        .object({ stopped: z.literal(true), snapshots: z.array(terminalSnapshotSchema) })
+        .strict(),
+    'terminal.reserve': z.object({ reserved: z.literal(true) }).strict(),
+    'terminal.start': z.object({ processId: z.number().int().positive() }).strict(),
+    'terminal.input': z.object({ accepted: z.boolean() }).strict(),
+    'terminal.resize': z.object({ accepted: z.boolean() }).strict(),
+    'terminal.attach': z
+        .object({ snapshot: terminalSnapshotSchema.nullable(), wasAttached: z.boolean() })
+        .strict(),
+    'terminal.detach': z.object({ detached: z.literal(true) }).strict(),
+    'terminal.snapshot': z.object({ snapshot: terminalSnapshotSchema.nullable() }).strict(),
+    'terminal.waitForAttachedSize': z.object({ attached: z.literal(true) }).strict(),
+    'terminal.signal': z.object({ accepted: z.boolean() }).strict(),
+    'terminal.stop': z
+        .object({ snapshot: terminalSnapshotSchema.nullable(), stopped: z.literal(true) })
+        .strict(),
+    'terminal.reassign': z.object({ reassigned: z.literal(true) }).strict(),
+    'terminal.resources': z.object({ resources: terminalResourceUsageSchema.nullable() }).strict(),
+    'terminal.recovery.configure': z.object({ configured: z.literal(true) }).strict(),
+    'terminal.detachAll': z.object({ detached: z.literal(true) }).strict(),
+    'terminal.runningCount': z.object({ count: z.number().int().nonnegative() }).strict(),
+} as const satisfies Record<TerminalHostRequest['method'], z.ZodType>;
+
+export function isTerminalHostResult(
+    method: TerminalHostRequest['method'],
+    value: unknown,
+): boolean {
+    return terminalHostResultSchemas[method].safeParse(value).success;
+}
 
 const requiredCapabilities = {
     'host.initialize': 'host.lifecycle',
     'host.shutdown': 'host.lifecycle',
+    'terminal.reserve': 'terminal.lifecycle',
     'terminal.start': 'terminal.lifecycle',
     'terminal.input': 'terminal.input',
     'terminal.resize': 'terminal.view',
     'terminal.attach': 'terminal.view',
     'terminal.detach': 'terminal.view',
     'terminal.snapshot': 'terminal.view',
+    'terminal.waitForAttachedSize': 'terminal.view',
+    'terminal.signal': 'terminal.lifecycle',
     'terminal.stop': 'terminal.lifecycle',
     'terminal.reassign': 'terminal.lifecycle',
     'terminal.resources': 'terminal.inspect',
@@ -334,8 +397,14 @@ export function authorizeTerminalHostRequest(
         return envelope.scope.scope === 'server' ? { ok: true } : { ok: false, reason: 'scope' };
     if (envelope.scope.scope !== 'terminal') return { ok: false, reason: 'scope' };
 
-    if (envelope.request.method === 'terminal.start') {
-        const record = envelope.request.params.record;
+    if (
+        envelope.request.method === 'terminal.start' ||
+        envelope.request.method === 'terminal.reserve'
+    ) {
+        const record =
+            envelope.request.method === 'terminal.start'
+                ? envelope.request.params.record
+                : envelope.request.params;
         if (record.id !== envelope.scope.terminalId) return { ok: false, reason: 'terminal' };
         if (record.sessionId !== envelope.scope.sessionId) return { ok: false, reason: 'session' };
         if (envelope.scope.ptyGeneration !== authority.launchGeneration(record.id))

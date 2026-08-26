@@ -5,6 +5,7 @@ import type { TerminalHostRequestEnvelope } from '../protocol';
 import {
     authorizeTerminalHostRequest,
     isBoundedTerminalHostMessage,
+    isTerminalHostResult,
     MAX_TERMINAL_HOST_MESSAGE_BYTES,
     terminalHostMessageSchema,
     terminalHostRequestEnvelopeSchema,
@@ -176,5 +177,14 @@ describe('Terminal Host private protocol', () => {
         expect(
             isBoundedTerminalHostMessage({ data: 'x'.repeat(MAX_TERMINAL_HOST_MESSAGE_BYTES) }),
         ).toBe(false);
+    });
+
+    it('validates every method result at the private process boundary', () => {
+        expect(isTerminalHostResult('terminal.start', { processId: 42 })).toBe(true);
+        expect(isTerminalHostResult('terminal.start', { processId: 0 })).toBe(false);
+        expect(isTerminalHostResult('terminal.input', { accepted: true })).toBe(true);
+        expect(isTerminalHostResult('terminal.input', { accepted: 'yes' })).toBe(false);
+        expect(isTerminalHostResult('host.shutdown', { stopped: true, snapshots: [] })).toBe(true);
+        expect(isTerminalHostResult('host.shutdown', { stopped: true })).toBe(false);
     });
 });

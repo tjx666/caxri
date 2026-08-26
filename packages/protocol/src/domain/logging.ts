@@ -177,6 +177,9 @@ export const logEventCatalog = {
         restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
     },
     terminalHost: {
+        invalidMessage: 'terminal_host.invalid_message',
+        ready: 'terminal_host.ready',
+        stopped: 'terminal_host.stopped',
         uncaughtException: 'terminal_host.uncaught_exception',
         unhandledRejection: 'terminal_host.unhandled_rejection',
     },
