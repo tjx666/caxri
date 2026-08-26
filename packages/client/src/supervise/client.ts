@@ -43,6 +43,7 @@ import {
     parseCaxriResult,
     parseServerOperationRequest,
     parseServerOperationResult,
+    protocolFeatures,
     serverDesktopCredentialSchema,
     serverEndpointUrl,
     serverManifestSchema,
@@ -224,6 +225,12 @@ export class ServerClient {
                 hostProtocolVersion: manifest.protocolVersion,
             });
         const resolvedCredential: ServerClientCredential = credential ?? { kind: 'operator' };
+        const clientId =
+            resolvedCredential.kind === 'operator'
+                ? `operator:${manifest.profileId}`
+                : resolvedCredential.kind === 'agent'
+                  ? `agent:${resolvedCredential.hostId}:${resolvedCredential.endpointId}`
+                  : resolvedCredential.desktopId;
         const socket = new WebSocket(serverEndpointUrl(manifest.endpoint), {
             maxPayload: CONTROL_TRANSPORT_MAX_FRAME_BYTES,
         });
@@ -290,6 +297,8 @@ export class ServerClient {
                     JSON.stringify({
                         type: 'hello',
                         supportedVersions: [CAXRI_PROTOCOL_VERSION],
+                        clientId,
+                        features: protocolFeatures,
                         profileId: manifest.profileId,
                         credential:
                             resolvedCredential.kind === 'operator'

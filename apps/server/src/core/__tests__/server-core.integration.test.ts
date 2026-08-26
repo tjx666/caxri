@@ -269,6 +269,7 @@ async function connectDesktop(manifest: ServerManifest, desktopToken: string) {
     socket.send(
         `${JSON.stringify({
             type: 'hello',
+            clientId: 'desktop-test',
             supportedVersions: [CAXRI_PROTOCOL_VERSION],
             profileId: manifest.profileId,
             credential: { kind: 'desktop', token: desktopToken, desktopId: 'desktop-test' },

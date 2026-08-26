@@ -173,6 +173,7 @@ describe('ServerClient WebSocket handshake', () => {
                         principal: { kind: 'desktop', id: 'desktop-1', generation: 1 },
                         capabilities: ['desktop'],
                         commands: [],
+                        features: [],
                         desktopLease: {
                             desktopId: 'desktop-1',
                             generation: 1,

@@ -54,7 +54,12 @@ describe('local transport credential and identity schemas', () => {
 
 describe('local transport hello / welcome envelopes', () => {
     it('discriminates operator, agent, and desktop client credentials by kind', () => {
-        const base = { type: 'hello' as const, supportedVersions: [2], profileId: 'profile-1' };
+        const base = {
+            type: 'hello' as const,
+            supportedVersions: [2],
+            profileId: 'profile-1',
+            clientId: 'client-1',
+        };
         expect(
             localClientHelloSchema.safeParse({
                 ...base,
@@ -96,6 +101,7 @@ describe('local transport hello / welcome envelopes', () => {
             principal: { kind: 'human-cli', id: 'cli-1' },
             capabilities: [],
             commands: [],
+            features: [],
         };
         expect(localServerWelcomeSchema.safeParse(welcome).success).toBe(true);
         expect(

@@ -2,6 +2,7 @@ export * from './assert-never.js';
 export * from './dispatcher.js';
 export * from './errors.js';
 export * from './event-journal.js';
+export * from './identity.js';
 export * from './local-transport.js';
 export * from './method-spec.js';
 export * from './principal.js';

@@ -144,6 +144,7 @@ describe('local Host transport', () => {
         socket.send(
             `${JSON.stringify({
                 type: 'hello',
+                clientId: 'client-test',
                 supportedVersions: [2],
                 profileId: lease.manifest.profileId,
                 credential: {
@@ -219,6 +220,7 @@ describe('local Host transport', () => {
         socket.send(
             `${JSON.stringify({
                 type: 'hello',
+                clientId: 'client-test',
                 supportedVersions: [2],
                 profileId: lease.manifest.profileId,
                 credential: { kind: 'operator', token: '0'.repeat(64) },
@@ -443,6 +445,7 @@ describe('local Host transport', () => {
         socket.send(
             `${JSON.stringify({
                 type: 'hello',
+                clientId: 'desktop-test',
                 supportedVersions: [2],
                 profileId: lease.manifest.profileId,
                 credential: {
@@ -469,6 +472,7 @@ describe('local Host transport', () => {
         socket.send(
             `${JSON.stringify({
                 type: 'hello',
+                clientId: 'client-test',
                 supportedVersions: [1],
                 profileId: lease.manifest.profileId,
                 credential: {

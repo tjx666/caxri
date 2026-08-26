@@ -19,6 +19,7 @@ import {
     isServerRequest,
     isTransientServerEvent,
     projectObservableEventRecovery,
+    protocolFeatures,
 } from '@caxri/protocol';
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
 
@@ -687,7 +688,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             await extensionService.start();
         }
         server = new ControlServer({
-            adapters: { server: serverAdapter },
+            adapters: { features: protocolFeatures, server: serverAdapter },
             authenticateAgent: (credential) => agentEndpoints.authenticate(credential),
             consumeDesktopTarget: (targetId, generation) => {
                 if (!desktopRouter)

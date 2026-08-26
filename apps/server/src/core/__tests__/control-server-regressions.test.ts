@@ -130,6 +130,7 @@ describe('local Host transport regressions', () => {
             socket.send(
                 `${JSON.stringify({
                     type: 'hello',
+                    clientId: 'desktop-test',
                     supportedVersions: [CAXRI_PROTOCOL_VERSION],
                     profileId: lease.manifest.profileId,
                     credential: {
@@ -192,6 +193,7 @@ describe('local Host transport regressions', () => {
         socket.send(
             `${JSON.stringify({
                 type: 'hello',
+                clientId: 'client-test',
                 supportedVersions: [CAXRI_PROTOCOL_VERSION],
                 profileId: lease.manifest.profileId,
                 credential: { kind: 'operator', token: lease.manifest.operatorToken },
@@ -401,6 +403,7 @@ describe('local Host transport regressions', () => {
         socket.send(
             `${JSON.stringify({
                 type: 'hello',
+                clientId: 'desktop-test',
                 supportedVersions: [CAXRI_PROTOCOL_VERSION],
                 profileId: lease.manifest.profileId,
                 credential: {
@@ -472,6 +475,7 @@ describe('local Host transport regressions', () => {
         socket.send(
             `${JSON.stringify({
                 type: 'hello',
+                clientId: 'desktop-test',
                 supportedVersions: [CAXRI_PROTOCOL_VERSION],
                 profileId: lease.manifest.profileId,
                 credential: {
@@ -552,6 +556,7 @@ describe('local Host transport regressions', () => {
         socket.send(
             `${JSON.stringify({
                 type: 'hello',
+                clientId: 'client-test',
                 supportedVersions: [2],
                 profileId: lease.manifest.profileId,
                 credential: { kind: 'operator', token: lease.manifest.operatorToken },
