@@ -298,6 +298,7 @@ type TerminalHostCapability = z.infer<typeof terminalHostCapabilitySchema>;
 export type TerminalHostRequest = z.infer<typeof terminalHostRequestSchema>;
 export type TerminalHostRequestEnvelope = z.infer<typeof terminalHostRequestEnvelopeSchema>;
 export type TerminalHostMessage = z.infer<typeof terminalHostMessageSchema>;
+export type TerminalHostScope = z.infer<typeof terminalHostScopeSchema>;
 
 const terminalHostResultSchemas = {
     'host.initialize': z.object({ initialized: z.literal(true) }).strict(),
