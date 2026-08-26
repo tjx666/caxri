@@ -4,7 +4,10 @@ import importX from 'eslint-plugin-import-x';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
-import { transitionalCycleAllowances } from './scripts/architecture-boundaries';
+import {
+    browserUnsafeImports,
+    transitionalCycleAllowances,
+} from './scripts/architecture-boundaries';
 import caxri from './scripts/eslint-rules/index';
 
 const typescriptFiles = ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'];
@@ -15,6 +18,9 @@ const javaScriptAndTypeScriptFiles = [
     '**/*.cjs',
     ...typescriptFiles,
 ];
+const rendererUnsafePackageImports = browserUnsafeImports.flatMap((specifier) =>
+    specifier === 'electron' ? [] : [specifier, `${specifier}/*`],
+);
 /**
  * Directories whose production/tooling code may run child processes at all (the Renderer is out of scope: it already
  * bans importing `child_process` outright via the Renderer `no-restricted-imports` config below).
@@ -276,9 +282,9 @@ export default defineConfig(
                                 'The renderer must never import Node.js builtins directly; use the typed window.caxri bridge.',
                         },
                         {
-                            group: ['node-pty', 'better-sqlite3'],
+                            group: rendererUnsafePackageImports,
                             message:
-                                'The renderer must never import native modules directly; use the typed window.caxri bridge.',
+                                'The renderer must never import platform-only packages directly; use the typed window.caxri bridge.',
                         },
                     ],
                 },

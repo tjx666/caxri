@@ -206,6 +206,20 @@ describe('shared ESLint preset toolchain contract', () => {
         );
     });
 
+    it('keeps every shared browser-unsafe dependency out of Renderer source', async () => {
+        const results = await Promise.all(
+            ['ws', '@parcel/watcher'].map((specifier) =>
+                lintSource(
+                    `apps/desktop/src/renderer/src/${specifier.replace('/', '-')}-import.ts`,
+                    `import '${specifier}';`,
+                ),
+            ),
+        );
+
+        for (const result of results)
+            expect(result.messages.map(({ ruleId }) => ruleId)).toContain('no-restricted-imports');
+    });
+
     it('keeps the platform-only Client supervisor out of browser code', async () => {
         const result = await lintSource(
             'scripts/fixtures/eslint/architecture/apps/desktop/src/renderer/src/platform-client-import.ts',
