@@ -231,6 +231,12 @@ export class DesktopServerConnection extends EventTarget {
                 emit: (event) => {
                     this.dispatchEvent(new CustomEvent<ServerEvent>('event', { detail: event }));
                 },
+                ...(connectionIdentity && {
+                    identity: {
+                        serverId: connectionIdentity.serverId,
+                        stateEpoch: connectionIdentity.stateEpoch,
+                    },
+                }),
                 onError: (error) =>
                     this.options.logger.write(
                         'error',
