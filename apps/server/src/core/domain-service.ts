@@ -128,6 +128,7 @@ export class ServerDomainService extends EventTarget {
         if (this.stopped)
             return Promise.reject(new CaxriError('UNAVAILABLE', 'Server Core has been stopped'));
         this.startPromise ??= (async () => {
+            const startedAt = performance.now();
             const services = await this.createServices({
                 ...this.dependencies,
                 send: (event) =>
@@ -143,6 +144,10 @@ export class ServerDomainService extends EventTarget {
                 this.dependencies.logger,
                 (context) => services.validateRequestContext(context),
             );
+            this.dependencies.logger.write('info', 'runtime.ready', {
+                durationMs: performance.now() - startedAt,
+                fields: { pid: process.pid },
+            });
             this.dispatchEvent(
                 new CustomEvent<RuntimeEvent>('event', {
                     detail: {

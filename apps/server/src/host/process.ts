@@ -5,9 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { HOST_DESKTOP_LAUNCH_ENVIRONMENT_KEY, hostDesktopLaunchSchema } from '@caxri/protocol';
 import {
     computeBuildFingerprint,
-    e2eAgentPolicyEnvironment,
     installProcessErrorMonitor,
-    readE2EAgentPolicy,
     StructuredLogger,
 } from '@caxri/system';
 
@@ -42,13 +40,6 @@ const desktopLaunch = desktopLaunchSource
         }
       : undefined;
 const cliPath = process.env.CAXRI_CLI_PATH;
-const runtimeEnvironment = {
-    ...e2eAgentPolicyEnvironment(readE2EAgentPolicy()),
-    ...(process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS && {
-        CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS:
-            process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS,
-    }),
-};
 
 const app = await startHostApp({
     agentHooksPath: process.env.CAXRI_AGENT_HOOKS_PATH,
@@ -70,8 +61,6 @@ const app = await startHostApp({
             userDataPath,
         }),
     }),
-    runtimePath: join(hostOutputDirectory, 'runtime.js'),
-    runtimeEnvironment,
     userDataPath,
     version,
 });

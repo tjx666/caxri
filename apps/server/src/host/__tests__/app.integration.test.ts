@@ -386,6 +386,30 @@ async function waitForFile(path: string): Promise<void> {
 }
 
 describe('Headless Host application', () => {
+    it('serves domain operations inside the Server Core process', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-server-core-'));
+        directories.push(userDataPath);
+        const app = await startHostApp({
+            commit: 'test',
+            userDataPath,
+            version: '1.0.0',
+        });
+        apps.push(app);
+        const operator = await connectToHost(userDataPath, 2_000);
+
+        await expect(operator.request('app.health')).resolves.toMatchObject({
+            activePtyCount: 0,
+            pid: process.pid,
+            ready: true,
+        });
+        await expect(operator.request('host.status')).resolves.toMatchObject({
+            pid: process.pid,
+            runtimePid: process.pid,
+        });
+
+        operator.close();
+    });
+
     it('binds an Agent principal to one Runtime-owned PTY generation and retires it before close', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-agent-endpoint-'));
         directories.push(userDataPath);
