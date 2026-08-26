@@ -255,9 +255,9 @@ function isCommandForEntry(command: string, entryPath: string): boolean {
 }
 
 /**
- * Binds cleanup to the selected profile's live kernel lock owner and then to the exact worktree's Host/Runtime
- * entrypoints. PID metadata alone is never enough, and Runtime ownership derives from the verified Host parent before
- * either process is signaled.
+ * Binds cleanup to the selected profile's live kernel lock owner and then to the exact worktree's Server artifact
+ * entrypoints. PID metadata alone is never enough, and child ownership derives from the verified parent before either
+ * process is signaled.
  */
 export async function discoverOwnedProcesses(
     runtime: Pick<RuntimeState, 'projectRoot' | 'userDataDir'>,
@@ -284,7 +284,15 @@ export async function discoverOwnedProcesses(
     );
     if (!hostPid) return [];
 
-    const hostEntryPath = join(recordedProjectRoot, 'out', 'main', 'host.js');
+    const artifactBundleRoot = join(
+        recordedProjectRoot,
+        'apps',
+        'server',
+        'dist',
+        'server',
+        'bundles',
+    );
+    const hostEntryPath = join(artifactBundleRoot, 'host.js');
     const hostCommand = await dependencies.getProcessCommand(hostPid);
     if (!hostCommand || !isCommandForEntry(hostCommand, hostEntryPath)) {
         throw new Error('Acceptance profile lock owner is outside the recorded worktree');
@@ -292,7 +300,7 @@ export async function discoverOwnedProcesses(
     const hostIdentity = await dependencies.getProcessIdentity(hostPid);
     if (!hostIdentity) return [];
 
-    const runtimeEntryPath = join(recordedProjectRoot, 'out', 'main', 'runtime.js');
+    const runtimeEntryPath = join(artifactBundleRoot, 'runtime.js');
     const runtimeProcesses = await Promise.all(
         (await dependencies.listChildProcesses(hostPid))
             .filter(({ command }) => isCommandForEntry(command, runtimeEntryPath))

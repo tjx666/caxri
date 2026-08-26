@@ -89,10 +89,12 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
 - Stop every dev instance you started before reporting a request complete, and verify it actually
   died. One launch leaves five separate processes: the `electron-vite dev` launcher, the Electron
   window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached
-  `<worktree>/out/main/host.js`, `extension-host.js`, and `runtime.js`. `pkill -f "Electron.app/Contents/MacOS/Electron"`
+  `<worktree>/apps/server/dist/server/bundles/host.js`, `extension-host.js`, and `runtime.js`.
+  `pkill -f "Electron.app/Contents/MacOS/Electron"`
   silently misses the window process and the launcher can outlive the signal, so never trust
   `pkill`'s exit code: confirm with `ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`, and
-  kill the surviving PIDs directly. Match on the absolute `<worktree>/out/` path so a sibling
+  kill the surviving PIDs directly. Match on the absolute `<worktree>/apps/server/dist/server/`
+  path so a sibling
   worktree's session and the installed `/Applications/Caxri.app` are never hit.
 - Manage isolated worktrees by explicitly invoking `$switch-worktree`.
 - Format the repository: `bun run format`; verify formatting: `bun run format:check`
@@ -184,7 +186,7 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
   Desktop now replaces a Host whose `__CAXRI_BUILD_ID__` differs from its own on connect
   (`apps/desktop/src/main/host-staleness.ts`), but that only triggers when a window reconnects — a headless Host
   can still serve stale code between launches. Before using a live instance to verify or disprove a
-  Main/Runtime change, confirm the `out/main/host.js` / `out/main/runtime.js` process start times
+  Main/Runtime change, confirm the `apps/server/dist/server/bundles/host.js` / `runtime.js` process start times
   postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
 - Reproduce a reported bug before changing code: demonstrate the failure against the current build
   (a failing test, or the live app plus its on-disk state) so the fix targets the verified cause
