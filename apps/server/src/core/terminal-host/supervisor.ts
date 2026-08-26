@@ -52,6 +52,12 @@ export interface TerminalHostSupervisorOptions {
 const READY_TIMEOUT_MS = 15_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_CONCURRENT_REQUESTS = 256;
+/**
+ * Terminal input and output already use explicit byte bounds, so the isolated Host does not need the runtime's larger
+ * adaptive young generation. This is not a heap ceiling: long-lived screen and scrollback state can still promote to
+ * the old generation while short-lived private envelopes are collected with a smaller steady RSS footprint.
+ */
+const TERMINAL_HOST_EXEC_ARGV = ['--max-semi-space-size=8'];
 
 function requestTimeout(request: TerminalHostRequest): number {
     switch (request.method) {
@@ -211,6 +217,7 @@ export class TerminalHostSupervisor extends EventTarget {
             };
         });
         const child = (this.options.forkProcess ?? fork)(this.options.terminalHostPath, [], {
+            execArgv: TERMINAL_HOST_EXEC_ARGV,
             execPath: this.options.executable ?? process.execPath,
             env: {
                 ...safeProcessEnvironment(),

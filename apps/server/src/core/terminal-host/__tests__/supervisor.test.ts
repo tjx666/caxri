@@ -101,7 +101,11 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         await becomeReady(child, supervisor);
 
         expect(forkProcess).toHaveBeenCalledOnce();
-        const launchOptions = forkProcess.mock.calls[0][2] as { env: Record<string, string> };
+        const launchOptions = forkProcess.mock.calls[0][2] as {
+            env: Record<string, string>;
+            execArgv: string[];
+        };
+        expect(launchOptions.execArgv).toEqual(['--max-semi-space-size=8']);
         expect(launchOptions.env.CAXRI_TERMINAL_HOST_CREDENTIAL).toMatch(/^[0-9a-f]{64}$/u);
         expect(launchOptions.env.CAXRI_SERVER_ID).toBe(serverId);
         expect(launchOptions.env.CAXRI_E2E).toBe('1');
