@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createRuntime } from '../bootstrap';
 import type { RuntimeHandlers } from '../dispatch';
-import { createDispatcher, createOperationDispatcher } from '../dispatch';
+import { createOperationDispatcher } from '../dispatch';
 
 const temporaryDirectories: string[] = [];
 
@@ -77,7 +77,7 @@ describe('Runtime handler table', () => {
     });
 });
 
-describe('createDispatcher', () => {
+describe('createOperationDispatcher', () => {
     it('exposes stable direct-call results without a wire response envelope', async () => {
         const directory = await temporaryDirectory('caxri-operation-dispatch-');
         const logger = new StructuredLogger(join(directory, 'logs'));
@@ -115,7 +115,7 @@ describe('createDispatcher', () => {
         const validateContext = vi.fn(() => {
             throw new CaxriError('CONFLICT', 'Workbench Root changed');
         });
-        const dispatch = createDispatcher(
+        const dispatch = createOperationDispatcher(
             stubHandlers({ 'files.list': handler }),
             logger,
             validateContext,
@@ -128,10 +128,7 @@ describe('createDispatcher', () => {
                 method: 'files.list',
                 params: { sessionId: 'session-1' },
             }),
-        ).resolves.toMatchObject({
-            ok: false,
-            error: { code: 'CONFLICT', message: 'Workbench Root changed' },
-        });
+        ).rejects.toMatchObject({ code: 'CONFLICT', message: 'Workbench Root changed' });
         expect(validateContext).toHaveBeenCalledWith({
             sessionId: 'session-1',
             workbenchProjectId: 'project-1',
@@ -142,33 +139,30 @@ describe('createDispatcher', () => {
     it('rejects an unknown method and invalid parameters as VALIDATION failures', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-validation-');
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const dispatch = createDispatcher(stubHandlers(), logger);
+        const dispatch = createOperationDispatcher(stubHandlers(), logger);
 
-        await expect(dispatch({ id: 'r1', method: 'nope', params: {} })).resolves.toEqual({
-            id: 'r1',
-            ok: false,
-            error: { code: 'VALIDATION', message: 'Unknown Runtime method: nope' },
+        await expect(dispatch({ id: 'r1', method: 'nope', params: {} })).rejects.toMatchObject({
+            code: 'VALIDATION',
+            message: 'Unknown Runtime method: nope',
         });
-        const invalid = await dispatch({
-            id: 'r2',
-            method: 'terminal.resize',
-            params: { terminalId: 'terminal-1', cols: 0, rows: 24 },
-        });
-        expect(invalid).toMatchObject({ id: 'r2', ok: false, error: { code: 'VALIDATION' } });
-        const pasteEscape = await dispatch({
-            id: 'r3',
-            method: 'bugReport.send',
-            params: {
-                report: 'safe\u{1B}[201~unsafe',
-                sessionId: 'session-1',
-                terminalId: 'terminal-1',
-            },
-        });
-        expect(pasteEscape).toMatchObject({
-            id: 'r3',
-            ok: false,
-            error: { code: 'VALIDATION' },
-        });
+        await expect(
+            dispatch({
+                id: 'r2',
+                method: 'terminal.resize',
+                params: { terminalId: 'terminal-1', cols: 0, rows: 24 },
+            }),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        await expect(
+            dispatch({
+                id: 'r3',
+                method: 'bugReport.send',
+                params: {
+                    report: 'safe\u{1B}[201~unsafe',
+                    sessionId: 'session-1',
+                    terminalId: 'terminal-1',
+                },
+            }),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
         const records = await logRecords(logger);
         expect(records.map((record) => record.event)).toEqual([
             'ipc.request_failed',
@@ -185,7 +179,7 @@ describe('createDispatcher', () => {
     it('preserves a handler error code and logs a stack only for unclassified faults', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-errors-');
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const dispatch = createDispatcher(
+        const dispatch = createOperationDispatcher(
             stubHandlers({
                 'terminal.attach': () => {
                     throw new CaxriError('NOT_FOUND', 'Terminal not found');
@@ -199,21 +193,14 @@ describe('createDispatcher', () => {
 
         await expect(
             dispatch({ id: 'r1', method: 'terminal.attach', params: { terminalId: 'terminal-1' } }),
-        ).resolves.toEqual({
-            id: 'r1',
-            ok: false,
-            error: { code: 'NOT_FOUND', message: 'Terminal not found' },
-        });
+        ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'Terminal not found' });
         await expect(
             dispatch({
                 id: 'r2',
                 method: 'terminal.snapshot',
                 params: { terminalId: 'terminal-1' },
             }),
-        ).resolves.toMatchObject({
-            ok: false,
-            error: { code: 'INTERNAL', message: 'unexpected boom' },
-        });
+        ).rejects.toMatchObject({ code: 'INTERNAL', message: 'unexpected boom' });
         const records = await logRecords(logger);
         expect(records[0].fields?.stack).toBeNull();
         expect(records[1].fields?.stack).toContain('unexpected boom');
@@ -222,7 +209,7 @@ describe('createDispatcher', () => {
     it('records one boundary log per request except for high-frequency PTY traffic', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-logging-');
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const dispatch = createDispatcher(
+        const dispatch = createOperationDispatcher(
             stubHandlers({
                 'app.health': () => ({
                     ready: true,
@@ -235,9 +222,10 @@ describe('createDispatcher', () => {
         );
 
         await expect(dispatch({ id: 'r1', method: 'app.health', params: {} })).resolves.toEqual({
-            id: 'r1',
-            ok: true,
-            result: { ready: true, pid: 123, startedAt: 1, activePtyCount: 0 },
+            ready: true,
+            pid: 123,
+            startedAt: 1,
+            activePtyCount: 0,
         });
         await dispatch({
             id: 'r2',
@@ -273,23 +261,19 @@ describe('createDispatcher', () => {
             released.resolve();
             signal.throwIfAborted();
         });
-        const dispatch = createDispatcher(stubHandlers({ 'app.health': handler }), logger);
+        const dispatch = createOperationDispatcher(stubHandlers({ 'app.health': handler }), logger);
 
         expect(dispatch.cancel('before-registration')).toBe(true);
         await expect(
             dispatch({ id: 'before-registration', method: 'app.health', params: {} }),
-        ).resolves.toMatchObject({ ok: false, error: { code: 'CANCELLED' } });
+        ).rejects.toMatchObject({ code: 'CANCELLED' });
         expect(handler).not.toHaveBeenCalled();
 
         const pending = dispatch({ id: 'active-request', method: 'app.health', params: {} });
         await started.promise;
         expect(dispatch.cancel('active-request')).toBe(true);
         await released.promise;
-        await expect(pending).resolves.toMatchObject({
-            id: 'active-request',
-            ok: false,
-            error: { code: 'CANCELLED' },
-        });
+        await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
         expect(await logRecords(logger)).toEqual([
             expect.objectContaining({
                 event: 'ipc.request',

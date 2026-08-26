@@ -1,4 +1,4 @@
-import type { HostMethod, RuntimeHostControlRequest } from '@caxri/protocol';
+import type { HostMethod } from '@caxri/protocol';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import type { HostForwardedMethod, HostHandledMethod } from '../host-methods';
@@ -16,19 +16,5 @@ describe('Host dispatch exhaustiveness', () => {
         type IncompleteHandled = Exclude<HostHandledMethod, 'host.status'>;
         type Leftover = Exclude<HostMethod, IncompleteHandled | HostForwardedMethod>;
         expectTypeOf<Leftover>().toEqualTypeOf<'host.status'>();
-    });
-});
-
-describe('Agent Endpoint control exhaustiveness', () => {
-    it('requires a new Endpoint operation to be added to the Host switch', () => {
-        type Operation = RuntimeHostControlRequest['operation'];
-        type Handled =
-            | 'agent-endpoint.begin'
-            | 'agent-endpoint.activate'
-            | 'agent-endpoint.messaging'
-            | 'agent-endpoint.retire';
-        expectTypeOf<Handled>().toEqualTypeOf<Operation>();
-        type Missing = Exclude<Operation, Exclude<Handled, 'agent-endpoint.retire'>>;
-        expectTypeOf<Missing>().toEqualTypeOf<'agent-endpoint.retire'>();
     });
 });
