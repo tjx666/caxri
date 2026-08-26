@@ -7,7 +7,7 @@ never contribute React components or import Desktop internals.
 ## Process and ownership boundary
 
 The Headless Host discovers manifests, builds the only ViewContainer/View/Command catalog, records
-actual grants, starts and supervises `out/main/extension-host.js`, and validates every child
+actual grants, starts and supervises the artifact's `bundles/extension-host.js`, and validates every child
 message. The Extension Host loads extension code and owns extension objects, providers, commands,
 events, opaque tree handles, and cancellation tokens. Runtime remains the sole owner of SQLite,
 Projects, Sessions, PTYs, files, Git, settings, and project status.
@@ -227,12 +227,13 @@ extension is an independent pnpm workspace package with a package-local TypeScri
 development-only `caxri: workspace:*` dependency.
 
 `bun run build:extensions` orchestrates package-local ESM builds with `caxri` externalized. The
-production `electron-builder` profile copies exactly Git and Status manifests, bundles,
-icons, and media assets to `Contents/Resources/extensions`; it does not carry Fixture or extension source maps.
-`package:e2e` writes a separate test artifact that adds Fixture explicitly. Runtime `testOnly`
-filtering remains defense in depth, not the release-artifact boundary. Packaged Host discovery uses
-the resource root and starts the Extension Host entry from `app.asar`; installed extensions, when
-present, are discovered from `<userData>/extensions` after bundled identities.
+Server artifact builder copies exactly Git and Status manifests, bundles, icons, and media assets
+under `server/extensions`; it carries neither Fixture nor extension source maps. `package:e2e`
+rebuilds a separate, fully manifested Server artifact that adds Fixture explicitly, packages it,
+and then restores the production artifact. Runtime `testOnly` filtering remains defense in depth,
+not the release-artifact boundary. The Server starts the Extension Host from
+`server/bundles/extension-host.js`; installed extensions, when present, are discovered from
+`<userData>/extensions` after bundled identities.
 
 Focused validation lives in the API, protocol, discovery, catalog, supervisor, API factory,
 persistence, bundle-contract, and Renderer resolution tests. `e2e/extensions.e2e.ts` exercises lazy

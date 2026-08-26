@@ -21,12 +21,12 @@ Electron Main
   -> correlated IPC allowlist
   -> authenticated Desktop client with a generation-bound Host lease
 
-Headless Host (Electron RunAsNode)
-  -> one profile lock + private Unix socket
+Standalone Server artifact (pinned runtime)
+  -> one profile lock + private loopback WebSocket manifest
   -> command/capability dispatcher + bounded event journal
   -> in-memory generation-scoped Agent Endpoint registry + bounded Peer Inbox
   -> one shared native ESM Extension Host child
-  -> one Node-mode Runtime child
+  -> one Runtime child
 
 Preload
   -> typed request/event bridge only
@@ -46,8 +46,10 @@ Runtime child process
 
 Electron Main resolves one canonical runtime profile before Chromium startup. That authority supplies userData, the
 profile-scoped single-instance lock, the Main/Host/Runtime log directory, CDP transport identity, and the userData path
-passed to Host; Host derives its socket/manifest/lock identity from the same canonical path and remains the sole
-Runtime/SQLite owner. A second same-profile Desktop exits before Host attachment and asks the existing Desktop to
+passed to Server; Server derives its endpoint, manifest, and lock identity from the same canonical path. Desktop and
+CLI validate `apps/server/dist/server/metadata/manifest.json` in development or
+`Contents/Resources/server/metadata/manifest.json` when packaged, then launch the declared pinned runtime and Server
+entrypoint through `@caxri/client/supervise`. A second same-profile Desktop exits before Host attachment and asks the existing Desktop to
 restore/focus its window. The typed Host lease replacement remains defense in depth for non-Electron clients and stale
 build recovery. Electron Main is otherwise a replaceable
 Desktop client: closing a window or quitting Desktop revokes its lease and detaches views without
@@ -70,8 +72,8 @@ timer, readiness, and event-recovery I/O remain in the Main facade and cannot in
 lifecycle flags.
 
 The pre-release reset tool treats Host ownership as an operating-system fact, not a discovery-file
-claim: dry-run and apply both use `lsof` to bind a live PID to the selected profile's open lock or
-Unix endpoint, verify the fixed Host entrypoint, and recheck ownership immediately before signaling.
+claim: dry-run and apply both use `lsof` to bind a live PID to the selected profile's open lock,
+verify the fixed artifact Server entrypoint, and recheck ownership immediately before signaling.
 It never signals a PID found only in stale or malformed JSON metadata. An explicitly selected
 profile may locate its verified orphaned Host endpoint after the profile directory itself has been
 removed, while an existing custom profile is still rejected inside a Git worktree or without Caxri
@@ -106,7 +108,7 @@ reject an ID reused with different command content. The Electron adapter additio
 requesting WebContents before invoking that dispatcher. Internal Runtime methods remain outside the
 public command registry.
 
-`apps/cli` is the command-line adapter for the same registry and authenticated Host transport.
+`apps/cli` is the command-line adapter for the same registry and authenticated Server transport.
 Source is grouped behind `commands`, `host`, and `skills` domain barrels; the package root remains
 the composition root and the only public package entrypoint. Domain barrels stay thin, and tests
 live in domain-local `__tests__/` directories. The offline `capabilities` response serializes the
@@ -114,15 +116,14 @@ registry's Zod parameter and result schemas together with owner, effect, capabil
 idempotency metadata. Human TTY, JSON, and ID-only output modes share closed error codes;
 Agent and CI contexts default to JSON and never prompt. A mutation requires
 an explicit profile plus any command-specific Project, Session, or Terminal selector and cannot
-infer a target from uniqueness. The CLI may discover the private Host manifest and connect through
-its local socket, but it cannot read Runtime persistence, logs, configuration files, or Desktop IPC.
-The CLI derives its executable and Host entry only when the current RunAsNode process, resources
-directory, and script path match the immutable packaged application layout; no environment variable
-can nominate a process to spawn. Human commands may adopt or start one detached Host, while Agent and
-CI commands only connect to an already-running Host and Agent Endpoint credentials remain bound to
-their generation. The local JSON-line decoder is shared by Host and CLI, incrementally bounds frames
-large enough for configured editor and diff payloads, and never repeatedly copies an incomplete
-frame. Authenticated Desktop lease renewals bypass the ordered business-command queue so a bounded
+infer a target from uniqueness. The CLI may discover the private Server manifest and connect through
+its authenticated loopback WebSocket, but it cannot read persistence, logs, configuration files, or
+Desktop IPC. The CLI derives the Server artifact only when the current process, resources directory,
+and script path match the immutable packaged application layout; no environment variable can nominate
+a process to spawn. Human commands may adopt or start one detached Server, while Agent and CI commands
+only connect to an already-running Server and Agent Endpoint credentials remain bound to
+their generation. The shared WebSocket control decoder bounds every JSON message before schema
+validation. Authenticated Desktop lease renewals bypass the ordered business-command queue so a bounded
 long-running file operation cannot expire the active Desktop generation.
 Top-level `open|reveal` submit only one bounded path and optional Session ID to the Host; Runtime
 revalidates Project containment and Host replaces that path with a one-use, generation-bound opaque
