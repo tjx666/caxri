@@ -256,16 +256,14 @@ export function createMacosAcceptanceLaunchSpec({
     ...input
 }: MacosAcceptanceLaunchSpecInput) {
     const electronLaunch = createElectronLaunchSpec(input);
+    /**
+     * LaunchServices does not preserve the caller's working directory for the application process. Pass the Desktop
+     * workspace as an absolute application path so Electron never falls back to the repository composition root.
+     */
+    const desktopAppPath = resolve(electronLaunch.options.cwd, electronLaunch.args[0]);
     return {
         ...electronLaunch,
-        args: [
-            '-n',
-            '-W',
-            appPath,
-            '--args',
-            electronLaunch.options.cwd,
-            ...electronLaunch.args.slice(1),
-        ],
+        args: ['-n', '-W', appPath, '--args', desktopAppPath, ...electronLaunch.args.slice(1)],
         command: '/usr/bin/open',
     };
 }

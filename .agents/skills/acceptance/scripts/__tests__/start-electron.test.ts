@@ -238,7 +238,7 @@ describe('Acceptance Electron launcher seams', () => {
                 '-W',
                 '/tmp/Caxri Acceptance 01234567.app',
                 '--args',
-                '/repo',
+                '/repo/apps/desktop',
                 '--remote-debugging-port=9333',
             ],
             command: '/usr/bin/open',
