@@ -5,13 +5,13 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { connectToHost, HostClient } from '@caxri/client/supervise';
-import type { HostManifest, ServerOperationResult, TerminalRecord } from '@caxri/protocol';
+import type { ServerManifest, ServerOperationResult, TerminalRecord } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     defaultAgentProviderSettings,
-    hostEndpointUrl,
     localServerEventSchema,
     localServerWelcomeSchema,
+    serverEndpointUrl,
 } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
@@ -258,8 +258,8 @@ function messageReader(socket: WebSocket): () => Promise<unknown> {
     };
 }
 
-async function connectDesktop(manifest: HostManifest, desktopToken: string) {
-    const socket = new WebSocket(hostEndpointUrl(manifest.endpoint));
+async function connectDesktop(manifest: ServerManifest, desktopToken: string) {
+    const socket = new WebSocket(serverEndpointUrl(manifest.endpoint));
     sockets.push(socket);
     await new Promise<void>((resolve, reject) => {
         socket.once('open', resolve);

@@ -5,8 +5,8 @@ import {
     getMethodSpec,
     isCaxriMethod,
     isDesktopRequest,
-    isHostRequest,
     isMainRequest,
+    isServerRequest,
 } from '../../index';
 
 describe('isCaxriMethod', () => {
@@ -22,12 +22,12 @@ describe('owner narrowing guards', () => {
         const request = { method: 'processExplorer.open', params: {} } as CaxriRequest;
         expect(isDesktopRequest(request)).toBe(true);
         expect(isMainRequest(request)).toBe(true);
-        expect(isHostRequest(request)).toBe(false);
+        expect(isServerRequest(request)).toBe(false);
     });
 
-    it('routes a host-owned method through isHostRequest only', () => {
+    it('routes a server-owned method through isServerRequest only', () => {
         const request = { method: 'project.list', params: {} } as CaxriRequest;
-        expect(isHostRequest(request)).toBe(true);
+        expect(isServerRequest(request)).toBe(true);
         expect(isDesktopRequest(request)).toBe(false);
         expect(isMainRequest(request)).toBe(false);
     });

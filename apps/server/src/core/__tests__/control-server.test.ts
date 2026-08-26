@@ -4,8 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { HostClient } from '@caxri/client/supervise';
-import type { CaxriError, CommandAdapter, HostControlEndpoint } from '@caxri/protocol';
-import { CAXRI_PROTOCOL_VERSION, hostEndpointUrl, localServerWelcomeSchema } from '@caxri/protocol';
+import type { CaxriError, CommandAdapter, ServerControlEndpoint } from '@caxri/protocol';
+import {
+    CAXRI_PROTOCOL_VERSION,
+    localServerWelcomeSchema,
+    serverEndpointUrl,
+} from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
@@ -44,8 +48,8 @@ function messageReader(socket: WebSocket) {
         });
 }
 
-async function connect(endpoint: HostControlEndpoint): Promise<WebSocket> {
-    const socket = new WebSocket(hostEndpointUrl(endpoint));
+async function connect(endpoint: ServerControlEndpoint): Promise<WebSocket> {
+    const socket = new WebSocket(serverEndpointUrl(endpoint));
     await new Promise<void>((resolve, reject) => {
         socket.once('open', resolve);
         socket.once('error', reject);

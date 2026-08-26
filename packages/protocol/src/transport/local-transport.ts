@@ -6,74 +6,74 @@ import { protocolEventEnvelopeSchema, transientServerEventSchema } from './event
 import { commandReplyEnvelopeSchema, requestEnvelopeSchema } from './transport.js';
 import { protocolHelloSchema, protocolVersionSchema, protocolWelcomeSchema } from './version.js';
 
-export const HOST_MANIFEST_VERSION = 2 as const;
-export const HOST_DESKTOP_CREDENTIAL_VERSION = 1 as const;
+export const SERVER_MANIFEST_VERSION = 2 as const;
+export const SERVER_DESKTOP_CREDENTIAL_VERSION = 1 as const;
 /**
  * One authenticated control message can contain two 16 MiB editor buffers. The extra headroom covers worst-case JSON
  * escaping while keeping a malformed peer under a fixed memory cap.
  */
 export const CONTROL_TRANSPORT_MAX_FRAME_BYTES = 256 * 1024 * 1024;
-export const hostCredentialTokenSchema = z.string().regex(/^[0-9a-f]{64}$/u);
-export const hostProcessIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
+export const serverCredentialTokenSchema = z.string().regex(/^[0-9a-f]{64}$/u);
+export const serverProcessIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
 
-export const hostControlEndpointSchema = z.object({
+export const serverControlEndpointSchema = z.object({
     protocol: z.literal('ws'),
     host: z.literal('127.0.0.1'),
     port: z.number().int().positive().max(65_535),
     path: z.literal('/control'),
 });
 
-export type HostControlEndpoint = z.infer<typeof hostControlEndpointSchema>;
+export type ServerControlEndpoint = z.infer<typeof serverControlEndpointSchema>;
 
-export function hostEndpointUrl(endpoint: HostControlEndpoint): string {
+export function serverEndpointUrl(endpoint: ServerControlEndpoint): string {
     return `ws://${endpoint.host}:${endpoint.port}${endpoint.path}`;
 }
 
-export const hostManifestIdentitySchema = z.object({
+export const serverManifestIdentitySchema = z.object({
     profileId: identifierSchema,
     pid: z.number().int().positive(),
     startedAt: z.number().int().positive(),
-    processIdentity: hostProcessIdentitySchema,
+    processIdentity: serverProcessIdentitySchema,
     /**
      * Kept open so an incompatible client can report a clean error instead of treating the discovery record as corrupt.
      */
     protocolVersion: z.number().int().positive(),
     version: z.string().min(1).max(100),
-    operatorToken: hostCredentialTokenSchema,
+    operatorToken: serverCredentialTokenSchema,
 });
 
-export type HostManifestIdentity = z.infer<typeof hostManifestIdentitySchema>;
+export type ServerManifestIdentity = z.infer<typeof serverManifestIdentitySchema>;
 
 /**
  * Private profile discovery record. The credential must never appear in status or diagnostics.
  */
-export const hostManifestSchema = hostManifestIdentitySchema.extend({
-    manifestVersion: z.literal(HOST_MANIFEST_VERSION),
-    endpoint: hostControlEndpointSchema,
+export const serverManifestSchema = serverManifestIdentitySchema.extend({
+    manifestVersion: z.literal(SERVER_MANIFEST_VERSION),
+    endpoint: serverControlEndpointSchema,
 });
 
-export type HostManifest = z.infer<typeof hostManifestSchema>;
+export type ServerManifest = z.infer<typeof serverManifestSchema>;
 
-export const hostLockSchema = hostManifestIdentitySchema.pick({
+export const serverLockSchema = serverManifestIdentitySchema.pick({
     pid: true,
     startedAt: true,
     processIdentity: true,
     profileId: true,
 });
 
-export type HostLock = z.infer<typeof hostLockSchema>;
+export type ServerLock = z.infer<typeof serverLockSchema>;
 
 /**
  * Separate Desktop credential. It is never exposed through the operator discovery manifest.
  */
-export const hostDesktopCredentialSchema = z.object({
-    credentialVersion: z.literal(HOST_DESKTOP_CREDENTIAL_VERSION),
+export const serverDesktopCredentialSchema = z.object({
+    credentialVersion: z.literal(SERVER_DESKTOP_CREDENTIAL_VERSION),
     profileId: identifierSchema,
-    processIdentity: hostProcessIdentitySchema,
-    desktopToken: hostCredentialTokenSchema,
+    processIdentity: serverProcessIdentitySchema,
+    desktopToken: serverCredentialTokenSchema,
 });
 
-export type HostDesktopCredential = z.infer<typeof hostDesktopCredentialSchema>;
+export type ServerDesktopCredential = z.infer<typeof serverDesktopCredentialSchema>;
 
 export const desktopLeaseSchema = z.object({
     desktopId: identifierSchema,
@@ -85,20 +85,20 @@ export type DesktopLease = z.infer<typeof desktopLeaseSchema>;
 
 const localClientOperatorCredentialSchema = z.object({
     kind: z.literal('operator'),
-    token: hostCredentialTokenSchema,
+    token: serverCredentialTokenSchema,
 });
 
 const localClientAgentCredentialSchema = z.object({
     kind: z.literal('agent'),
-    hostId: hostProcessIdentitySchema,
+    hostId: serverProcessIdentitySchema,
     endpointId: identifierSchema,
     generation: z.number().int().positive(),
-    token: hostCredentialTokenSchema,
+    token: serverCredentialTokenSchema,
 });
 
 const localClientDesktopCredentialSchema = z.object({
     kind: z.literal('desktop'),
-    token: hostCredentialTokenSchema,
+    token: serverCredentialTokenSchema,
     desktopId: identifierSchema,
 });
 
@@ -115,7 +115,7 @@ export const localClientHelloSchema = protocolHelloSchema.extend({
 export const localServerWelcomeSchema = protocolWelcomeSchema.extend({
     type: z.literal('welcome'),
     profileId: identifierSchema,
-    processIdentity: hostProcessIdentitySchema,
+    processIdentity: serverProcessIdentitySchema,
     desktopLease: desktopLeaseSchema.optional(),
 });
 

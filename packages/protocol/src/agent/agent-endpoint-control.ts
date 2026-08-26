@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { agentProviderSchema, identifierSchema } from '../domain/domain.js';
-import { hostCredentialTokenSchema } from '../transport/local-transport.js';
+import { serverCredentialTokenSchema } from '../transport/local-transport.js';
 import {
     agentEndpointRefSchema as agentEndpointReferenceSchema,
     agentMessagingCapabilitySchema,
@@ -22,7 +22,7 @@ export const agentEndpointBeginParamsSchema = z.object({
 
 export const agentEndpointBeginResultSchema = z.object({
     ref: agentEndpointReferenceSchema,
-    token: hostCredentialTokenSchema,
+    token: serverCredentialTokenSchema,
     expiresAt: z.number().int().positive(),
 });
 

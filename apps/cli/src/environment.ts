@@ -2,7 +2,11 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { CaxriError, hostCredentialTokenSchema, hostProcessIdentitySchema } from '@caxri/protocol';
+import {
+    CaxriError,
+    serverCredentialTokenSchema,
+    serverProcessIdentitySchema,
+} from '@caxri/protocol';
 import { z } from 'zod';
 
 export type CliAutomation = 'agent' | 'ci' | 'human';
@@ -28,10 +32,10 @@ export interface ResolvedProfile {
 }
 
 const agentEndpointEnvironmentSchema = z.object({
-    CAXRI_AGENT_ENDPOINT_HOST_ID: hostProcessIdentitySchema,
+    CAXRI_AGENT_ENDPOINT_HOST_ID: serverProcessIdentitySchema,
     CAXRI_AGENT_ENDPOINT_ID: z.string().min(1).max(200),
     CAXRI_AGENT_ENDPOINT_GENERATION: z.coerce.number().int().positive(),
-    CAXRI_AGENT_ENDPOINT_TOKEN: hostCredentialTokenSchema,
+    CAXRI_AGENT_ENDPOINT_TOKEN: serverCredentialTokenSchema,
 });
 
 export interface AgentEndpointCredential {

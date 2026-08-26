@@ -10,7 +10,6 @@ import {
     createEventJournal,
     createProtocolWelcome,
     errorCodes,
-    hostManifestSchema,
     isNonExpiringServerOperation,
     methods,
     negotiateProtocolVersion,
@@ -20,6 +19,7 @@ import {
     protocolWelcomeSchema,
     requestEnvelopeSchema,
     serverEventSchema,
+    serverManifestSchema,
 } from '../index';
 
 const desktop = {
@@ -247,7 +247,7 @@ describe('@caxri/protocol contract', () => {
     });
 
     it('keeps Host discovery parseable across protocol versions without exposing credentials', () => {
-        const manifest = hostManifestSchema.parse({
+        const manifest = serverManifestSchema.parse({
             manifestVersion: 2,
             profileId: 'profile-1',
             endpoint: {

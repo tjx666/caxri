@@ -1,4 +1,4 @@
-import type { HostMethod } from '@caxri/protocol';
+import type { ServerMethod } from '@caxri/protocol';
 
 /**
  * Server-owned methods that Core forwards to domain services. A new registry method remains `CoreHandledMethod` until
@@ -77,7 +77,7 @@ export const coreForwardedMethods = [
     'terminal.snapshot',
     'theme.get',
     'theme.update',
-] as const satisfies readonly HostMethod[];
+] as const satisfies readonly ServerMethod[];
 
 export type CoreForwardedMethod = (typeof coreForwardedMethods)[number];
-export type CoreHandledMethod = Exclude<HostMethod, CoreForwardedMethod>;
+export type CoreHandledMethod = Exclude<ServerMethod, CoreForwardedMethod>;

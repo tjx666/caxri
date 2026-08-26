@@ -9,9 +9,9 @@ import type {
     CommandReplyEnvelope,
     DesktopLease,
     DesktopOperation,
-    HostControlEndpoint,
     LocalClientCommand,
     ProtocolEventEnvelope,
+    ServerControlEndpoint,
     TransientServerEvent,
 } from '@caxri/protocol';
 import {
@@ -83,7 +83,7 @@ export class ControlServer {
     private readonly desktopLeaseWaiters = new Set<DesktopLeaseWaiter>();
     private currentDesktop?: ClientState;
     private desktopGeneration = 0;
-    private endpoint?: HostControlEndpoint;
+    private endpoint?: ServerControlEndpoint;
     private server?: Server;
     private webSocketServer?: WebSocketServer;
 
@@ -706,7 +706,7 @@ export class ControlServer {
         });
     }
 
-    async start(): Promise<HostControlEndpoint> {
+    async start(): Promise<ServerControlEndpoint> {
         if (this.server && this.endpoint) return this.endpoint;
         const listener = await listenForControlConnections({
             identity: this.options.identity,

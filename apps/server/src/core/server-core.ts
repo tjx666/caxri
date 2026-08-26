@@ -6,9 +6,9 @@ import process from 'node:process';
 import type {
     CommandAdapter,
     CommandExecutionContext,
-    HostRequest,
     ServerEvent,
     ServerOperationRequest,
+    ServerRequest,
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
@@ -16,7 +16,7 @@ import {
     createEventJournal,
     getMethodSpec,
     hasRequiredCapabilities,
-    isHostRequest,
+    isServerRequest,
     isTransientServerEvent,
     projectObservableEventRecovery,
 } from '@caxri/protocol';
@@ -259,7 +259,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
 
     const host: CommandAdapter = {
         async invoke(request, context, invocation) {
-            if (!isHostRequest(request))
+            if (!isServerRequest(request))
                 throw new CaxriError(
                     'INTERNAL',
                     `Host received a desktop-owned method: ${request.method}`,
@@ -644,7 +644,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         query: request.params,
                     });
                 default: {
-                    const forwarded: Extract<HostRequest, { method: CoreForwardedMethod }> =
+                    const forwarded: Extract<ServerRequest, { method: CoreForwardedMethod }> =
                         request;
                     return requestCancellations.run(
                         principalRequestKey(context, invocation.requestId),
