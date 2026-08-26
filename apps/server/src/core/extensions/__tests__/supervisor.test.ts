@@ -281,16 +281,17 @@ describe('ExtensionHostSupervisor message boundary', () => {
             }),
         });
         vi.mocked(fork).mockReturnValue(child as unknown as ChildProcess);
+        const logger = new StructuredLogger(
+            '/tmp/caxri-extension-supervisor-test',
+            'server-core',
+            'error',
+        );
         const supervisor = new ExtensionHostSupervisor({
             ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
-            logger: new StructuredLogger(
-                '/tmp/caxri-extension-supervisor-test',
-                'server-core',
-                'error',
-            ),
+            logger,
             registrations: () => [],
             requestApi: () => {
                 apiObservations.push(currentObservationContext());
@@ -386,16 +387,17 @@ describe('ExtensionHostSupervisor message boundary', () => {
             children.push(child);
             return child;
         });
+        const logger = new StructuredLogger(
+            '/tmp/caxri-extension-supervisor-test',
+            'server-core',
+            'error',
+        );
         const supervisor = new ExtensionHostSupervisor({
             ...observationIdentity,
             appVersion: '0.0.17',
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
-            logger: new StructuredLogger(
-                '/tmp/caxri-extension-supervisor-test',
-                'server-core',
-                'error',
-            ),
+            logger,
             registrations: () => [],
             requestApi: () => Promise.resolve({ repositories: [], refreshedAt: Date.now() }),
         });
@@ -417,6 +419,16 @@ describe('ExtensionHostSupervisor message boundary', () => {
         await vi.advanceTimersByTimeAsync(10_000);
 
         expect(fork).toHaveBeenCalledTimes(6);
+        expect(logger.metricSnapshot().series).toContainEqual({
+            average: 1,
+            count: 5,
+            labels: { owner: 'extension-host', phase: 'startup', outcome: 'restart' },
+            last: 1,
+            maximum: 1,
+            minimum: 1,
+            name: 'process.restarts',
+            total: 5,
+        });
         await expect(supervisor.start()).rejects.toMatchObject({
             code: 'EXTENSION_HOST_UNAVAILABLE',
         });
