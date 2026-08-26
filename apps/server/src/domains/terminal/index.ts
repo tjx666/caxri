@@ -1,4 +1,3 @@
-export { resolveE2ETerminalOutputFlushDelay } from './e2e-options';
 export type {
     TerminalExecutionEvent,
     TerminalExecutionExit,

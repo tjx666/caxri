@@ -4,6 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DomainHandlers, DomainServices } from '../../domains/domain-services';
+import type { TerminalExecutionPort } from '../../domains/terminal';
 import { ServerDomainService } from '../domain-service';
 
 const serverOperationNames = [
@@ -21,6 +22,7 @@ function handlers(overrides: Partial<Record<ServerOperation, unknown>> = {}): Do
 function dependencies() {
     return {
         logger: { write: vi.fn() } as unknown as StructuredLogger,
+        terminalExecution: {} as TerminalExecutionPort,
         userDataPath: '/profile',
     };
 }

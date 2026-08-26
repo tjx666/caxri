@@ -8,10 +8,10 @@ import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { AgentEndpointLifecycle } from '../../agent-endpoints';
 import { AgentMessagingCapabilityProbe } from '../../agent-messaging';
 import { CaxriDatabase } from '../../db/repository';
-import { TerminalManager } from '..';
 
 const temporaryDirectories: string[] = [];
 
@@ -81,7 +81,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         );
         const fake = createFakePty();
         const spawn = vi.fn<typeof spawnPty>(() => fake.process);
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),
@@ -131,7 +131,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
         const onLifecycleStarted = vi.fn(() => activation.promise);
         const fake = createFakePty();
         const emitted: ServerEvent[] = [];
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             (event) => {
                 emitted.push(event);
@@ -198,7 +198,7 @@ describe('TerminalManager Agent Endpoint lifecycle', () => {
             },
             directory,
         );
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             new StructuredLogger(join(directory, 'logs')),

@@ -8,7 +8,7 @@ import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createDomainServices } from '../create-domain-services';
+import { createTestDomainServices } from '../../__tests__/support/domain-services';
 import { createFakePty } from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
@@ -34,7 +34,7 @@ describe('terminal.moveToNewSession', () => {
         await mkdir(projectRoot);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
         const events: ServerEvent[] = [];
-        const runtime = await createDomainServices({
+        const runtime = await createTestDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger: new StructuredLogger(join(directory, 'logs')),
             send: (event) => {

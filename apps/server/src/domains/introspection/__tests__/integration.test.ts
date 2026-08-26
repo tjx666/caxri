@@ -7,8 +7,8 @@ import { createCommandDispatcher } from '@caxri/protocol';
 import { logEventCatalog, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { createTestDomainServices } from '../../../__tests__/support/domain-services';
 import { createFakePty } from '../../__tests__/create-test-domain-services';
-import { createDomainServices } from '../../create-domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -25,7 +25,7 @@ describe('Runtime business introspection', () => {
         temporaryDirectories.push(directory, homeDirectory);
         const events: ServerEvent[] = [];
         const logger = new StructuredLogger(join(directory, 'logs'));
-        const runtime = await createDomainServices({
+        const runtime = await createTestDomainServices({
             userDataPath: join(directory, 'user-data'),
             logger,
             send: (event) => {

@@ -6,7 +6,7 @@ import { StructuredLogger } from '@caxri/system';
 import type { spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createDomainServices } from '../create-domain-services';
+import { createTestDomainServices } from '../../__tests__/support/domain-services';
 import { CaxriDatabase } from '../db/repository';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
@@ -39,7 +39,7 @@ describe('Agent Terminal restart', () => {
             const projectRoot = join(directory, 'project');
             await mkdir(projectRoot);
             const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-            const runtime = await createDomainServices({
+            const runtime = await createTestDomainServices({
                 userDataPath,
                 logger: new StructuredLogger(join(directory, 'logs')),
                 send: () => {},
@@ -88,7 +88,7 @@ describe('Agent Terminal restart', () => {
         const projectRoot = join(directory, 'project');
         await mkdir(projectRoot);
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
-        const runtime = await createDomainServices({
+        const runtime = await createTestDomainServices({
             userDataPath,
             logger: new StructuredLogger(join(directory, 'logs')),
             send: () => {},

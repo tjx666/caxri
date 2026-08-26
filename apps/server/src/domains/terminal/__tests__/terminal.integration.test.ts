@@ -7,9 +7,9 @@ import { StructuredLogger } from '@caxri/system';
 import type { IPty, spawn as spawnPty } from 'node-pty';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { TERMINAL_IMAGE_RECOVERY_PLACEHOLDER } from '../../../terminal-host/engine/image-recovery';
 import { CaxriDatabase } from '../../db/repository';
-import { TerminalManager } from '..';
 
 const temporaryDirectories: string[] = [];
 const temporaryLoggers: StructuredLogger[] = [];
@@ -85,7 +85,7 @@ describe('TerminalManager', () => {
         });
         let generation = 0;
         const retired = vi.fn();
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -130,7 +130,7 @@ describe('TerminalManager', () => {
             spawned.push(fake);
             return fake.process;
         });
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -184,7 +184,7 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty().process);
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -237,7 +237,7 @@ describe('TerminalManager', () => {
                 return settings.executable;
             },
         );
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -274,7 +274,7 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
         const failed = createFakePty();
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -302,7 +302,7 @@ describe('TerminalManager', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         let output = '';
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
@@ -342,7 +342,7 @@ describe('TerminalManager', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const executable = Promise.withResolvers<string>();
         const fake = createFakePty();
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -379,7 +379,7 @@ describe('TerminalManager', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const executable = Promise.withResolvers<string>();
         const spawn = vi.fn(() => createFakePty().process);
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -410,7 +410,7 @@ describe('TerminalManager', () => {
         let output = '';
         const logger = createTestLogger(join(directory, 'logs'));
         const write = vi.spyOn(logger, 'write');
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
@@ -447,7 +447,7 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -475,7 +475,7 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -501,7 +501,7 @@ describe('TerminalManager', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         const spawn = vi.fn<typeof spawnPty>(() => fake.process);
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -526,7 +526,7 @@ describe('TerminalManager', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         const spawn = vi.fn<typeof spawnPty>(() => fake.process);
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -554,7 +554,7 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty().process);
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -593,7 +593,7 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const spawn = vi.fn<typeof spawnPty>(() => createFakePty().process);
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -633,7 +633,7 @@ describe('TerminalManager', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
         let output = '';
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
@@ -660,7 +660,7 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'shell');
         const fake = createFakePty();
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),
@@ -683,7 +683,7 @@ describe('TerminalManager', () => {
         const created = database.createSession(database.createProject(directory).id, 'shell');
         let output = '';
         const onOutputActivity = vi.fn();
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             (event) => {
                 if (event.event === 'terminal.output') output += event.payload.data;
@@ -720,7 +720,7 @@ describe('TerminalManager', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
         const fake = createFakePty();
-        const manager = new TerminalManager(
+        const manager = createTestTerminalManager(
             database,
             () => {},
             createTestLogger(join(directory, 'logs')),

@@ -1,9 +1,12 @@
 import type { TerminalSnapshot } from '@caxri/protocol';
-import { errorMessage, terminalSnapshotSchema } from '@caxri/protocol';
+import {
+    CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
+    errorMessage,
+    terminalSnapshotSchema,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import { CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from '../../terminal-host/engine';
 import type { TerminalStateStore } from './state-store';
 
 /**

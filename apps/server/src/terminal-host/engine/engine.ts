@@ -7,6 +7,7 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
+import { CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentInput,
@@ -25,7 +26,7 @@ import type { AgentOutputRecovery } from './output-recovery';
 import { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from './output-recovery-manager';
 import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
-import { captureTerminalSnapshot, CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from './snapshot';
+import { captureTerminalSnapshot } from './snapshot';
 import type { LiveTerminal } from './types';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;

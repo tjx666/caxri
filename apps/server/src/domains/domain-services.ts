@@ -29,8 +29,8 @@ export interface DomainDependencies {
     startedAt?: number;
     pid?: number;
     agentRefreshDelayMs?: number;
-    terminal?: TerminalManagerOptions;
-    terminalExecution?: TerminalExecutionPort;
+    terminal?: Omit<TerminalManagerOptions, 'execution'>;
+    terminalExecution: TerminalExecutionPort;
     terminalRestoreGridWaitMs?: number;
     agentAdapters?: Record<AgentProvider, AgentAdapter>;
     agentEnvironment?: AgentEnvironment;

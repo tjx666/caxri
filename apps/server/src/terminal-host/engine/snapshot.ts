@@ -1,13 +1,12 @@
 import { Buffer } from 'node:buffer';
 
 import type { TerminalSnapshot } from '@caxri/protocol';
+import { CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from '@caxri/protocol';
 
 import type { LiveTerminal } from './types';
 
 export const MAX_SNAPSHOT_LINES = 2_000;
 export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
-export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 3;
-
 function countLines(payload: string): number {
     let lineCount = 1;
     for (let index = 0; index < payload.length; index += 1)
