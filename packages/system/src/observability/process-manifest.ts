@@ -177,13 +177,13 @@ function parseMetricRegistry(value: unknown): ObservationMetricRegistrySnapshot 
 
 function boundedMetricRegistry(
     value: ObservationMetricRegistrySnapshot,
-): ObservationMetricRegistrySnapshot {
+): ObservationMetricRegistrySnapshot | undefined {
     const series = value.series.slice(0, MAX_PROCESS_MANIFEST_METRIC_SERIES);
-    return {
+    return parseMetricRegistry({
         rejectedSeries:
             Math.max(0, Math.floor(value.rejectedSeries)) + value.series.length - series.length,
         series: structuredClone(series),
-    };
+    });
 }
 
 export function parseObservationProcessManifest(
@@ -402,9 +402,10 @@ export class ObservationProcessManifestPublisher {
             processId: this.pid,
         });
         if (options.metrics) this.metrics = boundedMetricRegistry(options.metrics);
+        const failure = options.failure ? parseCausalCapsule(options.failure) : undefined;
         this.pending = {
             context: this.context,
-            ...(options.failure && { failure: structuredClone(options.failure) }),
+            ...(failure && { failure }),
             ...(this.metrics && { metrics: this.metrics }),
             owner: this.options.owner,
             pid: this.pid,

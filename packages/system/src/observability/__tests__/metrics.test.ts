@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { BoundedMetricRegistry, MAX_OBSERVATION_METRIC_SERIES } from '../metrics';
+import {
+    BoundedMetricRegistry,
+    MAX_OBSERVATION_METRIC_SERIES,
+    observationMetricNames,
+    observationOutcomes,
+    observationOwners,
+    observationPhases,
+} from '../metrics';
 
 describe('BoundedMetricRegistry', () => {
     it('aggregates values without retaining per-request samples', () => {
@@ -28,15 +35,18 @@ describe('BoundedMetricRegistry', () => {
 
     it('stays within the fixed series ceiling', () => {
         const metrics = new BoundedMetricRegistry();
-        for (let index = 0; index < MAX_OBSERVATION_METRIC_SERIES + 4; index++) {
-            metrics.record('queue.wait', index, {
-                owner: 'control',
-                phase: index % 2 === 0 ? 'admission' : 'execute',
-                outcome: index % 3 === 0 ? 'success' : 'failure',
-            });
-        }
+        let attemptedSeries = 0;
+        for (const name of observationMetricNames)
+            for (const owner of observationOwners)
+                for (const phase of observationPhases)
+                    for (const outcome of observationOutcomes) {
+                        metrics.record(name, attemptedSeries, { owner, phase, outcome });
+                        attemptedSeries += 1;
+                    }
 
-        expect(metrics.snapshot().series).toHaveLength(4);
-        expect(metrics.snapshot().rejectedSeries).toBe(0);
+        expect(metrics.snapshot().series).toHaveLength(MAX_OBSERVATION_METRIC_SERIES);
+        expect(metrics.snapshot().rejectedSeries).toBe(
+            attemptedSeries - MAX_OBSERVATION_METRIC_SERIES,
+        );
     });
 });

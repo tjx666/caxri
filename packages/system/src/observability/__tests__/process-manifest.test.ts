@@ -4,7 +4,9 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { CausalCapsule } from '../causal-chain';
 import {
+    MAX_PROCESS_MANIFEST_METRIC_SERIES,
     observationProcessManifestDirectory,
     observationProcessManifestPath,
     ObservationProcessManifestPublisher,
@@ -140,6 +142,65 @@ describe('observation process manifests', () => {
                 },
             }),
         ).toBeUndefined();
+    });
+
+    it('bounds persisted series and rejects type-bypassed content before writing', async () => {
+        const userDataPath = await temporaryDirectory();
+        const directory = observationProcessManifestDirectory(userDataPath);
+        const path = observationProcessManifestPath(directory, 'server-core');
+        const publisher = new ObservationProcessManifestPublisher({
+            directory,
+            owner: 'server-core',
+            pid: 42,
+            startedAt: 1,
+        });
+        const series = Array.from({ length: MAX_PROCESS_MANIFEST_METRIC_SERIES + 6 }, () => ({
+            average: 1,
+            count: 1,
+            labels: { owner: 'control' as const, phase: 'admission' as const },
+            last: 1,
+            maximum: 1,
+            minimum: 1,
+            name: 'queue.wait' as const,
+            total: 1,
+        }));
+        publisher.publish('ready', { metrics: { rejectedSeries: 0, series } });
+        await publisher.flush();
+
+        expect((await readObservationProcessManifest(path)).metrics).toMatchObject({
+            rejectedSeries: 6,
+            series: { length: MAX_PROCESS_MANIFEST_METRIC_SERIES },
+        });
+
+        const privateSentinel = 'PRIVATE_PROMPT_TRANSCRIPT_CREDENTIAL_ENVIRONMENT_SOURCE';
+        publisher.publish('failed', {
+            failure: {
+                schemaVersion: 1,
+                timestamp: '2026-08-26T00:00:00.000Z',
+                owner: 'server-core',
+                phase: 'runtime',
+                reason: 'unknown',
+                remediation: 'inspect-artifact',
+                retryable: false,
+                context: { traceId: privateSentinel },
+                message: privateSentinel,
+            } as unknown as CausalCapsule,
+            metrics: {
+                rejectedSeries: 0,
+                series: [
+                    {
+                        ...series[0],
+                        labels: { owner: 'control', path: privateSentinel },
+                    },
+                ],
+            } as never,
+        });
+        await publisher.flush();
+
+        const persisted = await readObservationProcessManifest(path);
+        expect(persisted.failure).toBeUndefined();
+        expect(persisted.metrics).toBeUndefined();
+        expect(await readFile(path, 'utf8')).not.toContain(privateSentinel);
     });
 
     it('rejects non-private files and keeps publication failures non-fatal', async () => {
