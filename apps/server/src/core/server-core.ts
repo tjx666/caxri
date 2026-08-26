@@ -23,7 +23,6 @@ import {
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
 
 import { createServerDomainService } from '../core/create-domain-service';
-import type { CreateDomainServices } from '../core/domain-service';
 import type { AgentEndpointControl } from '../domains/agent-endpoints';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { AgentInboxRegistry } from './agent-inbox/registry';
@@ -37,38 +36,13 @@ import {
     createExtensionWorkspaceRequest,
     extensionActiveContext,
 } from './extensions/workspace-bridge';
-import type { ServerProfileLease } from './profile';
 import { acquireServerProfile } from './profile';
 import { ProviderMessagingAdapterRegistry } from './provider-messaging/registry';
 import { principalRequestKey, RequestCancellationRegistry } from './request-cancellation';
+import type { ServerCore, ServerCoreOptions } from './server-core-contract';
+import { createTerminalExecution } from './terminal-host/create-execution';
 
-export interface ServerCoreOptions {
-    agentHooksPath?: string;
-    /**
-     * Unique identifier of the build this Server Core was loaded from; version/commit cannot distinguish two dev builds
-     * of the same checkout.
-     */
-    buildId?: string;
-    cliPath?: string;
-    commit: string;
-    /**
-     * Test seam for fault injection below the public Server transport.
-     */
-    createDomainServices?: CreateDomainServices;
-    executable?: string;
-    extensionHostPath?: string;
-    extensionRoots?: string[];
-    includeTestExtensions?: boolean;
-    launchDesktop?: () => Promise<void>;
-    logger?: StructuredLogger;
-    userDataPath: string;
-    version: string;
-}
-
-export interface ServerCore {
-    lease: ServerProfileLease;
-    stop(reason?: string): Promise<void>;
-}
+export type { ServerCore, ServerCoreOptions } from './server-core-contract';
 
 /**
  * Starts the profile owner, authenticated local transport, domain services, and Extension Host supervision.
@@ -105,12 +79,24 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         messaging: (parameters) => Promise.resolve(agentEndpoints.updateMessaging(parameters)),
         retire: (parameters) => Promise.resolve(agentEndpoints.retire(parameters)),
     };
+    const terminalExecution = createTerminalExecution({
+        appVersion: options.version,
+        buildId: options.buildId ?? 'unknown',
+        commit: options.commit,
+        executable: options.executable,
+        logger,
+        override: options.terminalExecution,
+        serverId: lease.identity.processIdentity,
+        terminalHostPath: options.terminalHostPath,
+        userDataPath: lease.paths.userDataPath,
+    });
     const domainService = createServerDomainService({
         agentEndpointControl: endpointControl,
         agentHooksPath: options.agentHooksPath,
         createServices: options.createDomainServices,
         executable: options.executable,
         logger,
+        terminalExecution,
         userDataPath: lease.paths.userDataPath,
     });
     let extensionService: ExtensionService | undefined;

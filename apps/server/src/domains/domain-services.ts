@@ -10,7 +10,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentAdapter, AgentEnvironment } from './agents';
-import type { TerminalManagerOptions } from './terminal';
+import type { TerminalExecutionPort, TerminalManagerOptions } from './terminal';
 
 export type DomainHandlers = {
     [M in ServerOperation]: (
@@ -30,6 +30,7 @@ export interface DomainDependencies {
     pid?: number;
     agentRefreshDelayMs?: number;
     terminal?: TerminalManagerOptions;
+    terminalExecution?: TerminalExecutionPort;
     terminalRestoreGridWaitMs?: number;
     agentAdapters?: Record<AgentProvider, AgentAdapter>;
     agentEnvironment?: AgentEnvironment;

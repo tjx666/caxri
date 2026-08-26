@@ -55,6 +55,7 @@ interface RuntimeTerminalIdentity {
     attachmentId?: string;
     ptyGeneration: number;
     record: TerminalRecord;
+    running: boolean;
     sessionId: string;
 }
 
@@ -99,7 +100,10 @@ export class TerminalHostRuntime {
         return {
             credential: this.options.credential,
             serverId: this.options.serverId,
-            launchGeneration: (terminalId) => (this.generations.get(terminalId) ?? 0) + 1,
+            launchGeneration: (terminalId) => {
+                const current = this.generations.get(terminalId);
+                return current === undefined ? undefined : current + 1;
+            },
             terminal: (terminalId) => this.identities.get(terminalId),
         };
     }
@@ -187,6 +191,7 @@ export class TerminalHostRuntime {
         this.identities.set(record.id, {
             ptyGeneration: envelope.scope.ptyGeneration,
             record,
+            running: false,
             sessionId: record.sessionId,
             ...(previous?.attachmentId && { attachmentId: previous.attachmentId }),
         });
@@ -245,6 +250,7 @@ export class TerminalHostRuntime {
                         record,
                     });
                     this.generations.set(record.id, scope.ptyGeneration);
+                    this.identities.get(record.id)!.running = true;
                     return { processId };
                 } catch (error) {
                     if (previous) this.identities.set(record.id, previous);
@@ -306,6 +312,8 @@ export class TerminalHostRuntime {
                     : undefined;
                 if (!request.params.persistSnapshot) this.engine.close(scope.terminalId);
                 const snapshot = capture ? await capture : null;
+                const identity = this.identities.get(scope.terminalId);
+                if (identity) identity.running = false;
                 if (!request.params.persistSnapshot) {
                     this.identities.delete(scope.terminalId);
                     this.colors.delete(scope.terminalId);

@@ -5,6 +5,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { AgentEndpointControl } from '../domains/agent-endpoints';
 import { AgentEndpointLifecycle } from '../domains/agent-endpoints';
 import { defaultAgentEnvironment } from '../domains/agents';
+import type { TerminalExecutionPort } from '../domains/terminal';
 import { resolveE2ETerminalOutputFlushDelay } from '../domains/terminal';
 import type { CreateDomainServices } from './domain-service';
 import { ServerDomainService } from './domain-service';
@@ -15,6 +16,7 @@ export interface ServerDomainServiceOptions {
     executable?: string;
     createServices?: CreateDomainServices;
     logger: StructuredLogger;
+    terminalExecution: TerminalExecutionPort;
     userDataPath: string;
 }
 
@@ -36,6 +38,7 @@ export function createServerDomainService(
             logger: options.logger,
             hookExecutable: options.executable ?? process.execPath,
             terminal: { ...(outputFlushMs !== undefined && { outputFlushMs }) },
+            terminalExecution: options.terminalExecution,
             userDataPath: options.userDataPath,
         },
         options.createServices,

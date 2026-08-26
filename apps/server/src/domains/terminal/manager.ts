@@ -9,11 +9,15 @@ import { CaxriError, errorMessage, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { TerminalExecutionEvent, TerminalExecutionExit } from '../../terminal-host/engine';
-import { TerminalExecutionEngine } from '../../terminal-host/engine';
+import { LocalTerminalExecution } from '../../terminal-host/local-execution';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
+import type {
+    TerminalExecutionEvent,
+    TerminalExecutionExit,
+    TerminalExecutionPort,
+} from './execution-port';
 import { TerminalLaunchPlanner } from './launch-plan';
 import type { TerminalManagerOptions, TerminalStartOptions } from './manager-types';
 import { TerminalSnapshotPersistence } from './snapshot-persistence';
@@ -25,10 +29,12 @@ type TerminalTitleListener = ReturnType<typeof createTerminalTitleListener>;
 
 /**
  * Core-owned Terminal coordinator. It authorizes launch plans, persists durable state and projects execution events;
- * volatile PTY, screen, buffer and attachment ownership lives in {@link TerminalExecutionEngine}.
+ * volatile PTY, screen, buffer and attachment ownership stays behind {@link TerminalExecutionPort}.
  */
 export class TerminalManager {
-    private readonly engine: TerminalExecutionEngine;
+    private readonly agentOutputRecoverySettings?: TerminalManagerOptions['agentOutputRecoverySettings'];
+    private readonly execution: TerminalExecutionPort;
+    private readonly executionListeners: Array<() => void>;
     private readonly launchPlanner: TerminalLaunchPlanner;
     private readonly snapshots: TerminalSnapshotPersistence;
     private readonly starts = new SingleFlight<string, TerminalRecord>();
@@ -37,6 +43,7 @@ export class TerminalManager {
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
+    private readonly terminalColors?: TerminalManagerOptions['terminalColors'];
 
     constructor(
         private readonly database: TerminalStateStore,
@@ -56,17 +63,64 @@ export class TerminalManager {
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onOutputActivity = options.onOutputActivity;
         this.onStateChanged = options.onStateChanged;
+        this.agentOutputRecoverySettings = options.agentOutputRecoverySettings;
+        this.terminalColors = options.terminalColors;
         this.snapshots = new TerminalSnapshotPersistence(database, logger);
-        this.engine = new TerminalExecutionEngine({
-            agentOutputRecoverySettings: options.agentOutputRecoverySettings,
-            currentProvider: (terminalId) => this.database.getTerminal(terminalId)?.provider,
-            emit: (event) => this.projectExecutionEvent(event),
-            logger,
-            onExit: (event) => this.onExecutionExit(event),
-            outputFlushMs: options.outputFlushMs,
-            sampleResources: options.sampleResources,
-            spawn: options.spawn,
-            terminalColors: options.terminalColors,
+        this.execution =
+            options.execution ??
+            new LocalTerminalExecution({
+                agentOutputRecoverySettings: options.agentOutputRecoverySettings,
+                currentProvider: (terminalId) => this.database.getTerminal(terminalId)?.provider,
+                logger,
+                outputFlushMs: options.outputFlushMs,
+                sampleResources: options.sampleResources,
+                spawn: options.spawn,
+                terminalColors: options.terminalColors,
+            });
+        this.executionListeners = [
+            this.execution.onEvent((event) => this.projectExecutionEvent(event)),
+            this.execution.onExit((event) => {
+                // eslint-disable-next-line no-void -- Exit finalization owns and reports its asynchronous failures.
+                void this.onExecutionExit(event);
+            }),
+            this.execution.onHostExit((terminalIds) => this.onExecutionHostExit(terminalIds)),
+        ];
+    }
+
+    private onExecutionHostExit(terminalIds: readonly string[]): void {
+        const interrupted: string[] = [];
+        for (const terminalId of terminalIds) {
+            this.retireCoreLifecycleSoon(terminalId);
+            if (!this.database.getTerminal(terminalId)) continue;
+            this.database.updateTerminalState(terminalId, 'interrupted');
+            this.onStateChanged?.(terminalId, 'interrupted');
+            interrupted.push(terminalId);
+        }
+        if (interrupted.length > 0)
+            this.emit({
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds: [], terminalIds: interrupted },
+            });
+    }
+
+    private logAttach(
+        terminalId: string,
+        size: { cols: number; rows: number } | undefined,
+        wasAttached: boolean,
+        source: 'live' | 'persisted',
+        payloadBytes: number,
+    ): void {
+        /**
+         * Content-free evidence localizes reconnect failures without recording Terminal output or snapshots.
+         */
+        this.logger.write('info', ptyLogEvents.attach, {
+            fields: {
+                terminalId,
+                source,
+                wasAttached,
+                payloadBytes,
+                ...(size !== undefined && { cols: size.cols, rows: size.rows }),
+            },
         });
     }
 
@@ -185,8 +239,9 @@ export class TerminalManager {
                 failureReason = resolved.failureReason;
                 throw resolved.error;
             }
+            await this.execution.reserve(record);
             if (options?.waitForAttachedSizeMs)
-                await this.engine.waitForAttachedSize(
+                await this.execution.waitForAttachedSize(
                     record.id,
                     options.waitForAttachedSizeMs,
                     options.abortSignal,
@@ -206,12 +261,15 @@ export class TerminalManager {
                 failureReason = prepared.failureReason;
                 throw prepared.error;
             }
-            const initialSnapshot = this.snapshots.read(record.id)?.payload ?? '';
-            this.engine.start({
+            await this.execution.start({
                 args: prepared.value.args,
+                colors: this.terminalColors?.(),
                 environment: prepared.value.environment,
                 executable: prepared.value.executable,
-                initialSnapshot,
+                initialSnapshot: this.snapshots.read(record.id),
+                outputRecovery: record.provider
+                    ? this.agentOutputRecoverySettings?.(record.provider)
+                    : undefined,
                 record,
             });
             if (!this.database.getTerminal(record.id))
@@ -225,7 +283,7 @@ export class TerminalManager {
             return this.database.getTerminal(record.id)!;
         } catch (error) {
             this.cancelTitleListener(record.id);
-            this.engine.discard(record.id);
+            this.execution.discard(record.id);
             try {
                 await this.retireCoreLifecycle(record.id);
             } catch (retirementError) {
@@ -253,25 +311,32 @@ export class TerminalManager {
     }
 
     start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
-        if (this.engine.processId(record.id) !== undefined)
+        if (this.execution.processId(record.id) !== undefined)
             return Promise.resolve(this.database.getTerminal(record.id)!);
         return this.starts.run(record.id, () => this.spawn(record, options));
     }
 
     write(terminalId: string, data: string): boolean {
-        return this.engine.write(terminalId, data);
+        return this.execution.write(terminalId, data);
     }
 
     reconcileOutputRecoverySettings(): void {
-        this.engine.reconcileOutputRecoverySettings();
+        for (const terminal of this.database.listTerminals())
+            this.execution.configureOutputRecovery(
+                terminal.id,
+                terminal.provider,
+                terminal.provider
+                    ? this.agentOutputRecoverySettings?.(terminal.provider)
+                    : undefined,
+            );
     }
 
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {
-        return this.engine.signalExact(terminalId, expectedProcessId, signal);
+        return this.execution.signalExact(terminalId, expectedProcessId, signal);
     }
 
     resize(terminalId: string, cols: number, rows: number): boolean {
-        return this.engine.resize(terminalId, cols, rows);
+        return this.execution.resize(terminalId, cols, rows);
     }
 
     async attach(
@@ -281,13 +346,13 @@ export class TerminalManager {
         const pendingSnapshot = this.snapshots.pending(terminalId);
         if (pendingSnapshot) await pendingSnapshot;
         if (
-            this.engine.processId(terminalId) === undefined &&
+            this.execution.processId(terminalId) === undefined &&
             !this.database.getTerminal(terminalId)
         )
             return null;
-        const attached = await this.engine.attach(terminalId, size);
+        const attached = await this.execution.attach(terminalId, size);
         const snapshot = attached.snapshot ?? this.snapshots.read(terminalId);
-        this.engine.logAttach(
+        this.logAttach(
             terminalId,
             size,
             attached.wasAttached,
@@ -300,27 +365,27 @@ export class TerminalManager {
     async snapshot(terminalId: string): Promise<TerminalSnapshot | null> {
         const pendingSnapshot = this.snapshots.pending(terminalId);
         if (pendingSnapshot) await pendingSnapshot;
-        const live = await this.engine.snapshot(terminalId);
+        const live = await this.execution.snapshot(terminalId);
         if (live) return live;
         if (!this.database.getTerminal(terminalId)) return null;
         return this.snapshots.read(terminalId);
     }
 
     detachView(terminalId: string): void {
-        this.engine.detachView(terminalId);
+        this.execution.detachView(terminalId);
     }
 
     detachAllViews(): void {
-        this.engine.detachAllViews();
+        this.execution.detachAllViews();
     }
 
     async restart(terminalId: string, options?: TerminalStartOptions): Promise<TerminalRecord> {
         const record = this.database.getTerminal(terminalId);
         if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-        const capture = this.engine.restartBarrier(terminalId);
+        const capture = await this.execution.restartBarrier(terminalId);
         if (capture) {
             this.retireCoreLifecycleSoon(terminalId);
-            await this.snapshots.finalize(terminalId, capture);
+            await this.snapshots.finalize(terminalId, Promise.resolve(capture));
         }
         this.database.updateTerminalState(terminalId, 'starting');
         this.onStateChanged?.(terminalId, 'starting');
@@ -330,39 +395,39 @@ export class TerminalManager {
     }
 
     close(terminalId: string): void {
-        if (this.engine.processId(terminalId) !== undefined)
+        if (this.execution.processId(terminalId) !== undefined)
             this.retireCoreLifecycleSoon(terminalId);
-        this.engine.close(terminalId);
+        this.execution.close(terminalId);
         this.onStateChanged?.(terminalId, 'stopped');
         this.database.closeTerminal(terminalId);
     }
 
     reassignSession(terminalId: string, sessionId: string): void {
-        this.engine.reassignSession(terminalId, sessionId);
+        this.execution.reassignSession(terminalId, sessionId);
     }
 
     terminateSession(sessionId: string): void {
         const terminalIds = this.database.listTerminals(sessionId).map(({ id }) => id);
         for (const terminalId of terminalIds) this.onStateChanged?.(terminalId, 'stopped');
-        const retired = this.engine.terminateSession(sessionId, terminalIds);
+        const retired = this.execution.terminateSession(sessionId, terminalIds);
         for (const terminalId of retired) this.retireCoreLifecycleSoon(terminalId);
     }
 
     runningCount(sessionId?: string): number {
-        return this.engine.runningCount(sessionId);
+        return this.execution.runningCount(sessionId);
     }
 
     processId(terminalId: string): number | undefined {
-        return this.engine.processId(terminalId);
+        return this.execution.processId(terminalId);
     }
 
     resources(terminalId: string): Promise<TerminalResourceUsage | null> {
-        return this.engine.resources(terminalId);
+        return this.execution.resources(terminalId);
     }
 
     async shutdown(reason: Exclude<ShutdownReason, 'unclean'>): Promise<void> {
         const terminalProcessState = shutdownOutcome(reason).terminalProcessState;
-        const finalizations = this.engine.shutdown();
+        const finalizations = await this.execution.shutdown();
         for (const { terminalId } of finalizations) this.retireCoreLifecycleSoon(terminalId);
         await Promise.all(
             finalizations.map(({ terminalId, capture }) =>
@@ -372,5 +437,6 @@ export class TerminalManager {
         this.database.markShutdown(reason);
         for (const { terminalId } of finalizations)
             this.onStateChanged?.(terminalId, terminalProcessState);
+        for (const dispose of this.executionListeners) dispose();
     }
 }
