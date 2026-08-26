@@ -55,7 +55,7 @@ describe('standalone Server artifact', () => {
             ],
             platform: 'darwin',
             protocolVersion: 2,
-            runtime: { executable: runtimeExecutable, version: '24.19.0' },
+            runtime: { executable: runtimeExecutable, version: '24.0.0-fixture' },
             version: '0.0.18',
         });
 
@@ -70,7 +70,7 @@ describe('standalone Server artifact', () => {
             },
             platform: 'darwin',
             protocolVersion: 2,
-            runtime: { executable: 'runtime/bin/node', version: '24.19.0' },
+            runtime: { executable: 'runtime/bin/node', version: '24.0.0-fixture' },
             schemaVersion: 1,
             version: '0.0.18',
         });
@@ -114,7 +114,7 @@ describe('standalone Server artifact', () => {
             nativePackages: [],
             platform: 'darwin',
             protocolVersion: 2,
-            runtime: { executable: runtimeExecutable, version: '24.19.0' },
+            runtime: { executable: runtimeExecutable, version: '24.0.0-fixture' },
             version: '0.0.18',
         });
 
