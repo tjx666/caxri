@@ -292,6 +292,12 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Show Source Control in the Secondary Side Bar',
     },
     {
+        id: 'secondarySidebar.showStatus',
+        title: 'Show Status',
+        category: 'Secondary Side Bar',
+        description: 'Show Project Status in the Secondary Side Bar',
+    },
+    {
         id: 'secondarySidebar.toggle',
         title: 'Toggle Secondary Side Bar',
         category: 'Secondary Side Bar',
@@ -485,6 +491,7 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+s', command: 'editor.save' },
     ...filesCoreKeybindings,
     { key: 'cmd+2', command: 'secondarySidebar.showGit' },
+    { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
     { key: 'cmd+shift+1', command: 'panel.showLogs' },
     { key: 'cmd+shift+2', command: 'panel.showInfo' },
     { key: 'cmd+[', command: 'primarySidebar.toggle' },
@@ -509,5 +516,9 @@ export const defaultKeybindingChanges = [
         type: 'replace',
         previous: { key: 'ctrl+alt+tab', command: 'session.switchMru' },
         current: { key: 'cmd+`', command: 'session.switchMru' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

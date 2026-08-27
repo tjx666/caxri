@@ -38,6 +38,7 @@ describe('command registry', () => {
                 { key: 'cmd+shift+p', command: 'commandPalette.open' },
                 { key: 'cmd+shift+a', command: 'agentActions.open' },
                 { key: 'cmd+`', command: 'session.switchMru' },
+                { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
                 { key: 'cmd+t', command: 'terminal.new' },
                 { key: 'cmd+w', command: 'workbench.closeActiveTab' },
             ]),
@@ -48,6 +49,11 @@ describe('command registry', () => {
         expect(
             defaultKeybindings.filter((binding) => binding.command === 'session.switchMru'),
         ).toEqual([{ key: 'cmd+`', command: 'session.switchMru' }]);
+        expect(
+            defaultKeybindings.filter(
+                (binding) => binding.command === 'secondarySidebar.showStatus',
+            ),
+        ).toEqual([{ key: 'cmd+3', command: 'secondarySidebar.showStatus' }]);
         const changes: readonly DefaultKeybindingChange[] = defaultKeybindingChanges;
         for (const change of changes) {
             const current = change.type === 'add' ? change.binding : change.current;
@@ -102,6 +108,7 @@ describe('command registry', () => {
             expect.arrayContaining([
                 'secondarySidebar.showFiles',
                 'secondarySidebar.showGit',
+                'secondarySidebar.showStatus',
                 'panel.showLogs',
                 'panel.showInfo',
             ]),
