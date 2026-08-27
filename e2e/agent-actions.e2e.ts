@@ -31,11 +31,20 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const skillDirectory = join(root, '.agents', 'skills', 'e2e-action');
+    const requiredSkillDirectory = join(root, '.agents', 'skills', 'e2e-required');
     const capture = join(testDirectory, 'agent-input.hex');
-    await Promise.all([mkdir(skillDirectory, { recursive: true }), writeFile(capture, '')]);
+    await Promise.all([
+        mkdir(skillDirectory, { recursive: true }),
+        mkdir(requiredSkillDirectory, { recursive: true }),
+        writeFile(capture, ''),
+    ]);
     await writeFile(
         join(skillDirectory, 'SKILL.md'),
         '---\nname: e2e-action\ndescription: E2E discovered action\n---\nNever exposed in picker metadata.\n',
+    );
+    await writeFile(
+        join(requiredSkillDirectory, 'SKILL.md'),
+        '---\nname: e2e-required\ndescription: E2E action requiring input\nargument-hint: target\n---\nNever exposed in picker metadata.\n',
     );
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
@@ -125,16 +134,20 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await expect(picker).toContainText('Codex');
         await expect(picker).toContainText('/status');
         const search = picker.getByPlaceholder('Search skills and slash commands…');
+        await expect(search).toHaveAccessibleDescription(
+            /Enter runs the selected action\. Command\+Enter inserts it for editing\./,
+        );
+        const footer = picker.locator('[data-agent-action-footer]');
+        await expect(footer.locator('[data-agent-action-mode="run"]')).toContainText('Run');
+        await expect(footer.locator('[data-agent-action-mode="insert"]')).toContainText('Insert');
         await search.fill('e2e action');
         await expect(picker.locator('[data-agent-action="$e2e-action"]')).toContainText(
             'E2E discovered action',
         );
         await search.press('Enter');
         await expect(picker).not.toBeVisible();
-        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action ');
-        await running.page.keyboard.type('argument');
-        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action argument');
-        expect(await capturedInput(capture)).not.toContain('draft-$e2e-action \r');
+        await expect(input).toBeFocused();
+        await expect.poll(() => capturedInput(capture)).toContain('draft-$e2e-action\r');
 
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
@@ -143,7 +156,38 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await expect(picker.locator('[data-agent-action="/status"]')).toBeVisible();
         await running.page.keyboard.press('Meta+Enter');
         await expect(picker).not.toBeVisible();
-        await expect.poll(() => capturedInput(capture)).toContain('/status\r');
+        await expect(input).toBeFocused();
+        await expect.poll(() => capturedInput(capture)).toContain('/status ');
+        await running.page.keyboard.type('details');
+        await expect.poll(() => capturedInput(capture)).toContain('/status details');
+        expect(await capturedInput(capture)).not.toContain('/status \r');
+
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        const requiredSearch = picker.getByPlaceholder('Search skills and slash commands…');
+        await requiredSearch.fill('e2e required');
+        await expect(picker.locator('[data-agent-action="$e2e-required"]')).toBeVisible();
+        const beforeRequiredRun = await capturedInput(capture);
+        await requiredSearch.press('Enter');
+        await expect(picker).toBeVisible();
+        await expect(
+            running.page.getByText('$e2e-required needs arguments before it can run.'),
+        ).toBeVisible();
+        await expect.poll(() => capturedInput(capture)).toBe(beforeRequiredRun);
+        await running.page.keyboard.press('Meta+Enter');
+        await expect(picker).not.toBeVisible();
+        await expect(input).toBeFocused();
+        await expect.poll(() => capturedInput(capture)).toContain('$e2e-required ');
+
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await picker.getByPlaceholder('Search skills and slash commands…').fill('diff');
+        await picker.locator('[data-agent-action="/diff"]').click();
+        await expect(picker).not.toBeVisible();
+        await expect(input).toBeFocused();
+        await expect
+            .poll(async () => (await capturedInput(capture)).split('/diff\r').length - 1)
+            .toBe(1);
 
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
