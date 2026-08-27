@@ -204,16 +204,20 @@ export async function beginCaseLifecycle(
             throw new Error('Previous Acceptance case launch has not completed');
         }
         if (input.stateIsolation.mode === 'isolated') {
-            if (receipt.launches.some(({ ready }) => ready)) {
-                throw new Error('An isolated Acceptance case already has a completed ready launch');
-            }
             if (
                 receipt.launches.some(
                     ({ cleanupCompleted, cleanupRequested }) =>
                         !cleanupRequested || !cleanupCompleted,
                 )
             ) {
-                throw new Error('A failed isolated launch must clean up before retry');
+                throw new Error('An isolated Acceptance launch must clean up before retry');
+            }
+            if (
+                receipt.launches.some(
+                    ({ profileIdentity }) => profileIdentity === input.profileIdentity,
+                )
+            ) {
+                throw new Error('An isolated Acceptance retry must use a fresh profile');
             }
             receipt.profileIdentity = input.profileIdentity;
         } else {
@@ -492,7 +496,7 @@ async function validateCaseLifecycleEvidence(
     if (plan.stateIsolation.mode === 'isolated') {
         const readyLaunches = receipt.launches.filter(({ ready }) => ready);
         if (
-            readyLaunches.length !== 1 ||
+            readyLaunches.length === 0 ||
             receipt.launches.some(
                 ({ cleanupCompleted, cleanupRequested }) => !cleanupRequested || !cleanupCompleted,
             )
