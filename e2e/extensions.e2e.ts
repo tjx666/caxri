@@ -6,6 +6,10 @@ import process from 'node:process';
 import { execFileAsync } from '@caxri/system';
 import type { MessageBoxOptions } from 'electron';
 
+import {
+    verifyBottomEdgeTreeTooltip,
+    verifyTreeTooltipPositioning,
+} from './support/extension-tooltip.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import type { RunningCaxri } from './support/helpers.ts';
 import {
@@ -411,9 +415,7 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
             tree.getByRole('treeitem', { name: 'Expanded child', exact: true }),
         ).toBeVisible();
 
-        const tooltipRow = tree.getByRole('treeitem', { name: 'Tooltip row', exact: true });
-        await tooltipRow.hover();
-        await expect(running.page.locator('.tooltip-popup')).toContainText('Full fixture tooltip');
+        await verifyTreeTooltipPositioning(running.page, tree, fixtureTab);
 
         await tree.getByRole('treeitem', { name: 'Command count: 0', exact: true }).click();
         await expect(
@@ -447,6 +449,8 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         await lazy.press('End');
         const last = tree.getByRole('treeitem', { name: 'Virtual row 399', exact: true });
         await expect(last).toBeFocused();
+        await verifyBottomEdgeTreeTooltip(running.page, last);
+        await last.focus();
         await last.press('Home');
         await expect(lazy).toBeFocused();
 

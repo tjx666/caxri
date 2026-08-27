@@ -555,5 +555,9 @@ function TreeItemRow({
             )}
         </div>
     );
-    return <Tooltip content={tooltip}>{treeItem}</Tooltip>;
+    return (
+        <Tooltip anchorMode="cursor" content={tooltip}>
+            {treeItem}
+        </Tooltip>
+    );
 }
