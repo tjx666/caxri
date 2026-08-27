@@ -33,4 +33,22 @@ describe('TerminalOperationQueue', () => {
         predecessor.resolve();
         await expect(first).rejects.toMatchObject({ code: 'CANCELLED' });
     });
+
+    it('holds later work until a lifecycle barrier is released', async () => {
+        const queue = new TerminalOperationQueue();
+        const release = queue.block('terminal-1');
+        const started = vi.fn();
+        const pending = queue.run('terminal-1', () => {
+            started();
+            return Promise.resolve('completed');
+        });
+
+        await Promise.resolve();
+        expect(started).not.toHaveBeenCalled();
+
+        release();
+        release();
+        await expect(pending).resolves.toBe('completed');
+        expect(started).toHaveBeenCalledOnce();
+    });
 });

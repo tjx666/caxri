@@ -616,21 +616,34 @@ export class ServerClient {
         const request = parseCaxriRequest(method, parameters);
         if (this.binaryStreams?.supports(request.method))
             return this.binaryStreams.request(id, request.method, request.params);
+        const detachTransition =
+            request.method === 'terminal.detach'
+                ? this.binaryStreams?.beginTerminalDetach(request.params.terminalId)
+                : undefined;
+        const completeTerminalLifecycle =
+            request.method === 'terminal.detach'
+                ? () => detachTransition?.complete()
+                : request.method === 'terminal.close'
+                  ? () => this.binaryStreams?.closeTerminal(request.params.terminalId)
+                  : undefined;
         return new Promise<unknown>((resolve, reject) => {
             const timer = isNonExpiringServerOperation(method)
                 ? undefined
                 : setTimeout(() => {
                       this.pending.delete(id);
+                      detachTransition?.cancel();
                       reject(new CaxriError('TIMEOUT', `Caxri Host request timed out: ${method}`));
                   }, this.timeoutMs);
             this.pending.set(id, {
                 parse: (value) => parseCaxriResult(method, value),
                 resolve: (value) => {
-                    if (request.method === 'terminal.detach' || request.method === 'terminal.close')
-                        this.binaryStreams?.closeTerminal(request.params.terminalId);
+                    completeTerminalLifecycle?.();
                     resolve(value);
                 },
-                reject,
+                reject: (error) => {
+                    detachTransition?.cancel();
+                    reject(error);
+                },
                 timer,
             });
             this.send({
@@ -758,7 +771,6 @@ export class ServerClient {
         this.socket.close(1000);
     }
 }
-
 export async function connectToServer(
     userDataPath: string,
     timeoutMs = DEFAULT_TIMEOUT_MS,

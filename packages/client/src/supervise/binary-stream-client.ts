@@ -43,6 +43,11 @@ import {
 import type { TerminalOperationLease } from './terminal-operation-queue.js';
 import { TerminalOperationQueue } from './terminal-operation-queue.js';
 
+interface TerminalDetachTransition {
+    cancel(): void;
+    complete(): void;
+}
+
 abstract class ClientBinarySocket {
     private accumulator?: FrameAccumulator;
     private isOpen = false;
@@ -739,6 +744,35 @@ export class BinaryStreamClient {
         } finally {
             this.activeRequestIds.delete(id);
         }
+    }
+
+    /**
+     * Fences operations that predate a detach request and blocks replacements until the Server has applied that
+     * request. Without this cross-transport barrier, a newer binary attachment can reach the Server before the older
+     * control detach and then be removed as though it were the attachment that initiated the detach.
+     */
+    beginTerminalDetach(terminalId: string): TerminalDetachTransition {
+        const attachment = this.terminals.get(terminalId);
+        this.terminalOperations.invalidate(terminalId);
+        const release = this.terminalOperations.block(terminalId);
+        let isSettled = false;
+        const settle = (shouldRetireAttachment: boolean): void => {
+            if (isSettled) return;
+            isSettled = true;
+            if (
+                shouldRetireAttachment &&
+                attachment &&
+                this.terminals.get(terminalId) === attachment
+            ) {
+                attachment.retire();
+                this.terminals.delete(terminalId);
+            }
+            release();
+        };
+        return {
+            cancel: () => settle(false),
+            complete: () => settle(true),
+        };
     }
 
     closeTerminal(terminalId: string): void {
