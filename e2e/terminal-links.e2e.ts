@@ -169,7 +169,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
                     return target.caxriExternalLinkProbe?.confirmations.length;
                 }),
             )
-            .toBe(2);
+            .toBe(3);
         await expect(running.page.locator('.toast')).toHaveCount(0);
 
         const failedUrl = 'https://example.net/failure';
