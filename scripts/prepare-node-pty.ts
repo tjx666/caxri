@@ -14,16 +14,6 @@ export interface NodePtyPreparationResult {
     changed: boolean;
 }
 
-interface NodePtyCompletionOperations {
-    exit: (code: number) => never;
-    write: (output: string, callback: (error?: Error | null) => void) => void;
-}
-
-const defaultCompletionOperations: NodePtyCompletionOperations = {
-    exit: (code) => process.exit(code),
-    write: (output, callback) => process.stdout.write(output, callback),
-};
-
 /**
  * Pnpm's content-addressed store can expose package files through hard links. Replace the local helper inode before
  * changing its mode so a CI checkout never mutates the shared runner cache used by another job.
@@ -54,23 +44,6 @@ export async function prepareNodePtySpawnHelper(
     return ensureExecutableCopy(helper);
 }
 
-/**
- * Flushes the one-shot command receipt before forcing a clean exit. A detached Bun invocation printed the receipt but
- * retained a runtime handle until CI's 25-minute deadline, so natural event-loop termination is not reliable here. See
- * https://github.com/tjx666/caxri/actions/runs/33041294162.
- */
-export async function finishNodePtyPreparation(
-    operations: NodePtyCompletionOperations = defaultCompletionOperations,
-): Promise<never> {
-    await new Promise<void>((resolve, reject) => {
-        operations.write('node-pty spawn helper ready\n', (error) => {
-            if (error) reject(error);
-            else resolve();
-        });
-    });
-    return operations.exit(0);
-}
-
 async function main(): Promise<void> {
     const require = createRequire(import.meta.url);
     const packageRoot = dirname(require.resolve('node-pty/package.json'));
@@ -79,7 +52,7 @@ async function main(): Promise<void> {
         packageRoot,
         platform: process.platform,
     });
-    await finishNodePtyPreparation();
+    process.stdout.write('node-pty spawn helper ready\n');
 }
 
 if (import.meta.main) await main();
