@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     createTerminalLinkScanner,
+    openTerminalFileCandidatePicker,
     openTerminalLinkPicker,
     registerTerminalLinkPickerHandler,
     registerTerminalLinkScanner,
@@ -46,18 +47,22 @@ describe('Terminal link actions', () => {
     });
 
     it('does not let stale cleanup remove the active picker handler', () => {
-        const first = vi.fn();
-        const second = vi.fn();
+        const first = { openCandidates: vi.fn(), openDetected: vi.fn() };
+        const second = { openCandidates: vi.fn(), openDetected: vi.fn() };
         const unregisterFirst = registerTerminalLinkPickerHandler('terminal-1', first);
         const unregisterSecond = registerTerminalLinkPickerHandler('terminal-1', second);
 
         unregisterFirst();
         openTerminalLinkPicker('terminal-1');
-        expect(first).not.toHaveBeenCalled();
-        expect(second).toHaveBeenCalledOnce();
+        expect(first.openDetected).not.toHaveBeenCalled();
+        expect(second.openDetected).toHaveBeenCalledOnce();
+
+        const candidate = detectedLink('candidate.ts');
+        openTerminalFileCandidatePicker('terminal-1', [candidate], true);
+        expect(second.openCandidates).toHaveBeenCalledWith([candidate], true);
 
         unregisterSecond();
         openTerminalLinkPicker('terminal-1');
-        expect(second).toHaveBeenCalledOnce();
+        expect(second.openDetected).toHaveBeenCalledOnce();
     });
 });

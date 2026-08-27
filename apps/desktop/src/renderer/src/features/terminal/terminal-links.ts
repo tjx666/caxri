@@ -80,17 +80,15 @@ export interface TerminalLinkScanMetrics {
 }
 
 export interface TerminalLinkContext {
-    cwd: string;
-    projectRoot: string;
     wordSeparators: string;
-    openFile(path: string, location?: EditorNavigationTarget): void;
-    openHomeFile(target: string, location?: EditorNavigationTarget): void;
+    openFile(target: string, location?: EditorNavigationTarget): void;
     openUrl(url: string): void;
 }
 
 export interface TerminalDetectedLink {
     accessibleName: string;
     bufferLine: number;
+    detail?: string;
     id: string;
     kind: TerminalLinkMatch['kind'];
     target: string;
@@ -417,40 +415,6 @@ export function findTerminalLinks(
     return mergeTerminalLinks(urlLinks, mergeTerminalLinks(locationFileLinks, wordFileLinks));
 }
 
-function normalizeAbsolutePath(path: string): string {
-    const segments: string[] = [];
-    for (const segment of path.split('/')) {
-        if (!segment || segment === '.') continue;
-        if (segment === '..') segments.pop();
-        else segments.push(segment);
-    }
-    return `/${segments.join('/')}`;
-}
-
-function fileUrlPath(target: string): string | undefined {
-    try {
-        const url = new URL(target);
-        if (url.protocol !== 'file:' || (url.hostname && url.hostname !== 'localhost')) return;
-        return decodeURIComponent(url.pathname);
-    } catch {
-        return;
-    }
-}
-
-/**
- * Resolves lexical POSIX paths; Server still owns canonical root and symlink validation.
- */
-export function resolveTerminalFilePath(
-    target: string,
-    { cwd, projectRoot }: Pick<TerminalLinkContext, 'cwd' | 'projectRoot'>,
-): string | undefined {
-    const filePath = /^file:\/\//i.test(target) ? fileUrlPath(target) : target;
-    if (!filePath || isCurrentUserHomePath(filePath) || isUnsupportedHomePath(filePath)) return;
-    if (filePath.startsWith('/')) return normalizeAbsolutePath(filePath);
-    const base = filePath.startsWith('./') || filePath.startsWith('../') ? cwd : projectRoot;
-    return normalizeAbsolutePath(`${base}/${filePath}`);
-}
-
 /**
  * Matches VS Code/iTerm2: a link only activates while the platform's "open" modifier is held, instead of on a bare
  * click. Caxri ships only on macOS (Cmd); Ctrl is also accepted so an external/non-Mac keyboard layout still works
@@ -469,13 +433,7 @@ function activateLink(match: TerminalLinkMatch, context: TerminalLinkContext): v
         context.openUrl(match.target);
         return;
     }
-    if (isCurrentUserHomePath(match.target)) {
-        context.openHomeFile(match.target, match.location);
-        return;
-    }
-    const path = resolveTerminalFilePath(match.target, context);
-    if (!path) return;
-    context.openFile(path, match.location);
+    context.openFile(match.target, match.location);
 }
 
 function activateLinkFromPointer(

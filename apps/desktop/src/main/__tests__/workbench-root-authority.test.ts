@@ -213,6 +213,43 @@ describe('openTerminalFileLink', () => {
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
     });
 
+    it('returns ambiguous authorized candidates to the Renderer without opening or prompting', async () => {
+        const candidates = [
+            {
+                path: '/project/packages/a/services/shared/index.ts',
+                relativePath: 'packages/a/services/shared/index.ts',
+                projectId: 'project-1',
+                projectTitle: 'Project',
+            },
+            {
+                path: '/project/packages/b/services/shared/index.ts',
+                relativePath: 'packages/b/services/shared/index.ts',
+                projectId: 'project-1',
+                projectTitle: 'Project',
+            },
+        ];
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'ambiguous',
+                    candidates,
+                    sourceSessionId: 'source-session',
+                    truncated: false,
+                });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getServer: server(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '.../services/shared/index.ts',
+            }),
+        ).resolves.toEqual({ status: 'ambiguous', candidates, truncated: false });
+        expect(request.mock.calls.map(([method]) => method)).toEqual(['terminal.fileLink.resolve']);
+        expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
+    });
+
     it('binds an outside file to the selected root before adding its Project and creating a Session', async () => {
         const selectedRoot = await temporaryDirectory();
         const request = vi.fn((method: string, parameters?: unknown) => {

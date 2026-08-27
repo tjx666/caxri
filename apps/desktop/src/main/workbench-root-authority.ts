@@ -88,6 +88,12 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
     async function openTerminalFileLink(parameters: OpenTerminalFileLinkParameters) {
         const server = options.getServer();
         const initial = await server.request('terminal.fileLink.resolve', parameters);
+        if (initial.status === 'ambiguous')
+            return {
+                status: initial.status,
+                candidates: initial.candidates,
+                truncated: initial.truncated,
+            };
         let expectedIdentity: NonNullable<
             ServerOperationParameters<'desktop.openFile'>['expectedIdentity']
         >;

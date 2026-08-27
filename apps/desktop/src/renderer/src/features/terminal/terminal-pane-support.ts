@@ -1,12 +1,15 @@
+import type { EditorNavigationTarget } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import type { Terminal } from '@xterm/xterm';
 
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
-import { openFile } from '../editor/document-actions';
 import { registerTerminalPasteHandler } from './terminal-actions';
-import { registerTerminalLinkScanner } from './terminal-link-actions';
+import {
+    openTerminalFileCandidatePicker,
+    registerTerminalLinkScanner,
+} from './terminal-link-actions';
 import { createTerminalLinkScanner } from './terminal-link-scanner';
 import type { TerminalLinkContext } from './terminal-links';
 import { registerTerminalLinks } from './terminal-links';
@@ -105,8 +108,6 @@ export function registerTerminalInputHandlers(
 }
 
 interface TerminalLinkSnapshot {
-    projectRoot: string;
-    terminalCwd: string;
     terminalId: string;
     wordSeparators: string;
 }
@@ -124,29 +125,43 @@ export function registerTerminalPaneLinks(
     terminal: Terminal,
     latest: () => TerminalLinkSnapshot,
 ): TerminalPaneLinkRegistration {
+    const openFileLink = async (
+        target: string,
+        location: EditorNavigationTarget | undefined,
+    ): Promise<void> => {
+        try {
+            const result = await caxri.request('terminal.openFileLink', {
+                terminalId: latest().terminalId,
+                target,
+                ...(location && { location }),
+            });
+            if ('status' in result)
+                openTerminalFileCandidatePicker(
+                    latest().terminalId,
+                    result.candidates.map((candidate) => ({
+                        accessibleName: `Open matching file ${candidate.relativePath} in ${candidate.projectTitle}`,
+                        activate: () => {
+                            // eslint-disable-next-line no-void -- this helper owns user-visible failure reporting
+                            void openFileLink(candidate.path, location);
+                        },
+                        bufferLine: 0,
+                        detail: candidate.projectTitle,
+                        id: `candidate:${candidate.projectId}:${candidate.path}`,
+                        kind: 'file',
+                        target: candidate.relativePath,
+                    })),
+                    result.truncated,
+                );
+        } catch (error) {
+            onError(errorMessage(error, 'Terminal file link failed'));
+        }
+    };
     const context: TerminalLinkContext = {
-        get cwd() {
-            return latest().terminalCwd;
-        },
-        get projectRoot() {
-            return latest().projectRoot;
-        },
         get wordSeparators() {
             return latest().wordSeparators;
         },
-        async openFile(path, location) {
-            await openFile(path, location ? { location } : {});
-        },
-        async openHomeFile(target, location) {
-            try {
-                await caxri.request('terminal.openFileLink', {
-                    terminalId: latest().terminalId,
-                    target,
-                    ...(location && { location }),
-                });
-            } catch (error) {
-                onError(errorMessage(error, 'Terminal file link failed'));
-            }
+        async openFile(target, location) {
+            await openFileLink(target, location);
         },
         async openUrl(url) {
             await openExternalUrl(url, onError);

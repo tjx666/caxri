@@ -14,7 +14,9 @@ import { MAX_TERMINAL_DETECTED_LINKS } from './terminal-links';
 interface TerminalLinkPickerProperties {
     isOpen: boolean;
     links: TerminalDetectedLink[];
+    mode: 'candidates' | 'detected';
     status: TerminalLinkScanStatus;
+    isTruncated: boolean;
     onOpenChange: (isOpen: boolean) => void;
     onSelect: (link: TerminalDetectedLink) => void;
 }
@@ -43,7 +45,7 @@ function TerminalLinkGroup({
                         {link.target}
                     </span>
                     <small className="flex-none text-[11px] text-muted">
-                        {link.kind === 'url' ? 'External URL' : 'File'}
+                        {link.detail ?? (link.kind === 'url' ? 'External URL' : 'File')}
                     </small>
                 </CommandItem>
             ))}
@@ -57,10 +59,12 @@ function TerminalLinkGroup({
  */
 export function TerminalLinkPicker({
     links,
+    mode,
     onOpenChange,
     onSelect,
     isOpen,
     status,
+    isTruncated,
 }: TerminalLinkPickerProperties) {
     const urls = links.filter((link) => link.kind === 'url');
     const files = links.filter((link) => link.kind === 'file');
@@ -70,16 +74,40 @@ export function TerminalLinkPicker({
                 className="top-[18%] w-[min(560px,calc(100vw-32px))] translate-y-0 overflow-hidden"
                 showCloseButton={false}
             >
-                <DialogTitle className="sr-only">Open Detected Link</DialogTitle>
-                <Command className="w-full" label="Open Detected Link">
-                    <CommandInput autoFocus placeholder="Search links in the Terminal…" />
+                <DialogTitle className="sr-only">
+                    {mode === 'candidates' ? 'Choose Terminal File' : 'Open Detected Link'}
+                </DialogTitle>
+                <Command
+                    className="w-full"
+                    label={mode === 'candidates' ? 'Choose Terminal File' : 'Open Detected Link'}
+                >
+                    <CommandInput
+                        autoFocus
+                        placeholder={
+                            mode === 'candidates'
+                                ? 'Search matching files…'
+                                : 'Search links in the Terminal…'
+                        }
+                    />
                     <CommandList>
-                        <CommandEmpty>No links found in the Terminal buffer.</CommandEmpty>
-                        <TerminalLinkGroup heading="URLs" links={urls} onSelect={onSelect} />
-                        <TerminalLinkGroup heading="Files" links={files} onSelect={onSelect} />
-                        {status === 'exhausted' && (
+                        <CommandEmpty>
+                            {mode === 'candidates'
+                                ? 'No matching files.'
+                                : 'No links found in the Terminal buffer.'}
+                        </CommandEmpty>
+                        {mode === 'detected' && (
+                            <TerminalLinkGroup heading="URLs" links={urls} onSelect={onSelect} />
+                        )}
+                        <TerminalLinkGroup
+                            heading={mode === 'candidates' ? 'Matching files' : 'Files'}
+                            links={files}
+                            onSelect={onSelect}
+                        />
+                        {(status === 'exhausted' || isTruncated) && (
                             <div className="px-2 py-1.5 text-[11px] text-muted">
-                                Showing the first {MAX_TERMINAL_DETECTED_LINKS} links.
+                                {mode === 'candidates'
+                                    ? 'File search reached its safety limit; choose from the matches shown.'
+                                    : `Showing the first ${MAX_TERMINAL_DETECTED_LINKS} links.`}
                             </div>
                         )}
                     </CommandList>
