@@ -93,7 +93,11 @@ describe('CI workflow contract', () => {
         expect(setupAction).toContain(
             'pnpm install --frozen-lockfile --ignore-scripts --prefer-offline --no-runtime',
         );
+        expect(setupAction).toContain('bun run scripts/prepare-node-pty.ts');
         expect(setupAction).toContain('pnpm rebuild electron');
+        expect(setupAction.indexOf('bun run scripts/prepare-node-pty.ts')).toBeGreaterThan(
+            setupAction.indexOf('pnpm install --frozen-lockfile'),
+        );
         expect(setupAction).not.toContain('bun run rebuild');
         expect(bunVersion).toBe('1.4.0');
         expect(workflow).toContain('Server artifact native compatibility');
