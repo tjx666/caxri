@@ -155,9 +155,8 @@ process.stdout.write('Compaction Agent ready\r\n');
         await running.page.locator('.xterm-helper-textarea').press('c');
         await expect(tabOperation).toHaveText('Compacting');
         await createAdditionalShellSession(running.page);
-        await running.page.keyboard.down('Control');
-        await running.page.keyboard.down('Alt');
-        await running.page.keyboard.press('Tab');
+        await running.page.keyboard.down('Meta');
+        await running.page.keyboard.press('Backquote');
         const switcherRow = running.page
             .getByRole('listbox', { name: 'Recently used Sessions' })
             .locator(`[data-session-id="${sessionId}"] .activity`);
@@ -165,8 +164,7 @@ process.stdout.write('Compaction Agent ready\r\n');
         await expect(switcherRow).toHaveAccessibleName(
             'Compacting. Codex is summarizing earlier context before continuing.',
         );
-        await running.page.keyboard.up('Alt');
-        await running.page.keyboard.up('Control');
+        await running.page.keyboard.up('Meta');
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionId);
     } finally {
         try {
