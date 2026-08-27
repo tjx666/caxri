@@ -55,6 +55,10 @@ interface ConcurrentValidationProcessOperations {
     ) => ChildProcess;
 }
 
+interface ConcurrentValidationRunPolicy {
+    abortOnFailure?: boolean;
+}
+
 function signalProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {
     if (!child.pid) return;
     if (process.platform === 'win32') child.kill(signal);
@@ -69,8 +73,9 @@ const defaultProcessOperations: ConcurrentValidationProcessOperations = {
 };
 
 /**
- * Owns detached process groups for both concurrent branches. A failure in either branch aborts the other branch and its
- * descendants, while the force timer prevents a child that ignores SIGTERM from withholding the shared receipt.
+ * Owns detached process groups for both concurrent branches. Failures abort siblings by default; independently
+ * receipted E2E components can preserve the other receipts, while the force timer prevents a child that ignores SIGTERM
+ * from withholding the shared receipt.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- regression-tested by the concurrent CI contract
 export class ConcurrentValidationProcesses {
@@ -104,6 +109,7 @@ export class ConcurrentValidationProcesses {
         command: string,
         arguments_: readonly string[],
         options: SpawnOptions,
+        policy: ConcurrentValidationRunPolicy = {},
     ): Promise<number> {
         if (this.isAborted) return 1;
         const child = this.operations.spawnProcess(command, arguments_, {
@@ -113,7 +119,7 @@ export class ConcurrentValidationProcesses {
         this.active.add(child);
         try {
             const result = await waitForChildExit(child);
-            if (result !== 0) {
+            if (result !== 0 && policy.abortOnFailure !== false) {
                 this.release(child);
                 this.abort(`${command} failed with exit ${result}`);
             }
@@ -266,17 +272,31 @@ async function run(
     processes: ConcurrentValidationProcesses,
     command: string,
     arguments_: string[],
-    options: { cwd?: string; environment?: NodeJS.ProcessEnv; label: string },
+    options: {
+        abortOnFailure?: boolean;
+        cwd?: string;
+        environment?: NodeJS.ProcessEnv;
+        label: string;
+    },
 ): Promise<number> {
     try {
-        const result = await processes.run(command, arguments_, {
-            cwd: options.cwd ?? projectRoot,
-            env: options.environment,
-            stdio: 'inherit',
-        });
+        const result = await processes.run(
+            command,
+            arguments_,
+            {
+                cwd: options.cwd ?? projectRoot,
+                env: options.environment,
+                stdio: 'inherit',
+            },
+            {
+                abortOnFailure: options.abortOnFailure,
+            },
+        );
         if (result !== 0) {
             console.error(`${options.label} failed with exit ${result}.`);
-            processes.abort(`${options.label} failed with exit ${result}`);
+            if (options.abortOnFailure !== false) {
+                processes.abort(`${options.label} failed with exit ${result}`);
+            }
         }
         return result;
     } catch (error) {
@@ -284,6 +304,19 @@ async function run(
         processes.abort(`${options.label} could not start`);
         return 1;
     }
+}
+
+/**
+ * Records one E2E component without destroying full-check or later E2E receipts. A deterministic full-check failure and
+ * the shared deadline still use the default fail-fast policy and terminate every active child.
+ */
+function runReceiptedE2E(
+    processes: ConcurrentValidationProcesses,
+    command: string,
+    arguments_: string[],
+    options: { environment: NodeJS.ProcessEnv; label: string },
+): Promise<number> {
+    return run(processes, command, arguments_, { ...options, abortOnFailure: false });
 }
 
 function measured(label: string, command: string, arguments_: string[]): string[] {
@@ -308,7 +341,10 @@ async function runE2E(
      * A lifecycle-free CI install intentionally creates neither output, so the complete build must precede the probe.
      */
     const e2eSetup = await runE2ESetup((label, command, arguments_) =>
-        run(processes, 'bun', measured(label, command, arguments_), { environment, label }),
+        runReceiptedE2E(processes, 'bun', measured(label, command, arguments_), {
+            environment,
+            label,
+        }),
     );
     if (e2eSetup !== 0) {
         return {
@@ -322,7 +358,7 @@ async function runE2E(
         };
     }
 
-    const failureIsolation = await run(
+    const failureIsolation = await runReceiptedE2E(
         processes,
         'bun',
         measured('Desktop worker interruption recovery', 'bun', [
@@ -331,7 +367,7 @@ async function runE2E(
         ]),
         { environment, label: 'Desktop worker interruption recovery' },
     );
-    const failureCensus = await run(
+    const failureCensus = await runReceiptedE2E(
         processes,
         'bun',
         ['run', 'scripts/run-e2e-census-fixture.ts'],
@@ -341,7 +377,7 @@ async function runE2E(
         },
     );
     const parallelWorkers = process.env.CAXRI_E2E_PARALLEL_WORKERS ?? '3';
-    const parallelSafe = await run(
+    const parallelSafe = await runReceiptedE2E(
         processes,
         'bun',
         measured(`Playwright parallel-safe workers=${parallelWorkers}`, 'bun', [
@@ -352,7 +388,7 @@ async function runE2E(
         ]),
         { environment, label: 'Parallel-safe E2E pool' },
     );
-    const desktopExclusive = await run(
+    const desktopExclusive = await runReceiptedE2E(
         processes,
         'bun',
         measured('Playwright desktop-exclusive workers=1', 'bun', [
@@ -365,7 +401,7 @@ async function runE2E(
     );
     const ciParity =
         process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
-            ? await run(
+            ? await runReceiptedE2E(
                   processes,
                   'bun',
                   measured('CI parity workers=1 repeat=3', 'bun', [
@@ -375,7 +411,7 @@ async function runE2E(
                   { environment, label: 'Deterministic CI-parity cases' },
               )
             : 0;
-    const manifest = await run(
+    const manifest = await runReceiptedE2E(
         processes,
         'bun',
         ['run', 'scripts/report-e2e-manifest.ts', 'parallel-safe', 'desktop-exclusive'],
