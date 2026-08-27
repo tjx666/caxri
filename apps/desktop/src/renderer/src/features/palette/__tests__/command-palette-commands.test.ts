@@ -1,7 +1,11 @@
 import type { ViewCatalogSnapshot } from '@caxri/protocol';
+import { commandDefinitions } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { getPaletteExtensionCommands } from '../command-palette-commands';
+import {
+    getPaletteExtensionCommands,
+    getStaticCommandPaletteValue,
+} from '../command-palette-commands';
 
 const catalog: ViewCatalogSnapshot = {
     revision: 1,
@@ -53,5 +57,17 @@ describe('getPaletteExtensionCommands', () => {
 
     it('fails closed when the catalog is not available', () => {
         expect(getPaletteExtensionCommands(undefined)).toEqual([]);
+    });
+});
+
+describe('getStaticCommandPaletteValue', () => {
+    it('makes Agent Commands & Skills discoverable through natural and legacy terms', () => {
+        const command = commandDefinitions.find(({ id }) => id === 'agentActions.open');
+        if (!command) throw new Error('agentActions.open is missing from the command catalog');
+
+        const value = getStaticCommandPaletteValue(command).toLowerCase();
+        for (const term of ['command', 'commands', 'skill', 'skills', 'slash', 'action']) {
+            expect(value).toContain(term);
+        }
     });
 });

@@ -1,4 +1,4 @@
-# Agent Actions
+# Agent Commands & Skills
 
 Caxri exposes skills and slash commands through one provider-neutral picker. `Command+Shift+A`
 opens it for the active running Agent Terminal; Shell, stopped, and missing Terminals cannot open
@@ -14,8 +14,9 @@ selection cannot drift to another Terminal.
 - Both paths perform one structured `terminal.input` write. Caxri never reads, clears, or replaces
   the current draft.
 - Selection or `Escape` returns keyboard focus to the captured Terminal.
-- `Manage in Settings…` opens the matching provider's Agent Actions editor. Users can hide shipped
-  or discovered items and add an exact `/command` or `$skill` invocation with an optional label.
+- `Manage in Settings…` opens the matching provider's Agent Commands & Skills editor. Users can
+  hide shipped or discovered items and add an exact `/command` or `$skill` invocation with an
+  optional label.
 
 ## Sources and precedence
 

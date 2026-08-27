@@ -18,7 +18,10 @@ import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSessions } from '../../stores/selectors';
 import { didSelectSession, selectProject } from '../session/session-actions';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
-import { getPaletteExtensionCommands } from './command-palette-commands';
+import {
+    getPaletteExtensionCommands,
+    getStaticCommandPaletteValue,
+} from './command-palette-commands';
 
 const NO_RECORDS: never[] = [];
 
@@ -33,7 +36,7 @@ function CommandRow({ command }: { command: (typeof commandDefinitions)[number] 
     const shortcut = useCommandShortcut(command.id);
     return (
         <CommandItem
-            value={`${command.category} ${command.title} ${command.id}`}
+            value={getStaticCommandPaletteValue(command)}
             onSelect={() => {
                 setPaletteOpen(false);
                 executeCommand(command.id);
@@ -66,7 +69,7 @@ function DynamicCommandRow({
 }) {
     return (
         <CommandItem
-            value={`Extension ${command.title} ${command.id}`}
+            value={`Extension ${command.title} ${command.id} ${command.description ?? ''}`}
             onSelect={() => {
                 setPaletteOpen(false);
                 didExecuteViewCatalogCommand(catalog, command.id);

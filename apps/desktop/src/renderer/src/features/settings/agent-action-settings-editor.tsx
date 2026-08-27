@@ -80,7 +80,7 @@ export function AgentActionSettingsEditor({
     return (
         <div className="flex flex-col gap-2">
             <ul
-                aria-label={`${provider} agent actions`}
+                aria-label={`${provider} Agent commands and skills`}
                 className="m-0 flex list-none flex-col p-0"
             >
                 {defaultEntries.map(({ action, override }) => (
@@ -135,9 +135,9 @@ export function AgentActionSettingsEditor({
                                 })
                             }
                         />
-                        <Tooltip content="Remove action">
+                        <Tooltip content="Remove command or skill">
                             <Button
-                                aria-label={`Remove agent action ${invocation}`}
+                                aria-label={`Remove command or skill ${invocation}`}
                                 className="opacity-0 group-focus-within/action:opacity-100 group-hover/action:opacity-100"
                                 size="icon"
                                 variant="ghost"
@@ -155,7 +155,7 @@ export function AgentActionSettingsEditor({
             </ul>
             <div className="grid grid-cols-[minmax(110px,0.55fr)_minmax(160px,1fr)_auto] items-center gap-2">
                 <Input
-                    aria-label="New agent action invocation"
+                    aria-label="New command or skill invocation"
                     className="bg-background font-mono"
                     placeholder={AGENT_ACTION_INVOCATION_PLACEHOLDERS[provider]}
                     size="dense"
@@ -166,7 +166,7 @@ export function AgentActionSettingsEditor({
                     }}
                 />
                 <Input
-                    aria-label="New agent action description"
+                    aria-label="New command or skill description"
                     className="bg-background"
                     maxLength={MAX_AGENT_ACTION_DESCRIPTION_LENGTH}
                     placeholder="Optional description"
@@ -178,7 +178,7 @@ export function AgentActionSettingsEditor({
                     }}
                 />
                 <Button
-                    aria-label="Add agent action"
+                    aria-label="Add command or skill"
                     disabled={!isValidDraft || !hasCapacity}
                     size="sm"
                     variant="secondary"
@@ -194,7 +194,7 @@ export function AgentActionSettingsEditor({
             )}
             {isValidDraft && !hasCapacity && (
                 <p className="m-0 text-[11px] text-danger" role="status">
-                    Remove an override before adding another Agent action.
+                    Remove an override before adding another command or skill.
                 </p>
             )}
         </div>

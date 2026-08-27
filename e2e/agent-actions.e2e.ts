@@ -26,7 +26,7 @@ async function capturedInput(path: string): Promise<string> {
     }
 }
 
-test('Agent Actions discovers skills, preserves drafts, runs explicitly, and supports Settings overrides', async () => {
+test('Agent Commands & Skills stays discoverable, describes its target, and preserves Terminal input', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-actions-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -51,21 +51,77 @@ test('Agent Actions discovers skills, preserves drafts, runs explicitly, and sup
     try {
         await createProjectSession(running.page, 'codex');
         const state = await pageRequest<{
-            terminals: Array<{ id: string; provider?: string; lastProcessState: string }>;
+            sessions: Array<{ id: string; displayTitle: string }>;
+            terminals: Array<{
+                id: string;
+                provider?: string;
+                lastProcessState: string;
+                sessionId: string;
+                title: string;
+            }>;
         }>(running.page, 'app.bootstrap');
         const agentTerminal = state.terminals.find((terminal) => terminal.provider === 'codex');
         if (!agentTerminal) throw new Error('Codex Terminal was not created');
+        const agentSession = state.sessions.find(
+            (session) => session.id === agentTerminal.sessionId,
+        );
+        if (!agentSession) throw new Error('Codex Session was not created');
         const input = running.page.locator(
             `.terminal-pane[data-terminal-id="${agentTerminal.id}"] .xterm-helper-textarea`,
         );
         await expect(running.page.locator('.xterm-rows')).toContainText('AGENT_ACTIONS_READY');
+
+        const expectPaletteSearch = async (term: string): Promise<void> => {
+            await running.page.keyboard.press('Meta+Shift+P');
+            const palette = running.page.getByRole('dialog');
+            await palette.getByPlaceholder('Search projects, sessions, and commands…').fill(term);
+            await expect(
+                palette.getByText('Run Agent Command or Skill…', { exact: true }),
+            ).toBeVisible();
+            await running.page.keyboard.press('Escape');
+        };
+        await expectPaletteSearch('skills');
+        await expectPaletteSearch('slash');
+        await expectPaletteSearch('action');
+        await expectPaletteSearch('commands');
+
         await input.focus();
         await input.pressSequentially('draft-');
+        await pageRequest(running.page, 'session.rename', {
+            sessionId: agentSession.id,
+            displayTitle: agentTerminal.title,
+        });
         await running.page.keyboard.press('Meta+Shift+A');
 
         let picker = running.page.locator('[data-agent-actions-picker]');
         await expect(picker).toBeVisible();
         await expect(picker).toHaveAttribute('data-target-terminal-id', agentTerminal.id);
+        let target = picker.locator('[data-agent-action-target]');
+        await expect(target).toHaveAttribute('data-target-title-kind', 'shared');
+        await expect(target.locator('[data-agent-action-target-title]')).toHaveText(
+            agentTerminal.title,
+        );
+        await expect(target).toHaveAccessibleName(`Target: Codex; ${agentTerminal.title}`);
+        await running.page.keyboard.press('Escape');
+
+        await pageRequest(running.page, 'session.rename', {
+            sessionId: agentSession.id,
+            displayTitle: 'E2E Session Target',
+        });
+        await running.page.keyboard.press('Meta+Shift+A');
+        picker = running.page.locator('[data-agent-actions-picker]');
+        await expect(picker).toBeVisible();
+        target = picker.locator('[data-agent-action-target]');
+        await expect(target).toHaveAttribute('data-target-title-kind', 'distinct');
+        await expect(target.locator('[data-agent-action-target-title="session"]')).toHaveText(
+            'Session: E2E Session Target',
+        );
+        await expect(target.locator('[data-agent-action-target-title="terminal"]')).toHaveText(
+            `Terminal: ${agentTerminal.title}`,
+        );
+        await expect(target).toHaveAccessibleName(
+            `Target: Codex; Session: E2E Session Target; Terminal: ${agentTerminal.title}`,
+        );
         await expect(picker).toContainText('Codex');
         await expect(picker).toContainText('/status');
         const search = picker.getByPlaceholder('Search skills and slash commands…');
@@ -96,11 +152,11 @@ test('Agent Actions discovers skills, preserves drafts, runs explicitly, and sup
         const settingsDialog = running.page.getByRole('dialog');
         const actionsRow = settingsDialog.locator('[data-setting-row="agents.codex.actions"]');
         await expect(actionsRow).toBeVisible();
-        await actionsRow.getByLabel('New agent action invocation').fill('/goal');
+        await actionsRow.getByLabel('New command or skill invocation').fill('/goal');
         await actionsRow
-            .getByLabel('New agent action description')
+            .getByLabel('New command or skill description')
             .fill('Manage a long-running goal');
-        await actionsRow.getByRole('button', { name: 'Add agent action' }).click();
+        await actionsRow.getByRole('button', { name: 'Add command or skill' }).click();
         await expect(actionsRow.getByLabel('Description for /goal')).toHaveValue(
             'Manage a long-running goal',
         );

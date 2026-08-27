@@ -11,6 +11,10 @@ export interface CommandDefinition {
     category: string;
     description: string;
     /**
+     * Search-only aliases that preserve familiar language without leaking it back into visible command copy.
+     */
+    keywords?: readonly string[];
+    /**
      * Commands that require configured arguments remain available to keybindings but stay out of the palette, whose
      * invocation path cannot supply those arguments.
      */
@@ -116,9 +120,10 @@ export const commandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'agentActions.open',
-        title: 'Run Agent Action…',
+        title: 'Run Agent Command or Skill…',
         category: 'Agent',
-        description: 'Search skills and slash commands for the active Agent Terminal',
+        description: 'Search Agent commands and skills for the active Agent Terminal',
+        keywords: ['action', 'actions', 'command', 'commands', 'skill', 'skills', 'slash'],
     },
     {
         id: 'terminal.new',
