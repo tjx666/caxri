@@ -15,6 +15,7 @@ import { useToastStore } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import {
     didExecuteViewCatalogCommand,
+    dispatchExtensionViewAction,
     executeEditableViewCatalogShortcut,
     executeViewCatalogShortcut,
     getCachedViewCatalogCommandAllowedInEditable,
@@ -268,5 +269,24 @@ describe('didExecuteViewCatalogCommand', () => {
                 message: 'Unknown command: publisher.fixture.unknown',
             }),
         ]);
+    });
+});
+
+describe('dispatchExtensionViewAction', () => {
+    it('awaits one extension command dispatch for an in-place action', async () => {
+        const request = Promise.withResolvers<unknown>();
+        mocks.request.mockReturnValueOnce(request.promise);
+        const dispatch = dispatchExtensionViewAction(
+            'publisher.fixture.refresh',
+            'Refresh Fixture',
+        );
+
+        expect(mocks.request).toHaveBeenCalledTimes(1);
+        expect(mocks.request).toHaveBeenCalledWith('viewContainers.executeCommand', {
+            commandId: 'publisher.fixture.refresh',
+            arguments: [],
+        });
+        request.resolve({ executed: true });
+        await expect(dispatch).resolves.toBe('executed');
     });
 });

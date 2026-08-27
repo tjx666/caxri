@@ -40,7 +40,13 @@
                 {
                     "id": "caxri.fixture.tree",
                     "name": "Fixture Tree",
-                    "type": "tree"
+                    "type": "tree",
+                    "actions": [
+                        {
+                            "command": "caxri.fixture.refresh",
+                            "role": "resource.refresh"
+                        }
+                    ]
                 }
             ]
         },

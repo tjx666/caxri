@@ -41,7 +41,13 @@
                 {
                     "id": "caxri.project-status.overview",
                     "name": "Project Status",
-                    "type": "tree"
+                    "type": "tree",
+                    "actions": [
+                        {
+                            "command": "caxri.project-status.refresh",
+                            "role": "resource.refresh"
+                        }
+                    ]
                 }
             ]
         },
