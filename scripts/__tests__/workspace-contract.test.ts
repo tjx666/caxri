@@ -492,6 +492,22 @@ const requiredProtocol = require('@caxri/protocol');
         });
     });
 
+    it('loads node-pty only at the Terminal Host process composition root', () => {
+        const engineSource = readFileSync(
+            join(root, 'apps/server/src/terminal-host/engine/engine.ts'),
+            'utf8',
+        );
+        const processSource = readFileSync(
+            join(root, 'apps/server/src/terminal-host/process.ts'),
+            'utf8',
+        );
+
+        expect(engineSource).toContain("import type * as pty from 'node-pty';");
+        expect(engineSource).not.toContain("import * as pty from 'node-pty';");
+        expect(processSource).toContain("import * as pty from 'node-pty';");
+        expect(processSource).toContain('spawn: pty.spawn');
+    });
+
     it('keeps generated workspace distributions outside source linting', async () => {
         const eslint = new ESLint({ cwd: root });
 

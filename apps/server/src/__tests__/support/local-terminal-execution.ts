@@ -9,6 +9,10 @@ import type {
 } from '../../domains/terminal';
 import { TerminalExecutionEngine } from '../../terminal-host/engine';
 
+const unavailableTestPtySpawn: typeof pty.spawn = () => {
+    throw new Error('Terminal tests that launch a process must inject a PTY spawn implementation');
+};
+
 export interface LocalTerminalExecutionOptions {
     agentOutputRecoverySettings?: (provider: AgentProvider) => AgentOutputRecoverySettings;
     currentProvider?: (terminalId: string) => AgentProvider | undefined;
@@ -40,7 +44,7 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
             },
             outputFlushMs: options.outputFlushMs,
             sampleResources: options.sampleResources,
-            spawn: options.spawn,
+            spawn: options.spawn ?? unavailableTestPtySpawn,
             terminalColors: options.terminalColors,
         });
     }

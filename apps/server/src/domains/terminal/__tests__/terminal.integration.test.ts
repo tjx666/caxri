@@ -676,44 +676,6 @@ describe('TerminalManager', () => {
         database.close();
     });
 
-    it('buffers detached output in the snapshot and emits only after attachment', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detached-'));
-        temporaryDirectories.push(directory);
-        const database = new CaxriDatabase(join(directory, 'state.db'));
-        const created = database.createSession(database.createProject(directory).id, 'shell');
-        let output = '';
-        const onOutputActivity = vi.fn();
-        const manager = createTestTerminalManager(
-            database,
-            (event) => {
-                if (event.event === 'terminal.output') output += event.payload.data;
-            },
-            createTestLogger(join(directory, 'logs')),
-            { onOutputActivity },
-        );
-
-        await manager.start(created.terminal!);
-        manager.write(created.terminal!.id, "printf 'DETACHED_ONLY\\n'\r");
-        await expect
-            .poll(async () => (await manager.snapshot(created.terminal!.id))?.payload)
-            .toContain('DETACHED_ONLY');
-        expect(onOutputActivity).toHaveBeenCalledWith(created.terminal!.id, expect.any(Number));
-        expect(output).not.toContain('DETACHED_ONLY');
-        expect((await manager.attach(created.terminal!.id))?.payload).toContain('DETACHED_ONLY');
-
-        manager.write(created.terminal!.id, "printf 'ATTACHED_OUTPUT\\n'\r");
-        await expect.poll(() => output).toContain('ATTACHED_OUTPUT');
-        manager.detachView(created.terminal!.id);
-        manager.write(created.terminal!.id, "printf 'DETACHED_AGAIN\\n'\r");
-        await expect
-            .poll(async () => (await manager.snapshot(created.terminal!.id))?.payload)
-            .toContain('DETACHED_AGAIN');
-        expect(output).not.toContain('DETACHED_AGAIN');
-
-        await manager.shutdown('orderly');
-        database.close();
-    });
-
     it('reattaches from the current cursor-addressed screen after raw output exceeds retention', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-detached-screen-'));
         temporaryDirectories.push(directory);

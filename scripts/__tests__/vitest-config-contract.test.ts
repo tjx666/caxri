@@ -72,7 +72,7 @@ describe('Vitest project partition', () => {
         );
     });
 
-    it('keeps native file watchers serial while allowing isolated file tests to use both workers', () => {
+    it('keeps native suites serial while allowing isolated file tests to use both workers', () => {
         const partition = resolveVitestPartition({});
 
         expect(partition.maxWorkers).toBe(2);
@@ -81,7 +81,6 @@ describe('Vitest project partition', () => {
             'apps/server/src/domains/__tests__/configuration.test.ts',
             'apps/server/src/domains/agents/hooks/__tests__/manager.integration.test.ts',
             'apps/server/src/domains/terminal/__tests__/terminal-process.integration.test.ts',
-            'apps/server/src/domains/terminal/__tests__/terminal.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.integration.test.ts',
             'apps/server/src/domains/git/__tests__/git.integration.test.ts',
         ]);

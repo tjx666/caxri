@@ -15,7 +15,7 @@ import {
     logEventCatalog,
     readE2EAgentPolicy,
 } from '@caxri/system';
-import * as pty from 'node-pty';
+import type * as pty from 'node-pty';
 
 import { attachLogFields } from './attach-log';
 import { TerminalAttachments } from './attachments';
@@ -73,7 +73,7 @@ export interface TerminalExecutionEngineOptions {
     onExit: (event: TerminalExecutionExit) => void | Promise<void>;
     outputFlushMs?: number;
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
-    spawn?: typeof pty.spawn;
+    spawn: typeof pty.spawn;
     terminalColors?: (terminalId: string) => { background: string; foreground: string } | undefined;
 }
 
@@ -93,7 +93,7 @@ export class TerminalExecutionEngine {
         this.outputFlushMs = options.outputFlushMs ?? 16;
         if (!Number.isSafeInteger(this.outputFlushMs) || this.outputFlushMs < 1)
             throw new RangeError('Terminal output flush delay must be a positive integer');
-        this.spawnProcess = options.spawn ?? pty.spawn;
+        this.spawnProcess = options.spawn;
         this.sampleResources = options.sampleResources ?? sampleTerminalResources;
         this.hasConfiguredOutputRecovery = hasConfiguredOutputRecovery(
             options.agentOutputRecoverySettings,

@@ -10,6 +10,7 @@ import {
     startProcessObservationSampler,
     StructuredLogger,
 } from '@caxri/system';
+import * as pty from 'node-pty';
 
 import { resolveE2ETerminalOutputFlushDelay } from './e2e-options';
 import type { TerminalHostMessage } from './protocol';
@@ -74,6 +75,7 @@ const runtime = new TerminalHostRuntime({
         });
     },
     send,
+    spawn: pty.spawn,
 });
 
 async function stop(exitCode: number): Promise<void> {
