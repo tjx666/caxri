@@ -132,17 +132,22 @@ export function serializeExtensionTreeState(state: ExtensionTreeState): Extensio
     };
 }
 
+/**
+ * Separates the disclosure hit area from the treeitem body. Chromium emits click/detail 1, click/detail 2, then
+ * doubleClick for a double click, so accepting only the first click also keeps one gesture from dispatching a command
+ * twice.
+ */
 export function pointerTreeRowAction(
     item: TreeItemDto,
+    target: 'body' | 'disclosure',
     event: 'click' | 'doubleClick',
     detail: number,
 ): TreeRowAction {
+    if (event !== 'click' || detail !== 1) return 'none';
     const isCollapsible = item.collapsibleState !== 'none';
-    if (event === 'click') {
-        if (detail !== 1) return 'none';
-        return isCollapsible ? 'toggle' : item.command ? 'activate' : 'none';
-    }
-    return isCollapsible && item.command ? 'activate' : 'none';
+    if (target === 'disclosure') return isCollapsible ? 'toggle' : 'none';
+    if (item.command) return 'activate';
+    return isCollapsible ? 'toggle' : 'none';
 }
 
 export function keyboardTreeRowAction(item: TreeItemDto, key: string): TreeRowAction {

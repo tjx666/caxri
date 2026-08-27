@@ -410,6 +410,11 @@ function ExtensionTreeViewContent({
     );
 }
 
+/**
+ * Keeps one roving treeitem focus target while giving the disclosure its own pointer and accessible hit area. The
+ * disclosure stays outside the tab order because Enter activates the row and Space expands it; pointer activation
+ * restores focus to the treeitem before changing expansion.
+ */
 function TreeItemRow({
     active,
     index,
@@ -441,11 +446,12 @@ function TreeItemRow({
         themeIconId !== undefined && themeIconId in themeIcons
             ? themeIcons[themeIconId as keyof typeof themeIcons]
             : File;
+    const rowElement = useRef<HTMLDivElement>(null);
     const tooltip =
         row.item.tooltip ??
         (row.item.description ? `${row.item.label} — ${row.item.description}` : row.item.label);
     const treeItem = (
-        <button
+        <div
             aria-expanded={isCollapsible ? isExpanded : undefined}
             aria-label={row.item.accessibilityLabel}
             aria-level={row.depth + 1}
@@ -455,18 +461,22 @@ function TreeItemRow({
             className={cn(
                 'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent pr-2 text-left text-foreground hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none',
                 isHeader ? 'h-8 border-b border-border font-semibold' : 'h-7',
+                row.item.command ? 'cursor-pointer' : undefined,
             )}
+            data-tree-command-target={row.item.command ? 'true' : undefined}
             data-tree-index={index}
             data-tree-item-variant={row.item.variant}
+            ref={rowElement}
             role="treeitem"
             style={{ paddingLeft: `${8 + row.depth * 14}px` }}
             tabIndex={active ? 0 : -1}
-            onClick={(event) => onAction(pointerTreeRowAction(row.item, 'click', event.detail))}
-            onDoubleClick={(event) =>
-                onAction(pointerTreeRowAction(row.item, 'doubleClick', event.detail))
-            }
+            onClick={(event) => {
+                rowElement.current?.focus();
+                onAction(pointerTreeRowAction(row.item, 'body', 'click', event.detail));
+            }}
             onFocus={onFocus}
             onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
                 switch (event.key) {
                     case 'ArrowDown':
                         onFocusIndex(index + 1);
@@ -507,11 +517,23 @@ function TreeItemRow({
             }}
         >
             {isCollapsible ? (
-                isExpanded ? (
-                    <ChevronDown className="shrink-0" size={13} />
-                ) : (
-                    <ChevronRight className="shrink-0" size={13} />
-                )
+                <button
+                    aria-expanded={isExpanded}
+                    aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${row.item.accessibilityLabel}`}
+                    className="-m-1 flex size-[21px] shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted hover:text-foreground"
+                    data-tree-disclosure="true"
+                    tabIndex={-1}
+                    type="button"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        rowElement.current?.focus();
+                        onAction(
+                            pointerTreeRowAction(row.item, 'disclosure', 'click', event.detail),
+                        );
+                    }}
+                >
+                    {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                </button>
             ) : (
                 <span className="w-[13px] shrink-0" />
             )}
@@ -531,7 +553,7 @@ function TreeItemRow({
                     {row.item.description}
                 </span>
             )}
-        </button>
+        </div>
     );
     return <Tooltip content={tooltip}>{treeItem}</Tooltip>;
 }
