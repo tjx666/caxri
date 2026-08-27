@@ -1,10 +1,12 @@
 import type { EditorNavigationTarget, TerminalOscLinkSnapshot } from '@caxri/protocol';
-import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
+import type { ILink, Terminal } from '@xterm/xterm';
 
 import {
     parseTerminalFileLocation,
     TERMINAL_FILE_LOCATION_SUFFIX_PATTERN,
 } from './terminal-file-location';
+import type { TerminalLogicalLine } from './terminal-logical-line';
+import { joinTerminalLogicalLines, readSoftWrappedLogicalLine } from './terminal-logical-line';
 import type { VisibleOscLink } from './terminal-osc-link-tracker';
 import {
     MAX_TERMINAL_LINK_LENGTH as MAX_LOGICAL_LINE_LENGTH,
@@ -460,71 +462,79 @@ export function createDetectedLink(
     };
 }
 
-interface LogicalLine {
-    firstBufferLine: number;
-    positions: IBufferCellPosition[];
-    text: string;
+/**
+ * Reconstructs the explicit physical newline emitted by Codex only when both path fragments carry enough syntax to
+ * distinguish them from ordinary adjacent lines. The complete candidate still goes through the existing parser here and
+ * the trusted Project-rooted resolver when activated.
+ */
+export function joinCodexHardWrappedFileLink(
+    firstText: string,
+    continuationText: string,
+    wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
+): { continuationOffset: number; text: string } | undefined {
+    if (firstText.length + continuationText.length > MAX_LOGICAL_LINE_LENGTH) return;
+    const continuation = /^([ \t]{2,8})(\S+)$/u.exec(continuationText);
+    if (!continuation) return;
+    const continuationTarget = continuation[2];
+    if (/^(?:\/|\.\.?\/|~\/|[a-z][a-z\d+.-]*:\/\/)/iu.test(continuationTarget)) return;
+
+    const firstMatch = findTerminalLinks(firstText, wordSeparators).at(-1);
+    if (
+        firstMatch?.kind !== 'file' ||
+        firstMatch.endIndex !== firstText.length ||
+        firstMatch.location
+    )
+        return;
+    const finalSegment = firstMatch.target.slice(firstMatch.target.lastIndexOf('/') + 1);
+    if (/\.[a-z\d][\w-]{0,15}$/iu.test(finalSegment)) return;
+
+    const text = firstText + continuationTarget;
+    const joinedMatch = findTerminalLinks(text, wordSeparators).at(-1);
+    if (
+        joinedMatch?.kind !== 'file' ||
+        joinedMatch.startIndex !== firstMatch.startIndex ||
+        joinedMatch.endIndex !== text.length
+    )
+        return;
+    return { continuationOffset: continuation[1].length, text };
 }
 
 /**
- * Rebuilds one bounded wrapped line and maps UTF-16 offsets back to xterm cells. CJK and emoji before a link occupy a
- * different number of terminal cells than JavaScript code units.
+ * Rebuilds one bounded Terminal link line from xterm soft wraps and conservatively verified Codex hard wraps. Every
+ * call reads current buffer state, so resize/reflow cannot retain stale ranges.
  */
 export function readLogicalLine(
     terminal: Terminal,
     bufferLineNumber: number,
-): LogicalLine | undefined {
+    wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
+): TerminalLogicalLine | undefined {
+    let logicalLine = readSoftWrappedLogicalLine(terminal, bufferLineNumber);
+    if (!logicalLine) return;
+    while (logicalLine.firstBufferLine > 0) {
+        const previous = readSoftWrappedLogicalLine(terminal, logicalLine.firstBufferLine);
+        if (
+            !previous ||
+            logicalLine.lastBufferLine - previous.firstBufferLine + 1 > MAX_LOGICAL_LINE_ROWS
+        )
+            break;
+        const joined = joinCodexHardWrappedFileLink(
+            previous.text,
+            logicalLine.text,
+            wordSeparators,
+        );
+        if (!joined) break;
+        logicalLine = joinTerminalLogicalLines(previous, logicalLine, joined.continuationOffset);
+    }
     const buffer = terminal.buffer.active;
-    const requested = bufferLineNumber - 1;
-    if (requested < 0 || requested >= buffer.length) return;
-    let first = requested;
-    let rowCount = 1;
-    while (first > 0 && buffer.getLine(first)?.isWrapped && rowCount < MAX_LOGICAL_LINE_ROWS) {
-        first -= 1;
-        rowCount += 1;
+    while (logicalLine.lastBufferLine + 1 < buffer.length) {
+        const next = readSoftWrappedLogicalLine(terminal, logicalLine.lastBufferLine + 2);
+        if (!next || next.lastBufferLine - logicalLine.firstBufferLine + 1 > MAX_LOGICAL_LINE_ROWS)
+            break;
+        const joined = joinCodexHardWrappedFileLink(logicalLine.text, next.text, wordSeparators);
+        if (!joined) break;
+        logicalLine = joinTerminalLogicalLines(logicalLine, next, joined.continuationOffset);
     }
-    let last = requested;
-    while (
-        last + 1 < buffer.length &&
-        buffer.getLine(last + 1)?.isWrapped &&
-        last - first + 1 < MAX_LOGICAL_LINE_ROWS
-    )
-        last += 1;
-
-    let text = '';
-    const positions: IBufferCellPosition[] = [];
-    for (let y = first; y <= last && text.length < MAX_LOGICAL_LINE_LENGTH; y += 1) {
-        const line = buffer.getLine(y);
-        if (!line) break;
-        const lineText = line.translateToString(true);
-        appendLineCellPositions(line, y, lineText, terminal.cols, positions);
-        text += lineText.slice(0, Math.min(lineText.length, MAX_LOGICAL_LINE_LENGTH - text.length));
-    }
-    return { firstBufferLine: first, positions, text };
-}
-
-/**
- * Walks one buffer row's cells and pushes one logical-text position per UTF-16 code unit, skipping zero-width cells
- * (the trailing half of a wide glyph). Extracted from `readLogicalLine` so the per-cell skip only needs a `return`, not
- * a `continue` reaching an outer loop.
- */
-function appendLineCellPositions(
-    line: IBufferLine,
-    y: number,
-    lineText: string,
-    columns: number,
-    positions: IBufferCellPosition[],
-): void {
-    let offset = 0;
-    for (let x = 0; x < Math.min(line.length, columns) && offset < lineText.length; x += 1) {
-        const cell = line.getCell(x);
-        if (!cell || cell.getWidth() === 0) continue;
-        const chars = cell.getChars() || ' ';
-        for (let index = 0; index < chars.length && offset < lineText.length; index += 1) {
-            positions.push({ x: x + 1, y: y + 1 });
-            offset += 1;
-        }
-    }
+    return logicalLine;
 }
 
 /**
@@ -583,7 +593,7 @@ function createLinkHintController(terminal: Terminal): {
 }
 
 function linksForLogicalLine(
-    logicalLine: LogicalLine,
+    logicalLine: TerminalLogicalLine,
     context: TerminalLinkContext,
     hint: ReturnType<typeof createLinkHintController>,
 ): ILink[] {
@@ -628,7 +638,7 @@ function viewportPlainTextLinks(
         uniqueTargets: new Set(),
     };
     for (let line = firstVisibleLine; line <= lastVisibleLine; line += 1) {
-        const logicalLine = readLogicalLine(terminal, line + 1);
+        const logicalLine = readLogicalLine(terminal, line + 1, context.wordSeparators);
         if (!logicalLine || visitedLogicalLines.has(logicalLine.firstBufferLine)) continue;
         visitedLogicalLines.add(logicalLine.firstBufferLine);
         for (const match of findTerminalLinks(logicalLine.text, context.wordSeparators)) {
@@ -694,7 +704,7 @@ export function registerTerminalLinks(
     const hint = createLinkHintController(terminal);
     const disposable = terminal.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
-            const logicalLine = readLogicalLine(terminal, bufferLineNumber);
+            const logicalLine = readLogicalLine(terminal, bufferLineNumber, context.wordSeparators);
             const links = logicalLine ? linksForLogicalLine(logicalLine, context, hint) : [];
             callback(links.length > 0 ? links : undefined);
         },
