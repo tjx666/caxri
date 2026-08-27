@@ -1,11 +1,33 @@
-import type { FileEntry } from '@caxri/protocol';
-
 import { isPathAtOrBelow } from '../../lib/file-path';
+
+export interface PathBrowserInput {
+    kind: 'absolute' | 'filter' | 'home' | 'parent' | 'relative';
+    value: string;
+}
+
+/**
+ * Classifies path syntax without expanding it in the sandboxed Renderer. Electron Main repeats this validation before
+ * resolving Home or touching the filesystem; this helper only decides whether Enter means filter/open or navigation.
+ */
+export function parsePathBrowserInput(value: string): PathBrowserInput {
+    if (/^\$(?:HOME|\{HOME\})(?:\/|$)/u.test(value))
+        throw new Error('Shell path expansion is not supported');
+    if (value.startsWith('~') && !value.startsWith('~/'))
+        throw new Error('Only current-user ~/ paths are supported');
+    if (value.startsWith('~/')) return { kind: 'home', value };
+    if (value.startsWith('/')) return { kind: 'absolute', value };
+    if (value === '..' || value.startsWith('../')) return { kind: 'parent', value };
+    if (value.includes('/')) return { kind: 'relative', value };
+    return { kind: 'filter', value };
+}
 
 /**
  * Filters the already-lazy current-directory result; it never starts a Project-wide traversal.
  */
-export function filterPathEntries(entries: readonly FileEntry[], query: string): FileEntry[] {
+export function filterPathEntries<T extends { name: string }>(
+    entries: readonly T[],
+    query: string,
+): T[] {
     const needle = query.toLocaleLowerCase();
     if (!needle) return [...entries];
     return entries.filter((entry) => entry.name.toLocaleLowerCase().includes(needle));
@@ -15,7 +37,7 @@ export function filterPathEntries(entries: readonly FileEntry[], query: string):
  * Tab completion is deliberately deterministic: ambiguous matches leave the user's text intact.
  */
 export function completePathQuery(
-    entries: readonly FileEntry[],
+    entries: ReadonlyArray<{ name: string }>,
     query: string,
     isTruncated = false,
 ): string | undefined {

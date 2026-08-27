@@ -72,7 +72,12 @@ type ServiceHandlerMethods =
     | 'config.paths'
     | 'diagnostics.exportPath'
     | 'diagnostics.snapshot'
-    | 'logs.query';
+    | 'logs.query'
+    | 'pathBrowser.browse'
+    | 'pathBrowser.close'
+    | 'pathBrowser.navigate'
+    | 'pathBrowser.open'
+    | 'pathBrowser.start';
 
 /**
  * Methods the Renderer may call but that only Electron Main can satisfy.
@@ -148,6 +153,11 @@ export function createServiceHandlers(services: {
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'files.search': (parameters, signal) => files.search(parameters, signal),
+        'pathBrowser.start': () => mainOwned('pathBrowser.start'),
+        'pathBrowser.browse': () => mainOwned('pathBrowser.browse'),
+        'pathBrowser.navigate': () => mainOwned('pathBrowser.navigate'),
+        'pathBrowser.open': () => mainOwned('pathBrowser.open'),
+        'pathBrowser.close': () => mainOwned('pathBrowser.close'),
         'terminal.agentTranscript': async ({ terminalId, withContent }) => {
             if (withContent) await transcripts.watch(terminalId);
             return readAgentTranscript(database, terminalId, withContent, agentEnvironment);

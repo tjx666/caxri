@@ -1,54 +1,24 @@
-import type { KeyboardEvent } from 'react';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-
-import type { FileEntry } from '@caxri/protocol';
-import { clamp } from 'es-toolkit';
 import { ChevronLeft, CornerDownLeft, FilePlus, FolderPlus } from 'lucide-react';
-
-import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { Input, InputGroup } from '../../components/ui/input';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { cn } from '../../lib/utilities';
-import { useCaxriQuery } from '../../queries/client';
 import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
-import { useSelectedProject, useSelectedSession } from '../../stores/selectors';
+import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
-import { openFile } from '../editor/document-actions';
-import { createItem } from '../view-containers/resource-explorer/file-actions';
-import { activeResourceExplorerClient } from '../view-containers/resource-explorer-catalog-client';
-import {
-    completePathQuery,
-    filterPathEntries,
-    parentDirectoryWithinRoot,
-    pathBrowserCreateCandidate,
-    pathBrowserEmptyMessage,
-} from './path-browser';
-
-const PATH_BROWSER_QUERY_DEBOUNCE_MS = 120;
-const EMPTY_ENTRIES: readonly FileEntry[] = [];
-
-function closePathBrowser(): void {
-    setPathBrowserOpen(false);
-}
-
-function relativeDirectory(root: string, directory: string): string {
-    if (directory === root) return '';
-    return `${directory.slice(root === '/' ? 1 : root.length + 1)}/`;
-}
+import { runPathBrowserDetached, usePathBrowser } from './use-path-browser';
 
 export function PathBrowserDialog() {
     const isOpen = useDialogStore((state) => state.pathBrowserOpen);
-    const project = useSelectedProject();
+    const project = useSelectedWorkbenchProject();
     const session = useSelectedSession();
     return (
         <Dialog open={isOpen} onOpenChange={setPathBrowserOpen}>
             {isOpen && project && session && (
                 <PathBrowserContent
-                    key={`${session.id}:${project.rootPath}`}
-                    projectTitle={project.displayTitle}
-                    root={project.rootPath}
+                    key={`${session.id}:${project.id}`}
+                    projectRoot={project.rootPath}
                     sessionId={session.id}
                 />
             )}
@@ -57,134 +27,37 @@ export function PathBrowserDialog() {
 }
 
 function PathBrowserContent({
-    projectTitle,
-    root,
+    projectRoot,
     sessionId,
 }: {
-    projectTitle: string;
-    root: string;
+    projectRoot: string;
     sessionId: string;
 }) {
-    const [nestedDirectory, setNestedDirectory] = useState<string>();
-    const [query, setQuery] = useState('');
-    const [selectedIndex, setSelectedIndex] = useState(0);
-    const debouncedQuery = useDebouncedValue(query, PATH_BROWSER_QUERY_DEBOUNCE_MS);
-    const directory = nestedDirectory ?? root;
-    const inputReference = useRef<HTMLInputElement>(null);
-    const listboxId = useId();
-    const { data, error, isError, isFetching, isPending } = useCaxriQuery(
-        'files.browse',
-        { sessionId, directory, query: debouncedQuery },
-        { staleTime: 0 },
-    );
-    const entries = data?.entries ?? EMPTY_ENTRIES;
-    const isTruncated = data?.truncated ?? false;
-    const isSettled = query === debouncedQuery && !isPending && !isFetching;
-    const matches = useMemo(() => filterPathEntries(entries, query), [entries, query]);
-    const emptyMessage = pathBrowserEmptyMessage(matches.length, isTruncated);
-    const isExactMatchAvailable = !isTruncated && matches.length === 1 && matches[0].name === query;
-    const isResultsReady = isSettled || isExactMatchAvailable;
-    const isListboxRendered = isResultsReady && !isError;
-    const effectiveSelectedIndex = clamp(selectedIndex, Math.max(matches.length - 1, 0));
-    const selected = isResultsReady ? matches[effectiveSelectedIndex] : undefined;
-    const activeOptionId = selected ? `${listboxId}-option-${effectiveSelectedIndex}` : undefined;
-    const candidateToCreate = useMemo(
-        () => pathBrowserCreateCandidate(query, matches.length, isTruncated, isResultsReady),
-        [query, matches.length, isTruncated, isResultsReady],
-    );
-
-    useEffect(() => {
-        if (activeOptionId)
-            document
-                .querySelector(`#${CSS.escape(activeOptionId)}`)
-                ?.scrollIntoView({ block: 'nearest' });
-    }, [activeOptionId]);
-    useEffect(() => inputReference.current?.focus(), []);
-
-    const updateQuery = (value: string): void => {
-        setQuery(value);
-        setSelectedIndex(0);
-    };
-    const enterDirectory = (path: string): void => {
-        setNestedDirectory(path === root ? undefined : path);
-        updateQuery('');
-    };
-    const goToParent = (): void => {
-        const parent = parentDirectoryWithinRoot(root, directory);
-        setNestedDirectory(parent === root ? undefined : parent);
-        updateQuery('');
-    };
-    const choose = (entry: FileEntry | undefined): void => {
-        if (!entry || entry.kind === 'symlink') return;
-        if (entry.kind === 'directory') {
-            enterDirectory(entry.path);
-            return;
-        }
-        closePathBrowser();
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, openFile() reports its own errors
-        void openFile(entry.path);
-    };
-    /**
-     * Reuses the file tree's own create action (`createItem`) instead of a second create path, so this affordance gets
-     * the same durable-mutation tracking, toasts, and Project-root containment (the target `directory` is always
-     * `nestedDirectory ?? root`, which navigation already keeps within root via `parentDirectoryWithinRoot`/listed
-     * entry paths).
-     */
-    const createFromQuery = async (): Promise<void> => {
-        if (!candidateToCreate) return;
-        const client = await activeResourceExplorerClient();
-        const created = await createItem(
-            client,
-            sessionId,
-            directory,
-            candidateToCreate.name,
-            candidateToCreate.kind,
-        );
-        if (!created) return;
-        if (candidateToCreate.kind === 'directory') {
-            enterDirectory(created.path);
-            return;
-        }
-        // `createItem` already opens a newly created file for the selected Session.
-        closePathBrowser();
-    };
-    const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-        if (event.nativeEvent.isComposing) return;
-        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            event.preventDefault();
-            if (matches.length === 0) return;
-            const delta = event.key === 'ArrowDown' ? 1 : -1;
-            setSelectedIndex((current) => (current + delta + matches.length) % matches.length);
-            return;
-        }
-        if (event.key === 'Tab') {
-            event.preventDefault();
-            const completion = completePathQuery(entries, query, isTruncated);
-            if (completion) updateQuery(completion);
-            return;
-        }
-        if (event.key === 'ArrowRight') {
-            event.preventDefault();
-            if (selected?.kind === 'directory') enterDirectory(selected.path);
-            return;
-        }
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            if (selected) choose(selected);
-            else if (candidateToCreate) {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, createFromQuery() reports its own errors
-                void createFromQuery();
-            }
-            return;
-        }
-        if (
-            event.key === 'ArrowLeft' &&
-            (query === '' || (event.currentTarget.selectionStart ?? 1) === 0)
-        ) {
-            event.preventDefault();
-            goToParent();
-        }
-    };
+    const {
+        activeOptionId,
+        candidateToCreate,
+        choose,
+        createFromQuery,
+        displayedError,
+        effectiveSelectedIndex,
+        emptyMessage,
+        goToParent,
+        handleKeyDown,
+        inputReference,
+        isListboxRendered,
+        isNavigating,
+        isResultsReady,
+        isStarting,
+        isTruncated,
+        listboxId,
+        matches,
+        navigateInput,
+        pathPrompt,
+        query,
+        selectIndex,
+        snapshot,
+        updateQuery,
+    } = usePathBrowser(projectRoot, sessionId);
 
     return (
         <DialogContent
@@ -196,15 +69,17 @@ function PathBrowserContent({
                 <button
                     aria-label="Parent directory"
                     className="mr-1 grid size-7 flex-none place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground disabled:opacity-40"
-                    disabled={!root || directory === root}
+                    disabled={!snapshot?.canGoParent || isNavigating}
                     type="button"
                     onClick={goToParent}
                 >
                     <ChevronLeft aria-hidden="true" size={16} />
                 </button>
-                <span className="flex-none text-[12px] text-muted">{projectTitle}/</span>
+                <span className="flex-none text-[12px] text-muted">
+                    {snapshot?.rootLabel ?? 'Project'}/
+                </span>
                 <span className="min-w-0 flex-none truncate text-[12px] text-muted">
-                    {root ? relativeDirectory(root, directory) : ''}
+                    {snapshot?.directoryLabel ?? ''}
                 </span>
                 <Input
                     ref={inputReference}
@@ -216,39 +91,48 @@ function PathBrowserContent({
                     aria-label="File path"
                     appearance="embedded"
                     className="min-w-[80px] flex-1 px-1 text-foreground"
-                    placeholder="Filter this directory…"
+                    placeholder="Filter or enter ~/ or /path…"
                     role="combobox"
                     size="palette"
                     value={query}
                     onChange={(event) => {
                         const value = event.target.value;
-                        if (value === '../') goToParent();
+                        if (value === '../') navigateInput(value);
                         else updateQuery(value);
                     }}
                     onKeyDown={handleKeyDown}
                 />
             </InputGroup>
             <div className="max-h-[360px] min-h-[180px] overflow-auto p-1">
-                {isPending && <p className="p-6 text-center text-muted">Loading…</p>}
-                {isError && (
+                {(isStarting || isNavigating) && (
+                    <p className="p-6 text-center text-muted">Loading…</p>
+                )}
+                {displayedError && !isStarting && !isNavigating && (
                     <p className="p-6 text-center text-danger" role="alert">
-                        {describeFailure(error, 'Unable to read directory')}
+                        {describeFailure(displayedError, 'Unable to open path')}
                     </p>
                 )}
-                {!isPending && !isError && !isResultsReady && (
+                {!isStarting && !isNavigating && !displayedError && !isResultsReady && (
                     <p className="p-6 text-center text-muted">Searching…</p>
                 )}
-                {isResultsReady && !isError && emptyMessage && !candidateToCreate && (
-                    <p className="p-6 text-center text-muted">{emptyMessage}</p>
+                {pathPrompt && isResultsReady && !displayedError && (
+                    <p className="p-6 text-center text-muted">
+                        Press Enter to open this path. A folder outside added Projects requires
+                        authorization.
+                    </p>
                 )}
-                {isResultsReady && !isError && candidateToCreate && (
+                {isResultsReady &&
+                    !displayedError &&
+                    !pathPrompt &&
+                    emptyMessage &&
+                    !candidateToCreate && (
+                        <p className="p-6 text-center text-muted">{emptyMessage}</p>
+                    )}
+                {isResultsReady && !displayedError && candidateToCreate && (
                     <button
                         type="button"
                         className="path-browser-create flex h-10 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-elevated"
-                        onClick={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, createFromQuery() reports its own errors
-                            void createFromQuery();
-                        }}
+                        onClick={() => runPathBrowserDetached(createFromQuery())}
                     >
                         {candidateToCreate.kind === 'directory' ? (
                             <FolderPlus aria-hidden="true" className="text-muted" size={14} />
@@ -261,11 +145,11 @@ function PathBrowserContent({
                         </span>
                     </button>
                 )}
-                {isListboxRendered && (
+                {isListboxRendered && !displayedError && (
                     <div aria-label="Files in current directory" id={listboxId} role="listbox">
                         {matches.map((entry, index) => (
                             <button
-                                key={entry.path}
+                                key={entry.id}
                                 id={`${listboxId}-option-${index}`}
                                 aria-disabled={entry.kind === 'symlink'}
                                 aria-selected={index === effectiveSelectedIndex}
@@ -278,7 +162,7 @@ function PathBrowserContent({
                                 type="button"
                                 disabled={entry.kind === 'symlink'}
                                 onClick={() => choose(entry)}
-                                onMouseMove={() => setSelectedIndex(index)}
+                                onMouseMove={() => selectIndex(index)}
                             >
                                 <FileTypeIcon entry={entry} />
                                 <span className="min-w-0 flex-1 truncate">{entry.name}</span>

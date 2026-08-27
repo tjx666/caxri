@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus', async () => {
@@ -45,7 +45,7 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
             isComposing: true,
             key: 'Enter',
         });
-        await expect(dialog.getByRole('button', { name: 'Parent directory' })).toBeDisabled();
+        await expect(dialog.getByRole('button', { name: 'Parent directory' })).toBeEnabled();
         const firstActiveOption = await input.getAttribute('aria-activedescendant');
         await input.press('ArrowDown');
         await expect
@@ -115,6 +115,96 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         await expect(running.page.getByRole('dialog')).toHaveCount(0);
         await running.page.keyboard.press('Meta+Shift+P');
         await expect(running.page.getByRole('dialog')).toContainText('Commands');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('an external folder grant is read-only and closes with the path browser', async () => {
+    allowE2EErrors([
+        { source: 'desktop', event: 'ipc.request_failed', code: 'PATH_DENIED', count: 1 },
+    ]);
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-path-browser-grant-e2e-'));
+    const root = join(testDirectory, 'project');
+    const externalRoot = join(testDirectory, 'external');
+    const wrongRoot = join(testDirectory, 'wrong');
+    const userData = join(testDirectory, 'user-data');
+    await Promise.all([
+        mkdir(root, { recursive: true }),
+        mkdir(externalRoot, { recursive: true }),
+        mkdir(wrongRoot, { recursive: true }),
+    ]);
+    await writeFile(join(externalRoot, 'external.ts'), 'export const external = true;\n');
+
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, externalRoot, wrongRoot]) },
+    });
+    try {
+        await createShellSession(running.page);
+        await running.page.locator('.xterm-helper-textarea').focus();
+        await running.page.keyboard.press('Meta+P');
+        let dialog = running.page.getByRole('dialog');
+        let input = dialog.getByRole('combobox', { name: 'File path' });
+        await input.fill('~/');
+        await expect(dialog).toContainText('Press Enter to open this path');
+        await input.press('Enter');
+        await expect(dialog.getByRole('option', { name: 'external.ts' })).toBeVisible();
+        await expect(dialog.locator('.path-browser-create')).toHaveCount(0);
+        await expect(dialog.getByRole('button', { name: 'Parent directory' })).toBeDisabled();
+
+        await input.press('Escape');
+        await running.page.keyboard.press('Meta+P');
+        dialog = running.page.getByRole('dialog');
+        input = dialog.getByRole('combobox', { name: 'File path' });
+        await input.fill(`${externalRoot}/`);
+        await input.press('Enter');
+        await expect(dialog.getByRole('alert')).toContainText(
+            'Selected folder does not contain the requested path',
+        );
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('a pasted absolute file opens after one deterministic folder authorization', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-path-browser-absolute-e2e-'));
+    const root = join(testDirectory, 'project');
+    const externalRoot = join(testDirectory, 'external');
+    const userData = join(testDirectory, 'user-data');
+    const externalFile = join(externalRoot, 'absolute.ts');
+    await Promise.all([mkdir(root, { recursive: true }), mkdir(externalRoot, { recursive: true })]);
+    await writeFile(externalFile, 'export const absolute = true;\n');
+
+    const running = await launchCaxri({
+        userDataDir: userData,
+        testRootPath: root,
+        env: { CAXRI_TEST_ROOT_PATHS: JSON.stringify([root, externalRoot]) },
+    });
+    try {
+        await createShellSession(running.page);
+        await running.page.locator('.xterm-helper-textarea').focus();
+        await running.page.keyboard.press('Meta+P');
+        const dialog = running.page.getByRole('dialog');
+        const input = dialog.getByRole('combobox', { name: 'File path' });
+        await input.fill(externalFile);
+        await expect(dialog).toContainText('Press Enter to open this path');
+        await input.press('Enter');
+
+        await expect(dialog).toHaveCount(0);
+        await expect(running.page.locator('.work-tab', { hasText: 'absolute.ts' })).toBeVisible();
+        await expect(running.page.locator('.xterm-helper-textarea')).toHaveCount(0);
     } finally {
         try {
             await running.app.close();
