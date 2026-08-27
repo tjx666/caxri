@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { ExtensionTreeViewState, TreeItemDto } from '@caxri/protocol';
+import type { ExtensionTreeViewState, TreeItemDto, ViewActionDescriptor } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
     AlertTriangle,
@@ -30,6 +30,9 @@ import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utilities';
 import { useSessionState } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
+import { ExtensionTreeHeader } from './extension-tree-header';
+import type { PendingTreeRefresh } from './extension-tree-refresh-state';
+import { reconcilePendingTreeRefresh } from './extension-tree-refresh-state';
 import type { TreeRowAction } from './extension-tree-state';
 import {
     focusTreeItem,
@@ -41,6 +44,7 @@ import {
 } from './extension-tree-state';
 import { ROOT_HANDLE, useExtensionTreeChildren } from './use-extension-tree-children';
 import { useExtensionTreeState } from './use-extension-tree-state';
+import { dispatchExtensionViewAction } from './view-container-commands';
 
 const themeIcons = {
     'check': Check,
@@ -184,10 +188,12 @@ function unloadedExpandedHandles(
 }
 
 export function ExtensionTreeView({
+    actions,
     extensionGeneration,
     title,
     viewId,
 }: {
+    actions?: readonly ViewActionDescriptor[];
     extensionGeneration: number;
     title: string;
     viewId: string;
@@ -207,16 +213,26 @@ export function ExtensionTreeView({
                 : undefined,
         [extensionGeneration, sessionId, viewId, workbenchProjectId],
     );
+    const refreshAction = actions?.find(({ role }) => role === 'resource.refresh');
     if (!scope)
         return (
-            <div className="flex min-h-0 flex-1 items-center justify-center p-3 text-xs text-muted">
-                Select a Session to load this view.
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <ExtensionTreeHeader
+                    disabled
+                    isRefreshing={false}
+                    title={title}
+                    onRefresh={refreshAction ? () => {} : undefined}
+                />
+                <div className="flex min-h-0 flex-1 items-center justify-center p-3 text-xs text-muted">
+                    Select a Session to load this view.
+                </div>
             </div>
         );
     return (
         <ExtensionTreeViewContent
             key={`${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.extensionGeneration}\0${viewId}`}
             persisted={sessionState?.extensionTreeViewStates?.[viewId]}
+            refreshAction={refreshAction}
             scope={scope}
             title={title}
         />
@@ -225,10 +241,12 @@ export function ExtensionTreeView({
 
 function ExtensionTreeViewContent({
     persisted,
+    refreshAction,
     scope,
     title,
 }: {
     persisted?: ExtensionTreeViewState;
+    refreshAction?: ViewActionDescriptor;
     scope: {
         sessionId: string;
         workbenchProjectId: string;
@@ -239,10 +257,32 @@ function ExtensionTreeViewContent({
 }) {
     const scrollElement = useRef<HTMLDivElement>(null);
     const [treeState, updateTreeState] = useExtensionTreeState(scope, persisted);
-    const { children, errors, loading, loadChildren, requests } = useExtensionTreeChildren(
-        scope,
-        updateTreeState,
-    );
+    const { children, errors, loading, loadChildren, requests, rootLoads } =
+        useExtensionTreeChildren(scope, updateTreeState);
+    const refreshLock = useRef<string | undefined>(undefined);
+    const [pendingRefresh, setPendingRefresh] = useState<PendingTreeRefresh>();
+    const activePendingRefresh = pendingRefresh
+        ? reconcilePendingTreeRefresh(pendingRefresh, rootLoads)
+        : undefined;
+
+    useEffect(() => {
+        if (!activePendingRefresh) refreshLock.current = undefined;
+    }, [activePendingRefresh]);
+
+    const refresh = (): void => {
+        if (!refreshAction || activePendingRefresh || refreshLock.current) return;
+        const id = crypto.randomUUID();
+        refreshLock.current = id;
+        setPendingRefresh({ afterRootLoad: rootLoads.started, id });
+        // eslint-disable-next-line no-void -- the header remains busy until the provider's resulting root load completes
+        void dispatchExtensionViewAction(refreshAction.commandId, `Refresh ${title}`).then(
+            (result) => {
+                if (result === 'executed') return;
+                if (refreshLock.current === id) refreshLock.current = undefined;
+                setPendingRefresh((current) => (current?.id === id ? undefined : current));
+            },
+        );
+    };
 
     const rows = useMemo(
         () => flattenRows(children, errors, (item) => isTreeItemExpanded(treeState, item), loading),
@@ -313,99 +353,107 @@ function ExtensionTreeViewContent({
     };
 
     return (
-        <div ref={scrollElement} className="min-h-0 flex-1 overflow-auto">
-            <ul
-                aria-label={title}
-                className="relative"
-                role="tree"
-                style={{ height: `${virtualizer.getTotalSize()}px` }}
-            >
-                {virtualizer.getVirtualItems().map((virtualRow) => {
-                    const row = rows[virtualRow.index];
-                    return (
-                        <li
-                            key={
-                                row.kind === 'item'
-                                    ? row.item.handle
-                                    : `${row.kind}:${row.parentHandle}`
-                            }
-                            className="absolute top-0 left-0 w-full"
-                            role="none"
-                            style={{ transform: `translateY(${virtualRow.start}px)` }}
-                        >
-                            {row.kind === 'loading' ? (
-                                // `role="treeitem"` (rather than the `li`'s own `role="none"`) keeps the placeholder
-                                // discoverable by the same tree/treeitem contract the interactive rows below use, so
-                                // screen reader users don't hit a silent gap while a branch is fetching.
-                                <div
-                                    aria-label="Loading…"
-                                    aria-level={row.depth + 1}
-                                    className="flex h-7 items-center gap-2 text-muted"
-                                    role="treeitem"
-                                    style={{ paddingLeft: `${8 + row.depth * 14}px` }}
-                                >
-                                    <LoaderCircle className="animate-spin" size={14} /> Loading
-                                    view…
-                                </div>
-                            ) : row.kind === 'error' ? (
-                                <div
-                                    aria-label={`Unable to load view: ${row.message}`}
-                                    aria-level={row.depth + 1}
-                                    className="flex h-7 items-center gap-2 text-danger"
-                                    role="treeitem"
-                                    style={{ paddingLeft: `${8 + row.depth * 14}px` }}
-                                >
-                                    <AlertTriangle size={14} />
-                                    <span className="min-w-0 flex-1 truncate">
-                                        Unable to load view: {row.message}
-                                    </span>
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => {
-                                            // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
-                                            void loadChildren(row.parentHandle);
-                                        }}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ExtensionTreeHeader
+                isRefreshing={Boolean(activePendingRefresh) || loading.has(ROOT_HANDLE)}
+                title={title}
+                onRefresh={refreshAction ? refresh : undefined}
+            />
+            <div ref={scrollElement} className="min-h-0 flex-1 overflow-auto">
+                <ul
+                    aria-label={title}
+                    className="relative"
+                    role="tree"
+                    style={{ height: `${virtualizer.getTotalSize()}px` }}
+                >
+                    {virtualizer.getVirtualItems().map((virtualRow) => {
+                        const row = rows[virtualRow.index];
+                        return (
+                            <li
+                                key={
+                                    row.kind === 'item'
+                                        ? row.item.handle
+                                        : `${row.kind}:${row.parentHandle}`
+                                }
+                                className="absolute top-0 left-0 w-full"
+                                role="none"
+                                style={{ transform: `translateY(${virtualRow.start}px)` }}
+                            >
+                                {row.kind === 'loading' ? (
+                                    // `role="treeitem"` (rather than the `li`'s own `role="none"`) keeps the placeholder
+                                    // discoverable by the same tree/treeitem contract the interactive rows below use, so
+                                    // screen reader users don't hit a silent gap while a branch is fetching.
+                                    <div
+                                        aria-label="Loading…"
+                                        aria-level={row.depth + 1}
+                                        className="flex h-7 items-center gap-2 text-muted"
+                                        role="treeitem"
+                                        style={{ paddingLeft: `${8 + row.depth * 14}px` }}
                                     >
-                                        Retry
-                                    </Button>
-                                </div>
-                            ) : row.kind === 'empty' ? (
-                                <div
-                                    aria-label="No items in this view."
-                                    aria-level={row.depth + 1}
-                                    className="flex h-7 items-center text-muted"
-                                    role="treeitem"
-                                    style={{ paddingLeft: `${8 + row.depth * 14}px` }}
-                                >
-                                    No items in this view.
-                                </div>
-                            ) : (
-                                <TreeItemRow
-                                    active={
-                                        focusedRowIndex === -1
-                                            ? virtualRow.index === firstItemIndex
-                                            : isTreeItemFocused(treeState, row.item)
-                                    }
-                                    index={virtualRow.index}
-                                    row={row}
-                                    rows={rows}
-                                    onAction={(action) => {
-                                        if (action === 'toggle') toggle(row);
-                                        else if (action === 'activate') runTreeCommand(row.item);
-                                    }}
-                                    onFocus={() =>
-                                        updateTreeState((current) =>
-                                            focusTreeItem(current, row.item),
-                                        )
-                                    }
-                                    onFocusIndex={focusIndex}
-                                />
-                            )}
-                        </li>
-                    );
-                })}
-            </ul>
+                                        <LoaderCircle className="animate-spin" size={14} /> Loading
+                                        view…
+                                    </div>
+                                ) : row.kind === 'error' ? (
+                                    <div
+                                        aria-label={`Unable to load view: ${row.message}`}
+                                        aria-level={row.depth + 1}
+                                        className="flex h-7 items-center gap-2 text-danger"
+                                        role="treeitem"
+                                        style={{ paddingLeft: `${8 + row.depth * 14}px` }}
+                                    >
+                                        <AlertTriangle size={14} />
+                                        <span className="min-w-0 flex-1 truncate">
+                                            Unable to load view: {row.message}
+                                        </span>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => {
+                                                // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
+                                                void loadChildren(row.parentHandle);
+                                            }}
+                                        >
+                                            Retry
+                                        </Button>
+                                    </div>
+                                ) : row.kind === 'empty' ? (
+                                    <div
+                                        aria-label="No items in this view."
+                                        aria-level={row.depth + 1}
+                                        className="flex h-7 items-center text-muted"
+                                        role="treeitem"
+                                        style={{ paddingLeft: `${8 + row.depth * 14}px` }}
+                                    >
+                                        No items in this view.
+                                    </div>
+                                ) : (
+                                    <TreeItemRow
+                                        active={
+                                            focusedRowIndex === -1
+                                                ? virtualRow.index === firstItemIndex
+                                                : isTreeItemFocused(treeState, row.item)
+                                        }
+                                        index={virtualRow.index}
+                                        row={row}
+                                        rows={rows}
+                                        onAction={(action) => {
+                                            if (action === 'toggle') toggle(row);
+                                            else if (action === 'activate')
+                                                runTreeCommand(row.item);
+                                        }}
+                                        onFocus={() =>
+                                            updateTreeState((current) =>
+                                                focusTreeItem(current, row.item),
+                                            )
+                                        }
+                                        onFocusIndex={focusIndex}
+                                    />
+                                )}
+                            </li>
+                        );
+                    })}
+                </ul>
+            </div>
         </div>
     );
 }

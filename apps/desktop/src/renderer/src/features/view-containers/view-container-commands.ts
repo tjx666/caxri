@@ -35,6 +35,25 @@ export function getCachedViewCatalogCommandAllowedInEditable(
     return findViewCatalogCommand(catalog, commandId)?.allowInEditable ?? false;
 }
 
+/**
+ * Dispatches one extension-contributed view action and keeps its promise observable by an in-place control. Palette and
+ * shortcut entry points intentionally remain fire-and-forget, while a toolbar button needs the completion signal to
+ * suppress repeated activation until its provider refresh starts.
+ */
+export async function dispatchExtensionViewAction(
+    commandId: string,
+    commandTitle: string,
+    arguments_: readonly unknown[] = [],
+): Promise<'executed' | 'failed'> {
+    const result = await tryCommand(`Unable to run ${commandTitle}`, () =>
+        caxri.request('viewContainers.executeCommand', {
+            commandId,
+            arguments: [...arguments_],
+        }),
+    );
+    return result === undefined ? 'failed' : 'executed';
+}
+
 function revealViewContainer(catalog: ViewCatalogSnapshot, containerId: string): void {
     const container = catalog.containers.find(({ id }) => id === containerId);
     if (container?.location === 'secondarySidebar') {
@@ -77,14 +96,9 @@ export function didExecuteViewCatalogCommand(
         });
         return true;
     }
-    // Fire-and-forget: tryCommand() owns the shared error path for Renderer command entry points.
+    // Fire-and-forget: dispatchExtensionViewAction() owns the shared error path for Renderer command entry points.
     // eslint-disable-next-line no-void -- the command is dispatched exactly once and reports failures through a toast
-    void tryCommand(`Unable to run ${command.title}`, () =>
-        caxri.request('viewContainers.executeCommand', {
-            commandId,
-            arguments: [...arguments_],
-        }),
-    );
+    void dispatchExtensionViewAction(commandId, command.title, arguments_);
     return true;
 }
 

@@ -93,6 +93,8 @@ test('bundled Project Status extension renders and refreshes the current reposit
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     const bin = join(testDirectory, 'bin');
+    const statusDelayPath = join(testDirectory, 'status-delay.txt');
+    const statusRequestLogPath = join(testDirectory, 'status-requests.txt');
     const statusTitlePath = join(testDirectory, 'status-title.txt');
     await execFileAsync('mkdir', ['-p', root, bin]);
     await execFileAsync('git', ['init', '-b', 'feature/status'], { cwd: root });
@@ -114,10 +116,14 @@ test('bundled Project Status extension renders and refreshes the current reposit
         ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/feature/status'],
         { cwd: root },
     );
+    await writeFile(statusDelayPath, '0');
+    await writeFile(statusRequestLogPath, '');
     await writeFile(statusTitlePath, 'Status A');
     await writeFile(
         join(bin, 'gh'),
         `#!/bin/sh
+sleep "$(cat ${JSON.stringify(statusDelayPath)})"
+printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
 printf '{"body":"Related to https://linear.app/lobehub/issue/LOBE-42/project-status","number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"}]}' "$status_title"
 `,
@@ -165,6 +171,14 @@ esac
         await statusTab.click();
         await expect(statusTab.locator('img')).toHaveCount(0);
         await expect(statusTab.locator('svg')).toHaveCount(1);
+        await expect(
+            running.page.locator('.panel-caption-title', { hasText: 'Project Status' }),
+        ).toHaveCount(1);
+        const refreshButton = running.page.getByRole('button', {
+            name: 'Refresh Project Status',
+            exact: true,
+        });
+        await expect(refreshButton).toBeVisible();
 
         const tree = running.page.getByRole('tree', { name: 'Project Status' });
         const repo = tree.getByRole('treeitem', { name: 'project', exact: true });
@@ -196,10 +210,33 @@ esac
             tree.getByRole('treeitem', { name: 'feature/status, default', exact: true }),
         ).toBeVisible();
 
-        await running.page.keyboard.press('Meta+Shift+P');
-        await running.page.getByText('Refresh Project Status', { exact: true }).click();
+        await expect(refreshButton).not.toHaveAttribute('aria-disabled', 'true');
+        await refreshButton.hover();
+        await expect(
+            running.page
+                .locator('.tooltip-popup:visible')
+                .filter({ hasText: 'Refresh Project Status' }),
+        ).toBeVisible();
+        await running.page.mouse.move(0, 0);
         const pullRequestA = tree.getByRole('treeitem', { name: '#42 Status A', exact: true });
+        /**
+         * The first root load intentionally returns local data while its delivery metadata refresh continues in the
+         * background. Wait for that refresh before measuring a manual request, otherwise the Server may correctly
+         * coalesce the click with the in-flight load and the fixture would miscount it as a missing dispatch.
+         */
         await expect(pullRequestA).toBeVisible();
+        await writeFile(statusDelayPath, '0.4');
+        const refreshRequestCount = async (): Promise<number> =>
+            (await readFile(statusRequestLogPath, 'utf8')).split('\n').filter(Boolean).length;
+        const beforeInitialRefresh = await refreshRequestCount();
+        await refreshButton.click();
+        await expect(refreshButton).toHaveAttribute('aria-disabled', 'true');
+        await expect(refreshButton).toHaveAttribute('aria-busy', 'true');
+        await refreshButton.evaluate((element) => (element as HTMLButtonElement).click());
+        await expect.poll(refreshRequestCount).toBe(beforeInitialRefresh + 1);
+        await expect(refreshButton).not.toHaveAttribute('aria-disabled', 'true');
+        await expect(refreshButton).not.toHaveAttribute('aria-busy', 'true');
+        expect(await refreshRequestCount()).toBe(beforeInitialRefresh + 1);
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
         await expect(pullRequestA.locator('[data-theme-icon="circle-x"]')).toHaveClass(
             /text-danger/,
@@ -299,20 +336,8 @@ esac
             'true',
         );
 
-        const keybindings = await pageRequest<{
-            value: Array<{ command: string; key: string }>;
-        }>(running.page, 'keybindings.get');
-        await pageRequest(running.page, 'keybindings.update', {
-            source: JSON.stringify(
-                [
-                    ...keybindings.value,
-                    { command: 'caxri.project-status.refresh', key: 'cmd+alt+r' },
-                ],
-                null,
-                2,
-            ),
-        });
         await writeFile(statusTitlePath, 'Status B');
+        await writeFile(statusDelayPath, '0.4');
         await deployments.click();
         await expect(deployments).toHaveAttribute('aria-expanded', 'true');
         const production = tree.getByRole('treeitem', {
@@ -321,14 +346,20 @@ esac
         });
         await production.focus();
         await expect(production).toHaveAttribute('aria-selected', 'true');
-        await running.page.keyboard.press('Meta+Alt+r');
+        const beforeStatusBRefresh = await refreshRequestCount();
+        await refreshButton.click();
+        await expect(refreshButton).toBeFocused();
+        await expect(refreshButton).toHaveAttribute('aria-disabled', 'true');
+        await expect(refreshButton).toHaveAttribute('aria-busy', 'true');
         await expect(
             tree.getByRole('treeitem', { name: '#42 Status B', exact: true }),
         ).toBeVisible();
         await expect(pullRequestA).toHaveCount(0);
         await expect(deployments).toHaveAttribute('aria-expanded', 'true');
         await expect(production).toHaveAttribute('aria-selected', 'true');
-        await running.page.waitForTimeout(150);
+        await expect(refreshButton).not.toHaveAttribute('aria-disabled', 'true');
+        await expect(refreshButton).toBeFocused();
+        expect(await refreshRequestCount()).toBe(beforeStatusBRefresh + 1);
 
         await running.app.close();
         running = await launchCaxri({

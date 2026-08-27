@@ -518,7 +518,12 @@ export const extensionManifestSchema = z
                             path: [...path, 'command'],
                         });
                     const requiredPrefix = view.type === 'source-control' ? 'source.' : undefined;
-                    if (!requiredPrefix || !action.role.startsWith(requiredPrefix))
+                    const isCompatibleTreeRefresh =
+                        view.type === 'tree' && action.role === 'resource.refresh';
+                    if (
+                        !isCompatibleTreeRefresh &&
+                        (!requiredPrefix || !action.role.startsWith(requiredPrefix))
+                    )
                         context.addIssue({
                             code: 'custom',
                             message: `View action role is incompatible with ${view.type}: ${action.role}`,

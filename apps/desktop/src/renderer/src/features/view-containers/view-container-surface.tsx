@@ -266,6 +266,7 @@ export function ViewContainerSurface({
                                 } else if (view.viewKind.kind === 'tree')
                                     content = (
                                         <ExtensionTreeView
+                                            actions={view.actions}
                                             extensionGeneration={
                                                 catalog.extensions.find(
                                                     ({ id }) =>

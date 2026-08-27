@@ -315,6 +315,58 @@ describe('extension view contracts', () => {
         ).toBe(false);
     });
 
+    it('accepts only the refresh toolbar role on extension tree views', () => {
+        const manifest = {
+            name: 'caxri.fixture',
+            version: '1.0.0',
+            type: 'module',
+            main: './dist/extension.js',
+            engines: { caxri: '^0.0.17' },
+            caxri: { capabilities: [] },
+            contributes: {
+                views: {
+                    'caxri.fixture': [
+                        {
+                            id: 'caxri.fixture.tree',
+                            name: 'Fixture',
+                            type: 'tree',
+                            actions: [
+                                {
+                                    command: 'caxri.fixture.refresh',
+                                    role: 'resource.refresh',
+                                },
+                            ],
+                        },
+                    ],
+                },
+                commands: [{ command: 'caxri.fixture.refresh', title: 'Refresh' }],
+            },
+        };
+
+        expect(extensionManifestSchema.safeParse(manifest).success).toBe(true);
+        expect(
+            extensionManifestSchema.safeParse({
+                ...manifest,
+                contributes: {
+                    ...manifest.contributes,
+                    views: {
+                        'caxri.fixture': [
+                            {
+                                ...manifest.contributes.views['caxri.fixture'][0],
+                                actions: [
+                                    {
+                                        command: 'caxri.fixture.refresh',
+                                        role: 'resource.createFile',
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                },
+            }).success,
+        ).toBe(false);
+    });
+
     it('requires settings.read for declared controlled-view configuration dependencies', () => {
         const manifest = {
             name: 'caxri.fixture',
