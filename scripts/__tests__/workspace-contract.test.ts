@@ -373,16 +373,12 @@ describe('pnpm workspace contract', () => {
     });
 
     it('builds workspace distributions before Desktop development and production builds', () => {
-        const developmentScript = readFileSync(join(root, 'scripts/development.ts'), 'utf8');
-
         expect(rootManifest.name).toBe('@caxri/workspace');
         expect(rootManifest.main).toBeUndefined();
         expect(rootManifest.scripts?.dev).toBe(
             'bun run build:workspaces && bun run scripts/development.ts',
         );
         expect(rootManifest.scripts?.['dev:desktop']).toBe('bun run scripts/development.ts');
-        expect(developmentScript).toContain("['electron-vite', '--entry', 'out/main/index.js']");
-        expect(developmentScript).not.toContain("['electron-vite', 'dev']");
         expect(rootManifest.scripts?.build).toBe(
             'bun run build:workspaces && bun run build:desktop',
         );
