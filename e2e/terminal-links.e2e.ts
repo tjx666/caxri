@@ -24,11 +24,26 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
     const isolatedHome = join(userData, 'e2e-agents', 'home');
     const root = join(isolatedHome, 'project');
     const file = join(root, 'link-target.ts');
+    const lineFile = join(root, '.local-config', 'router-runtime.json');
+    const rangeFile = join(root, 'doctor.config.jsonc');
     const outsideRoot = join(isolatedHome, 'outside-project');
     const outsideFile = join(outsideRoot, 'outside-target.ts');
-    await Promise.all([mkdir(root, { recursive: true }), mkdir(outsideRoot, { recursive: true })]);
-    await writeFile(file, 'first line\nsecond line\nthird line\n');
-    await writeFile(outsideFile, 'outside first\noutside second\n');
+    await Promise.all([
+        mkdir(join(root, '.local-config'), { recursive: true }),
+        mkdir(outsideRoot, { recursive: true }),
+    ]);
+    await Promise.all([
+        writeFile(file, 'first line\nsecond line\nthird line\n'),
+        writeFile(
+            lineFile,
+            `${Array.from({ length: 40 }, (_, index) => `single-${String(index + 1).padStart(2, '0')}`).join('\n')}\n`,
+        ),
+        writeFile(
+            rangeFile,
+            `${Array.from({ length: 30 }, (_, index) => `range-${String(index + 1).padStart(2, '0')}`).join('\n')}\n`,
+        ),
+        writeFile(outsideFile, 'outside first\noutside second\n'),
+    ]);
 
     const running = await launchCaxri({
         userDataDir: userData,
@@ -50,15 +65,51 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
         await expect(running.page.getByLabel(/^Editor position: Ln 2, Col 3/)).toBeVisible();
 
         await running.page.getByRole('tab', { name: 'Shell' }).click();
-        const existingHomeLink = '~/project/link-target.ts:3:2';
+        const lineLink = '.local-config/router-runtime.json:32';
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${lineLink}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(lineLink);
+        await clickTerminalLink(running.page, lineLink);
+        await expect(
+            running.page.getByRole('tab', { name: 'router-runtime.json' }),
+        ).toHaveAttribute('aria-selected', 'true');
+        await expect(
+            running.page.getByLabel(/Editor position: .*9 characters selected/),
+        ).toBeVisible();
+        const lineEditor = running.page.locator('.monaco-editor').first();
+        await expect(lineEditor.locator('.view-lines')).toContainText('single-32');
+        await expect
+            .poll(() => lineEditor.evaluate((element) => element.contains(document.activeElement)))
+            .toBe(true);
+
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
+        const rangeLink = 'doctor.config.jsonc#L20-21';
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${rangeLink}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(rangeLink);
+        await clickTerminalLink(running.page, rangeLink);
+        await expect(
+            running.page.getByRole('tab', { name: 'doctor.config.jsonc' }),
+        ).toHaveAttribute('aria-selected', 'true');
+        await expect(
+            running.page.getByLabel(/Editor position: .*17 characters selected/),
+        ).toBeVisible();
+        const rangeEditor = running.page.locator('.monaco-editor').first();
+        await expect(rangeEditor.locator('.view-lines')).toContainText('range-20');
+        await expect(rangeEditor.locator('.view-lines')).toContainText('range-21');
+        await expect
+            .poll(() => rangeEditor.evaluate((element) => element.contains(document.activeElement)))
+            .toBe(true);
+
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
+        const existingHomeLink = '~/project/doctor.config.jsonc#L20-L21';
         await typeTerminal(running.page, String.raw`printf '%s\n' '${existingHomeLink}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(existingHomeLink);
         await clickTerminalLink(running.page, existingHomeLink);
-        await expect(running.page.getByRole('tab', { name: 'link-target.ts' })).toHaveAttribute(
-            'aria-selected',
-            'true',
-        );
-        await expect(running.page.getByLabel(/^Editor position: Ln 3, Col 2/)).toBeVisible();
+        await expect(
+            running.page.getByRole('tab', { name: 'doctor.config.jsonc' }),
+        ).toHaveAttribute('aria-selected', 'true');
+        await expect(
+            running.page.getByLabel(/Editor position: .*17 characters selected/),
+        ).toBeVisible();
 
         await running.page.getByRole('tab', { name: 'Shell' }).click();
         const outsideHomeLink = '~/outside-project/outside-target.ts:2:4';
@@ -227,10 +278,15 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
     const isolatedHome = join(userData, 'e2e-agents', 'home');
     const root = join(isolatedHome, 'project');
     const file = join(root, 'link-target.ts');
+    const rangeFile = join(root, 'doctor.config.jsonc');
     const deniedFile = join(testDirectory, 'denied-target.ts');
     await mkdir(root, { recursive: true });
     await Promise.all([
         writeFile(file, 'first line\nsecond line\nthird line\n'),
+        writeFile(
+            rangeFile,
+            `${Array.from({ length: 30 }, (_, index) => `range-${String(index + 1).padStart(2, '0')}`).join('\n')}\n`,
+        ),
         writeFile(deniedFile, 'outside Project root\n'),
     ]);
 
@@ -268,8 +324,10 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         });
 
         const fileLink = 'link-target.ts:2:3';
+        const rangeLink = 'doctor.config.jsonc#L20-L21';
+        const invalidRangeLink = 'doctor.config.jsonc#L21-20';
         const homeLink = '~/project/link-target.ts:3:2';
-        const url = 'https://example.org/keyboard-link';
+        const url = 'https://example.org/keyboard-link#L20-L21';
         const rejectedUrl = 'https://user:password@example.net/rejected';
         const oscTargetSuffix = 'osc-keyboard-link?q=你好，世界';
         const oscUrl = `https://example.com/${oscTargetSuffix}`;
@@ -279,7 +337,7 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         const oscPrefix = `OSC reflow prefix ${'x'.repeat(180)}`;
         await typeTerminal(
             running.page,
-            String.raw`printf '%s\n' '${fileLink}' '${homeLink}' '${url}' '${rejectedUrl}' '${cjkBoundaryLine}'; printf '%s\033]8;;https://example.com/%s\007OSC link label\033]8;;\007\n' '${oscPrefix}' '${oscTargetSuffix}'`,
+            String.raw`printf '%s\n' '${fileLink}' '${rangeLink}' '${invalidRangeLink}' '${homeLink}' '${url}' '${rejectedUrl}' '${cjkBoundaryLine}'; printf '%s\033]8;;https://example.com/%s\007OSC link label\033]8;;\007\n' '${oscPrefix}' '${oscTargetSuffix}'`,
         );
         const terminalInput = running.page.locator('.xterm-helper-textarea');
         await expect(running.page.locator('.xterm-rows')).toContainText('OSC link label');
@@ -312,6 +370,20 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
 
         await terminalInput.focus();
         await running.page.keyboard.press('Meta+Shift+O');
+        await running.page.keyboard.press('Escape');
+        await expect(terminalInput).toBeFocused();
+
+        await running.page.keyboard.press('Meta+Shift+O');
+        const invalidDialog = running.page.getByRole('dialog');
+        await invalidDialog
+            .getByPlaceholder('Search links in the Terminal…')
+            .fill(invalidRangeLink);
+        await expect(
+            invalidDialog.getByRole('option', {
+                name: `Open file link ${invalidRangeLink}`,
+                exact: true,
+            }),
+        ).toHaveCount(0);
         await running.page.keyboard.press('Escape');
         await expect(terminalInput).toBeFocused();
 
@@ -371,12 +443,19 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
             opened: [openedOscUrl, cjkBoundaryUrl],
         });
 
-        await openLink(fileLink, `Open file link ${fileLink}`);
-        await expect(running.page.getByRole('tab', { name: 'link-target.ts' })).toHaveAttribute(
-            'aria-selected',
-            'true',
-        );
-        await expect(running.page.getByLabel(/^Editor position: Ln 2, Col 3/)).toBeVisible();
+        await openLink(rangeLink, `Open file link ${rangeLink}`);
+        await expect(
+            running.page.getByRole('tab', { name: 'doctor.config.jsonc' }),
+        ).toHaveAttribute('aria-selected', 'true');
+        await expect(
+            running.page.getByLabel(/Editor position: .*17 characters selected/),
+        ).toBeVisible();
+        const editor = running.page.locator('.monaco-editor').first();
+        await expect(editor.locator('.view-lines')).toContainText('range-20');
+        await expect(editor.locator('.view-lines')).toContainText('range-21');
+        await expect
+            .poll(() => editor.evaluate((element) => element.contains(document.activeElement)))
+            .toBe(true);
 
         await running.page.getByRole('tab', { name: 'Shell' }).click();
         await typeTerminal(
@@ -386,7 +465,7 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         await expect(running.page.locator('.xterm-rows')).toContainText(
             'ALTERNATE SCREEN DURING REMOUNT',
         );
-        await running.page.getByRole('tab', { name: 'link-target.ts' }).click();
+        await running.page.getByRole('tab', { name: 'doctor.config.jsonc' }).click();
         await running.page.getByRole('tab', { name: 'Shell' }).click();
         await expect(running.page.locator('.xterm-rows')).toContainText(
             'ALTERNATE SCREEN DURING REMOUNT',

@@ -50,12 +50,12 @@ describe('desktopOpenParametersSchema', () => {
                     inode: '20',
                     root: { path: '/private/project', device: '1', inode: '10' },
                 },
-                location: { line: 12, column: 4 },
+                location: { mode: 'line', startLine: 12, endLine: 14 },
                 path: '/private/project/file.ts',
             }),
         ).toMatchObject({
             expectedIdentity: { inode: '20', root: { inode: '10' } },
-            location: { line: 12, column: 4 },
+            location: { mode: 'line', startLine: 12, endLine: 14 },
         });
         expect(
             desktopOpenParametersSchema.safeParse({

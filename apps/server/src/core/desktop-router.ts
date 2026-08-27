@@ -4,6 +4,7 @@ import type {
     DesktopLease,
     DesktopOperation,
     DesktopTargetPayload,
+    EditorNavigationTarget,
     ServerOperationParameters,
     ServerOperationResult,
     WorkbenchRequestContext,
@@ -27,7 +28,7 @@ interface StoredTarget {
     operation: 'open' | 'openInEditor' | 'reveal' | 'trash';
     projectId?: string;
     sessionId: string;
-    location?: { column: number; line: number };
+    location?: EditorNavigationTarget;
 }
 
 interface DesktopRouterBridge {
@@ -126,7 +127,7 @@ export class ServerDesktopRouter {
         operation: 'open' | 'openInEditor' | 'reveal' | 'trash',
         generation: number,
         resolved: { entry: AuthorizedEntry; projectId?: string; sessionId: string },
-        location?: { column: number; line: number },
+        location?: EditorNavigationTarget,
     ): StoredTarget {
         this.pruneTargets();
         if (this.targets.size >= this.maximumTargets)
@@ -379,7 +380,7 @@ export class ServerDesktopRouter {
             path: string;
             sessionId?: string;
             expectedIdentity?: ExpectedIdentity;
-            location?: { column: number; line: number };
+            location?: EditorNavigationTarget;
         },
         signal?: AbortSignal,
         context?: WorkbenchRequestContext,

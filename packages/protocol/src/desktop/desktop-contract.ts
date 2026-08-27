@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { identifierSchema, pathSchema } from '../domain/domain.js';
+import { editorNavigationTargetSchema } from '../domain/editor.js';
 
 export const desktopStatusResultSchema = z.discriminatedUnion('state', [
     z.object({ state: z.literal('offline') }),
@@ -32,12 +33,7 @@ export const desktopOpenParametersSchema = z.object({
     path: pathSchema,
     sessionId: identifierSchema.optional(),
     expectedIdentity: desktopOpenIdentitySchema.optional(),
-    location: z
-        .object({
-            line: z.number().int().positive(),
-            column: z.number().int().positive(),
-        })
-        .optional(),
+    location: editorNavigationTargetSchema.optional(),
     launchIfNeeded: z.boolean().default(true),
 });
 

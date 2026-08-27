@@ -1,6 +1,10 @@
-import type { TerminalOscLinkSnapshot } from '@caxri/protocol';
+import type { EditorNavigationTarget, TerminalOscLinkSnapshot } from '@caxri/protocol';
 import type { IBufferCellPosition, IBufferLine, ILink, Terminal } from '@xterm/xterm';
 
+import {
+    parseTerminalFileLocation,
+    TERMINAL_FILE_LOCATION_SUFFIX_PATTERN,
+} from './terminal-file-location';
 import type { VisibleOscLink } from './terminal-osc-link-tracker';
 import {
     MAX_TERMINAL_LINK_LENGTH as MAX_LOGICAL_LINE_LENGTH,
@@ -9,7 +13,6 @@ import {
 } from './terminal-osc-link-tracker';
 
 const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
-const FILE_LOCATION_SUFFIX_PATTERN = /:\d+(?::\d+)?(?=$|[\s.,;:!?"'`)\]}、，。；：！？])/g;
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
 const EXPLICIT_TERMINAL_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
 /**
@@ -64,8 +67,7 @@ export interface TerminalLinkMatch {
     startIndex: number;
     target: string;
     text: string;
-    column?: number;
-    line?: number;
+    location?: EditorNavigationTarget;
 }
 
 /**
@@ -81,8 +83,8 @@ export interface TerminalLinkContext {
     cwd: string;
     projectRoot: string;
     wordSeparators: string;
-    openFile(path: string, location?: { column: number; line: number }): void;
-    openHomeFile(target: string, location?: { column: number; line: number }): void;
+    openFile(path: string, location?: EditorNavigationTarget): void;
+    openHomeFile(target: string, location?: EditorNavigationTarget): void;
     openUrl(url: string): void;
 }
 
@@ -156,20 +158,6 @@ function trimToken(raw: string): { endOffset: number; startOffset: number; text:
         break;
     }
     return { endOffset, startOffset, text: raw.slice(startOffset, endOffset) };
-}
-
-function parseFileLocation(text: string): {
-    column?: number;
-    line?: number;
-    target: string;
-} {
-    const suffix = /^(.*?):(\d+)(?::(\d+))?$/.exec(text);
-    if (!suffix?.[1]) return { target: text };
-    return {
-        target: suffix[1],
-        line: Number(suffix[2]),
-        column: suffix[3] ? Number(suffix[3]) : 1,
-    };
 }
 
 /**
@@ -247,12 +235,13 @@ function findLocationFileLinks(
 ): TerminalLinkMatch[] {
     const links: TerminalLinkMatch[] = [];
     let urlIndex = 0;
-    for (const suffix of text.matchAll(FILE_LOCATION_SUFFIX_PATTERN)) {
+    for (const suffix of text.matchAll(TERMINAL_FILE_LOCATION_SUFFIX_PATTERN)) {
         const endIndex = suffix.index + suffix[0].length;
         const startIndex = locationPathStart(text, suffix.index, wordSeparators);
         const trimmed = trimToken(text.slice(startIndex, endIndex));
-        const location = parseFileLocation(trimmed.text);
-        if (!location.line || !isLikelyFilePath(location.target)) continue;
+        const location = parseTerminalFileLocation(trimmed.text);
+        if (!location.location || location.invalidLocation || !isLikelyFilePath(location.target))
+            continue;
         const matchStart = startIndex + trimmed.startOffset;
         const matchEnd = startIndex + trimmed.endOffset;
         while (urlLinks[urlIndex]?.endIndex <= matchStart) urlIndex += 1;
@@ -340,7 +329,7 @@ function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators: string
             !/^file:\/\//i.test(trimmed.text)
         )
             return token;
-        if (!trimmed.text || !isLikelyFilePath(parseFileLocation(trimmed.text).target))
+        if (!trimmed.text || !isLikelyFilePath(parseTerminalFileLocation(trimmed.text).target))
             return token;
         return { index: token.index + index + 1, text: candidate };
     }
@@ -407,8 +396,8 @@ export function findTerminalLinks(
             if (startIndex < unsupportedHome.endIndex && endIndex > unsupportedHome.startIndex)
                 continue;
         }
-        const location = parseFileLocation(trimmed.text);
-        if (!isLikelyFilePath(location.target)) continue;
+        const location = parseTerminalFileLocation(trimmed.text);
+        if (location.invalidLocation || !isLikelyFilePath(location.target)) continue;
         while (locationFileLinks[locationLinkIndex]?.endIndex <= startIndex) locationLinkIndex += 1;
         const locationLink = locationFileLinks.at(locationLinkIndex);
         if (
@@ -480,16 +469,13 @@ function activateLink(match: TerminalLinkMatch, context: TerminalLinkContext): v
         context.openUrl(match.target);
         return;
     }
-    const location = match.line
-        ? { line: Math.max(1, match.line), column: Math.max(1, match.column ?? 1) }
-        : undefined;
     if (isCurrentUserHomePath(match.target)) {
-        context.openHomeFile(match.target, location);
+        context.openHomeFile(match.target, match.location);
         return;
     }
     const path = resolveTerminalFilePath(match.target, context);
     if (!path) return;
-    context.openFile(path, location);
+    context.openFile(path, match.location);
 }
 
 function activateLinkFromPointer(

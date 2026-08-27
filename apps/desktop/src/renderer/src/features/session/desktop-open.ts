@@ -1,15 +1,13 @@
+import type { EditorNavigationTarget } from '@caxri/protocol';
+
 export interface DesktopOpenRequest {
-    location?: { column: number; line: number };
+    location?: EditorNavigationTarget;
     path?: string;
     sessionId: string;
 }
 
 export interface DesktopOpenQueueActions {
-    openFile(
-        sessionId: string,
-        path: string,
-        location?: { column: number; line: number },
-    ): Promise<unknown>;
+    openFile(sessionId: string, path: string, location?: EditorNavigationTarget): Promise<unknown>;
     selectSession(sessionId: string): Promise<boolean>;
 }
 

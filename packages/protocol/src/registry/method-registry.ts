@@ -54,6 +54,7 @@ import {
     themeTokensSchema,
     updateStateSchema,
 } from '../domain/domain.js';
+import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import {
@@ -484,12 +485,7 @@ export const methods = {
         params: z.object({
             terminalId: identifierSchema,
             target: z.string().min(3).max(4_096),
-            location: z
-                .object({
-                    line: z.number().int().positive(),
-                    column: z.number().int().positive(),
-                })
-                .optional(),
+            location: editorNavigationTargetSchema.optional(),
         }),
         result: z.union([canceled, z.object({ opened: z.literal(true) })]),
     },

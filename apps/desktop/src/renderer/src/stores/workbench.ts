@@ -1,6 +1,7 @@
 import type {
     BootstrapState,
     CommandId,
+    EditorNavigationTarget,
     ServerEvent,
     SessionRecord,
     SessionState,
@@ -523,11 +524,7 @@ export interface WorkbenchEventHandlers {
     /**
      * Applies an authenticated Server open request after Main redeemed its one-use target.
      */
-    onDesktopOpen(
-        sessionId: string,
-        path?: string,
-        location?: { column: number; line: number },
-    ): void;
+    onDesktopOpen(sessionId: string, path?: string, location?: EditorNavigationTarget): void;
 }
 
 /**

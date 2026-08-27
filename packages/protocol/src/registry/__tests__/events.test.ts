@@ -73,7 +73,7 @@ describe('serverEventSchema', () => {
                 payload: {
                     sessionId: 'session-1',
                     kind: 'file',
-                    location: { line: 12, column: 4 },
+                    location: { mode: 'line', startLine: 12, endLine: 14 },
                 },
             }).success,
         ).toBe(true);

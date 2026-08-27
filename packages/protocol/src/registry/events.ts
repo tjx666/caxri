@@ -17,6 +17,7 @@ import {
     runtimeStatusSchema,
     updateStateSchema,
 } from '../domain/domain.js';
+import { editorNavigationTargetSchema } from '../domain/editor.js';
 import {
     extensionIdSchema,
     extensionViewChangeSchema,
@@ -215,12 +216,7 @@ export const serverEventPayloads = {
         sessionId: identifierSchema,
         kind: z.enum(['file', 'directory']),
         path: pathSchema.optional(),
-        location: z
-            .object({
-                line: z.number().int().positive(),
-                column: z.number().int().positive(),
-            })
-            .optional(),
+        location: editorNavigationTargetSchema.optional(),
     }),
     /**
      * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one fired by an actual
