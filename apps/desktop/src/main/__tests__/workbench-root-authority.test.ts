@@ -200,7 +200,7 @@ describe('openTerminalFileLink', () => {
             instance.openTerminalFileLink({
                 terminalId: 'terminal-1',
                 target: '~/project/file.ts',
-                location: { line: 12, column: 4 },
+                location: { mode: 'line', startLine: 12, endLine: 14 },
             }),
         ).resolves.toEqual({ opened: true });
         expect(request).toHaveBeenCalledWith('desktop.openFile', {
@@ -208,7 +208,7 @@ describe('openTerminalFileLink', () => {
             path: '/project/file.ts',
             sessionId: 'session-1',
             launchIfNeeded: false,
-            location: { line: 12, column: 4 },
+            location: { mode: 'line', startLine: 12, endLine: 14 },
         });
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
     });

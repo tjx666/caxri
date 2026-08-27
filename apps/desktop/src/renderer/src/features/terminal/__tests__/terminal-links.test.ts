@@ -72,9 +72,76 @@ describe('findTerminalLinks', () => {
                 'open /repo/src/a.ts:42:7, then src/b.test.ts:9 and file:///repo/c.ts',
             ),
         ).toMatchObject([
-            { kind: 'file', target: '/repo/src/a.ts', line: 42, column: 7 },
-            { kind: 'file', target: 'src/b.test.ts', line: 9, column: 1 },
+            {
+                kind: 'file',
+                target: '/repo/src/a.ts',
+                location: { mode: 'caret', line: 42, column: 7 },
+            },
+            {
+                kind: 'file',
+                target: 'src/b.test.ts',
+                location: { mode: 'line', startLine: 9, endLine: 9 },
+            },
             { kind: 'file', target: 'file:///repo/c.ts' },
+        ]);
+    });
+
+    it('normalizes line-only and GitHub-style ranges without changing explicit columns', () => {
+        expect(
+            findTerminalLinks(
+                'src/a.ts:32 src/b.ts:12:4 doctor.config.jsonc#L20-21 src/c.ts#L8-L9 src/d.ts#L7',
+            ),
+        ).toMatchObject([
+            {
+                kind: 'file',
+                target: 'src/a.ts',
+                location: { mode: 'line', startLine: 32, endLine: 32 },
+            },
+            {
+                kind: 'file',
+                target: 'src/b.ts',
+                location: { mode: 'caret', line: 12, column: 4 },
+            },
+            {
+                kind: 'file',
+                target: 'doctor.config.jsonc',
+                location: { mode: 'line', startLine: 20, endLine: 21 },
+            },
+            {
+                kind: 'file',
+                target: 'src/c.ts',
+                location: { mode: 'line', startLine: 8, endLine: 9 },
+            },
+            {
+                kind: 'file',
+                target: 'src/d.ts',
+                location: { mode: 'line', startLine: 7, endLine: 7 },
+            },
+        ]);
+    });
+
+    it('keeps URL fragments and ordinary hash filenames separate from local ranges', () => {
+        const url = 'https://example.com/repo/file.ts#L20-L21';
+        expect(findTerminalLinks(`${url} src/file#notes.ts`)).toMatchObject([
+            { kind: 'url', target: url },
+            { kind: 'file', target: 'src/file#notes.ts' },
+        ]);
+    });
+
+    it('rejects zero, reversed, and incomplete line ranges', () => {
+        expect(findTerminalLinks('src/a.ts#L0 src/b.ts#L21-20 src/c.ts#L2- src/d.ts:0')).toEqual(
+            [],
+        );
+    });
+
+    it('trims sentence punctuation after a complete line range', () => {
+        expect(findTerminalLinks('(doctor.config.jsonc#L20-L21)，done')).toMatchObject([
+            {
+                kind: 'file',
+                target: 'doctor.config.jsonc',
+                text: 'doctor.config.jsonc#L20-L21',
+                location: { mode: 'line', startLine: 20, endLine: 21 },
+            },
         ]);
     });
 
@@ -85,10 +152,9 @@ describe('findTerminalLinks', () => {
 
         expect(findTerminalLinks(`${prefix}${linkText}。`)).toEqual([
             {
-                column: 1,
                 endIndex: prefix.length + linkText.length,
                 kind: 'file',
-                line: 43,
+                location: { mode: 'line', startLine: 43, endLine: 43 },
                 startIndex: prefix.length,
                 target,
                 text: linkText,
@@ -124,10 +190,9 @@ describe('findTerminalLinks', () => {
 
         expect(findTerminalLinks(text)).toEqual([
             {
-                column: 1,
                 endIndex: text.length,
                 kind: 'file',
-                line: 4,
+                location: { mode: 'line', startLine: 4, endLine: 4 },
                 startIndex: 3,
                 target: '.local-config/model-config/meta.json',
                 text: '.local-config/model-config/meta.json:4',
@@ -137,13 +202,25 @@ describe('findTerminalLinks', () => {
 
     it('preserves CJK punctuation inside valid relative paths', () => {
         expect(findTerminalLinks('./目录。版本/file.ts:8')).toMatchObject([
-            { kind: 'file', target: './目录。版本/file.ts', line: 8, column: 1 },
+            {
+                kind: 'file',
+                target: './目录。版本/file.ts',
+                location: { mode: 'line', startLine: 8, endLine: 8 },
+            },
         ]);
         expect(findTerminalLinks('目录。版本/file.ts:8')).toMatchObject([
-            { kind: 'file', target: '目录。版本/file.ts', line: 8, column: 1 },
+            {
+                kind: 'file',
+                target: '目录。版本/file.ts',
+                location: { mode: 'line', startLine: 8, endLine: 8 },
+            },
         ]);
         expect(findTerminalLinks('目录。version/file.ts:8')).toMatchObject([
-            { kind: 'file', target: '目录。version/file.ts', line: 8, column: 1 },
+            {
+                kind: 'file',
+                target: '目录。version/file.ts',
+                location: { mode: 'line', startLine: 8, endLine: 8 },
+            },
         ]);
         expect(findTerminalLinks('docs/中文说明.md')).toMatchObject([
             { kind: 'file', target: 'docs/中文说明.md' },
@@ -162,13 +239,16 @@ describe('findTerminalLinks', () => {
             {
                 kind: 'file',
                 target: '说明。.local-config/model-config/meta.json',
-                line: 4,
-                column: 1,
+                location: { mode: 'line', startLine: 4, endLine: 4 },
             },
         ]);
         const withColonSeparator = findTerminalLinks('src/a.ts:12', ' :');
         expect(withColonSeparator).toMatchObject([
-            { kind: 'file', target: 'src/a.ts', line: 12, column: 1 },
+            {
+                kind: 'file',
+                target: 'src/a.ts',
+                location: { mode: 'line', startLine: 12, endLine: 12 },
+            },
         ]);
     });
 
@@ -178,7 +258,11 @@ describe('findTerminalLinks', () => {
 
     it('offers exact current-user Home paths without accepting other shell expansion forms', () => {
         expect(findTerminalLinks('config: ~/example/path.json:7')).toMatchObject([
-            { kind: 'file', target: '~/example/path.json', line: 7, column: 1 },
+            {
+                kind: 'file',
+                target: '~/example/path.json',
+                location: { mode: 'line', startLine: 7, endLine: 7 },
+            },
         ]);
         expect(
             findTerminalLinks('~user/example.json $HOME/example.json ${HOME}/example.json'),
@@ -314,7 +398,22 @@ describe('registerTerminalLinks', () => {
 
         links[0].activate();
         links[1].activate();
-        expect(openFile).toHaveBeenCalledWith('/repo/src/file.ts', { line: 12, column: 3 });
+        expect(openFile).toHaveBeenCalledWith('/repo/src/file.ts', {
+            mode: 'caret',
+            line: 12,
+            column: 3,
+        });
+
+        terminal.terminal.options.linkHandler?.activate(
+            { metaKey: true } as MouseEvent,
+            'src/range.ts#L20-L21',
+            { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } },
+        );
+        expect(openFile).toHaveBeenCalledWith('/repo/src/range.ts', {
+            mode: 'line',
+            startLine: 20,
+            endLine: 21,
+        });
         expect(openUrl).toHaveBeenCalledWith('https://example.com');
     });
 
@@ -614,6 +713,7 @@ describe('registerTerminalLinks', () => {
         const links = await terminal.links();
         links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
         expect(openFile).toHaveBeenCalledWith('/repo/src/file.ts', {
+            mode: 'caret',
             line: 12,
             column: 3,
         });
@@ -624,8 +724,9 @@ describe('registerTerminalLinks', () => {
             { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } },
         );
         expect(openFile).toHaveBeenCalledWith('/repo/other.ts', {
-            line: 8,
-            column: 1,
+            mode: 'line',
+            startLine: 8,
+            endLine: 8,
         });
 
         terminal.terminal.options.linkHandler?.activate(
@@ -634,8 +735,9 @@ describe('registerTerminalLinks', () => {
             { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } },
         );
         expect(openFile).toHaveBeenCalledWith('/repo/.local-config/model-config/meta.json', {
-            line: 4,
-            column: 1,
+            mode: 'line',
+            startLine: 4,
+            endLine: 4,
         });
 
         registration.dispose();
@@ -644,7 +746,7 @@ describe('registerTerminalLinks', () => {
     });
 
     it('forwards an exact Home link to the trusted resolver without expanding it in Renderer', async () => {
-        const text = '~/outside/project.json:12:4';
+        const text = '~/outside/project.json#L12-L14';
         const terminal = createTerminal(text, cellsFor(text));
         const { context, openFile, openHomeFile } = baseContext();
         registerTerminalLinks(terminal.terminal, context);
@@ -653,8 +755,9 @@ describe('registerTerminalLinks', () => {
         links?.[0].activate({ metaKey: true } as MouseEvent, links[0].text);
 
         expect(openHomeFile).toHaveBeenCalledWith('~/outside/project.json', {
-            line: 12,
-            column: 4,
+            mode: 'line',
+            startLine: 12,
+            endLine: 14,
         });
         expect(openFile).not.toHaveBeenCalled();
     });

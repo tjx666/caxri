@@ -1,4 +1,9 @@
-import type { PaneLayout, PaneTabCloseMode, SessionState } from '@caxri/protocol';
+import type {
+    EditorNavigationTarget,
+    PaneLayout,
+    PaneTabCloseMode,
+    SessionState,
+} from '@caxri/protocol';
 import {
     closeTabs,
     findResourceTabs,
@@ -32,7 +37,7 @@ import { patchSessionState, persistSessionState, useWorkbenchStore } from '../..
 import { closeTerminal } from '../terminal/terminal-actions';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
-import { queueEditorRevealLocation, revealEditorLocation } from './editor-reveal';
+import { queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
 
 const fileOpenIntentState = { current: 0 };
 
@@ -108,7 +113,7 @@ function openEditorTabForSession(
     sessionId: string,
     path: string,
     options: {
-        location?: { column: number; line: number };
+        location?: EditorNavigationTarget;
         paneId?: string;
         preview?: boolean;
     } = {},
@@ -139,8 +144,8 @@ function openEditorTabForSession(
     });
     if (options.location && (wasOpen || opened !== current.paneLayout)) {
         const modelPath = editorModelPath(sessionViewScope(sessionId, workbenchProjectId), path);
-        if (wasMounted) revealEditorLocation(modelPath, options.location);
-        else queueEditorRevealLocation(modelPath, options.location);
+        if (wasMounted) revealEditorNavigation(modelPath, options.location);
+        else queueEditorNavigation(modelPath, options.location);
     }
     for (const replaced of replacedPaths)
         view.evictDocument(sessionId, replaced, workbenchProjectId);
@@ -189,7 +194,7 @@ export async function cacheDocument(sessionId: string, path: string): Promise<vo
 
 export async function openFile(
     path: string,
-    options: { location?: { column: number; line: number }; preview?: boolean } = {},
+    options: { location?: EditorNavigationTarget; preview?: boolean } = {},
 ): Promise<string | false> {
     const session = getSelectedSession();
     if (!session) return false;
@@ -202,7 +207,7 @@ export async function openFile(
 export async function openFileForSession(
     sessionId: string,
     path: string,
-    options: { location?: { column: number; line: number }; preview?: boolean } = {},
+    options: { location?: EditorNavigationTarget; preview?: boolean } = {},
 ): Promise<string | false> {
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
     if (!session) return false;

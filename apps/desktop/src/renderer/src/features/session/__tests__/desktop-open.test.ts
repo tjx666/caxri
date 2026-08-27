@@ -55,14 +55,15 @@ describe('Server Desktop open queue', () => {
         const queue = createDesktopOpenQueue({ openFile: opened, selectSession: selected });
 
         await queue.enqueue({
-            location: { line: 12, column: 4 },
+            location: { mode: 'line', startLine: 12, endLine: 14 },
             path: '/project/file.ts',
             sessionId: 'session-1',
         });
 
         expect(opened).toHaveBeenCalledWith('session-1', '/project/file.ts', {
-            line: 12,
-            column: 4,
+            mode: 'line',
+            startLine: 12,
+            endLine: 14,
         });
     });
 });
