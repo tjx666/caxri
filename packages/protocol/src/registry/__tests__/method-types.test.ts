@@ -63,9 +63,15 @@ describe('command recovery policy', () => {
         expect(commandRecoveryFor('terminal.input')).toBe('none');
         expect(commandRecoveryFor('session.updateState')).toBe('memory');
         expect(commandRecoveryFor('files.write')).toBe('memory');
-        expect(commandRecoveryFor('terminal.attach')).toBe('memory');
+        expect(commandRecoveryFor('terminal.attach')).toBe('none');
         expect(commandRecoveryFor('session.rename')).toBe('durable');
         expect(commandRecoveryFor('terminal.create')).toBe('durable');
+    });
+
+    it('admits Terminal stream setup and traffic without asynchronous fingerprint reordering', () => {
+        expect(methods['terminal.attach'].idempotency).toBe('none');
+        expect(methods['terminal.input'].idempotency).toBe('none');
+        expect(methods['terminal.resize'].idempotency).toBe('none');
     });
 
     it('never persists ephemeral native paths or arbitrary failure messages', () => {

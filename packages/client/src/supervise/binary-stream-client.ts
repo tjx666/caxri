@@ -1,5 +1,3 @@
-import { Buffer } from 'node:buffer';
-
 import type {
     BinaryStreamFrame,
     BinaryStreamOperation,
@@ -9,7 +7,6 @@ import type {
     CaxriMethod,
     FileDocument,
     ServerControlEndpoint,
-    ServerEvent,
     TerminalSnapshot,
 } from '@caxri/protocol';
 import {
@@ -20,10 +17,8 @@ import {
     BINARY_STREAM_MAX_REPLY_BYTES,
     BINARY_STREAM_MAX_TERMINAL_RESULT_BYTES,
     binaryStreamAuthorization,
-    binaryStreamReplySchema,
     CaxriError,
     decodeBinaryStreamFrame,
-    encodeBinaryStreamFrame,
     fromWireError,
     isBinaryStreamMethod,
     isNonExpiringServerOperation,
@@ -33,132 +28,20 @@ import {
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
-interface BinaryStreamClientOptions {
-    emitEvent(event: Extract<ServerEvent, { event: 'terminal.output' }>): void;
-    endpoint: ServerControlEndpoint;
-    issueTicket(id: string, operation: BinaryStreamOperation): Promise<BinaryStreamTicketGrant>;
-    onTerminalTransportFailure(): void;
-    timeoutMs: number;
-}
-
-interface FrameAccumulator {
-    byteLength: number;
-    chunks: Uint8Array[];
-    kind: BinaryStreamFrame['kind'];
-    sequence: number;
-}
-
-function rawBytes(data: RawData): Uint8Array {
-    if (Buffer.isBuffer(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    if (data instanceof ArrayBuffer) return new Uint8Array(data);
-    return new Uint8Array(Buffer.concat(data));
-}
-
-function combine(chunks: readonly Uint8Array[], byteLength: number): Uint8Array {
-    const combined = new Uint8Array(byteLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-        combined.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-    return combined;
-}
-
-function streamUrl(endpoint: ServerControlEndpoint, path: string): string {
-    return `${endpoint.protocol}://${endpoint.host}:${endpoint.port}${path}`;
-}
-
-function streamCloseError(code: number, reason: string): CaxriError {
-    if (reason === 'payload-too-large' || reason === 'capacity-exceeded')
-        return new CaxriError('CAPACITY', 'Binary stream capacity was exceeded');
-    if (reason === 'unauthorized' || reason === 'scope-mismatch')
-        return new CaxriError('FORBIDDEN', 'Binary stream authorization failed');
-    if (reason === 'ticket-expired' || reason === 'stale-generation')
-        return new CaxriError('CONFLICT', 'Binary stream attachment became stale');
-    return new CaxriError(
-        'UNAVAILABLE',
-        code === 1006 ? 'Caxri Server stream connection closed' : 'Caxri Server stream unavailable',
-    );
-}
-
-function parseReply(payload: Uint8Array): BinaryStreamReply {
-    let source: string;
-    try {
-        source = new TextDecoder('utf-8', { fatal: true }).decode(payload);
-    } catch {
-        throw new CaxriError('VALIDATION', 'Binary stream reply is not valid UTF-8');
-    }
-    return binaryStreamReplySchema.parse(JSON.parse(source) as unknown);
-}
-
-class ClientSocketWriter {
-    private outbound = Promise.resolve();
-    private queuedPayloadBytes = 0;
-
-    constructor(private readonly socket: WebSocket) {}
-
-    private async send(frame: BinaryStreamFrame): Promise<void> {
-        const encoded = encodeBinaryStreamFrame(frame);
-        if (
-            this.socket.readyState !== WebSocket.OPEN ||
-            this.socket.bufferedAmount + encoded.byteLength > BINARY_STREAM_MAX_BUFFERED_BYTES
-        )
-            throw new CaxriError('CAPACITY', 'Binary stream output exceeded its high-water mark');
-        await new Promise<void>((resolve, reject) => {
-            this.socket.send(encoded, { binary: true }, (error) => {
-                if (error) reject(error);
-                else resolve();
-            });
-        });
-    }
-
-    sendChunks(
-        kind: BinaryStreamFrame['kind'],
-        sequence: number,
-        payload: Uint8Array,
-    ): Promise<void> {
-        if (
-            this.queuedPayloadBytes > 0 &&
-            this.queuedPayloadBytes + payload.byteLength > BINARY_STREAM_MAX_BUFFERED_BYTES
-        )
-            return Promise.reject(
-                new CaxriError('CAPACITY', 'Binary stream request queue exceeded its byte budget'),
-            );
-        this.queuedPayloadBytes += payload.byteLength;
-        const action = async (): Promise<void> => {
-            try {
-                if (payload.byteLength === 0) {
-                    await this.send({ final: true, kind, payload, sequence });
-                    return;
-                }
-                for (
-                    let offset = 0;
-                    offset < payload.byteLength;
-                    offset += BINARY_STREAM_MAX_CHUNK_BYTES
-                ) {
-                    const end = Math.min(
-                        payload.byteLength,
-                        offset + BINARY_STREAM_MAX_CHUNK_BYTES,
-                    );
-                    // eslint-disable-next-line no-await-in-loop -- each chunk is the stream's backpressure boundary
-                    await this.send({
-                        final: end === payload.byteLength,
-                        kind,
-                        payload: payload.subarray(offset, end),
-                        sequence,
-                    });
-                }
-            } finally {
-                this.queuedPayloadBytes -= payload.byteLength;
-            }
-        };
-        // eslint-disable-next-line unicorn/prefer-await -- this promise tail serializes frame groups across callers
-        const scheduled = this.outbound.then(action);
-        // eslint-disable-next-line unicorn/prefer-await -- callers retain the failure while the internal queue stays usable
-        this.outbound = scheduled.catch(() => {});
-        return scheduled;
-    }
-}
+import type {
+    BinaryStreamClientOptions,
+    FrameAccumulator,
+} from './binary-stream-client-support.js';
+import {
+    ClientSocketWriter,
+    combine,
+    parseReply,
+    rawBytes,
+    streamCloseError,
+    streamUrl,
+} from './binary-stream-client-support.js';
+import type { TerminalOperationLease } from './terminal-operation-queue.js';
+import { TerminalOperationQueue } from './terminal-operation-queue.js';
 
 abstract class ClientBinarySocket {
     private accumulator?: FrameAccumulator;
@@ -255,6 +138,7 @@ interface PendingTerminalRequest {
 
 class TerminalStreamClient extends ClientBinarySocket {
     private closed = false;
+    private drain?: PromiseWithResolvers<void>;
     private failed = false;
     private nextSequence: number;
     private readonly pending = new Map<number, PendingTerminalRequest>();
@@ -303,6 +187,7 @@ class TerminalStreamClient extends ClientBinarySocket {
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pending.delete(sequence);
+                this.resolveDrain();
                 reject(new CaxriError('TIMEOUT', `Caxri Server stream timed out: ${method}`));
                 this.close();
             }, this.options.timeoutMs);
@@ -310,11 +195,18 @@ class TerminalStreamClient extends ClientBinarySocket {
         });
     }
 
+    private resolveDrain(): void {
+        if (this.pending.size > 0 || !this.drain) return;
+        this.drain.resolve();
+        this.drain = undefined;
+    }
+
     private settleError(sequence: number, error: unknown): void {
         const pending = this.pending.get(sequence);
         if (!pending) throw new CaxriError('VALIDATION', 'Binary Terminal reply is unexpected');
         clearTimeout(pending.timer);
         this.pending.delete(sequence);
+        this.resolveDrain();
         pending.reject(
             error instanceof Error ? error : new Error('Binary Terminal request failed'),
         );
@@ -326,6 +218,7 @@ class TerminalStreamClient extends ClientBinarySocket {
         if (!pending) throw new CaxriError('VALIDATION', 'Binary Terminal reply is unexpected');
         clearTimeout(pending.timer);
         this.pending.delete(sequence);
+        this.resolveDrain();
         pending.resolve(result);
         if (!this.isPersistent) this.close();
     }
@@ -489,6 +382,15 @@ class TerminalStreamClient extends ClientBinarySocket {
         this.close();
     }
 
+    async retireAfterPending(): Promise<void> {
+        this.retiring = true;
+        if (this.pending.size > 0) {
+            this.drain ??= Promise.withResolvers<void>();
+            await this.drain.promise;
+        }
+        this.close();
+    }
+
     protected fail(error: unknown): void {
         this.failed = true;
         const failure =
@@ -500,6 +402,7 @@ class TerminalStreamClient extends ClientBinarySocket {
             pending.reject(failure);
         }
         this.pending.clear();
+        this.resolveDrain();
         this.close();
     }
 
@@ -512,6 +415,7 @@ class TerminalStreamClient extends ClientBinarySocket {
             pending.reject(error);
         }
         this.pending.clear();
+        this.resolveDrain();
         this.onClosed();
         if ((code !== 4000 || this.failed) && this.isPersistent && !this.retiring)
             this.options.onTerminalTransportFailure();
@@ -641,6 +545,7 @@ export class BinaryStreamClient {
     private readonly activeStreams = new Set<TerminalStreamClient | FileStreamClient>();
     private readonly activeRequestIds = new Set<string>();
     private closed = false;
+    private readonly terminalOperations = new TerminalOperationQueue();
     private readonly terminals = new Map<string, TerminalStreamClient>();
 
     constructor(private readonly options: BinaryStreamClientOptions) {}
@@ -656,58 +561,124 @@ export class BinaryStreamClient {
     private async openTerminal(
         operation: Extract<BinaryStreamOperation, { terminalId: string }>,
         id: string,
+        lease: TerminalOperationLease,
         input?: Uint8Array,
     ): Promise<TerminalSnapshot | null> {
-        const grant = await this.options.issueTicket(id, operation);
-        const previous = this.terminals.get(operation.terminalId);
-        if (previous && operation.method === 'terminal.attach') {
-            this.terminals.delete(operation.terminalId);
-            previous.retire();
-        }
+        const grant = await lease.wait(this.options.issueTicket(id, operation));
+        lease.assertActive();
         const holder: { stream?: TerminalStreamClient } = {};
-        const opened = await TerminalStreamClient.open(
-            this.options,
-            grant,
-            operation,
-            () => {
-                if (holder.stream && this.terminals.get(operation.terminalId) === holder.stream)
-                    this.terminals.delete(operation.terminalId);
-                this.untrack(holder.stream);
-            },
-            (stream) => {
-                holder.stream = stream;
-                this.track(stream);
-            },
-            input,
-        );
+        let opened: Awaited<ReturnType<typeof TerminalStreamClient.open>>;
+        try {
+            opened = await lease.wait(
+                TerminalStreamClient.open(
+                    this.options,
+                    grant,
+                    operation,
+                    () => {
+                        if (
+                            holder.stream &&
+                            this.terminals.get(operation.terminalId) === holder.stream
+                        )
+                            this.terminals.delete(operation.terminalId);
+                        this.untrack(holder.stream);
+                    },
+                    (stream) => {
+                        holder.stream = stream;
+                        this.track(stream);
+                    },
+                    input,
+                ),
+            );
+            lease.assertActive();
+        } catch (error) {
+            holder.stream?.cancel(error);
+            throw error;
+        }
         if (operation.method === 'terminal.attach')
             this.terminals.set(operation.terminalId, opened.stream);
         return opened.result;
     }
 
+    private async replaceTerminalAttachment(
+        operation: Extract<BinaryStreamOperation, { method: 'terminal.attach' }>,
+        id: string,
+        lease: TerminalOperationLease,
+    ): Promise<TerminalSnapshot | null> {
+        const previous = this.terminals.get(operation.terminalId);
+        if (previous) {
+            this.terminals.delete(operation.terminalId);
+            await lease.wait(previous.retireAfterPending());
+            lease.assertActive();
+        }
+        if (this.closed)
+            throw new CaxriError('UNAVAILABLE', 'Caxri Server binary streams are closed');
+        return this.openTerminal(operation, id, lease);
+    }
+
     private async requestTerminal(id: string, method: CaxriMethod, parameters: unknown) {
         const request = parseCaxriRequest(method, parameters);
         if (request.method === 'terminal.attach')
-            return this.openTerminal({ method: request.method, ...request.params }, id);
+            return this.terminalOperations.run(request.params.terminalId, (lease) =>
+                this.replaceTerminalAttachment(
+                    { method: request.method, ...request.params },
+                    id,
+                    lease,
+                ),
+            );
         if (request.method === 'terminal.input') {
             const payload = new TextEncoder().encode(request.params.data);
-            const attached = this.terminals.get(request.params.terminalId);
-            if (attached) return attached.input(payload);
-            return this.openTerminal(
-                {
-                    method: request.method,
-                    terminalId: request.params.terminalId,
-                    byteLength: payload.byteLength,
+            const terminalId = request.params.terminalId;
+            const attached = this.terminals.get(terminalId);
+            if (attached && !this.terminalOperations.has(terminalId))
+                return attached.input(payload);
+            return this.terminalOperations.run(
+                terminalId,
+                async (lease) => {
+                    if (this.closed)
+                        throw new CaxriError(
+                            'UNAVAILABLE',
+                            'Caxri Server binary streams are closed',
+                        );
+                    const current = this.terminals.get(terminalId);
+                    if (current) return lease.wait(current.input(payload));
+                    const result = await this.openTerminal(
+                        {
+                            method: request.method,
+                            terminalId,
+                            byteLength: payload.byteLength,
+                        },
+                        id,
+                        lease,
+                        payload,
+                    );
+                    if (result !== null)
+                        throw new CaxriError('VALIDATION', 'Terminal input returned a snapshot');
+                    return result;
                 },
-                id,
-                payload,
+                payload.byteLength,
             );
         }
         if (request.method !== 'terminal.resize')
             throw new CaxriError('VALIDATION', `Unsupported Terminal stream method: ${method}`);
-        const attached = this.terminals.get(request.params.terminalId);
-        if (attached) return attached.resize(request.params.cols, request.params.rows);
-        return this.openTerminal({ method: request.method, ...request.params }, id);
+        const terminalId = request.params.terminalId;
+        const attached = this.terminals.get(terminalId);
+        if (attached && !this.terminalOperations.has(terminalId))
+            return attached.resize(request.params.cols, request.params.rows);
+        return this.terminalOperations.run(terminalId, async (lease) => {
+            if (this.closed)
+                throw new CaxriError('UNAVAILABLE', 'Caxri Server binary streams are closed');
+            const current = this.terminals.get(terminalId);
+            if (current)
+                return lease.wait(current.resize(request.params.cols, request.params.rows));
+            const result = await this.openTerminal(
+                { method: request.method, ...request.params },
+                id,
+                lease,
+            );
+            if (result !== null)
+                throw new CaxriError('VALIDATION', 'Terminal resize returned a snapshot');
+            return result;
+        });
     }
 
     private async requestFile(id: string, method: CaxriMethod, parameters: unknown) {
@@ -771,6 +742,7 @@ export class BinaryStreamClient {
     }
 
     closeTerminal(terminalId: string): void {
+        this.terminalOperations.invalidate(terminalId);
         this.terminals.get(terminalId)?.retire();
         this.terminals.delete(terminalId);
     }
@@ -780,6 +752,7 @@ export class BinaryStreamClient {
         this.closed = true;
         for (const stream of this.activeStreams) stream.cancel(error);
         this.activeStreams.clear();
+        this.terminalOperations.clear();
         this.terminals.clear();
         this.activeRequestIds.clear();
     }

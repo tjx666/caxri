@@ -7,7 +7,8 @@ export type CommandEffect = 'read' | 'write' | 'control';
 export type CommandIdempotency = 'none' | 'request';
 /**
  * `durable` permits the validated reply to cross a Server boot; `memory` deliberately keeps a content-bearing or
- * boot-scoped reply in RAM; `none` is reserved for ordered byte/geometry streams that cannot await fingerprinting.
+ * boot-scoped reply in RAM; `none` is reserved for ordered stream setup, bytes, and geometry that cannot await
+ * fingerprinting.
  */
 export type CommandRecovery = 'none' | 'memory' | 'durable';
 
