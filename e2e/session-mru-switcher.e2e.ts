@@ -35,8 +35,15 @@ test('Session MRU switching cycles, respects editable focus, and persists across
         await createAdditionalShellSession(running.page);
         const sessionC = await selectedSessionId(running.page);
 
-        await running.page.keyboard.press('Meta+T');
         const activeWorkTab = running.page.locator('.workbench-pane.active .work-tab.active');
+        const firstTerminalId = await activeWorkTab.getAttribute('data-terminal-id');
+        expect(firstTerminalId).toBeTruthy();
+        await running.page.keyboard.press('Meta+T');
+        /**
+         * Terminal creation crosses Renderer and Server boundaries. Wait for the active tab identity to advance before
+         * capturing it; under CI load the old active tab can remain observable briefly after the shortcut resolves.
+         */
+        await expect(activeWorkTab).not.toHaveAttribute('data-terminal-id', firstTerminalId!);
         const secondTerminalId = await activeWorkTab.getAttribute('data-terminal-id');
         expect(secondTerminalId).toBeTruthy();
         await expect(
@@ -181,6 +188,7 @@ test('Session MRU default reaches through Monaco and form focus without intercep
 
         await running.page.keyboard.press('Meta+Shift+F');
         const searchInput = running.page.getByRole('textbox', { name: 'Find Project files' });
+        await searchInput.focus();
         await expect(searchInput).toBeFocused();
         const composingEventWasNotCanceled = await searchInput.evaluate((target) =>
             target.dispatchEvent(
