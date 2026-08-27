@@ -24,6 +24,7 @@ import { getBootstrap, useSessions, useSettings, useTerminal } from '../../store
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { focusTerminalById } from '../terminal/terminal-actions';
 import { agentActionTerminalInput, canExecuteAgentAction } from './agent-action-input';
+import { describeAgentActionTarget, resolveAgentActionTargetTitle } from './agent-action-target';
 
 const sourceLabels: Record<AgentAction['source'], string> = {
     builtIn: 'Built-in',
@@ -114,7 +115,7 @@ export function AgentActionsDialog() {
         }
         closePicker();
         // eslint-disable-next-line no-void -- tryCommand owns the asynchronous failure path
-        void tryCommand('Unable to send Agent action', () =>
+        void tryCommand('Unable to send Agent command or skill', () =>
             caxri.request('terminal.input', {
                 terminalId: current.id,
                 data: agentActionTerminalInput(action, shouldExecute),
@@ -123,6 +124,7 @@ export function AgentActionsDialog() {
     };
 
     const providerName = provider ? agentProviderCatalog[provider].displayName : 'Agent';
+    const targetTitle = resolveAgentActionTargetTitle(session?.displayTitle, terminal?.title);
 
     return (
         <Dialog
@@ -144,21 +146,43 @@ export function AgentActionsDialog() {
                     return false;
                 }}
             >
-                <DialogTitle className="sr-only">Agent Actions</DialogTitle>
+                <DialogTitle className="sr-only">Agent Commands &amp; Skills</DialogTitle>
                 <div
                     id={targetDescriptionId}
+                    aria-label={describeAgentActionTarget(providerName, targetTitle)}
                     className="flex items-center gap-2 border-b border-border px-4 py-2 text-[11px] text-muted"
+                    data-agent-action-target=""
+                    data-target-title-kind={targetTitle.kind}
+                    role="note"
                 >
                     {provider && <AgentIdentityIcon identity={provider} size={14} />}
                     <span className="font-medium text-foreground">{providerName}</span>
                     <span aria-hidden="true">·</span>
-                    <span className="min-w-0 truncate">{session?.displayTitle ?? 'Session'}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="min-w-0 truncate">{terminal?.title ?? 'Terminal'}</span>
+                    {targetTitle.kind === 'shared' ? (
+                        <span className="min-w-0 truncate" data-agent-action-target-title="shared">
+                            {targetTitle.title}
+                        </span>
+                    ) : (
+                        <>
+                            <span
+                                className="min-w-0 truncate"
+                                data-agent-action-target-title="session"
+                            >
+                                Session: {targetTitle.sessionTitle}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span
+                                className="min-w-0 truncate"
+                                data-agent-action-target-title="terminal"
+                            >
+                                Terminal: {targetTitle.terminalTitle}
+                            </span>
+                        </>
+                    )}
                 </div>
                 <Command
                     className="w-full"
-                    label="Agent Actions"
+                    label="Agent Commands & Skills"
                     onKeyDownCapture={(event: KeyboardEvent<HTMLDivElement>) => {
                         if (
                             !event.metaKey ||
@@ -190,7 +214,7 @@ export function AgentActionsDialog() {
                         placeholder="Search skills and slash commands…"
                     />
                     <CommandList>
-                        <CommandEmpty>No Agent action found.</CommandEmpty>
+                        <CommandEmpty>No Agent command or skill found.</CommandEmpty>
                         {commands.length > 0 && (
                             <CommandGroup heading="Commands">
                                 {commands.map((action) => (
@@ -220,8 +244,8 @@ export function AgentActionsDialog() {
                         )}
                         {(query.isError || query.data?.discovery === 'partial') && (
                             <p className="m-0 px-3 py-2 text-[11px] text-warning" role="status">
-                                Some actions were unavailable or exceeded discovery limits.
-                                Available actions are still ready.
+                                Some commands or skills were unavailable or exceeded discovery
+                                limits. Available commands and skills are still ready.
                             </p>
                         )}
                     </CommandList>

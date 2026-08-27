@@ -86,13 +86,14 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
         {
             ...shared,
             id: `agents.${provider}.actions`,
-            title: 'Agent actions',
+            title: 'Agent commands & skills',
             description:
-                'Customize slash commands and skill invocations shown in the Agent Actions picker. ' +
+                'Customize slash commands and skill invocations shown in the Agent Commands & Skills picker. ' +
                 'Project and user skills are discovered automatically.',
             binding: { type: 'provider-actions', provider },
             haystack: lower([
                 'agent actions',
+                'agent commands & skills',
                 'slash commands',
                 'skills',
                 'picker',
