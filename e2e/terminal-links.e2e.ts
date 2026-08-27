@@ -134,6 +134,22 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             .toContain(url);
         await expect(running.page.locator('.toast')).toHaveCount(0);
 
+        const cjkBoundaryUrl = 'https://example.com/caxri-cjk-boundary';
+        const cjkBoundaryLine = `(${cjkBoundaryUrl}），后续正文`;
+        await typeTerminal(running.page, String.raw`printf '%s\n' '${cjkBoundaryLine}'`);
+        await expect(running.page.locator('.xterm-rows')).toContainText(cjkBoundaryLine);
+        await clickTerminalLink(running.page, cjkBoundaryUrl);
+        await expect
+            .poll(() =>
+                running.app.evaluate(() => {
+                    const target = globalThis as typeof globalThis & {
+                        caxriExternalLinkProbe?: { opened: string[] };
+                    };
+                    return target.caxriExternalLinkProbe?.opened;
+                }),
+            )
+            .toContain(cjkBoundaryUrl);
+
         const canceledUrl = 'https://example.org/canceled';
         await running.app.evaluate(() => {
             const target = globalThis as typeof globalThis & {
@@ -183,10 +199,11 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
         ).resolves.toMatchObject({
             confirmations: [
                 'Open example.com in your default browser?',
+                'Open example.com in your default browser?',
                 'Open example.org in your default browser?',
                 'Open example.net in your default browser?',
             ],
-            opened: [url],
+            opened: [url, cjkBoundaryUrl],
         });
     } finally {
         try {
@@ -254,11 +271,15 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         const homeLink = '~/project/link-target.ts:3:2';
         const url = 'https://example.org/keyboard-link';
         const rejectedUrl = 'https://user:password@example.net/rejected';
-        const oscUrl = 'https://example.com/osc-keyboard-link';
+        const oscTargetSuffix = 'osc-keyboard-link?q=你好，世界';
+        const oscUrl = `https://example.com/${oscTargetSuffix}`;
+        const openedOscUrl = new URL(oscUrl).href;
+        const cjkBoundaryUrl = 'https://example.com/caxri-cjk-boundary';
+        const cjkBoundaryLine = `(${cjkBoundaryUrl}），后续正文`;
         const oscPrefix = `OSC reflow prefix ${'x'.repeat(180)}`;
         await typeTerminal(
             running.page,
-            String.raw`printf '%s\n' '${fileLink}' '${homeLink}' '${url}' '${rejectedUrl}'; printf '%s\033]8;;https://example.com/%s\007OSC link label\033]8;;\007\n' '${oscPrefix}' 'osc-keyboard-link'`,
+            String.raw`printf '%s\n' '${fileLink}' '${homeLink}' '${url}' '${rejectedUrl}' '${cjkBoundaryLine}'; printf '%s\033]8;;https://example.com/%s\007OSC link label\033]8;;\007\n' '${oscPrefix}' '${oscTargetSuffix}'`,
         );
         const terminalInput = running.page.locator('.xterm-helper-textarea');
         await expect(running.page.locator('.xterm-rows')).toContainText('OSC link label');
@@ -304,7 +325,19 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
                     return target.caxriKeyboardLinkProbe?.opened;
                 }),
             )
-            .toContain(oscUrl);
+            .toContain(openedOscUrl);
+
+        await openLink(cjkBoundaryUrl, `Open external link ${cjkBoundaryUrl}`);
+        await expect
+            .poll(() =>
+                running.app.evaluate(() => {
+                    const target = globalThis as typeof globalThis & {
+                        caxriKeyboardLinkProbe?: { opened: string[] };
+                    };
+                    return target.caxriKeyboardLinkProbe?.opened;
+                }),
+            )
+            .toContain(cjkBoundaryUrl);
 
         await running.app.evaluate(() => {
             const target = globalThis as typeof globalThis & {
@@ -332,9 +365,10 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         ).resolves.toMatchObject({
             confirmations: [
                 'Open example.com in your default browser?',
+                'Open example.com in your default browser?',
                 'Open example.org in your default browser?',
             ],
-            opened: [oscUrl],
+            opened: [openedOscUrl, cjkBoundaryUrl],
         });
 
         await openLink(fileLink, `Open file link ${fileLink}`);
@@ -388,7 +422,7 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
                     return target.caxriKeyboardLinkProbe?.opened;
                 }),
             )
-            .toEqual([oscUrl, oscUrl]);
+            .toEqual([openedOscUrl, cjkBoundaryUrl, openedOscUrl]);
         await openLink(homeLink, `Open file link ${homeLink}`);
         await expect(running.page.getByLabel(/^Editor position: Ln 3, Col 2/)).toBeVisible();
 

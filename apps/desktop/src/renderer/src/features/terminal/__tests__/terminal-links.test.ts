@@ -25,6 +25,47 @@ describe('findTerminalLinks', () => {
         ]);
     });
 
+    it('stops a plain-text URL before a closing wrapper and CJK prose', () => {
+        const target = 'https://github.com/lobehub-biz/lobehub-cloud/pull/1503';
+        const prefix = '已复用并推送 PR lobehub-cloud#1503 (';
+
+        expect(findTerminalLinks(`${prefix}${target}），双仓 clean，PR 可合并。`)).toEqual([
+            {
+                endIndex: prefix.length + target.length,
+                kind: 'url',
+                startIndex: prefix.length,
+                target,
+                text: target,
+            },
+        ]);
+    });
+
+    it.each(['、', '，', '。', '；', '：', '！', '？'])(
+        'stops a plain-text URL before CJK punctuation %s',
+        (separator) => {
+            const target = 'https://example.com/path?mode=review#summary';
+            expect(findTerminalLinks(`${target}${separator}后续正文`)).toMatchObject([
+                { kind: 'url', target, text: target },
+            ]);
+        },
+    );
+
+    it('trims an ASCII closing wrapper before CJK punctuation', () => {
+        const target = 'https://example.com/a_(b)';
+
+        expect(findTerminalLinks(`(${target})，后续正文`)).toMatchObject([
+            { kind: 'url', target, text: target },
+        ]);
+    });
+
+    it('preserves URL query, fragment, percent encoding, and balanced parentheses', () => {
+        const target = 'https://example.com/a_(b)/c%20d?mode=review#summary';
+
+        expect(findTerminalLinks(`${target}。`)).toMatchObject([
+            { kind: 'url', target, text: target },
+        ]);
+    });
+
     it('extracts absolute, Project-relative, and file URL locations', () => {
         expect(
             findTerminalLinks(
@@ -308,21 +349,22 @@ describe('registerTerminalLinks', () => {
         const terminal = createTerminal('descriptive label', cellsFor('descriptive label'));
         const { context, openUrl } = baseContext();
         const registration = registerTerminalLinks(terminal.terminal, context);
+        const target = 'https://example.com/search?q=你好，世界';
 
         terminal.setCursor(0, 0);
-        expect(terminal.osc8(';https://example.com/osc-target')).toBe(false);
+        expect(terminal.osc8(`;${target}`)).toBe(false);
         terminal.setCursor(0, 'descriptive label'.length);
         expect(terminal.osc8(';')).toBe(false);
         expect(registration.getViewportLinks()).toMatchObject([
             {
-                accessibleName: 'Open external link https://example.com/osc-target',
+                accessibleName: `Open external link ${target}`,
                 kind: 'url',
-                target: 'https://example.com/osc-target',
+                target,
             },
         ]);
 
         registration.getViewportLinks()[0].activate();
-        expect(openUrl).toHaveBeenCalledWith('https://example.com/osc-target');
+        expect(openUrl).toHaveBeenCalledWith(target);
     });
 
     it('bounds OSC 8 targets independently of marker disposal', () => {

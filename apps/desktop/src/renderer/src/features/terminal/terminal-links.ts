@@ -11,6 +11,11 @@ import {
 const CJK_PROSE_BOUNDARIES = new Set(['、', '，', '。', '；', '：', '！', '？']);
 const FILE_LOCATION_SUFFIX_PATTERN = /:\d+(?::\d+)?(?=$|[\s.,;:!?"'`)\]}、，。；：！？])/g;
 const LEADING_WRAPPERS = new Set(['(', '[', '{', '<', '"', "'", '`']);
+const EXPLICIT_TERMINAL_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
+/**
+ * Plain text needs explicit CJK prose boundaries while OSC 8 targets retain every valid Unicode URL character.
+ */
+const PLAIN_TEXT_URL_PATTERN = /https?:\/\/[^\s<>"'`、，。；：！？）]+/giu;
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '`']);
 
 /**
@@ -349,13 +354,14 @@ export function findTerminalLinks(
     text: string,
     wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
     metrics?: TerminalLinkScanMetrics,
+    urlPattern: RegExp = PLAIN_TEXT_URL_PATTERN,
 ): TerminalLinkMatch[] {
     const wordFileLinks: TerminalLinkMatch[] = [];
     const urlLinks: TerminalLinkMatch[] = [];
     const unsupportedHomes = unsupportedHomeRanges(text);
     let urlLinkIndex = 0;
     let unsupportedHomeIndex = 0;
-    for (const url of text.matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
+    for (const url of text.matchAll(urlPattern)) {
         const raw = url[0];
         const rawStart = url.index;
         const trimmed = trimToken(raw);
@@ -726,7 +732,7 @@ function exactTerminalLinkTarget(
     target: string,
     wordSeparators: string,
 ): TerminalLinkMatch | undefined {
-    return findTerminalLinks(target, wordSeparators).find(
+    return findTerminalLinks(target, wordSeparators, undefined, EXPLICIT_TERMINAL_URL_PATTERN).find(
         (candidate) =>
             candidate.endIndex === target.length &&
             (candidate.startIndex === 0 ||
