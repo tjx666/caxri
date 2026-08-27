@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
@@ -68,7 +69,9 @@ test('Git Pull Request mode shows committed PR changes instead of the working tr
          * provider state, so the successful outer Source Control snapshot must not surface a second Main-process
          * error.
          */
-        allowE2EErrors([{ source: 'runtime', event: 'ipc.request_failed', code: 'GIT', count: 1 }]);
+        allowE2EErrors([
+            { source: 'server-core', event: 'ipc.request_failed', code: 'GIT', count: 1 },
+        ]);
         await createProjectSession(running.page);
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const files = running.page.locator('.git-files');

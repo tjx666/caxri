@@ -73,7 +73,7 @@ describe('desktopOpenParametersSchema', () => {
 describe('desktopHostMethods policy', () => {
     it('routes every entry through the host and gates it behind the desktop.window capability', () => {
         for (const [name, spec] of Object.entries(desktopHostMethods)) {
-            expect(spec.owner, name).toBe('host');
+            expect(spec.owner, name).toBe('server');
             expect(spec.requiredCapabilities, name).toEqual(['desktop.window']);
         }
     });

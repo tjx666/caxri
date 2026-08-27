@@ -6,14 +6,15 @@ legitimately needs more bytes.
 
 ## Baseline (2026-08, arm64 dir target)
 
-| Artifact            | Size      | Dominant contents                                                  |
-| ------------------- | --------- | ------------------------------------------------------------------ |
-| `Caxri.app` (total) | ~276 MiB  | Electron 43 framework (~230 MiB, fixed cost)                       |
-| `app.asar`          | ~38.6 MiB | `out/` bundles + native-module JS shims                            |
-| `app.asar.unpacked` | ~5.5 MiB  | better-sqlite3 / node-pty / @parcel/watcher binaries               |
-| `out/renderer`      | ~35.4 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), fonts, vscode-icons (below) |
-| `out/main`          | ~2.5 MiB  | Main + Host + Extension Host + Runtime with pure-JS deps bundled   |
-| `out/preload`       | ~8 KiB    | Sandboxed preload bundles                                          |
+| Artifact                  | Size      | Dominant contents                                                   |
+| ------------------------- | --------- | ------------------------------------------------------------------- |
+| `Caxri.app` (total)       | ~406 MiB  | Electron 43 framework + embedded standalone Server                  |
+| `Resources/server`        | ~123 MiB  | Pinned runtime (~116 MiB), native dependencies, bundles, extensions |
+| `app.asar`                | ~36 MiB   | Desktop Main, Preload, and Renderer bundles                         |
+| `out/renderer`            | ~35.4 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), fonts, vscode-icons (below)  |
+| `out/main`                | ~650 KiB  | Electron Desktop Main only                                          |
+| `out/preload`             | ~8 KiB    | Sandboxed preload bundles                                           |
+| `apps/server/dist/server` | ~123 MiB  | Byte-identical source of the embedded Server artifact               |
 
 The renderer carries the full `@yutengjing/vscode-icons` SVG set (~4.5 MiB across 1553 files,
 emitted as individual assets). This is a conscious budget increase, not drift: the Files secondarySidebar
@@ -28,16 +29,14 @@ transitive tree ~7 MiB), multi-platform native prebuilds and sqlite source (~26 
 
 ## Rules that keep the package small
 
-1. **`dependencies` holds native modules only** (`@parcel/watcher`, `better-sqlite3`, `node-pty`).
-   electron-builder copies the production dependency tree into the asar wholesale, so every
-   pure-JS dependency lives in `devDependencies` and is bundled by electron-vite instead
-   (tree-shaken, deduplicated). See `electron.vite.config.ts`.
-2. **No bundler-invisible requires in Main/Host/Extension Host/Runtime.** A `createRequire`/dynamic `require`
-   of a devDependency builds fine but crashes only in the packaged app. The budget gate loads
-   `out/main/host.js` and `out/main/runtime.js` from the packaged asar with
-   `ELECTRON_RUN_AS_NODE` to catch exactly this class of regression.
-3. **Native packages ship binaries only.** `build.files` excludes non-darwin prebuilds and the
-   C/C++ `deps`/`src` trees of better-sqlite3 and node-pty.
+1. **The root has no production dependencies.** Desktop pure JavaScript is bundled into `app.asar`;
+   Server dependencies are assembled only inside `apps/server/dist/server`.
+2. **The standalone Server owns its runtime.** Desktop and platform deployments copy the same
+   manifest-bound directory, including the pinned runtime, native dependencies, migrations, and
+   extensions. The budget gate verifies both copies and loads all three Server entry points using
+   that runtime.
+3. **Native packages ship selected runtime inputs only.** The artifact builder excludes unrelated
+   platform prebuilds and C/C++ source trees while preserving executable helper modes.
 4. **Electron locales are pruned** to `electronLanguages` (en, en_GB, zh_CN, zh_TW).
 5. **Renderer assets match their display size** (the primarySidebar logo is 128px, not the 1024px icon
    source). Monaco and its language workers (`ts.worker` ~11 MiB) are a deliberate product cost
@@ -58,7 +57,7 @@ across chunks.
 
 `scripts/ci-bundle-budget.ts` (wired into the `checks` job of `.github/workflows/ci.yml`) runs a
 timed build, a timed `electron-builder --mac dir` packaging pass, the packaged module-resolution
-probe, and asserts every artifact stays under its byte budget. Budgets are absolute ceilings with
+artifact integrity and entry-point probe, and asserts every artifact stays under its byte budget. Budgets are absolute ceilings with
 headroom over this baseline — when the gate fails, first try to optimize the regression away;
 only consciously raise the budget in `scripts/ci-bundle-budget.ts` and update this document in
 the same PR.
@@ -66,8 +65,8 @@ the same PR.
 ### Job summary and baseline deltas
 
 Every gate run appends a Markdown report to the GitHub Actions job summary: phase timings and a
-component-level size breakdown (Electron runtime, asar, unpacked native modules, each `out/`
-process, and inside the renderer the Monaco language workers and bundled fonts), each with its
+component-level size breakdown (Electron runtime, asar, standalone Server runtime/native/bundles,
+each Desktop `out/` surface, and the Renderer Monaco workers and fonts), each with its
 budget and a percentage delta. Because the project has no public release yet, the comparison
 baseline is the last green `main` build: a green `main` run stores its measurements in the
 runner-local `~/.cache/caxri/bundle-baseline.json`, and every later run (PRs included) reports

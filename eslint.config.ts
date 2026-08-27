@@ -1,8 +1,13 @@
 import { markdownProcessorConfig, typescriptConfig } from '@yutengjing/eslint-config-typescript';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import importX from 'eslint-plugin-import-x';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
+import {
+    browserUnsafeImports,
+    transitionalCycleAllowances,
+} from './scripts/architecture-boundaries';
 import caxri from './scripts/eslint-rules/index';
 
 const typescriptFiles = ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'];
@@ -13,16 +18,20 @@ const javaScriptAndTypeScriptFiles = [
     '**/*.cjs',
     ...typescriptFiles,
 ];
+const rendererUnsafePackageImports = browserUnsafeImports.flatMap((specifier) =>
+    specifier === 'electron' ? [] : [specifier, `${specifier}/*`],
+);
 /**
  * Directories whose production/tooling code may run child processes at all (the Renderer is out of scope: it already
  * bans importing `child_process` outright via the Renderer `no-restricted-imports` config below).
  */
 const shellExecutionScopedDirectories = [
-    'src/main/**',
-    'src/host/**',
-    'src/preload/**',
-    'src/runtime/**',
-    'src/shared/**',
+    'apps/cli/src/**',
+    'apps/desktop/src/main/**',
+    'apps/desktop/src/preload/**',
+    'apps/desktop/src/shared/**',
+    'apps/server/src/**',
+    'extensions/**',
     'scripts/**',
     '.agents/**',
     'e2e/**',
@@ -120,6 +129,7 @@ export default defineConfig(
         },
     },
     {
+        files: javaScriptAndTypeScriptFiles,
         plugins: {
             'react-refresh': reactRefresh,
         },
@@ -143,6 +153,41 @@ export default defineConfig(
             ],
         },
     },
+    {
+        files: javaScriptAndTypeScriptFiles,
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/architecture-boundaries': 'error',
+        },
+    },
+    {
+        files: [
+            'apps/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
+            'packages/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
+            'scripts/fixtures/eslint/architecture/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
+        ],
+        plugins: {
+            'import-x': importX,
+        },
+        rules: {
+            /**
+             * Target workspaces must stay acyclic from the first source movement onward.
+             */
+            'import-x/no-cycle': ['error', { ignoreExternal: true }],
+        },
+    },
+    ...(transitionalCycleAllowances.length > 0
+        ? [
+              {
+                  files: transitionalCycleAllowances.flatMap(({ files }) => [...files]),
+                  rules: {
+                      'import-x/no-cycle': 'off' as const,
+                  },
+              },
+          ]
+        : []),
     {
         files: typescriptFiles,
         rules: {
@@ -177,7 +222,7 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/renderer/src/components/ui/dialog.tsx'],
+        files: ['apps/desktop/src/renderer/src/components/ui/dialog.tsx'],
         rules: {
             /**
              * Shadcn compound components intentionally share one module.
@@ -186,7 +231,7 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/**/*.tsx'],
+        files: ['apps/desktop/src/renderer/**/*.tsx'],
         rules: {
             'no-restricted-syntax': [
                 'error',
@@ -196,20 +241,20 @@ export default defineConfig(
                 },
                 /**
                  * Main's `setWindowOpenHandler` denies every `window.open`/`target="_blank"` navigation (see
-                 * `src/main/index.ts`), so a raw `target="_blank"` anchor never actually opens anything. Route external
-                 * navigation through `openExternalUrl` (`src/renderer/src/lib/external-link.ts`), which calls
-                 * `external.open`.
+                 * `apps/desktop/src/main/index.ts`), so a raw `target="_blank"` anchor never actually opens anything.
+                 * Route external navigation through `openExternalUrl`
+                 * (`apps/desktop/src/renderer/src/lib/external-link.ts`), which calls `external.open`.
                  */
                 {
                     selector: 'JSXAttribute[name.name="target"][value.value="_blank"]',
                     message:
-                        'target="_blank" anchors never navigate (Main denies window.open); use openExternalUrl from src/renderer/src/lib/external-link.ts instead.',
+                        'target="_blank" anchors never navigate (Main denies window.open); use openExternalUrl from apps/desktop/src/renderer/src/lib/external-link.ts instead.',
                 },
             ],
         },
     },
     {
-        files: ['src/renderer/**/*.ts', 'src/renderer/**/*.tsx'],
+        files: ['apps/desktop/src/renderer/**/*.ts', 'apps/desktop/src/renderer/**/*.tsx'],
         rules: {
             /**
              * The renderer must never reach Node.js, Electron, PTY, Git, or filesystem APIs directly; it may only use
@@ -220,9 +265,9 @@ export default defineConfig(
                 {
                     patterns: [
                         {
-                            group: ['**/shared/node/**', '@shared/node*', '@shared/node/**'],
+                            group: ['@caxri/system', '@caxri/system/*'],
                             message:
-                                'src/shared/node is Node-only (main/runtime); the renderer must never import it.',
+                                '@caxri/system is not browser-safe; the Renderer must use a typed protocol or Desktop bridge.',
                         },
                         {
                             group: ['electron', 'electron/*'],
@@ -240,9 +285,9 @@ export default defineConfig(
                                 'The renderer must never import Node.js builtins directly; use the typed window.caxri bridge.',
                         },
                         {
-                            group: ['node-pty', 'better-sqlite3'],
+                            group: rendererUnsafePackageImports,
                             message:
-                                'The renderer must never import native modules directly; use the typed window.caxri bridge.',
+                                'The renderer must never import platform-only packages directly; use the typed window.caxri bridge.',
                         },
                     ],
                 },
@@ -250,7 +295,7 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/renderer/__tests__/*.test.ts'],
+        files: ['apps/desktop/src/renderer/__tests__/*.test.ts'],
         rules: {
             /**
              * Repository-level Renderer contracts inspect source from Vitest's Node environment.
@@ -273,23 +318,31 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/host/**', 'src/main/**', 'src/preload/**', 'src/runtime/**', 'src/shared/**'],
+        files: [
+            'apps/cli/src/**',
+            'apps/desktop/src/main/**',
+            'apps/desktop/src/preload/**',
+            'apps/desktop/src/shared/**',
+            'apps/server/src/**',
+            'extensions/**',
+            'packages/system/src/**',
+        ],
         rules: {
             /**
-             * `@shared/*` and `@/*` aliases are declared only in `tsconfig.web.json` (the Renderer TypeScript project,
-             * per AGENTS.md "Architecture guardrails"); Main, Preload, Runtime, Host, and shared Node code must use
-             * relative imports so they keep resolving under the Node/Electron module loader. This also bans
-             * `child_process`'s shell-string `exec`/`execSync` (arbitrary command strings) everywhere they are imported
-             * from; structured argv `spawn`/`execFile` (see AGENTS.md "Forbidden") stays allowed.
+             * The `@/*` alias is declared only in the Renderer TypeScript project. CLI, Desktop platform/shared,
+             * Server, extensions, and system code must use public package imports or relative imports so they keep
+             * resolving under their process module loaders. This also bans `child_process`'s shell-string
+             * `exec`/`execSync` (arbitrary command strings) everywhere they are imported from; structured argv
+             * `spawn`/`execFile` (see AGENTS.md "Forbidden") stays allowed.
              */
             'no-restricted-imports': [
                 'error',
                 {
                     patterns: [
                         {
-                            group: ['@shared', '@shared/*', '@/*'],
+                            group: ['@/*'],
                             message:
-                                '@shared/* and @/* aliases exist only for the Renderer (tsconfig.web.json); use a relative import here.',
+                                '@/* exists only for the Renderer; use a public package or relative import here.',
                         },
                     ],
                     paths: [
@@ -366,7 +419,11 @@ export default defineConfig(
      * still needs a justifying comment (`// oxlint-disable-next-line node/no-sync -- <reason>`).
      */
     {
-        files: ['src/**/*.tsx', 'scripts/fixtures/eslint/*-fixture.tsx'],
+        files: [
+            'apps/desktop/src/**/*.tsx',
+            'src/**/*.tsx',
+            'scripts/fixtures/eslint/*-fixture.tsx',
+        ],
         ignores: [
             '**/main.tsx',
             '**/process-explorer-main.tsx',
@@ -382,7 +439,11 @@ export default defineConfig(
         },
     },
     {
-        files: ['src/**/use-*.ts', 'scripts/fixtures/eslint/use-*-fixture.ts'],
+        files: [
+            'apps/desktop/src/**/use-*.ts',
+            'src/**/use-*.ts',
+            'scripts/fixtures/eslint/use-*-fixture.ts',
+        ],
         ignores: ['**/*.test.ts', '**/__tests__/**'],
         plugins: {
             caxri,
@@ -397,7 +458,7 @@ export default defineConfig(
      */
     {
         files: [
-            'src/renderer/src/features/**/*.{ts,tsx}',
+            'apps/desktop/src/renderer/src/features/**/*.{ts,tsx}',
             'scripts/fixtures/eslint/feature-structure/**/*.{ts,tsx}',
         ],
         plugins: {

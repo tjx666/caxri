@@ -161,6 +161,11 @@ export const terminalRecordSchema = z.object({
     processId: z.number().optional(),
 });
 
+/**
+ * Current durable screen encoding shared by the Server state store and Terminal Host producer.
+ */
+export const CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION = 3;
+
 export const terminalOscLinkSnapshotSchema = z.object({
     buffer: z.enum(['normal', 'alternate']),
     endCellOffset: z.number().int().nonnegative().max(3_000_000),
@@ -747,7 +752,7 @@ export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
 export type ProjectStatusDeployment = z.infer<typeof projectStatusDeploymentSchema>;
 export type ProjectStatusError = z.infer<typeof projectStatusErrorSchema>;
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/renderer and src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
+// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/desktop and apps/server/src/domains, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type ProjectStatusRepository = z.infer<typeof projectStatusRepoSchema>;
 export type ProjectStatusSummary = z.infer<typeof projectStatusSummarySchema>;
 export type ProjectStatusOverview = z.infer<typeof projectStatusOverviewSchema>;

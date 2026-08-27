@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
-import type { AppSettings, BootstrapState, GitSummary } from '../src/shared/types.ts';
+import type { AppSettings, BootstrapState, GitSummary } from '@caxri/protocol';
+import { execFileAsync } from '@caxri/system';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';

@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { assertBuildOutputsFresh } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { assertBuildOutputsFresh } from '../../src/shared/node/build-freshness';
 import { createE2EBuildFreshnessOptions } from './build-freshness';
 
 const temporaryDirectories: string[] = [];
@@ -25,7 +25,12 @@ describe('E2E build freshness inputs', () => {
         const root = '/project';
 
         expect(createE2EBuildFreshnessOptions(root).outputPaths).toEqual(
-            expect.arrayContaining([join(root, 'out', 'main', 'extension-host.js')]),
+            expect.arrayContaining([
+                join(root, 'extensions', 'git', 'dist', 'extension.js'),
+                join(root, 'apps', 'server', 'dist', 'server', 'bundles', 'extension-host.js'),
+                join(root, 'apps', 'server', 'dist', 'server', 'metadata', 'manifest.json'),
+                join(root, 'apps', 'cli', 'dist', 'caxri.cjs'),
+            ]),
         );
     });
 
@@ -34,15 +39,20 @@ describe('E2E build freshness inputs', () => {
 
         expect(createE2EBuildFreshnessOptions(root).inputPaths).toEqual(
             expect.arrayContaining([
-                join(root, 'packages', 'api', 'package.json'),
-                join(root, 'packages', 'api', 'src'),
-                join(root, 'packages', 'api', 'tsconfig.build.json'),
-                join(root, 'packages', 'api', 'tsconfig.json'),
+                join(root, 'packages', 'agent-skills', 'package.json'),
+                join(root, 'packages', 'agent-skills', 'scripts'),
+                join(root, 'packages', 'agent-skills', 'src'),
+                join(root, 'packages', 'client', 'src'),
+                join(root, 'packages', 'extension-api', 'src'),
+                join(root, 'apps', 'cli', 'src'),
+                join(root, 'apps', 'server', 'src'),
                 join(root, 'packages', 'utils', 'package.json'),
                 join(root, 'packages', 'utils', 'src'),
                 join(root, 'packages', 'utils', 'tsconfig.json'),
+                join(root, 'skills', 'caxri-cli'),
             ]),
         );
+        expect(createE2EBuildFreshnessOptions(root).inputPaths).not.toContain(join(root, 'src'));
     });
 
     it('accepts a fresh build and rejects it after a utils source change', async () => {

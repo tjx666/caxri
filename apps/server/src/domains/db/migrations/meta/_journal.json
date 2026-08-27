@@ -1,0 +1,125 @@
+{
+    "version": "7",
+    "dialect": "sqlite",
+    "entries": [
+        {
+            "idx": 0,
+            "version": "6",
+            "when": 1785985470854,
+            "tag": "0000_silly_groot",
+            "breakpoints": true
+        },
+        {
+            "idx": 1,
+            "version": "6",
+            "when": 1786113698970,
+            "tag": "0001_slim_marvel_boy",
+            "breakpoints": true
+        },
+        {
+            "idx": 2,
+            "version": "6",
+            "when": 1786182079105,
+            "tag": "0002_complex_ironclad",
+            "breakpoints": true
+        },
+        {
+            "idx": 3,
+            "version": "6",
+            "when": 1786260501834,
+            "tag": "0003_pretty_ezekiel",
+            "breakpoints": true
+        },
+        {
+            "idx": 4,
+            "version": "6",
+            "when": 1786289151316,
+            "tag": "0004_wonderful_gladiator",
+            "breakpoints": true
+        },
+        {
+            "idx": 5,
+            "version": "6",
+            "when": 1786385033938,
+            "tag": "0005_dazzling_the_professor",
+            "breakpoints": true
+        },
+        {
+            "idx": 6,
+            "version": "6",
+            "when": 1786414963147,
+            "tag": "0006_terminal_failure_reason",
+            "breakpoints": true
+        },
+        {
+            "idx": 7,
+            "version": "6",
+            "when": 1786462503065,
+            "tag": "0007_editor_remap_operation",
+            "breakpoints": true
+        },
+        {
+            "idx": 8,
+            "version": "6",
+            "when": 1786661938381,
+            "tag": "0008_loud_magus",
+            "breakpoints": true
+        },
+        {
+            "idx": 9,
+            "version": "6",
+            "when": 1786701042868,
+            "tag": "0009_mature_agent_zero",
+            "breakpoints": true
+        },
+        {
+            "idx": 10,
+            "version": "6",
+            "when": 1787218390908,
+            "tag": "0010_medical_luminals",
+            "breakpoints": true
+        },
+        {
+            "idx": 11,
+            "version": "6",
+            "when": 1787289538598,
+            "tag": "0011_past_blue_marvel",
+            "breakpoints": true
+        },
+        {
+            "idx": 12,
+            "version": "6",
+            "when": 1787322451029,
+            "tag": "0012_unified_pane_layout",
+            "breakpoints": true
+        },
+        {
+            "idx": 13,
+            "version": "6",
+            "when": 1787335592051,
+            "tag": "0013_drop_terminal_layout_node_id",
+            "breakpoints": true
+        },
+        {
+            "idx": 14,
+            "version": "6",
+            "when": 1787377020056,
+            "tag": "0014_wide_squadron_sinister",
+            "breakpoints": true
+        },
+        {
+            "idx": 15,
+            "version": "6",
+            "when": 1787391188254,
+            "tag": "0015_terminal-pty-title",
+            "breakpoints": true
+        },
+        {
+            "idx": 16,
+            "version": "6",
+            "when": 1787745401790,
+            "tag": "0016_volatile_roland_deschain",
+            "breakpoints": true
+        }
+    ]
+}

@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
-import type { AppSettings, BootstrapState } from '../src/shared/types.ts';
+import type { AppSettings, BootstrapState } from '@caxri/protocol';
+import { execFileAsync } from '@caxri/system';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -112,14 +113,14 @@ process.stdin.resume();
             agentSessionId: 'resumed-codex-session',
             title: resumedTitle,
         });
-        const runtimeLogPath = join(userData, 'logs', 'runtime.jsonl');
+        const serverCoreLogPath = join(userData, 'logs', 'server-core.jsonl');
         await expect
-            .poll(async () => readFile(runtimeLogPath, 'utf8'))
+            .poll(async () => readFile(serverCoreLogPath, 'utf8'))
             .toContain('agent_hooks.signal_accepted');
-        const runtimeLog = await readFile(runtimeLogPath, 'utf8');
-        expect(runtimeLog).toContain('agent_hooks.signal_accepted');
-        expect(runtimeLog).toContain('sessionIdentified');
-        expect(runtimeLog).not.toContain('resumed-codex-session');
+        const serverCoreLog = await readFile(serverCoreLogPath, 'utf8');
+        expect(serverCoreLog).toContain('agent_hooks.signal_accepted');
+        expect(serverCoreLog).toContain('sessionIdentified');
+        expect(serverCoreLog).not.toContain('resumed-codex-session');
         await running.page.screenshot({
             path: testInfo.outputPath('codex-resume-titles.png'),
         });
@@ -228,8 +229,8 @@ done
         const codexTerminalId = await codexTab.locator('xpath=..').getAttribute('data-terminal-id');
         // Switching back to Codex remounts its Terminal pane, which re-attaches the PTY asynchronously
         // (`use-terminal-pane-runtime.ts`). Pressing `Meta+W` before that attach round-trip resolves races
-        // `workbench.closeActiveTab`'s `terminal.close` request behind it on the Host's ordered command
-        // queue (`src/host/local-server.ts`) — a race no human could reproduce by hand, but one Playwright's
+        // `workbench.closeActiveTab`'s `terminal.close` request behind it on the Server's ordered command
+        // queue (`apps/server/src/core/control-server.ts`) — a race no human could reproduce by hand, but one Playwright's
         // instant click-then-keypress can, especially under CI's contended parallel-safe pool. Waiting for
         // the attach flag mirrors the same synchronization already used in `editor-tabs.e2e.ts`.
         await expect(

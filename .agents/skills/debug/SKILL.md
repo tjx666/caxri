@@ -8,7 +8,7 @@ description: Diagnose Caxri failures across the headless Host, Electron Main, se
 1. Reproduce with the narrowest real process path; use `bun run dev` for interactive Electron behavior.
 2. Identify the owner from the `project-architecture` skill's architecture reference: the headless Host for profile authority, the Desktop lease, and Runtime/SQLite lifecycle; Main for windows/dialogs as a replaceable Desktop client; Renderer for UI; and the Host-owned Runtime child for PTY/files/Git/SQLite services.
 3. Inspect structured Host, Main, and Runtime logs together under the active runtime profile's `<userData>/logs/` directory. Compare correlation IDs and boundary timings; repeated Renderer requests may come from StrictMode, but must not duplicate expensive native work.
-4. Trace the typed method and event from its `packages/protocol` declaration (owner `host` or `desktop`) through the owning dispatcher, Preload, Runtime, and its Renderer consumer; `src/shared/ipc` is a compatibility re-export layer, not the schema source. Treat the selected Session root as a security and state-lifetime boundary.
+4. Trace the typed method and event from its owning `packages/protocol` domain through the Server dispatcher, Preload, and Renderer consumer. Treat the selected Session root as a security and state-lifetime boundary.
 5. Never print terminal output, file contents, credentials, or snapshots, and never weaken path containment to make a symlink error disappear.
 6. Add a focused regression test at the lowest useful layer. Use Electron E2E when the process boundary is part of the failure.
 7. Call the Skill tool with "quality-check" with the changed source and regression test before any broader suite.
@@ -24,7 +24,7 @@ by connecting to the running installed app on 9224 directly; whether that suffic
 relaunch is still needed depends on the problem. The
 `remoteDebugging` field in the Main-owned boot config `<userData>/config/argv.jsonc`
 (Settings → "Remote debugging") turns the endpoint off on the next launch
-(`src/main/runtime-profile.ts`).
+(`apps/desktop/src/main/runtime-profile.ts`).
 
 Connect with `agent-browser`, always stripping proxy environment variables:
 

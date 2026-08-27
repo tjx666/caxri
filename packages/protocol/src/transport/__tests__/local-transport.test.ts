@@ -2,74 +2,64 @@ import { describe, expect, it } from 'vitest';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../../configuration/settings-spec';
 import {
+    CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     desktopOperationSchema,
     desktopTargetPayloadSchema,
-    hostCredentialTokenSchema,
-    hostProcessIdentitySchema,
-    LOCAL_TRANSPORT_MAX_FRAME_BYTES,
     localClientHelloSchema,
-    LocalJsonLineDecoder,
     localServerEventSchema,
     localServerWelcomeSchema,
+    serverControlEndpointSchema,
+    serverCredentialTokenSchema,
+    serverEndpointUrl,
+    serverProcessIdentitySchema,
 } from '../local-transport';
 
-describe('LocalJsonLineDecoder', () => {
-    it('decodes a multi-megabyte frame incrementally without retaining consumed prefixes', () => {
-        const decoder = new LocalJsonLineDecoder();
-        const body = 'x'.repeat(2 * 1024 * 1024);
-        const frame = JSON.stringify({ body });
-        const midpoint = Math.floor(frame.length / 2);
-
-        expect(decoder.push(frame.slice(0, midpoint))).toEqual([]);
-        expect(decoder.push(`${frame.slice(midpoint)}\n`)).toEqual([frame]);
-    });
-
-    it('rejects an unterminated frame above the shared transport bound', () => {
+describe('WebSocket control endpoint', () => {
+    it('keeps enough headroom for the largest configurable editor payload', () => {
         const maximumEscapedDiffBytes = 2 * MAX_CONFIGURABLE_FILE_BYTES * 6;
-        expect(LOCAL_TRANSPORT_MAX_FRAME_BYTES).toBeGreaterThan(maximumEscapedDiffBytes);
-        const decoder = new LocalJsonLineDecoder(16);
-
-        expect(() => decoder.push('x'.repeat(17))).toThrow(RangeError);
+        expect(CONTROL_TRANSPORT_MAX_FRAME_BYTES).toBeGreaterThan(maximumEscapedDiffBytes);
     });
 
-    it('decodes multiple complete frames delivered in a single chunk, in order', () => {
-        const decoder = new LocalJsonLineDecoder();
-        const frames = [JSON.stringify({ a: 1 }), JSON.stringify({ b: 2 })];
-
-        expect(decoder.push(`${frames[0]}\n${frames[1]}\n`)).toEqual(frames);
-    });
-
-    it('holds a trailing partial frame across pushes and resets its byte counter per line', () => {
-        const decoder = new LocalJsonLineDecoder(32);
-        const first = JSON.stringify({ a: 1 });
-
-        expect(decoder.push(`${first}\n${'x'.repeat(10)}`)).toEqual([first]);
-        // The partial trailing chunk from the previous push must not count against the next line's budget.
-        expect(decoder.push(`${'y'.repeat(10)}\n`)).toEqual([`${'x'.repeat(10)}${'y'.repeat(10)}`]);
-    });
-
-    it('returns no lines for a chunk with no terminating newline', () => {
-        const decoder = new LocalJsonLineDecoder();
-        expect(decoder.push('{"incomplete":true}')).toEqual([]);
+    it('accepts only the fixed IPv4 loopback control endpoint', () => {
+        const endpoint = {
+            protocol: 'ws',
+            host: '127.0.0.1',
+            port: 41_337,
+            path: '/control',
+        } as const;
+        expect(serverControlEndpointSchema.parse(endpoint)).toEqual(endpoint);
+        expect(serverEndpointUrl(endpoint)).toBe('ws://127.0.0.1:41337/control');
+        expect(
+            serverControlEndpointSchema.safeParse({ ...endpoint, host: '0.0.0.0' }).success,
+        ).toBe(false);
+        expect(serverControlEndpointSchema.safeParse({ ...endpoint, path: '/other' }).success).toBe(
+            false,
+        );
+        expect(serverControlEndpointSchema.safeParse({ ...endpoint, port: 0 }).success).toBe(false);
     });
 });
 
 describe('local transport credential and identity schemas', () => {
     it('requires exactly 64 lowercase hex characters for a credential token', () => {
-        expect(hostCredentialTokenSchema.safeParse('a'.repeat(64)).success).toBe(true);
-        expect(hostCredentialTokenSchema.safeParse('a'.repeat(63)).success).toBe(false);
-        expect(hostCredentialTokenSchema.safeParse('A'.repeat(64)).success).toBe(false);
+        expect(serverCredentialTokenSchema.safeParse('a'.repeat(64)).success).toBe(true);
+        expect(serverCredentialTokenSchema.safeParse('a'.repeat(63)).success).toBe(false);
+        expect(serverCredentialTokenSchema.safeParse('A'.repeat(64)).success).toBe(false);
     });
 
     it('requires exactly 32 lowercase hex characters for a process identity', () => {
-        expect(hostProcessIdentitySchema.safeParse('b'.repeat(32)).success).toBe(true);
-        expect(hostProcessIdentitySchema.safeParse('b'.repeat(31)).success).toBe(false);
+        expect(serverProcessIdentitySchema.safeParse('b'.repeat(32)).success).toBe(true);
+        expect(serverProcessIdentitySchema.safeParse('b'.repeat(31)).success).toBe(false);
     });
 });
 
 describe('local transport hello / welcome envelopes', () => {
     it('discriminates operator, agent, and desktop client credentials by kind', () => {
-        const base = { type: 'hello' as const, supportedVersions: [2], profileId: 'profile-1' };
+        const base = {
+            type: 'hello' as const,
+            supportedVersions: [2],
+            profileId: 'profile-1',
+            clientId: 'client-1',
+        };
         expect(
             localClientHelloSchema.safeParse({
                 ...base,
@@ -111,6 +101,14 @@ describe('local transport hello / welcome envelopes', () => {
             principal: { kind: 'human-cli', id: 'cli-1' },
             capabilities: [],
             commands: [],
+            features: [],
+            connection: {
+                serverId: 'a'.repeat(32),
+                bootId: 'b'.repeat(32),
+                stateEpoch: 'c'.repeat(32),
+                clientId: 'client-1',
+                connectionId: 'd'.repeat(32),
+            },
         };
         expect(localServerWelcomeSchema.safeParse(welcome).success).toBe(true);
         expect(

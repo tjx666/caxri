@@ -1,0 +1,160 @@
+{
+    "scenarios": [
+        {
+            "deterministicReason": "Fresh and seeded isolated profiles define every startup state.",
+            "environmentChecks": ["artifact identity", "isolated profile", "locale and time zone"],
+            "evidenceConstraints": ["Record lifecycle states and stable build identity only"],
+            "evidenceMode": "mixed",
+            "id": "startup-lifecycle",
+            "surface": "Startup"
+        },
+        {
+            "deterministicReason": "A versioned Project fixture fixes roots, links, files, and Git state.",
+            "environmentChecks": ["fixture hash", "authorized root", "watcher readiness"],
+            "evidenceConstraints": [
+                "Record logical file and Git projections without source contents"
+            ],
+            "evidenceMode": "non-visual",
+            "id": "project-lifecycle",
+            "surface": "Project"
+        },
+        {
+            "deterministicReason": "A fresh profile and fixed identifiers make Session transitions repeatable.",
+            "environmentChecks": ["empty profile", "Project fixture hash"],
+            "evidenceConstraints": ["Record logical Session state without Agent transcripts"],
+            "evidenceMode": "mixed",
+            "id": "session-lifecycle",
+            "surface": "Session"
+        },
+        {
+            "deterministicReason": "A seeded Workbench projection fixes pane, document, and selection state.",
+            "environmentChecks": ["seed projection hash", "viewport", "theme and font"],
+            "evidenceConstraints": ["Record document identity and dirty state without source text"],
+            "evidenceMode": "mixed",
+            "id": "workbench-state",
+            "surface": "Workbench"
+        },
+        {
+            "deterministicReason": "A fixture shell emits declared markers and exits with fixed statuses.",
+            "environmentChecks": ["shell path", "PTY dimensions", "isolated profile"],
+            "evidenceConstraints": [
+                "Record marker fingerprints and lifecycle state, never Terminal output"
+            ],
+            "evidenceMode": "mixed",
+            "id": "terminal-lifecycle",
+            "surface": "Terminal"
+        },
+        {
+            "deterministicReason": "A repository-owned fake Agent fixes launch, activity, and failure sequences.",
+            "environmentChecks": ["fake Agent version", "isolated endpoint", "fixture Project"],
+            "evidenceConstraints": [
+                "Record activity and binding metadata without prompts or transcripts"
+            ],
+            "evidenceMode": "mixed",
+            "id": "agent-lifecycle",
+            "surface": "Agent"
+        },
+        {
+            "deterministicReason": "Bundled fixture extensions declare fixed activation and contribution outcomes.",
+            "environmentChecks": ["extension artifact hashes", "isolated profile"],
+            "evidenceConstraints": [
+                "Record contribution identifiers and stable error families only"
+            ],
+            "evidenceMode": "mixed",
+            "id": "extension-lifecycle",
+            "surface": "Extension"
+        },
+        {
+            "deterministicReason": "Structured CLI argv and isolated fixtures produce bounded output contracts.",
+            "environmentChecks": ["CLI artifact identity", "Server availability fixture"],
+            "evidenceConstraints": [
+                "Record redacted structured output kinds, streams, and exit codes"
+            ],
+            "evidenceMode": "non-visual",
+            "id": "cli-contract",
+            "surface": "CLI"
+        },
+        {
+            "deterministicReason": "A fixed request registry and fault injector define every protocol outcome.",
+            "environmentChecks": ["protocol version", "registry hash", "fault recipe"],
+            "evidenceConstraints": [
+                "Record public command, reply, event, and stable error kinds only"
+            ],
+            "evidenceMode": "non-visual",
+            "id": "protocol-contract",
+            "surface": "Protocol"
+        },
+        {
+            "deterministicReason": "Fixed generations and connection order define lease replacement behavior.",
+            "environmentChecks": ["isolated profile", "connection recipe"],
+            "evidenceConstraints": [
+                "Record public lease state without transport addresses or credentials"
+            ],
+            "evidenceMode": "non-visual",
+            "id": "desktop-ownership",
+            "surface": "Desktop ownership"
+        },
+        {
+            "deterministicReason": "Versioned seed data and a logical exporter fix persisted domain projections.",
+            "environmentChecks": ["seed hash", "schema version", "exporter version"],
+            "evidenceConstraints": [
+                "Record logical projections, never database rows or user content"
+            ],
+            "evidenceMode": "non-visual",
+            "id": "persistence-projection",
+            "surface": "Persistence"
+        },
+        {
+            "deterministicReason": "Fixed invalid inputs and race hooks reproduce each security rejection.",
+            "environmentChecks": ["fixture root", "fault recipe", "payload limits"],
+            "evidenceConstraints": [
+                "Record denial category and remediation without secret-bearing inputs"
+            ],
+            "evidenceMode": "non-visual",
+            "id": "security-rejections",
+            "surface": "Security"
+        },
+        {
+            "deterministicReason": "Fault injection fixes disconnect, reload, stale build, and crash sequences.",
+            "environmentChecks": ["seed profile hash", "fault recipe", "artifact identities"],
+            "evidenceConstraints": [
+                "Record user-visible recovery states and data-preservation projections"
+            ],
+            "evidenceMode": "mixed",
+            "id": "recovery-outcomes",
+            "surface": "Recovery"
+        },
+        {
+            "deterministicReason": "A fixed viewport, theme, font, data fixture, and focus path stabilize the UI.",
+            "environmentChecks": ["viewport", "theme", "font", "fixture hash"],
+            "evidenceConstraints": [
+                "Record accessibility semantics and reviewed screenshot hashes"
+            ],
+            "evidenceMode": "visual",
+            "id": "visual-critical-surfaces",
+            "surface": "Visual"
+        },
+        {
+            "deterministicReason": "Repeated samples on one declared machine support frozen statistical budgets.",
+            "environmentChecks": ["machine fingerprint", "artifact identity", "sample count"],
+            "evidenceConstraints": [
+                "Record durations and resource counts outside semantic equality"
+            ],
+            "evidenceMode": "non-visual",
+            "id": "performance-budgets",
+            "requiredMetrics": [
+                "command-queue-and-database-round-trip",
+                "open-file-descriptors",
+                "packaged-startup",
+                "reconnect-recovery",
+                "runtime-memory",
+                "terminal-backpressure-dropped-bytes",
+                "terminal-echo",
+                "terminal-ready",
+                "watcher-ready"
+            ],
+            "surface": "Performance"
+        }
+    ],
+    "schemaVersion": 1
+}

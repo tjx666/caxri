@@ -1,0 +1,45 @@
+import { join } from 'node:path';
+import process from 'node:process';
+
+import type { StructuredLogger } from '@caxri/system';
+import { readE2EAgentPolicy } from '@caxri/system';
+
+import type { TerminalExecutionPort } from '../../domains/terminal';
+import { resolveE2ETerminalOutputFlushDelay } from '../../terminal-host/e2e-options';
+import { RemoteTerminalExecution } from './execution';
+import { TerminalHostSupervisor } from './supervisor';
+
+export interface CreateTerminalExecutionOptions {
+    appVersion: string;
+    bootId: string;
+    buildId: string;
+    commit: string;
+    executable?: string;
+    logger: StructuredLogger;
+    override?: TerminalExecutionPort;
+    terminalHostPath?: string;
+    userDataPath: string;
+}
+
+/**
+ * Composes the Core-owned supervisor and process-backed Terminal execution adapter.
+ */
+export function createTerminalExecution(
+    options: CreateTerminalExecutionOptions,
+): TerminalExecutionPort {
+    if (options.override) return options.override;
+    const supervisor = new TerminalHostSupervisor({
+        appVersion: options.appVersion,
+        bootId: options.bootId,
+        buildId: options.buildId,
+        commit: options.commit,
+        e2eAgentPolicy: readE2EAgentPolicy(process.env),
+        executable: options.executable,
+        logger: options.logger,
+        outputFlushMs: resolveE2ETerminalOutputFlushDelay(process.env),
+        terminalHostPath:
+            options.terminalHostPath ?? join(process.cwd(), 'out/main/terminal-host.js'),
+        userDataPath: options.userDataPath,
+    });
+    return new RemoteTerminalExecution(supervisor, options.logger);
+}

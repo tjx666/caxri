@@ -15,6 +15,15 @@ describe('Acceptance build identity', () => {
         ).not.toThrow();
     });
 
+    it('accepts the process alias emitted by the optimized Main bundle', () => {
+        expect(() =>
+            assertAcceptanceBuildCommit({
+                builtMainSource: bundle('75ed0f4').replace('process.env', 'process$1.env'),
+                reportCommit: '75ed0f4baf7c1c48d374011f61e033aeaf5c4e2e',
+            }),
+        ).not.toThrow();
+    });
+
     it('rejects a stale build whose stamped commit differs from the report head', () => {
         expect(() =>
             assertAcceptanceBuildCommit({

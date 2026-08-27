@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, relative, resolve } from 'node:path';
 
@@ -6,17 +14,35 @@ import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
+import {
+    appBoundaries,
+    legacyOwnershipRoots,
+    packageBoundaries,
+    transitionalCycleAllowances,
+    transitionalImportAllowances,
+} from '../architecture-boundaries';
+
 const root = resolve(import.meta.dirname, '../..');
 const nativeDesktopDependencies = ['@parcel/watcher', 'better-sqlite3', 'electron', 'node-pty'];
 
 interface PackageManifest {
-    build?: { files?: string[] };
+    bin?: unknown;
+    build?: {
+        asarUnpack?: string[];
+        extraMetadata?: { main?: string; name?: string };
+        extraResources?: Array<{ from?: string; to?: string }>;
+        files?: string[];
+    };
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
+    files?: string[];
+    main?: string;
     name?: string;
     packageManager?: string;
     private?: boolean;
     scripts?: Record<string, string>;
+    version?: string;
+    exports?: Record<string, unknown>;
     devEngines?: { packageManager?: unknown };
     workspaces?: unknown;
 }
@@ -90,12 +116,6 @@ function looseTestFiles(directory: string): string[] {
     return found;
 }
 
-function isProtocolCompatibilityReExport(source: string): boolean {
-    return /^export \* from ['"]\.\.\/\.\.\/\.\.\/packages\/protocol\/src\/(?:index|(?:agent|configuration|desktop|domain|registry|transport)\/[a-z0-9-]+)(?:\.js)?['"];\n?$/u.test(
-        source,
-    );
-}
-
 function protocolDeepImports(source: string): string[] {
     const pattern =
         /(?:from\s+|import\s*(?:\(\s*)?|require\s*\(\s*)['"]([^'"]*packages\/protocol\/src(?:\/[^'"]*)?|@caxri\/protocol\/[^'"]+)['"]/gu;
@@ -107,8 +127,17 @@ function protocolDeepImports(source: string): string[] {
 
 describe('pnpm workspace contract', () => {
     const rootManifest = manifest(join(root, 'package.json'));
+    const agentSkillsManifest = manifest(join(root, 'packages/agent-skills/package.json'));
+    const clientManifest = manifest(join(root, 'packages/client/package.json'));
     const protocolManifest = manifest(join(root, 'packages/protocol/package.json'));
-    const cliManifest = manifest(join(root, 'packages/cli/package.json'));
+    const systemManifest = manifest(join(root, 'packages/system/package.json'));
+    const utilitiesManifest = manifest(join(root, 'packages/utils/package.json'));
+    const cliManifest = manifest(join(root, 'apps/cli/package.json'));
+    const desktopManifest = manifest(join(root, 'apps/desktop/package.json'));
+    const serverManifest = manifest(join(root, 'apps/server/package.json'));
+    const extensionManifests = readdirSync(join(root, 'extensions'), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => manifest(join(root, 'extensions', entry.name, 'package.json')));
     const workspace = parse(
         readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'),
     ) as PnpmWorkspace;
@@ -118,11 +147,13 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.packageManager).toBeUndefined();
         expect(rootManifest.devEngines?.packageManager).toBeUndefined();
         expect(rootManifest.workspaces).toBeUndefined();
-        expect(workspace.packages).toEqual(['extensions/*', 'packages/*']);
+        expect(workspace.packages).toEqual(['apps/*', 'extensions/*', 'packages/*']);
         expect(workspace.catalog).toEqual({
             '@types/semver': '^7.8.0',
+            '@types/ws': '^8.18.1',
             '@yutengjing/eslint-config-typescript': '^4.0.0',
             '@yutengjing/prettier-config': '^2.0.0',
+            'eslint-plugin-import-x': '^4.17.1',
             'markdownlint': '^0.41.1',
             'markdownlint-cli2': '^0.23.2',
             'oxlint': '^1.78.0',
@@ -130,6 +161,7 @@ describe('pnpm workspace contract', () => {
             'prettier-plugin-tailwindcss': '^0.8.1',
             'semver': '^7.8.5',
             'sonda': '^0.14.0',
+            'ws': '^8.21.3',
             'zod': '4.4.3',
         });
         expect(workspace.allowBuilds).toEqual({
@@ -147,6 +179,90 @@ describe('pnpm workspace contract', () => {
                 .map((path) => basename(path))
                 .toSorted((left, right) => left.localeCompare(right)),
         ).toEqual(['pnpm-lock.yaml']);
+    });
+
+    it('defines the current ownership graph without empty application workspaces', () => {
+        expect(appBoundaries.map(({ root }) => root)).toEqual([
+            'apps/desktop',
+            'apps/server',
+            'apps/cli',
+        ]);
+        expect(packageBoundaries.map(({ root }) => root)).toEqual([
+            'packages/agent-skills',
+            'packages/client',
+            'packages/protocol',
+            'packages/extension-api',
+            'packages/system',
+            'packages/utils',
+        ]);
+
+        const appsRoot = join(root, 'apps');
+        if (!existsSync(appsRoot)) return;
+        const appEntries = readdirSync(appsRoot, { withFileTypes: true });
+        for (const entry of appEntries) {
+            if (!entry.isDirectory()) continue;
+            const packageManifest = manifest(join(appsRoot, entry.name, 'package.json'));
+            expect(
+                packageManifest.bin ??
+                    packageManifest.main ??
+                    packageManifest.scripts?.start ??
+                    packageManifest.scripts?.dev,
+                `apps/${entry.name} must be independently runnable`,
+            ).toBeDefined();
+        }
+    });
+
+    it('keeps packages importable only through explicit exports', () => {
+        const packageEntries = readdirSync(join(root, 'packages'), { withFileTypes: true });
+        for (const entry of packageEntries) {
+            if (!entry.isDirectory()) continue;
+            const packageManifest = manifest(join(root, 'packages', entry.name, 'package.json'));
+            expect(packageManifest.exports, `packages/${entry.name}`).toBeDefined();
+            expect(
+                Object.keys(packageManifest.exports ?? {}),
+                `packages/${entry.name}`,
+            ).not.toEqual(expect.arrayContaining(['./src/*', './*']));
+        }
+    });
+
+    it('removes every topology-migration allowance after the application moves', () => {
+        expect(legacyOwnershipRoots).toEqual([]);
+        expect(transitionalImportAllowances).toEqual([]);
+        expect(transitionalCycleAllowances).toEqual([]);
+    });
+
+    it('keeps the completed topology free of legacy ownership roots and control sockets', () => {
+        const legacyRoots = ['src', 'apps/server/src/host', 'apps/server/src/runtime'];
+        expect(legacyRoots.filter((path) => existsSync(join(root, path)))).toEqual([]);
+
+        const localControlSources = [
+            ...productionTypeScriptFiles(join(root, 'apps/server/src/core')),
+            ...productionTypeScriptFiles(join(root, 'packages/client/src/supervise')),
+        ];
+        const legacyControlTransport = localControlSources
+            .map((path) => ({ path: relative(root, path), source: readFileSync(path, 'utf8') }))
+            .filter(({ source }) =>
+                /from\s+['"]node:net['"]|\b(?:host|runtime)\.sock\b|unix domain socket|\bUDS\b/iu.test(
+                    source,
+                ),
+            )
+            .map(({ path }) => path);
+        expect(legacyControlTransport).toEqual([]);
+    });
+
+    it('registers current source discovery in TypeScript', () => {
+        const nodeConfig = readFileSync(join(root, 'tsconfig.node.json'), 'utf8');
+        const webConfig = readFileSync(join(root, 'tsconfig.web.json'), 'utf8');
+
+        expect(nodeConfig).toContain('"apps/desktop/src/main/**/*.ts"');
+        expect(nodeConfig).toContain('"apps/server/**/*.ts"');
+        expect(nodeConfig).not.toContain('"apps/**/*.tsx"');
+        expect(webConfig).toContain('"apps/desktop/src/renderer/src/**/*.tsx"');
+        expect(webConfig).toContain('"packages/client/src/connection/**/*.ts"');
+        expect(webConfig).toContain('"packages/client/src/state/**/*.ts"');
+        expect(webConfig).not.toContain('"packages/client/src/**/*.ts"');
+        expect(webConfig).toContain('"packages/extension-api/src/**/*.ts"');
+        expect(webConfig).not.toContain('"packages/agent-skills/src/**/*.ts"');
     });
 
     it('ignores Claude Code task worktrees when enforcing the root lockfile contract', () => {
@@ -201,12 +317,12 @@ describe('pnpm workspace contract', () => {
             );
         }
 
-        const cliRoot = join(root, 'packages/cli/src');
+        const cliRoot = join(root, 'apps/cli/src');
         const cliDomains = readdirSync(cliRoot, { withFileTypes: true })
             .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
             .map((entry) => entry.name)
             .toSorted((left, right) => left.localeCompare(right));
-        expect(cliDomains).toEqual(['commands', 'host', 'skills']);
+        expect(cliDomains).toEqual(['commands']);
         for (const domain of cliDomains) {
             expect(readdirSync(join(cliRoot, domain)), `${domain} CLI barrel`).toContain(
                 'index.ts',
@@ -215,39 +331,106 @@ describe('pnpm workspace contract', () => {
         expect(looseTestFiles(cliRoot), 'CLI tests must live in __tests__/').toEqual([]);
     });
 
+    it('keeps every executable CLI path on the application workspace', () => {
+        expect(existsSync(join(root, 'packages/cli'))).toBe(false);
+        const legacySegmentedPath = /['"]packages['"]\s*,\s*['"]cli['"]/u;
+        const violations = ['apps', 'e2e', '.agents/skills/acceptance/scripts']
+            .flatMap((directory) => productionTypeScriptFiles(join(root, directory)))
+            .filter((file) => legacySegmentedPath.test(readFileSync(file, 'utf8')))
+            .map((file) => relative(root, file));
+
+        expect(violations).toEqual([]);
+    });
+
     it('routes workspace tests through named Vitest projects', () => {
         expect(protocolManifest.scripts?.test).toContain('--project protocol');
+        expect(agentSkillsManifest.scripts?.test).toContain('--project agent-skills');
+        expect(clientManifest.scripts?.test).toContain('--project client');
         expect(cliManifest.scripts?.test).toContain('--project cli');
+        expect(desktopManifest.scripts?.test).toContain('--project desktop-parallel');
+        expect(serverManifest.scripts?.test).toContain('--project server-parallel');
+        expect(systemManifest.scripts?.test).toContain('--project system');
+        expect(rootManifest.scripts?.['typecheck:api']).toBe('pnpm --filter caxri run typecheck');
+        expect(rootManifest.scripts?.['test:protocol']).toBe(
+            'pnpm --filter @caxri/protocol run test',
+        );
+        expect(rootManifest.scripts?.['build:cli']).toBe('pnpm --filter @caxri/cli run build');
+        expect(rootManifest.scripts?.['typecheck:workspaces']).toBe(
+            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' run typecheck",
+        );
+        expect(rootManifest.scripts?.['test:workspaces']).toBe(
+            "pnpm --recursive --filter './apps/*' --filter './packages/*' run test",
+        );
+        expect(rootManifest.scripts?.['build:workspaces']).toBe(
+            "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build && pnpm --filter @caxri/server run build",
+        );
         expect(rootManifest.scripts?.['link:cli']).toBe(
-            'bun run build:cli && bun run packages/cli/scripts/link-global.ts',
+            'bun run build:cli && bun run apps/cli/scripts/link-global.ts',
         );
         expect(rootManifest.scripts?.['unlink:cli']).toBe('pnpm remove --global @caxri/cli');
     });
 
     it('builds workspace distributions before Desktop development and production builds', () => {
-        expect(rootManifest.scripts?.dev).toBe('bun run build:workspaces && electron-vite dev');
+        expect(rootManifest.name).toBe('@caxri/workspace');
+        expect(rootManifest.main).toBeUndefined();
+        expect(rootManifest.scripts?.dev).toBe(
+            'bun run build:workspaces && bun run scripts/development.ts',
+        );
+        expect(rootManifest.scripts?.['dev:desktop']).toBe('bun run scripts/development.ts');
         expect(rootManifest.scripts?.build).toBe(
             'bun run build:workspaces && bun run build:desktop',
         );
+        expect(desktopManifest).toMatchObject({
+            main: '../../out/main/index.js',
+            name: '@caxri/desktop',
+            private: true,
+            version: rootManifest.version,
+        });
+        expect(serverManifest).toMatchObject({
+            main: 'dist/server/bundles/server-core.js',
+            name: '@caxri/server',
+            private: true,
+            version: rootManifest.version,
+        });
+        expect(rootManifest.build?.extraMetadata).toEqual({
+            main: 'out/main/index.js',
+            name: '@caxri/desktop',
+        });
     });
 
     it('keeps the CLI production graph free of Desktop native modules', () => {
         expect(protocolManifest.name).toBe('@caxri/protocol');
         expect(cliManifest.name).toBe('@caxri/cli');
-        expect(protocolManifest.dependencies).toEqual({ zod: 'catalog:' });
-        expect(rootManifest.devDependencies?.['@caxri/cli']).toBe('workspace:*');
+        expect(protocolManifest.dependencies).toEqual({
+            '@caxri/utils': 'workspace:*',
+            'zod': 'catalog:',
+        });
+        expect(rootManifest.devDependencies?.['@caxri/cli']).toBeUndefined();
         expect(cliManifest.dependencies).toEqual({
+            '@caxri/agent-skills': 'workspace:*',
+            '@caxri/client': 'workspace:*',
             '@caxri/protocol': 'workspace:*',
             'zod': 'catalog:',
         });
         for (const dependency of nativeDesktopDependencies) {
             expect(cliManifest.dependencies).not.toHaveProperty(dependency);
+            expect(agentSkillsManifest.dependencies ?? {}).not.toHaveProperty(dependency);
+            expect(clientManifest.dependencies ?? {}).not.toHaveProperty(dependency);
             expect(protocolManifest.dependencies ?? {}).not.toHaveProperty(dependency);
+            expect(systemManifest.dependencies ?? {}).not.toHaveProperty(dependency);
+            for (const extensionManifest of extensionManifests)
+                expect(
+                    extensionManifest.dependencies ?? {},
+                    `${extensionManifest.name}: native production dependency`,
+                ).not.toHaveProperty(dependency);
         }
     });
 
     it('keeps protocol source browser-safe and emitted ESM imports resolvable by Node.js', () => {
-        const sourceFiles = productionTypeScriptFiles(join(root, 'packages/protocol/src'));
+        const sourceFiles = [
+            ...productionTypeScriptFiles(join(root, 'packages/protocol/src')),
+            ...productionTypeScriptFiles(join(root, 'packages/utils/src')),
+        ];
         const forbiddenImport =
             /(?:from\s|import\s*\()\s*['"](?:node:|electron(?:[/'"]|$)|node-pty(?:[/'"]|$)|better-sqlite3(?:[/'"]|$)|@parcel\/watcher(?:[/'"]|$))/u;
         const relativeImport = /(?:from\s|import\s*\()\s*['"](\.{1,2}\/[^'"]+)['"]/gu;
@@ -261,62 +444,68 @@ describe('pnpm workspace contract', () => {
         }
     });
 
-    it('keeps shared IPC production files as protocol compatibility re-exports', () => {
-        const sharedIpcRoot = join(root, 'src/shared/ipc');
-        const sourceFiles = productionTypeScriptFiles(sharedIpcRoot);
-
-        for (const file of sourceFiles) {
-            expect(isProtocolCompatibilityReExport(readFileSync(file, 'utf8')), file).toBe(true);
-        }
+    it('emits shared pure utilities for system and standalone artifact consumers', () => {
+        expect(utilitiesManifest.files).toEqual(['dist']);
+        expect(utilitiesManifest.exports?.['.']).toEqual({
+            types: './src/index.ts',
+            import: './dist/index.js',
+        });
+        expect(utilitiesManifest.scripts?.build).toBe('tsc -p tsconfig.build.json');
     });
 
-    it('keeps Host and Extension Host production imports on the protocol package root', () => {
-        const allowedControlImports = new Map([
-            [
-                'src/host/agent-endpoints/registry.ts',
-                '../../../packages/protocol/src/agent/agent-endpoint-control',
-            ],
-            [
-                'src/host/runtime-supervisor.ts',
-                '../../packages/protocol/src/agent/agent-endpoint-control',
-            ],
-        ]);
+    it('removes the shared IPC compatibility layer once consumers use the protocol package', () => {
+        expect(existsSync(join(root, 'src'))).toBe(false);
+    });
+
+    it('keeps Server Core and Extension Host production imports on the protocol package root', () => {
         expect(
             protocolDeepImports(`
-import '../../packages/protocol/src/domain/views';
+import '@caxri/protocol';
 export type { TreeItemDto } from '@caxri/protocol/domain/views';
 const dynamicProtocol = import('@caxri/protocol/src/index');
-const requiredProtocol = require('../../packages/protocol/src/index');
+const requiredProtocol = require('@caxri/protocol');
 `),
-        ).toEqual([
-            '../../packages/protocol/src/domain/views',
-            '@caxri/protocol/domain/views',
-            '@caxri/protocol/src/index',
-            '../../packages/protocol/src/index',
-        ]);
-        const violations = ['src/host', 'src/extension-host']
+        ).toEqual(['@caxri/protocol/domain/views', '@caxri/protocol/src/index']);
+        const violations = ['apps/server/src/core', 'apps/server/src/extension-host']
             .flatMap((directory) => productionTypeScriptFiles(join(root, directory)))
             .flatMap((file) => {
                 const filePath = relative(root, file);
-                return protocolDeepImports(readFileSync(file, 'utf8'))
-                    .filter((specifier) => allowedControlImports.get(filePath) !== specifier)
-                    .map((specifier) => `${filePath} -> ${specifier}`);
+                return protocolDeepImports(readFileSync(file, 'utf8')).map(
+                    (specifier) => `${filePath} -> ${specifier}`,
+                );
             });
 
         expect(violations).toEqual([]);
     });
 
-    it('keeps root production dependencies limited to native Desktop modules', () => {
-        /**
-         * Electron-builder copies the entire production dependency tree into the asar, so every pure-JS dependency
-         * (workspace links included) must live in devDependencies and be bundled by electron-vite instead. See
-         * docs/bundle-size.md.
-         */
-        expect(
-            Object.keys(rootManifest.dependencies ?? {}).toSorted((left, right) =>
-                left.localeCompare(right),
-            ),
-        ).toEqual(['@parcel/watcher', 'better-sqlite3', 'node-pty']);
+    it('keeps the root private orchestrator free of product runtime dependencies', () => {
+        expect(rootManifest.dependencies).toBeUndefined();
+        expect(rootManifest.build?.asarUnpack).toBeUndefined();
+        expect(rootManifest.build?.extraResources).toContainEqual({
+            from: 'apps/server/dist/server',
+            to: 'server',
+        });
+        expect(rootManifest.devDependencies).toMatchObject({
+            'better-sqlite3': '13.0.2',
+            'node-pty': '1.1.0',
+            'ws': 'catalog:',
+        });
+    });
+
+    it('loads node-pty only at the Terminal Host process composition root', () => {
+        const engineSource = readFileSync(
+            join(root, 'apps/server/src/terminal-host/engine/engine.ts'),
+            'utf8',
+        );
+        const processSource = readFileSync(
+            join(root, 'apps/server/src/terminal-host/process.ts'),
+            'utf8',
+        );
+
+        expect(engineSource).toContain("import type * as pty from 'node-pty';");
+        expect(engineSource).not.toContain("import * as pty from 'node-pty';");
+        expect(processSource).toContain("import * as pty from 'node-pty';");
+        expect(processSource).toContain('spawn: pty.spawn');
     });
 
     it('keeps generated workspace distributions outside source linting', async () => {
@@ -325,7 +514,7 @@ const requiredProtocol = require('../../packages/protocol/src/index');
         await expect(
             eslint.isPathIgnored(join(root, 'packages/protocol/dist/index.js')),
         ).resolves.toBe(true);
-        await expect(eslint.isPathIgnored(join(root, 'packages/cli/dist/caxri.cjs'))).resolves.toBe(
+        await expect(eslint.isPathIgnored(join(root, 'apps/cli/dist/caxri.cjs'))).resolves.toBe(
             true,
         );
     });

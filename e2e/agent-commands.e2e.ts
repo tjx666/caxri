@@ -4,15 +4,15 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { discoverHostManifest, HostClient } from '@caxri/cli';
+import { discoverServerManifest, ServerClient } from '@caxri/client/supervise';
+import { agentMessageReceiptSchema } from '@caxri/protocol';
 
-import { agentMessageReceiptSchema } from '../src/shared/ipc/agent-inbox-contract';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const cliPath = join(projectRoot, 'packages', 'cli', 'dist', 'caxri.cjs');
+const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');
 
 interface EndpointCapture {
     context: {
@@ -141,8 +141,8 @@ process.stdin.resume();
         },
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
-    let controller: HostClient | undefined;
-    let awakened: HostClient | undefined;
+    let controller: ServerClient | undefined;
+    let awakened: ServerClient | undefined;
     try {
         const sessionId = await createProjectSession(running.page, 'claude');
         await expect
@@ -150,8 +150,8 @@ process.stdin.resume();
             .toBe(1);
         const controllerCapture = (await jsonLines<EndpointCapture>(capturePath)).at(0);
         if (!controllerCapture) throw new Error('Controller Endpoint capture missing');
-        const manifest = await discoverHostManifest(userData);
-        controller = await HostClient.connect(manifest, 2_000, {
+        const manifest = await discoverServerManifest(userData);
+        controller = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...controllerCapture.credential,
         });
@@ -332,7 +332,7 @@ process.stdin.resume();
             .toBe(4);
         const awakenedTarget = (await jsonLines<EndpointCapture>(capturePath)).at(3);
         if (!awakenedTarget) throw new Error('Awakened Endpoint capture missing');
-        awakened = await HostClient.connect(manifest, 2_000, {
+        awakened = await ServerClient.connect(manifest, 2_000, {
             kind: 'agent',
             ...awakenedTarget.credential,
         });
@@ -348,7 +348,7 @@ process.stdin.resume();
 
         const [inputs, hostLog] = await Promise.all([
             jsonLines<InputCapture>(inputPath),
-            readFile(join(userData, 'logs', 'host.jsonl'), 'utf8'),
+            readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8'),
         ]);
         expect(inputs.some(({ text }) => text.includes(`${humanText}\r`))).toBe(true);
         expect(inputs.some(({ text }) => text.includes(deniedText))).toBe(false);

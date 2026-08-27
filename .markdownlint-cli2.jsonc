@@ -54,7 +54,7 @@
     },
     "globs": ["**/*.md"],
     "ignores": [
-        "node_modules/**",
+        "**/node_modules/**",
         "out/**",
         "release/**",
         "release.noindex/**",

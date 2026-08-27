@@ -3,9 +3,8 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import process from 'node:process';
 
+import { execFileAsync } from '@caxri/system';
 import { z } from 'zod';
-
-import { execFileAsync } from '../../../../src/shared/node/exec';
 
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
 const ACCEPTANCE_CASE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
@@ -16,7 +15,7 @@ const acceptanceCaseSchema = z.object({
     id: z.string().min(1),
     mode: acceptanceCaseModeSchema,
 });
-const ownedProcessRoleSchema = z.enum(['host', 'runtime']);
+const ownedProcessRoleSchema = z.enum(['server-core', 'extension-host']);
 const ownedProcessSchema = z.object({
     identity: z.string().min(1),
     pid: z.number().int().positive(),
@@ -216,7 +215,7 @@ async function inspectPathOwner(path: string): Promise<number | undefined> {
                 .map((line) => Number(line.slice(1))),
         );
         if (processIds.size > 1)
-            throw new Error('Multiple processes own the Acceptance Host profile lock');
+            throw new Error('Multiple processes own the Acceptance Server profile lock');
         return processIds.values().next().value;
     } catch (error: unknown) {
         if (errorCode(error) === '1' || errorCode(error) === 'ENOENT') return undefined;
@@ -256,9 +255,9 @@ function isCommandForEntry(command: string, entryPath: string): boolean {
 }
 
 /**
- * Binds cleanup to the selected profile's live kernel lock owner and then to the exact worktree's Host/Runtime
- * entrypoints. PID metadata alone is never enough, and Runtime ownership derives from the verified Host parent before
- * either process is signaled.
+ * Binds cleanup to the selected profile's live kernel lock owner and then to the exact worktree's Server artifact
+ * entrypoints. PID metadata alone is never enough, and child ownership derives from the verified parent before either
+ * process is signaled.
  */
 export async function discoverOwnedProcesses(
     runtime: Pick<RuntimeState, 'projectRoot' | 'userDataDir'>,
@@ -280,33 +279,45 @@ export async function discoverOwnedProcesses(
         if (errorCode(error) === 'ENOENT') return [];
         throw error;
     }
-    const hostPid = await dependencies.inspectPathOwner(
+    const serverCorePid = await dependencies.inspectPathOwner(
         join(userDataDirectory, 'host', 'owner.lock'),
     );
-    if (!hostPid) return [];
+    if (!serverCorePid) return [];
 
-    const hostEntryPath = join(recordedProjectRoot, 'out', 'main', 'host.js');
-    const hostCommand = await dependencies.getProcessCommand(hostPid);
-    if (!hostCommand || !isCommandForEntry(hostCommand, hostEntryPath)) {
+    const artifactBundleRoot = join(
+        recordedProjectRoot,
+        'apps',
+        'server',
+        'dist',
+        'server',
+        'bundles',
+    );
+    const serverCoreEntryPath = join(artifactBundleRoot, 'server-core.js');
+    const serverCoreCommand = await dependencies.getProcessCommand(serverCorePid);
+    if (!serverCoreCommand || !isCommandForEntry(serverCoreCommand, serverCoreEntryPath)) {
         throw new Error('Acceptance profile lock owner is outside the recorded worktree');
     }
-    const hostIdentity = await dependencies.getProcessIdentity(hostPid);
-    if (!hostIdentity) return [];
+    const serverCoreIdentity = await dependencies.getProcessIdentity(serverCorePid);
+    if (!serverCoreIdentity) return [];
 
-    const runtimeEntryPath = join(recordedProjectRoot, 'out', 'main', 'runtime.js');
-    const runtimeProcesses = await Promise.all(
-        (await dependencies.listChildProcesses(hostPid))
-            .filter(({ command }) => isCommandForEntry(command, runtimeEntryPath))
+    const extensionHostEntryPath = join(artifactBundleRoot, 'extension-host.js');
+    const extensionHostProcesses = await Promise.all(
+        (await dependencies.listChildProcesses(serverCorePid))
+            .filter(({ command }) => isCommandForEntry(command, extensionHostEntryPath))
             .map(async ({ pid }) => {
                 const identity = await dependencies.getProcessIdentity(pid);
                 return identity
-                    ? ownedProcessSchema.parse({ identity, pid, role: 'runtime' })
+                    ? ownedProcessSchema.parse({ identity, pid, role: 'extension-host' })
                     : null;
             }),
     );
     return [
-        ownedProcessSchema.parse({ identity: hostIdentity, pid: hostPid, role: 'host' }),
-        ...runtimeProcesses.filter((item): item is OwnedProcess => item !== null),
+        ownedProcessSchema.parse({
+            identity: serverCoreIdentity,
+            pid: serverCorePid,
+            role: 'server-core',
+        }),
+        ...extensionHostProcesses.filter((item): item is OwnedProcess => item !== null),
     ];
 }
 

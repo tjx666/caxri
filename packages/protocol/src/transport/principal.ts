@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { ProtocolConnectionIdentity } from './identity.js';
+
 export const capabilityIds = [
     'desktop',
     'host.read',
@@ -67,6 +69,7 @@ export type Principal = z.infer<typeof principalSchema>;
 
 export interface CommandExecutionContext {
     capabilities: readonly Capability[];
+    connection?: ProtocolConnectionIdentity;
     principal: Principal;
 }
 

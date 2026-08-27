@@ -1,61 +1,80 @@
 import { z } from 'zod';
 
-import { isDesktopRuntimeMethod } from '../desktop/desktop-runtime.js';
+import { isDesktopServerOperation } from '../desktop/desktop-server-operations.js';
 import { identifierSchema, pathSchema } from '../domain/domain.js';
-import { protocolEventEnvelopeSchema, transientRuntimeEventSchema } from './event-journal.js';
+import { protocolEventEnvelopeSchema, transientServerEventSchema } from './event-journal.js';
+import { protocolClientIdentitySchema } from './identity.js';
 import { commandReplyEnvelopeSchema, requestEnvelopeSchema } from './transport.js';
 import { protocolHelloSchema, protocolVersionSchema, protocolWelcomeSchema } from './version.js';
 
-export const HOST_MANIFEST_VERSION = 1 as const;
-export const HOST_DESKTOP_CREDENTIAL_VERSION = 1 as const;
+export const SERVER_MANIFEST_VERSION = 2 as const;
+export const SERVER_DESKTOP_CREDENTIAL_VERSION = 1 as const;
 /**
- * One authenticated JSON-line frame can contain two 16 MiB editor buffers. The extra headroom covers worst-case JSON
- * escaping while keeping a malformed local peer under a fixed memory cap.
+ * One authenticated control message can contain two 16 MiB editor buffers. The extra headroom covers worst-case JSON
+ * escaping while keeping a malformed peer under a fixed memory cap.
  */
-export const LOCAL_TRANSPORT_MAX_FRAME_BYTES = 256 * 1024 * 1024;
-export const hostCredentialTokenSchema = z.string().regex(/^[0-9a-f]{64}$/u);
-export const hostProcessIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
+export const CONTROL_TRANSPORT_MAX_FRAME_BYTES = 256 * 1024 * 1024;
+export const serverCredentialTokenSchema = z.string().regex(/^[0-9a-f]{64}$/u);
+export const serverProcessIdentitySchema = z.string().regex(/^[0-9a-f]{32}$/u);
+
+export const serverControlEndpointSchema = z.object({
+    protocol: z.literal('ws'),
+    host: z.literal('127.0.0.1'),
+    port: z.number().int().positive().max(65_535),
+    path: z.literal('/control'),
+});
+
+export type ServerControlEndpoint = z.infer<typeof serverControlEndpointSchema>;
+
+export function serverEndpointUrl(endpoint: ServerControlEndpoint): string {
+    return `ws://${endpoint.host}:${endpoint.port}${endpoint.path}`;
+}
+
+export const serverManifestIdentitySchema = z.object({
+    profileId: identifierSchema,
+    pid: z.number().int().positive(),
+    startedAt: z.number().int().positive(),
+    processIdentity: serverProcessIdentitySchema,
+    /**
+     * Kept open so an incompatible client can report a clean error instead of treating the discovery record as corrupt.
+     */
+    protocolVersion: z.number().int().positive(),
+    version: z.string().min(1).max(100),
+    operatorToken: serverCredentialTokenSchema,
+});
+
+export type ServerManifestIdentity = z.infer<typeof serverManifestIdentitySchema>;
 
 /**
  * Private profile discovery record. The credential must never appear in status or diagnostics.
  */
-export const hostManifestSchema = z.object({
-    manifestVersion: z.literal(HOST_MANIFEST_VERSION),
-    profileId: identifierSchema,
-    endpoint: pathSchema.max(103),
-    pid: z.number().int().positive(),
-    startedAt: z.number().int().positive(),
-    processIdentity: hostProcessIdentitySchema,
-    /**
-     * Kept open so an older client can report a clean incompatibility instead of a corrupt file.
-     */
-    protocolVersion: z.number().int().positive(),
-    version: z.string().min(1).max(100),
-    operatorToken: hostCredentialTokenSchema,
+export const serverManifestSchema = serverManifestIdentitySchema.extend({
+    manifestVersion: z.literal(SERVER_MANIFEST_VERSION),
+    endpoint: serverControlEndpointSchema,
 });
 
-export type HostManifest = z.infer<typeof hostManifestSchema>;
+export type ServerManifest = z.infer<typeof serverManifestSchema>;
 
-export const hostLockSchema = hostManifestSchema.pick({
+export const serverLockSchema = serverManifestIdentitySchema.pick({
     pid: true,
     startedAt: true,
     processIdentity: true,
     profileId: true,
 });
 
-export type HostLock = z.infer<typeof hostLockSchema>;
+export type ServerLock = z.infer<typeof serverLockSchema>;
 
 /**
  * Separate Desktop credential. It is never exposed through the operator discovery manifest.
  */
-export const hostDesktopCredentialSchema = z.object({
-    credentialVersion: z.literal(HOST_DESKTOP_CREDENTIAL_VERSION),
+export const serverDesktopCredentialSchema = z.object({
+    credentialVersion: z.literal(SERVER_DESKTOP_CREDENTIAL_VERSION),
     profileId: identifierSchema,
-    processIdentity: hostProcessIdentitySchema,
-    desktopToken: hostCredentialTokenSchema,
+    processIdentity: serverProcessIdentitySchema,
+    desktopToken: serverCredentialTokenSchema,
 });
 
-export type HostDesktopCredential = z.infer<typeof hostDesktopCredentialSchema>;
+export type ServerDesktopCredential = z.infer<typeof serverDesktopCredentialSchema>;
 
 export const desktopLeaseSchema = z.object({
     desktopId: identifierSchema,
@@ -65,63 +84,29 @@ export const desktopLeaseSchema = z.object({
 
 export type DesktopLease = z.infer<typeof desktopLeaseSchema>;
 
-/**
- * Incrementally decodes bounded JSON lines without repeatedly copying an incomplete frame.
- */
-export class LocalJsonLineDecoder {
-    private readonly encoder = new TextEncoder();
-    private readonly parts: string[] = [];
-    private pendingBytes = 0;
-
-    constructor(private readonly maximumFrameBytes = LOCAL_TRANSPORT_MAX_FRAME_BYTES) {}
-
-    private append(part: string): void {
-        this.pendingBytes += this.encoder.encode(part).byteLength;
-        if (this.pendingBytes > this.maximumFrameBytes)
-            throw new RangeError(`Local transport frame exceeds ${this.maximumFrameBytes} bytes`);
-        if (part.length > 0) this.parts.push(part);
-    }
-
-    push(chunk: string): string[] {
-        const lines: string[] = [];
-        let offset = 0;
-        let newline = chunk.indexOf('\n', offset);
-        while (newline !== -1) {
-            const part = chunk.slice(offset, newline);
-            this.append(part);
-            lines.push(this.parts.join(''));
-            this.parts.length = 0;
-            this.pendingBytes = 0;
-            offset = newline + 1;
-            newline = chunk.indexOf('\n', offset);
-        }
-        if (offset < chunk.length) this.append(chunk.slice(offset));
-        return lines;
-    }
-}
-
 const localClientOperatorCredentialSchema = z.object({
     kind: z.literal('operator'),
-    token: hostCredentialTokenSchema,
+    token: serverCredentialTokenSchema,
 });
 
 const localClientAgentCredentialSchema = z.object({
     kind: z.literal('agent'),
-    hostId: hostProcessIdentitySchema,
+    hostId: serverProcessIdentitySchema,
     endpointId: identifierSchema,
     generation: z.number().int().positive(),
-    token: hostCredentialTokenSchema,
+    token: serverCredentialTokenSchema,
 });
 
 const localClientDesktopCredentialSchema = z.object({
     kind: z.literal('desktop'),
-    token: hostCredentialTokenSchema,
+    token: serverCredentialTokenSchema,
     desktopId: identifierSchema,
 });
 
 export const localClientHelloSchema = protocolHelloSchema.extend({
     type: z.literal('hello'),
     profileId: identifierSchema,
+    clientId: protocolClientIdentitySchema,
     credential: z.discriminatedUnion('kind', [
         localClientOperatorCredentialSchema,
         localClientAgentCredentialSchema,
@@ -132,7 +117,7 @@ export const localClientHelloSchema = protocolHelloSchema.extend({
 export const localServerWelcomeSchema = protocolWelcomeSchema.extend({
     type: z.literal('welcome'),
     profileId: identifierSchema,
-    processIdentity: hostProcessIdentitySchema,
+    processIdentity: serverProcessIdentitySchema,
     desktopLease: desktopLeaseSchema.optional(),
 });
 
@@ -174,17 +159,17 @@ export const localServerReplySchema = z.object({
     reply: commandReplyEnvelopeSchema,
 });
 
-export const localClientDesktopRuntimeCommandSchema = z.object({
+export const localClientDesktopOperationCommandSchema = z.object({
     type: z.literal('desktop-runtime-command'),
     request: z.object({
         protocolVersion: protocolVersionSchema,
         id: identifierSchema,
-        method: z.string().refine(isDesktopRuntimeMethod),
+        method: z.string().refine(isDesktopServerOperation),
         params: z.unknown(),
     }),
 });
 
-export const localServerDesktopRuntimeReplySchema = z.object({
+export const localServerDesktopOperationReplySchema = z.object({
     type: z.literal('desktop-runtime-reply'),
     reply: commandReplyEnvelopeSchema,
 });
@@ -276,15 +261,15 @@ export const localServerDesktopTargetReplySchema = z.object({
 
 export const localServerEventSchema = z.object({
     type: z.literal('event'),
-    event: z.union([protocolEventEnvelopeSchema, transientRuntimeEventSchema]),
+    event: z.union([protocolEventEnvelopeSchema, transientServerEventSchema]),
 });
 
 export type LocalClientHello = z.infer<typeof localClientHelloSchema>;
 export type LocalServerWelcome = z.infer<typeof localServerWelcomeSchema>;
 export type LocalClientCommand = z.infer<typeof localClientCommandSchema>;
 export type LocalClientDesktopReply = z.infer<typeof localClientDesktopReplySchema>;
-export type LocalClientDesktopRuntimeCommand = z.infer<
-    typeof localClientDesktopRuntimeCommandSchema
+export type LocalClientDesktopOperationCommand = z.infer<
+    typeof localClientDesktopOperationCommandSchema
 >;
 export type LocalClientDesktopTargetConsume = z.infer<typeof localClientDesktopTargetConsumeSchema>;
 export type LocalClientDesktopReady = z.infer<typeof localClientDesktopReadySchema>;

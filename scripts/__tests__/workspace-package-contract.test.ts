@@ -18,10 +18,26 @@ async function readPackageManifest(...segments: string[]): Promise<ReleaseManife
 }
 
 describe('workspace package manifests', () => {
+    it('keeps product-coupled workspace versions aligned with the Desktop release', async () => {
+        const productManifest = await readPackageManifest('package.json');
+        const coupledManifests = await Promise.all(
+            [
+                ['apps', 'cli', 'package.json'],
+                ['apps', 'desktop', 'package.json'],
+                ['apps', 'server', 'package.json'],
+                ['packages', 'agent-skills', 'package.json'],
+                ['packages', 'client', 'package.json'],
+            ].map((segments) => readPackageManifest(...segments)),
+        );
+
+        for (const manifest of coupledManifests)
+            expect(manifest.version).toBe(productManifest.version);
+    });
+
     it('keeps the public extension API version aligned with the Desktop release', async () => {
         const [appManifestText, apiManifestText] = await Promise.all([
             readFile(join(workspaceRoot, 'package.json'), 'utf8'),
-            readFile(join(workspaceRoot, 'packages/api/package.json'), 'utf8'),
+            readFile(join(workspaceRoot, 'packages/extension-api/package.json'), 'utf8'),
         ]);
         const appManifest = JSON.parse(appManifestText) as { version: string };
         const apiManifest = JSON.parse(apiManifestText) as { version: string };
@@ -30,7 +46,7 @@ describe('workspace package manifests', () => {
     });
 
     it('exposes caxri source types before build artifacts exist', async () => {
-        const manifestPath = join(workspaceRoot, 'packages/api/package.json');
+        const manifestPath = join(workspaceRoot, 'packages/extension-api/package.json');
         const manifestText = await readFile(manifestPath, 'utf8');
         const manifest = JSON.parse(manifestText) as {
             exports: { '.': { import: string; types: string } };
@@ -57,7 +73,10 @@ describe('workspace package manifests', () => {
                 version?: string;
             };
 
-            expect(manifest.devDependencies).toEqual({ caxri: 'workspace:*' });
+            expect(manifest.devDependencies).toEqual({
+                '@caxri/protocol': 'workspace:*',
+                'caxri': 'workspace:*',
+            });
             expect(manifest.version).toBe(appManifest.version);
             expect(manifest.engines?.caxri).toBe(`^${appManifest.version}`);
             expect(manifest.scripts).toEqual({
@@ -70,7 +89,7 @@ describe('workspace package manifests', () => {
 
     it('keeps the public API and bundled extensions compatible with the Desktop release', async () => {
         const desktopManifest = await readPackageManifest('package.json');
-        const apiManifest = await readPackageManifest('packages', 'api', 'package.json');
+        const apiManifest = await readPackageManifest('packages', 'extension-api', 'package.json');
         const extensionNames = ['fixture', 'git', 'status'];
         const extensionManifests = await Promise.all(
             extensionNames.map((name) => readPackageManifest('extensions', name, 'package.json')),
@@ -130,7 +149,12 @@ describe('workspace package manifests', () => {
 
     it('keeps extension typecheck and build orchestration package-local', async () => {
         const manifestText = await readFile(join(process.cwd(), 'package.json'), 'utf8');
-        const manifest = JSON.parse(manifestText) as { scripts: Record<string, string> };
+        const manifest = JSON.parse(manifestText) as {
+            knip: {
+                workspaces: Record<string, { ignoreDependencies?: string[] }>;
+            };
+            scripts: Record<string, string>;
+        };
         const buildScript = await readFile(
             join(process.cwd(), 'scripts', 'build-extension.ts'),
             'utf8',
@@ -142,14 +166,17 @@ describe('workspace package manifests', () => {
         expect(manifest.scripts['build:extensions']).toBe(
             "pnpm --recursive --filter './extensions/*' run build",
         );
+        for (const name of ['fixture', 'git', 'status'])
+            expect(manifest.knip.workspaces[`extensions/${name}`]?.ignoreDependencies).toEqual([
+                '@caxri/protocol',
+            ]);
         const sharedRoot = join(process.cwd(), 'extensions');
         const legacyConfig = access(join(sharedRoot, 'tsconfig.json'));
         const baseConfig = access(join(sharedRoot, 'tsconfig.base.json'));
 
         await expect(legacyConfig).rejects.toMatchObject({ code: 'ENOENT' });
         await expect(baseConfig).resolves.toBeUndefined();
-        expect(buildScript).not.toContain("from '@caxri/protocol'");
-        expect(buildScript).toContain("from '../packages/protocol/src/index.ts'");
+        expect(buildScript).toContain("from '@caxri/protocol'");
         expect(buildScript).toContain('assertProductExtensionBundleContract');
         expect(buildScript).toContain('manifest.caxri.testOnly');
     });
@@ -163,10 +190,10 @@ describe('workspace package manifests', () => {
 
         const extraResourceSources = manifest.build.extraResources.map(({ from }) => from);
 
-        expect(extraResourceSources.filter((source) => source.startsWith('extensions/'))).toEqual([
-            'extensions/git',
-            'extensions/status',
-        ]);
+        expect(extraResourceSources.filter((source) => source.startsWith('extensions/'))).toEqual(
+            [],
+        );
+        expect(extraResourceSources).toContain('apps/server/dist/server');
         expect(manifest.scripts['package:e2e']).toBe(
             'bun run build && bun run scripts/package-extension-test-app.ts',
         );

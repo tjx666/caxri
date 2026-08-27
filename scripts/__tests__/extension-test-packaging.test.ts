@@ -3,10 +3,7 @@ import { readFile } from 'node:fs/promises';
 import type { Configuration, FileSet } from 'electron-builder';
 import { describe, expect, it } from 'vitest';
 
-import {
-    extensionTestPackagingConfig,
-    testOnlyExtensionResource,
-} from '../extension-test-packaging';
+import { extensionTestPackagingConfig } from '../extension-test-packaging';
 
 function source(resource: FileSet | string): string | undefined {
     return typeof resource === 'string' ? resource : resource.from;
@@ -25,18 +22,16 @@ describe('extension packaging profiles', () => {
             ? testConfig.extraResources.map(source)
             : [];
 
-        expect(productionSources.filter((item) => item?.startsWith('extensions/'))).toEqual([
-            'extensions/git',
-            'extensions/status',
-        ]);
-        expect(testSources).toEqual([...productionSources, testOnlyExtensionResource.from]);
+        expect(productionSources).toContain('apps/server/dist/server');
+        expect(productionSources.filter((item) => item?.startsWith('extensions/'))).toEqual([]);
+        expect(testSources).toEqual(productionSources);
         expect(manifest.build.directories?.output).toBe('release.noindex');
         expect(testConfig.directories?.output).toBe('release.noindex/e2e');
     });
 
     it('fails closed when production packaging already contains the fixture', () => {
-        expect(() =>
-            extensionTestPackagingConfig({ extraResources: [testOnlyExtensionResource] }),
-        ).toThrow('Production extraResources already contain the test-only extension');
+        expect(() => extensionTestPackagingConfig({ extraResources: [] })).toThrow(
+            'Production extraResources must contain one standalone Server artifact',
+        );
     });
 });

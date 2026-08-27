@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
@@ -295,7 +296,9 @@ esac
 });
 
 test('extension fixture lazily activates a bounded virtualized keyboard tree', async () => {
-    allowE2EErrors([{ source: 'main', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 }]);
+    allowE2EErrors([
+        { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-extension-tree-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -461,12 +464,12 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
 test('Extension Host crash preserves Terminal state and desired ViewContainer across recovery', async () => {
     allowE2EErrors([
         {
-            source: 'host',
-            event: 'host.extension_host_exit',
-            code: 'HOST_EXTENSION_HOST_EXIT',
+            source: 'server-core',
+            event: 'extension_host.exit',
+            code: 'EXTENSION_HOST_EXIT',
             count: 1,
         },
-        { source: 'main', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'INTERNAL', count: 1 },
     ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-extension-crash-e2e-'));
     const userData = join(testDirectory, 'user-data');

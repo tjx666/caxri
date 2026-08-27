@@ -1,18 +1,21 @@
 import type { z } from 'zod';
 
-import type { MethodSpec } from '../transport/method-spec.js';
-import { internalMethods, methods } from './methods.js';
+import type { CommandRecovery, MethodSpec } from '../transport/method-spec.js';
+import { internalMethods, methods } from './method-registry.js';
 
 export type CaxriMethod = keyof typeof methods;
+export type EffectfulCaxriMethod = {
+    [M in CaxriMethod]: (typeof methods)[M]['effect'] extends 'read' ? never : M;
+}[CaxriMethod];
 type InternalMethod = keyof typeof internalMethods;
-export type RuntimeMethod = CaxriMethod | InternalMethod;
+export type ServerOperation = CaxriMethod | InternalMethod;
 
 type DesktopMethod = {
     [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'desktop'> extends never ? never : M;
 }[CaxriMethod];
 
-export type HostMethod = {
-    [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'host'> extends never ? never : M;
+export type ServerMethod = {
+    [M in CaxriMethod]: Extract<(typeof methods)[M]['owner'], 'server'> extends never ? never : M;
 }[CaxriMethod];
 
 type AllMethods = typeof methods & typeof internalMethods;
@@ -27,23 +30,20 @@ type MethodParameters<M extends CaxriMethod> = z.infer<(typeof methods)[M]['para
 type MethodInput<M extends CaxriMethod> = z.input<(typeof methods)[M]['params']>;
 export type MethodResult<M extends CaxriMethod> = z.infer<(typeof methods)[M]['result']>;
 
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across src/runtime, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
-export type RuntimeMethodParams<M extends RuntimeMethod> = z.infer<AllMethods[M]['params']>;
-type RuntimeMethodInput<M extends RuntimeMethod> = z.input<AllMethods[M]['params']>;
-export type RuntimeMethodResult<M extends RuntimeMethod> = z.infer<AllMethods[M]['result']>;
+export type ServerOperationParameters<M extends ServerOperation> = z.infer<AllMethods[M]['params']>;
+type ServerOperationInput<M extends ServerOperation> = z.input<AllMethods[M]['params']>;
+export type ServerOperationResult<M extends ServerOperation> = z.infer<AllMethods[M]['result']>;
 
 /**
  * Makes the params argument optional exactly when the method's schema accepts `undefined`.
  */
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by src/renderer and src/preload, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
-export type ParamsArg<M extends CaxriMethod> =
+export type ParametersArgument<M extends CaxriMethod> =
     undefined extends MethodInput<M> ? [params?: MethodInput<M>] : [params: MethodInput<M>];
 
-// eslint-disable-next-line unicorn/name-replacements -- exported type is imported by src/host and src/main, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
-export type RuntimeParamsArg<M extends RuntimeMethod> =
-    undefined extends RuntimeMethodInput<M>
-        ? [params?: RuntimeMethodInput<M>, timeoutMs?: number]
-        : [params: RuntimeMethodInput<M>, timeoutMs?: number];
+export type ServerOperationArguments<M extends ServerOperation> =
+    undefined extends ServerOperationInput<M>
+        ? [params?: ServerOperationInput<M>, timeoutMs?: number]
+        : [params: ServerOperationInput<M>, timeoutMs?: number];
 
 /**
  * Discriminated request unions let a `switch` on `method` narrow `params` without a cast.
@@ -53,18 +53,114 @@ export type CaxriRequest = {
 }[CaxriMethod];
 
 export type DesktopRequest = Extract<CaxriRequest, { method: DesktopMethod }>;
-export type HostRequest = Extract<CaxriRequest, { method: HostMethod }>;
+export type ServerRequest = Extract<CaxriRequest, { method: ServerMethod }>;
 /**
- * Compatibility name for the Electron Main adapter while ownership moves to the Host protocol.
+ * Compatibility name for the Electron Main adapter; `DesktopRequest` is the architectural term.
  */
 export type MainRequest = DesktopRequest;
 
-export type RuntimeRequest = {
-    [M in RuntimeMethod]: { method: M; params: RuntimeMethodParams<M> };
-}[RuntimeMethod];
+export type ServerOperationRequest = {
+    [M in ServerOperation]: { method: M; params: ServerOperationParameters<M> };
+}[ServerOperation];
 
 export function isCaxriMethod(value: string): value is CaxriMethod {
     return Object.hasOwn(methods, value);
+}
+
+/**
+ * Exhaustive recovery/privacy review for every public effect. New write/control methods fail type checking until their
+ * reply is classified. Durable replies may contain only content-free results or metadata already owned by a durable
+ * domain record. Memory-only entries include editor bodies, configuration sources, Terminal screens, ephemeral native
+ * paths, arbitrary failure messages, or lifecycle semantics tied to one boot.
+ */
+export const effectfulCommandRecovery = {
+    'agent.dispatch.start': 'durable',
+    'agent.dispatch.resume': 'durable',
+    'agent.control.interrupt': 'durable',
+    'agent.control.stop': 'durable',
+    'terminal.send': 'durable',
+    'agent.worktree.created': 'durable',
+    'agent.grant': 'durable',
+    'agent.revoke': 'durable',
+    'agent.message.send': 'durable',
+    'agent.message.reply': 'durable',
+    'agent.message.policy.set': 'durable',
+    'agent.message.approve': 'durable',
+    'agent.message.deny': 'durable',
+    'settings.patch': 'memory',
+    'session.selectWorkbenchRoot': 'durable',
+    'session.authorizeWorkbenchRoot': 'durable',
+    'session.dismissWorkbenchCandidate': 'durable',
+    'session.continueInWorktree': 'durable',
+    'viewContainers.viewOperation': 'memory',
+    'viewContainers.executeCommand': 'durable',
+    'viewContainers.cancelRequest': 'durable',
+    'requests.cancel': 'durable',
+    'extensions.retry': 'memory',
+    'host.stop': 'memory',
+    'desktop.focus': 'durable',
+    'desktop.openPath': 'durable',
+    'desktop.openProject': 'durable',
+    'desktop.openFile': 'durable',
+    'files.reveal': 'durable',
+    'project.openInEditor': 'durable',
+    'argv.update': 'memory',
+    'external.open': 'durable',
+    'editor.confirmDiscard': 'durable',
+    'processExplorer.open': 'durable',
+    'dialog.selectDirectory': 'memory',
+    'diagnostics.export': 'memory',
+    'bugReport.captureScreenshot': 'memory',
+    'bugReport.send': 'durable',
+    'updates.download': 'memory',
+    'updates.cancel': 'memory',
+    'updates.open': 'memory',
+    'project.create': 'durable',
+    'project.cancelCreate': 'durable',
+    'project.delete': 'memory',
+    'project.reorder': 'durable',
+    'project.setIcon': 'durable',
+    'session.create': 'durable',
+    'session.delete': 'memory',
+    'session.select': 'durable',
+    'session.markRead': 'durable',
+    'session.rename': 'durable',
+    'session.archive': 'durable',
+    'session.unarchive': 'durable',
+    'session.updateState': 'memory',
+    'terminal.create': 'durable',
+    'terminal.input': 'none',
+    'terminal.resize': 'none',
+    'terminal.close': 'durable',
+    'terminal.attach': 'none',
+    'terminal.detach': 'durable',
+    'terminal.moveToNewSession': 'durable',
+    'terminal.restart': 'durable',
+    'terminal.openFileLink': 'durable',
+    'files.create': 'durable',
+    'files.copy': 'durable',
+    'files.rename': 'durable',
+    'files.move': 'durable',
+    'files.operation.cancel': 'durable',
+    'files.operation.acknowledge': 'durable',
+    'files.trash': 'durable',
+    'files.write': 'memory',
+    'git.switchBranch': 'durable',
+    'git.sync': 'durable',
+    'git.discard': 'durable',
+    'settings.update': 'memory',
+    'keybindings.update': 'memory',
+    'theme.update': 'memory',
+    'theme.import': 'memory',
+} as const satisfies Record<EffectfulCaxriMethod, CommandRecovery>;
+
+export type DurableCaxriMethod = {
+    [M in EffectfulCaxriMethod]: (typeof effectfulCommandRecovery)[M] extends 'durable' ? M : never;
+}[EffectfulCaxriMethod];
+
+export function commandRecoveryFor(method: CaxriMethod): CommandRecovery {
+    if (methods[method].effect === 'read') return 'none';
+    return effectfulCommandRecovery[method as EffectfulCaxriMethod];
 }
 
 /**
@@ -75,10 +171,10 @@ export function isDesktopRequest(request: CaxriRequest): request is DesktopReque
 }
 
 /**
- * Narrows a validated public request to the Host-owned portion of the method table.
+ * Narrows a validated public request to the Server-owned portion of the method table.
  */
-export function isHostRequest(request: CaxriRequest): request is HostRequest {
-    return methods[request.method].owner === 'host';
+export function isServerRequest(request: CaxriRequest): request is ServerRequest {
+    return methods[request.method].owner === 'server';
 }
 
 /**

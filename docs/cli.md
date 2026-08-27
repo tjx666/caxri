@@ -1,43 +1,43 @@
 # The `caxri` CLI
 
-The scriptable `caxri` CLI talks only to the authenticated, profile-scoped Headless Host. It never
+The scriptable `caxri` CLI talks only to the authenticated, profile-scoped Server. It never
 reads Caxri's SQLite database, settings, or logs directly. Local help and protocol introspection
-work without a running Host:
+work without a running Server:
 
 ```bash
 bun run build:cli
-node packages/cli/dist/caxri.cjs --help
-node packages/cli/dist/caxri.cjs capabilities --json
+node apps/cli/dist/caxri.cjs --help
+node apps/cli/dist/caxri.cjs capabilities --json
 ```
 
-## Artifacts and Host startup
+## Artifacts and Server startup
 
-`packages/cli/dist/caxri.cjs` is the standalone artifact and requires Node.js 24 or newer. The
+`apps/cli/dist/caxri.cjs` is the standalone artifact and requires Node.js 24 or newer. The
 macOS app contains the exact same bundle at `Caxri.app/Contents/Resources/cli/caxri.cjs` plus an
 app-managed launcher at `Caxri.app/Contents/Resources/bin/caxri`; that launcher uses the packaged
 Electron executable only in `ELECTRON_RUN_AS_NODE=1` mode. From that exact installed layout, a
-human CLI invocation derives the immutable packaged Host entry and starts the profile Host when
-none exists. Agent and CI invocations never start a Host implicitly. The standalone bundle keeps
-offline introspection available and connects to an existing Host without acquiring Electron or
-native-module dependencies of its own.
+human CLI invocation derives `Contents/Resources/server`, validates its manifest, and starts the
+profile Server with the artifact's pinned runtime when none exists. Agent and CI invocations never
+start a Server implicitly. The standalone CLI bundle keeps offline introspection available and
+connects to an existing Server without acquiring native dependencies of its own.
 
 ## Output modes and safety
 
 Human TTY output is concise text. `--json` reserves stdout for one stable JSON value, while
 `--quiet` emits one opaque ID per line. Supported Agent and CI environments default to JSON and do
 not prompt. Select another isolated profile with `--profile <absolute-path>`; every mutation
-requires that explicit Host selector and non-interactive confirmation with `--yes`.
+requires that explicit Server selector and non-interactive confirmation with `--yes`.
 
 ## Command surface
 
 The shared business surface includes `project list|show|current`, `session list|show|current`,
 `terminal list|show`, `settings get|validate|patch`, `logs query|follow`, `diagnostics snapshot`,
 and `events watch`. Settings writes accept repeated `--set key=value` arguments;
-`settings validate` and `settings patch --dry-run` use the real Runtime schema without writing.
+`settings validate` and `settings patch --dry-run` use the authoritative Server schema without writing.
 Pass `--request-id <id>` when a mutation must be safely retried. Streaming commands stop on
 Ctrl+C, keep data on stdout, and send keepalives or cursor-gap warnings only to stderr.
 
-Desktop window commands stay behind the authenticated Host and Project-root authorization:
+Desktop window commands stay behind authenticated Server and Project-root authorization:
 `desktop focus`, `open <path>`, and `reveal <path>`. Path commands accept an optional exact
 `--session <id>`; `open` supports files and directories and launches Desktop by default, while
 `--no-launch` returns `UNAVAILABLE` when no Desktop lease exists. As with every human mutation,
@@ -54,7 +54,7 @@ operations (`agent dispatch` and `agent control`), and owner-only simulated inpu
 ## Embedded Agent skill
 
 Every CLI artifact embeds the version-matched canonical `caxri-cli` Agent skill. `skills list`,
-`skills get`, and `skills status` work without a Host. Installation requires an explicit
+`skills get`, and `skills status` work without a Server. Installation requires an explicit
 `--provider claude|codex` and `--local|--global` scope; Project-local is recommended, global scope
 is never implied, and Caxri refuses to overwrite unmarked, modified, unknown-schema, or newer
 entries. The canonical source is [`skills/caxri-cli/SKILL.md`](../skills/caxri-cli/SKILL.md), and

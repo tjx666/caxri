@@ -35,11 +35,11 @@ function bundleAnalysisPlugins(reportName: string): PluginOption[] {
 const execFileAsync = promisify(execFile);
 
 /**
- * Best-effort short commit hash; packaged builds outside a Git checkout fall back to 'unknown'.
+ * Best-effort fixed-width commit marker; packaged builds outside a Git checkout fall back to 'unknown'.
  */
 async function resolveGitCommit(): Promise<string> {
     try {
-        const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--short=8', 'HEAD'], {
             cwd: resolve('.'),
             encoding: 'utf8',
         });
@@ -65,8 +65,8 @@ export default defineConfig(async ({ command }) => {
         main: {
             /**
              * Stamps every Main/Runtime build with the package version and commit it was built from, so logs and
-             * diagnostics exports can be correlated to a specific build. See src/main/global.d.ts for the corresponding
-             * ambient type declarations.
+             * diagnostics exports can be correlated to a specific build. See apps/desktop/src/main/global.d.ts for the
+             * corresponding ambient type declarations.
              */
             define: {
                 __CAXRI_VERSION__: JSON.stringify(packageJson.version),
@@ -75,9 +75,8 @@ export default defineConfig(async ({ command }) => {
             build: {
                 sourcemap: isBundleAnalysisEnabled,
                 /**
-                 * Only the native modules left in `dependencies` (@parcel/watcher, better-sqlite3, node-pty) stay
-                 * external; every pure-JS dependency lives in `devDependencies` so electron-vite bundles it and
-                 * electron-builder never copies it into the asar.
+                 * Native modules and the shared `ws` transport stay external and are packaged from `dependencies`;
+                 * every other pure-JS dependency lives in `devDependencies` so electron-vite bundles it.
                  */
                 externalizeDeps: true,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
@@ -87,10 +86,7 @@ export default defineConfig(async ({ command }) => {
                 // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
                     input: {
-                        'extension-host': resolve('src/extension-host/process.ts'),
-                        'host': resolve('src/host/process.ts'),
-                        'index': resolve('src/main/index.ts'),
-                        'runtime': resolve('src/runtime/index.ts'),
+                        index: resolve('apps/desktop/src/main/index.ts'),
                     },
                 },
             },
@@ -107,8 +103,8 @@ export default defineConfig(async ({ command }) => {
                 // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
                     input: {
-                        'index': resolve('src/preload/index.ts'),
-                        'process-explorer': resolve('src/preload/process-explorer.ts'),
+                        'index': resolve('apps/desktop/src/preload/index.ts'),
+                        'process-explorer': resolve('apps/desktop/src/preload/process-explorer.ts'),
                     },
                     output: {
                         format: 'cjs',
@@ -119,13 +115,14 @@ export default defineConfig(async ({ command }) => {
             plugins: bundleAnalysisPlugins('preload'),
         },
         renderer: {
+            root: resolve('apps/desktop/src/renderer'),
             /**
              * Ships the full vscode-icons SVG set (`icons/*.svg` + `manifest.json`) by verbatim copy into the build
              * output and via the dev server. `import.meta.glob` cannot reach into `node_modules` in production builds
              * (Vite ignores it there), so the Renderer references these files by stable relative URL instead
-             * (`src/renderer/src/icons/files/file-icon-assets.ts`).
+             * (`apps/desktop/src/renderer/src/icons/files/file-icon-assets.ts`).
              */
-            publicDir: resolve('node_modules/@yutengjing/vscode-icons/assets'),
+            publicDir: resolve('apps/desktop/node_modules/@yutengjing/vscode-icons/assets'),
             build: {
                 sourcemap: isBundleAnalysisEnabled,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
@@ -135,15 +132,17 @@ export default defineConfig(async ({ command }) => {
                 // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
                     input: {
-                        'index': resolve('src/renderer/index.html'),
-                        'process-explorer': resolve('src/renderer/process-explorer.html'),
+                        'index': resolve('apps/desktop/src/renderer/index.html'),
+                        'process-explorer': resolve(
+                            'apps/desktop/src/renderer/process-explorer.html',
+                        ),
                     },
                 },
             },
             resolve: {
                 alias: {
-                    '@': resolve('src/renderer/src'),
-                    '@shared': resolve('src/shared'),
+                    '@': resolve('apps/desktop/src/renderer/src'),
+                    '@desktop-shared': resolve('apps/desktop/src/shared'),
                 },
             },
             plugins: [

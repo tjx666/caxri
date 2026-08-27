@@ -2,7 +2,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import type { E2EApp as ElectronApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
@@ -84,13 +85,13 @@ async function countLogEvents(logPath: string, event: string): Promise<number> {
 test('Process Explorer render exceptions offer a working reload', async () => {
     allowE2EErrors([
         {
-            source: 'main',
+            source: 'desktop',
             event: 'process_explorer.console_error',
             code: 'CONSOLE_ERROR',
             count: 3,
         },
         {
-            source: 'main',
+            source: 'desktop',
             event: 'process_explorer.page_exception',
             code: 'PAGE_EXCEPTION',
             count: 1,
@@ -127,7 +128,7 @@ test('Process Explorer render exceptions offer a working reload', async () => {
         await expect
             .poll(() =>
                 countLogEvents(
-                    join(userData, 'logs', 'main.jsonl'),
+                    join(userData, 'logs', 'desktop.jsonl'),
                     'process_explorer.page_exception',
                 ),
             )
@@ -145,19 +146,19 @@ test('Process Explorer render exceptions offer a working reload', async () => {
 test('Process Explorer bounds renderer crash recovery and reopens cleanly', async () => {
     allowE2EErrors([
         {
-            source: 'main',
+            source: 'desktop',
             event: 'process_explorer.console_error',
             code: 'CONSOLE_ERROR',
             count: 6,
         },
         {
-            source: 'main',
+            source: 'desktop',
             event: 'process_explorer.render_process_gone',
             code: 'RENDER_PROCESS_GONE',
             count: 3,
         },
         {
-            source: 'main',
+            source: 'desktop',
             event: 'process_explorer.render_process_crash_loop',
             code: 'RENDER_PROCESS_CRASH_LOOP',
             count: 1,
@@ -171,7 +172,7 @@ test('Process Explorer bounds renderer crash recovery and reopens cleanly', asyn
     await execFileAsync('mkdir', ['-p', root]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
-    const mainLogPath = join(userData, 'logs', 'main.jsonl');
+    const mainLogPath = join(userData, 'logs', 'desktop.jsonl');
     try {
         await createShellSession(running.page);
         await openProcessExplorer(running);

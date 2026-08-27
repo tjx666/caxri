@@ -1,0 +1,153 @@
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
+
+import { deriveArchivedSessionView } from '../archived-sessions';
+
+function project(id: string, orderIndex: number): ProjectRecord {
+    return {
+        id,
+        rootPath: `/projects/${id}`,
+        displayTitle: id.toUpperCase(),
+        orderIndex,
+        createdAt: 1,
+        lastOpenedAt: 1,
+    };
+}
+
+function session(
+    id: string,
+    projectId: string,
+    archivedAt: number | undefined,
+    primaryAgentTerminalId?: string,
+): SessionRecord {
+    return {
+        id,
+        projectId,
+        workbenchProjectId: projectId,
+        rootPath: `/projects/${projectId}`,
+        createdAt: 1,
+        lastOpenedAt: 1,
+        archivedAt,
+        primaryAgentTerminalId,
+        lastActivityState: 'unknown',
+        attentionEpoch: 0,
+        readAttentionEpoch: 0,
+        hasUnread: false,
+        layoutVersion: 1,
+        displayTitle: id.replaceAll('-', ' '),
+        titleMode: 'manual',
+    };
+}
+
+function terminal(
+    id: string,
+    sessionId: string,
+    kind: TerminalRecord['kind'],
+    orderIndex = 0,
+): TerminalRecord {
+    return {
+        id,
+        sessionId,
+        kind,
+        cwd: `/projects/${sessionId}`,
+        title: kind,
+        icon: kind,
+        orderIndex,
+        lastProcessState: 'stopped',
+        createdAt: 1,
+        updatedAt: 1,
+    };
+}
+
+const projects = [project('beta', 1), project('alpha', 0)];
+const sessions = [
+    session('alpha-old', 'alpha', 10),
+    session('beta-review', 'beta', 20, 'beta-claude'),
+    session('alpha-review', 'alpha', 30, 'alpha-codex'),
+    session('alpha-active', 'alpha', undefined),
+];
+const terminals = [
+    terminal('alpha-shell', 'alpha-old', 'shell'),
+    terminal('beta-claude', 'beta-review', 'claude'),
+    terminal('alpha-shell-first', 'alpha-review', 'shell', 0),
+    terminal('alpha-codex', 'alpha-review', 'codex', 1),
+];
+
+describe('archived Session selector', () => {
+    it('groups by Project order and sorts each group by newest archive first', () => {
+        const view = deriveArchivedSessionView(projects, sessions, terminals, {
+            agent: 'all',
+            projectId: 'all',
+            query: '',
+        });
+
+        expect(view.totalCount).toBe(3);
+        expect(view.matchingCount).toBe(3);
+        expect(view.groups.map((group) => group.project.id)).toEqual(['alpha', 'beta']);
+        expect(view.groups[0]?.sessions.map((item) => item.session.id)).toEqual([
+            'alpha-review',
+            'alpha-old',
+        ]);
+        expect(view.groups[0]?.sessions[0]?.agent).toBe('codex');
+        expect(view.groups[1]?.sessions[0]?.agent).toBe('claude');
+    });
+
+    it('filters archived Sessions by title, Project, and Agent independently', () => {
+        expect(
+            deriveArchivedSessionView(projects, sessions, terminals, {
+                agent: 'all',
+                projectId: 'all',
+                query: 'BETA REVIEW',
+            }).groups[0]?.sessions.map((item) => item.session.id),
+        ).toEqual(['beta-review']);
+        expect(
+            deriveArchivedSessionView(projects, sessions, terminals, {
+                agent: 'all',
+                projectId: 'alpha',
+                query: '',
+            }).matchingCount,
+        ).toBe(2);
+        expect(
+            deriveArchivedSessionView(projects, sessions, terminals, {
+                agent: 'shell',
+                projectId: 'all',
+                query: '',
+            }).groups[0]?.sessions.map((item) => item.session.id),
+        ).toEqual(['alpha-old']);
+    });
+
+    it('keeps filter options stable after the selected Project archive becomes empty', () => {
+        const view = deriveArchivedSessionView(projects, sessions, terminals, {
+            agent: 'codex',
+            projectId: 'alpha',
+            query: 'review',
+        });
+
+        expect(view.projectOptions.map((item) => item.id)).toEqual(['alpha', 'beta']);
+        expect(view.agentOptions).toEqual(['shell', ...agentProviderIds]);
+
+        const afterRestore = deriveArchivedSessionView(
+            projects,
+            sessions.filter((item) => item.projectId !== 'alpha' || item.archivedAt === undefined),
+            terminals,
+            { agent: 'all', projectId: 'alpha', query: '' },
+        );
+        expect(afterRestore.totalCount).toBe(1);
+        expect(afterRestore.matchingCount).toBe(1);
+        expect(afterRestore.projectId).toBe('all');
+        expect(afterRestore.groups.map((group) => group.project.id)).toEqual(['beta']);
+        expect(afterRestore.projectOptions.map((item) => item.id)).toEqual(['beta']);
+    });
+
+    it('omits an Agent kind with zero archived Sessions instead of offering a dead-end filter', () => {
+        const withoutCodex = deriveArchivedSessionView(
+            projects,
+            sessions.filter((item) => item.id !== 'alpha-review'),
+            terminals,
+            { agent: 'all', projectId: 'all', query: '' },
+        );
+
+        expect(withoutCodex.agentOptions).toEqual(['shell', 'claude']);
+    });
+});

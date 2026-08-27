@@ -1,8 +1,14 @@
 import { z } from 'zod';
 
 import type { CaxriRequest } from '../registry/methods.js';
-import { methods } from '../registry/methods.js';
+import { commandRecoveryFor, methods } from '../registry/methods.js';
+import type {
+    DurableCommandReceiptStore,
+    StoredProtocolCommandReceipt,
+} from './command-receipts.js';
 import { CaxriError, toWireError } from './errors.js';
+import type { ProtocolFeature } from './identity.js';
+import { protocolConnectionIdentitySchema } from './identity.js';
 import type { CommandOwner, MethodSpec } from './method-spec.js';
 import type { CommandExecutionContext } from './principal.js';
 import { capabilitySchema, hasRequiredCapabilities, principalSchema } from './principal.js';
@@ -20,19 +26,38 @@ import {
     protocolWelcomeSchema,
 } from './version.js';
 
+export interface CommandInvocation {
+    /**
+     * Persists a successful result inside an adapter-owned structural transaction. Adapters must call this only after
+     * their effect and content-free changefeed records are ready to commit.
+     */
+    persistDurableResult?(result: unknown): void;
+    requestId: string;
+}
+
 export interface CommandAdapter {
     invoke(
         request: CaxriRequest,
         context: CommandExecutionContext,
-        invocation: { requestId: string },
+        invocation: CommandInvocation,
     ): unknown;
     isAvailable?(): boolean;
 }
 
 export interface CommandDispatcherOptions {
     desktop?: CommandAdapter;
-    host: CommandAdapter;
+    durableReceipts?: DurableCommandReceiptStore;
+    features?: readonly ProtocolFeature[];
+    server: CommandAdapter;
     maximumReceipts?: number;
+    observeDurableReceipt?(observation: DurableReceiptObservation): void;
+}
+
+export interface DurableReceiptObservation {
+    durationMs: number;
+    method: keyof typeof methods;
+    outcome: 'hit' | 'miss' | 'stored' | 'failed';
+    phase: 'lookup' | 'store';
 }
 
 export interface CommandDispatchAdmission {
@@ -58,9 +83,16 @@ interface Receipt {
 const contextSchema = z.object({
     principal: principalSchema,
     capabilities: z.array(capabilitySchema).max(64),
+    connection: protocolConnectionIdentitySchema.optional(),
 });
 
-function principalReceiptKey(context: CommandExecutionContext, requestId: string): string {
+function receiptKey(
+    context: CommandExecutionContext,
+    requestId: string,
+    isDurable: boolean,
+): string {
+    if (isDurable)
+        return `durable:${context.connection!.stateEpoch}:${context.connection!.clientId}:${requestId}`;
     const { principal } = context;
     const generation =
         principal.kind === 'agent' || principal.kind === 'desktop'
@@ -70,7 +102,7 @@ function principalReceiptKey(context: CommandExecutionContext, requestId: string
 }
 
 function adapterFor(owner: CommandOwner, options: CommandDispatcherOptions): CommandAdapter {
-    const adapter = owner === 'host' ? options.host : options.desktop;
+    const adapter = owner === 'server' ? options.server : options.desktop;
     if (!adapter || adapter.isAvailable?.() === false)
         throw new CaxriError(
             'UNAVAILABLE',
@@ -80,8 +112,24 @@ function adapterFor(owner: CommandOwner, options: CommandDispatcherOptions): Com
 }
 
 function isAdapterAvailable(owner: CommandOwner, options: CommandDispatcherOptions): boolean {
-    const adapter = owner === 'host' ? options.host : options.desktop;
+    const adapter = owner === 'server' ? options.server : options.desktop;
     return Boolean(adapter && adapter.isAvailable?.() !== false);
+}
+
+function successfulReply(
+    id: string,
+    request: CaxriRequest,
+    context: CommandExecutionContext,
+    result: unknown,
+): CommandReplyEnvelope {
+    const spec: MethodSpec = methods[request.method];
+    const projected = spec.projectResult ? spec.projectResult(result, context.principal) : result;
+    return reply(id, parseCaxriResult(request.method, projected));
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+    if (typeof value !== 'object' || value === null || !('then' in value)) return false;
+    return typeof value.then === 'function';
 }
 
 /**
@@ -101,11 +149,14 @@ export function createProtocolWelcome(
             hasRequiredCapabilities(context, spec.requiredCapabilities)
         );
     });
+    const supportedFeatures = new Set(options.features);
     return protocolWelcomeSchema.parse({
         protocolVersion: negotiateProtocolVersion(hello.supportedVersions),
         principal: context.principal,
         capabilities: context.capabilities,
         commands,
+        features: hello.features.filter((feature) => supportedFeatures.has(feature)),
+        ...(context.connection && { connection: context.connection }),
     });
 }
 
@@ -142,7 +193,7 @@ function errorReply(id: string | null, error: unknown): CommandReplyEnvelope {
 }
 
 /**
- * Executes the canonical command registry for Electron, in-memory tests, UDS, or future adapters. Authentication
+ * Executes the canonical command registry for Electron, in-memory tests, WebSocket, or future adapters. Authentication
  * remains transport-owned; this boundary validates the resulting principal and capabilities before routing to exactly
  * one application handler.
  */
@@ -151,6 +202,13 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
     if (!Number.isSafeInteger(maximumReceipts) || maximumReceipts < 1 || maximumReceipts > 4_096)
         throw new CaxriError('VALIDATION', 'Receipt capacity must be between 1 and 4096');
     const receipts = new Map<string, Receipt>();
+    const observeDurableReceipt = (observation: DurableReceiptObservation): void => {
+        try {
+            options.observeDurableReceipt?.(observation);
+        } catch {
+            // Observability is best-effort and must never change command admission or reply semantics.
+        }
+    };
 
     function admitReceipt(): void {
         if (receipts.size < maximumReceipts) return;
@@ -164,25 +222,27 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
         id: string,
         request: CaxriRequest,
         context: CommandExecutionContext,
+        persistDurableResult?: (result: unknown) => void,
     ): Promise<CommandReplyEnvelope> {
         const spec: MethodSpec = methods[request.method];
         if (!hasRequiredCapabilities(context, spec.requiredCapabilities))
             throw new CaxriError('FORBIDDEN', `Missing capability for ${request.method}`);
         const adapter = adapterFor(spec.owner, options);
-        const result = await adapter.invoke(request, context, { requestId: id });
-        const projected = spec.projectResult
-            ? spec.projectResult(result, context.principal)
-            : result;
-        return reply(id, parseCaxriResult(request.method, projected));
+        const result = await adapter.invoke(request, context, {
+            ...(persistDurableResult && { persistDurableResult }),
+            requestId: id,
+        });
+        return successfulReply(id, request, context, result);
     }
 
     async function executeSafely(
         id: string,
         request: CaxriRequest,
         context: CommandExecutionContext,
+        persistDurableResult?: (result: unknown) => void,
     ): Promise<CommandReplyEnvelope> {
         try {
-            return await execute(id, request, context);
+            return await execute(id, request, context, persistDurableResult);
         } catch (error) {
             return errorReply(id, error);
         }
@@ -203,7 +263,12 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
                 return { reply: executeSafely(envelope.id, request, context) };
             }
 
-            const key = principalReceiptKey(context, envelope.id);
+            const isDurable = Boolean(
+                commandRecoveryFor(request.method) === 'durable' &&
+                options.durableReceipts &&
+                context.connection,
+            );
+            const key = receiptKey(context, envelope.id, isDurable);
             const fingerprint = await requestFingerprint(request.method, request.params);
             const existing = receipts.get(key);
             if (existing) {
@@ -218,7 +283,135 @@ export function createCommandDispatcher(options: CommandDispatcherOptions): Comm
             admitReceipt();
             const settleReply = async (): Promise<CommandReplyEnvelope> => {
                 try {
-                    return await executeSafely(envelope.id, request, context);
+                    if (isDurable) {
+                        const connection = context.connection!;
+                        const lookupStartedAt = performance.now();
+                        let stored: StoredProtocolCommandReceipt | undefined;
+                        try {
+                            stored = await options.durableReceipts!.getReceipt(
+                                connection.stateEpoch,
+                                connection.clientId,
+                                envelope.id,
+                            );
+                            observeDurableReceipt({
+                                durationMs: performance.now() - lookupStartedAt,
+                                method: request.method,
+                                outcome: stored ? 'hit' : 'miss',
+                                phase: 'lookup',
+                            });
+                        } catch (error) {
+                            observeDurableReceipt({
+                                durationMs: performance.now() - lookupStartedAt,
+                                method: request.method,
+                                outcome: 'failed',
+                                phase: 'lookup',
+                            });
+                            throw error;
+                        }
+                        if (stored) {
+                            if (
+                                stored.method !== request.method ||
+                                stored.requestFingerprint !== fingerprint
+                            )
+                                throw new CaxriError(
+                                    'VALIDATION',
+                                    'A request ID cannot be reused for different command input',
+                                );
+                            const storedReply = commandReplyEnvelopeSchema.parse(stored.reply);
+                            if (storedReply.id !== envelope.id)
+                                throw new CaxriError(
+                                    'INTERNAL',
+                                    'Durable command receipt identity does not match',
+                                );
+                            return storedReply;
+                        }
+                    }
+                    const durablePersistence: {
+                        reply?: CommandReplyEnvelope;
+                        storedDuringExecution: boolean;
+                    } = { storedDuringExecution: false };
+                    const persistDurableResult = isDurable
+                        ? (result: unknown): void => {
+                              const connection = context.connection!;
+                              const commandReply = successfulReply(
+                                  envelope.id,
+                                  request,
+                                  context,
+                                  result,
+                              );
+                              const storeStartedAt = performance.now();
+                              try {
+                                  const stored = options.durableReceipts!.saveReceipt({
+                                      stateEpoch: connection.stateEpoch,
+                                      clientId: connection.clientId,
+                                      requestId: envelope.id,
+                                      requestFingerprint: fingerprint,
+                                      method: request.method,
+                                      reply: commandReply,
+                                      createdAt: Date.now(),
+                                  });
+                                  if (isPromiseLike(stored))
+                                      throw new CaxriError(
+                                          'INTERNAL',
+                                          'Atomic command receipts require synchronous persistence',
+                                      );
+                                  durablePersistence.storedDuringExecution = true;
+                                  durablePersistence.reply = commandReply;
+                                  observeDurableReceipt({
+                                      durationMs: performance.now() - storeStartedAt,
+                                      method: request.method,
+                                      outcome: 'stored',
+                                      phase: 'store',
+                                  });
+                              } catch (error) {
+                                  observeDurableReceipt({
+                                      durationMs: performance.now() - storeStartedAt,
+                                      method: request.method,
+                                      outcome: 'failed',
+                                      phase: 'store',
+                                  });
+                                  throw error;
+                              }
+                          }
+                        : undefined;
+                    const commandReply = await executeSafely(
+                        envelope.id,
+                        request,
+                        context,
+                        persistDurableResult,
+                    );
+                    if (isDurable && !durablePersistence.storedDuringExecution && commandReply.ok) {
+                        const connection = context.connection!;
+                        const storeStartedAt = performance.now();
+                        try {
+                            await options.durableReceipts!.saveReceipt({
+                                stateEpoch: connection.stateEpoch,
+                                clientId: connection.clientId,
+                                requestId: envelope.id,
+                                requestFingerprint: fingerprint,
+                                method: request.method,
+                                reply: commandReply,
+                                createdAt: Date.now(),
+                            });
+                            observeDurableReceipt({
+                                durationMs: performance.now() - storeStartedAt,
+                                method: request.method,
+                                outcome: 'stored',
+                                phase: 'store',
+                            });
+                        } catch (error) {
+                            observeDurableReceipt({
+                                durationMs: performance.now() - storeStartedAt,
+                                method: request.method,
+                                outcome: 'failed',
+                                phase: 'store',
+                            });
+                            throw error;
+                        }
+                    }
+                    return durablePersistence.reply ?? commandReply;
+                } catch (error) {
+                    return errorReply(envelope.id, error);
                 } finally {
                     const current = receipts.get(key);
                     if (current) current.settled = true;

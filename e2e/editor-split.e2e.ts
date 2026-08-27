@@ -2,9 +2,9 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { execFileAsync } from '@caxri/system';
 import type { Locator, Page } from '@playwright/test';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
@@ -69,8 +69,8 @@ async function openAndPinFile(page: Page, name: string): Promise<Locator> {
  * Splits an existing Work tab into an adjacent pane by exercising the same native HTML5 drag gesture as a user dragging
  * a tab onto one of `pane-view.tsx`'s four edge drop zones. Geometry itself (which edge a given point resolves to) is
  * covered by the `resolvePaneDropZone` unit tests in
- * `src/renderer/src/features/workbench/__tests__/pane-drop-zone.test.ts`; this only proves the DOM wiring — dragstart
- * on the tab, dragover/drop on the target pane's surface — actually reaches `splitPaneTab`/`movePaneTab`.
+ * `apps/desktop/src/renderer/src/features/workbench/__tests__/pane-drop-zone.test.ts`; this only proves the DOM wiring
+ * — dragstart on the tab, dragover/drop on the target pane's surface — actually reaches `splitPaneTab`/`movePaneTab`.
  */
 async function dragWorkTabToPaneZone(
     page: Page,

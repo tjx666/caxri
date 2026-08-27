@@ -2,18 +2,18 @@
 
 ## Repository layout
 
-| Path          | Purpose                                                                                    |
-| ------------- | ------------------------------------------------------------------------------------------ |
-| `src/`        | Electron Extension Host, Host, Main, Preload, Renderer, Runtime, and shared Desktop source |
-| `packages/`   | Browser-safe protocol, shared pure-utility, and standalone CLI workspaces                  |
-| `extensions/` | Bundled native ESM extensions and their packaging inputs                                   |
-| `e2e/`        | Playwright Electron workflows and shared desktop fixtures                                  |
-| `scripts/`    | Repository-wide CI, validation, benchmark, and runner tooling                              |
-| `.agents/`    | Canonical contributor skills; `.claude/skills` is a compatibility symlink                  |
-| `skills/`     | Product skill embedded in and distributed with the Caxri CLI                               |
-| `build/`      | Tracked packaging inputs, including icons and the CLI launcher                             |
-| `docs/`       | Durable product, module, operator, and architecture-debt documentation                     |
-| `licenses/`   | Vendored third-party license texts                                                         |
+| Path          | Purpose                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------- |
+| `apps/`       | Independently runnable Desktop, Server, and CLI workspaces                                      |
+| `packages/`   | Importable Client, protocol, Extension API, Agent skills, system primitives, and pure utilities |
+| `extensions/` | Bundled native ESM extensions and their packaging inputs                                        |
+| `e2e/`        | Playwright Electron workflows and shared desktop fixtures                                       |
+| `scripts/`    | Repository-wide CI, validation, benchmark, and runner tooling                                   |
+| `.agents/`    | Canonical contributor skills; `.claude/skills` is a compatibility symlink                       |
+| `skills/`     | Product skill embedded in and distributed with the Caxri CLI                                    |
+| `build/`      | Tracked packaging inputs, including icons and the CLI launcher                                  |
+| `docs/`       | Durable product, module, operator, and architecture-debt documentation                          |
+| `licenses/`   | Vendored third-party license texts                                                              |
 
 Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test-results/`, `.records/`,
 `competitors/`, and `node_modules/` are intentionally gitignored and are not source directories.
@@ -83,16 +83,18 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
   expose `127.0.0.1:9224` by default during internal testing (`CAXRI_DEV_CDP_PORT` overrides
   either). The `debug` skill owns the live-inspection workflow, including the mandatory
   proxy-variable workaround for `agent-browser connect` and the raw-CDP fallback.
-- Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Host, SQLite,
+- Unpackaged (dev) launches default to an isolated `caxri-dev` userData profile (own Server, SQLite,
   and logs) so they never contend with the installed production app; `CAXRI_USER_DATA_DIR`
-  overrides it (`src/main/runtime-profile.ts`).
+  overrides it (`apps/desktop/src/main/runtime-profile.ts`).
 - Stop every dev instance you started before reporting a request complete, and verify it actually
   died. One launch leaves five separate processes: the `electron-vite dev` launcher, the Electron
   window process (whose `ps` command is `Caxri Dev`, not an Electron binary path), and the detached
-  `<worktree>/out/main/host.js`, `extension-host.js`, and `runtime.js`. `pkill -f "Electron.app/Contents/MacOS/Electron"`
+  `<worktree>/apps/server/dist/server/bundles/server-core.js` and `extension-host.js`.
+  `pkill -f "Electron.app/Contents/MacOS/Electron"`
   silently misses the window process and the launcher can outlive the signal, so never trust
   `pkill`'s exit code: confirm with `ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`, and
-  kill the surviving PIDs directly. Match on the absolute `<worktree>/out/` path so a sibling
+  kill the surviving PIDs directly. Match on the absolute `<worktree>/apps/server/dist/server/`
+  path so a sibling
   worktree's session and the installed `/Applications/Caxri.app` are never hit.
 - Manage isolated worktrees by explicitly invoking `$switch-worktree`.
 - Format the repository: `bun run format`; verify formatting: `bun run format:check`
@@ -127,23 +129,25 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
 - Never change the `typescript` / `@typescript/native` dependency aliases or run
   `npm i typescript@latest`; the repository intentionally pins TS6 for typescript-eslint while
   compiling with TS7.
-- The `@shared` / `@` path aliases exist only in the Renderer TypeScript project
-  (`tsconfig.web.json`) and Vitest; Main, Preload, and Runtime code must use relative imports.
+- The `@` and `@desktop-shared` path aliases exist only in the Renderer TypeScript project
+  (`tsconfig.web.json`) and Vitest. Other application code uses relative imports internally and public
+  package exports across ownership boundaries.
 - Never import Node.js, Electron, or native APIs in Renderer code.
 - Never bypass the structured IPC request contract with arbitrary shell commands.
 - Do not edit `pnpm-lock.yaml` by hand. Do not add `packageManager` or
   `devEngines.packageManager`; `mise.toml` and the explicit GitHub Actions setup own tool versions.
 - Keep `packages/protocol` browser-safe and keep Electron, SQLite, PTY, watcher, and other Desktop
-  native dependencies out of `packages/cli`'s production dependency graph.
+  native dependencies out of `apps/cli`'s production dependency graph.
+- Keep `packages/system` free of product domain state and native dependencies. It owns reusable
+  process, filesystem, observability, build, and test-harness primitives for non-browser consumers.
 - Keep `packages/utils` browser-safe and free of runtime dependencies; it holds pure functions
   only. Domain types, protocol schemas, and React code never move there.
 - Keep `packages/protocol/src` grouped by its `agent`, `configuration`, `desktop`, `domain`,
-  `registry`, and `transport` boundaries. External consumers use the package root; compatibility
-  re-exports under `src/shared` may target the owning domain module directly.
-- Keep `packages/cli/src` grouped by its `commands`, `host`, and `skills` boundaries. The package
-  root remains the composition root (`application`, `environment`, `output`, `selectors`) and the
-  only public package entrypoint. Domain barrels stay thin; tests live in domain-local `__tests__/`
-  directories.
+  `registry`, and `transport` boundaries. External consumers use the package root.
+- Keep `apps/cli/src/commands` as the CLI's only domain directory. The package root remains the
+  composition root (`application`, `environment`, `output`, `selectors`) and the only public
+  package entrypoint. The command barrel stays thin; tests live in the nearest `__tests__/`
+  directory.
 
 ## Compatibility policy
 
@@ -178,12 +182,11 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
   dev app: drive the real application over CDP (the `debug` skill owns the workflow), capture a
   screenshot of the affected surface, and check it before reporting completion. Passing unit or
   e2e gates alone does not count for visual changes.
-- The dev Host and Runtime are long-lived background processes that survive window restarts. The
-  Desktop now replaces a Host whose `__CAXRI_BUILD_ID__` differs from its own on connect
-  (`src/main/host-staleness.ts`), but that only triggers when a window reconnects — a headless Host
-  can still serve stale code between launches. Before using a live instance to verify or disprove a
-  Main/Runtime change, confirm the `out/main/host.js` / `out/main/runtime.js` process start times
-  postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
+- The dev Server Core and Extension Host are long-lived background processes that survive window restarts. The Desktop
+  replaces a Server whose build fingerprint differs from its own on connect, but that only triggers when a window
+  reconnects — a headless Server can still serve stale code between launches. Before using a live instance to verify or
+  disprove a Server change, confirm the `apps/server/dist/server/bundles/server-core.js` and `extension-host.js` process
+  start times postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
 - Reproduce a reported bug before changing code: demonstrate the failure against the current build
   (a failing test, or the live app plus its on-disk state) so the fix targets the verified cause
   rather than the first plausible suspect.
@@ -228,7 +231,7 @@ Generated or local-only roots such as `out/`, `release.noindex/`, `logs/`, `test
 - Generic helpers come from `es-toolkit` first; never hand-roll a function it already ships. What
   it lacks goes to the shared layers instead of a feature-local copy: browser-safe dependency-free
   pure functions in `@caxri/utils` (`packages/utils`), cross-feature React hooks in
-  `src/renderer/src/hooks` (`@/hooks`). Feature directories hold feature-specific logic only.
+  `apps/desktop/src/renderer/src/hooks` (`@/hooks`). Feature directories hold feature-specific logic only.
 - Coding agents reproduce the dominant precedent they see in neighboring code, so exemplar hygiene
   is a maintenance duty: when a shared implementation replaces local copies, migrate every call
   site in the same change, and never leave two coexisting ways of doing the same thing — the old

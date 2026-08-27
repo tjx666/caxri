@@ -1,23 +1,30 @@
+import type { ChildProcess } from 'node:child_process';
 import { execFile } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
+import { PassThrough } from 'node:stream';
 import { promisify } from 'node:util';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     authenticatedGitEnvironment,
     checksWorktreePath,
+    checksWorktreeSetupCommands,
     createFetchedCheckout,
     sanitizedChildEnvironment,
     verifyRevisionProvenance,
 } from '../ci-checks-worktree';
 import {
+    ConcurrentValidationProcesses,
     concurrentValidationProvenance,
     isVerificationPassed,
     parseConcurrentValidationReceipt,
+    runE2ESetup,
+    scheduleConcurrentValidationDeadline,
 } from '../ci-concurrent-validation';
 import { platformCheckCommands } from '../ci-platform-checks';
 
@@ -44,6 +51,211 @@ const greenReceipt = {
 const execFileAsync = promisify(execFile);
 
 describe('concurrent CI validation', () => {
+    it('terminates a sibling process group after a non-zero child exit', async () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const failedChild = new EventEmitter() as ChildProcess;
+        Object.defineProperty(failedChild, 'pid', { value: 4241 });
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const siblingChild = new EventEmitter() as ChildProcess;
+        Object.defineProperty(siblingChild, 'pid', { value: 4242 });
+        const children = [failedChild, siblingChild];
+        const signals: Array<{ signal: NodeJS.Signals; target: ChildProcess }> = [];
+        const forceTimers: Array<() => void> = [];
+        const runner = new ConcurrentValidationProcesses({
+            clearForceTimer: () => {},
+            setForceTimer: (callback) => {
+                const timer = setTimeout(callback, 60_000);
+                forceTimers.push(() => {
+                    clearTimeout(timer);
+                    callback();
+                });
+                return timer;
+            },
+            signalProcessGroup: (target, signal) => signals.push({ signal, target }),
+            spawnProcess: () => children.shift() as ChildProcess,
+        });
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        try {
+            const failed = runner.run('failed-fixture', [], { stdio: 'ignore' });
+            const sibling = runner.run('sibling-fixture', [], { stdio: 'ignore' });
+            failedChild.emit('exit', 7, null);
+
+            await expect(failed).resolves.toBe(7);
+            expect(signals).toEqual([{ signal: 'SIGTERM', target: siblingChild }]);
+            expect(forceTimers).toHaveLength(1);
+            forceTimers[0]();
+            siblingChild.emit('exit', null, 'SIGTERM');
+
+            await expect(sibling).resolves.toBe(1);
+            await expect(runner.run('skipped', [], { stdio: 'ignore' })).resolves.toBe(1);
+            expect(signals).toEqual([
+                { signal: 'SIGTERM', target: siblingChild },
+                { signal: 'SIGKILL', target: siblingChild },
+            ]);
+            expect(error).toHaveBeenCalledWith(
+                'Concurrent validation aborted: failed-fixture failed with exit 7',
+            );
+        } finally {
+            error.mockRestore();
+            for (const timer of forceTimers) timer();
+        }
+    });
+
+    it('preserves sibling receipts after an isolated component fails', async () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const failedChild = new EventEmitter() as ChildProcess;
+        Object.defineProperty(failedChild, 'pid', { value: 4251 });
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const siblingChild = new EventEmitter() as ChildProcess;
+        Object.defineProperty(siblingChild, 'pid', { value: 4252 });
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const laterChild = new EventEmitter() as ChildProcess;
+        Object.defineProperty(laterChild, 'pid', { value: 4253 });
+        const children = [failedChild, siblingChild, laterChild];
+        const signals: NodeJS.Signals[] = [];
+        const runner = new ConcurrentValidationProcesses({
+            signalProcessGroup: (_target, signal) => signals.push(signal),
+            spawnProcess: () => children.shift() as ChildProcess,
+        });
+
+        const failed = runner.run(
+            'isolated-e2e',
+            [],
+            { stdio: 'ignore' },
+            { abortOnFailure: false },
+        );
+        const sibling = runner.run('full-checks', [], { stdio: 'ignore' });
+        failedChild.emit('exit', 7, null);
+
+        await expect(failed).resolves.toBe(7);
+        expect(signals).toEqual([]);
+
+        const later = runner.run('later-e2e', [], { stdio: 'ignore' });
+        laterChild.emit('exit', 0, null);
+        siblingChild.emit('exit', 0, null);
+
+        await expect(Promise.all([sibling, later])).resolves.toEqual([0, 0]);
+        expect(signals).toEqual([]);
+    });
+
+    it('aborts active validation when the shared deadline expires', () => {
+        vi.useFakeTimers();
+        const runner = new ConcurrentValidationProcesses();
+        const abort = vi.spyOn(runner, 'abort').mockImplementation(() => {});
+
+        try {
+            scheduleConcurrentValidationDeadline(runner, 25);
+            vi.advanceTimersByTime(24);
+            expect(abort).not.toHaveBeenCalled();
+            vi.advanceTimersByTime(1);
+            expect(abort).toHaveBeenCalledWith('concurrent validation exceeded 25 minutes');
+        } finally {
+            vi.clearAllTimers();
+            vi.useRealTimers();
+        }
+    });
+
+    it('cancels captured Git subprocesses through the same owned process group', async () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const child = new EventEmitter() as ChildProcess;
+        Object.defineProperties(child, {
+            pid: { value: 4243 },
+            stderr: { value: new PassThrough() },
+            stdout: { value: new PassThrough() },
+        });
+        const signals: NodeJS.Signals[] = [];
+        const runner = new ConcurrentValidationProcesses({
+            signalProcessGroup: (_target, signal) => signals.push(signal),
+            spawnProcess: () => child,
+        });
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        try {
+            const capture = runner.capture('git', ['fetch']);
+            runner.abort('checkout deadline');
+            child.emit('close', null, 'SIGTERM');
+
+            await expect(capture).rejects.toThrow('git failed with exit 1');
+            expect(signals).toEqual(['SIGTERM']);
+        } finally {
+            error.mockRestore();
+        }
+    });
+
+    it('allows an expected captured Git probe failure without aborting later commands', async () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const probe = new EventEmitter() as ChildProcess;
+        Object.defineProperties(probe, {
+            pid: { value: 4244 },
+            stderr: { value: new PassThrough() },
+            stdout: { value: new PassThrough() },
+        });
+        // eslint-disable-next-line unicorn/prefer-event-target -- ChildProcess exposes Node EventEmitter events.
+        const next = new EventEmitter() as ChildProcess;
+        Object.defineProperty(next, 'pid', { value: 4245 });
+        const children = [probe, next];
+        const runner = new ConcurrentValidationProcesses({
+            spawnProcess: () => children.shift() as ChildProcess,
+        });
+
+        const captured = runner.capture('git', ['cat-file', '-e', 'missing']);
+        probe.emit('close', 1, null);
+        await expect(captured).rejects.toThrow('git failed with exit 1');
+
+        const following = runner.run('git', ['fetch'], { stdio: 'ignore' });
+        next.emit('exit', 0, null);
+        await expect(following).resolves.toBe(0);
+    });
+
+    it('prepares lifecycle-free synthetic dependencies in executable order', () => {
+        expect(checksWorktreeSetupCommands()).toEqual([
+            {
+                arguments: [
+                    'install',
+                    '--frozen-lockfile',
+                    '--ignore-scripts',
+                    '--prefer-offline',
+                    '--no-runtime',
+                ],
+                command: 'pnpm',
+                label: 'synthetic merge pnpm registry, unpack, and link',
+            },
+            {
+                arguments: ['rebuild', 'electron'],
+                command: 'pnpm',
+                label: 'synthetic merge Electron download',
+            },
+            {
+                arguments: ['run', 'scripts/prepare-node-pty.ts'],
+                command: 'bun',
+                label: 'synthetic merge node-pty spawn helper',
+            },
+        ]);
+    });
+
+    it('builds the standalone Server artifact before probing it', async () => {
+        const labels: string[] = [];
+        const result = await runE2ESetup((label) => {
+            labels.push(label);
+            return Promise.resolve(0);
+        });
+
+        expect(result).toBe(0);
+        expect(labels).toEqual(['Electron Vite build', 'Electron native compatibility']);
+    });
+
+    it('does not probe a Server artifact when its build failed', async () => {
+        const labels: string[] = [];
+        const result = await runE2ESetup((label) => {
+            labels.push(label);
+            return Promise.resolve(7);
+        });
+
+        expect(result).toBe(7);
+        expect(labels).toEqual(['Electron Vite build']);
+    });
+
     it('retains every full platform gate in its original fail-fast order', () => {
         const checks = platformCheckCommands({
             CAXRI_VITEST_MAX_WORKERS: '2',
@@ -216,6 +428,7 @@ describe('concurrent CI validation', () => {
             await expect(
                 verifyRevisionProvenance(mergeRevision, baseRevision, headRevision, true, shallow),
             ).resolves.toBeUndefined();
+            const checkoutProcesses = new ConcurrentValidationProcesses();
             await createFetchedCheckout(
                 disposable,
                 {
@@ -228,6 +441,10 @@ describe('concurrent CI validation', () => {
                     remoteUrl: `file://${source}`,
                 },
                 { ...process.env, CAXRI_GITHUB_TOKEN: 'test-token' },
+                {
+                    execFile: (command, arguments_, options) =>
+                        checkoutProcesses.capture(command, arguments_, options),
+                },
             );
             const { stdout: disposableHead } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
                 cwd: disposable,

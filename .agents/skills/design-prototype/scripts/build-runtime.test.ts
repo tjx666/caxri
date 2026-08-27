@@ -15,11 +15,11 @@ describe('design-prototype runtime manifest', () => {
      */
     it('covers every Renderer ui primitive and shared hook', async () => {
         const entry = await readFile(path.join(skillDirectory, 'assets/entry.mjs'), 'utf8');
-        const uiDirectory = path.join(repoRoot, 'src/renderer/src/components/ui');
+        const uiDirectory = path.join(repoRoot, 'apps/desktop/src/renderer/src/components/ui');
         const uiModules = (await readdir(uiDirectory))
             .filter((file) => file.endsWith('.tsx'))
             .map((file) => `@/components/ui/${file.replace(/\.tsx$/, '')}`);
-        const hooksDirectory = path.join(repoRoot, 'src/renderer/src/hooks');
+        const hooksDirectory = path.join(repoRoot, 'apps/desktop/src/renderer/src/hooks');
         const hookModules = (await readdir(hooksDirectory))
             .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
             .map((file) => `@/hooks/${file.replace(/\.ts$/, '')}`);
@@ -35,7 +35,7 @@ describe('design-prototype runtime manifest', () => {
 
 describe('inlineThemeCss', () => {
     it('inlines the real Renderer stylesheets with no leftover @import', async () => {
-        const stylesDirectory = path.join(repoRoot, 'src/renderer/src/styles');
+        const stylesDirectory = path.join(repoRoot, 'apps/desktop/src/renderer/src/styles');
         const css = inlineThemeCss({
             themeCss: await readFile(path.join(stylesDirectory, 'theme.css'), 'utf8'),
             twAnimateCss: await readFile(

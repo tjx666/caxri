@@ -1,0 +1,123 @@
+import { join } from 'node:path';
+import process from 'node:process';
+
+import { serverCredentialTokenSchema, serverProcessIdentitySchema } from '@caxri/protocol';
+import {
+    installProcessErrorMonitor,
+    logEventCatalog,
+    observationProcessManifestDirectory,
+    ObservationProcessManifestPublisher,
+    startProcessObservationSampler,
+    StructuredLogger,
+} from '@caxri/system';
+import * as pty from 'node-pty';
+
+import { resolveE2ETerminalOutputFlushDelay } from './e2e-options';
+import type { TerminalHostMessage } from './protocol';
+import { TerminalHostRuntime } from './runtime';
+
+if (!process.connected || !process.send)
+    throw new Error(
+        'CAXRI_TERMINAL_HOST_IPC_REQUIRED: Terminal Host must be forked by Server Core',
+    );
+
+function requiredEnvironment(name: string): string {
+    const value = process.env[name];
+    if (!value) throw new Error(`${name} is required`);
+    return value;
+}
+
+const userDataPath = requiredEnvironment('CAXRI_USER_DATA_PATH');
+const appVersion = requiredEnvironment('CAXRI_APP_VERSION');
+const buildId = requiredEnvironment('CAXRI_BUILD_ID');
+const commit = requiredEnvironment('CAXRI_GIT_COMMIT');
+const credential = serverCredentialTokenSchema.parse(
+    requiredEnvironment('CAXRI_TERMINAL_HOST_CREDENTIAL'),
+);
+const bootId = serverProcessIdentitySchema.parse(requiredEnvironment('CAXRI_SERVER_BOOT_ID'));
+const logger = new StructuredLogger(join(userDataPath, 'logs'), 'terminal-host', 'info', {
+    bootId,
+    buildId,
+});
+const processManifest = new ObservationProcessManifestPublisher({
+    context: { bootId, buildId },
+    directory: observationProcessManifestDirectory(userDataPath),
+    owner: 'terminal-host',
+});
+processManifest.publish('starting');
+const processSampler = startProcessObservationSampler({
+    logger,
+    owner: 'terminal-host',
+    publisher: processManifest,
+});
+const processErrorMonitor = installProcessErrorMonitor({ processName: 'terminal-host' });
+processErrorMonitor.attach(logger);
+
+const lifecycle = { isStopping: false };
+const send = (message: TerminalHostMessage): void => {
+    if (process.connected) process.send?.(message);
+};
+const runtime = new TerminalHostRuntime({
+    appVersion,
+    bootId,
+    buildId,
+    commit,
+    credential,
+    logger,
+    outputFlushMs: resolveE2ETerminalOutputFlushDelay(process.env),
+    onProtocolViolation: () => {
+        logger.write('error', logEventCatalog.terminalHost.invalidMessage);
+        if (lifecycle.isStopping) return;
+        lifecycle.isStopping = true;
+        setImmediate(() => {
+            // eslint-disable-next-line unicorn/no-process-exit -- A malformed private IPC frame invalidates the child.
+            process.exit(1);
+        });
+    },
+    send,
+    spawn: pty.spawn,
+});
+
+async function stop(exitCode: number): Promise<void> {
+    if (lifecycle.isStopping) return;
+    lifecycle.isStopping = true;
+    processSampler.stop();
+    processManifest.publish('stopping');
+    try {
+        await runtime.stopAfterParentDisconnect();
+        logger.write('info', logEventCatalog.terminalHost.stopped, { fields: { exitCode } });
+        await logger.flush();
+        processManifest.publish('stopped');
+        /**
+         * `process.exit()` does not wait for pending filesystem work. Persist the terminal lifecycle state before
+         * exiting so offline diagnostics can distinguish an intentional shutdown from a crashed ready process.
+         */
+        await processManifest.flush();
+    } finally {
+        // eslint-disable-next-line unicorn/no-process-exit -- This is the owned Terminal Host process entrypoint.
+        process.exit(exitCode);
+    }
+}
+
+process.on('message', (message: unknown) => {
+    // eslint-disable-next-line no-void -- Runtime accepts and replies to each private request independently.
+    void runtime.accept(message);
+});
+process.once('disconnect', () => {
+    // eslint-disable-next-line no-void -- Parent loss intentionally tears down every owned PTY.
+    void stop(0);
+});
+process.once('SIGTERM', () => {
+    // eslint-disable-next-line no-void -- Signal fallback uses the same bounded owner shutdown.
+    void stop(0);
+});
+process.once('SIGINT', () => {
+    // eslint-disable-next-line no-void -- Signal fallback uses the same bounded owner shutdown.
+    void stop(0);
+});
+
+logger.write('info', logEventCatalog.terminalHost.ready, {
+    fields: { bootId, buildId, pid: process.pid },
+});
+processManifest.publish('ready');
+runtime.ready();

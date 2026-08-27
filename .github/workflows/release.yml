@@ -88,7 +88,6 @@ jobs:
           setup-toolchain: 'true'
           install-dependencies: 'true'
           install-electron: 'true'
-          rebuild-native: 'true'
 
       - name: Package unsigned Apple Silicon DMG
         env:

@@ -64,7 +64,9 @@ describe('Acceptance Electron stopper', () => {
             readRuntime: vi.fn().mockResolvedValue(
                 JSON.stringify({
                     ...runtime,
-                    ownedProcesses: [{ identity: 'dead host', pid: 333, role: 'host' }],
+                    ownedProcesses: [
+                        { identity: 'dead server core', pid: 333, role: 'server-core' },
+                    ],
                 }),
             ),
         });
@@ -100,7 +102,9 @@ describe('Acceptance Electron stopper', () => {
             readRuntime: vi.fn().mockResolvedValue(
                 JSON.stringify({
                     ...runtime,
-                    ownedProcesses: [{ identity: 'dead host', pid: 333, role: 'host' }],
+                    ownedProcesses: [
+                        { identity: 'dead server core', pid: 333, role: 'server-core' },
+                    ],
                 }),
             ),
         });
@@ -125,7 +129,9 @@ describe('Acceptance Electron stopper', () => {
             readRuntime: vi.fn().mockResolvedValue(
                 JSON.stringify({
                     ...runtime,
-                    ownedProcesses: [{ identity: 'dead host', pid: 333, role: 'host' }],
+                    ownedProcesses: [
+                        { identity: 'dead server core', pid: 333, role: 'server-core' },
+                    ],
                 }),
             ),
         });
@@ -134,11 +140,11 @@ describe('Acceptance Electron stopper', () => {
         expect(live.kill).toHaveBeenCalledWith(222, 'SIGTERM');
     });
 
-    it('recovers detached owned Host and Runtime processes after the window exits', async () => {
+    it('recovers detached Server Core and Extension Host processes after the window exits', async () => {
         const liveProcessIds = new Set([333, 444]);
         const detachedProcesses = [
-            { identity: 'host identity', pid: 333, role: 'host' },
-            { identity: 'runtime identity', pid: 444, role: 'runtime' },
+            { identity: 'server core identity', pid: 333, role: 'server-core' },
+            { identity: 'extension host identity', pid: 444, role: 'extension-host' },
         ] as const;
         const kill = vi.fn((pid: number) => {
             liveProcessIds.delete(pid);
@@ -162,23 +168,29 @@ describe('Acceptance Electron stopper', () => {
         expect(kill).toHaveBeenCalledWith(444, 'SIGTERM');
     });
 
-    it('recovers a recorded Runtime after its Host and profile lock are gone', async () => {
-        const orphanRuntime = { identity: 'orphan runtime identity', pid: 444, role: 'runtime' };
-        let isRuntimeAlive = true;
+    it('recovers a recorded Extension Host after Server Core and the profile lock are gone', async () => {
+        const orphanExtensionHost = {
+            identity: 'orphan extension host identity',
+            pid: 444,
+            role: 'extension-host',
+        };
+        let isExtensionHostAlive = true;
         const kill = vi.fn((pid: number) => {
-            if (pid === orphanRuntime.pid) isRuntimeAlive = false;
+            if (pid === orphanExtensionHost.pid) isExtensionHostAlive = false;
         });
         const orphan = dependencies({
             discoverOwnedProcesses: vi.fn().mockResolvedValue([]),
             isOwnedLauncher: vi.fn().mockResolvedValue(false),
             isOwnedProcess: vi.fn(({ pid }: { pid: number }) =>
-                Promise.resolve(pid === orphanRuntime.pid && isRuntimeAlive),
+                Promise.resolve(pid === orphanExtensionHost.pid && isExtensionHostAlive),
             ),
             isOwnedRuntime: vi.fn().mockResolvedValue(false),
             kill,
             readRuntime: vi
                 .fn()
-                .mockResolvedValue(JSON.stringify({ ...runtime, ownedProcesses: [orphanRuntime] })),
+                .mockResolvedValue(
+                    JSON.stringify({ ...runtime, ownedProcesses: [orphanExtensionHost] }),
+                ),
         });
 
         await stopElectron(orphan);
@@ -188,15 +200,15 @@ describe('Acceptance Electron stopper', () => {
         expect(orphan.removeOwnedUserData).toHaveBeenCalledOnce();
     });
 
-    it('fails closed when a replacement Host owns the recorded profile', async () => {
-        const recordedHost = {
-            identity: 'recorded host identity',
+    it('fails closed when a replacement Server Core owns the recorded profile', async () => {
+        const recordedServerCore = {
+            identity: 'recorded server core identity',
             pid: 333,
-            role: 'host',
+            role: 'server-core',
         } as const;
         const replacementProcesses = [
-            { identity: 'replacement host identity', pid: 555, role: 'host' },
-            { identity: 'replacement runtime identity', pid: 666, role: 'runtime' },
+            { identity: 'replacement server core identity', pid: 555, role: 'server-core' },
+            { identity: 'replacement extension host identity', pid: 666, role: 'extension-host' },
         ] as const;
         const timestamps = [0, 0, 10_000];
         const replacement = dependencies({
@@ -207,7 +219,9 @@ describe('Acceptance Electron stopper', () => {
             now: () => timestamps.shift() ?? 10_000,
             readRuntime: vi
                 .fn()
-                .mockResolvedValue(JSON.stringify({ ...runtime, ownedProcesses: [recordedHost] })),
+                .mockResolvedValue(
+                    JSON.stringify({ ...runtime, ownedProcesses: [recordedServerCore] }),
+                ),
         });
 
         await expect(stopElectron(replacement)).rejects.toThrow(
@@ -218,14 +232,14 @@ describe('Acceptance Electron stopper', () => {
         expect(replacement.removeOwnedUserData).not.toHaveBeenCalled();
     });
 
-    it('persists a newly discovered Runtime identity before signaling it', async () => {
+    it('persists a newly discovered Extension Host identity before signaling it', async () => {
         const recordedProcesses = [
-            { identity: 'host identity', pid: 333, role: 'host' },
-            { identity: 'old runtime identity', pid: 444, role: 'runtime' },
+            { identity: 'server core identity', pid: 333, role: 'server-core' },
+            { identity: 'old extension host identity', pid: 444, role: 'extension-host' },
         ] as const;
         const discoveredProcesses = [
             recordedProcesses[0],
-            { identity: 'new runtime identity', pid: 555, role: 'runtime' },
+            { identity: 'new extension host identity', pid: 555, role: 'extension-host' },
         ] as const;
         const liveProcessIds = new Set([333, 555]);
         const replacement = dependencies({
@@ -259,7 +273,9 @@ describe('Acceptance Electron stopper', () => {
             readRuntime: vi.fn().mockResolvedValue(
                 JSON.stringify({
                     ...runtime,
-                    ownedProcesses: [{ identity: 'live host', pid: 333, role: 'host' }],
+                    ownedProcesses: [
+                        { identity: 'live server core', pid: 333, role: 'server-core' },
+                    ],
                 }),
             ),
         });

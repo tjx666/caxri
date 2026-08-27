@@ -27,8 +27,8 @@ describe('Acceptance runtime ownership', () => {
                 launcherIdentity: 'started-at command',
                 launcherPid: 123,
                 ownedProcesses: [
-                    { identity: 'host identity', pid: 333, role: 'host' },
-                    { identity: 'runtime identity', pid: 444, role: 'runtime' },
+                    { identity: 'server core identity', pid: 333, role: 'server-core' },
+                    { identity: 'extension host identity', pid: 444, role: 'extension-host' },
                 ],
                 ownedUserData: true,
                 port: 9222,
@@ -72,19 +72,26 @@ describe('Acceptance runtime ownership', () => {
         ).resolves.toBe(true);
     });
 
-    it('discovers only the exact worktree Host and its direct Runtime child from the profile lock', async () => {
+    it('discovers only the exact worktree Server Core and its Extension Host child', async () => {
         const getProcessIdentity = vi.fn((pid: number) => Promise.resolve(`identity-${pid}`));
         const dependencies = {
             canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
             getProcessCommand: vi
                 .fn()
-                .mockResolvedValue('/Applications/Electron /repo/out/main/host.js'),
+                .mockResolvedValue(
+                    '/repo/apps/server/dist/server/runtime/bin/node /repo/apps/server/dist/server/bundles/server-core.js',
+                ),
             getProcessIdentity,
             inspectPathOwner: vi.fn().mockResolvedValue(333),
             listChildProcesses: vi.fn().mockResolvedValue([
-                { command: '/Applications/Electron /repo/out/main/runtime.js', pid: 444 },
                 {
-                    command: '/Applications/Electron /repo-sibling/out/main/runtime.js',
+                    command:
+                        '/repo/apps/server/dist/server/runtime/bin/node /repo/apps/server/dist/server/bundles/extension-host.js',
+                    pid: 444,
+                },
+                {
+                    command:
+                        '/repo-sibling/apps/server/dist/server/runtime/bin/node /repo-sibling/apps/server/dist/server/bundles/extension-host.js',
                     pid: 555,
                 },
             ]),
@@ -97,8 +104,8 @@ describe('Acceptance runtime ownership', () => {
                 dependencies,
             ),
         ).resolves.toEqual([
-            { identity: 'identity-333', pid: 333, role: 'host' },
-            { identity: 'identity-444', pid: 444, role: 'runtime' },
+            { identity: 'identity-333', pid: 333, role: 'server-core' },
+            { identity: 'identity-444', pid: 444, role: 'extension-host' },
         ]);
         expect(getProcessIdentity).not.toHaveBeenCalledWith(555);
 
@@ -111,7 +118,7 @@ describe('Acceptance runtime ownership', () => {
         ).rejects.toThrow('different worktree');
     });
 
-    it('fails closed when the profile lock owner does not run the recorded worktree Host', async () => {
+    it('fails closed when the profile lock owner does not run the recorded worktree Server Core', async () => {
         await expect(
             discoverOwnedProcesses(
                 { projectRoot: '/repo', userDataDir: '/tmp/acceptance-profile' },
@@ -120,7 +127,9 @@ describe('Acceptance runtime ownership', () => {
                     canonicalPath: vi.fn((path: string) => Promise.resolve(path)),
                     getProcessCommand: vi
                         .fn()
-                        .mockResolvedValue('/Applications/Electron /repo-sibling/out/main/host.js'),
+                        .mockResolvedValue(
+                            '/repo-sibling/apps/server/dist/server/runtime/bin/node /repo-sibling/apps/server/dist/server/bundles/server-core.js',
+                        ),
                     getProcessIdentity: vi.fn().mockResolvedValue('identity-333'),
                     inspectPathOwner: vi.fn().mockResolvedValue(333),
                     listChildProcesses: vi.fn().mockResolvedValue([]),

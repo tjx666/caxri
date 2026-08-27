@@ -14,13 +14,13 @@ import {
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 
+import type { AgentProvider } from '@caxri/protocol';
+
 import {
     assertDesktopLeasesReleased,
     reclaimDesktopLeasesByOwner,
     reclaimStaleCiDesktopLeases,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
-import type { AgentProvider } from '../src/shared/agents';
-import { agentProviderIds } from '../src/shared/agents';
 import { execFileAsync } from './exec';
 
 const ownerPattern = /^caxri-\d+-\d+-[a-z0-9-]+$/u;
@@ -39,10 +39,17 @@ interface RunnerAgentEnvironmentPolicy {
     environmentKeys: readonly string[];
 }
 
-const RUNNER_AGENT_ENVIRONMENT_POLICIES: Record<AgentProvider, RunnerAgentEnvironmentPolicy> = {
+const RUNNER_AGENT_ENVIRONMENT_POLICIES = {
     claude: { directoryName: 'claude', environmentKeys: ['CLAUDE_CONFIG_DIR'] },
     codex: { directoryName: 'codex', environmentKeys: ['CODEX_HOME'] },
-};
+} satisfies Record<AgentProvider, RunnerAgentEnvironmentPolicy>;
+
+/**
+ * The retry-policy job executes this file before workspace dependencies exist. Derive the runtime provider list from
+ * the exhaustive type-checked policy instead of importing the Protocol package at runtime; adding an AgentProvider
+ * therefore still fails typecheck until its isolation policy exists.
+ */
+const runnerAgentProviderIds = Object.keys(RUNNER_AGENT_ENVIRONMENT_POLICIES) as AgentProvider[];
 
 interface ProcessRecord {
     command: string;
@@ -285,7 +292,7 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
         });
         const temporaryDirectory = join(runRoot, 'tmp');
         const providerDirectories = Object.fromEntries(
-            agentProviderIds.map((provider) => [
+            runnerAgentProviderIds.map((provider) => [
                 provider,
                 join(
                     runRoot,
@@ -296,7 +303,7 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
         ) as Record<AgentProvider, string>;
         await Promise.all([
             mkdir(temporaryDirectory, { recursive: true, mode: 0o700 }),
-            ...agentProviderIds.map((provider) =>
+            ...runnerAgentProviderIds.map((provider) =>
                 mkdir(providerDirectories[provider], { recursive: true, mode: 0o700 }),
             ),
         ]);
@@ -309,7 +316,7 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
             githubEnvironment,
             [
                 `CAXRI_RUNNER_ROOT=${runRoot}`,
-                ...agentProviderIds.flatMap((provider) =>
+                ...runnerAgentProviderIds.flatMap((provider) =>
                     RUNNER_AGENT_ENVIRONMENT_POLICIES[provider].environmentKeys.map(
                         (key) => `${key}=${providerDirectories[provider]}`,
                     ),

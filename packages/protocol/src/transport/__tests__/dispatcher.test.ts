@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import type { CommandAdapter } from '../dispatcher';
+import type { DurableCommandReceiptStore, StoredProtocolCommandReceipt } from '../command-receipts';
+import type { CommandAdapter, CommandInvocation, DurableReceiptObservation } from '../dispatcher';
 import {
     createCommandDispatcher,
     createProtocolWelcome,
@@ -11,6 +12,17 @@ import { CaxriError } from '../errors';
 const desktop = {
     capabilities: ['desktop'],
     principal: { kind: 'desktop', id: 'desktop-1', generation: 1 },
+} as const;
+
+const durableDesktop = {
+    ...desktop,
+    connection: {
+        serverId: 'a'.repeat(32),
+        bootId: 'b'.repeat(32),
+        stateEpoch: 'c'.repeat(32),
+        clientId: 'desktop:workbench-1',
+        connectionId: 'd'.repeat(32),
+    },
 } as const;
 
 function request(id: string, method: string, parameters: unknown = {}) {
@@ -32,9 +44,11 @@ describe('requestIdFromEnvelope', () => {
 
 describe('createCommandDispatcher receipt capacity', () => {
     it('rejects a maximumReceipts value outside the 1..4096 bound', () => {
-        const host: CommandAdapter = { invoke: () => null };
-        expect(() => createCommandDispatcher({ host, maximumReceipts: 0 })).toThrow(CaxriError);
-        expect(() => createCommandDispatcher({ host, maximumReceipts: 4_097 })).toThrow(CaxriError);
+        const server: CommandAdapter = { invoke: () => null };
+        expect(() => createCommandDispatcher({ server, maximumReceipts: 0 })).toThrow(CaxriError);
+        expect(() => createCommandDispatcher({ server, maximumReceipts: 4_097 })).toThrow(
+            CaxriError,
+        );
     });
 
     it('evicts the oldest settled receipt once at capacity instead of rejecting new idempotent commands', async () => {
@@ -57,14 +71,14 @@ describe('createCommandDispatcher receipt capacity', () => {
                 workbenchProjectId: 'project-1',
             };
         }
-        const host: CommandAdapter = {
+        const server: CommandAdapter = {
             invoke: (command) => {
                 if (command.method === 'session.rename')
                     return record((command.params as { displayTitle: string }).displayTitle);
                 return null;
             },
         };
-        const dispatch = createCommandDispatcher({ host, maximumReceipts: 1 });
+        const dispatch = createCommandDispatcher({ server, maximumReceipts: 1 });
 
         await dispatch(
             request('rename-1', 'session.rename', { sessionId: 's1', displayTitle: 'First' }),
@@ -80,12 +94,115 @@ describe('createCommandDispatcher receipt capacity', () => {
     });
 });
 
+describe('createCommandDispatcher durable receipts', () => {
+    function session(displayTitle: string) {
+        return {
+            id: 'session-1',
+            projectId: 'project-1',
+            rootPath: '/private/project-one',
+            displayTitle,
+            titleMode: 'manual' as const,
+            createdAt: 1,
+            lastOpenedAt: 1,
+            archivedAt: undefined,
+            primaryAgentTerminalId: undefined,
+            lastActivityState: 'unknown' as const,
+            attentionEpoch: 0,
+            readAttentionEpoch: 0,
+            hasUnread: false,
+            layoutVersion: 1,
+            workbenchProjectId: 'project-1',
+        };
+    }
+
+    it('lets an adapter store an atomic receipt and replays it after replacement', async () => {
+        const observeDurableReceipt = vi.fn<(observation: DurableReceiptObservation) => void>();
+        const stored = new Map<string, StoredProtocolCommandReceipt>();
+        const durableReceipts: DurableCommandReceiptStore = {
+            getReceipt: (_stateEpoch, _clientId, requestId) => stored.get(requestId),
+            saveReceipt: (input) => {
+                stored.set(input.requestId, input);
+                return input;
+            },
+        };
+        const firstInvoke = vi.fn(
+            (
+                command: { method: string; params: unknown },
+                _context: unknown,
+                invocation: CommandInvocation,
+            ) => {
+                const result =
+                    command.method === 'session.rename'
+                        ? session((command.params as { displayTitle: string }).displayTitle)
+                        : null;
+                invocation.persistDurableResult?.(result);
+                return result;
+            },
+        );
+        const command = request('durable-1', 'session.rename', {
+            sessionId: 'session-1',
+            displayTitle: 'Persisted',
+        });
+        const first = createCommandDispatcher({
+            durableReceipts,
+            observeDurableReceipt,
+            server: { invoke: firstInvoke },
+        });
+
+        await expect(first(command, durableDesktop)).resolves.toMatchObject({ ok: true });
+        expect(firstInvoke).toHaveBeenCalledOnce();
+
+        const replacementInvoke = vi.fn(() => session('Unexpected duplicate'));
+        const replacement = createCommandDispatcher({
+            durableReceipts,
+            observeDurableReceipt,
+            server: { invoke: replacementInvoke },
+        });
+        await expect(replacement(command, durableDesktop)).resolves.toMatchObject({
+            ok: true,
+            result: { displayTitle: 'Persisted' },
+        });
+        expect(replacementInvoke).not.toHaveBeenCalled();
+        expect(
+            observeDurableReceipt.mock.calls.map(([observation]) => observation.outcome),
+        ).toEqual(['miss', 'stored', 'hit']);
+        await expect(
+            replacement(
+                request('durable-1', 'session.rename', {
+                    sessionId: 'session-1',
+                    displayTitle: 'Different input',
+                }),
+                durableDesktop,
+            ),
+        ).resolves.toMatchObject({ ok: false, error: { code: 'VALIDATION' } });
+        expect(replacementInvoke).not.toHaveBeenCalled();
+    });
+
+    it('keeps privacy-reviewed memory commands out of the durable store', async () => {
+        const getReceipt = vi.fn();
+        const saveReceipt = vi.fn();
+        const durableReceipts: DurableCommandReceiptStore = {
+            getReceipt,
+            saveReceipt,
+        };
+        const invoke = vi.fn(() => ({ stopping: true, activePtyCount: 0 }));
+        const dispatch = createCommandDispatcher({ durableReceipts, server: { invoke } });
+
+        await expect(
+            dispatch(request('stop-1', 'host.stop', { confirmLivePtys: true }), durableDesktop),
+        ).resolves.toMatchObject({ ok: true });
+        expect(invoke).toHaveBeenCalledOnce();
+        expect(getReceipt).not.toHaveBeenCalled();
+        expect(saveReceipt).not.toHaveBeenCalled();
+    });
+});
+
 describe('createCommandDispatcher admission', () => {
     it('returns after adapter admission while the authoritative reply is pending', async () => {
         const completion = Promise.withResolvers<unknown>();
         let isInvoked = false;
         const dispatch = createCommandDispatcher({
-            host: {
+            server: {
                 invoke: () => {
                     isInvoked = true;
                     return completion.promise;
@@ -115,11 +232,11 @@ describe('createCommandDispatcher admission', () => {
 
 describe('createCommandDispatcher adapter availability', () => {
     it('reports UNAVAILABLE when the owning adapter is present but reports itself unavailable', async () => {
-        const host: CommandAdapter = {
+        const server: CommandAdapter = {
             invoke: () => ({ ready: true, pid: 1, startedAt: 1, activePtyCount: 0 }),
             isAvailable: () => false,
         };
-        const dispatch = createCommandDispatcher({ host });
+        const dispatch = createCommandDispatcher({ server });
         await expect(dispatch(request('r1', 'app.health'), desktop)).resolves.toMatchObject({
             ok: false,
             error: { code: 'UNAVAILABLE', message: 'Host is unavailable' },
@@ -127,8 +244,33 @@ describe('createCommandDispatcher adapter availability', () => {
     });
 
     it('excludes commands owned by an unavailable adapter from the negotiated welcome', () => {
-        const host: CommandAdapter = { invoke: () => null, isAvailable: () => false };
-        const welcome = createProtocolWelcome({ host }, { supportedVersions: [2] }, desktop);
+        const server: CommandAdapter = { invoke: () => null, isAvailable: () => false };
+        const welcome = createProtocolWelcome({ server }, { supportedVersions: [2] }, desktop);
         expect(welcome.commands).not.toContain('app.health');
+    });
+
+    it('negotiates only durable recovery features supported by both peers', () => {
+        const server: CommandAdapter = { invoke: () => null };
+        const context = {
+            ...desktop,
+            connection: {
+                serverId: 'a'.repeat(32),
+                bootId: 'b'.repeat(32),
+                stateEpoch: 'c'.repeat(32),
+                clientId: 'desktop:workbench-1',
+                connectionId: 'd'.repeat(32),
+            },
+        };
+        const welcome = createProtocolWelcome(
+            { server, features: ['durable-command-receipts-v1'] },
+            {
+                supportedVersions: [2],
+                features: ['durable-command-receipts-v1', 'durable-changefeed-v1'],
+            },
+            context,
+        );
+
+        expect(welcome.features).toEqual(['durable-command-receipts-v1']);
+        expect(welcome.connection).toEqual(context.connection);
     });
 });

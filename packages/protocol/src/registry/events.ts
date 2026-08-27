@@ -81,7 +81,7 @@ const stateChangedPayloadSchema = z.preprocess(
 /**
  * Every payload the Runtime may push to Main and the Renderer, keyed by its wire event name.
  */
-export const runtimeEventPayloads = {
+export const serverEventPayloads = {
     'viewContainers.catalogChanged': z.object({
         revision: z.number().int().nonnegative(),
         extensionId: extensionIdSchema.optional(),
@@ -198,8 +198,8 @@ export const runtimeEventPayloads = {
      * Main-originated resync signal after the Desktop↔Host connection dropped and re-attached (observed in production
      * on macOS sleep/wake). Transient events sent during the outage — PTY output above all — were never delivered and
      * are not replayable, so the Renderer must re-attach mounted Terminal panes to Runtime's authoritative screen
-     * snapshot and refresh converged state. The fields mirror the `host.reconnected` structured log line so a stuck
-     * report can be correlated across the Renderer and Main.
+     * snapshot and refresh converged state. The fields mirror the `server_connection.reconnected` structured log line
+     * so a stuck report can be correlated across the Renderer and Main.
      */
     'host.connectionChanged': z.discriminatedUnion('status', [
         z.object({
@@ -233,44 +233,44 @@ export const runtimeEventPayloads = {
     }),
 } as const;
 
-type CaxriEventName = keyof typeof runtimeEventPayloads;
+type ServerEventName = keyof typeof serverEventPayloads;
 
-type RuntimeEventPayload<E extends CaxriEventName> = z.infer<(typeof runtimeEventPayloads)[E]>;
+type ServerEventPayload<E extends ServerEventName> = z.infer<(typeof serverEventPayloads)[E]>;
 
 /**
  * Discriminated union so `onEvent` listeners narrow `payload` from `event` alone.
  */
-export type RuntimeEvent = {
-    [E in CaxriEventName]: { event: E; payload: RuntimeEventPayload<E> };
-}[CaxriEventName];
+export type ServerEvent = {
+    [E in ServerEventName]: { event: E; payload: ServerEventPayload<E> };
+}[ServerEventName];
 
 /**
- * Per-event `{ event, payload }` schema, keyed the same way as `runtimeEventPayloads`.
+ * Per-event `{ event, payload }` schema, keyed the same way as `serverEventPayloads`.
  */
-type RuntimeEventSchemaMap = {
-    [E in CaxriEventName]: z.ZodObject<{
+type ServerEventSchemaMap = {
+    [E in ServerEventName]: z.ZodObject<{
         event: z.ZodLiteral<E>;
-        payload: (typeof runtimeEventPayloads)[E];
+        payload: (typeof serverEventPayloads)[E];
     }>;
 };
 
 /**
- * `runtimeEventSchema` is derived from `runtimeEventPayloads` instead of listing the event names a second time, so a
- * new entry only needs to be added once (to `runtimeEventPayloads`) to be both a valid payload and a validated member
- * of the discriminated union. `Object.keys`/`.map` can't distribute a generic per array element, so the per-event
- * schema map is built once and cast to `RuntimeEventSchemaMap` (itself derived from `CaxriEventName`, not a hand-listed
- * union) to restore the precise per-event literal types that `z.discriminatedUnion` needs for narrowing.
+ * `serverEventSchema` is derived from `serverEventPayloads` instead of listing the event names a second time, so a new
+ * entry only needs to be added once (to `serverEventPayloads`) to be both a valid payload and a validated member of the
+ * discriminated union. `Object.keys`/`.map` can't distribute a generic per array element, so the per-event schema map
+ * is built once and cast to `ServerEventSchemaMap` (itself derived from `ServerEventName`, not a hand-listed union) to
+ * restore the precise per-event literal types that `z.discriminatedUnion` needs for narrowing.
  */
-const runtimeEventSchemas = Object.fromEntries(
-    (Object.keys(runtimeEventPayloads) as CaxriEventName[]).map((event) => [
+const serverEventSchemas = Object.fromEntries(
+    (Object.keys(serverEventPayloads) as ServerEventName[]).map((event) => [
         event,
-        z.object({ event: z.literal(event), payload: runtimeEventPayloads[event] }),
+        z.object({ event: z.literal(event), payload: serverEventPayloads[event] }),
     ]),
-) as RuntimeEventSchemaMap;
+) as ServerEventSchemaMap;
 
-const runtimeEventSchemaList = Object.values(runtimeEventSchemas) as [
-    RuntimeEventSchemaMap[CaxriEventName],
-    ...Array<RuntimeEventSchemaMap[CaxriEventName]>,
+const serverEventSchemaList = Object.values(serverEventSchemas) as [
+    ServerEventSchemaMap[ServerEventName],
+    ...Array<ServerEventSchemaMap[ServerEventName]>,
 ];
 
-export const runtimeEventSchema = z.discriminatedUnion('event', runtimeEventSchemaList);
+export const serverEventSchema = z.discriminatedUnion('event', serverEventSchemaList);

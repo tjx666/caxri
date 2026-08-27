@@ -6,7 +6,7 @@ import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 async function loggedWindowMode(userDataDirectory: string): Promise<string | undefined> {
-    const records = (await readFile(join(userDataDirectory, 'logs', 'main.jsonl'), 'utf8'))
+    const records = (await readFile(join(userDataDirectory, 'logs', 'desktop.jsonl'), 'utf8'))
         .split('\n')
         .filter(Boolean)
         .map(

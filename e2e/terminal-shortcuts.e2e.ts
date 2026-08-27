@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { execFileAsync } from '../src/shared/node/exec.ts';
+import { execFileAsync } from '@caxri/system';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -138,10 +139,10 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
         await expect(openedTab).toHaveAttribute('data-terminal-id', /.+/);
         /**
          * A new Terminal's pane attaches its PTY asynchronously (`use-terminal-pane-runtime.ts`). Pressing `Meta+W`
-         * before that round-trip resolves queues `terminal.close` behind it on the Host's ordered command queue
-         * (`src/host/local-server.ts`) and the tab is still open when the assertion below runs — a race no human could
-         * hit by hand, but one Playwright's instant keypress does under CI's contended pool. Mirrors the same wait in
-         * `session-title.e2e.ts`.
+         * before that round-trip resolves queues `terminal.close` behind it on the Server's ordered command queue
+         * (`apps/server/src/core/control-server.ts`) and the tab is still open when the assertion below runs — a race
+         * no human could hit by hand, but one Playwright's instant keypress does under CI's contended pool. Mirrors the
+         * same wait in `session-title.e2e.ts`.
          */
         const openedTerminalId = await openedTab.getAttribute('data-terminal-id');
         await expect(
@@ -184,7 +185,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
  * captured while both tabs existed is replayed after the close, which is byte-for-byte the write the losing race
  * sends.
  *
- * Only a real Electron run proves the transport and persistence half: the write crosses Host and Runtime, and no unit
+ * Only a real Electron run proves the transport and persistence half: the write crosses Desktop and Server, and no unit
  * test can show that the Runtime prunes a stale placement before storing it. The Renderer's own two defences —
  * declining to re-place a Terminal closed mid-creation, and adopting the Runtime's pruned canonical state — are covered
  * narrowly in `terminal-actions.test.ts` and `workbench-session-state.test.ts`, because the replay below bypasses the

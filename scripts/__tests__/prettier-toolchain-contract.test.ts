@@ -34,8 +34,10 @@ describe('shared Prettier config toolchain contract', () => {
         expect(prettierConfig.tailwindFunctions).toContain('cva');
         // `theme.css` (not `styles.css`) owns the `@theme` / `@theme inline` token definitions that
         // `prettier-plugin-tailwindcss` needs to recognize the project's custom utilities
-        // (`bg-surface`, `text-muted`, ...); see `src/renderer/src/styles/theme.css`.
-        expect(prettierConfig.tailwindStylesheet).toBe('./src/renderer/src/styles/theme.css');
+        // (`bg-surface`, `text-muted`, ...); see `apps/desktop/src/renderer/src/styles/theme.css`.
+        expect(prettierConfig.tailwindStylesheet).toBe(
+            './apps/desktop/src/renderer/src/styles/theme.css',
+        );
     });
 
     it('actually sorts unsorted Tailwind classes inside a `cn(...)` call (proves the plugin is live)', async () => {
@@ -51,7 +53,10 @@ describe('shared Prettier config toolchain contract', () => {
         const formatted = await prettier.format(unsorted, {
             ...prettierConfig,
             cwd: root,
-            filepath: resolve(root, 'src/renderer/src/__fixtures__/prettier-tailwind-sort.tsx'),
+            filepath: resolve(
+                root,
+                'apps/desktop/src/renderer/src/__fixtures__/prettier-tailwind-sort.tsx',
+            ),
         });
 
         expect(formatted).toContain("cn('flex items-center bg-surface text-muted')");

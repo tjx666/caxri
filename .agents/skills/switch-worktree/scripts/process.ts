@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import process from 'node:process';
 
-import { execFileAsync } from '../../../../src/shared/node/exec';
+import { execFileAsync } from '../../../../scripts/exec';
 
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 

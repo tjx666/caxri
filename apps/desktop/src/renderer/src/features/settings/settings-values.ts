@@ -1,0 +1,155 @@
+import type { AppSettings, ArgvConfig, ArgvConfigChanges } from '@caxri/protocol';
+import { defaultAgentProviderSettings, defaultAppSettings } from '@caxri/protocol';
+import { isEqual } from 'es-toolkit';
+
+import type { SettingRowBinding } from './settings-registry';
+
+/**
+ * The read side every Settings row shares. `argvConfig` stays optional because the Main-owned boot config loads
+ * asynchronously after the dialog opens.
+ */
+export interface SettingsValueContext {
+    settings: AppSettings;
+    argvConfig?: ArgvConfig;
+}
+
+/**
+ * Whether a row currently diverges from its shipped default — drives the modified indicator and the reset affordance,
+ * mirroring VS Code's modified-setting gutter.
+ */
+export function isRowModified(binding: SettingRowBinding, context: SettingsValueContext): boolean {
+    const { settings, argvConfig } = context;
+    switch (binding.type) {
+        case 'setting':
+            return !isEqual(settings[binding.key], defaultAppSettings[binding.key]);
+        case 'provider-toggle':
+            return (
+                settings['agents.providers'][binding.provider][binding.field].enabled !==
+                defaultAgentProviderSettings[binding.provider][binding.field].enabled
+            );
+        case 'provider-launch':
+            return !isEqual(
+                settings['agents.providers'][binding.provider].launch[binding.field],
+                defaultAgentProviderSettings[binding.provider].launch[binding.field],
+            );
+        case 'provider-recovery':
+            return !isEqual(
+                settings['agents.providers'][binding.provider].recovery,
+                defaultAgentProviderSettings[binding.provider].recovery,
+            );
+        case 'provider-actions':
+            return !isEqual(
+                settings['agents.providers'][binding.provider].actions,
+                defaultAgentProviderSettings[binding.provider].actions,
+            );
+        case 'trusted-domains':
+            return settings['security.trustedDomains'].length > 0;
+        case 'files-exclude':
+            return !isEqual(settings['files.exclude'], defaultAppSettings['files.exclude']);
+        case 'remote-debugging':
+            return argvConfig !== undefined && !argvConfig.remoteDebugging;
+        case 'archived-sessions':
+        case 'provider-skill-health':
+            return false;
+    }
+}
+
+/**
+ * Rows that only navigate or report health have nothing to reset.
+ */
+export function isRowResettable(binding: SettingRowBinding): boolean {
+    return binding.type !== 'archived-sessions' && binding.type !== 'provider-skill-health';
+}
+
+/**
+ * How to undo a row back to its shipped default; routes to the matching write channel.
+ */
+export type RowResetAction =
+    | { kind: 'field'; key: keyof AppSettings; value: AppSettings[keyof AppSettings] }
+    | { kind: 'argv'; changes: ArgvConfigChanges };
+
+export function rowResetAction(
+    binding: SettingRowBinding,
+    settings: AppSettings,
+): RowResetAction | undefined {
+    switch (binding.type) {
+        case 'setting':
+            return {
+                kind: 'field',
+                key: binding.key,
+                value: structuredClone(defaultAppSettings[binding.key]),
+            };
+        case 'provider-toggle':
+            return {
+                kind: 'field',
+                key: 'agents.providers',
+                value: withProviderField(settings, binding.provider, {
+                    [binding.field]: {
+                        enabled:
+                            defaultAgentProviderSettings[binding.provider][binding.field].enabled,
+                    },
+                }),
+            };
+        case 'provider-launch':
+            return {
+                kind: 'field',
+                key: 'agents.providers',
+                value: withProviderField(settings, binding.provider, {
+                    launch: {
+                        ...settings['agents.providers'][binding.provider].launch,
+                        [binding.field]: structuredClone(
+                            defaultAgentProviderSettings[binding.provider].launch[binding.field],
+                        ),
+                    },
+                }),
+            };
+        case 'provider-recovery':
+            return {
+                kind: 'field',
+                key: 'agents.providers',
+                value: withProviderField(settings, binding.provider, {
+                    recovery: structuredClone(
+                        defaultAgentProviderSettings[binding.provider].recovery,
+                    ),
+                }),
+            };
+        case 'provider-actions':
+            return {
+                kind: 'field',
+                key: 'agents.providers',
+                value: withProviderField(settings, binding.provider, {
+                    actions: structuredClone(
+                        defaultAgentProviderSettings[binding.provider].actions,
+                    ),
+                }),
+            };
+        case 'trusted-domains':
+            return { kind: 'field', key: 'security.trustedDomains', value: [] };
+        case 'files-exclude':
+            return {
+                kind: 'field',
+                key: 'files.exclude',
+                value: structuredClone(defaultAppSettings['files.exclude']),
+            };
+        case 'remote-debugging':
+            return { kind: 'argv', changes: { remoteDebugging: true } };
+        case 'archived-sessions':
+        case 'provider-skill-health':
+            return undefined;
+    }
+}
+
+/**
+ * Returns a full `agents.providers` value with one provider field replaced, preserving the wholesale-object write shape
+ * `settings.update` expects for the providers record.
+ */
+export function withProviderField(
+    settings: AppSettings,
+    provider: keyof AppSettings['agents.providers'],
+    patch: Partial<AppSettings['agents.providers'][keyof AppSettings['agents.providers']]>,
+): AppSettings['agents.providers'] {
+    return {
+        ...settings['agents.providers'],
+        [provider]: { ...settings['agents.providers'][provider], ...patch },
+    };
+}

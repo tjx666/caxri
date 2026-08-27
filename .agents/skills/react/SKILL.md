@@ -54,8 +54,8 @@ time formatter drifting apart; do not add another.
   dependency-free pure function goes to `@caxri/utils` (`packages/utils`) with a colocated
   `*.test.ts` (e.g. `relativeTime`, `formatBytes` live there today).
 - A pure helper coupled to Renderer concerns (React, DOM, Tailwind class merging, Monaco) that two
-  or more features need → `src/renderer/src/lib/`, with a colocated `*.test.ts`.
-- A hook needed by two or more features → `src/renderer/src/hooks/` (`@/hooks` is the only shared
+  or more features need → `apps/desktop/src/renderer/src/lib/`, with a colocated `*.test.ts`.
+- A hook needed by two or more features → `apps/desktop/src/renderer/src/hooks/` (`@/hooks` is the only shared
   hooks directory).
 - On the second use of a feature-local helper, promote it in the same change — moving it later is
   never cheaper, and the second copy is where drift starts.

@@ -27,7 +27,7 @@ ask for one before spawning anything.
 - **Commit count / rev-range** ("last 15 commits", `HEAD~5..HEAD`): same, via `git log -n` or
   the range.
 - **Surface** ("settings dialog", "terminal", "sidebar"): map the name to its feature
-  directory under `src/renderer/src/features/` (plus its Runtime/Main counterparts when the
+  directory under `apps/desktop/src/renderer/src/features/` (plus its Runtime/Main counterparts when the
   UX spans processes) and audit the current state, not a diff.
 
 For commit scopes, keep only UX-relevant commits: renderer features, shared IPC that feeds
@@ -123,7 +123,7 @@ Final reply in the conversation language; code, paths, and UI strings stay Engli
 The audit itself is read-only. When the user asks for implementation:
 
 - Regroup accepted findings into **file-disjoint work packages** by feature area; shared
-  contracts (`src/shared/`) belong to exactly one package. Launch packages concurrently only
+  contracts under `packages/` belong to exactly one package. Launch packages concurrently only
   when their file sets cannot collide.
 - Every implementation subagent gets the same rails: read `AGENTS.md` + `DESIGN.md`; English
   UI strings; tokens-only colors; do not commit; validate with `bun run check <files>`
