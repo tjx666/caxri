@@ -1,8 +1,10 @@
 import { commandIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import type { DefaultKeybindingChange } from '../../configuration/config-files';
 import {
     commandDefinitions,
+    defaultKeybindingChanges,
     defaultKeybindings,
     getNativeMenuCommandGroups,
     nativeMenuIds,
@@ -32,6 +34,7 @@ describe('command registry', () => {
                 { key: 'cmd+]', command: 'secondarySidebar.toggle' },
                 { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },
                 { key: 'cmd+,', command: 'settings.open' },
+                { key: 'cmd+p', command: 'pathBrowser.open' },
                 { key: 'cmd+shift+p', command: 'commandPalette.open' },
                 { key: 'cmd+shift+a', command: 'agentActions.open' },
                 { key: 'ctrl+alt+tab', command: 'session.switchMru' },
@@ -39,6 +42,14 @@ describe('command registry', () => {
                 { key: 'cmd+w', command: 'workbench.closeActiveTab' },
             ]),
         );
+        expect(
+            defaultKeybindings.filter((binding) => binding.command === 'pathBrowser.open'),
+        ).toEqual([{ key: 'cmd+p', command: 'pathBrowser.open' }]);
+        const changes: readonly DefaultKeybindingChange[] = defaultKeybindingChanges;
+        for (const change of changes) {
+            const current = change.type === 'add' ? change.binding : change.current;
+            expect(defaultKeybindings).toContainEqual(current);
+        }
         expect(commandDefinitions).toContainEqual(
             expect.objectContaining({
                 id: 'developer.toggleScreencastMode',

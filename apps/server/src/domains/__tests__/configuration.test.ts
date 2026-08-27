@@ -158,6 +158,100 @@ describe('ConfigurationService', () => {
         ).toEqual([{ key: 'cmd+t', commands: ['terminal.new', 'session.create'] }]);
     });
 
+    it('replaces the exact previous Open File Path default while preserving its JSONC comment', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-keybinding-migration-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        await writeFile(
+            join(configDirectory, 'keybindings.jsonc'),
+            `[
+  // Keep the explanation attached to the migrated default.
+  { "key": "alt+p", "command": "pathBrowser.open" },
+  { "key": "cmd+t", "command": "terminal.new" },
+]
+`,
+            'utf8',
+        );
+        const service = new ConfigService(directory, () => {});
+
+        await service.initialize();
+
+        expect(service.getKeybindings().value).toEqual([
+            { key: 'cmd+p', command: 'pathBrowser.open' },
+            { key: 'cmd+t', command: 'terminal.new' },
+        ]);
+        const source = await readFile(service.keybindingsPath, 'utf8');
+        expect(source).toContain('// Keep the explanation attached to the migrated default.');
+        expect(source).toContain('"key": "cmd+p"');
+        expect(source).not.toContain('"key": "alt+p"');
+        await service.close();
+    });
+
+    it('preserves customized Open File Path bindings instead of adding the new default', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-keybinding-custom-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        const customized = [{ key: 'cmd+alt+p', command: 'pathBrowser.open' }];
+        const source = `${JSON.stringify(customized, null, 2)}\n`;
+        await writeFile(join(configDirectory, 'keybindings.jsonc'), source, 'utf8');
+        const service = new ConfigService(directory, () => {});
+
+        await service.initialize();
+
+        expect(service.getKeybindings()).toMatchObject({ value: customized, source });
+        expect(await readFile(service.keybindingsPath, 'utf8')).toBe(source);
+        await service.close();
+    });
+
+    it('preserves the previous Open File Path default when Cmd+P is already occupied', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-keybinding-conflict-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        const conflicted = [
+            { key: 'alt+p', command: 'pathBrowser.open' },
+            { key: 'cmd+p', command: 'terminal.new' },
+        ];
+        const source = `${JSON.stringify(conflicted, null, 2)}\n`;
+        await writeFile(join(configDirectory, 'keybindings.jsonc'), source, 'utf8');
+        const service = new ConfigService(directory, () => {});
+
+        await service.initialize();
+
+        expect(service.getKeybindings()).toMatchObject({ value: conflicted, source });
+        expect(await readFile(service.keybindingsPath, 'utf8')).toBe(source);
+        await service.close();
+    });
+
+    it('uses the valid original keybindings when persisting a default migration fails', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-keybinding-readonly-'));
+        temporaryDirectories.push(directory);
+        const configDirectory = join(directory, 'config');
+        await mkdir(configDirectory);
+        const original = [
+            { key: 'alt+p', command: 'pathBrowser.open' },
+            { key: 'cmd+alt+t', command: 'terminal.new' },
+        ];
+        const source = `${JSON.stringify(original, null, 2)}\n`;
+        const keybindingsPath = join(configDirectory, 'keybindings.jsonc');
+        await writeFile(keybindingsPath, source, 'utf8');
+        const service = new ConfigService(directory, () => {}, undefined, {
+            writeConfigSource: async (path, nextSource) => {
+                if (path === keybindingsPath) throw new Error('read-only keybindings fixture');
+                await writeFile(path, nextSource, 'utf8');
+            },
+        });
+
+        await service.initialize();
+
+        expect(service.getKeybindings()).toMatchObject({ value: original, source });
+        expect(service.getErrors()).toEqual(['keybindings.jsonc: read-only keybindings fixture']);
+        expect(await readFile(keybindingsPath, 'utf8')).toBe(source);
+        await service.close();
+    });
+
     it('leaves a customized keybinding file untouched', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-custom-keybindings-'));
         temporaryDirectories.push(directory);

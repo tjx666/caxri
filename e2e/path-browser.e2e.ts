@@ -2,35 +2,10 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Page } from '@playwright/test';
-
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
-/**
- * Simulates the literal keystroke macOS delivers for Option+P: the OS composes Option+<letter> into a symbol
- * (`event.key === 'π'` for Option+P), not the plain letter. Playwright's synthetic `press('Alt+P')` cannot reproduce
- * this composition — its USKeyboardLayout table reports `key: 'p'` for `KeyP` unconditionally, regardless of the Alt
- * modifier, so it would pass equally well against the pre-fix `event.key`-based chord matching and prove nothing about
- * the regression this shortcut migration fixed (see `keybindings.ts`'s `shortcutMainKey`). Dispatching the exact
- * composed event on the currently focused element instead exercises the real `event.code`-based resolution end to end,
- * the same way `keybindings.test.ts` already covers it at the unit level.
- */
-async function pressOptionP(page: Page): Promise<void> {
-    await page.evaluate(() => {
-        document.activeElement?.dispatchEvent(
-            new KeyboardEvent('keydown', {
-                altKey: true,
-                bubbles: true,
-                cancelable: true,
-                code: 'KeyP',
-                key: 'π',
-            }),
-        );
-    });
-}
-
-test('Opt+P lazily browses Project paths from Terminal, Editor, and Files focus', async () => {
+test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-path-browser-e2e-'));
     const root = join(testDirectory, 'project');
     const userData = join(testDirectory, 'user-data');
@@ -51,7 +26,7 @@ test('Opt+P lazily browses Project paths from Terminal, Editor, and Files focus'
         const terminalInput = running.page.locator('.xterm-helper-textarea');
         await terminalInput.focus();
         await expect(terminalInput).toBeFocused();
-        await pressOptionP(running.page);
+        await running.page.keyboard.press('Meta+P');
         let dialog = running.page.getByRole('dialog');
         let input = dialog.getByRole('combobox', { name: 'File path' });
         await expect(input).toBeFocused();
@@ -92,7 +67,7 @@ test('Opt+P lazily browses Project paths from Terminal, Editor, and Files focus'
         await expect
             .poll(() => editor.evaluate((element) => element.contains(document.activeElement)))
             .toBe(true);
-        await pressOptionP(running.page);
+        await running.page.keyboard.press('Meta+P');
         dialog = running.page.getByRole('dialog');
         input = dialog.getByRole('combobox', { name: 'File path' });
         await input.fill('sr');
@@ -117,12 +92,7 @@ test('Opt+P lazily browses Project paths from Terminal, Editor, and Files focus'
             .locator('.file-list')
             .getByRole('treeitem', { name: 'README.md', exact: true });
         await readmeFileRow.focus();
-        // Deliberately the real Playwright chord rather than `pressOptionP`: CDP delivers
-        // `key: 'p'`/`code: 'KeyP'`, which is what a non-composing layout produces, so this covers
-        // the genuine input pipeline end to end. The two synthetic dispatches above cover the
-        // macOS-composed `key: 'π'` variant the same chord has to survive. Both must resolve to
-        // `alt+p`, and only exercising one of them would leave the other free to regress.
-        await running.page.keyboard.press('Alt+P');
+        await running.page.keyboard.press('Meta+P');
         dialog = running.page.getByRole('dialog');
         input = dialog.getByRole('combobox', { name: 'File path' });
         await input.fill('sr');
@@ -141,6 +111,8 @@ test('Opt+P lazily browses Project paths from Terminal, Editor, and Files focus'
         await input.press('Escape');
         await expect(dialog).toHaveCount(0);
 
+        await running.page.keyboard.press('Alt+P');
+        await expect(running.page.getByRole('dialog')).toHaveCount(0);
         await running.page.keyboard.press('Meta+Shift+P');
         await expect(running.page.getByRole('dialog')).toContainText('Commands');
     } finally {
@@ -166,7 +138,7 @@ test('typing a name that does not exist offers to create a file or folder', asyn
         const terminalInput = running.page.locator('.xterm-helper-textarea');
         await terminalInput.focus();
         await expect(terminalInput).toBeFocused();
-        await pressOptionP(running.page);
+        await running.page.keyboard.press('Meta+P');
         const dialog = running.page.getByRole('dialog');
         const input = dialog.getByRole('combobox', { name: 'File path' });
         await expect(input).toBeFocused();
@@ -197,7 +169,7 @@ test('typing a name that does not exist offers to create a file or folder', asyn
             })
             .toBe('');
 
-        await pressOptionP(running.page);
+        await running.page.keyboard.press('Meta+P');
         const secondDialog = running.page.getByRole('dialog');
         const secondInput = secondDialog.getByRole('combobox', { name: 'File path' });
         await expect(secondInput).toBeFocused();
