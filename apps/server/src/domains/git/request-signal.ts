@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { CaxriError } from '@caxri/protocol';
+import { waitForSharedOperation } from '@caxri/system';
 
 const requestSignals = new AsyncLocalStorage<AbortSignal | undefined>();
 
@@ -40,16 +41,9 @@ export async function authoritativeGitMutation<Result>(
 export async function sharedGitRequest<Result>(load: () => Promise<Result>): Promise<Result> {
     const signal = currentGitRequestSignal();
     const operation = requestSignals.run(undefined, load);
-    if (!signal) return operation;
-    if (signal.aborted) throw new CaxriError('CANCELLED', 'Runtime request was canceled');
-    let cancel = (): void => {};
-    const cancellation = new Promise<never>((_resolve, reject) => {
-        cancel = () => reject(new CaxriError('CANCELLED', 'Runtime request was canceled'));
-        signal.addEventListener('abort', cancel, { once: true });
-    });
-    try {
-        return await Promise.race([operation, cancellation]);
-    } finally {
-        signal.removeEventListener('abort', cancel);
-    }
+    return waitForSharedOperation(
+        operation,
+        signal,
+        () => new CaxriError('CANCELLED', 'Runtime request was canceled'),
+    );
 }

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { AsyncSemaphore, mapWithConcurrency } from '../concurrency';
+import { AsyncSemaphore, mapWithConcurrency, waitForSharedOperation } from '../concurrency';
 
 async function verifyBounded(run: (operation: () => Promise<number>) => Promise<number>) {
     let active = 0;
@@ -82,5 +82,64 @@ describe('bounded concurrency', () => {
 
         expect(bounded.peak).toBe(2);
         await expect(semaphore.run(() => Promise.resolve('released'))).resolves.toBe('released');
+    });
+});
+
+describe('shared operation cancellation', () => {
+    it('passes through an operation when the caller has no cancellation signal', async () => {
+        await expect(
+            waitForSharedOperation(Promise.resolve('shared'), undefined, () => new Error('cancel')),
+        ).resolves.toBe('shared');
+    });
+
+    it('rejects immediately when the caller was already canceled', async () => {
+        const controller = new AbortController();
+        controller.abort();
+
+        await expect(
+            waitForSharedOperation(
+                new Promise(() => {}),
+                controller.signal,
+                () => new Error('caller canceled'),
+            ),
+        ).rejects.toThrow('caller canceled');
+    });
+
+    it('cancels one waiter without affecting another waiter for the same operation', async () => {
+        const controller = new AbortController();
+        const shared = Promise.withResolvers<string>();
+        const canceled = waitForSharedOperation(
+            shared.promise,
+            controller.signal,
+            () => new Error('caller canceled'),
+        );
+        const joined = waitForSharedOperation(
+            shared.promise,
+            undefined,
+            () => new Error('caller canceled'),
+        );
+
+        controller.abort();
+        await expect(canceled).rejects.toThrow('caller canceled');
+        shared.resolve('shared');
+        await expect(joined).resolves.toBe('shared');
+    });
+
+    it('removes its cancellation listener after the operation settles', async () => {
+        const controller = new AbortController();
+        const addEventListener = vi.spyOn(controller.signal, 'addEventListener');
+        const removeEventListener = vi.spyOn(controller.signal, 'removeEventListener');
+
+        await expect(
+            waitForSharedOperation(
+                Promise.resolve('shared'),
+                controller.signal,
+                () => new Error('caller canceled'),
+            ),
+        ).resolves.toBe('shared');
+
+        const listener = addEventListener.mock.calls[0]?.[1];
+        expect(addEventListener).toHaveBeenCalledWith('abort', listener, { once: true });
+        expect(removeEventListener).toHaveBeenCalledWith('abort', listener);
     });
 });

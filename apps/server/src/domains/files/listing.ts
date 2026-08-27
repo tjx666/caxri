@@ -11,7 +11,12 @@ import {
     MAX_FILE_LIST_ENTRIES,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { AsyncSemaphore, logEventCatalog, mapWithConcurrency } from '@caxri/system';
+import {
+    AsyncSemaphore,
+    logEventCatalog,
+    mapWithConcurrency,
+    waitForSharedOperation,
+} from '@caxri/system';
 
 import { SingleFlight } from '../single-flight';
 import type { ResolveSessionPath } from './documents';
@@ -185,15 +190,11 @@ export class ListingService {
         sessionId: string,
         directory: string | undefined,
         excludes: FileTreeExcludes,
-        signal?: AbortSignal,
     ): Promise<ServerOperationResult<'files.list'>> {
         const startedAt = performance.now();
-        signal?.throwIfAborted();
         const { root, path } = await this.resolveSessionPath(sessionId, directory);
-        signal?.throwIfAborted();
         this.onDirectoryListed?.(sessionId, path);
         const before = await lstat(path);
-        signal?.throwIfAborted();
         if (!before.isDirectory() || before.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a directory');
         const entries: Dirent[] = [];
@@ -202,11 +203,9 @@ export class ListingService {
         const directoryHandle = await this.openDirectory(path);
         try {
             while (scannedEntries <= MAX_FILE_LIST_SCANNED_ENTRIES) {
-                signal?.throwIfAborted();
                 // `Dir#read()` streams one entry per call from a single open directory handle.
                 // eslint-disable-next-line no-await-in-loop -- directory reads are inherently sequential
                 const entry = await directoryHandle.read();
-                signal?.throwIfAborted();
                 if (!entry) {
                     isReachedEnd = true;
                     break;
@@ -249,7 +248,7 @@ export class ListingService {
             .slice(0, MAX_FILE_LIST_ENTRIES);
         const [settled, gitIgnoreDecoration] = await Promise.all([
             mapWithConcurrency(boundedVisible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
-                this.describeEntry(path, entry.name, signal),
+                this.describeEntry(path, entry.name),
             ),
             this.loadGitIgnoredNames(
                 sessionId,
@@ -311,12 +310,7 @@ export class ListingService {
      * tool can rewrite a directory rapidly enough that this is routine, not exceptional, so a single missing entry must
      * never fail the whole listing.
      */
-    private async describeEntry(
-        directory: string,
-        name: string,
-        signal?: AbortSignal,
-    ): Promise<FileEntry | undefined> {
-        signal?.throwIfAborted();
+    private async describeEntry(directory: string, name: string): Promise<FileEntry | undefined> {
         const entryPath = resolve(directory, name);
         let stats: Awaited<ReturnType<typeof lstat>>;
         try {
@@ -342,8 +336,14 @@ export class ListingService {
         signal?: AbortSignal,
     ): Promise<ServerOperationResult<'files.list'>> {
         const excludes = this.fileTreeExcludes();
-        return this.listRequests.run(JSON.stringify([sessionId, directory ?? null, excludes]), () =>
-            this.loadList(sessionId, directory, excludes, signal),
+        const operation = this.listRequests.run(
+            JSON.stringify([sessionId, directory ?? null, excludes]),
+            () => this.loadList(sessionId, directory, excludes),
+        );
+        return waitForSharedOperation(
+            operation,
+            signal,
+            () => new CaxriError('CANCELLED', 'Runtime request was canceled'),
         );
     }
 

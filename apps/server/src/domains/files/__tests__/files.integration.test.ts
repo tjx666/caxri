@@ -22,6 +22,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CaxriDatabase } from '../../db/repository';
 import {
     boundFileListEntries,
+    ListingService,
     MAX_CONCURRENT_FILE_BROWSES,
     MAX_FILE_BROWSE_SCANNED_ENTRIES,
     MAX_FILE_LIST_RESULT_BYTES,
@@ -73,6 +74,46 @@ afterEach(async () => {
 });
 
 describe('FileService', () => {
+    it('cancels one directory-list waiter without aborting a joined request', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-cancel-'));
+        temporaryDirectories.push(directory);
+        const canonicalDirectory = await realpath(directory);
+        const directoryHandle = Promise.withResolvers<Dir>();
+        const directoryOpened = Promise.withResolvers<void>();
+        const listing = new ListingService(
+            () => Promise.resolve({ path: canonicalDirectory, root: canonicalDirectory }),
+            new StructuredLogger(join(canonicalDirectory, 'logs')),
+            () => ({}),
+            undefined,
+            undefined,
+            undefined,
+            () => {
+                directoryOpened.resolve();
+                return directoryHandle.promise;
+            },
+        );
+        const controller = new AbortController();
+        const canceled = listing.listDirectory('session', undefined, controller.signal);
+        const joined = listing.listDirectory('session');
+
+        await directoryOpened.promise;
+        controller.abort();
+        directoryHandle.resolve({
+            close: () => Promise.resolve(),
+            read: () => Promise.resolve(null),
+        } as unknown as Dir);
+        const [canceledResult, joinedResult] = await Promise.allSettled([canceled, joined]);
+
+        expect(canceledResult).toMatchObject({
+            status: 'rejected',
+            reason: { code: 'CANCELLED' },
+        });
+        expect(joinedResult).toEqual({
+            status: 'fulfilled',
+            value: { entries: [], truncated: false },
+        });
+    });
+
     it('keeps the serialized directory page below its transport byte budget', () => {
         const entries = Array.from({ length: 1_024 }, (_unused, index) => ({
             kind: 'file' as const,
