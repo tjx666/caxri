@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { ServerClient } from '@caxri/client/supervise';
-import type { CommandAdapter } from '@caxri/protocol';
+import type {
+    BinaryStreamOperation,
+    BinaryStreamTicketGrant,
+    CommandAdapter,
+} from '@caxri/protocol';
 import { protocolFeatures } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import type WebSocket from 'ws';
@@ -27,6 +31,376 @@ function controlSource(data: RawData): string {
 }
 
 describe('architecture-a5-binary-streams: ServerClient integration', () => {
+    it('cancels an in-flight attachment when the Terminal detaches', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-binary-detach-overlap-'));
+        const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+        const requests: string[] = [];
+        const server = new ControlServer({
+            adapters: {
+                features: protocolFeatures,
+                server: {
+                    invoke: (request) => {
+                        requests.push(request.method);
+                        if (request.method === 'terminal.attach')
+                            return {
+                                terminalId: request.params.terminalId,
+                                encodingVersion: 3,
+                                cols: 80,
+                                rows: 24,
+                                lineCount: 0,
+                                byteCount: 0,
+                                payload: '',
+                                updatedAt: 1,
+                            };
+                        if (
+                            request.method === 'terminal.detach' ||
+                            request.method === 'terminal.input'
+                        )
+                            return null;
+                        throw new Error(`Unexpected method: ${request.method}`);
+                    },
+                },
+            },
+            desktopCredential: lease.desktopCredential,
+            identity: lease.identity,
+            protocolIdentity: {
+                serverId: '3'.repeat(32),
+                stateEpoch: '4'.repeat(32),
+            },
+        });
+        let client: ServerClient | undefined;
+        try {
+            await lease.publish(await server.start());
+            client = await ServerClient.connect(lease.manifest, 2_000, {
+                kind: 'desktop',
+                desktopId: 'desktop-binary-detach-overlap',
+                credential: lease.desktopCredential,
+                handleCommand: () => Promise.resolve(null),
+            });
+            await client.markDesktopReady();
+
+            const binaryStreams = Reflect.get(client, 'binaryStreams') as object;
+            const options = Reflect.get(binaryStreams, 'options') as {
+                issueTicket: (
+                    id: string,
+                    operation: BinaryStreamOperation,
+                ) => Promise<BinaryStreamTicketGrant>;
+            };
+            const issueTicket = options.issueTicket;
+            const attachAuthorization = Promise.withResolvers<void>();
+            const authorizations: string[] = [];
+            options.issueTicket = async (id, operation) => {
+                authorizations.push(operation.method);
+                if (operation.method === 'terminal.attach') await attachAuthorization.promise;
+                return issueTicket(id, operation);
+            };
+
+            const attaching = client.request('terminal.attach', {
+                terminalId: 'terminal-1',
+            });
+            await vi.waitFor(() => expect(authorizations).toEqual(['terminal.attach']));
+            await expect(
+                client.request('terminal.detach', { terminalId: 'terminal-1' }),
+            ).resolves.toBeNull();
+            attachAuthorization.resolve();
+            await expect(attaching).rejects.toMatchObject({ code: 'CANCELLED' });
+            await expect(
+                client.request('terminal.input', {
+                    terminalId: 'terminal-1',
+                    data: 'after-detach',
+                }),
+            ).resolves.toBeNull();
+            expect(authorizations).toEqual(['terminal.attach', 'terminal.input']);
+            expect(requests).toEqual(['terminal.detach', 'terminal.input']);
+        } finally {
+            client?.close();
+            await server.close();
+            await lease.release();
+            await rm(userDataPath, { recursive: true, force: true });
+        }
+    });
+
+    it('holds input behind an in-flight attachment without blocking another Terminal', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-binary-input-order-'));
+        const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+        const requests: Array<{ method: string; terminalId: string }> = [];
+        const server = new ControlServer({
+            adapters: {
+                features: protocolFeatures,
+                server: {
+                    invoke: (request) => {
+                        switch (request.method) {
+                            case 'terminal.attach':
+                                requests.push({
+                                    method: request.method,
+                                    terminalId: request.params.terminalId,
+                                });
+                                return {
+                                    terminalId: request.params.terminalId,
+                                    encodingVersion: 3,
+                                    cols: 80,
+                                    rows: 24,
+                                    lineCount: 0,
+                                    byteCount: 0,
+                                    payload: '',
+                                    updatedAt: 1,
+                                };
+                            case 'terminal.input':
+                            case 'terminal.resize':
+                                requests.push({
+                                    method: request.method,
+                                    terminalId: request.params.terminalId,
+                                });
+                                return null;
+                            default:
+                                throw new Error(`Unexpected method: ${request.method}`);
+                        }
+                    },
+                },
+            },
+            desktopCredential: lease.desktopCredential,
+            identity: lease.identity,
+            protocolIdentity: {
+                serverId: 'c'.repeat(32),
+                stateEpoch: 'd'.repeat(32),
+            },
+        });
+        let client: ServerClient | undefined;
+        try {
+            await lease.publish(await server.start());
+            client = await ServerClient.connect(lease.manifest, 2_000, {
+                kind: 'desktop',
+                desktopId: 'desktop-binary-input-order',
+                credential: lease.desktopCredential,
+                handleCommand: () => Promise.resolve(null),
+            });
+            await client.markDesktopReady();
+
+            const binaryStreams = Reflect.get(client, 'binaryStreams') as object;
+            const options = Reflect.get(binaryStreams, 'options') as {
+                issueTicket: (
+                    id: string,
+                    operation: BinaryStreamOperation,
+                ) => Promise<BinaryStreamTicketGrant>;
+            };
+            const issueTicket = options.issueTicket;
+            const attachAuthorization = Promise.withResolvers<void>();
+            const authorizations: Array<{ method: string; terminalId: string }> = [];
+            options.issueTicket = async (id, operation) => {
+                if ('terminalId' in operation)
+                    authorizations.push({
+                        method: operation.method,
+                        terminalId: operation.terminalId,
+                    });
+                if (operation.method === 'terminal.attach') await attachAuthorization.promise;
+                return issueTicket(id, operation);
+            };
+
+            const attaching = client.request('terminal.attach', {
+                terminalId: 'terminal-1',
+            });
+            await vi.waitFor(() => expect(authorizations).toHaveLength(1));
+            const input = client.request('terminal.input', {
+                terminalId: 'terminal-1',
+                data: 'ordered',
+            });
+            const resize = client.request('terminal.resize', {
+                terminalId: 'terminal-1',
+                cols: 120,
+                rows: 40,
+            });
+            const independent = client.request('terminal.input', {
+                terminalId: 'terminal-2',
+                data: 'independent',
+            });
+            await expect(independent).resolves.toBeNull();
+            expect(authorizations.filter(({ terminalId }) => terminalId === 'terminal-1')).toEqual([
+                { method: 'terminal.attach', terminalId: 'terminal-1' },
+            ]);
+            expect(requests).toEqual([{ method: 'terminal.input', terminalId: 'terminal-2' }]);
+            attachAuthorization.resolve();
+            await expect(Promise.all([attaching, input, resize])).resolves.toEqual([
+                expect.objectContaining({ terminalId: 'terminal-1' }),
+                null,
+                null,
+            ]);
+            expect(requests).toEqual([
+                { method: 'terminal.input', terminalId: 'terminal-2' },
+                { method: 'terminal.attach', terminalId: 'terminal-1' },
+                { method: 'terminal.input', terminalId: 'terminal-1' },
+                { method: 'terminal.resize', terminalId: 'terminal-1' },
+            ]);
+        } finally {
+            client?.close();
+            await server.close();
+            await lease.release();
+            await rm(userDataPath, { recursive: true, force: true });
+        }
+    });
+
+    it('drains pending input before replacing a persistent Terminal attachment', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-binary-reattach-order-'));
+        const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+        const slowInput = Promise.withResolvers<unknown>();
+        const requests: string[] = [];
+        const server = new ControlServer({
+            adapters: {
+                features: protocolFeatures,
+                server: {
+                    invoke: (request) => {
+                        if (request.method === 'terminal.attach') {
+                            requests.push('attach');
+                            return {
+                                terminalId: request.params.terminalId,
+                                encodingVersion: 3,
+                                cols: 80,
+                                rows: 24,
+                                lineCount: 0,
+                                byteCount: 0,
+                                payload: '',
+                                updatedAt: 1,
+                            };
+                        }
+                        if (request.method === 'terminal.input') {
+                            requests.push(`input:${request.params.data}`);
+                            return slowInput.promise;
+                        }
+                        throw new Error(`Unexpected method: ${request.method}`);
+                    },
+                },
+            },
+            desktopCredential: lease.desktopCredential,
+            identity: lease.identity,
+            protocolIdentity: {
+                serverId: 'e'.repeat(32),
+                stateEpoch: 'f'.repeat(32),
+            },
+        });
+        let client: ServerClient | undefined;
+        try {
+            await lease.publish(await server.start());
+            client = await ServerClient.connect(lease.manifest, 2_000, {
+                kind: 'desktop',
+                desktopId: 'desktop-binary-reattach-order',
+                credential: lease.desktopCredential,
+                handleCommand: () => Promise.resolve(null),
+            });
+            await client.markDesktopReady();
+
+            const binaryStreams = Reflect.get(client, 'binaryStreams') as object;
+            const options = Reflect.get(binaryStreams, 'options') as {
+                issueTicket: (
+                    id: string,
+                    operation: BinaryStreamOperation,
+                ) => Promise<BinaryStreamTicketGrant>;
+            };
+            const issueTicket = options.issueTicket;
+            let attachAuthorizationCount = 0;
+            options.issueTicket = (id, operation) => {
+                if (operation.method === 'terminal.attach') attachAuthorizationCount += 1;
+                return issueTicket(id, operation);
+            };
+
+            await client.request('terminal.attach', { terminalId: 'terminal-1' });
+            const input = client.request('terminal.input', {
+                terminalId: 'terminal-1',
+                data: 'slow',
+            });
+            await vi.waitFor(() => expect(requests).toContain('input:slow'));
+            const reattaching = client.request('terminal.attach', {
+                terminalId: 'terminal-1',
+            });
+
+            expect(attachAuthorizationCount).toBe(1);
+            slowInput.resolve(null);
+            await expect(input).resolves.toBeNull();
+            await expect(reattaching).resolves.toMatchObject({ terminalId: 'terminal-1' });
+            expect(attachAuthorizationCount).toBe(2);
+            expect(requests).toEqual(['attach', 'input:slow', 'attach']);
+        } finally {
+            client?.close();
+            await server.close();
+            await lease.release();
+            await rm(userDataPath, { recursive: true, force: true });
+        }
+    });
+
+    it('falls back to ordered one-shot input after attachment authorization fails', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-binary-attach-fallback-'));
+        const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+        const input: string[] = [];
+        const server = new ControlServer({
+            adapters: {
+                features: protocolFeatures,
+                server: {
+                    invoke: (request) => {
+                        if (request.method !== 'terminal.input')
+                            throw new Error(`Unexpected method: ${request.method}`);
+                        input.push(request.params.data);
+                        return null;
+                    },
+                },
+            },
+            desktopCredential: lease.desktopCredential,
+            identity: lease.identity,
+            protocolIdentity: {
+                serverId: '1'.repeat(32),
+                stateEpoch: '2'.repeat(32),
+            },
+        });
+        let client: ServerClient | undefined;
+        try {
+            await lease.publish(await server.start());
+            client = await ServerClient.connect(lease.manifest, 2_000, {
+                kind: 'desktop',
+                desktopId: 'desktop-binary-attach-fallback',
+                credential: lease.desktopCredential,
+                handleCommand: () => Promise.resolve(null),
+            });
+            await client.markDesktopReady();
+
+            const binaryStreams = Reflect.get(client, 'binaryStreams') as object;
+            const options = Reflect.get(binaryStreams, 'options') as {
+                issueTicket: (
+                    id: string,
+                    operation: BinaryStreamOperation,
+                ) => Promise<BinaryStreamTicketGrant>;
+            };
+            const issueTicket = options.issueTicket;
+            const rejectAttach = Promise.withResolvers<void>();
+            const authorizations: string[] = [];
+            options.issueTicket = async (id, operation) => {
+                authorizations.push(operation.method);
+                if (operation.method === 'terminal.attach') {
+                    await rejectAttach.promise;
+                    throw new Error('seeded attachment authorization failure');
+                }
+                return issueTicket(id, operation);
+            };
+
+            const attaching = client.request('terminal.attach', {
+                terminalId: 'terminal-1',
+            });
+            await vi.waitFor(() => expect(authorizations).toEqual(['terminal.attach']));
+            const fallback = client.request('terminal.input', {
+                terminalId: 'terminal-1',
+                data: 'fallback',
+            });
+            expect(authorizations).toEqual(['terminal.attach']);
+
+            rejectAttach.resolve();
+            await expect(attaching).rejects.toThrow('seeded attachment authorization failure');
+            await expect(fallback).resolves.toBeNull();
+            expect(authorizations).toEqual(['terminal.attach', 'terminal.input']);
+            expect(input).toEqual(['fallback']);
+        } finally {
+            client?.close();
+            await server.close();
+            await lease.release();
+            await rm(userDataPath, { recursive: true, force: true });
+        }
+    });
+
     it('preserves the canonical API and control latency without carrying bulk bodies on control', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-binary-client-'));
         const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });

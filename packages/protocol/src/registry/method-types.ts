@@ -132,7 +132,7 @@ export const effectfulCommandRecovery = {
     'terminal.input': 'none',
     'terminal.resize': 'none',
     'terminal.close': 'durable',
-    'terminal.attach': 'memory',
+    'terminal.attach': 'none',
     'terminal.detach': 'durable',
     'terminal.moveToNewSession': 'durable',
     'terminal.restart': 'durable',

@@ -75,8 +75,8 @@ const serverRead = commandPolicy('server', 'read');
 const serverWrite = commandPolicy('server', 'write');
 const serverControl = commandPolicy('server', 'control');
 /**
- * PTY traffic must enter adapters in transport submission order. Request fingerprints are asynchronous and can reorder
- * overlapping input before either Main or Host reaches the adapter.
+ * PTY stream setup and traffic must enter adapters in transport submission order. Request fingerprints are asynchronous
+ * and can let overlapping input or resize overtake attachment before either Desktop or Server reaches its adapter.
  */
 const terminalStreamControl = { ...serverControl, idempotency: 'none' as const };
 const desktopRead = commandPolicy('desktop', 'read');
@@ -442,7 +442,7 @@ export const methods = {
         result: z.null(),
     },
     'terminal.attach': {
-        ...serverControl,
+        ...terminalStreamControl,
         params: z
             .object({
                 terminalId: identifierSchema,
