@@ -1,7 +1,7 @@
-import type { MainRequest } from '@caxri/protocol';
+import type { ArgvConfig, ArgvConfigChanges, MainRequest } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError, themeImportExtensions } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
-import { clipboard, dialog, nativeImage, shell } from 'electron';
+import { clipboard, ClipboardItem, dialog, nativeImage, shell } from 'electron';
 
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
@@ -21,11 +21,15 @@ import type { UpdateService } from './updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
 interface MainMethodHandlerOptions {
+    allowGpuTestInjection?: boolean;
     getProcessExplorer(): ProcessExplorerWindowController;
     getUserDataPath(): string;
     getSupervisor(): DesktopServerConnection;
     getUpdateService(): UpdateService;
     getWindow(): BrowserWindow | undefined;
+    injectGpuContextLoss?(): { correlationId: string };
+    restartInGpuSafeMode?(): Promise<void>;
+    updateArgvConfig?(changes: ArgvConfigChanges): Promise<ArgvConfig>;
     workbenchRootAuthority: ReturnType<typeof createWorkbenchRootAuthority>;
 }
 
@@ -75,11 +79,22 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return { value: await readArgvConfig(options.getUserDataPath()) };
             case 'argv.update':
                 return {
-                    value: await updateArgvConfig(
-                        options.getUserDataPath(),
-                        request.params.changes,
-                    ),
+                    value: await (options.updateArgvConfig
+                        ? options.updateArgvConfig(request.params.changes)
+                        : updateArgvConfig(options.getUserDataPath(), request.params.changes)),
                 };
+            case 'gpu.restartInSafeMode':
+                if (!options.restartInGpuSafeMode)
+                    throw new CaxriError('UNAVAILABLE', 'GPU Safe Mode restart is unavailable');
+                await options.restartInGpuSafeMode();
+                return null;
+            case 'gpu.testInjectContextLoss':
+                if (!options.allowGpuTestInjection || !options.injectGpuContextLoss)
+                    throw new CaxriError(
+                        'FORBIDDEN',
+                        'GPU fault injection is available only in E2E launches',
+                    );
+                return options.injectGpuContextLoss();
             case 'external.open':
                 return handleExternalUrl(request.params.url, {
                     allowTrust: true,
@@ -247,10 +262,16 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                             'Captured screenshot is not a valid image',
                         );
                     /**
-                     * The user explicitly opted into screenshot delivery. Codex's supported image input reads the macOS
-                     * clipboard, so disclose this replacement before Send.
+                     * Electron 44 removed writeImage in favor of its W3C-style asynchronous clipboard API. Await the
+                     * atomic write so the Agent cannot receive the paste command before its image is available.
                      */
-                    clipboard.writeImage(image);
+                    const imageBytes = Uint8Array.from(image.toPNG());
+                    const imageBlob = new Blob([imageBytes], { type: 'image/png' });
+                    await clipboard.write([
+                        new ClipboardItem({
+                            'image/png': imageBlob,
+                        }),
+                    ]);
                 }
                 return supervisor.request('bugReport.deliver', {
                     pasteImage: isPasteImage,

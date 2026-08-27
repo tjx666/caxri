@@ -77,6 +77,22 @@ describe('serverEventSchema', () => {
                 },
             }).success,
         ).toBe(true);
+        expect(
+            serverEventSchema.safeParse({
+                event: 'gpu.recoveryRequested',
+                payload: { correlationId: '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae' },
+            }).success,
+        ).toBe(true);
+        expect(
+            serverEventSchema.safeParse({
+                event: 'gpu.safeModeStatus',
+                payload: {
+                    active: true,
+                    automatic: true,
+                    correlationId: '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae',
+                },
+            }).success,
+        ).toBe(true);
     });
 });
 

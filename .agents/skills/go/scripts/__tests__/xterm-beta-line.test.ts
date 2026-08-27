@@ -1,7 +1,11 @@
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import type { XtermRegistryRunner } from '../xterm-beta-line-core';
-import { resolveXtermBetaLine } from '../xterm-beta-line-core';
+import { readWorkspaceDependencies, resolveXtermBetaLine } from '../xterm-beta-line-core';
 
 const metadata = {
     '@xterm/addon-image@0.10.0-beta.299': {
@@ -37,6 +41,26 @@ function runner(overrides: Record<string, unknown> = {}): XtermRegistryRunner {
 }
 
 describe('xterm beta line resolver', () => {
+    it('collects xterm pins from workspace package manifests instead of only the root', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-xterm-workspace-'));
+        await Promise.all(
+            ['apps/desktop', 'extensions/fixture', 'packages/protocol'].map((path) =>
+                mkdir(join(root, path), { recursive: true }),
+            ),
+        );
+        await writeFile(join(root, 'package.json'), JSON.stringify({ devDependencies: {} }));
+        await writeFile(
+            join(root, 'apps/desktop/package.json'),
+            JSON.stringify({
+                dependencies: { '@xterm/xterm': '6.1.0-beta.301' },
+            }),
+        );
+
+        await expect(readWorkspaceDependencies(root)).resolves.toMatchObject({
+            dependencies: { '@xterm/xterm': '6.1.0-beta.301' },
+        });
+    });
+
     it('resolves addon beta tags to exact same-gitHead versions before installation', async () => {
         await expect(
             resolveXtermBetaLine(

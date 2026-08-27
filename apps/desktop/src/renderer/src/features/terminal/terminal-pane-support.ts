@@ -14,7 +14,6 @@ import { createTerminalLinkScanner } from './terminal-link-scanner';
 import type { TerminalLinkContext } from './terminal-links';
 import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
-import type { TerminalRendererReason } from './terminal-renderer';
 import type { TerminalSearchResults } from './terminal-search';
 
 /**
@@ -38,19 +37,6 @@ export const OSC52_BLOCK_MESSAGES: Record<Osc52BlockReason, string> = {
 };
 
 export const emptySearchResults: TerminalSearchResults = { resultCount: 0, resultIndex: -1 };
-
-/**
- * Only the reasons the user did not choose are worth a toast: `disabled` reflects their own GPU acceleration setting,
- * `active`/`disposed` are healthy or teardown states, so neither needs one.
- */
-export const RENDERER_FALLBACK_MESSAGES: Partial<Record<TerminalRendererReason, string>> = {
-    'context-loss':
-        'GPU acceleration was lost for this Terminal; it fell back to standard rendering.',
-    'load-failed':
-        'GPU acceleration could not start for this Terminal; it is using standard rendering.',
-    'unsupported':
-        'This Terminal is using standard rendering because GPU acceleration is unavailable.',
-};
 
 /**
  * SearchAddon requires opaque `#RRGGBB`; imported semantic tokens may include an alpha byte.

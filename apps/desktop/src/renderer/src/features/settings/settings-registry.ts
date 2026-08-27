@@ -21,7 +21,8 @@ export type SettingRowBinding =
     | { type: 'trusted-domains' }
     | { type: 'files-exclude' }
     | { type: 'archived-sessions' }
-    | { type: 'remote-debugging' };
+    | { type: 'remote-debugging' }
+    | { type: 'hardware-acceleration' };
 
 export interface SettingRowDescriptor {
     /**
@@ -176,6 +177,21 @@ const rows: SettingRowDescriptor[] = [
     specRow('workbench.newWorktreeBehavior'),
     specRow('workbench.fontFamily'),
     specRow('workbench.externalEditor'),
+    {
+        id: 'general.hardwareAcceleration',
+        category: 'general',
+        title: 'Hardware acceleration',
+        description:
+            'Uses the GPU for Caxri rendering. Turn this back on to leave GPU Safe Mode; changes take effect after restarting Caxri',
+        binding: { type: 'hardware-acceleration' },
+        haystack: lower([
+            'hardware acceleration',
+            'gpu',
+            'gpu safe mode',
+            'software rendering',
+            'restart',
+        ]),
+    },
     {
         id: 'sessions.archived',
         category: 'general',

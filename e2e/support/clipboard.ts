@@ -413,20 +413,29 @@ export function createClipboardCapability(
     return {
         claimImage: () => snapshot.claimImage(),
         claimText: (expectedText) => snapshot.claimText(expectedText),
-        hasImage: () => app.evaluate(({ clipboard }) => !clipboard.readImage().isEmpty()),
+        hasImage: () =>
+            app.evaluate(async ({ clipboard }) => {
+                const items = await clipboard.read();
+                return items.some((item) => item.types.some((type) => type.startsWith('image/')));
+            }),
         metadata: snapshot.metadata,
         restoreOutcome: () => snapshot.restoreOutcome(),
         textEquals: (expectedText) =>
             app.evaluate(
-                ({ clipboard }, expected) => clipboard.readText() === expected,
+                async ({ clipboard }, expected) => (await clipboard.readText()) === expected,
                 expectedText,
             ),
         writePngBase64: async (value) => {
-            await app.evaluate(({ clipboard, nativeImage }, pngBase64) => {
+            await app.evaluate(async ({ clipboard, ClipboardItem, nativeImage }, pngBase64) => {
                 clipboard.clear();
                 const image = nativeImage.createFromBuffer(Buffer.from(pngBase64, 'base64'));
                 if (image.isEmpty()) throw new Error('Image clipboard fixture is empty');
-                clipboard.writeImage(image);
+                const imageBytes = Uint8Array.from(image.toPNG());
+                await clipboard.write([
+                    new ClipboardItem({
+                        'image/png': new Blob([imageBytes], { type: 'image/png' }),
+                    }),
+                ]);
             }, value);
             await snapshot.claimImage();
         },

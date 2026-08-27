@@ -25,11 +25,14 @@ function rendererDiagnostic(
         documentVisible: true,
         documentFocused: true,
         terminalFocused: true,
+        recoveryResult: 'not-requested' as const,
+        receivedBytes: 120,
+        droppedBytes: 0,
         ...overrides,
     };
 }
 
-function createHarness() {
+function createHarness(options: { createIncidentId?: () => string } = {}) {
     let now = 1_000;
     const write = vi.fn<StructuredLogger['write']>();
     const app = {
@@ -71,7 +74,7 @@ function createHarness() {
     const diagnostics = createGpuDiagnostics({
         app,
         architecture: 'arm64',
-        createIncidentId: () => 'gpu-incident-1',
+        createIncidentId: options.createIncidentId ?? (() => 'gpu-incident-1'),
         logger: () => ({ write }) as never,
         now: () => now,
         osRelease: '25.5.0',
@@ -106,14 +109,14 @@ describe('GPU diagnostics', () => {
         harness.diagnostics.recordRendererDiagnostic(rendererDiagnostic());
         harness.setNow(1_025);
 
-        const incidentId = harness.diagnostics.recordGpuProcessGone({
+        const incident = harness.diagnostics.recordGpuProcessGone({
             type: 'GPU',
             reason: 'abnormal-exit',
             exitCode: 8704,
             name: 'GPU Process',
         });
 
-        expect(incidentId).toBe('gpu-incident-1');
+        expect(incident).toEqual({ contextLost: true, correlationId: 'gpu-incident-1' });
         const processGone = harness.write.mock.calls.find(
             ([, event]) => event === logEventCatalog.gpu.processGone,
         );
@@ -183,6 +186,8 @@ describe('GPU diagnostics', () => {
                 trigger: 'webgl-context-loss',
                 contextLossCount: 1,
                 terminalFocused: false,
+                correlationId: 'gpu-incident-1',
+                recoveryResult: 'dom-restored',
             }),
         );
         await harness.diagnostics.handleGpuInfoUpdate();
@@ -192,6 +197,19 @@ describe('GPU diagnostics', () => {
             logEventCatalog.renderer.terminalRendererStatus,
             expect.objectContaining({ correlationId: 'gpu-incident-1' }),
         );
+        const recovery = harness.write.mock.calls.find(
+            ([, event]) => event === logEventCatalog.gpu.recovery,
+        );
+        expect(recovery?.[0]).toBe('info');
+        expect(recovery?.[2]).toMatchObject({
+            correlationId: 'gpu-incident-1',
+            fields: {
+                receivedBytes: 120,
+                droppedBytes: 0,
+                recoveryResult: 'dom-restored',
+                terminalProcessRunning: true,
+            },
+        });
         const snapshot = harness.write.mock.calls.find(
             ([, event]) => event === logEventCatalog.gpu.snapshot,
         );
@@ -230,5 +248,25 @@ describe('GPU diagnostics', () => {
         );
 
         expect(harness.write).not.toHaveBeenCalled();
+    });
+
+    it('bounds completed snapshot identities with the retained incident window', async () => {
+        const incidentIds = Array.from({ length: 10 }, (_, index) => `gpu-incident-${index + 1}`);
+        incidentIds.push('gpu-incident-1');
+        const harness = createHarness({ createIncidentId: () => incidentIds.shift()! });
+
+        async function captureIncidents(remaining: number): Promise<void> {
+            if (remaining === 0) return;
+            harness.diagnostics.recordGpuProcessGone({
+                type: 'GPU',
+                reason: 'abnormal-exit',
+                exitCode: 8704,
+            });
+            await harness.diagnostics.handleGpuInfoUpdate();
+            await captureIncidents(remaining - 1);
+        }
+        await captureIncidents(11);
+
+        expect(harness.app.getGPUInfo).toHaveBeenCalledTimes(11);
     });
 });

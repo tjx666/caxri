@@ -106,6 +106,8 @@ export const effectfulCommandRecovery = {
     'files.reveal': 'durable',
     'project.openInEditor': 'durable',
     'argv.update': 'memory',
+    'gpu.restartInSafeMode': 'none',
+    'gpu.testInjectContextLoss': 'none',
     'external.open': 'durable',
     'editor.confirmDiscard': 'durable',
     'processExplorer.open': 'durable',

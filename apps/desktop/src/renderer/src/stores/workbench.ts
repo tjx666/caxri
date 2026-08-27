@@ -12,6 +12,10 @@ import { isEqual } from 'es-toolkit';
 import { create } from 'zustand';
 
 import {
+    showAutomaticGpuSafeModeToast,
+    showGpuRecoveryToast,
+} from '../features/gpu/gpu-recovery-notifications';
+import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
 } from '../features/workbench/workbench-root-prompt-store';
@@ -611,6 +615,13 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             case 'window.fullScreen':
                 useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
+                return;
+            case 'gpu.recoveryRequested':
+                showGpuRecoveryToast();
+                return;
+            case 'gpu.safeModeStatus':
+                if (event.payload.active && event.payload.automatic)
+                    showAutomaticGpuSafeModeToast();
                 return;
             case 'terminal.outputRecovery': {
                 const providerName = agentProviderCatalog[event.payload.provider].displayName;

@@ -15,6 +15,17 @@ description: Diagnose Caxri failures across the headless Host, Electron Main, se
 
 For native load failures, run `bun run spike:native` and `bun run spike:pty`, then verify the packaged app rather than assuming the development ABI matches.
 
+For a macOS GPU incident, collect at most a 30-minute system window with:
+
+```bash
+bun run .agents/skills/debug/scripts/collect-macos-gpu-logs.ts \
+  --start 2026-08-28T14:50:00+08:00 --end 2026-08-28T15:05:00+08:00
+```
+
+The script queries only Caxri's GPU helper, WindowServer, Dock, and kernel GPU/Metal/Space events. It emits bounded
+signal enums and process metadata, never raw unified-log messages, paths, Terminal content, environment values, or
+credentials.
+
 ## Live CDP inspection
 
 Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` and packaged (production) builds

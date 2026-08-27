@@ -29,6 +29,7 @@ export interface SettingsPageProperties {
     agentHookHealth?: AgentHookHealthMap;
     agentSkillHealth?: AgentSkillHealth;
     agentActionsFocusRequest?: { id: number; provider: AgentProvider };
+    hardwareAccelerationFocusRequestId?: number;
     trustedDomainsFocusRequestId?: number;
     onArgvConfigChange: (changes: ArgvConfigChanges) => void;
     onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
@@ -162,6 +163,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const scrollParentReference = useRef<HTMLDivElement>(null);
     const handledFocusRequest = useRef(0);
     const handledAgentActionsFocusRequest = useRef(0);
+    const handledHardwareAccelerationFocusRequest = useRef(0);
 
     const visibleRows = useMemo(() => filterSettingsRows(settingsRows, query), [query]);
     const list = useMemo(() => buildSettingsList(settingsCategories, visibleRows), [visibleRows]);
@@ -218,6 +220,16 @@ export function SettingsPage(properties: SettingsPageProperties) {
         );
         if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
     }, [list, properties.agentActionsFocusRequest, virtualizer]);
+
+    useEffect(() => {
+        const requestId = properties.hardwareAccelerationFocusRequestId;
+        if (!requestId || handledHardwareAccelerationFocusRequest.current === requestId) return;
+        handledHardwareAccelerationFocusRequest.current = requestId;
+        const index = list.findIndex(
+            (item) => item.kind === 'row' && item.row.id === 'general.hardwareAcceleration',
+        );
+        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [list, properties.hardwareAccelerationFocusRequestId, virtualizer]);
 
     const handlers = {
         onArgvConfigChange: properties.onArgvConfigChange,

@@ -93,6 +93,7 @@
                     "apps/server/src/core/create-domain-service.ts",
                     "apps/server/src/domains/bootstrap-service-handlers.ts",
                     "apps/server/src/domains/bootstrap.ts",
+                    "apps/server/src/domains/create-domain-services.ts",
                     "apps/server/src/domains/service-handlers.ts",
                     "apps/server/src/domains/terminal/index.ts",
                 ],
