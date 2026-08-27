@@ -36,11 +36,10 @@ const serialNativeTestPrefix = [
     'apps/server/src/domains/__tests__/configuration.test.ts',
     'apps/server/src/domains/agents/hooks/__tests__/manager.integration.test.ts',
     /**
-     * Both suites load node-pty. Separate Vitest forks can crash during concurrent N-API teardown on macOS, even when
-     * one suite injects fake PTYs, so they share the serial native worker.
+     * The real-process suite loads node-pty. Its worker must finish native child teardown before another native suite
+     * starts on macOS CI.
      */
     'apps/server/src/domains/terminal/__tests__/terminal-process.integration.test.ts',
-    'apps/server/src/domains/terminal/__tests__/terminal.integration.test.ts',
 ];
 
 export type VitestPartition = 'legacy' | 'optimized';

@@ -10,6 +10,7 @@ import type {
 import { CaxriError, defaultAgentOutputRecoverySettings, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mergeObservationContext, runWithObservationContext } from '@caxri/system';
+import type * as pty from 'node-pty';
 
 import type {
     TerminalExecutionEvent,
@@ -71,6 +72,7 @@ export interface TerminalHostRuntimeOptions {
     outputFlushMs?: number;
     onProtocolViolation?: () => void;
     send(message: TerminalHostMessage): void;
+    spawn?: typeof pty.spawn;
 }
 
 /**
@@ -85,18 +87,22 @@ export class TerminalHostRuntime {
     private readonly recoverySettings = new Map<AgentProvider, AgentOutputRecoverySettings>();
 
     constructor(private readonly options: TerminalHostRuntimeOptions) {
-        this.engine =
-            options.engine ??
-            new TerminalExecutionEngine({
-                agentOutputRecoverySettings: (provider) =>
-                    this.recoverySettings.get(provider) ?? defaultAgentOutputRecoverySettings,
-                currentProvider: (terminalId) => this.identities.get(terminalId)?.record.provider,
-                emit: (event) => this.projectExecutionEvent(event),
-                logger: options.logger,
-                onExit: (event) => this.projectExecutionExit(event),
-                outputFlushMs: options.outputFlushMs,
-                terminalColors: (terminalId) => this.colors.get(terminalId),
-            });
+        if (options.engine) {
+            this.engine = options.engine;
+            return;
+        }
+        if (!options.spawn) throw new Error('Terminal Host requires a PTY spawn implementation');
+        this.engine = new TerminalExecutionEngine({
+            agentOutputRecoverySettings: (provider) =>
+                this.recoverySettings.get(provider) ?? defaultAgentOutputRecoverySettings,
+            currentProvider: (terminalId) => this.identities.get(terminalId)?.record.provider,
+            emit: (event) => this.projectExecutionEvent(event),
+            logger: options.logger,
+            onExit: (event) => this.projectExecutionExit(event),
+            outputFlushMs: options.outputFlushMs,
+            spawn: options.spawn,
+            terminalColors: (terminalId) => this.colors.get(terminalId),
+        });
     }
 
     /**
