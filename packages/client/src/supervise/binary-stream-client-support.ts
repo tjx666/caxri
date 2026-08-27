@@ -54,6 +54,32 @@ export class ClientSocketWriter {
         });
     }
 
+    /**
+     * Builds one promise tail for the payload so each WebSocket callback remains the backpressure boundary without
+     * awaiting inside the chunking loop.
+     */
+    private sendPayload(
+        kind: BinaryStreamFrame['kind'],
+        sequence: number,
+        payload: Uint8Array,
+    ): Promise<void> {
+        if (payload.byteLength === 0) return this.send({ final: true, kind, payload, sequence });
+
+        let sent = Promise.resolve();
+        for (let offset = 0; offset < payload.byteLength; offset += BINARY_STREAM_MAX_CHUNK_BYTES) {
+            const end = Math.min(payload.byteLength, offset + BINARY_STREAM_MAX_CHUNK_BYTES);
+            const frame = {
+                final: end === payload.byteLength,
+                kind,
+                payload: payload.subarray(offset, end),
+                sequence,
+            } satisfies BinaryStreamFrame;
+            // eslint-disable-next-line unicorn/prefer-await -- the promise tail preserves WebSocket callback backpressure without an await inside this loop
+            sent = sent.then(() => this.send(frame));
+        }
+        return sent;
+    }
+
     sendChunks(
         kind: BinaryStreamFrame['kind'],
         sequence: number,
@@ -69,27 +95,7 @@ export class ClientSocketWriter {
         this.queuedPayloadBytes += payload.byteLength;
         const action = async (): Promise<void> => {
             try {
-                if (payload.byteLength === 0) {
-                    await this.send({ final: true, kind, payload, sequence });
-                    return;
-                }
-                for (
-                    let offset = 0;
-                    offset < payload.byteLength;
-                    offset += BINARY_STREAM_MAX_CHUNK_BYTES
-                ) {
-                    const end = Math.min(
-                        payload.byteLength,
-                        offset + BINARY_STREAM_MAX_CHUNK_BYTES,
-                    );
-                    // eslint-disable-next-line no-await-in-loop -- each chunk is the stream's backpressure boundary
-                    await this.send({
-                        final: end === payload.byteLength,
-                        kind,
-                        payload: payload.subarray(offset, end),
-                        sequence,
-                    });
-                }
+                await this.sendPayload(kind, sequence, payload);
             } finally {
                 this.queuedPayloadBytes -= payload.byteLength;
             }
