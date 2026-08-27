@@ -120,6 +120,11 @@ For isolated and restart cases, include the adapter-generated
 one exact profile identity across launches. A plan with `fixturePreflight: terminal` must also
 include the ready `assets/<case-id>-fixture-preflight.json` receipt.
 
+An isolated case may retry after a ready launch when setup, fixture preflight, or evidence capture
+fails. Stop and fully clean the previous launch first, then start again with a fresh isolated
+profile. The lifecycle receipt preserves every attempt; finalization accepts the history only when
+at least one launch became ready and every attempt completed cleanup.
+
 ## Finalize before publication
 
 After every placeholder has an observed `pass`, `fail`, or `blocked` result,
