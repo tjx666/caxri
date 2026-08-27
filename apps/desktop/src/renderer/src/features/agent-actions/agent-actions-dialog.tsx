@@ -23,7 +23,12 @@ import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, useSessions, useSettings, useTerminal } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { focusTerminalById } from '../terminal/terminal-actions';
-import { agentActionTerminalInput, canExecuteAgentAction } from './agent-action-input';
+import type { AgentActionSubmitMode } from './agent-action-input';
+import {
+    agentActionSubmitModes,
+    agentActionTerminalInput,
+    canExecuteAgentAction,
+} from './agent-action-input';
 import { describeAgentActionTarget, resolveAgentActionTargetTitle } from './agent-action-target';
 
 const sourceLabels: Record<AgentAction['source'], string> = {
@@ -68,6 +73,7 @@ function AgentActionRow({ action, onSelect }: AgentActionRowProperties) {
 
 export function AgentActionsDialog() {
     const targetDescriptionId = useId();
+    const interactionDescriptionId = useId();
     const shouldRestoreTerminalFocusReference = useRef(true);
     const isOpen = useDialogStore((state) => state.agentActionsOpen);
     const terminalId = useDialogStore((state) => state.agentActionsTerminalId);
@@ -102,8 +108,8 @@ export function AgentActionsDialog() {
         setAgentActionsOpen(false);
     };
 
-    const submit = (action: AgentAction, shouldExecute: boolean): void => {
-        if (shouldExecute && !canExecuteAgentAction(action)) {
+    const submit = (action: AgentAction, mode: AgentActionSubmitMode): void => {
+        if (mode === 'run' && !canExecuteAgentAction(action)) {
             pushToast('info', `${action.invocation} needs arguments before it can run.`);
             return;
         }
@@ -118,7 +124,7 @@ export function AgentActionsDialog() {
         void tryCommand('Unable to send Agent command or skill', () =>
             caxri.request('terminal.input', {
                 terminalId: current.id,
-                data: agentActionTerminalInput(action, shouldExecute),
+                data: agentActionTerminalInput(action, mode),
             }),
         );
     };
@@ -193,7 +199,7 @@ export function AgentActionsDialog() {
                         )
                             return;
                         /**
-                         * Always consume the explicit run chord before cmdk can reinterpret it as ordinary Enter. A
+                         * Always consume the alternate insert chord before cmdk can reinterpret it as ordinary Enter. A
                          * missing selection is a no-op, never an accidental insertion.
                          */
                         event.preventDefault();
@@ -205,12 +211,12 @@ export function AgentActionsDialog() {
                             (action) => action.invocation === selectedInvocation,
                         );
                         if (!selectedAction) return;
-                        submit(selectedAction, true);
+                        submit(selectedAction, agentActionSubmitModes.alternate);
                     }}
                 >
                     <CommandInput
                         autoFocus
-                        aria-describedby={targetDescriptionId}
+                        aria-describedby={`${targetDescriptionId} ${interactionDescriptionId}`}
                         placeholder="Search skills and slash commands…"
                     />
                     <CommandList>
@@ -221,7 +227,9 @@ export function AgentActionsDialog() {
                                     <AgentActionRow
                                         key={action.invocation}
                                         action={action}
-                                        onSelect={(selected) => submit(selected, false)}
+                                        onSelect={(selected) =>
+                                            submit(selected, agentActionSubmitModes.primary)
+                                        }
                                     />
                                 ))}
                             </CommandGroup>
@@ -232,7 +240,9 @@ export function AgentActionsDialog() {
                                     <AgentActionRow
                                         key={action.invocation}
                                         action={action}
-                                        onSelect={(selected) => submit(selected, false)}
+                                        onSelect={(selected) =>
+                                            submit(selected, agentActionSubmitModes.primary)
+                                        }
                                     />
                                 ))}
                             </CommandGroup>
@@ -250,7 +260,13 @@ export function AgentActionsDialog() {
                         )}
                     </CommandList>
                 </Command>
-                <div className="flex min-h-10 items-center justify-between gap-3 border-t border-border px-3 py-1.5">
+                <span id={interactionDescriptionId} className="sr-only">
+                    Enter runs the selected action. Command+Enter inserts it for editing.
+                </span>
+                <div
+                    className="flex min-h-10 items-center justify-between gap-3 border-t border-border px-3 py-1.5"
+                    data-agent-action-footer=""
+                >
                     <Button
                         size="sm"
                         variant="ghost"
@@ -263,11 +279,11 @@ export function AgentActionsDialog() {
                         <Settings2 size={13} /> Manage in Settings…
                     </Button>
                     <div className="flex items-center gap-3 text-[10px] text-muted">
-                        <span className="flex items-center gap-1">
-                            <ShortcutBadge compact shortcut="enter" /> Insert
+                        <span className="flex items-center gap-1" data-agent-action-mode="run">
+                            <ShortcutBadge compact shortcut="enter" /> Run
                         </span>
-                        <span className="flex items-center gap-1">
-                            <ShortcutBadge compact shortcut="cmd+enter" /> Run
+                        <span className="flex items-center gap-1" data-agent-action-mode="insert">
+                            <ShortcutBadge compact shortcut="cmd+enter" /> Insert
                         </span>
                     </div>
                 </div>

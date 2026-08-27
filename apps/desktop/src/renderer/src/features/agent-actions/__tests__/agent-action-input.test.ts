@@ -1,7 +1,11 @@
 import type { AgentAction } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentActionTerminalInput, canExecuteAgentAction } from '../agent-action-input';
+import {
+    agentActionSubmitModes,
+    agentActionTerminalInput,
+    canExecuteAgentAction,
+} from '../agent-action-input';
 
 const action = (patch: Partial<AgentAction> = {}): AgentAction => ({
     invocation: '/review',
@@ -12,12 +16,16 @@ const action = (patch: Partial<AgentAction> = {}): AgentAction => ({
 });
 
 describe('agent action input', () => {
-    it('inserts an invocation with a trailing space and no Return', () => {
-        expect(agentActionTerminalInput(action(), false)).toBe('/review ');
+    it('runs the primary selection and reserves insertion for the alternate chord', () => {
+        expect(agentActionSubmitModes).toEqual({ primary: 'run', alternate: 'insert' });
     });
 
-    it('sends exactly one Return only for explicit execution', () => {
-        expect(agentActionTerminalInput(action(), true)).toBe('/review\r');
+    it('inserts an invocation with a trailing space and no Return', () => {
+        expect(agentActionTerminalInput(action(), 'insert')).toBe('/review ');
+    });
+
+    it('sends exactly one Return only for run mode', () => {
+        expect(agentActionTerminalInput(action(), 'run')).toBe('/review\r');
     });
 
     it('blocks immediate execution for actions with required arguments', () => {
