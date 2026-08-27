@@ -1,3 +1,4 @@
+import type { DefaultKeybindingChange } from '../configuration/config-files.js';
 import {
     filesCoreCommandDefinitions,
     filesCoreKeybindings,
@@ -430,11 +431,10 @@ export function getNativeMenuCommandGroups(menu: NativeMenuId): CommandDefinitio
  */
 export const defaultKeybindings: Keybinding[] = [
     /**
-     * The path browser is a Helm-style directory walker, not a workspace-wide fuzzy quick-open, so it deliberately
-     * avoids `Cmd+P`: that chord sets a "type any filename, jump anywhere" expectation this dialog cannot meet while
-     * `files.browse` stays bounded to one directory.
+     * The current path browser owns the familiar macOS quick-open chord. A future workspace-wide fuzzy opener must make
+     * an explicit product decision instead of reserving `Cmd+P` while no such command exists.
      */
-    { key: 'alt+p', command: 'pathBrowser.open' },
+    { key: 'cmd+p', command: 'pathBrowser.open' },
     { key: 'cmd+shift+p', command: 'commandPalette.open' },
     { key: 'cmd+shift+a', command: 'agentActions.open' },
     /**
@@ -492,3 +492,14 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+j', command: 'panel.toggle' },
     { key: 'cmd+,', command: 'settings.open' },
 ];
+
+/**
+ * Reviewed changes to defaults that existing keybinding files can adopt without overwriting custom choices.
+ */
+export const defaultKeybindingChanges = [
+    {
+        type: 'replace',
+        previous: { key: 'alt+p', command: 'pathBrowser.open' },
+        current: { key: 'cmd+p', command: 'pathBrowser.open' },
+    },
+] satisfies readonly DefaultKeybindingChange[];

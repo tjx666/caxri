@@ -17,6 +17,7 @@ import {
     CaxriError,
     configurationSourceSchema as configSourceSchema,
     defaultAppSettings,
+    defaultKeybindingChanges,
     defaultKeybindings,
     errorMessage,
     findKeybindingConflicts,
@@ -25,6 +26,7 @@ import {
     MAX_CONFIGURATION_SOURCE_BYTES,
     MAX_TRUSTED_DOMAINS,
     normalizeTrustedDomainRule,
+    reconcileDefaultKeybindings,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, parseJsonc, redactLogValue } from '@caxri/system';
@@ -185,10 +187,23 @@ export class ConfigService {
             return;
         }
         try {
-            const prepared = this.prepare(kind, source);
+            const prepared = this.prepare(kind, source, kind === 'keybindings');
             if (prepared.source !== source) {
-                await this.writeConfigSource(path, prepared.source);
-                this.assertOpen();
+                try {
+                    await this.writeConfigSource(path, prepared.source);
+                    this.assertOpen();
+                } catch (error) {
+                    this.assertOpen();
+                    /**
+                     * A default migration is best-effort. A valid user configuration must remain active when its
+                     * reconciled form cannot be persisted, instead of silently falling back to built-in defaults.
+                     */
+                    const original = this.prepare(kind, source);
+                    original.apply();
+                    this.observedSources.set(path, source);
+                    this.recordConfigurationError(kind, error);
+                    return;
+                }
             }
             prepared.apply();
             this.observedSources.set(path, prepared.source);
@@ -231,7 +246,11 @@ export class ConfigService {
         return isRepeated;
     }
 
-    private prepare(kind: ConfigKind, source: string): PreparedConfig {
+    private prepare(
+        kind: ConfigKind,
+        source: string,
+        shouldReconcileDefaults = false,
+    ): PreparedConfig {
         const path = this.pathFor(kind);
         try {
             configSourceSchema.parse(source);
@@ -246,12 +265,50 @@ export class ConfigService {
                 };
             }
             if (kind === 'keybindings') {
-                const keybindings = keybindingsFileSchema.parse(parseJsonc(source));
+                let preparedSource = source;
+                let keybindings = keybindingsFileSchema.parse(parseJsonc(source));
+                if (shouldReconcileDefaults) {
+                    const reconciliation = reconcileDefaultKeybindings(
+                        keybindings,
+                        defaultKeybindingChanges,
+                    );
+                    for (const replacement of reconciliation.replacements) {
+                        for (const property of ['key', 'command', 'when'] as const) {
+                            if (
+                                keybindings[replacement.index]?.[property] !==
+                                replacement.binding[property]
+                            )
+                                preparedSource = applyEdits(
+                                    preparedSource,
+                                    modify(
+                                        preparedSource,
+                                        [replacement.index, property],
+                                        replacement.binding[property],
+                                        { formattingOptions: JSONC_FORMATTING_OPTIONS },
+                                    ),
+                                );
+                        }
+                    }
+                    let bindingCount = keybindings.length;
+                    for (const addition of reconciliation.additions) {
+                        preparedSource = applyEdits(
+                            preparedSource,
+                            modify(preparedSource, [bindingCount], addition, {
+                                formattingOptions: JSONC_FORMATTING_OPTIONS,
+                            }),
+                        );
+                        bindingCount += 1;
+                    }
+                    if (preparedSource !== source) {
+                        configSourceSchema.parse(preparedSource);
+                        keybindings = keybindingsFileSchema.parse(parseJsonc(preparedSource));
+                    }
+                }
                 return {
-                    source,
+                    source: preparedSource,
                     apply: () => {
                         this.keybindings = keybindings;
-                        this.keybindingsSource = source;
+                        this.keybindingsSource = preparedSource;
                     },
                 };
             }
