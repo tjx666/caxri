@@ -43,6 +43,28 @@ export async function mapWithConcurrency<Input, Output>(
 }
 
 /**
+ * Lets one consumer cancel its wait without aborting an operation that may be shared with other consumers.
+ */
+export async function waitForSharedOperation<Value>(
+    operation: Promise<Value>,
+    signal: AbortSignal | undefined,
+    cancellationError: () => Error,
+): Promise<Value> {
+    if (!signal) return operation;
+    if (signal.aborted) throw cancellationError();
+    let cancel = (): void => {};
+    const cancellation = new Promise<never>((_resolve, reject) => {
+        cancel = () => reject(cancellationError());
+        signal.addEventListener('abort', cancel, { once: true });
+    });
+    try {
+        return await Promise.race([operation, cancellation]);
+    } finally {
+        signal.removeEventListener('abort', cancel);
+    }
+}
+
+/**
  * FIFO semaphore for native subprocess and file-descriptor budgets shared by concurrent requests.
  */
 export class AsyncSemaphore {
