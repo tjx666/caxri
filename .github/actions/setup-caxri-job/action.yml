@@ -154,6 +154,11 @@ runs:
         bun run scripts/ci-metrics.ts --label "pnpm registry, unpack, and link" --
         pnpm install --frozen-lockfile --ignore-scripts --prefer-offline --no-runtime
 
+    - name: Prepare node-pty spawn helper
+      if: inputs.install-dependencies == 'true'
+      shell: bash
+      run: bun run scripts/prepare-node-pty.ts
+
     - name: Install Electron binary
       if: inputs.install-electron == 'true'
       shell: bash
